@@ -1,0 +1,21 @@
+packages:
+  - apps/*
+  - packages/*
+  - contracts
+
+# One place for the toolchain versions every package shares. Exact where the spec says "pin".
+catalog:
+  alchemy: 2.0.0-beta.79
+  effect: 4.0.0-rc.117
+  '@effect/platform-node': 4.0.0-rc.117
+  '@effect/vitest': 4.0.0-rc.117
+  # TypeScript 7 (tsgo). Type-checking only; nothing here needs the JS compiler API.
+  typescript: 7.0.2
+  # alchemy peers on vite ^8; vite-plus 1.0.0-rc.0 bundles vitest 5.0.1, which @effect/vitest requires.
+  vite: 8.3.1
+  vite-plus: 1.0.0-rc.0
+  vitest: 5.0.1
+
+overrides:
+  vite: 'catalog:'
+  vitest: 'catalog:'

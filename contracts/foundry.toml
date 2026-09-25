@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+# Monad verification wants metadata present but unhashed (docs.monad.xyz/guides/verify-smart-contract/foundry).
+metadata = true
+metadata_hash = "none"
+use_literal_content = true

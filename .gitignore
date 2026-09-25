@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.alchemy/
+.vite/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+contracts/out/
+contracts/cache/
+contracts/broadcast/

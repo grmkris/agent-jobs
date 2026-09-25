@@ -1,0 +1,35 @@
+{
+  "name": "agent-jobs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "vp run -r typecheck && vp run -r test && vp lint",
+    "check:fast": "vp run -r typecheck && vp lint",
+    "lint": "vp lint",
+    "lint:fix": "vp lint --fix",
+    "dev": "alchemy dev",
+    "deploy:staging": "ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage staging --yes",
+    "alchemy": "alchemy"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@types/node": "^24.3.0",
+    "alchemy": "catalog:",
+    "effect": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "workerd"
+    ]
+  }
+}
