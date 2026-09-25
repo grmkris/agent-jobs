@@ -8,7 +8,7 @@ unaudited. See `AGENTS.md` for the invariants and `docs/decisions/` for the ADRs
 
 ## Status
 
-Spike S0 (toolchain skeleton) done: `pnpm check` runs typecheck, the alchemy workerd harness, `forge test` and lint, cached. Nothing is deployed to Cloudflare yet.
+Spikes S0 (toolchain) and S1 (contracts) done. `pnpm check` runs typecheck, the alchemy workerd harness, `forge test` (lifecycle, fuzz, invariants) and lint, cached. `contracts/SURFACE.md` classifies every function of the vendored ERC-8183 core. Nothing is deployed to Cloudflare or Monad yet.
 
 ## Layout
 
@@ -16,7 +16,7 @@ Spike S0 (toolchain skeleton) done: `pnpm check` runs typecheck, the alchemy wor
 apps/api/         Worker + Durable Objects: hosted boards, wallet sign-in, MCP, relay
 apps/indexer/     Worker: chain events + manifests -> D1 (sole writer)        (B3)
 apps/explore/     Vite SPA                                                    (B3)
-contracts/        Foundry: vendored ERC-8183 core + RewardToken, JobHolding, JobsEvaluator
+contracts/        Foundry: vendored ERC-8183 core (src/vendor, pinned 142e669c) + RewardToken, JobHolding, JobsEvaluator
 packages/board/   the board state machine (pure, tested)
 packages/spec/    Effect Schema wire formats                                  (B2)
 packages/sdk/     publish / claim / accept / submit / finalize / decide / dispute / read (B2)

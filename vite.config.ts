@@ -9,6 +9,8 @@ export default defineConfig({
     fmt: false,
   },
   lint: {
+    // Foundry dependencies are git submodules with their own JS tooling; not ours to lint.
+    ignorePatterns: ['contracts/lib/**', 'contracts/out/**', 'contracts/cache/**'],
     categories: {
       correctness: 'error',
       suspicious: 'error',
