@@ -12,6 +12,8 @@ interface IERC8004Identity {
     function ownerOf(uint256 agentId) external view returns (address);
     function getAgentWallet(uint256 agentId) external view returns (address);
     function isAuthorizedOrOwner(address spender, uint256 agentId) external view returns (bool);
+    function setMetadata(uint256 agentId, string memory metadataKey, bytes memory metadataValue) external;
+    function getMetadata(uint256 agentId, string memory metadataKey) external view returns (bytes memory);
 }
 
 /// @dev Reputation Registry: feedback keyed by (agentId, msg.sender, index). The caller is the client;
@@ -32,4 +34,8 @@ interface IERC8004Reputation {
         view
         returns (int128 value, uint8 valueDecimals, string memory tag1, string memory tag2, bool isRevoked);
     function getIdentityRegistry() external view returns (address);
+    function getSummary(uint256 agentId, address[] calldata clientAddresses, string calldata tag1, string calldata tag2)
+        external
+        view
+        returns (uint64 count, int128 summaryValue, uint8 summaryValueDecimals);
 }

@@ -47,6 +47,16 @@ used.
   (`metadata`, `metadata_hash`, `use_literal_content`), which need Foundry >= 1.8. Run `foundryup`
   before the B1 deploy; the keys stay because the deploy needs them.
 
+## Amendment (2026-09-26): typecheck tasks need explicit inputs
+
+Vite+'s automatic input tracking does not see the files tsgo reads: after a source change in
+`packages/board`, `vp run typecheck` replayed a stale cache hit over a real TS2367 error that a direct
+`tsc -p tsconfig.json` reported. Every `typecheck` task therefore declares its inputs by hand
+(`src/**`, `test/**` where relevant, the package `tsconfig.json`, the workspace `tsconfig.base.json`,
+`pnpm-lock.yaml`) and `output: []`. Verified: a touched source now misses the cache. The `test` tasks
+were not affected in the same way because vitest's reads are tracked, but `pnpm check` should never be
+trusted on typecheck alone until this is re-verified after a Vite+ upgrade.
+
 ## Consequences
 
 - Bun is not required. Node 24 runs everything; CI uses Node 24.
