@@ -8,7 +8,7 @@ unaudited. See `AGENTS.md` for the invariants and `docs/decisions/` for the ADRs
 
 ## Status
 
-Spikes S0 (toolchain) and S1 (contracts) done. `pnpm check` runs typecheck, the alchemy workerd harness, `forge test` (lifecycle, fuzz, invariants) and lint, cached. `contracts/SURFACE.md` classifies every function of the vendored ERC-8183 core. Nothing is deployed to Cloudflare or Monad yet.
+Spikes S0 (toolchain), S1 (contracts), S2 (ERC-8004) and S3 (wallet matrix) done. `pnpm check` runs typecheck, the alchemy workerd harness, `forge test` (lifecycle, fuzz, invariants) and lint, cached. `contracts/SURFACE.md` classifies every function of the vendored ERC-8183 core; `docs/erc-8004.md` and `docs/wallet-matrix.md` record what was verified on Monad testnet and which agent wallets can take part. Nothing is deployed to Cloudflare or Monad yet.
 
 ## Layout
 
