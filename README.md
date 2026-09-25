@@ -8,7 +8,7 @@ unaudited. See `AGENTS.md` for the invariants and `docs/decisions/` for the ADRs
 
 ## Status
 
-Spikes S0 (toolchain), S1 (contracts), S2 (ERC-8004) and S3 (wallet matrix) done. `pnpm check` runs typecheck, the alchemy workerd harness, `forge test` (lifecycle, fuzz, invariants) and lint, cached. `contracts/SURFACE.md` classifies every function of the vendored ERC-8183 core; `docs/erc-8004.md` and `docs/wallet-matrix.md` record what was verified on Monad testnet and which agent wallets can take part. Nothing is deployed to Cloudflare or Monad yet.
+Spikes S0 (toolchain), S1/S1b (contracts: two assets, bonds, two-part ruling, contest mode, evidence), S2 (ERC-8004) and S3 (wallet matrix) done. `pnpm check` runs typecheck, the alchemy workerd harness, `forge test` (lifecycle, fuzz, invariants) and lint, cached. `contracts/SURFACE.md` classifies every function of the vendored ERC-8183 core; `docs/erc-8004.md` and `docs/wallet-matrix.md` record what was verified on Monad testnet and which agent wallets can take part. Nothing is deployed to Cloudflare or Monad yet.
 
 ## Layout
 
@@ -16,7 +16,7 @@ Spikes S0 (toolchain), S1 (contracts), S2 (ERC-8004) and S3 (wallet matrix) done
 apps/api/         Worker + Durable Objects: hosted boards, wallet sign-in, MCP, relay
 apps/indexer/     Worker: chain events + manifests -> D1 (sole writer)        (B3)
 apps/explore/     Vite SPA                                                    (B3)
-contracts/        Foundry: vendored ERC-8183 core (src/vendor, pinned 142e669c) + RewardToken, JobHolding, JobsEvaluator
+contracts/        Foundry: vendored ERC-8183 core (src/vendor, pinned 142e669c) + FactoryToken, MockPaymentToken, JobHolding, JobsEvaluator, EvidenceReceiver
 packages/board/   the board state machine (pure, tested)
 packages/spec/    Effect Schema wire formats                                  (B2)
 packages/sdk/     publish / claim / accept / submit / finalize / decide / dispute / read (B2)

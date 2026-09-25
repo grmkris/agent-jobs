@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
+import {FactoryToken} from "./FactoryToken.sol";
 
 /// @dev The one thing Holding needs from the evaluator: how long settlement can take after delivery.
 interface ISettlementWindow {
@@ -12,70 +13,125 @@ interface ISettlementWindow {
 }
 
 /// @title JobHolding
-/// @notice The ERC-8183 *client* of every listed job (spec §4, option c). A creator deposits the reward and an
-///         optional bond here at publish, so the listing is the escrow; Holding creates the core job, assigns
-///         the worker, and funds the core once the worker has accepted by setting the budget. Every refund the
-///         core makes lands here and is recovered by the creator exactly once through `withdraw`.
+/// @notice The ERC-8183 *client* of every listed job (spec §4). Two assets: the reward in any allowlisted
+///         payment token, escrowed here at publish and moved into the core once the worker accepts; and
+///         collateral in `$FACTORY`, a creator bond pulled at publish and a worker bond pulled at accept, both
+///         locked here through settlement. A hold requirement in FACTORY gates publishing and claiming.
 ///
-///         Money rules: one job's reward and bond are never mixed with another's; the bond goes to the worker
-///         only on an arbitrator ruling for the worker (`moveBondToWorker`), and back to the creator on any
-///         other terminal settlement.
+///         Two modes. Hire-first: the creator assigns one worker. Contest: the prize is locked at publish,
+///         candidates are collected off-chain, and the creator picks one before `selectionDeadline`; if
+///         nobody is picked, anyone can expire the contest and the prize returns.
+///
+///         Money rules: one job's assets never mix with another's; a bond is burned only by the evaluator on
+///         a ruling that found a violation; every other terminal path returns both bonds; every refund the
+///         core makes lands here and is recovered by its owner exactly once.
 contract JobHolding {
     using SafeERC20 for IERC20;
 
+    enum Mode {
+        HireFirst,
+        Contest
+    }
+
+    enum Side {
+        Creator,
+        Worker
+    }
+
     struct Listing {
         address creator;
+        address worker;
+        IERC20 token;
+        Mode mode;
         uint48 deliveryDeadline;
+        uint48 selectionDeadline;
         bool funded;
+        bool workerBondPosted;
         bool rewardWithdrawn;
-        bool bondSettled;
+        bool creatorBondSettled;
+        bool workerBondSettled;
         uint256 reward;
-        uint256 bond;
+        uint256 creatorBond;
+        uint256 workerBond;
         bytes32 manifestHash;
     }
 
+    struct PublishParams {
+        bytes32 manifestHash;
+        IERC20 token;
+        uint256 reward;
+        uint256 creatorBond;
+        uint256 workerBond;
+        uint48 deliveryDeadline;
+        uint48 expiredAt;
+        Mode mode;
+        /// @dev Contest only: the creator must pick a winner by then; zero for hire-first.
+        uint48 selectionDeadline;
+    }
+
     ERC8183 public immutable core;
-    IERC20 public immutable token;
-    address public immutable deployer;
+    FactoryToken public immutable factory;
+    address public immutable admin;
     /// @notice Set exactly once after deploy (the evaluator needs this address in its constructor).
     address public evaluator;
+    /// @notice FACTORY a wallet must hold to publish, and to post a worker bond. Sybil resistance only.
+    uint256 public minHoldToPublish;
+    uint256 public minHoldToClaim;
 
     mapping(uint256 jobId => Listing) public listings;
 
     event Published(
         uint256 indexed jobId,
         address indexed creator,
-        bytes32 manifestHash,
+        Mode mode,
+        address token,
         uint256 reward,
-        uint256 bond,
+        uint256 creatorBond,
+        uint256 workerBond,
+        bytes32 manifestHash,
         uint48 deliveryDeadline,
+        uint48 selectionDeadline,
         uint48 expiredAt
     );
-    event Assigned(uint256 indexed jobId, address indexed worker, uint256 agentId);
+    event Assigned(uint256 indexed jobId, address indexed worker, uint256 agentId, bool byContestSelection);
+    event WorkerBondPosted(uint256 indexed jobId, address indexed worker, uint256 amount);
     event Funded(uint256 indexed jobId);
     event Cancelled(uint256 indexed jobId);
+    event ContestExpired(uint256 indexed jobId);
     event RewardWithdrawn(uint256 indexed jobId, address indexed creator, uint256 amount);
-    event BondMovedToWorker(uint256 indexed jobId, address indexed worker, uint256 amount);
-    event BondReturned(uint256 indexed jobId, address indexed creator, uint256 amount);
+    event BondReturned(uint256 indexed jobId, Side side, address indexed to, uint256 amount);
+    event BondBurned(uint256 indexed jobId, Side side, uint256 amount);
+    event HoldRequirementsSet(uint256 minHoldToPublish, uint256 minHoldToClaim);
 
-    error NotDeployer();
+    error NotAdmin();
     error EvaluatorAlreadySet();
     error EvaluatorNotSet();
     error NotCreator();
+    error NotWorker();
     error NotEvaluator();
     error ZeroReward();
     error AgentIdRequired();
     error ExpiryTooShort();
+    error SelectionDeadlineInvalid();
+    error WrongMode();
+    error InsufficientFactoryHeld(uint256 held, uint256 required);
     error AlreadyFunded();
     error AlreadyAssigned();
+    error NotAssigned();
+    error SelectionWindowClosed();
+    error SelectionWindowOpen();
+    error BondNotPosted();
+    error BondAlreadyPosted();
     error NotAccepted();
     error NothingToWithdraw();
-    error BondAlreadySettled();
+    error NotTerminal();
 
-    constructor(ERC8183 core_, IERC20 token_) {
+    constructor(ERC8183 core_, FactoryToken factory_, uint256 minHoldToPublish_, uint256 minHoldToClaim_) {
         core = core_;
-        token = token_;
-        deployer = msg.sender;
+        factory = factory_;
+        admin = msg.sender;
+        minHoldToPublish = minHoldToPublish_;
+        minHoldToClaim = minHoldToClaim_;
     }
 
     modifier onlyCreator(uint256 jobId) {
@@ -88,132 +144,198 @@ contract JobHolding {
         _;
     }
 
-    /// @notice One-time wiring; the evaluator is immutable from then on.
+    // ---------------------------------------------------------------------------------------------
+    // Admin (deployer EOA; documented in the README)
+    // ---------------------------------------------------------------------------------------------
+
     function setEvaluator(address evaluator_) external {
-        if (msg.sender != deployer) revert NotDeployer();
+        if (msg.sender != admin) revert NotAdmin();
         if (evaluator != address(0)) revert EvaluatorAlreadySet();
         evaluator = evaluator_;
+    }
+
+    function setHoldRequirements(uint256 minHoldToPublish_, uint256 minHoldToClaim_) external {
+        if (msg.sender != admin) revert NotAdmin();
+        minHoldToPublish = minHoldToPublish_;
+        minHoldToClaim = minHoldToClaim_;
+        emit HoldRequirementsSet(minHoldToPublish_, minHoldToClaim_);
     }
 
     // ---------------------------------------------------------------------------------------------
     // Creator actions
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice Escrows `reward + bond` and creates the core job with Holding as client and no provider.
-    /// @param manifestHash keccak256 of the canonical manifest JSON; the bytes live in R2.
-    /// @param deliveryDeadline When the worker must have finalized. Enforced by the evaluator's
-    ///        `rejectAfterDeliveryDeadline`; the board service refuses late finalizes off-chain too.
-    /// @param expiredAt The core's expiry. Must leave the whole settlement window after delivery, so a
-    ///        permissionless `claimRefund` can never pre-empt review, dispute filing or arbitration.
-    function publish(bytes32 manifestHash, uint256 reward, uint256 bond, uint48 deliveryDeadline, uint48 expiredAt)
-        external
-        returns (uint256 jobId)
-    {
+    /// @notice Escrows the reward and the creator's FACTORY bond and creates the core job with Holding as
+    ///         client and no provider. The listing is the escrow.
+    function publish(PublishParams calldata p) external returns (uint256 jobId) {
         if (evaluator == address(0)) revert EvaluatorNotSet();
-        if (reward == 0) revert ZeroReward();
-        if (expiredAt < uint256(deliveryDeadline) + ISettlementWindow(evaluator).settlementWindow()) {
+        if (p.reward == 0) revert ZeroReward();
+        _requireHold(msg.sender, minHoldToPublish);
+        if (p.expiredAt < uint256(p.deliveryDeadline) + ISettlementWindow(evaluator).settlementWindow()) {
             revert ExpiryTooShort();
         }
+        if (p.mode == Mode.Contest) {
+            if (p.selectionDeadline <= block.timestamp || p.selectionDeadline >= p.deliveryDeadline) {
+                revert SelectionDeadlineInvalid();
+            }
+        } else if (p.selectionDeadline != 0) {
+            revert SelectionDeadlineInvalid();
+        }
 
-        token.safeTransferFrom(msg.sender, address(this), reward + bond);
+        p.token.safeTransferFrom(msg.sender, address(this), p.reward);
+        if (p.creatorBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), p.creatorBond);
+
         jobId = core.createJob(
-            address(0), evaluator, expiredAt, Strings.toHexString(uint256(manifestHash), 32), address(0), 0
+            address(0), evaluator, p.expiredAt, Strings.toHexString(uint256(p.manifestHash), 32), address(0), 0
         );
-        listings[jobId] = Listing({
-            creator: msg.sender,
-            deliveryDeadline: deliveryDeadline,
-            funded: false,
-            rewardWithdrawn: false,
-            bondSettled: false,
-            reward: reward,
-            bond: bond,
-            manifestHash: manifestHash
-        });
-        emit Published(jobId, msg.sender, manifestHash, reward, bond, deliveryDeadline, expiredAt);
+        Listing storage l = listings[jobId];
+        l.creator = msg.sender;
+        l.token = p.token;
+        l.mode = p.mode;
+        l.deliveryDeadline = p.deliveryDeadline;
+        l.selectionDeadline = p.selectionDeadline;
+        l.reward = p.reward;
+        l.creatorBond = p.creatorBond;
+        l.workerBond = p.workerBond;
+        l.manifestHash = p.manifestHash;
+
+        emit Published(
+            jobId,
+            msg.sender,
+            p.mode,
+            address(p.token),
+            p.reward,
+            p.creatorBond,
+            p.workerBond,
+            p.manifestHash,
+            p.deliveryDeadline,
+            p.selectionDeadline,
+            p.expiredAt
+        );
     }
 
-    /// @notice Names the worker (and its ERC-8004 agent id) as the core's provider. The worker still has to
-    ///         accept by setting the budget before anything is funded.
+    /// @notice Hire-first: names the worker (and its ERC-8004 agent id) as the core's provider.
     function assign(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
-        if (agentId == 0) revert AgentIdRequired();
-        core.setProvider(jobId, worker, agentId);
-        emit Assigned(jobId, worker, agentId);
+        if (listings[jobId].mode != Mode.HireFirst) revert WrongMode();
+        _assign(jobId, worker, agentId, false);
     }
 
-    /// @notice Cancels an unassigned listing. The core job becomes Rejected with nothing escrowed there;
-    ///         `withdraw` then returns reward and bond.
+    /// @notice Contest: picks the winning entrant before the selection deadline. Same effect as `assign`.
+    function select(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
+        Listing storage l = listings[jobId];
+        if (l.mode != Mode.Contest) revert WrongMode();
+        if (block.timestamp > l.selectionDeadline) revert SelectionWindowClosed();
+        _assign(jobId, worker, agentId, true);
+    }
+
+    /// @notice Cancels an unassigned listing (either mode). Nothing was escrowed in the core; `withdraw`
+    ///         then returns reward and creator bond.
     function cancel(uint256 jobId) external onlyCreator(jobId) {
         if (listings[jobId].funded) revert AlreadyFunded();
-        if (core.getJob(jobId).provider != address(0)) revert AlreadyAssigned();
+        if (listings[jobId].worker != address(0)) revert AlreadyAssigned();
         core.reject(jobId, "cancelled", "");
         emit Cancelled(jobId);
     }
 
-    /// @notice Recovers whatever of this job's money is back in Holding: the reward once the core job is
-    ///         Rejected or Expired, the bond once the job is terminal and no ruling moved it. Each at most once.
+    /// @notice Recovers the creator's share of whatever is back in Holding: the reward once the core job is
+    ///         Rejected or Expired, the creator bond once the job is terminal and no ruling burned it.
     function withdraw(uint256 jobId) external onlyCreator(jobId) {
-        Listing storage listing = listings[jobId];
+        Listing storage l = listings[jobId];
         ERC8183.JobStatus status = core.getJob(jobId).status;
-        uint256 amount;
+        uint256 rewardOut;
+        if (!l.rewardWithdrawn && _rewardIsHere(status)) {
+            l.rewardWithdrawn = true;
+            rewardOut = l.reward;
+            emit RewardWithdrawn(jobId, l.creator, rewardOut);
+        }
+        bool bondOut;
+        if (!l.creatorBondSettled && _isTerminal(status)) {
+            bondOut = true;
+            _returnBond(jobId, l, Side.Creator);
+        }
+        if (rewardOut == 0 && !bondOut) revert NothingToWithdraw();
+        if (rewardOut > 0) l.token.safeTransfer(l.creator, rewardOut);
+    }
 
-        if (!listing.rewardWithdrawn && _rewardIsHere(status)) {
-            listing.rewardWithdrawn = true;
-            amount += listing.reward;
-            emit RewardWithdrawn(jobId, listing.creator, listing.reward);
-        }
-        if (!listing.bondSettled && listing.bond > 0 && _isTerminal(status)) {
-            listing.bondSettled = true;
-            amount += listing.bond;
-            emit BondReturned(jobId, listing.creator, listing.bond);
-        }
-        if (amount == 0) revert NothingToWithdraw();
-        token.safeTransfer(listing.creator, amount);
+    // ---------------------------------------------------------------------------------------------
+    // Worker actions
+    // ---------------------------------------------------------------------------------------------
+
+    /// @notice The assigned worker posts its FACTORY bond (and passes the hold gate). Required before
+    ///         funding, even when the bond is zero, so acceptance is an explicit act.
+    function postWorkerBond(uint256 jobId) external {
+        Listing storage l = listings[jobId];
+        if (l.worker != msg.sender) revert NotWorker();
+        if (l.workerBondPosted) revert BondAlreadyPosted();
+        _requireHold(msg.sender, minHoldToClaim);
+        l.workerBondPosted = true;
+        if (l.workerBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), l.workerBond);
+        emit WorkerBondPosted(jobId, msg.sender, l.workerBond);
+    }
+
+    /// @notice Recovers the worker's bond after a terminal settlement that did not burn it and that no
+    ///         evaluator path returned (a third-party `claimRefund`, for instance).
+    function withdrawWorkerBond(uint256 jobId) external {
+        Listing storage l = listings[jobId];
+        if (l.worker != msg.sender) revert NotWorker();
+        if (!_isTerminal(core.getJob(jobId).status)) revert NotTerminal();
+        if (l.workerBondSettled || !l.workerBondPosted) revert NothingToWithdraw();
+        _returnBond(jobId, l, Side.Worker);
     }
 
     // ---------------------------------------------------------------------------------------------
     // Anyone
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice Funds the core once the assigned worker has accepted by setting the budget to exactly the
+    /// @notice Funds the core once the assigned worker has posted its bond and set the budget to exactly the
     ///         listed reward in the listed token. Anyone may call: the effect is fixed by the listing.
     function fundAfterAccept(uint256 jobId) external {
-        Listing storage listing = listings[jobId];
-        if (listing.creator == address(0)) revert NotCreator();
-        if (listing.funded) revert AlreadyFunded();
+        Listing storage l = listings[jobId];
+        if (l.creator == address(0)) revert NotCreator();
+        if (l.funded) revert AlreadyFunded();
+        if (!l.workerBondPosted) revert BondNotPosted();
         ERC8183.Job memory job = core.getJob(jobId);
-        if (job.provider == address(0) || job.paymentToken != address(token) || job.budget != listing.reward) {
+        if (job.provider == address(0) || job.paymentToken != address(l.token) || job.budget != l.reward) {
             revert NotAccepted();
         }
-        listing.funded = true;
-        token.forceApprove(address(core), listing.reward);
-        core.fund(jobId, address(token), listing.reward, "");
+        l.funded = true;
+        l.token.forceApprove(address(core), l.reward);
+        core.fund(jobId, address(l.token), l.reward, "");
         emit Funded(jobId);
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Evaluator-only bond movements
-    // ---------------------------------------------------------------------------------------------
-
-    /// @notice The only path by which a bond reaches the worker: an arbitrator ruling for the worker.
-    function moveBondToWorker(uint256 jobId) external onlyEvaluator {
-        Listing storage listing = listings[jobId];
-        if (listing.bondSettled) revert BondAlreadySettled();
-        listing.bondSettled = true;
-        if (listing.bond == 0) return;
-        address worker = core.getJob(jobId).provider;
-        token.safeTransfer(worker, listing.bond);
-        emit BondMovedToWorker(jobId, worker, listing.bond);
+    /// @notice A contest nobody was picked for by its selection deadline is over; the prize returns via
+    ///         `withdraw`.
+    function expireContest(uint256 jobId) external {
+        Listing storage l = listings[jobId];
+        if (l.mode != Mode.Contest) revert WrongMode();
+        if (l.worker != address(0)) revert AlreadyAssigned();
+        if (block.timestamp <= l.selectionDeadline) revert SelectionWindowOpen();
+        core.reject(jobId, "contest-expired", "");
+        emit ContestExpired(jobId);
     }
 
-    /// @notice Returns the bond to the creator on any other terminal settlement. Idempotent for the
-    ///         evaluator's convenience: a bond already settled is left alone.
-    function returnBond(uint256 jobId) external onlyEvaluator {
-        Listing storage listing = listings[jobId];
-        if (listing.bondSettled) return;
-        listing.bondSettled = true;
-        if (listing.bond == 0) return;
-        token.safeTransfer(listing.creator, listing.bond);
-        emit BondReturned(jobId, listing.creator, listing.bond);
+    // ---------------------------------------------------------------------------------------------
+    // Evaluator-only collateral movements
+    // ---------------------------------------------------------------------------------------------
+
+    /// @notice The only path by which a bond is destroyed: a ruling that found a violation on that side.
+    function burnBond(uint256 jobId, Side side) external onlyEvaluator {
+        Listing storage l = listings[jobId];
+        (uint256 amount, bool present) = _bondOf(l, side);
+        if (!present) return;
+        _markSettled(l, side);
+        if (amount == 0) return;
+        factory.burn(amount);
+        emit BondBurned(jobId, side, amount);
+    }
+
+    /// @notice Returns both bonds to their owners on any terminal settlement. Idempotent: a bond already
+    ///         settled (returned or burned) is left alone.
+    function returnBonds(uint256 jobId) external onlyEvaluator {
+        Listing storage l = listings[jobId];
+        if (!l.creatorBondSettled) _returnBond(jobId, l, Side.Creator);
+        if (!l.workerBondSettled && l.workerBondPosted) _returnBond(jobId, l, Side.Worker);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -228,13 +350,47 @@ contract JobHolding {
         return listings[jobId].deliveryDeadline;
     }
 
-    /// @notice Whether Holding moved this job's reward into the core. The evaluator settles nothing else.
     function isFunded(uint256 jobId) external view returns (bool) {
         return listings[jobId].funded;
     }
 
-    /// @dev Rejected or Expired means the core either never held the reward (cancelled or expired while
-    ///      Open) or has refunded it to Holding. Completed means it went to the worker.
+    // ---------------------------------------------------------------------------------------------
+    // Internals
+    // ---------------------------------------------------------------------------------------------
+
+    function _assign(uint256 jobId, address worker, uint256 agentId, bool byContestSelection) private {
+        Listing storage l = listings[jobId];
+        if (agentId == 0) revert AgentIdRequired();
+        if (l.worker != address(0)) revert AlreadyAssigned();
+        l.worker = worker;
+        core.setProvider(jobId, worker, agentId);
+        emit Assigned(jobId, worker, agentId, byContestSelection);
+    }
+
+    function _requireHold(address who, uint256 required) private view {
+        uint256 held = factory.balanceOf(who);
+        if (held < required) revert InsufficientFactoryHeld(held, required);
+    }
+
+    function _bondOf(Listing storage l, Side side) private view returns (uint256 amount, bool present) {
+        if (side == Side.Creator) return (l.creatorBond, !l.creatorBondSettled);
+        return (l.workerBond, l.workerBondPosted && !l.workerBondSettled);
+    }
+
+    function _markSettled(Listing storage l, Side side) private {
+        if (side == Side.Creator) l.creatorBondSettled = true;
+        else l.workerBondSettled = true;
+    }
+
+    function _returnBond(uint256 jobId, Listing storage l, Side side) private {
+        (uint256 amount,) = _bondOf(l, side);
+        _markSettled(l, side);
+        address to = side == Side.Creator ? l.creator : l.worker;
+        if (amount > 0) IERC20(address(factory)).safeTransfer(to, amount);
+        emit BondReturned(jobId, side, to, amount);
+    }
+
+    /// @dev Rejected or Expired means the core either never held the reward or has refunded it to Holding.
     function _rewardIsHere(ERC8183.JobStatus status) private pure returns (bool) {
         return status == ERC8183.JobStatus.Rejected || status == ERC8183.JobStatus.Expired;
     }

@@ -1,207 +1,318 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Base} from "./Base.t.sol";
 import {ERC8183} from "../src/vendor/erc8183/ERC8183.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
+import {EvidenceReceiver} from "../src/EvidenceReceiver.sol";
 import {JobHolding} from "../src/JobHolding.sol";
 import {JobsEvaluator} from "../src/JobsEvaluator.sol";
 
-/// @dev The §4 acceptance list, one test per line, against the pinned core.
+/// @dev The §4 acceptance list (S1 + S1b), one test per line, against the pinned core.
 contract LifecycleTest is Base {
     // ------------------------------------------------------------------------------------------
-    // Happy path
+    // Happy path, two assets
     // ------------------------------------------------------------------------------------------
 
     function test_happyPath_directWorker() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = publish(REWARD, BOND);
-        assertEq(token.balanceOf(creator), before - REWARD - BOND, "listing is the escrow");
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 cFacBefore = factory.balanceOf(creator);
+        uint256 wFacBefore = factory.balanceOf(worker);
+
+        uint256 jobId = publish();
+        assertEq(pay.balanceOf(creator), payBefore - REWARD, "reward escrowed in the payment token");
+        assertEq(factory.balanceOf(creator), cFacBefore - CREATOR_BOND, "creator bond pulled in FACTORY");
         assertEq(core.getJob(jobId).client, address(holding), "Holding is the client");
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Open));
 
         assign(jobId);
-        assertEq(core.getJob(jobId).provider, worker);
         assertEq(core.getJob(jobId).providerAgentId, AGENT_ID, "agent id rides on the core job");
-
-        vm.expectRevert(JobHolding.NotAccepted.selector);
+        vm.expectRevert(JobHolding.BondNotPosted.selector);
         holding.fundAfterAccept(jobId);
 
         acceptDirect(jobId, REWARD);
+        assertEq(factory.balanceOf(worker), wFacBefore - WORKER_BOND, "worker bond pulled at accept");
         fund(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Funded));
-        assertEq(token.balanceOf(address(core)), REWARD, "reward moved into the core");
-        assertEq(token.balanceOf(address(holding)), BOND, "bond stays in Holding");
+        assertEq(pay.balanceOf(address(core)), REWARD, "reward moved into the core");
+        assertEq(factory.balanceOf(address(core)), 0, "FACTORY never enters the core");
+        assertEq(factory.balanceOf(address(holding)), CREATOR_BOND + WORKER_BOND, "both bonds locked in Holding");
 
         submitDirect(jobId);
         vm.prank(creator);
         evaluator.accept(jobId);
 
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Completed));
-        assertEq(token.balanceOf(worker), REWARD, "worker paid from escrow");
-        assertEq(token.balanceOf(creator), before - REWARD, "bond came back");
-        assertEq(token.balanceOf(address(holding)), 0);
-        assertEq(token.balanceOf(address(core)), 0);
+        assertEq(pay.balanceOf(worker), REWARD, "worker paid from escrow");
+        assertEq(factory.balanceOf(creator), cFacBefore, "creator bond back");
+        assertEq(factory.balanceOf(worker), wFacBefore, "worker bond back");
+        assertEq(factory.balanceOf(address(holding)) + pay.balanceOf(address(holding)), 0);
     }
 
     function test_happyPath_relayedWorker() public {
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 jobId = publish();
         assign(jobId);
         acceptRelayed(jobId, REWARD, 1, block.timestamp + 1 hours);
         fund(jobId);
         submitRelayed(jobId, 2);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Submitted));
         vm.prank(creator);
         evaluator.accept(jobId);
-        assertEq(token.balanceOf(worker), REWARD);
-        assertEq(token.balanceOf(relayer), 0, "the relayer never touches money");
+        assertEq(pay.balanceOf(worker), REWARD);
+        assertEq(pay.balanceOf(relayer) + factory.balanceOf(relayer), 0, "the relayer never touches money");
     }
 
     function test_publish_requiresSettlementWindowAfterDelivery() public {
-        uint48 dd = deliveryDeadline();
-        uint48 tooShort = dd + evaluator.settlementWindow() - 1;
+        JobHolding.PublishParams memory p = params(REWARD, CREATOR_BOND, WORKER_BOND);
+        p.expiredAt = p.deliveryDeadline + evaluator.settlementWindow() - 1;
         vm.prank(creator);
         vm.expectRevert(JobHolding.ExpiryTooShort.selector);
-        holding.publish(MANIFEST, REWARD, BOND, dd, tooShort);
+        holding.publish(p);
     }
 
     function test_assign_requiresAgentId() public {
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 jobId = publish();
         vm.prank(creator);
         vm.expectRevert(JobHolding.AgentIdRequired.selector);
         holding.assign(jobId, worker, 0);
     }
 
     // ------------------------------------------------------------------------------------------
-    // Three money paths, each recovered exactly once
+    // Hold gate and bonds
+    // ------------------------------------------------------------------------------------------
+
+    function test_holdGate_publishAndClaim() public {
+        JobHolding.PublishParams memory p = params(REWARD, 0, 0);
+        pay.mint(stranger, REWARD);
+        vm.prank(stranger);
+        pay.approve(address(holding), REWARD);
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(JobHolding.InsufficientFactoryHeld.selector, 0, MIN_HOLD));
+        holding.publish(p);
+
+        uint256 jobId = publish(REWARD, 0, 0);
+        vm.prank(creator);
+        holding.assign(jobId, stranger, AGENT_ID);
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(JobHolding.InsufficientFactoryHeld.selector, 0, MIN_HOLD));
+        holding.postWorkerBond(jobId);
+    }
+
+    function test_bond_zeroBondsStillNeedAnExplicitAccept() public {
+        uint256 jobId = publish(REWARD, 0, 0);
+        assign(jobId);
+        vm.prank(worker);
+        core.setBudget(jobId, address(pay), REWARD, "");
+        vm.expectRevert(JobHolding.BondNotPosted.selector);
+        holding.fundAfterAccept(jobId);
+        postBond(jobId);
+        fund(jobId);
+        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Funded));
+    }
+
+    function test_bond_onlyTheAssignedWorkerPostsOnce() public {
+        uint256 jobId = publish();
+        assign(jobId);
+        vm.prank(stranger);
+        vm.expectRevert(JobHolding.NotWorker.selector);
+        holding.postWorkerBond(jobId);
+        postBond(jobId);
+        vm.prank(worker);
+        vm.expectRevert(JobHolding.BondAlreadyPosted.selector);
+        holding.postWorkerBond(jobId);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Money paths, each recovered exactly once
     // ------------------------------------------------------------------------------------------
 
     function test_moneyPath_cancelBeforeAssignment() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 facBefore = factory.balanceOf(creator);
+        uint256 jobId = publish();
         vm.prank(creator);
         holding.cancel(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
-        assertEq(token.balanceOf(address(core)), 0, "nothing was ever escrowed in the core");
-
         vm.prank(creator);
         holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before, "reward and bond back");
-
+        assertEq(pay.balanceOf(creator), payBefore, "reward back");
+        assertEq(factory.balanceOf(creator), facBefore, "creator bond back");
         vm.prank(creator);
         vm.expectRevert(JobHolding.NothingToWithdraw.selector);
         holding.withdraw(jobId);
     }
 
-    function test_moneyPath_cancelRefusedOnceAssigned() public {
-        uint256 jobId = publish(REWARD, BOND);
-        assign(jobId);
-        vm.prank(creator);
-        vm.expectRevert(JobHolding.AlreadyAssigned.selector);
-        holding.cancel(jobId);
-    }
-
-    function test_moneyPath_terminalRejectAfterFunding() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = submittedJob(REWARD, BOND);
+    function test_moneyPath_terminalRejectAfterFundingReturnsBothBonds() public {
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 wFac = factory.balanceOf(worker);
+        uint256 jobId = submittedJob();
         vm.prank(creator);
         evaluator.creatorReject(jobId);
         vm.warp(block.timestamp + DISPUTE + 1);
         evaluator.rejectAfterWindow(jobId);
-
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
-        assertEq(token.balanceOf(address(holding)), REWARD, "core refunded the reward to Holding");
-        assertEq(token.balanceOf(creator), before - REWARD, "bond already returned by the evaluator");
-
+        assertEq(factory.balanceOf(creator), cFac, "creator bond returned by the timeout");
+        assertEq(factory.balanceOf(worker), wFac, "worker bond returned by the timeout");
         vm.prank(creator);
         holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before);
-        vm.prank(creator);
-        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdraw(jobId);
+        assertEq(pay.balanceOf(creator), payBefore, "reward refunded");
     }
 
-    function test_moneyPath_thirdPartyClaimRefund() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = fundedJob(REWARD, BOND);
-        // The worker never submits; a stranger calls the core directly once the job has expired.
+    function test_moneyPath_thirdPartyClaimRefund_workerRecoversOwnBond() public {
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 wFac = factory.balanceOf(worker);
+        uint256 jobId = fundedJob();
         vm.warp(uint256(expiry()) + 1);
         vm.prank(stranger);
         core.claimRefund(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Expired));
-        assertEq(token.balanceOf(address(holding)), REWARD + BOND, "refund landed in Holding without our API");
-
+        // No evaluator path ran, so each side pulls its own share.
         vm.prank(creator);
         holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before, "reward and bond recovered together");
-        vm.prank(creator);
+        vm.prank(worker);
+        holding.withdrawWorkerBond(jobId);
+        assertEq(pay.balanceOf(creator), payBefore);
+        assertEq(factory.balanceOf(creator), cFac);
+        assertEq(factory.balanceOf(worker), wFac);
+        vm.prank(worker);
         vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdraw(jobId);
+        holding.withdrawWorkerBond(jobId);
     }
 
-    function test_withdraw_nothingWhileListingIsLive() public {
-        uint256 jobId = publish(REWARD, BOND);
+    function test_withdrawWorkerBond_notBeforeTerminal() public {
+        uint256 jobId = fundedJob();
+        vm.prank(worker);
+        vm.expectRevert(JobHolding.NotTerminal.selector);
+        holding.withdrawWorkerBond(jobId);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Contest mode
+    // ------------------------------------------------------------------------------------------
+
+    function test_contest_pickWinnerThenNormalSettlement() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
         vm.prank(creator);
-        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdraw(jobId);
+        uint256 jobId = holding.publish(p);
+        assertEq(pay.balanceOf(address(holding)), REWARD, "prize locked at publish");
+
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.WrongMode.selector);
+        holding.assign(jobId, worker, AGENT_ID);
+
+        vm.prank(creator);
+        holding.select(jobId, worker, AGENT_ID);
+        acceptDirect(jobId, REWARD);
+        fund(jobId);
+        submitDirect(jobId);
+        vm.prank(creator);
+        evaluator.accept(jobId);
+        assertEq(pay.balanceOf(worker), REWARD, "the picked entrant is paid like a hired worker");
+    }
+
+    function test_contest_noPickByDeadlineRefundsThePrize() public {
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 facBefore = factory.balanceOf(creator);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+
+        vm.expectRevert(JobHolding.SelectionWindowOpen.selector);
+        holding.expireContest(jobId);
+        vm.warp(uint256(p.selectionDeadline) + 1);
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.SelectionWindowClosed.selector);
+        holding.select(jobId, worker, AGENT_ID);
+
         vm.prank(stranger);
-        vm.expectRevert(JobHolding.NotCreator.selector);
-        holding.withdraw(jobId);
-    }
-
-    // ------------------------------------------------------------------------------------------
-    // Dispute
-    // ------------------------------------------------------------------------------------------
-
-    function test_dispute_rulingForWorkerMovesRewardAndBond() public {
-        uint256 jobId = submittedJob(REWARD, BOND);
-        vm.prank(creator);
-        evaluator.creatorReject(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Submitted), "rejection moves nothing");
-
-        vm.prank(worker);
-        evaluator.dispute(jobId);
-        vm.prank(arbitrator);
-        evaluator.rule(jobId, true);
-
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Completed));
-        assertEq(token.balanceOf(worker), REWARD + BOND, "reward from escrow, bond from Holding");
-        assertEq(token.balanceOf(address(holding)), 0);
-    }
-
-    function test_dispute_rulingForCreatorRefundsAndReturnsBond() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = submittedJob(REWARD, BOND);
-        vm.prank(creator);
-        evaluator.creatorReject(jobId);
-        vm.prank(worker);
-        evaluator.dispute(jobId);
-        vm.prank(arbitrator);
-        evaluator.rule(jobId, false);
-
+        holding.expireContest(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
         vm.prank(creator);
         holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before);
-        assertEq(token.balanceOf(worker), 0);
+        assertEq(pay.balanceOf(creator), payBefore, "prize back");
+        assertEq(factory.balanceOf(creator), facBefore, "creator bond back");
+    }
+
+    function test_contest_selectionDeadlineMustPrecedeDelivery() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        p.selectionDeadline = p.deliveryDeadline;
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.SelectionDeadlineInvalid.selector);
+        holding.publish(p);
+        JobHolding.PublishParams memory h = params(REWARD, CREATOR_BOND, WORKER_BOND);
+        h.selectionDeadline = uint48(block.timestamp + 1 days);
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.SelectionDeadlineInvalid.selector);
+        holding.publish(h);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Dispute: the two-part ruling
+    // ------------------------------------------------------------------------------------------
+
+    function test_ruling_forWorkerNoViolation_bothBondsReturn() public {
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 wFac = factory.balanceOf(worker);
+        uint256 supply = factory.totalSupply();
+        uint256 jobId = disputedJob();
+        vm.prank(arbitrator);
+        evaluator.rule(jobId, true, false);
+        assertEq(pay.balanceOf(worker), REWARD, "reward from escrow");
+        assertEq(factory.balanceOf(creator), cFac, "creator bond back: losing is not misconduct");
+        assertEq(factory.balanceOf(worker), wFac);
+        assertEq(factory.totalSupply(), supply, "nothing burned");
+    }
+
+    function test_ruling_forWorkerWithViolation_burnsCreatorBond() public {
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 wFac = factory.balanceOf(worker);
+        uint256 supply = factory.totalSupply();
+        uint256 jobId = disputedJob();
+        vm.prank(arbitrator);
+        evaluator.rule(jobId, true, true);
+        assertEq(pay.balanceOf(worker), REWARD);
+        assertEq(factory.balanceOf(creator), cFac - CREATOR_BOND, "creator bond gone");
+        assertEq(factory.balanceOf(worker), wFac, "worker bond back, worker does not receive the burn");
+        assertEq(factory.totalSupply(), supply - CREATOR_BOND, "burned, not transferred");
+    }
+
+    function test_ruling_forCreatorNoViolation_refundAndBothBondsReturn() public {
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 wFac = factory.balanceOf(worker);
+        uint256 jobId = disputedJob();
+        vm.prank(arbitrator);
+        evaluator.rule(jobId, false, false);
+        vm.prank(creator);
+        holding.withdraw(jobId);
+        assertEq(pay.balanceOf(creator), payBefore);
+        assertEq(factory.balanceOf(creator), cFac);
+        assertEq(factory.balanceOf(worker), wFac);
+    }
+
+    function test_ruling_forCreatorWithViolation_burnsWorkerBond() public {
+        uint256 wFac = factory.balanceOf(worker);
+        uint256 supply = factory.totalSupply();
+        uint256 jobId = disputedJob();
+        vm.prank(arbitrator);
+        evaluator.rule(jobId, false, true);
+        assertEq(factory.balanceOf(worker), wFac - WORKER_BOND, "worker bond gone");
+        assertEq(factory.totalSupply(), supply - WORKER_BOND);
+        assertEq(pay.balanceOf(worker), 0);
     }
 
     function test_dispute_onlyPartiesAndOnlyInWindow() public {
-        uint256 jobId = submittedJob(REWARD, BOND);
+        uint256 jobId = submittedJob();
         vm.prank(worker);
         vm.expectRevert(JobsEvaluator.NotRejected.selector);
         evaluator.dispute(jobId);
-
         vm.prank(stranger);
         vm.expectRevert(JobsEvaluator.NotCreator.selector);
         evaluator.creatorReject(jobId);
         vm.prank(creator);
         evaluator.creatorReject(jobId);
-
         vm.prank(stranger);
         vm.expectRevert(JobsEvaluator.NotProvider.selector);
         evaluator.dispute(jobId);
-
         vm.warp(block.timestamp + DISPUTE + 1);
         vm.prank(worker);
         vm.expectRevert(JobsEvaluator.WindowClosed.selector);
@@ -209,88 +320,61 @@ contract LifecycleTest is Base {
     }
 
     function test_rule_onlyArbitratorAndOnlyWhenDisputed() public {
-        uint256 jobId = submittedJob(REWARD, BOND);
+        uint256 jobId = submittedJob();
         vm.prank(arbitrator);
         vm.expectRevert(JobsEvaluator.NotDisputed.selector);
-        evaluator.rule(jobId, true);
+        evaluator.rule(jobId, true, false);
         vm.prank(creator);
         evaluator.creatorReject(jobId);
         vm.prank(worker);
         evaluator.dispute(jobId);
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.NotArbitrator.selector);
-        evaluator.rule(jobId, false);
+        evaluator.rule(jobId, false, true);
     }
 
     // ------------------------------------------------------------------------------------------
-    // Permissionless timeouts
+    // Permissionless timeouts never burn
     // ------------------------------------------------------------------------------------------
 
     function test_timeout_silenceIsAcceptance() public {
-        uint256 jobId = submittedJob(REWARD, BOND);
-        vm.prank(stranger);
+        uint256 supply = factory.totalSupply();
+        uint256 jobId = submittedJob();
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.completeAfterSilence(jobId);
-
         vm.warp(block.timestamp + REVIEW + 1);
         vm.prank(stranger);
         evaluator.completeAfterSilence(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Completed));
-        assertEq(token.balanceOf(worker), REWARD);
-    }
-
-    function test_timeout_silenceNotAfterRejection() public {
-        uint256 jobId = submittedJob(REWARD, BOND);
-        vm.prank(creator);
-        evaluator.creatorReject(jobId);
-        vm.warp(block.timestamp + REVIEW + 1);
-        vm.expectRevert(JobsEvaluator.AlreadyRejected.selector);
-        evaluator.completeAfterSilence(jobId);
-    }
-
-    function test_timeout_undisputedRejectionBecomesFinal() public {
-        uint256 jobId = submittedJob(REWARD, BOND);
-        vm.prank(creator);
-        evaluator.creatorReject(jobId);
-        vm.expectRevert(JobsEvaluator.WindowOpen.selector);
-        evaluator.rejectAfterWindow(jobId);
-        vm.warp(block.timestamp + DISPUTE + 1);
-        vm.prank(stranger);
-        evaluator.rejectAfterWindow(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
+        assertEq(pay.balanceOf(worker), REWARD);
+        assertEq(factory.totalSupply(), supply);
+        assertEq(factory.balanceOf(address(holding)), 0, "both bonds returned");
     }
 
     function test_timeout_arbitratorInactiveIsStatusQuo() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = submittedJob(REWARD, BOND);
-        vm.prank(creator);
-        evaluator.creatorReject(jobId);
-        vm.prank(worker);
-        evaluator.dispute(jobId);
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 supply = factory.totalSupply();
+        uint256 jobId = disputedJob();
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.refundAfterArbitrationTimeout(jobId);
-
         vm.warp(block.timestamp + ARBITRATION + 1);
         vm.prank(stranger);
         evaluator.refundAfterArbitrationTimeout(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
         vm.prank(creator);
         holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before, "status quo: reward and bond back to the creator");
+        assertEq(pay.balanceOf(creator), payBefore);
+        assertEq(factory.totalSupply(), supply, "a timeout never burns");
+        assertEq(factory.balanceOf(address(holding)), 0);
     }
 
     function test_timeout_deliveryDeadlineRejectsUnfinalizedJob() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = fundedJob(REWARD, BOND);
+        uint256 jobId = fundedJob();
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         vm.warp(uint256(holding.deliveryDeadlineOf(jobId)) + 1);
         vm.prank(stranger);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
-        vm.prank(creator);
-        holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before);
+        assertEq(factory.balanceOf(address(holding)), 0, "both bonds returned");
     }
 
     // ------------------------------------------------------------------------------------------
@@ -298,29 +382,18 @@ contract LifecycleTest is Base {
     // ------------------------------------------------------------------------------------------
 
     function test_adversarial_milestoneClaimCannotBlockRefund() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = fundedJob(REWARD, BOND);
-        // The provider files a milestone claim directly on the core; nothing in our SDK does this.
+        uint256 jobId = fundedJob();
         vm.prank(worker);
         core.submitClaim(jobId, REWARD / 2, keccak256("half"), "");
-        assertTrue(core.pendingClaimHash(jobId) != bytes32(0));
-
-        // With the claim pending, the core's own refund is blocked past expiry ...
         vm.warp(uint256(expiry()) + 1);
         vm.expectRevert(ERC8183.PendingClaimExists.selector);
         core.claimRefund(jobId);
-
-        // ... but the evaluator's delivery-deadline rejection clears it and refunds.
         evaluator.rejectAfterDeliveryDeadline(jobId);
         assertEq(core.pendingClaimHash(jobId), bytes32(0));
-        vm.prank(creator);
-        holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before);
     }
 
     function test_adversarial_claimRefundCannotPreemptSettlement() public {
-        uint256 jobId = fundedJob(REWARD, BOND);
-        // Submit at the last legal moment and reject at the end of the review window.
+        uint256 jobId = fundedJob();
         vm.warp(uint256(holding.deliveryDeadlineOf(jobId)));
         submitDirect(jobId);
         vm.warp(block.timestamp + REVIEW);
@@ -330,51 +403,34 @@ contract LifecycleTest is Base {
         vm.prank(worker);
         evaluator.dispute(jobId);
         vm.warp(block.timestamp + ARBITRATION);
-        // The whole settlement window has elapsed; the core's refund is still gated.
         vm.expectRevert(ERC8183.GracePeriodActive.selector);
         core.claimRefund(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true);
-        assertEq(token.balanceOf(worker), REWARD + BOND);
+        evaluator.rule(jobId, true, false);
+        assertEq(pay.balanceOf(worker), REWARD);
     }
 
     function test_adversarial_submitBeforeAcceptCannotBeSettled() public {
-        uint256 before = token.balanceOf(creator);
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 jobId = publish();
         assign(jobId);
-        // The core allows a provider to submit an Open job whose budget is still 0.
         submitDirect(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Submitted));
-        assertFalse(listing(jobId).funded);
-
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.NeverFunded.selector);
         evaluator.accept(jobId);
-        vm.warp(block.timestamp + REVIEW + 1);
-        vm.expectRevert(JobsEvaluator.NeverFunded.selector);
-        evaluator.completeAfterSilence(jobId);
-
-        // Past the delivery deadline anyone can clear it, and the creator recovers everything.
         vm.warp(uint256(holding.deliveryDeadlineOf(jobId)) + 1);
-        vm.prank(stranger);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         vm.prank(creator);
         holding.withdraw(jobId);
-        assertEq(token.balanceOf(creator), before);
-        assertEq(token.balanceOf(worker), 0);
+        assertEq(pay.balanceOf(worker), 0);
     }
 
     function test_adversarial_holdingNeverSettlesClaims() public {
-        uint256 jobId = fundedJob(REWARD, BOND);
+        uint256 jobId = fundedJob();
         vm.prank(worker);
         core.submitClaim(jobId, REWARD / 2, keccak256("half"), "");
-        // Only the client (Holding) could settle or approve it, and Holding exposes no such path.
         vm.prank(creator);
         vm.expectRevert(ERC8183.Unauthorized.selector);
         core.settleClaim(jobId, REWARD / 2, keccak256("half"), "");
-        vm.prank(creator);
-        vm.expectRevert(ERC8183.Unauthorized.selector);
-        core.approveClaim(jobId, REWARD / 2, keccak256("half"), "");
     }
 
     // ------------------------------------------------------------------------------------------
@@ -382,88 +438,138 @@ contract LifecycleTest is Base {
     // ------------------------------------------------------------------------------------------
 
     function test_auth_replayRejected() public {
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 jobId = publish();
         assign(jobId);
+        postBond(jobId);
         uint256 deadline = block.timestamp + 1 hours;
-        bytes memory sig = signSetBudget(workerPk, worker, jobId, address(token), REWARD, 7, deadline);
+        bytes memory sig = signSetBudget(workerPk, worker, jobId, address(pay), REWARD, 7, deadline);
         ERC8183WithAuthorization.Authorization memory auth =
             ERC8183WithAuthorization.Authorization(worker, 7, deadline, sig);
-        core.setBudgetWithAuthorization(jobId, address(token), REWARD, "", auth);
+        core.setBudgetWithAuthorization(jobId, address(pay), REWARD, "", auth);
         vm.expectRevert(ERC8183WithAuthorization.AuthorizationNonceUsed.selector);
-        core.setBudgetWithAuthorization(jobId, address(token), REWARD, "", auth);
-    }
-
-    function test_auth_expiredRejected() public {
-        uint256 jobId = publish(REWARD, BOND);
-        assign(jobId);
-        uint256 deadline = block.timestamp - 1;
-        bytes memory sig = signSetBudget(workerPk, worker, jobId, address(token), REWARD, 1, deadline);
-        vm.expectRevert(ERC8183WithAuthorization.AuthorizationExpired.selector);
-        core.setBudgetWithAuthorization(
-            jobId, address(token), REWARD, "", ERC8183WithAuthorization.Authorization(worker, 1, deadline, sig)
-        );
-    }
-
-    function test_auth_mismatchedAmountRejected() public {
-        uint256 jobId = publish(REWARD, BOND);
-        assign(jobId);
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes memory sig = signSetBudget(workerPk, worker, jobId, address(token), REWARD, 1, deadline);
-        vm.expectRevert();
-        core.setBudgetWithAuthorization(
-            jobId, address(token), REWARD + 1, "", ERC8183WithAuthorization.Authorization(worker, 1, deadline, sig)
-        );
+        core.setBudgetWithAuthorization(jobId, address(pay), REWARD, "", auth);
     }
 
     function test_auth_wrongSignerCannotAccept() public {
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 jobId = publish();
         assign(jobId);
         uint256 deadline = block.timestamp + 1 hours;
-        // A valid signature from someone who is not the provider: the core rejects it as Unauthorized.
-        bytes memory sig = signSetBudget(impostorPk, impostor, jobId, address(token), REWARD, 1, deadline);
+        bytes memory sig = signSetBudget(impostorPk, impostor, jobId, address(pay), REWARD, 1, deadline);
         vm.expectRevert(ERC8183.Unauthorized.selector);
         core.setBudgetWithAuthorization(
-            jobId, address(token), REWARD, "", ERC8183WithAuthorization.Authorization(impostor, 1, deadline, sig)
+            jobId, address(pay), REWARD, "", ERC8183WithAuthorization.Authorization(impostor, 1, deadline, sig)
         );
     }
 
     function test_auth_workerCannotUnderfundThemselves() public {
-        uint256 jobId = publish(REWARD, BOND);
+        uint256 jobId = publish();
         assign(jobId);
-        // A budget that is not the listed reward is not an acceptance; Holding refuses to fund it.
         acceptDirect(jobId, REWARD - 1);
         vm.expectRevert(JobHolding.NotAccepted.selector);
         holding.fundAfterAccept(jobId);
     }
 
     // ------------------------------------------------------------------------------------------
-    // Fuzz: amounts
+    // Evidence
     // ------------------------------------------------------------------------------------------
 
-    function testFuzz_happyPath_conservesMoney(uint96 reward, uint96 bond) public {
-        vm.assume(reward > 0);
-        token.mint(creator, uint256(reward) + bond);
-        uint256 creatorBefore = token.balanceOf(creator);
-        uint256 jobId = submittedJob(reward, bond);
-        vm.prank(creator);
-        evaluator.accept(jobId);
-        assertEq(token.balanceOf(worker), reward);
-        assertEq(token.balanceOf(creator), creatorBefore - reward);
-        assertEq(token.balanceOf(address(holding)) + token.balanceOf(address(core)), 0);
+    function test_evidence_attesterAttaches_movesNoMoney() public {
+        uint256 jobId = submittedJob();
+        uint256 holdingPay = pay.balanceOf(address(holding));
+        JobsEvaluator.EvidenceAttestation memory a = attestation(jobId, 1, block.timestamp + 1 days);
+        bytes memory sig = signEvidence(attesterPk, a);
+        vm.prank(stranger);
+        evaluator.attachEvidence(jobId, a, attester, sig);
+        (bytes32 digest, address verifier, uint48 at, uint8 conclusion) = evaluator.evidence(jobId);
+        assertEq(digest, evidenceDigest(a));
+        assertEq(verifier, attester);
+        assertEq(at, uint48(block.timestamp));
+        assertEq(conclusion, 1);
+        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Submitted), "still the reviewer's call");
+        assertEq(pay.balanceOf(address(holding)), holdingPay);
     }
 
-    function testFuzz_rulingForWorker_conservesMoney(uint96 reward, uint96 bond) public {
+    function test_evidence_unregisteredWrongExpiredReplayed() public {
+        uint256 jobId = submittedJob();
+        JobsEvaluator.EvidenceAttestation memory a = attestation(jobId, 1, block.timestamp + 1 days);
+        bytes memory good = signEvidence(attesterPk, a);
+        bytes memory bad = signEvidence(impostorPk, a);
+
+        vm.expectRevert(JobsEvaluator.NotVerifier.selector);
+        evaluator.attachEvidence(jobId, a, impostor, bad);
+        vm.expectRevert(JobsEvaluator.InvalidSignature.selector);
+        evaluator.attachEvidence(jobId, a, attester, bad);
+
+        JobsEvaluator.EvidenceAttestation memory expired = attestation(jobId, 1, block.timestamp - 1);
+        bytes memory expiredSig = signEvidence(attesterPk, expired);
+        vm.expectRevert(JobsEvaluator.EvidenceExpired.selector);
+        evaluator.attachEvidence(jobId, expired, attester, expiredSig);
+
+        evaluator.attachEvidence(jobId, a, attester, good);
+        vm.expectRevert(JobsEvaluator.EvidenceReplayed.selector);
+        evaluator.attachEvidence(jobId, a, attester, good);
+
+        JobsEvaluator.EvidenceAttestation memory other = attestation(jobId + 1, 1, block.timestamp + 1 days);
+        bytes memory otherSig = signEvidence(attesterPk, other);
+        vm.expectRevert(JobsEvaluator.EvidenceJobMismatch.selector);
+        evaluator.attachEvidence(jobId, other, attester, otherSig);
+    }
+
+    function test_evidence_creReceiverIsAContractVerifier() public {
+        address forwarder = makeAddr("cre-forwarder");
+        EvidenceReceiver receiver = new EvidenceReceiver(evaluator, forwarder);
+        vm.prank(deployer);
+        evaluator.setVerifier(address(receiver), true);
+
+        uint256 jobId = submittedJob();
+        JobsEvaluator.EvidenceAttestation memory a = attestation(jobId, 1, block.timestamp + 1 days);
+        vm.prank(stranger);
+        vm.expectRevert(EvidenceReceiver.NotForwarder.selector);
+        receiver.onReport("", abi.encode(a));
+        vm.prank(forwarder);
+        receiver.onReport("", abi.encode(a));
+        (, address verifier,,) = evaluator.evidence(jobId);
+        assertEq(verifier, address(receiver));
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Fuzz: amounts across both assets
+    // ------------------------------------------------------------------------------------------
+
+    function testFuzz_ruling_conservesBothAssets(uint64 reward, uint96 cBond, uint96 wBond, bool forWorker, bool slash)
+        public
+    {
         vm.assume(reward > 0);
-        token.mint(creator, uint256(reward) + bond);
-        uint256 creatorBefore = token.balanceOf(creator);
-        uint256 jobId = submittedJob(reward, bond);
+        pay.mint(creator, reward);
+        factory.mint(creator, cBond);
+        factory.mint(worker, wBond);
+        uint256 supply = factory.totalSupply();
+        uint256 creatorPay = pay.balanceOf(creator);
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 wFac = factory.balanceOf(worker);
+
+        uint256 jobId = publish(reward, cBond, wBond);
+        assign(jobId);
+        acceptDirect(jobId, reward);
+        fund(jobId);
+        submitDirect(jobId);
         vm.prank(creator);
         evaluator.creatorReject(jobId);
         vm.prank(worker);
         evaluator.dispute(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true);
-        assertEq(token.balanceOf(worker), uint256(reward) + bond);
-        assertEq(token.balanceOf(creator), creatorBefore - reward - bond);
+        evaluator.rule(jobId, forWorker, slash);
+        if (!forWorker) {
+            vm.prank(creator);
+            holding.withdraw(jobId);
+        }
+
+        uint256 burned = slash ? (forWorker ? cBond : wBond) : 0;
+        assertEq(factory.totalSupply(), supply - burned, "burned exactly the loser's bond, or nothing");
+        assertEq(pay.balanceOf(worker), forWorker ? reward : 0);
+        assertEq(pay.balanceOf(creator), forWorker ? creatorPay - reward : creatorPay);
+        assertEq(factory.balanceOf(creator), (slash && forWorker) ? cFac - cBond : cFac);
+        assertEq(factory.balanceOf(worker), (slash && !forWorker) ? wFac - wBond : wFac);
+        assertEq(factory.balanceOf(address(holding)) + pay.balanceOf(address(holding)), 0);
     }
 }

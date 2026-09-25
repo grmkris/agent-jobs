@@ -34,6 +34,12 @@ would have completed the job with a zero payout while the reward sat in Holding 
 evaluator now refuses to settle any job Holding never funded, and `rejectAfterDeliveryDeadline` clears
 such a job so the creator recovers immediately rather than at expiry.
 
+## Superseded in part
+
+ADR-0003 (26 Sep) separates the collateral asset from the reward, replaces the single optional bond with
+creator and worker bonds in FACTORY, and makes the ruling two-part. The Holding-as-client model and the
+refund paths described here stand.
+
 ## Consequences
 
 - `contracts/SURFACE.md` classifies every external function of the core.

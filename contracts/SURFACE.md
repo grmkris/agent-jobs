@@ -11,14 +11,14 @@ guarantee survives.
 | Function | Who (core) | Ours | If called directly |
 | :--- | :--- | :--- | :--- |
 | `createJob` | anyone (caller = client) | Supported through `JobHolding.publish` only; the indexer lists only jobs whose client is Holding. | A job with another client is an ordinary 8183 job we ignore. |
-| `setProvider` | client | Supported: `JobHolding.assign` (agent id required). | Unreachable: the client is Holding. |
+| `setProvider` | client | Supported: `JobHolding.assign` (hire-first) and `JobHolding.select` (contest, before the selection deadline); agent id required. | Unreachable: the client is Holding. |
 | `setPayoutReceiver` | provider, Open | Unavailable. | The worker may route its payout elsewhere; money still only moves on `complete`. Harmless. |
 | `setBudget` | provider, Open | Supported: the accept step (direct or `setBudgetWithAuthorization`). | A budget other than the listed reward is not an acceptance: `fundAfterAccept` refuses (`test_auth_workerCannotUnderfundThemselves`). |
-| `fund` | client | Supported: `JobHolding.fundAfterAccept` (anyone may trigger, effect fixed by the listing). | Unreachable: the client is Holding. |
+| `fund` | client | Supported: `JobHolding.fundAfterAccept` (anyone may trigger, effect fixed by the listing) once the worker has posted its FACTORY bond and set the budget. | Unreachable: the client is Holding. |
 | `submit` | provider, Funded **or Open with budget 0** | Supported after funding. | Submit-before-accept leaves a Submitted job Holding never funded. The evaluator refuses to settle it (`NeverFunded`) and `rejectAfterDeliveryDeadline` clears it (`test_adversarial_submitBeforeAcceptCannotBeSettled`). |
 | `complete` | evaluator, Submitted | Supported: only `JobsEvaluator` (accept, silence, ruling). | Unreachable: the evaluator is our contract. |
-| `reject` | client/provider when Open; evaluator when Funded/Submitted | Supported: `JobHolding.cancel` (Open), the evaluator's terminal paths. | The provider may reject its own Open job: nothing was escrowed in the core; `withdraw` returns reward and bond. |
-| `claimRefund` | anyone, after `expiredAt` (+1 h when Submitted) | Supported as the outage path: refunds land in Holding, `withdraw` recovers them (`test_moneyPath_thirdPartyClaimRefund`). | Cannot pre-empt settlement: Holding requires `expiredAt >= deliveryDeadline + settlementWindow` (`test_adversarial_claimRefundCannotPreemptSettlement`). |
+| `reject` | client/provider when Open; evaluator when Funded/Submitted | Supported: `JobHolding.cancel` and `expireContest` (Open), the evaluator's terminal paths. | The provider may reject its own Open job: nothing was escrowed in the core; `withdraw` returns the reward and creator bond, `withdrawWorkerBond` the worker's. |
+| `claimRefund` | anyone, after `expiredAt` (+1 h when Submitted) | Supported as the outage path: refunds land in Holding; `withdraw` (creator) and `withdrawWorkerBond` (worker) recover them since no evaluator path ran (`test_moneyPath_thirdPartyClaimRefund_workerRecoversOwnBond`). | Cannot pre-empt settlement: Holding requires `expiredAt >= deliveryDeadline + settlementWindow` (`test_adversarial_claimRefundCannotPreemptSettlement`). |
 
 ## Milestone claims (not a product feature)
 
@@ -36,11 +36,29 @@ expiry and wrong-signer cases: `test_auth_*`. Supported: `setBudgetWithAuthoriza
 `submitWithAuthorization`. The others are unavailable and, if used, fall under the same rows as their
 direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; harmless.
 
+## Our own surface (v2, spike S1b)
+
+| Function | Who | Effect on money |
+| :--- | :--- | :--- |
+| `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (payment token) and the creator bond (FACTORY). |
+| `JobHolding.assign` / `select` | creator | None; sets the provider (contest: only before `selectionDeadline`). |
+| `JobHolding.postWorkerBond` | the assigned worker, holding >= `minHoldToClaim` | Pulls the worker bond (FACTORY). Required before funding even when zero. |
+| `JobHolding.fundAfterAccept` | anyone | Moves the reward into the core once bond posted + budget == reward. |
+| `JobHolding.cancel` / `expireContest` | creator / anyone after the deadline | `reject` while Open; nothing was in the core. |
+| `JobHolding.withdraw` / `withdrawWorkerBond` | creator / worker | Pull-based recovery after a terminal status; each amount at most once. |
+| `JobHolding.burnBond` | evaluator only | Burns one side's bond. Only reachable through `rule(..., slashLoser = true)`. |
+| `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
+| `JobsEvaluator.rule(jobId, forWorker, slashLoser)` | arbitrator | `complete` or `reject`, then burn the loser's bond only if `slashLoser`, then return the rest. |
+| `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Stores a digest; replay, expiry and job mismatch refused. |
+| the four timeouts | anyone | `complete` or `reject`; never burn. |
+
 ## Admin (deployer EOA, testnet)
 
 `pause`/`unpause`, `emergencyWithdraw` (only while paused), `setPlatformFee`, `setEvaluatorFee`,
 `setHookWhitelist`, `setPaymentTokenAllowed`, `batchDetachHook`, UUPS upgrade. Deployed with fees 0,
-`RewardToken` as the only allowed token, no hook whitelisted. The README names the admin and commits to
+`MockPaymentToken` as the only allowed payment token (FACTORY is never allowlisted: collateral never enters the
+core), no hook whitelisted. `JobHolding.setHoldRequirements` and `JobsEvaluator.setVerifier` are the two admin
+knobs of ours. The README names the admin and commits to
 no upgrade during an active agreement. Pause blocks every lifecycle call above, including the timeouts,
 so an outage promise made while paused is void; this is stated rather than mitigated.
 
