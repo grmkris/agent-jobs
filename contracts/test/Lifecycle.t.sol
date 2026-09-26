@@ -186,7 +186,7 @@ contract LifecycleTest is Base {
     // ------------------------------------------------------------------------------------------
 
     function test_contest_pickWinnerThenNormalSettlement() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         assertEq(pay.balanceOf(address(holding)), REWARD, "prize locked at publish");
@@ -208,7 +208,7 @@ contract LifecycleTest is Base {
     function test_contest_noPickByDeadlineRefundsThePrize() public {
         uint256 payBefore = pay.balanceOf(creator);
         uint256 facBefore = factory.balanceOf(creator);
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
 
@@ -229,7 +229,7 @@ contract LifecycleTest is Base {
     }
 
     function test_contest_liveContestCannotBeCancelled() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         vm.prank(creator);
@@ -242,7 +242,7 @@ contract LifecycleTest is Base {
 
     function test_contest_expiredOnceRecoveredOnce() public {
         uint256 payBefore = pay.balanceOf(creator);
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         vm.warp(uint256(p.selectionDeadline) + 1);
@@ -258,7 +258,7 @@ contract LifecycleTest is Base {
     }
 
     function test_contest_selectedCannotBeExpired() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         vm.prank(creator);
@@ -272,7 +272,7 @@ contract LifecycleTest is Base {
 
     /// @dev R16-03: a selected winner's agreement settles exactly like hire-first.
     function test_contest_winnerSilenceIsAcceptance() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         vm.prank(creator);
@@ -286,7 +286,7 @@ contract LifecycleTest is Base {
     }
 
     function test_contest_winnerCanDisputeATimelyRejection() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         vm.prank(creator);
@@ -304,7 +304,7 @@ contract LifecycleTest is Base {
     }
 
     function test_contest_unselectedEntrantHasNoAgreementPath() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         vm.prank(creator);
         uint256 jobId = holding.publish(p);
         vm.prank(worker);
@@ -316,7 +316,7 @@ contract LifecycleTest is Base {
     }
 
     function test_contest_selectionDeadlineMustPrecedeDelivery() public {
-        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
         p.selectionDeadline = p.deliveryDeadline;
         vm.prank(creator);
         vm.expectRevert(JobHolding.SelectionDeadlineInvalid.selector);
@@ -389,7 +389,7 @@ contract LifecycleTest is Base {
         vm.expectRevert(JobsEvaluator.NotRejected.selector);
         evaluator.dispute(jobId);
         vm.prank(stranger);
-        vm.expectRevert(JobsEvaluator.NotCreator.selector);
+        vm.expectRevert(JobsEvaluator.NotApprover.selector);
         evaluator.creatorReject(jobId);
         vm.prank(creator);
         evaluator.creatorReject(jobId);
@@ -567,7 +567,7 @@ contract LifecycleTest is Base {
         = evaluator.evidence(jobId, attester);
         assertEq(digest, evidenceDigest(a));
         assertEq(submissionHash, DELIVERABLE);
-        assertEq(policyHash, POLICY);
+        assertEq(policyHash, holding.policyHashOf(jobId));
         assertEq(testedSha, bytes32(uint256(0xdef)));
         assertEq(at, uint48(block.timestamp));
         assertEq(conclusion, 1);

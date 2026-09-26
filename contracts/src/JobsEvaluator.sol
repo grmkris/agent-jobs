@@ -72,8 +72,8 @@ contract JobsEvaluator is EIP712 {
     mapping(address => bool) public verifiers;
     mapping(address verifier => mapping(bytes32 digest => bool)) public usedDigest;
 
-    event Accepted(uint256 indexed jobId, address indexed creator);
-    event CreatorRejected(uint256 indexed jobId, address indexed creator);
+    event Accepted(uint256 indexed jobId, address indexed approver);
+    event CreatorRejected(uint256 indexed jobId, address indexed approver);
     event Disputed(uint256 indexed jobId, address indexed worker);
     event Ruled(uint256 indexed jobId, bool forWorker, bool slashLoser);
     event TimedOut(uint256 indexed jobId, bytes32 reason);
@@ -85,7 +85,7 @@ contract JobsEvaluator is EIP712 {
     event FeedbackFailed(uint256 indexed jobId, uint256 indexed agentId, bytes reason);
 
     error NotAdmin();
-    error NotCreator();
+    error NotApprover();
     error NotProvider();
     error NotArbitrator();
     error NotVerifier();
@@ -158,21 +158,21 @@ contract JobsEvaluator is EIP712 {
     // Parties
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice The creator accepts the finalized submission: the reward leaves escrow, both bonds return. Before
+    /// @notice The listing's approver accepts the finalized submission: the reward leaves escrow, both bonds return. Before
     ///         a dispute this is also a reconsideration of a rejection; once the worker has disputed, only a ruling
     ///         or the arbitration timeout settles, so a pending bad-faith finding cannot be dodged by paying late
     ///         (R114-02).
     function accept(uint256 jobId) external {
-        if (holding.creatorOf(jobId) != msg.sender) revert NotCreator();
+        if (holding.approverOf(jobId) != msg.sender) revert NotApprover();
         _requireSubmitted(jobId);
         if (disputedAt[jobId] != 0) revert DisputeOpen();
         emit Accepted(jobId, msg.sender);
         _complete(jobId, "accepted");
     }
 
-    /// @notice The creator rejects. Nothing moves: the job stays Submitted and the dispute window opens.
+    /// @notice The listing's approver rejects. Nothing moves: the job stays Submitted and the dispute window opens.
     function creatorReject(uint256 jobId) external {
-        if (holding.creatorOf(jobId) != msg.sender) revert NotCreator();
+        if (holding.approverOf(jobId) != msg.sender) revert NotApprover();
         ERC8183.Job memory job = _requireSubmitted(jobId);
         if (rejectedAt[jobId] != 0) revert AlreadyRejected();
         // The review window closes on its own: once silence has become acceptance, a late rejection must not

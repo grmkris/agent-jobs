@@ -40,7 +40,7 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
-| `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (payment token) and the creator bond (FACTORY). |
+| `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (payment token) and the creator bond (FACTORY). Stores the offer's `approver` (zero = the creator). Refuses a zero or already-listed `policyHash` (R114-07) and a contest with `workerBond > 0` (`ApproverTest`). |
 | `JobHolding.assign` / `select` | creator | None; sets the provider (contest: only before `selectionDeadline`). |
 | `JobHolding.postWorkerBond` | the assigned worker, holding >= `minHoldToClaim` | Pulls the worker bond (FACTORY). Required before funding even when zero. |
 | `JobHolding.fundAfterAccept` | anyone | Moves the reward into the core once bond posted + budget == reward. |
@@ -49,9 +49,9 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; unsettled bonds back to their owners; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` in S7 (R114-03). |
 | `JobHolding.burnBond` | evaluator only | Burns one side's bond. Only reachable through `rule(..., slashLoser = true)`. |
 | `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
-| `JobsEvaluator.accept` | creator | `complete`; refused while a dispute is open (`DisputeOpen`, R114-02). `dispute` requires a funded Submitted job. |
+| `JobsEvaluator.accept` | approver | `complete`; refused while a dispute is open (`DisputeOpen`, R114-02). `dispute` requires a funded Submitted job. |
 | `JobsEvaluator.earnedByWorker` | view | Funded, submitted by the delivery deadline, unrejected, review window over. Read by `settle`. |
-| `JobsEvaluator.creatorReject` | creator, **only until `submittedAt + reviewWindow`** | None; opens the dispute window. After the cutoff silence is acceptance even if nobody called the timeout (R16-01). |
+| `JobsEvaluator.creatorReject` | approver, **only until `submittedAt + reviewWindow`** | None; opens the dispute window. After the cutoff silence is acceptance even if nobody called the timeout (R16-01). |
 | `JobsEvaluator.rule(jobId, forWorker, slashLoser)` | arbitrator, **only until `disputedAt + arbitrationWindow`** | `complete` or `reject`, then burn the loser's bond only if `slashLoser`, then return the rest. After the cutoff only the refund timeout settles (R16-01). |
 | `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Per-verifier record with `submissionHash`, `policyHash`, `testedSha`, `validUntil`; policy must equal the listing's; same verifier + same digest is an idempotent no-op; two verifiers on one digest are both kept (R16-06/07). |
 | ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Capped at 300k gas in `try/catch`; `FeedbackRecorded` or `FeedbackFailed`; never reverts a payout (R16-10). |

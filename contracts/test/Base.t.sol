@@ -28,8 +28,9 @@ abstract contract Base is Test {
     uint256 internal constant MIN_HOLD = 1e18;
     uint256 internal constant AGENT_ID = 42;
     bytes32 internal constant MANIFEST = keccak256("manifest-v1");
-    /// @dev The board's `termsHash` for the offer; evidence must name it.
+    /// @dev Seed of the board's `termsHash`; each publish gets its own, since Holding refuses a reused one.
     bytes32 internal constant POLICY = keccak256("policy-v1");
+    uint256 internal policyNonce;
     bytes32 internal constant DELIVERABLE = keccak256("deliverable");
 
     address internal deployer = makeAddr("deployer");
@@ -103,12 +104,12 @@ abstract contract Base is Test {
 
     function params(uint256 reward, uint256 creatorBond, uint256 workerBond)
         internal
-        view
         returns (JobHolding.PublishParams memory)
     {
         return JobHolding.PublishParams({
+            approver: address(0),
             manifestHash: MANIFEST,
-            policyHash: POLICY,
+            policyHash: keccak256(abi.encode(POLICY, ++policyNonce)),
             token: IERC20(address(pay)),
             reward: reward,
             creatorBond: creatorBond,
@@ -120,12 +121,9 @@ abstract contract Base is Test {
         });
     }
 
-    function contestParams(uint256 reward, uint256 creatorBond, uint256 workerBond)
-        internal
-        view
-        returns (JobHolding.PublishParams memory p)
-    {
-        p = params(reward, creatorBond, workerBond);
+    /// @dev Contests carry no worker bond (R20).
+    function contestParams(uint256 reward, uint256 creatorBond) internal returns (JobHolding.PublishParams memory p) {
+        p = params(reward, creatorBond, 0);
         p.mode = JobHolding.Mode.Contest;
         p.selectionDeadline = uint48(block.timestamp + 2 days);
     }
@@ -222,25 +220,8 @@ abstract contract Base is Test {
         return core.getJob(jobId).status;
     }
 
-    function listing(uint256 jobId) internal view returns (JobHolding.Listing memory l) {
-        (
-            l.creator,
-            l.worker,
-            l.token,
-            l.mode,
-            l.deliveryDeadline,
-            l.selectionDeadline,
-            l.funded,
-            l.workerBondPosted,
-            l.rewardSettled,
-            l.creatorBondSettled,
-            l.workerBondSettled,
-            l.reward,
-            l.creatorBond,
-            l.workerBond,
-            l.manifestHash,
-            l.policyHash
-        ) = holding.listings(jobId);
+    function listing(uint256 jobId) internal view returns (JobHolding.Listing memory) {
+        return holding.getListing(jobId);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -281,13 +262,13 @@ abstract contract Base is Test {
 
     function attestation(uint256 jobId, uint8 conclusion, uint256 validUntil)
         internal
-        pure
+        view
         returns (JobsEvaluator.EvidenceAttestation memory)
     {
         return JobsEvaluator.EvidenceAttestation({
             jobId: jobId,
             submissionHash: DELIVERABLE,
-            policyHash: POLICY,
+            policyHash: holding.policyHashOf(jobId),
             repo: keccak256("github.com/worker/fork"),
             headSha: bytes32(uint256(0xabc)),
             testedSha: bytes32(uint256(0xdef)),

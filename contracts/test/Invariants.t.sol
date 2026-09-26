@@ -68,7 +68,8 @@ contract Handler is Test {
     function publish(uint96 reward, uint96 creatorBond, uint96 workerBond, bool contest) external {
         reward = uint96(bound(reward, 1, 1_000e6));
         creatorBond = uint96(bound(creatorBond, 0, 100e18));
-        workerBond = uint96(bound(workerBond, 0, 100e18));
+        // Contests carry no worker bond (R20).
+        workerBond = contest ? 0 : uint96(bound(workerBond, 0, 100e18));
         pay.mint(creator, reward);
         payMinted += reward;
         factory.mint(creator, creatorBond);
@@ -78,8 +79,9 @@ contract Handler is Test {
 
         uint48 dd = uint48(block.timestamp + 7 days);
         JobHolding.PublishParams memory p = JobHolding.PublishParams({
+            approver: address(0),
             manifestHash: keccak256(abi.encode(reward, jobs.length)),
-            policyHash: keccak256("policy-v1"),
+            policyHash: keccak256(abi.encode("policy", jobs.length)),
             token: IERC20(address(pay)),
             reward: reward,
             creatorBond: creatorBond,
@@ -96,7 +98,7 @@ contract Handler is Test {
 
     function assignOrSelect(uint256 seed) external withJobs {
         uint256 jobId = _pick(seed);
-        (,,, JobHolding.Mode mode,,,,,,,,,,,,) = holding.listings(jobId);
+        JobHolding.Mode mode = holding.getListing(jobId).mode;
         vm.prank(creator);
         if (mode == JobHolding.Mode.Contest) {
             try holding.select(jobId, worker, 1) {} catch {}
@@ -112,7 +114,7 @@ contract Handler is Test {
 
     function setBudget(uint256 seed, bool exactAmount) external withJobs {
         uint256 jobId = _pick(seed);
-        (,,,,,,,,,,, uint256 reward,,,,) = holding.listings(jobId);
+        uint256 reward = holding.getListing(jobId).reward;
         vm.prank(worker);
         try core.setBudget(jobId, address(pay), exactAmount ? reward : reward + 1, "") {} catch {}
     }

@@ -43,6 +43,9 @@ contract JobHolding {
 
     struct Listing {
         address creator;
+        /// @dev Judges the work (accept, reject, award); never pays, selects or receives anything. Frozen at
+        ///      publish; defaults to the creator.
+        address approver;
         address worker;
         IERC20 token;
         Mode mode;
@@ -63,6 +66,8 @@ contract JobHolding {
     }
 
     struct PublishParams {
+        /// @dev Zero means the creator approves its own offer.
+        address approver;
         bytes32 manifestHash;
         bytes32 policyHash;
         IERC20 token;
@@ -85,11 +90,15 @@ contract JobHolding {
     uint256 public minHoldToPublish;
     uint256 public minHoldToClaim;
 
-    mapping(uint256 jobId => Listing) public listings;
+    mapping(uint256 jobId => Listing) internal _listings;
+    /// @notice Every `termsHash` ever listed. A retried publish of the same offer is refused rather than funding
+    ///         a second escrow (R114-07).
+    mapping(bytes32 policyHash => bool) public policyListed;
 
     event Published(
         uint256 indexed jobId,
         address indexed creator,
+        address indexed approver,
         Mode mode,
         address token,
         uint256 reward,
@@ -119,6 +128,9 @@ contract JobHolding {
     error NotEvaluator();
     error ZeroReward();
     error AgentIdRequired();
+    error PolicyHashRequired();
+    error PolicyHashUsed();
+    error ContestWorkerBond();
     error ExpiryTooShort();
     error SelectionDeadlineInvalid();
     error WrongMode();
@@ -144,7 +156,7 @@ contract JobHolding {
     }
 
     modifier onlyCreator(uint256 jobId) {
-        if (listings[jobId].creator != msg.sender) revert NotCreator();
+        if (_listings[jobId].creator != msg.sender) revert NotCreator();
         _;
     }
 
@@ -179,6 +191,8 @@ contract JobHolding {
     function publish(PublishParams calldata p) external returns (uint256 jobId) {
         if (evaluator == address(0)) revert EvaluatorNotSet();
         if (p.reward == 0) revert ZeroReward();
+        if (p.policyHash == bytes32(0)) revert PolicyHashRequired();
+        if (policyListed[p.policyHash]) revert PolicyHashUsed();
         _requireHold(msg.sender, minHoldToPublish);
         if (p.expiredAt < uint256(p.deliveryDeadline) + ISettlementWindow(evaluator).settlementWindow()) {
             revert ExpiryTooShort();
@@ -187,18 +201,23 @@ contract JobHolding {
             if (p.selectionDeadline <= block.timestamp || p.selectionDeadline >= p.deliveryDeadline) {
                 revert SelectionDeadlineInvalid();
             }
+            // Contest entrants risk their work and nothing else in this version (R20).
+            if (p.workerBond > 0) revert ContestWorkerBond();
         } else if (p.selectionDeadline != 0) {
             revert SelectionDeadlineInvalid();
         }
 
+        policyListed[p.policyHash] = true;
+        address approver = p.approver == address(0) ? msg.sender : p.approver;
         p.token.safeTransferFrom(msg.sender, address(this), p.reward);
         if (p.creatorBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), p.creatorBond);
 
         jobId = core.createJob(
             address(0), evaluator, p.expiredAt, Strings.toHexString(uint256(p.manifestHash), 32), address(0), 0
         );
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         l.creator = msg.sender;
+        l.approver = approver;
         l.token = p.token;
         l.mode = p.mode;
         l.deliveryDeadline = p.deliveryDeadline;
@@ -212,6 +231,7 @@ contract JobHolding {
         emit Published(
             jobId,
             msg.sender,
+            approver,
             p.mode,
             address(p.token),
             p.reward,
@@ -227,13 +247,13 @@ contract JobHolding {
 
     /// @notice Hire-first: names the worker (and its ERC-8004 agent id) as the core's provider.
     function assign(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
-        if (listings[jobId].mode != Mode.HireFirst) revert WrongMode();
+        if (_listings[jobId].mode != Mode.HireFirst) revert WrongMode();
         _assign(jobId, worker, agentId, false);
     }
 
     /// @notice Contest: picks the winning entrant before the selection deadline. Same effect as `assign`.
     function select(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (l.mode != Mode.Contest) revert WrongMode();
         if (block.timestamp > l.selectionDeadline) revert SelectionWindowClosed();
         _assign(jobId, worker, agentId, true);
@@ -243,9 +263,9 @@ contract JobHolding {
     ///         returns reward and creator bond. A published contest cannot be cancelled: entrants work against
     ///         the locked prize, so it ends only through `select` or `expireContest` (R16-02).
     function cancel(uint256 jobId) external onlyCreator(jobId) {
-        if (listings[jobId].mode != Mode.HireFirst) revert WrongMode();
-        if (listings[jobId].funded) revert AlreadyFunded();
-        if (listings[jobId].worker != address(0)) revert AlreadyAssigned();
+        if (_listings[jobId].mode != Mode.HireFirst) revert WrongMode();
+        if (_listings[jobId].funded) revert AlreadyFunded();
+        if (_listings[jobId].worker != address(0)) revert AlreadyAssigned();
         core.reject(jobId, "cancelled", "");
         emit Cancelled(jobId);
     }
@@ -257,7 +277,7 @@ contract JobHolding {
     /// @notice The assigned worker posts its FACTORY bond (and passes the hold gate). Required before
     ///         funding, even when the bond is zero, so acceptance is an explicit act.
     function postWorkerBond(uint256 jobId) external {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (l.worker != msg.sender) revert NotWorker();
         if (l.workerBondPosted) revert BondAlreadyPosted();
         _requireHold(msg.sender, minHoldToClaim);
@@ -273,7 +293,7 @@ contract JobHolding {
     /// @notice Funds the core once the assigned worker has posted its bond and set the budget to exactly the
     ///         listed reward in the listed token. Anyone may call: the effect is fixed by the listing.
     function fundAfterAccept(uint256 jobId) external {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert NotCreator();
         if (l.funded) revert AlreadyFunded();
         if (!l.workerBondPosted) revert BondNotPosted();
@@ -293,7 +313,7 @@ contract JobHolding {
     ///         window), otherwise to the creator. The core status alone never decides who is paid (R114-03).
     ///         Bonds no evaluator path settled return to their owners. Anyone may call: the effect is fixed.
     function settle(uint256 jobId) external {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert UnknownJob();
         ERC8183.JobStatus status = core.getJob(jobId).status;
         if (!_isTerminal(status)) revert NotTerminal();
@@ -319,7 +339,7 @@ contract JobHolding {
     /// @notice A contest nobody was picked for by its selection deadline is over; the prize returns via
     ///         `settle`.
     function expireContest(uint256 jobId) external {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (l.mode != Mode.Contest) revert WrongMode();
         if (l.worker != address(0)) revert AlreadyAssigned();
         if (block.timestamp <= l.selectionDeadline) revert SelectionWindowOpen();
@@ -333,7 +353,7 @@ contract JobHolding {
 
     /// @notice The only path by which a bond is destroyed: a ruling that found a violation on that side.
     function burnBond(uint256 jobId, Side side) external onlyEvaluator {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         (uint256 amount, bool present) = _bondOf(l, side);
         if (!present) return;
         _markSettled(l, side);
@@ -345,7 +365,7 @@ contract JobHolding {
     /// @notice Returns both bonds to their owners on any terminal settlement. Idempotent: a bond already
     ///         settled (returned or burned) is left alone.
     function returnBonds(uint256 jobId) external onlyEvaluator {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (!l.creatorBondSettled) _returnBond(jobId, l, Side.Creator);
         if (!l.workerBondSettled && l.workerBondPosted) _returnBond(jobId, l, Side.Worker);
     }
@@ -354,20 +374,28 @@ contract JobHolding {
     // Views
     // ---------------------------------------------------------------------------------------------
 
+    function getListing(uint256 jobId) external view returns (Listing memory) {
+        return _listings[jobId];
+    }
+
     function creatorOf(uint256 jobId) external view returns (address) {
-        return listings[jobId].creator;
+        return _listings[jobId].creator;
+    }
+
+    function approverOf(uint256 jobId) external view returns (address) {
+        return _listings[jobId].approver;
     }
 
     function deliveryDeadlineOf(uint256 jobId) external view returns (uint48) {
-        return listings[jobId].deliveryDeadline;
+        return _listings[jobId].deliveryDeadline;
     }
 
     function policyHashOf(uint256 jobId) external view returns (bytes32) {
-        return listings[jobId].policyHash;
+        return _listings[jobId].policyHash;
     }
 
     function isFunded(uint256 jobId) external view returns (bool) {
-        return listings[jobId].funded;
+        return _listings[jobId].funded;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -375,7 +403,7 @@ contract JobHolding {
     // ---------------------------------------------------------------------------------------------
 
     function _assign(uint256 jobId, address worker, uint256 agentId, bool byContestSelection) private {
-        Listing storage l = listings[jobId];
+        Listing storage l = _listings[jobId];
         if (agentId == 0) revert AgentIdRequired();
         if (l.worker != address(0)) revert AlreadyAssigned();
         l.worker = worker;
