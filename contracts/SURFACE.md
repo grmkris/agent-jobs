@@ -11,11 +11,11 @@ guarantee survives.
 | Function | Who (core) | Ours | If called directly |
 | :--- | :--- | :--- | :--- |
 | `createJob` | anyone (caller = client) | Supported through `JobHolding.publish` only; the indexer lists only jobs whose client is Holding. | A job with another client is an ordinary 8183 job we ignore. |
-| `setProvider` | client | Supported: `JobHolding.activate` (hire, the worker's own transaction) and `JobHolding.select` (contest, before the selection deadline); agent id required. | Unreachable: the client is Holding. |
+| `setProvider` | client | Supported: `JobHolding.activate` (hire, the worker's own transaction) and `JobHolding.award` (contest, by the approver before the selection deadline); agent id required. | Unreachable: the client is Holding. |
 | `setPayoutReceiver` | provider, Open | Unavailable. | The worker may route its payout elsewhere; money still only moves on `complete`. Harmless. |
-| `setBudget` | provider, Open | Supported: inside `activate` through the worker's `SetBudgetAuthorization` (Holding fixes token and amount); a contest winner directly (old model). | An authorization for another amount does not verify (`test_auth_workerCannotUnderfundThemselves`). |
-| `fund` | client | Supported: `JobHolding.fundAfterAccept` (anyone may trigger, effect fixed by the listing) once the worker has posted its FACTORY bond and set the budget. | Unreachable: the client is Holding. |
-| `submit` | provider, Funded **or Open with budget 0** | Supported after activation. | A hire has no provider before activation, and activation funds in the same transaction, so there is no Open-with-provider window (`test_adversarial_noSubmissionBeforeActivation`). A contest winner between `select` and funding can still submit early; `rejectAfterDeliveryDeadline` clears it (old model, goes with the award). |
+| `setBudget` | provider, Open | Supported: inside `activate` and `award` through the worker's `SetBudgetAuthorization` (Holding fixes token and amount). | An authorization for another amount does not verify (`test_auth_workerCannotUnderfundThemselves`). |
+| `fund` | client | Supported: inside `activate` and `award`, after the budget equals the listed reward. | Unreachable: the client is Holding. |
+| `submit` | provider, Funded **or Open with budget 0** | Supported after activation. | A hire has no provider before activation, and activation funds in the same transaction, so there is no Open-with-provider window (`test_adversarial_noSubmissionBeforeActivation`). A contest entry is submitted inside `award`, after funding, in the same transaction. |
 | `complete` | evaluator, Submitted | Supported: only `JobsEvaluator` (accept, silence, ruling). | Unreachable: the evaluator is our contract. |
 | `reject` | client/provider when Open; evaluator when Funded/Submitted | Supported: `JobHolding.cancel` and `expireContest` (Open), the evaluator's terminal paths. | The provider may reject its own Open job: nothing was escrowed in the core; `withdraw` returns the reward and creator bond, `withdrawWorkerBond` the worker's. |
 | `claimRefund` | anyone, after `expiredAt` (+1 h when Submitted) | Supported as the outage path: refunds land in Holding as custody, not entitlement; `JobHolding.settle` pays the reward to whoever `JobsEvaluator.earnedByWorker` names (an earned silence payment → worker, R114-03) and returns unsettled bonds (`test_R114_03_*`, `test_moneyPath_thirdPartyClaimRefund_settleReturnsEverything`). | Cannot pre-empt settlement: Holding requires `expiredAt >= deliveryDeadline + settlementWindow` (`test_adversarial_claimRefundCannotPreemptSettlement`). |
@@ -32,8 +32,8 @@ guarantee survives.
 ## Authorization relay (`ERC8183WithAuthorization`)
 
 Every `*WithAuthorization` executes as the EIP-712 signer; the relayer never holds authority. Replay,
-expiry and wrong-signer cases: `test_auth_*`. Supported: `setBudgetWithAuthorization`,
-`submitWithAuthorization`. The others are unavailable and, if used, fall under the same rows as their
+expiry and wrong-signer cases: `test_auth_*`. Supported: `setBudgetWithAuthorization` (inside `activate` and `award`) and
+`submitWithAuthorization` (inside `award`, and any relayer for a hire). The others are unavailable and, if used, fall under the same rows as their
 direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; harmless.
 
 ## Our own surface (v2, spike S1b, plus the S7 steps landed so far)
@@ -41,14 +41,13 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
 | `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (payment token) and the creator bond (FACTORY). Stores the offer's `approver` (zero = the creator). Refuses a zero or already-listed `policyHash` (R114-07) and a contest with `workerBond > 0` (`ApproverTest`). |
-| `JobHolding.activate(selection, creatorSig, budgetAuth)` | **the selected worker itself** (never relayed, R114-01) | Replaced `assign` + `postWorkerBond` + `fundAfterAccept` for hires. Checks the creator's EIP-712 `Selection` (signature, own nonce space, `activateBy` ≤ now allowed at the deadline, `activateBy` < delivery deadline, `termsHash` = listing's `policyHash`), `agentId` ≠ 0, `identity.getAgentWallet(agentId) == msg.sender` and the hold gate; then setProvider, pulls the worker bond, applies the worker's `SetBudgetAuthorization` for exactly the listed token and reward, funds. All or nothing; at most once per listing (`ActivationTest`, `ActivationForkTest`). |
+| `JobHolding.activate(selection, creatorSig, budgetAuth)` | **the selected worker itself** (never relayed, R114-01) | Replaced `assign` + `postWorkerBond` + `fundAfterAccept` for hires. Checks the creator's EIP-712 `Selection` (signature, own nonce space, `activateBy` ≤ now allowed at the deadline, `activateBy` < delivery deadline, `termsHash` = listing's `policyHash`), `agentId` ≠ 0, `identity.getAgentWallet(agentId) == msg.sender` and the hold gate; then setProvider, pulls the worker bond, applies the worker's `SetBudgetAuthorization` for exactly the listed token and reward, funds. All or nothing; at most once per listing (`ActivationTest`, `AdmissionForkTest`). |
 | `JobHolding.cancelSelection(nonce)` | creator | None; burns a selection nonce. |
-| `JobHolding.select` | creator | Contest only, old select-then-accept model until the atomic award lands; sets the provider before `selectionDeadline`. |
-| `JobHolding.postWorkerBond` | the selected contest winner | Contest only (old model): pulls the worker bond (always 0 now). |
-| `JobHolding.fundAfterAccept` | anyone | Contest only (old model): moves the prize into the core once the winner set budget == prize. |
+| `JobHolding.award(jobId, candidate)` | the listing's approver, until `selectionDeadline` (allowed at it) | Replaced `select` + `postWorkerBond` + `fundAfterAccept`. Checks `getAgentWallet(agentId) == candidate.worker`, then setProvider → `setBudgetWithAuthorization` (exactly the prize) → fund → `submitWithAuthorization` (exactly the named deliverable) → `JobsEvaluator.completeAward`: the entrant is paid and the creator bond returns in one transaction, winner offline. Any failure reverts all; the contest stays open; at most once (`ContestTest`, `AdmissionForkTest`). |
 | `JobHolding.cancel` | creator, **hire only, before activation** | `reject` while Open; nothing was in the core. A live contest cannot be cancelled (R16-02). |
-| `JobHolding.expireContest` | anyone, after `selectionDeadline`, no winner selected | `reject` while Open; prize and creator bond recoverable once. |
+| `JobHolding.expireContest` | anyone, after `selectionDeadline`, nothing awarded | `reject` while Open; prize and creator bond recoverable once through `settle`. An awarded contest cannot be expired. |
 | `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; unsettled bonds back to their owners; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` in S7 (R114-03). |
+| `JobsEvaluator.completeAward` | Holding only, inside `award` | `complete`, bonds back, feedback. |
 | `JobHolding.burnBond` | evaluator only | Burns one side's bond. Only reachable through `rule(..., slashLoser = true)`. |
 | `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
 | `JobsEvaluator.accept` | approver | `complete`; refused while a dispute is open (`DisputeOpen`, R114-02). `dispute` requires a funded Submitted job. |
@@ -59,9 +58,13 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Capped at 300k gas in `try/catch`; `FeedbackRecorded` or `FeedbackFailed`; never reverts a payout (R16-10). |
 | the four timeouts | anyone | `complete` or `reject`; never burn. |
 
-## Target v3 (spike S7, ADR-0004) — decided, **not built**
+## Target v3 (spike S7, ADR-0004) — in progress
 
-Nothing below exists yet. It records where S7 changes the table above so the two are never confused.
+Landed and tested (see the table above): the approver, publish refusals, `activate` + `cancelSelection`,
+`award`, `settle` after a core refund, and `accept` refused during a dispute. **Not built yet:** the
+violation-naming `reject`, burns (undisputed violation, missed delivery), the penalty guard on bond
+release, late-submission rules, `ruleWithSignature`, the evidence event fields, reason-aware feedback,
+`MockPaymentToken(name, symbol)` and the deployment recipe.
 
 | Function | Who | Change from v2 |
 | :--- | :--- | :--- |

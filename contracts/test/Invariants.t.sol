@@ -103,15 +103,67 @@ contract Handler is Test {
         jobs.push(jobId);
     }
 
-    /// @dev Hire: the creator's signed selection and the worker's own activation. Contest: the old select.
-    function activateOrSelect(uint256 seed) external withJobs {
+    function _coreSig(uint256 pk, bytes32 structHash) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s_) =
+            vm.sign(pk, keccak256(abi.encodePacked("\x19\x01", core.DOMAIN_SEPARATOR(), structHash)));
+        return abi.encodePacked(r, s_, v);
+    }
+
+    /// @dev Contest: the approver (the creator here) awards the worker's finished entry in one transaction.
+    function award(uint256 seed) external withJobs {
         uint256 jobId = _pick(seed);
         JobHolding.Listing memory l = holding.getListing(jobId);
-        if (l.mode == JobHolding.Mode.Contest) {
-            vm.prank(creator);
-            try holding.select(jobId, worker, 1) {} catch {}
-            return;
-        }
+        if (l.mode != JobHolding.Mode.Contest) return;
+        uint256 deadline = l.selectionDeadline;
+        bytes32 deliverable = keccak256("entry");
+        // Apart from the hire activations' budget nonces (= jobId): two per contest, above 2^40.
+        uint72 nonce = uint72(2 ** 40 + 2 * jobId);
+        JobHolding.Candidate memory c;
+        c.worker = worker;
+        c.agentId = 1;
+        c.deliverable = deliverable;
+        c.budgetAuth = ERC8183WithAuthorization.Authorization(
+            worker,
+            nonce,
+            deadline,
+            _coreSig(
+                workerPk,
+                keccak256(
+                    abi.encode(
+                        core.SET_BUDGET_AUTHORIZATION_TYPEHASH(),
+                        worker,
+                        jobId,
+                        address(pay),
+                        l.reward,
+                        keccak256(""),
+                        nonce,
+                        deadline
+                    )
+                )
+            )
+        );
+        c.submitAuth = ERC8183WithAuthorization.Authorization(
+            worker,
+            nonce + 1,
+            deadline,
+            _coreSig(
+                workerPk,
+                keccak256(
+                    abi.encode(
+                        core.SUBMIT_AUTHORIZATION_TYPEHASH(), worker, jobId, deliverable, keccak256(""), nonce + 1, deadline
+                    )
+                )
+            )
+        );
+        vm.prank(creator);
+        try holding.award(jobId, c) {} catch {}
+    }
+
+    /// @dev Hire: the creator's signed selection and the worker's own activation.
+    function activate(uint256 seed) external withJobs {
+        uint256 jobId = _pick(seed);
+        JobHolding.Listing memory l = holding.getListing(jobId);
+        if (l.mode != JobHolding.Mode.HireFirst) return;
         JobHolding.Selection memory sel = JobHolding.Selection({
             jobId: jobId,
             worker: worker,
@@ -142,20 +194,11 @@ contract Handler is Test {
         try holding.activate(sel, selSig, auth) {} catch {}
     }
 
-    function postBond(uint256 seed) external withJobs {
-        vm.prank(worker);
-        try holding.postWorkerBond(_pick(seed)) {} catch {}
-    }
-
     function setBudget(uint256 seed, bool exactAmount) external withJobs {
         uint256 jobId = _pick(seed);
         uint256 reward = holding.getListing(jobId).reward;
         vm.prank(worker);
         try core.setBudget(jobId, address(pay), exactAmount ? reward : reward + 1, "") {} catch {}
-    }
-
-    function fund(uint256 seed) external withJobs {
-        try holding.fundAfterAccept(_pick(seed)) {} catch {}
     }
 
     function submit(uint256 seed) external withJobs {

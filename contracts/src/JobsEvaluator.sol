@@ -106,6 +106,7 @@ contract JobsEvaluator is EIP712 {
     error ArbitrationWindowClosed();
     error InvalidSignature();
     error DisputeOpen();
+    error NotHolding();
 
     constructor(
         ERC8183 core_,
@@ -217,6 +218,16 @@ contract JobsEvaluator is EIP712 {
         _recordOutcome(jobId, forWorker);
     }
 
+    /// @notice The last step of a contest `award`, callable only by Holding inside that transaction: the approver
+    ///         chose this entry, so it completes like an acceptance (reward to the entrant, creator bond back,
+    ///         feedback).
+    function completeAward(uint256 jobId) external {
+        if (msg.sender != address(holding)) revert NotHolding();
+        _requireSubmitted(jobId);
+        emit Accepted(jobId, holding.approverOf(jobId));
+        _complete(jobId, "awarded");
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Evidence
     // ---------------------------------------------------------------------------------------------
@@ -243,8 +254,8 @@ contract JobsEvaluator is EIP712 {
     // Permissionless timeouts (never burn)
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice No creator decision within the review window: silence is acceptance (hire-first only; a contest
-    ///         has a selection deadline instead and its winner's agreement is hire-first from then on).
+    /// @notice No approver decision within the review window: silence is acceptance (hires only; an awarded
+    ///         contest entry is completed inside the award).
     function completeAfterSilence(uint256 jobId) external {
         ERC8183.Job memory job = _requireSubmitted(jobId);
         if (rejectedAt[jobId] != 0) revert AlreadyRejected();

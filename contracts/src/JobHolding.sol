@@ -11,11 +11,12 @@ import {ERC8183WithAuthorization} from "./vendor/erc8183/ERC8183WithAuthorizatio
 import {IERC8004Identity} from "./vendor/erc8004/IERC8004.sol";
 import {FactoryToken} from "./FactoryToken.sol";
 
-/// @dev What Holding needs from the evaluator: how long settlement can take after delivery, and who is owed a
-///      reward that a core refund put back into Holding.
+/// @dev What Holding needs from the evaluator: how long settlement can take after delivery, who is owed a reward
+///      that a core refund put back into Holding, and the completion of an awarded contest entry.
 interface ISettlementWindow {
     function settlementWindow() external view returns (uint48);
     function earnedByWorker(uint256 jobId) external view returns (bool);
+    function completeAward(uint256 jobId) external;
 }
 
 /// @title JobHolding
@@ -27,9 +28,11 @@ interface ISettlementWindow {
 ///         Two modes. Hire: the creator signs an EIP-712 `Selection` off-chain and the selected worker's own
 ///         `activate` transaction is the final confirmation: provider, bond, budget and funding in one step, so
 ///         nothing binds the worker before it acts and nobody else can start its bonded obligation (R114-01).
-///         Contest: the prize is locked at publish,
-///         candidates are collected off-chain, and the creator picks one before `selectionDeadline`; if
-///         nobody is picked, anyone can expire the contest and the prize returns.
+///         Contest: contests buy finished work. The prize is locked at publish; entrants submit finished
+///         candidates off-chain with the authorisations needed to settle them; the approver's `award` pays the
+///         chosen one in a single transaction before `selectionDeadline`, with the winner offline. A failed award
+///         reverts everything and the contest stays open. With no award by the deadline anyone expires it and the
+///         prize returns.
 ///
 ///         Money rules: one job's assets never mix with another's; a bond is burned only by the evaluator on
 ///         a ruling that found a violation; every other terminal path returns both bonds; every refund the
@@ -48,6 +51,17 @@ contract JobHolding is EIP712 {
         bytes32 termsHash;
         uint48 activateBy;
         uint256 nonce;
+    }
+
+    /// @notice A finished contest entry as the approver awards it: the entrant's registered agent wallet, the exact
+    ///         deliverable, and the entrant's core authorisations (signed at entry) to set the budget to the prize
+    ///         and to submit that deliverable.
+    struct Candidate {
+        address worker;
+        uint256 agentId;
+        bytes32 deliverable;
+        ERC8183WithAuthorization.Authorization budgetAuth;
+        ERC8183WithAuthorization.Authorization submitAuth;
     }
 
     bytes32 public constant SELECTION_TYPEHASH = keccak256(
@@ -137,7 +151,7 @@ contract JobHolding is EIP712 {
         uint48 selectionDeadline,
         uint48 expiredAt
     );
-    event Assigned(uint256 indexed jobId, address indexed worker, uint256 agentId, bool byContestSelection);
+    event Awarded(uint256 indexed jobId, address indexed worker, uint256 agentId, bytes32 deliverable);
     event Activated(uint256 indexed jobId, address indexed worker, uint256 agentId, uint256 selectionNonce);
     event SelectionCancelled(address indexed creator, uint256 nonce);
     event WorkerBondPosted(uint256 indexed jobId, address indexed worker, uint256 amount);
@@ -153,7 +167,6 @@ contract JobHolding is EIP712 {
     error EvaluatorAlreadySet();
     error EvaluatorNotSet();
     error NotCreator();
-    error NotWorker();
     error NotEvaluator();
     error ZeroReward();
     error AgentIdRequired();
@@ -164,14 +177,10 @@ contract JobHolding is EIP712 {
     error SelectionDeadlineInvalid();
     error WrongMode();
     error InsufficientFactoryHeld(uint256 held, uint256 required);
-    error AlreadyFunded();
-    error AlreadyAssigned();
-    error NotAssigned();
+    error AlreadyAwarded();
+    error NotApprover();
     error SelectionWindowClosed();
     error SelectionWindowOpen();
-    error BondNotPosted();
-    error BondAlreadyPosted();
-    error NotAccepted();
     error UnknownJob();
     error NotSelectedWorker();
     error SelectionExpired();
@@ -289,14 +298,6 @@ contract JobHolding is EIP712 {
         );
     }
 
-    /// @notice Contest: picks the winning entrant before the selection deadline. Same effect as `assign`.
-    function select(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
-        Listing storage l = _listings[jobId];
-        if (l.mode != Mode.Contest) revert WrongMode();
-        if (block.timestamp > l.selectionDeadline) revert SelectionWindowClosed();
-        _assign(jobId, worker, agentId, true);
-    }
-
     /// @notice Burns one of the creator's selection nonces, so a signed but unactivated `Selection` can no longer
     ///         be used. Moves nothing.
     function cancelSelection(uint256 nonce) external {
@@ -307,12 +308,45 @@ contract JobHolding is EIP712 {
 
     /// @notice Cancels a hire listing before activation. Nothing was escrowed in the core; `settle` then
     ///         returns reward and creator bond. A published contest cannot be cancelled: entrants work against
-    ///         the locked prize, so it ends only through `select` or `expireContest` (R16-02).
+    ///         the locked prize, so it ends only through `award` or `expireContest` (R16-02).
     function cancel(uint256 jobId) external onlyCreator(jobId) {
         if (_listings[jobId].mode != Mode.HireFirst) revert WrongMode();
         if (_listings[jobId].worker != address(0) || _listings[jobId].funded) revert AlreadyActivated();
         core.reject(jobId, "cancelled", "");
         emit Cancelled(jobId);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Approver actions
+    // ---------------------------------------------------------------------------------------------
+
+    /// @notice Buys a finished contest entry: in one transaction sets the entrant as provider, applies its budget
+    ///         authorisation for exactly the prize, funds, applies its submit authorisation for exactly the named
+    ///         deliverable, and has the evaluator complete it, paying the entrant and returning the creator bond.
+    ///         The winner does nothing after entering. Any failure (a revoked, expired or foreign authorisation, a
+    ///         changed registry wallet) reverts the whole award and the contest stays open. Allowed at
+    ///         `selectionDeadline`, refused after. At most once.
+    function award(uint256 jobId, Candidate calldata c) external {
+        Listing storage l = _listings[jobId];
+        if (l.creator == address(0)) revert UnknownJob();
+        if (l.mode != Mode.Contest) revert WrongMode();
+        if (msg.sender != l.approver) revert NotApprover();
+        if (l.worker != address(0) || l.funded) revert AlreadyAwarded();
+        if (block.timestamp > l.selectionDeadline) revert SelectionWindowClosed();
+        if (c.agentId == 0) revert AgentIdRequired();
+        if (identity.getAgentWallet(c.agentId) != c.worker) revert NotAgentWallet();
+
+        l.worker = c.worker;
+        l.funded = true;
+        emit Awarded(jobId, c.worker, c.agentId, c.deliverable);
+
+        core.setProvider(jobId, c.worker, c.agentId);
+        core.setBudgetWithAuthorization(jobId, address(l.token), l.reward, "", c.budgetAuth);
+        l.token.forceApprove(address(core), l.reward);
+        core.fund(jobId, address(l.token), l.reward, "");
+        emit Funded(jobId);
+        core.submitWithAuthorization(jobId, c.deliverable, "", c.submitAuth);
+        ISettlementWindow(evaluator).completeAward(jobId);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -364,40 +398,9 @@ contract JobHolding is EIP712 {
         emit Funded(jobId);
     }
 
-    /// @notice The selected contest winner posts its bond (zero: contests carry none) before funding. Old
-    ///         select-then-accept model, replaced by the atomic award.
-    function postWorkerBond(uint256 jobId) external {
-        Listing storage l = _listings[jobId];
-        if (l.mode != Mode.Contest) revert WrongMode();
-        if (l.worker != msg.sender) revert NotWorker();
-        if (l.workerBondPosted) revert BondAlreadyPosted();
-        _requireHold(msg.sender, minHoldToClaim);
-        l.workerBondPosted = true;
-        if (l.workerBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), l.workerBond);
-        emit WorkerBondPosted(jobId, msg.sender, l.workerBond);
-    }
-
     // ---------------------------------------------------------------------------------------------
     // Anyone
     // ---------------------------------------------------------------------------------------------
-
-    /// @notice Contest only (old select-then-accept model, replaced by the atomic award): funds the core once the
-    ///         selected winner has posted its bond and set the budget to exactly the listed reward. Anyone may call.
-    function fundAfterAccept(uint256 jobId) external {
-        Listing storage l = _listings[jobId];
-        if (l.creator == address(0)) revert NotCreator();
-        if (l.mode != Mode.Contest) revert WrongMode();
-        if (l.funded) revert AlreadyFunded();
-        if (!l.workerBondPosted) revert BondNotPosted();
-        ERC8183.Job memory job = core.getJob(jobId);
-        if (job.provider == address(0) || job.paymentToken != address(l.token) || job.budget != l.reward) {
-            revert NotAccepted();
-        }
-        l.funded = true;
-        l.token.forceApprove(address(core), l.reward);
-        core.fund(jobId, address(l.token), l.reward, "");
-        emit Funded(jobId);
-    }
 
     /// @notice Settles whatever of a terminal job is still in Holding, each amount once. The reward is here
     ///         after any rejection and after the core's permissionless `claimRefund`; it goes to the worker when
@@ -428,12 +431,11 @@ contract JobHolding is EIP712 {
         if (rewardTo != address(0)) l.token.safeTransfer(rewardTo, l.reward);
     }
 
-    /// @notice A contest nobody was picked for by its selection deadline is over; the prize returns via
-    ///         `settle`.
+    /// @notice A contest nobody was awarded by its selection deadline is over; the prize returns via `settle`.
     function expireContest(uint256 jobId) external {
         Listing storage l = _listings[jobId];
         if (l.mode != Mode.Contest) revert WrongMode();
-        if (l.worker != address(0)) revert AlreadyAssigned();
+        if (l.worker != address(0)) revert AlreadyAwarded();
         if (block.timestamp <= l.selectionDeadline) revert SelectionWindowOpen();
         core.reject(jobId, "contest-expired", "");
         emit ContestExpired(jobId);
@@ -504,15 +506,6 @@ contract JobHolding is EIP712 {
     // ---------------------------------------------------------------------------------------------
     // Internals
     // ---------------------------------------------------------------------------------------------
-
-    function _assign(uint256 jobId, address worker, uint256 agentId, bool byContestSelection) private {
-        Listing storage l = _listings[jobId];
-        if (agentId == 0) revert AgentIdRequired();
-        if (l.worker != address(0)) revert AlreadyAssigned();
-        l.worker = worker;
-        core.setProvider(jobId, worker, agentId);
-        emit Assigned(jobId, worker, agentId, byContestSelection);
-    }
 
     function _requireHold(address who, uint256 required) private view {
         uint256 held = factory.balanceOf(who);

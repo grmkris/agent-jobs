@@ -13,9 +13,9 @@ import {JobHolding} from "../../src/JobHolding.sol";
 import {JobsEvaluator} from "../../src/JobsEvaluator.sol";
 
 /// @dev The admission check against the real ERC-8004 Identity Registry on Monad testnet (a local fork; nothing is
-///      sent): a registered agent's wallet activates a hire, an unregistered or foreign agent id is refused, and the
-///      settlement writes feedback to the real Reputation Registry. Skipped unless MONAD_TESTNET_RPC_URL is set.
-contract ActivationForkTest is Test {
+///      sent): a registered agent's wallet activates a hire or wins a contest award, an unregistered or foreign agent
+///      id is refused, and each settlement writes feedback to the real Reputation Registry. Skipped unless MONAD_TESTNET_RPC_URL is set.
+contract AdmissionForkTest is Test {
     IERC8004Identity internal constant IDENTITY = IERC8004Identity(0x8004A818BFB912233c491871b3d84c89A494BD9e);
     IERC8004Reputation internal constant REPUTATION =
         IERC8004Reputation(0x8004B663056A597Dffe9eCcC1965A193B7388713);
@@ -141,6 +141,66 @@ contract ActivationForkTest is Test {
         (int128 value,,, string memory tag2,) = REPUTATION.readFeedback(agentId, address(evaluator), 1);
         assertEq(value, 1);
         assertEq(tag2, "completed");
+    }
+
+    function _coreSig(bytes32 structHash) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(workerPk, keccak256(abi.encodePacked("\x19\x01", core.DOMAIN_SEPARATOR(), structHash)));
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_fork_awardPaysTheRegisteredEntrant() public onFork {
+        vm.prank(worker);
+        uint256 agentId = IDENTITY.register();
+        uint48 sd = uint48(block.timestamp + 2 days);
+        uint48 dd = uint48(block.timestamp + 7 days);
+        JobHolding.PublishParams memory p = JobHolding.PublishParams({
+            approver: address(0),
+            manifestHash: keccak256("fork-contest"),
+            policyHash: keccak256(abi.encode("fork-contest-policy", block.timestamp)),
+            token: IERC20(address(pay)),
+            reward: REWARD,
+            creatorBond: 0,
+            workerBond: 0,
+            deliveryDeadline: dd,
+            expiredAt: dd + evaluator.settlementWindow(),
+            mode: JobHolding.Mode.Contest,
+            selectionDeadline: sd
+        });
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+
+        bytes32 deliverable = keccak256("fork-entry");
+        JobHolding.Candidate memory c;
+        c.worker = worker;
+        c.agentId = agentId;
+        c.deliverable = deliverable;
+        c.budgetAuth = ERC8183WithAuthorization.Authorization(
+            worker,
+            1,
+            sd,
+            _coreSig(
+                keccak256(
+                    abi.encode(
+                        core.SET_BUDGET_AUTHORIZATION_TYPEHASH(), worker, jobId, address(pay), REWARD, keccak256(""), 1, sd
+                    )
+                )
+            )
+        );
+        c.submitAuth = ERC8183WithAuthorization.Authorization(
+            worker,
+            2,
+            sd,
+            _coreSig(
+                keccak256(abi.encode(core.SUBMIT_AUTHORIZATION_TYPEHASH(), worker, jobId, deliverable, keccak256(""), 2, sd))
+            )
+        );
+        vm.prank(creator);
+        holding.award(jobId, c);
+        assertEq(uint256(core.getJob(jobId).status), uint256(ERC8183.JobStatus.Completed));
+        assertEq(pay.balanceOf(worker), REWARD);
+        (int128 value,,,,) = REPUTATION.readFeedback(agentId, address(evaluator), 1);
+        assertEq(value, 1);
     }
 
     function test_fork_foreignAgentIdRefused() public onFork {

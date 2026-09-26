@@ -175,6 +175,49 @@ abstract contract Base is Test {
         activateAs(selectionFor(jobId, worker, AGENT_ID), workerPk);
     }
 
+    // ---- contest: finished entries, the approver's atomic award ----
+
+    function signSubmit(uint256 pk, address signer, uint256 jobId, bytes32 deliverable, uint72 nonce, uint256 deadline)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return sign(
+            pk,
+            keccak256(
+                abi.encode(
+                    core.SUBMIT_AUTHORIZATION_TYPEHASH(), signer, jobId, deliverable, keccak256(""), nonce, deadline
+                )
+            )
+        );
+    }
+
+    /// @dev A finished entry with the two core authorisations the entrant signs at entry, valid until the
+    ///      selection deadline. Nonces `nonce` (budget) and `nonce + 1` (submit).
+    function candidate(uint256 jobId, address who, uint256 pk, uint256 agentId, bytes32 deliverable, uint72 nonce)
+        internal
+        view
+        returns (JobHolding.Candidate memory c)
+    {
+        JobHolding.Listing memory l = listing(jobId);
+        uint256 deadline = l.selectionDeadline;
+        c.worker = who;
+        c.agentId = agentId;
+        c.deliverable = deliverable;
+        c.budgetAuth = ERC8183WithAuthorization.Authorization(
+            who, nonce, deadline, signSetBudget(pk, who, jobId, address(pay), l.reward, nonce, deadline)
+        );
+        c.submitAuth = ERC8183WithAuthorization.Authorization(
+            who, nonce + 1, deadline, signSubmit(pk, who, jobId, deliverable, nonce + 1, deadline)
+        );
+    }
+
+    function publishContest() internal returns (uint256 jobId) {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND);
+        vm.prank(creator);
+        jobId = holding.publish(p);
+    }
+
     /// @dev Contests carry no worker bond (R20).
     function contestParams(uint256 reward, uint256 creatorBond) internal returns (JobHolding.PublishParams memory p) {
         p = params(reward, creatorBond, 0);
@@ -191,23 +234,6 @@ abstract contract Base is Test {
 
     function publish() internal returns (uint256) {
         return publish(REWARD, CREATOR_BOND, WORKER_BOND);
-    }
-
-    function postBond(uint256 jobId) internal {
-        vm.prank(worker);
-        holding.postWorkerBond(jobId);
-    }
-
-    /// @dev Contest winner, old select-then-accept model: sends setBudget itself.
-    function acceptDirect(uint256 jobId, uint256 amount) internal {
-        postBond(jobId);
-        vm.prank(worker);
-        core.setBudget(jobId, address(pay), amount, "");
-    }
-
-    function fund(uint256 jobId) internal {
-        vm.prank(stranger);
-        holding.fundAfterAccept(jobId);
     }
 
     function submitDirect(uint256 jobId) internal {
