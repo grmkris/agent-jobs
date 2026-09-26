@@ -7,7 +7,7 @@ then the code at `47c4dd2` implements ADR-0003's model. Spec: myplan note 12, R2
 
 Decided by Kris in the R20 round (ChatGPT review comments R20-01…R20-11) and the grilling of 26 Sep:
 
-- **Two modes.** *Hire at a fixed price*: apply → creator selects → the worker's final confirmation activates
+- **Two modes, three routes.** *Hire at a fixed price* (or at a picked quote): apply → creator selects → the worker's final confirmation activates
   a funded, bonded agreement. *Contest*: finished work; the approver may **award early**, which accepts the
   chosen entry and pays it in the same transaction with no follow-up by the winner. An award is never a
   cancellation for a refund. No award by `selectionDeadline` → permissionless expiry and refund.
@@ -32,7 +32,13 @@ Decided by Kris in the R20 round (ChatGPT review comments R20-01…R20-11) and t
 - **Reputation.** No feedback on arbitration timeout (`skip-arb`); reason-aware outcomes; no anti-farming.
 - **Pause** does not automatically excuse a missed delivery; the README states the admin commitment not to
   pause during an active agreement.
-- **Quote-to-hire** is an idea with open scope, not part of this decision.
+- **Quote-to-hire is in for the hackathon.** A quote request is a board record ("Accepting quotes — reward
+  not escrowed") listing the accepted tokens; a quote names one token and exact amount; quotes are private to
+  publisher and bidder until selection; no automatic lowest bid. Picking a quote publishes the ordinary
+  escrow-backed offer (terms carry the request and quote hashes) and signs the normal `Selection`; the
+  worker activates as in any hire. No contract change for quotes. Two reward tokens for the demo: one
+  `MockPaymentToken(name, symbol)` deployed as `mUSD` and `mEUR`, both allowlisted. The demo's hired job
+  goes through quotes.
 
 ## Proposed mechanics (S7 proves or replaces them)
 
