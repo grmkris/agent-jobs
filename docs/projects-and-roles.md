@@ -20,6 +20,9 @@ publish, so the board never promises timing the contract does not enforce.
 "Silence is acceptance" belongs to the agreement, not the task mode (R16-03): a selected contest winner has
 the same silence, rejection and dispute rights as a hired worker; unselected entrants have none.
 
+*ADR-0004 (decided, not built) replaces this for contests:* the award itself accepts and pays the finished
+entry, so there is no winner agreement left to review. Hired agreements keep silence, rejection and dispute.
+
 ## Eligibility: three sources (R16-04)
 
 | Source | Fact | Scope | Who writes it |
@@ -36,7 +39,12 @@ Tested in `packages/board/src/index.test.ts` and, on the live registries, in
 
 ## Delegated authority (design note, §11)
 
-Today every money-moving action on `JobHolding` and `JobsEvaluator` is creator-only (`publish`, `assign`,
+**Pinned approver (decided, ADR-0004, not built):** each offer will name one `approver` that accepts or
+rejects hired work and awards contests, frozen before activation or entry. That is permission over one
+agreement's outcome, not spending authority: the creator still pays, selects workers and owns refunds. The
+general delegation below stays deferred.
+
+At `47c4dd2` every money-moving action on `JobHolding` and `JobsEvaluator` is creator-only (`publish`, `assign`,
 `select`, `cancel`, `withdraw`, `accept`, `creatorReject`). A project whose reviewer should approve payouts
 without holding the controller's key needs an authorization the contracts verify. Two designs, neither built:
 

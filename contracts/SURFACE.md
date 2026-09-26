@@ -36,7 +36,7 @@ expiry and wrong-signer cases: `test_auth_*`. Supported: `setBudgetWithAuthoriza
 `submitWithAuthorization`. The others are unavailable and, if used, fall under the same rows as their
 direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; harmless.
 
-## Our own surface (v2, spike S1b)
+## Our own surface (v2, spike S1b; current at `47c4dd2`)
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
@@ -54,6 +54,30 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Per-verifier record with `submissionHash`, `policyHash`, `testedSha`, `validUntil`; policy must equal the listing's; same verifier + same digest is an idempotent no-op; two verifiers on one digest are both kept (R16-06/07). |
 | ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Capped at 300k gas in `try/catch`; `FeedbackRecorded` or `FeedbackFailed`; never reverts a payout (R16-10). |
 | the four timeouts | anyone | `complete` or `reject`; never burn. |
+
+## Target v3 (spike S7, ADR-0004) — decided, **not built**
+
+Nothing below exists yet. It records where S7 changes the table above so the two are never confused.
+
+| Function | Who | Change from v2 |
+| :--- | :--- | :--- |
+| `JobHolding.publish` | anyone holding >= `minHoldToPublish` | Also stores the offer's `approver`; refuses a zero `policyHash` and a contest with `workerBond > 0`. |
+| `JobHolding.activate(selection, creatorSig, agentId, budgetAuth)` | the selected worker | Replaces `assign` + `postWorkerBond` + `fundAfterAccept`. Checks the creator's EIP-712 `Selection` (deadline, nonce, `termsHash`), `activateBy` and the delivery deadline, the hold gate and `getAgentWallet(agentId) == msg.sender`; then setProvider, worker bond, `setBudgetWithAuthorization`, fund. |
+| `JobHolding.cancelSelection(nonce)` | creator | Burns a selection nonce. |
+| `JobHolding.award(candidate)` | approver, before `selectionDeadline` | Replaces `select`. setProvider → `setBudgetWithAuthorization` → fund → `submitWithAuthorization` → evaluator completion in one transaction; any failure reverts all and the contest stays open. |
+| `JobHolding.cancel` | creator, hire only | Only before activation. |
+| `JobHolding.withdrawWorkerBond` | worker | Refuses while a penalty is due, whatever the core status (closes `claimRefund` → withdraw bypassing a burn). |
+| `JobsEvaluator.accept` | **approver** (was creator) | Also a late submission, until the missed-delivery burn has run. |
+| `JobsEvaluator.reject(jobId, violation, reasonHash)` | **approver**, until `submittedAt + reviewWindow`, timely submissions only | Replaces `creatorReject`; `violation ∈ {none, quality, falsified}`. |
+| `JobsEvaluator.rejectAfterWindow` | anyone | Burns the worker bond when the undisputed rejection named a violation. |
+| missed-delivery timeout | anyone, after `deliveryDeadline` | Funded, no timely submission: refund and **worker bond burned** (was: reject, bonds returned). |
+| `JobsEvaluator.refundAfterArbitrationTimeout` | anyone | Unchanged money; writes **no** worker feedback (`skip-arb`). |
+| `completeAfterSilence` | anyone | Only for a submission made by the delivery deadline. |
+| `EvidenceAttached` | — | Also emits `submissionHash`, `policyHash`, `validUntil`. |
+| ERC-8004 feedback | evaluator | Reason-aware (`completed`, `not-delivered`, `rejected`, `rejected-quality`, `rejected-falsified`); none on arbitration timeout. |
+
+"the four timeouts … never burn" in the v2 table stops being true in v3: the missed-delivery timeout and an
+undisputed violation burn the worker bond.
 
 ## Admin (deployer EOA, testnet)
 

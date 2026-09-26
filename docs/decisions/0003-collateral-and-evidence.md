@@ -1,6 +1,7 @@
 # ADR-0003: Collateral, modes and evidence
 
-Date: 2026-09-26. Status: accepted (spike S1b).
+Date: 2026-09-26. Status: accepted (spike S1b); modes, slashing and review **superseded in part by
+[ADR-0004](0004-r20-modes-slashing-approver.md)**, which is decided but not implemented yet.
 
 ## Decision
 
