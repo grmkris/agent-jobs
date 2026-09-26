@@ -19,7 +19,7 @@ contract FeedbackCaller {
     }
 }
 
-/// @dev Runs only with MONAD_TESTNET_RPC set (`forge test --match-path 'test/fork/*'`); skipped otherwise so
+/// @dev Runs only with MONAD_TESTNET_RPC_URL set (`forge test --match-path 'test/fork/*'`); skipped otherwise so
 ///      the default suite stays hermetic. State changes happen on the fork, never on the real chain.
 contract Erc8004ForkTest is Test {
     IERC8004Identity internal constant IDENTITY = IERC8004Identity(0x8004A818BFB912233c491871b3d84c89A494BD9e);
@@ -31,7 +31,7 @@ contract Erc8004ForkTest is Test {
     bool internal forked;
 
     function setUp() public {
-        string memory rpc = vm.envOr("MONAD_TESTNET_RPC", string(""));
+        string memory rpc = vm.envOr("MONAD_TESTNET_RPC_URL", string(""));
         if (bytes(rpc).length == 0) return;
         vm.createSelectFork(rpc);
         forked = true;

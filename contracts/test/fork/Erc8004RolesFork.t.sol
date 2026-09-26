@@ -6,7 +6,7 @@ import {IERC8004Identity, IERC8004Reputation} from "../../src/vendor/erc8004/IER
 
 /// @dev Spike S6 on the live registries: an agent declares roles in its metadata, a project certifies one of
 ///      them through feedback, and the board's gate (packages/board `roleGate`) reads exactly these two facts.
-///      Runs only with MONAD_TESTNET_RPC set.
+///      Runs only with MONAD_TESTNET_RPC_URL set.
 contract Erc8004RolesForkTest is Test {
     IERC8004Identity internal constant IDENTITY = IERC8004Identity(0x8004A818BFB912233c491871b3d84c89A494BD9e);
     IERC8004Reputation internal constant REPUTATION =
@@ -19,7 +19,7 @@ contract Erc8004RolesForkTest is Test {
     bool internal forked;
 
     function setUp() public {
-        string memory rpc = vm.envOr("MONAD_TESTNET_RPC", string(""));
+        string memory rpc = vm.envOr("MONAD_TESTNET_RPC_URL", string(""));
         if (bytes(rpc).length == 0) return;
         vm.createSelectFork(rpc);
         forked = true;

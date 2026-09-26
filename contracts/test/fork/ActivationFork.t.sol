@@ -14,7 +14,7 @@ import {JobsEvaluator} from "../../src/JobsEvaluator.sol";
 
 /// @dev The admission check against the real ERC-8004 Identity Registry on Monad testnet (a local fork; nothing is
 ///      sent): a registered agent's wallet activates a hire, an unregistered or foreign agent id is refused, and the
-///      settlement writes feedback to the real Reputation Registry. Skipped unless MONAD_TESTNET_RPC is set.
+///      settlement writes feedback to the real Reputation Registry. Skipped unless MONAD_TESTNET_RPC_URL is set.
 contract ActivationForkTest is Test {
     IERC8004Identity internal constant IDENTITY = IERC8004Identity(0x8004A818BFB912233c491871b3d84c89A494BD9e);
     IERC8004Reputation internal constant REPUTATION =
@@ -35,7 +35,7 @@ contract ActivationForkTest is Test {
     JobsEvaluator internal evaluator;
 
     function setUp() public {
-        string memory rpc = vm.envOr("MONAD_TESTNET_RPC", string(""));
+        string memory rpc = vm.envOr("MONAD_TESTNET_RPC_URL", string(""));
         if (bytes(rpc).length == 0) return;
         vm.createSelectFork(rpc);
         forked = true;
