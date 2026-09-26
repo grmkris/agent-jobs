@@ -10,7 +10,8 @@ import {FactoryToken} from "../src/FactoryToken.sol";
 import {MockPaymentToken} from "../src/MockPaymentToken.sol";
 import {JobHolding} from "../src/JobHolding.sol";
 import {JobsEvaluator} from "../src/JobsEvaluator.sol";
-import {IERC8004Reputation} from "../src/vendor/erc8004/IERC8004.sol";
+import {IERC8004Identity, IERC8004Reputation} from "../src/vendor/erc8004/IERC8004.sol";
+import {MockIdentity} from "./mocks/MockIdentity.sol";
 import {MockReputation} from "./mocks/MockReputation.sol";
 
 /// @dev Deploys the whole system the way the demo will: our own core proxy (fees 0, the payment token
@@ -35,7 +36,8 @@ abstract contract Base is Test {
 
     address internal deployer = makeAddr("deployer");
     address internal arbitrator = makeAddr("arbitrator");
-    address internal creator = makeAddr("creator");
+    address internal creator;
+    uint256 internal creatorPk;
     address internal stranger = makeAddr("stranger");
     address internal relayer = makeAddr("relayer");
     address internal worker;
@@ -51,8 +53,10 @@ abstract contract Base is Test {
     JobHolding internal holding;
     JobsEvaluator internal evaluator;
     MockReputation internal reputation;
+    MockIdentity internal identity;
 
     function setUp() public virtual {
+        (creator, creatorPk) = makeAddrAndKey("creator");
         (worker, workerPk) = makeAddrAndKey("worker");
         (impostor, impostorPk) = makeAddrAndKey("impostor");
         (attester, attesterPk) = makeAddrAndKey("attester");
@@ -66,7 +70,8 @@ abstract contract Base is Test {
         core.setPaymentTokenAllowed(address(pay), true);
         core.setPlatformFee(0, deployer);
         core.setEvaluatorFee(0);
-        holding = new JobHolding(core, factory, MIN_HOLD, MIN_HOLD);
+        identity = new MockIdentity();
+        holding = new JobHolding(core, factory, IERC8004Identity(address(identity)), MIN_HOLD, MIN_HOLD);
         reputation = new MockReputation();
         evaluator = new JobsEvaluator(
             core, holding, IERC8004Reputation(address(reputation)), arbitrator, REVIEW, DISPUTE, ARBITRATION, MARGIN
@@ -86,6 +91,8 @@ abstract contract Base is Test {
         factory.mint(worker, 10 * WORKER_BOND + MIN_HOLD);
         vm.prank(worker);
         factory.approve(address(holding), type(uint256).max);
+        // The worker participates with its registered ERC-8004 agent wallet.
+        identity.setAgentWallet(AGENT_ID, worker);
 
         vm.warp(1_800_000_000);
     }
@@ -121,6 +128,53 @@ abstract contract Base is Test {
         });
     }
 
+    // ---- hire: the creator's signed Selection, the worker's own activation ----
+
+    /// @dev A selection valid until one second before the delivery deadline, nonce = jobId.
+    function selectionFor(uint256 jobId, address who, uint256 agentId)
+        internal
+        view
+        returns (JobHolding.Selection memory)
+    {
+        return JobHolding.Selection({
+            jobId: jobId,
+            worker: who,
+            agentId: agentId,
+            termsHash: holding.policyHashOf(jobId),
+            activateBy: holding.deliveryDeadlineOf(jobId) - 1,
+            nonce: jobId
+        });
+    }
+
+    function signSelection(uint256 pk, JobHolding.Selection memory sel) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s_) = vm.sign(pk, holding.selectionDigest(sel));
+        return abi.encodePacked(r, s_, v);
+    }
+
+    /// @dev The worker's core `SetBudgetAuthorization` for the listed token and `amount`.
+    function budgetAuth(uint256 pk, address signer, uint256 jobId, uint256 amount, uint72 nonce)
+        internal
+        view
+        returns (ERC8183WithAuthorization.Authorization memory)
+    {
+        uint256 deadline = block.timestamp + 1 hours;
+        return ERC8183WithAuthorization.Authorization(
+            signer, nonce, deadline, signSetBudget(pk, signer, jobId, address(pay), amount, nonce, deadline)
+        );
+    }
+
+    function activateAs(JobHolding.Selection memory sel, uint256 workerKey) internal {
+        bytes memory sig = signSelection(creatorPk, sel);
+        ERC8183WithAuthorization.Authorization memory auth =
+            budgetAuth(workerKey, sel.worker, sel.jobId, listing(sel.jobId).reward, uint72(sel.jobId));
+        vm.prank(sel.worker);
+        holding.activate(sel, sig, auth);
+    }
+
+    function activate(uint256 jobId) internal {
+        activateAs(selectionFor(jobId, worker, AGENT_ID), workerPk);
+    }
+
     /// @dev Contests carry no worker bond (R20).
     function contestParams(uint256 reward, uint256 creatorBond) internal returns (JobHolding.PublishParams memory p) {
         p = params(reward, creatorBond, 0);
@@ -139,31 +193,16 @@ abstract contract Base is Test {
         return publish(REWARD, CREATOR_BOND, WORKER_BOND);
     }
 
-    function assign(uint256 jobId) internal {
-        vm.prank(creator);
-        holding.assign(jobId, worker, AGENT_ID);
-    }
-
     function postBond(uint256 jobId) internal {
         vm.prank(worker);
         holding.postWorkerBond(jobId);
     }
 
-    /// @dev The cast-style worker: sends setBudget itself.
+    /// @dev Contest winner, old select-then-accept model: sends setBudget itself.
     function acceptDirect(uint256 jobId, uint256 amount) internal {
         postBond(jobId);
         vm.prank(worker);
         core.setBudget(jobId, address(pay), amount, "");
-    }
-
-    /// @dev The relay-style worker: signs SetBudgetAuthorization, anyone submits it.
-    function acceptRelayed(uint256 jobId, uint256 amount, uint72 nonce, uint256 deadline) internal {
-        postBond(jobId);
-        bytes memory sig = signSetBudget(workerPk, worker, jobId, address(pay), amount, nonce, deadline);
-        vm.prank(relayer);
-        core.setBudgetWithAuthorization(
-            jobId, address(pay), amount, "", ERC8183WithAuthorization.Authorization(worker, nonce, deadline, sig)
-        );
     }
 
     function fund(uint256 jobId) internal {
@@ -192,20 +231,15 @@ abstract contract Base is Test {
         );
     }
 
-    /// @dev publish → assign → accept (direct) → fund → submit (direct). Returns the job in Submitted.
+    /// @dev publish → activate (the worker's own transaction) → submit (direct). Returns the job in Submitted.
     function submittedJob() internal returns (uint256 jobId) {
-        jobId = publish();
-        assign(jobId);
-        acceptDirect(jobId, REWARD);
-        fund(jobId);
+        jobId = fundedJob();
         submitDirect(jobId);
     }
 
     function fundedJob() internal returns (uint256 jobId) {
         jobId = publish();
-        assign(jobId);
-        acceptDirect(jobId, REWARD);
-        fund(jobId);
+        activate(jobId);
     }
 
     function disputedJob() internal returns (uint256 jobId) {

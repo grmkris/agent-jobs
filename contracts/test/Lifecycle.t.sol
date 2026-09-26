@@ -25,14 +25,9 @@ contract LifecycleTest is Base {
         assertEq(factory.balanceOf(creator), cFacBefore - CREATOR_BOND, "creator bond pulled in FACTORY");
         assertEq(core.getJob(jobId).client, address(holding), "Holding is the client");
 
-        assign(jobId);
+        activate(jobId);
         assertEq(core.getJob(jobId).providerAgentId, AGENT_ID, "agent id rides on the core job");
-        vm.expectRevert(JobHolding.BondNotPosted.selector);
-        holding.fundAfterAccept(jobId);
-
-        acceptDirect(jobId, REWARD);
-        assertEq(factory.balanceOf(worker), wFacBefore - WORKER_BOND, "worker bond pulled at accept");
-        fund(jobId);
+        assertEq(factory.balanceOf(worker), wFacBefore - WORKER_BOND, "worker bond pulled at activation");
         assertEq(pay.balanceOf(address(core)), REWARD, "reward moved into the core");
         assertEq(factory.balanceOf(address(core)), 0, "FACTORY never enters the core");
         assertEq(factory.balanceOf(address(holding)), CREATOR_BOND + WORKER_BOND, "both bonds locked in Holding");
@@ -48,12 +43,10 @@ contract LifecycleTest is Base {
         assertEq(factory.balanceOf(address(holding)) + pay.balanceOf(address(holding)), 0);
     }
 
-    function test_happyPath_relayedWorker() public {
-        uint256 jobId = publish();
-        assign(jobId);
-        acceptRelayed(jobId, REWARD, 1, block.timestamp + 1 hours);
-        fund(jobId);
-        submitRelayed(jobId, 2);
+    /// @dev Activation is never relayed (R114-01); the submission may be.
+    function test_happyPath_relayedSubmission() public {
+        uint256 jobId = fundedJob();
+        submitRelayed(jobId, 1_000);
         vm.prank(creator);
         evaluator.accept(jobId);
         assertEq(pay.balanceOf(worker), REWARD);
@@ -68,18 +61,11 @@ contract LifecycleTest is Base {
         holding.publish(p);
     }
 
-    function test_assign_requiresAgentId() public {
-        uint256 jobId = publish();
-        vm.prank(creator);
-        vm.expectRevert(JobHolding.AgentIdRequired.selector);
-        holding.assign(jobId, worker, 0);
-    }
-
     // ------------------------------------------------------------------------------------------
     // Hold gate and bonds
     // ------------------------------------------------------------------------------------------
 
-    function test_holdGate_publishAndClaim() public {
+    function test_holdGate_publish() public {
         JobHolding.PublishParams memory p = params(REWARD, 0, 0);
         pay.mint(stranger, REWARD);
         vm.prank(stranger);
@@ -87,37 +73,6 @@ contract LifecycleTest is Base {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(JobHolding.InsufficientFactoryHeld.selector, 0, MIN_HOLD));
         holding.publish(p);
-
-        uint256 jobId = publish(REWARD, 0, 0);
-        vm.prank(creator);
-        holding.assign(jobId, stranger, AGENT_ID);
-        vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(JobHolding.InsufficientFactoryHeld.selector, 0, MIN_HOLD));
-        holding.postWorkerBond(jobId);
-    }
-
-    function test_bond_zeroBondsStillNeedAnExplicitAccept() public {
-        uint256 jobId = publish(REWARD, 0, 0);
-        assign(jobId);
-        vm.prank(worker);
-        core.setBudget(jobId, address(pay), REWARD, "");
-        vm.expectRevert(JobHolding.BondNotPosted.selector);
-        holding.fundAfterAccept(jobId);
-        postBond(jobId);
-        fund(jobId);
-        assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Funded));
-    }
-
-    function test_bond_onlyTheAssignedWorkerPostsOnce() public {
-        uint256 jobId = publish();
-        assign(jobId);
-        vm.prank(stranger);
-        vm.expectRevert(JobHolding.NotWorker.selector);
-        holding.postWorkerBond(jobId);
-        postBond(jobId);
-        vm.prank(worker);
-        vm.expectRevert(JobHolding.BondAlreadyPosted.selector);
-        holding.postWorkerBond(jobId);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -191,9 +146,12 @@ contract LifecycleTest is Base {
         uint256 jobId = holding.publish(p);
         assertEq(pay.balanceOf(address(holding)), REWARD, "prize locked at publish");
 
-        vm.prank(creator);
+        JobHolding.Selection memory sel = selectionFor(jobId, worker, AGENT_ID);
+        bytes memory sig = signSelection(creatorPk, sel);
+        ERC8183WithAuthorization.Authorization memory auth = budgetAuth(workerPk, worker, jobId, REWARD, 1);
+        vm.prank(worker);
         vm.expectRevert(JobHolding.WrongMode.selector);
-        holding.assign(jobId, worker, AGENT_ID);
+        holding.activate(sel, sig, auth);
 
         vm.prank(creator);
         holding.select(jobId, worker, AGENT_ID);
@@ -493,18 +451,13 @@ contract LifecycleTest is Base {
         assertEq(pay.balanceOf(worker), REWARD);
     }
 
-    function test_adversarial_submitBeforeAcceptCannotBeSettled() public {
+    /// @dev With activation setting the provider and funding in one step, there is no provider to submit
+    ///         before funding: the core refuses anyone's submission on an unactivated listing.
+    function test_adversarial_noSubmissionBeforeActivation() public {
         uint256 jobId = publish();
-        assign(jobId);
-        submitDirect(jobId);
-        vm.prank(creator);
-        vm.expectRevert(JobsEvaluator.NeverFunded.selector);
-        evaluator.accept(jobId);
-        vm.warp(uint256(holding.deliveryDeadlineOf(jobId)) + 1);
-        evaluator.rejectAfterDeliveryDeadline(jobId);
-        vm.prank(creator);
-        holding.settle(jobId);
-        assertEq(pay.balanceOf(worker), 0);
+        vm.prank(worker);
+        vm.expectRevert(ERC8183.Unauthorized.selector);
+        core.submit(jobId, DELIVERABLE, "");
     }
 
     function test_adversarial_holdingNeverSettlesClaims() public {
@@ -520,36 +473,38 @@ contract LifecycleTest is Base {
     // Authorization negatives
     // ------------------------------------------------------------------------------------------
 
+    /// @dev The worker's budget authorization is spent by its activation; a relayer cannot replay it.
     function test_auth_replayRejected() public {
         uint256 jobId = publish();
-        assign(jobId);
-        postBond(jobId);
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes memory sig = signSetBudget(workerPk, worker, jobId, address(pay), REWARD, 7, deadline);
-        ERC8183WithAuthorization.Authorization memory auth =
-            ERC8183WithAuthorization.Authorization(worker, 7, deadline, sig);
-        core.setBudgetWithAuthorization(jobId, address(pay), REWARD, "", auth);
+        JobHolding.Selection memory sel = selectionFor(jobId, worker, AGENT_ID);
+        bytes memory sig = signSelection(creatorPk, sel);
+        ERC8183WithAuthorization.Authorization memory auth = budgetAuth(workerPk, worker, jobId, REWARD, 7);
+        vm.prank(worker);
+        holding.activate(sel, sig, auth);
+        vm.prank(relayer);
         vm.expectRevert(ERC8183WithAuthorization.AuthorizationNonceUsed.selector);
         core.setBudgetWithAuthorization(jobId, address(pay), REWARD, "", auth);
     }
 
-    function test_auth_wrongSignerCannotAccept() public {
+    function test_auth_wrongSignerCannotSetTheBudget() public {
         uint256 jobId = publish();
-        assign(jobId);
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes memory sig = signSetBudget(impostorPk, impostor, jobId, address(pay), REWARD, 1, deadline);
+        JobHolding.Selection memory sel = selectionFor(jobId, worker, AGENT_ID);
+        bytes memory sig = signSelection(creatorPk, sel);
+        ERC8183WithAuthorization.Authorization memory auth = budgetAuth(impostorPk, impostor, jobId, REWARD, 1);
+        vm.prank(worker);
         vm.expectRevert(ERC8183.Unauthorized.selector);
-        core.setBudgetWithAuthorization(
-            jobId, address(pay), REWARD, "", ERC8183WithAuthorization.Authorization(impostor, 1, deadline, sig)
-        );
+        holding.activate(sel, sig, auth);
     }
 
+    /// @dev Holding fixes token and amount from the listing; an authorization for anything else does not verify.
     function test_auth_workerCannotUnderfundThemselves() public {
         uint256 jobId = publish();
-        assign(jobId);
-        acceptDirect(jobId, REWARD - 1);
-        vm.expectRevert(JobHolding.NotAccepted.selector);
-        holding.fundAfterAccept(jobId);
+        JobHolding.Selection memory sel = selectionFor(jobId, worker, AGENT_ID);
+        bytes memory sig = signSelection(creatorPk, sel);
+        ERC8183WithAuthorization.Authorization memory auth = budgetAuth(workerPk, worker, jobId, REWARD - 1, 1);
+        vm.prank(worker);
+        vm.expectRevert(ERC8183WithAuthorization.InvalidAuthorizationSignature.selector);
+        holding.activate(sel, sig, auth);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -633,9 +588,7 @@ contract LifecycleTest is Base {
         uint256 wFac = factory.balanceOf(worker);
 
         uint256 jobId = publish(reward, cBond, wBond);
-        assign(jobId);
-        acceptDirect(jobId, reward);
-        fund(jobId);
+        activate(jobId);
         submitDirect(jobId);
         vm.prank(creator);
         evaluator.creatorReject(jobId);

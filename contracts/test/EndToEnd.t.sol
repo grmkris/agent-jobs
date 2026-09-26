@@ -11,11 +11,8 @@ contract EndToEndTest is Base {
     function test_completeFlow_evidenceAcceptPayBondsReputation() public {
         uint256 cFac = factory.balanceOf(creator);
         uint256 wFac = factory.balanceOf(worker);
-        uint256 jobId = publish();
-        assign(jobId);
-        acceptRelayed(jobId, REWARD, 1, block.timestamp + 1 hours);
-        fund(jobId);
-        submitRelayed(jobId, 2);
+        uint256 jobId = fundedJob();
+        submitRelayed(jobId, 1_000);
 
         JobsEvaluator.EvidenceAttestation memory a = attestation(jobId, 1, block.timestamp + 1 days);
         evaluator.attachEvidence(jobId, a, attester, signEvidence(attesterPk, a));

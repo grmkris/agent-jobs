@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Base} from "./Base.t.sol";
 import {ERC8183} from "../src/vendor/erc8183/ERC8183.sol";
+import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {FactoryToken} from "../src/FactoryToken.sol";
 import {MockPaymentToken} from "../src/MockPaymentToken.sol";
 import {JobHolding} from "../src/JobHolding.sol";
@@ -15,12 +16,14 @@ import {JobsEvaluator} from "../src/JobsEvaluator.sol";
 contract Handler is Test {
     FactoryToken internal factory;
     MockPaymentToken internal pay;
-    ERC8183 internal core;
+    ERC8183WithAuthorization internal core;
     JobHolding internal holding;
     JobsEvaluator internal evaluator;
     address internal creator;
     address internal worker;
     address internal arbitrator;
+    uint256 internal creatorPk;
+    uint256 internal workerPk;
 
     uint256[] public jobs;
     mapping(uint256 jobId => bool) public ruledForWorker;
@@ -35,13 +38,17 @@ contract Handler is Test {
     constructor(
         FactoryToken factory_,
         MockPaymentToken pay_,
-        ERC8183 core_,
+        ERC8183WithAuthorization core_,
         JobHolding holding_,
         JobsEvaluator evaluator_,
         address creator_,
         address worker_,
-        address arbitrator_
+        address arbitrator_,
+        uint256 creatorPk_,
+        uint256 workerPk_
     ) {
+        creatorPk = creatorPk_;
+        workerPk = workerPk_;
         factory = factory_;
         pay = pay_;
         core = core_;
@@ -96,15 +103,43 @@ contract Handler is Test {
         jobs.push(jobId);
     }
 
-    function assignOrSelect(uint256 seed) external withJobs {
+    /// @dev Hire: the creator's signed selection and the worker's own activation. Contest: the old select.
+    function activateOrSelect(uint256 seed) external withJobs {
         uint256 jobId = _pick(seed);
-        JobHolding.Mode mode = holding.getListing(jobId).mode;
-        vm.prank(creator);
-        if (mode == JobHolding.Mode.Contest) {
+        JobHolding.Listing memory l = holding.getListing(jobId);
+        if (l.mode == JobHolding.Mode.Contest) {
+            vm.prank(creator);
             try holding.select(jobId, worker, 1) {} catch {}
-        } else {
-            try holding.assign(jobId, worker, 1) {} catch {}
+            return;
         }
+        JobHolding.Selection memory sel = JobHolding.Selection({
+            jobId: jobId,
+            worker: worker,
+            agentId: 1,
+            termsHash: l.policyHash,
+            activateBy: l.deliveryDeadline - 1,
+            nonce: jobId
+        });
+        (uint8 v, bytes32 r, bytes32 s_) = vm.sign(creatorPk, holding.selectionDigest(sel));
+        bytes memory selSig = abi.encodePacked(r, s_, v);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 budgetHash = keccak256(
+            abi.encode(
+                core.SET_BUDGET_AUTHORIZATION_TYPEHASH(),
+                worker,
+                jobId,
+                address(pay),
+                l.reward,
+                keccak256(""),
+                uint72(jobId),
+                deadline
+            )
+        );
+        (v, r, s_) = vm.sign(workerPk, keccak256(abi.encodePacked("\x19\x01", core.DOMAIN_SEPARATOR(), budgetHash)));
+        ERC8183WithAuthorization.Authorization memory auth =
+            ERC8183WithAuthorization.Authorization(worker, uint72(jobId), deadline, abi.encodePacked(r, s_, v));
+        vm.prank(worker);
+        try holding.activate(sel, selSig, auth) {} catch {}
     }
 
     function postBond(uint256 seed) external withJobs {
@@ -201,7 +236,8 @@ contract InvariantsTest is Base {
 
     function setUp() public override {
         super.setUp();
-        handler = new Handler(factory, pay, core, holding, evaluator, creator, worker, arbitrator);
+        handler = new Handler(factory, pay, core, holding, evaluator, creator, worker, arbitrator, creatorPk, workerPk);
+        identity.setAgentWallet(1, worker);
         // The handler mints per publish; drain the setUp balances so the equations are exact. Both wallets
         // keep exactly MIN_HOLD of FACTORY, which the hold gate reads and the equations exclude.
         uint256 c = pay.balanceOf(creator);

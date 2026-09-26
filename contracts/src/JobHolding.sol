@@ -4,7 +4,11 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
+import {ERC8183WithAuthorization} from "./vendor/erc8183/ERC8183WithAuthorization.sol";
+import {IERC8004Identity} from "./vendor/erc8004/IERC8004.sol";
 import {FactoryToken} from "./FactoryToken.sol";
 
 /// @dev What Holding needs from the evaluator: how long settlement can take after delivery, and who is owed a
@@ -20,7 +24,10 @@ interface ISettlementWindow {
 ///         collateral in `$FACTORY`, a creator bond pulled at publish and a worker bond pulled at accept, both
 ///         locked here through settlement. A hold requirement in FACTORY gates publishing and claiming.
 ///
-///         Two modes. Hire-first: the creator assigns one worker. Contest: the prize is locked at publish,
+///         Two modes. Hire: the creator signs an EIP-712 `Selection` off-chain and the selected worker's own
+///         `activate` transaction is the final confirmation: provider, bond, budget and funding in one step, so
+///         nothing binds the worker before it acts and nobody else can start its bonded obligation (R114-01).
+///         Contest: the prize is locked at publish,
 ///         candidates are collected off-chain, and the creator picks one before `selectionDeadline`; if
 ///         nobody is picked, anyone can expire the contest and the prize returns.
 ///
@@ -28,8 +35,24 @@ interface ISettlementWindow {
 ///         a ruling that found a violation; every other terminal path returns both bonds; every refund the
 ///         core makes lands here as custody, not entitlement, and `settle` pays it to whoever the evaluator
 ///         says is owed it, exactly once (R114-03).
-contract JobHolding {
+contract JobHolding is EIP712 {
     using SafeERC20 for IERC20;
+
+    /// @notice The creator's pick of one applicant for one listing. `termsHash` must equal the listing's
+    ///         `policyHash`; `activateBy` bounds how long the pick stands and must precede the delivery deadline;
+    ///         `nonce` is in the creator's own nonce space here (see `cancelSelection`).
+    struct Selection {
+        uint256 jobId;
+        address worker;
+        uint256 agentId;
+        bytes32 termsHash;
+        uint48 activateBy;
+        uint256 nonce;
+    }
+
+    bytes32 public constant SELECTION_TYPEHASH = keccak256(
+        "Selection(uint256 jobId,address worker,uint256 agentId,bytes32 termsHash,uint48 activateBy,uint256 nonce)"
+    );
 
     enum Mode {
         HireFirst,
@@ -81,8 +104,10 @@ contract JobHolding {
         uint48 selectionDeadline;
     }
 
-    ERC8183 public immutable core;
+    ERC8183WithAuthorization public immutable core;
     FactoryToken public immutable factory;
+    /// @notice ERC-8004 Identity Registry: a worker participates with its registered agent wallet.
+    IERC8004Identity public immutable identity;
     address public immutable admin;
     /// @notice Set exactly once after deploy (the evaluator needs this address in its constructor).
     address public evaluator;
@@ -94,6 +119,8 @@ contract JobHolding {
     /// @notice Every `termsHash` ever listed. A retried publish of the same offer is refused rather than funding
     ///         a second escrow (R114-07).
     mapping(bytes32 policyHash => bool) public policyListed;
+    /// @notice Selection nonces used by `activate` or burned by `cancelSelection`, per creator.
+    mapping(address creator => mapping(uint256 nonce => bool)) public selectionNonceUsed;
 
     event Published(
         uint256 indexed jobId,
@@ -111,6 +138,8 @@ contract JobHolding {
         uint48 expiredAt
     );
     event Assigned(uint256 indexed jobId, address indexed worker, uint256 agentId, bool byContestSelection);
+    event Activated(uint256 indexed jobId, address indexed worker, uint256 agentId, uint256 selectionNonce);
+    event SelectionCancelled(address indexed creator, uint256 nonce);
     event WorkerBondPosted(uint256 indexed jobId, address indexed worker, uint256 amount);
     event Funded(uint256 indexed jobId);
     event Cancelled(uint256 indexed jobId);
@@ -144,12 +173,27 @@ contract JobHolding {
     error BondAlreadyPosted();
     error NotAccepted();
     error UnknownJob();
+    error NotSelectedWorker();
+    error SelectionExpired();
+    error SelectionInvalid();
+    error SelectionNonceUsed();
+    error TermsMismatch();
+    error NotAgentWallet();
+    error AlreadyActivated();
+    error InvalidSignature();
     error NothingToSettle();
     error NotTerminal();
 
-    constructor(ERC8183 core_, FactoryToken factory_, uint256 minHoldToPublish_, uint256 minHoldToClaim_) {
+    constructor(
+        ERC8183WithAuthorization core_,
+        FactoryToken factory_,
+        IERC8004Identity identity_,
+        uint256 minHoldToPublish_,
+        uint256 minHoldToClaim_
+    ) EIP712("AgentJobsHolding", "1") {
         core = core_;
         factory = factory_;
+        identity = identity_;
         admin = msg.sender;
         minHoldToPublish = minHoldToPublish_;
         minHoldToClaim = minHoldToClaim_;
@@ -245,12 +289,6 @@ contract JobHolding {
         );
     }
 
-    /// @notice Hire-first: names the worker (and its ERC-8004 agent id) as the core's provider.
-    function assign(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
-        if (_listings[jobId].mode != Mode.HireFirst) revert WrongMode();
-        _assign(jobId, worker, agentId, false);
-    }
-
     /// @notice Contest: picks the winning entrant before the selection deadline. Same effect as `assign`.
     function select(uint256 jobId, address worker, uint256 agentId) external onlyCreator(jobId) {
         Listing storage l = _listings[jobId];
@@ -259,13 +297,20 @@ contract JobHolding {
         _assign(jobId, worker, agentId, true);
     }
 
-    /// @notice Cancels an unassigned hire-first listing. Nothing was escrowed in the core; `settle` then
+    /// @notice Burns one of the creator's selection nonces, so a signed but unactivated `Selection` can no longer
+    ///         be used. Moves nothing.
+    function cancelSelection(uint256 nonce) external {
+        if (selectionNonceUsed[msg.sender][nonce]) revert SelectionNonceUsed();
+        selectionNonceUsed[msg.sender][nonce] = true;
+        emit SelectionCancelled(msg.sender, nonce);
+    }
+
+    /// @notice Cancels a hire listing before activation. Nothing was escrowed in the core; `settle` then
     ///         returns reward and creator bond. A published contest cannot be cancelled: entrants work against
     ///         the locked prize, so it ends only through `select` or `expireContest` (R16-02).
     function cancel(uint256 jobId) external onlyCreator(jobId) {
         if (_listings[jobId].mode != Mode.HireFirst) revert WrongMode();
-        if (_listings[jobId].funded) revert AlreadyFunded();
-        if (_listings[jobId].worker != address(0)) revert AlreadyAssigned();
+        if (_listings[jobId].worker != address(0) || _listings[jobId].funded) revert AlreadyActivated();
         core.reject(jobId, "cancelled", "");
         emit Cancelled(jobId);
     }
@@ -274,10 +319,56 @@ contract JobHolding {
     // Worker actions
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice The assigned worker posts its FACTORY bond (and passes the hold gate). Required before
-    ///         funding, even when the bond is zero, so acceptance is an explicit act.
+    /// @notice The selected worker's final confirmation of a hire, sent by the worker itself (never relayed,
+    ///         R114-01). Checks the creator's `Selection` (signature, nonce, `activateBy`, `termsHash`), the
+    ///         delivery deadline, the hold gate and that the sender is the agent's registered ERC-8004 wallet;
+    ///         then sets the provider, pulls the worker bond, applies the worker's own `SetBudgetAuthorization`
+    ///         for exactly the listed token and reward, and funds the core. All or nothing.
+    /// @param budgetAuth The worker's signed core `SetBudgetAuthorization` for this job, token and reward; the
+    ///        core's `setBudget` is provider-only and Holding is the caller, so the worker signs it.
+    function activate(
+        Selection calldata sel,
+        bytes calldata creatorSig,
+        ERC8183WithAuthorization.Authorization calldata budgetAuth
+    ) external {
+        uint256 jobId = sel.jobId;
+        Listing storage l = _listings[jobId];
+        if (l.creator == address(0)) revert UnknownJob();
+        if (l.mode != Mode.HireFirst) revert WrongMode();
+        if (l.worker != address(0) || l.funded) revert AlreadyActivated();
+        if (msg.sender != sel.worker) revert NotSelectedWorker();
+        // Allowed at its deadline, refused strictly after (the boundary convention).
+        if (block.timestamp > sel.activateBy) revert SelectionExpired();
+        if (sel.activateBy >= l.deliveryDeadline) revert SelectionInvalid();
+        if (sel.termsHash != l.policyHash) revert TermsMismatch();
+        if (selectionNonceUsed[l.creator][sel.nonce]) revert SelectionNonceUsed();
+        if (!SignatureChecker.isValidSignatureNow(l.creator, selectionDigest(sel), creatorSig)) {
+            revert InvalidSignature();
+        }
+        if (sel.agentId == 0) revert AgentIdRequired();
+        if (identity.getAgentWallet(sel.agentId) != msg.sender) revert NotAgentWallet();
+        _requireHold(msg.sender, minHoldToClaim);
+
+        selectionNonceUsed[l.creator][sel.nonce] = true;
+        l.worker = msg.sender;
+        l.workerBondPosted = true;
+        l.funded = true;
+        emit Activated(jobId, msg.sender, sel.agentId, sel.nonce);
+
+        core.setProvider(jobId, msg.sender, sel.agentId);
+        if (l.workerBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), l.workerBond);
+        emit WorkerBondPosted(jobId, msg.sender, l.workerBond);
+        core.setBudgetWithAuthorization(jobId, address(l.token), l.reward, "", budgetAuth);
+        l.token.forceApprove(address(core), l.reward);
+        core.fund(jobId, address(l.token), l.reward, "");
+        emit Funded(jobId);
+    }
+
+    /// @notice The selected contest winner posts its bond (zero: contests carry none) before funding. Old
+    ///         select-then-accept model, replaced by the atomic award.
     function postWorkerBond(uint256 jobId) external {
         Listing storage l = _listings[jobId];
+        if (l.mode != Mode.Contest) revert WrongMode();
         if (l.worker != msg.sender) revert NotWorker();
         if (l.workerBondPosted) revert BondAlreadyPosted();
         _requireHold(msg.sender, minHoldToClaim);
@@ -290,11 +381,12 @@ contract JobHolding {
     // Anyone
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice Funds the core once the assigned worker has posted its bond and set the budget to exactly the
-    ///         listed reward in the listed token. Anyone may call: the effect is fixed by the listing.
+    /// @notice Contest only (old select-then-accept model, replaced by the atomic award): funds the core once the
+    ///         selected winner has posted its bond and set the budget to exactly the listed reward. Anyone may call.
     function fundAfterAccept(uint256 jobId) external {
         Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert NotCreator();
+        if (l.mode != Mode.Contest) revert WrongMode();
         if (l.funded) revert AlreadyFunded();
         if (!l.workerBondPosted) revert BondNotPosted();
         ERC8183.Job memory job = core.getJob(jobId);
@@ -373,6 +465,17 @@ contract JobHolding {
     // ---------------------------------------------------------------------------------------------
     // Views
     // ---------------------------------------------------------------------------------------------
+
+    /// @notice The EIP-712 digest a creator signs for `sel` (domain "AgentJobsHolding", version "1").
+    function selectionDigest(Selection calldata sel) public view returns (bytes32) {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    SELECTION_TYPEHASH, sel.jobId, sel.worker, sel.agentId, sel.termsHash, sel.activateBy, sel.nonce
+                )
+            )
+        );
+    }
 
     function getListing(uint256 jobId) external view returns (Listing memory) {
         return _listings[jobId];

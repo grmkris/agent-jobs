@@ -20,9 +20,7 @@ contract ApproverTest is Base {
 
     function _submittedApproved() internal returns (uint256 jobId) {
         jobId = _publishApproved();
-        assign(jobId);
-        acceptDirect(jobId, REWARD);
-        fund(jobId);
+        activate(jobId);
         submitDirect(jobId);
     }
 
