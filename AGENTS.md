@@ -34,6 +34,8 @@ until tests prove them:
   authority.
 - A terminal core status alone never releases a bond whose penalty is due.
 - Workers use their registered ERC-8004 agent wallet; admission checks `getAgentWallet(agentId)`.
+- The arbitrator is portable: any harness signs an EIP-712 `Ruling`; `ruleWithSignature` accepts it
+  from any relayer under the same cutoff as `rule`.
 - Never put secrets in notes, commits, branch names, logs or artifacts.
 
 ## Working here
@@ -43,4 +45,10 @@ until tests prove them:
   shipping anything on-chain. Monad docs: <https://docs.monad.xyz/llms.txt>.
 - Deployments, migrations and transactions run deliberately, never as cached task results.
 - Database migrations only through `pnpm db:generate`; never auto-applied.
-- Loud stubs (`stubbed: true`) for every external service; addresses and chains come from config.
+- **No mocks in the product:** no stub code paths, no placeholder contracts in any deployment, no
+  simulation presented as an integration; an unreachable service shows as unavailable. Test doubles are
+  fine in unit tests, but every integration also gets a real test. Addresses and chains come from
+  `contracts/config/<network>.json`, never from code.
+- Secrets only in `.env.local` (template `.env.example`); never in git, logs, notes or commit messages.
+- Testnet is built exactly like mainnet. Any mainnet transaction waits for Kris's explicit go.
+- Execution order and done criteria: `docs/implementation-plan.md` (S-1 reality check first).

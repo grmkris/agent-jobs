@@ -32,6 +32,12 @@ Decided by Kris in the R20 round (ChatGPT review comments R20-01…R20-11) and t
 - **Reputation.** No feedback on arbitration timeout (`skip-arb`); reason-aware outcomes; no anti-farming.
 - **Pause** does not automatically excuse a missed delivery; the README states the admin commitment not to
   pause during an active agreement.
+- **Portable arbitrator:** the board MCP exposes arbitrator tools to a session signed in with the
+  arbitrator wallet; the harness (a Worker with any OpenAI-compatible model, or a Claude Code session)
+  signs an EIP-712 `Ruling`; `JobsEvaluator.ruleWithSignature` accepts it from any relayer.
+- **No mocks, testnet like mainnet:** no stubs or placeholder contracts in any deployment; real Jev; CRE
+  counts only when the deployed workflow delivers on 10143; testnet first, mainnet (real USDC, real
+  FACTORY, EOA admin) before the deadline.
 - **Quote-to-hire is in for the hackathon.** A quote request is a board record ("Accepting quotes — reward
   not escrowed") listing the accepted tokens; a quote names one token and exact amount; quotes are private to
   publisher and bidder until selection; no automatic lowest bid. Picking a quote publishes the ordinary
