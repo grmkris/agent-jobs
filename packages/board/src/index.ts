@@ -1,13 +1,14 @@
 /**
- * The board model (spec §5, spike S6): projects own tasks; a task becomes one or more agreements; an
- * agreement is the pinned economic commitment behind one core job. Pure: every rule here is a function over
- * plain values, so it runs in Node, in the Durable Object, and in the SDK's client-side checks.
+ * The board model (spec §5): projects own tasks; a task publishes one frozen offer; a worker's agreement pins
+ * that exact offer and the on-chain listing behind one core job. Pure: every rule is a function over plain
+ * values, so it runs in Node, in the Durable Object, and in the SDK's client-side checks.
  */
+import { keccak256, stringToHex, type Hex } from 'viem'
 
 /** How a task finds its worker. Hire-first assigns one applicant; a contest picks one finished candidate. */
 export type TaskMode = 'hire-first' | 'contest'
 
-/** The off-chain lifecycle of a hire-first task (spec §5). On-chain facts are mirrored, never decided, here. */
+/** The off-chain lifecycle of a hire-first task. On-chain facts are mirrored, never decided, here. */
 export type HireFirstStatus =
   | 'available'
   | 'reserved'
@@ -20,7 +21,7 @@ export type HireFirstStatus =
   | 'disputed'
   | 'settled'
 
-/** The off-chain lifecycle of a contest until a winner is picked; from `selected` on it is hire-first. */
+/** The off-chain lifecycle of a contest until a winner is picked; from `selected` on it is an agreement. */
 export type ContestStatus = 'open' | 'candidates' | 'selected' | 'expired'
 
 export type TaskStatus = HireFirstStatus | ContestStatus
@@ -41,8 +42,9 @@ export const HIRE_FIRST_TRANSITIONS: Readonly<Record<HireFirstStatus, readonly H
 export const CONTEST_TRANSITIONS: Readonly<Record<ContestStatus, readonly TaskStatus[]>> = {
   open: ['candidates', 'expired'],
   candidates: ['candidates', 'selected', 'expired'],
-  // A picked entrant continues as an assigned hire-first worker: bond, budget, fund, finalize.
+  // A picked entrant continues under an agreement: bond, budget, fund, finalize, like hire-first.
   selected: ['accepted'],
+  // No cancel edge: a published contest ends only through selection or expiry (R16-02).
   expired: [],
 }
 
@@ -63,74 +65,72 @@ export function canRelease(status: TaskStatus): boolean {
   return status === 'reserved'
 }
 
-/** "Silence is acceptance" applies to an assigned worker's finalized submission, never to contest entrants. */
-export function silenceIsAcceptance(mode: TaskMode, status: TaskStatus): boolean {
-  return mode === 'hire-first' && status === 'finalized'
+/**
+ * "Silence is acceptance" belongs to an agreement, not to the task's discovery mode (R16-03): a selected
+ * contest winner who accepted and was funded has exactly the rights of a hired worker, matching
+ * `JobsEvaluator.completeAfterSilence`. Unselected contest entrants have no agreement and no such right.
+ * @param agreement The worker's agreement, or undefined for an entrant who was never selected.
+ * @param status The task's current status.
+ */
+export function silenceIsAcceptance(agreement: Agreement | undefined, status: TaskStatus): boolean {
+  return agreement !== undefined && status === 'finalized'
 }
 
 // -------------------------------------------------------------------------------------------------
-// Projects and roles
+// Projects, roles, membership, eligibility
 // -------------------------------------------------------------------------------------------------
 
-/** A project-defined role. Names are free (developer, reviewer, security-reviewer, ...); nothing is fixed. */
+/** A project-defined role name. Nothing is fixed: developer, reviewer, security-reviewer are examples. */
 export interface Role {
   name: string
-  /** Whether a task requiring this role admits agents that merely declare it, or only certified ones. */
-  requiresCertification: boolean
 }
 
 /** A persistent owner of work: context, members, roles, defaults, budget. */
 export interface Project {
   projectId: string
   name: string
-  /** The wallet that publishes on-chain for this project and can certify agents. */
-  controller: `0x${string}`
+  /** The wallet that publishes on-chain for this project and signs membership changes. */
+  controller: Hex
   roles: readonly Role[]
-  /** Defaults a new task inherits; pinned onto the agreement when accepted, never retroactive. */
-  defaults: TaskDefaults
+  /** Defaults a new offer is resolved from, once, at publish. Never read again after that. */
+  defaults: OfferDefaults
   policyVersion: number
 }
 
-export interface TaskDefaults {
-  reviewWindowSeconds: number
-  disputeWindowSeconds: number
-  creatorBond: bigint
-  workerBond: bigint
-  /** Named CI checks and the trusted producing app an evidence attestation must cover. */
-  evidencePolicy?: EvidencePolicy
+/**
+ * Where an agent's eligibility for a role may come from (R16-04). Three distinct facts:
+ * - `declared`: the agent's own claim in ERC-8004 metadata. Anyone can say anything.
+ * - `membership`: this project appointed the agent (project-scoped, revocable, may be its own agent).
+ * - `endorsement`: ERC-8004 feedback from the project's controller. The registry forbids self-feedback,
+ *   so a controller cannot endorse an agent it owns; that is what membership is for.
+ */
+export type EligibilitySource = 'declared' | 'membership' | 'endorsement' | 'membership-or-endorsement'
+
+export interface EligibilityPolicy {
+  role: string
+  source: EligibilitySource
 }
 
-export interface EvidencePolicy {
-  checks: readonly string[]
-  trustedProducer: string
-  workflowPath: string
+/** A project's appointment of an agent to a role. Revocation affects new admissions only. */
+export interface Membership {
+  projectId: string
+  agentId: bigint
+  role: string
+  grantedAt: number
+  revokedAt?: number
 }
 
-/** A task: something that needs doing. Not yet a payment agreement. */
-export interface Task {
-  taskId: string
-  mode: TaskMode
-  projectId?: string
-  /** A role name from the project; absent means anyone with the hold gate may apply. */
-  roleRequired?: string
-  /** The project's `policyVersion` at creation; the agreement pins the resolved terms. */
-  policyVersion: number
-  status: TaskStatus
-}
-
-/** What an agent knows about itself and what projects have said about it (read from ERC-8004). */
+/** What is known about an agent for eligibility. Read from ERC-8004 and the board's membership table. */
 export interface AgentRoleView {
   agentId: bigint
   /** Self-declared, from the identity registry metadata key `agent-jobs.roles`. */
   declared: readonly string[]
-  /** Certified, from reputation feedback with `tag1 = "role"`: role name → certifying client addresses. */
-  certifiedBy: Readonly<Record<string, readonly `0x${string}`[]>>
+  /** Endorsements from reputation feedback with `tag1 = "role"`: role name → endorsing client addresses. */
+  endorsedBy: Readonly<Record<string, readonly Hex[]>>
+  memberships: readonly Membership[]
 }
 
-/** The metadata key on the ERC-8004 identity registry where an agent lists its roles, comma-separated. */
 export const ROLES_METADATA_KEY = 'agent-jobs.roles'
-
-/** The feedback tag a project uses to certify an agent for a role (`tag2` carries the role name). */
 export const ROLE_FEEDBACK_TAG = 'role'
 
 /**
@@ -142,67 +142,201 @@ export function parseDeclaredRoles(value: string): string[] {
 }
 
 export type RoleGateOutcome =
-  | { admitted: true; reason: 'no-role-required' | 'declared' | 'certified' }
-  | { admitted: false; reason: 'not-declared' | 'not-certified' | 'unknown-role' }
+  | { admitted: true; reason: 'no-role-required' | 'declared' | 'member' | 'endorsed' }
+  | { admitted: false; reason: 'unknown-role' | 'not-declared' | 'not-member' | 'not-endorsed' }
 
 /**
- * Whether an agent may apply to or claim a task, given the project's role definition and what the agent has
- * declared and been certified for (spec §1 "Projects and roles").
- * @param task The task, possibly requiring a role.
- * @param project The project that defines the role, or undefined for a standalone task.
- * @param agent The agent's declared roles and certifications.
+ * Whether an agent may apply to or claim an offer. Membership is looked up by `projectId`, never by
+ * controller, so two projects sharing a controller stay separate. An endorsement-required policy is never
+ * satisfied by membership.
+ * @param policy The offer's eligibility policy, or undefined for an open offer.
+ * @param project The project that defines the role.
+ * @param agent The agent's declarations, endorsements and memberships.
+ * @param now Seconds; a membership revoked at or before `now` does not admit.
  */
-export function roleGate(task: Task, project: Project | undefined, agent: AgentRoleView): RoleGateOutcome {
-  if (!task.roleRequired) return { admitted: true, reason: 'no-role-required' }
-  const role = project?.roles.find((r) => r.name === task.roleRequired)
-  if (!role) return { admitted: false, reason: 'unknown-role' }
-  const declared = agent.declared.includes(role.name)
-  if (!role.requiresCertification) {
-    return declared ? { admitted: true, reason: 'declared' } : { admitted: false, reason: 'not-declared' }
+export function roleGate(
+  policy: EligibilityPolicy | undefined,
+  project: Project | undefined,
+  agent: AgentRoleView,
+  now: number,
+): RoleGateOutcome {
+  if (!policy) return { admitted: true, reason: 'no-role-required' }
+  if (!project || !project.roles.some((r) => r.name === policy.role)) return { admitted: false, reason: 'unknown-role' }
+
+  const member = agent.memberships.some(
+    (m) =>
+      m.projectId === project.projectId &&
+      m.agentId === agent.agentId &&
+      m.role === policy.role &&
+      m.grantedAt <= now &&
+      (m.revokedAt === undefined || m.revokedAt > now),
+  )
+  const endorsed = (agent.endorsedBy[policy.role] ?? []).some(
+    (c) => c.toLowerCase() === project.controller.toLowerCase(),
+  )
+
+  switch (policy.source) {
+    case 'declared':
+      return agent.declared.includes(policy.role)
+        ? { admitted: true, reason: 'declared' }
+        : { admitted: false, reason: 'not-declared' }
+    case 'membership':
+      return member ? { admitted: true, reason: 'member' } : { admitted: false, reason: 'not-member' }
+    case 'endorsement':
+      return endorsed ? { admitted: true, reason: 'endorsed' } : { admitted: false, reason: 'not-endorsed' }
+    case 'membership-or-endorsement':
+      if (member) return { admitted: true, reason: 'member' }
+      return endorsed ? { admitted: true, reason: 'endorsed' } : { admitted: false, reason: 'not-member' }
   }
-  const certifiers = agent.certifiedBy[role.name] ?? []
-  const certified =
-    project !== undefined && certifiers.some((c) => c.toLowerCase() === project.controller.toLowerCase())
-  return certified ? { admitted: true, reason: 'certified' } : { admitted: false, reason: 'not-certified' }
 }
 
 // -------------------------------------------------------------------------------------------------
-// Agreements
+// Offers and agreements (R16-05)
 // -------------------------------------------------------------------------------------------------
 
-/** The pinned economic commitment behind one core job. Nothing here changes after acceptance. */
-export interface Agreement {
-  agreementId: string
+/** Named CI checks and the trusted producer an evidence attestation must cover. */
+export interface EvidencePolicy {
+  checks: readonly string[]
+  trustedProducer: string
+  workflowPath: string
+}
+
+/** The windows the deployed `JobsEvaluator` enforces. Offers cannot choose others. */
+export interface EvaluatorWindows {
+  reviewSeconds: number
+  disputeSeconds: number
+  arbitrationSeconds: number
+}
+
+export interface OfferDefaults {
+  token: Hex
+  creatorBond: bigint
+  workerBond: bigint
+  windows: EvaluatorWindows
+  evidencePolicy?: EvidencePolicy
+}
+
+/** A task: something that needs doing. Not yet an offer, not yet an agreement. */
+export interface Task {
   taskId: string
-  jobId: bigint
-  worker: `0x${string}`
-  agentId: bigint
-  token: `0x${string}`
+  mode: TaskMode
+  projectId?: string
+  eligibility?: EligibilityPolicy
+  status: TaskStatus
+}
+
+/**
+ * The frozen, published terms of one task. Everything a worker accepts is here, resolved once at publish.
+ * Its `termsHash` is the `policyHash` stored on the on-chain listing, which evidence must name.
+ */
+export interface OfferTerms {
+  v: 1
+  taskId: string
+  projectId: string | null
+  policyVersion: number | null
+  mode: TaskMode
+  token: Hex
   reward: bigint
   creatorBond: bigint
   workerBond: bigint
-  policyVersion: number
-  evidencePolicy?: EvidencePolicy
-  reviewWindowSeconds: number
-  disputeWindowSeconds: number
+  windows: EvaluatorWindows
+  eligibility: EligibilityPolicy | null
+  evidencePolicy: EvidencePolicy | null
 }
 
-/** The parts of an agreement that come from the parties rather than from the project's defaults. */
-export type AgreementInput = Pick<Agreement, 'agreementId' | 'taskId' | 'jobId' | 'worker' | 'agentId' | 'token' | 'reward'> &
-  Partial<Pick<Agreement, 'creatorBond' | 'workerBond'>>
+/** Canonical JSON: keys sorted at every level, bigints as decimal strings, no whitespace. */
+export function canonicalJson(value: unknown): string {
+  if (typeof value === 'bigint') return JSON.stringify(value.toString())
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
+}
+
+/** keccak256 of the canonical JSON; equal to the listing's on-chain `policyHash`. */
+export function termsHash(offer: OfferTerms): Hex {
+  return keccak256(stringToHex(canonicalJson(offer)))
+}
+
+export class TermsError extends Error {
+  constructor(readonly code: 'windows-mismatch' | 'listing-mismatch' | 'terms-hash-mismatch', message: string) {
+    super(message)
+  }
+}
 
 /**
- * Builds the agreement from the task and the project's defaults *as they are now*; later project changes never
- * touch it.
+ * Resolves a task and its project's current defaults into the frozen offer, once. Later project edits
+ * never reach it. Rejects windows the deployed evaluator does not enforce.
  */
-export function pinAgreement(input: AgreementInput, task: Task, defaults: TaskDefaults): Agreement {
-  return {
-    ...input,
-    creatorBond: input.creatorBond ?? defaults.creatorBond,
-    workerBond: input.workerBond ?? defaults.workerBond,
-    policyVersion: task.policyVersion,
-    ...(defaults.evidencePolicy ? { evidencePolicy: structuredClone(defaults.evidencePolicy) } : {}),
-    reviewWindowSeconds: defaults.reviewWindowSeconds,
-    disputeWindowSeconds: defaults.disputeWindowSeconds,
+export function publishOffer(
+  task: Task,
+  project: Project | undefined,
+  reward: bigint,
+  standalone: OfferDefaults | undefined,
+  evaluator: EvaluatorWindows,
+): { offer: OfferTerms; termsHash: Hex } {
+  const defaults = project?.defaults ?? standalone
+  if (!defaults) throw new TermsError('listing-mismatch', 'A standalone task needs explicit defaults.')
+  if (canonicalJson(defaults.windows) !== canonicalJson(evaluator)) {
+    throw new TermsError('windows-mismatch', 'Offer windows must equal the deployed evaluator windows.')
   }
+  const offer: OfferTerms = {
+    v: 1,
+    taskId: task.taskId,
+    projectId: project?.projectId ?? null,
+    policyVersion: project?.policyVersion ?? null,
+    mode: task.mode,
+    token: defaults.token,
+    reward,
+    creatorBond: defaults.creatorBond,
+    workerBond: defaults.workerBond,
+    windows: structuredClone(defaults.windows),
+    eligibility: task.eligibility ? structuredClone(task.eligibility) : null,
+    evidencePolicy: defaults.evidencePolicy ? structuredClone(defaults.evidencePolicy) : null,
+  }
+  return { offer, termsHash: termsHash(offer) }
+}
+
+/** What Holding's `listings(jobId)` reports, reduced to what the agreement must equal. */
+export interface OnChainListing {
+  token: Hex
+  reward: bigint
+  creatorBond: bigint
+  workerBond: bigint
+  policyHash: Hex
+}
+
+/** A worker's agreement: one frozen offer, one on-chain job. Nothing here changes after acceptance. */
+export interface Agreement {
+  agreementId: string
+  jobId: bigint
+  worker: Hex
+  agentId: bigint
+  terms: OfferTerms
+  termsHash: Hex
+}
+
+/**
+ * Pins the exact published offer to the worker and the job. Fails when the listing on-chain does not carry the
+ * same asset, amounts and policy hash, so the board can never promise terms the contracts will not honour.
+ */
+export function pinAgreement(
+  input: { agreementId: string; jobId: bigint; worker: Hex; agentId: bigint },
+  published: { offer: OfferTerms; termsHash: Hex },
+  listing: OnChainListing,
+): Agreement {
+  const offer = published.offer
+  if (termsHash(offer) !== published.termsHash) {
+    throw new TermsError('terms-hash-mismatch', 'The offer does not hash to its published termsHash.')
+  }
+  const same =
+    listing.token.toLowerCase() === offer.token.toLowerCase() &&
+    listing.reward === offer.reward &&
+    listing.creatorBond === offer.creatorBond &&
+    listing.workerBond === offer.workerBond &&
+    listing.policyHash.toLowerCase() === published.termsHash.toLowerCase()
+  if (!same) throw new TermsError('listing-mismatch', 'The on-chain listing does not match the published offer.')
+  return { ...input, terms: structuredClone(offer), termsHash: published.termsHash }
 }

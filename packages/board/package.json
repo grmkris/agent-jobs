@@ -10,5 +10,8 @@
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "viem": "2.56.9"
   }
 }
