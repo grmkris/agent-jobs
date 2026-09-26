@@ -105,6 +105,7 @@ contract JobsEvaluator is EIP712 {
     error ReviewWindowClosed();
     error ArbitrationWindowClosed();
     error InvalidSignature();
+    error DisputeOpen();
 
     constructor(
         ERC8183 core_,
@@ -146,10 +147,14 @@ contract JobsEvaluator is EIP712 {
     // Parties
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice The creator accepts the finalized submission: the reward leaves escrow, both bonds return.
+    /// @notice The creator accepts the finalized submission: the reward leaves escrow, both bonds return. Before
+    ///         a dispute this is also a reconsideration of a rejection; once the worker has disputed, only a ruling
+    ///         or the arbitration timeout settles, so a pending bad-faith finding cannot be dodged by paying late
+    ///         (R114-02).
     function accept(uint256 jobId) external {
         if (holding.creatorOf(jobId) != msg.sender) revert NotCreator();
         _requireSubmitted(jobId);
+        if (disputedAt[jobId] != 0) revert DisputeOpen();
         emit Accepted(jobId, msg.sender);
         _complete(jobId, "accepted");
     }
@@ -169,6 +174,8 @@ contract JobsEvaluator is EIP712 {
     /// @notice The worker disputes a rejection within the dispute window.
     function dispute(uint256 jobId) external {
         if (core.getJob(jobId).provider != msg.sender) revert NotProvider();
+        // A job settled by a pre-dispute reconsideration (or anything else) has nothing left to dispute.
+        _requireSubmitted(jobId);
         uint48 at = rejectedAt[jobId];
         if (at == 0) revert NotRejected();
         if (disputedAt[jobId] != 0) revert AlreadyDisputed();
