@@ -94,15 +94,16 @@ describe('silence is acceptance (R16-03)', () => {
   })
 })
 
+const member = (projectId: string, role: string, revokedAt?: number) => ({
+  projectId,
+  agentId: 42n,
+  role,
+  grantedAt: 10,
+  ...(revokedAt !== undefined ? { revokedAt } : {}),
+})
+
 describe('eligibility (R16-04)', () => {
   const now = 1_000
-  const member = (projectId: string, role: string, revokedAt?: number) => ({
-    projectId,
-    agentId: 42n,
-    role,
-    grantedAt: 10,
-    ...(revokedAt !== undefined ? { revokedAt } : {}),
-  })
 
   it('parses declared roles', () => {
     expect(parseDeclaredRoles(' Developer, security-reviewer ,, developer ')).toEqual(['developer', 'security-reviewer'])
