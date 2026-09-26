@@ -73,3 +73,23 @@ Decided by Kris in the R20 round (ChatGPT review comments R20-01…R20-11) and t
   spec (S7, S8).
 - `contracts/SURFACE.md` carries current and target behaviour side by side until S7 lands.
 - No testnet deploy before S7 is green.
+
+## Amendment (2026-09-26): R114 review
+
+ChatGPT reviewed spec revision 114 and the code at `47c4dd2`. Kris decided:
+
+- **R114-01 Direct activation only.** `activate` is callable only by the worker (a relayed call would check
+  the relayer); every demo wallet sends its own transactions. The relay submits only contest-award
+  authorisations and signed rulings.
+- **R114-02 No accept during a dispute** (a real defect at 47c4dd2: `accept` returned both bonds while a
+  dispute was open, dodging a bad-faith finding). Pre-dispute reconsideration stays allowed.
+- **R114-03 Earned rights survive core expiry** (a real defect at 47c4dd2: after `expiredAt` + grace a
+  third party's `claimRefund` let the creator withdraw an earned silence payment). A core refund to Holding
+  is custody; Holding settles from the evaluator's recorded outcome exactly once.
+- **R114-04..08 adopted:** evidence tiers; one executable order (S7 → B1 → S5 live; Dispatch before the
+  rehearsal; no public write endpoint in any staging deploy); candidate vs on-chain evidence labels;
+  durable operation records with `termsHash` idempotency on-chain; arbitrator = model proposes,
+  deterministic signer validates, decision persisted per dispute.
+- **R114-09** FACTORY supply and mint authority decided before mainnet; the code supports a no-faucet
+  production configuration now. **R114-10** no exposure caps. Mainnet hold gates 0 at launch.
+- First real jobs: CI for `runner-spike-fixture`, then `scripts/reality-check.ts` in this repo.

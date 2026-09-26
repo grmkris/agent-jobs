@@ -62,12 +62,14 @@ Nothing below exists yet. It records where S7 changes the table above so the two
 | Function | Who | Change from v2 |
 | :--- | :--- | :--- |
 | `JobHolding.publish` | anyone holding >= `minHoldToPublish` | Also stores the offer's `approver`; refuses a zero `policyHash` and a contest with `workerBond > 0`. |
-| `JobHolding.activate(selection, creatorSig, agentId, budgetAuth)` | the selected worker | Replaces `assign` + `postWorkerBond` + `fundAfterAccept`. Checks the creator's EIP-712 `Selection` (deadline, nonce, `termsHash`), `activateBy` and the delivery deadline, the hold gate and `getAgentWallet(agentId) == msg.sender`; then setProvider, worker bond, `setBudgetWithAuthorization`, fund. |
+| `JobHolding.activate(selection, creatorSig, agentId, budgetAuth)` | **the selected worker itself** (never relayed, R114-01) | Replaces `assign` + `postWorkerBond` + `fundAfterAccept`. Checks the creator's EIP-712 `Selection` (deadline, nonce, `termsHash`), `activateBy` and the delivery deadline, the hold gate and `getAgentWallet(agentId) == msg.sender`; then setProvider, worker bond, `setBudgetWithAuthorization`, fund. |
 | `JobHolding.cancelSelection(nonce)` | creator | Burns a selection nonce. |
+| `JobHolding.publish` (idempotency) | anyone | Refuses a `policyHash` it has already listed (R114-07). |
+| Holding settlement after a core refund | anyone | After the core's `claimRefund` (or any rejection) the reward in Holding goes by the evaluator's recorded outcome: earned silence payment → worker; undisputed rejection, no-show, arbitration timeout → creator; each once (R114-03). Replaces `withdraw` paying the creator on any Rejected/Expired status. |
 | `JobHolding.award(candidate)` | approver, before `selectionDeadline` | Replaces `select`. setProvider → `setBudgetWithAuthorization` → fund → `submitWithAuthorization` → evaluator completion in one transaction; any failure reverts all and the contest stays open. |
 | `JobHolding.cancel` | creator, hire only | Only before activation. |
 | `JobHolding.withdrawWorkerBond` | worker | Refuses while a penalty is due, whatever the core status (closes `claimRefund` → withdraw bypassing a burn). |
-| `JobsEvaluator.accept` | **approver** (was creator) | Also a late submission, until the missed-delivery burn has run. |
+| `JobsEvaluator.accept` | **approver** (was creator) | Refused while a dispute is open (R114-02). Also a late submission, until the missed-delivery burn has run. |
 | `JobsEvaluator.reject(jobId, violation, reasonHash)` | **approver**, until `submittedAt + reviewWindow`, timely submissions only | Replaces `creatorReject`; `violation ∈ {none, quality, falsified}`. |
 | `JobsEvaluator.rejectAfterWindow` | anyone | Burns the worker bond when the undisputed rejection named a violation. |
 | missed-delivery timeout | anyone, after `deliveryDeadline` | Funded, no timely submission: refund and **worker bond burned** (was: reject, bonds returned). |

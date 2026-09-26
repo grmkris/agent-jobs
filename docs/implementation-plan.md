@@ -1,144 +1,140 @@
-# Implementation plan (26 Sep 2026)
+# Implementation plan (26 Sep 2026, after the R114 review)
 
-The spec is myplan note 12 "Hackathon spec — agent-jobs" (R20 synthesis); decisions are in ADR-0004. This
-file is the execution order. Deadline 13 Oct 2026, 23:59 ET.
+The spec is myplan note 12 "Hackathon spec — agent-jobs"; decisions are in ADR-0004 (R20 + R114
+amendment). This file is the execution order and must agree with note 12 §9. Working deadline: 13 Oct
+2026, 23:59 ET (official portal rules still to be confirmed by Kris).
 
 ## Rules for every step
 
 - **Dev machine: `netcup`** (`ssh netcup`, `~/code/agent-jobs`). All work happens there, in a session
   started on that machine; `.env.local` lives there (mode 600). Toolchain: Foundry 1.8.3, pnpm 10.13.1
   (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre`, `mm`.
-
 - **No mocks in the product.** No stub code paths, no placeholder contracts in any deployment, no
   simulation presented as an integration. An unreachable service shows as unavailable. Unit tests may use
-  test doubles for failure paths; every integration also has a real test (fork or live testnet, the real
-  service).
+  test doubles for failure paths; every integration also has a real test.
 - **Testnet is built exactly like mainnet.** One deployment recipe, one config file per network
-  (`contracts/config/monad-testnet.json`, `monad-mainnet.json`), no address in code. The only testnet
-  differences: chain, faucet tokens (`FactoryToken` faucet, `mUSD`, `mEUR`) and the extra demo-window
-  evaluator.
+  (`contracts/config/monad-testnet.json`, `monad-mainnet.json`), no address in code. Testnet differences:
+  chain, faucet tokens (`FactoryToken` faucet, `mUSD`, `mEUR`) and the extra demo-window evaluator. The
+  production config has no faucet, and a test proves it cannot enable one.
 - **Secrets** only in `.env.local` (template `.env.example`), pushed to Worker secrets by
   `scripts/push-secrets.ts`. Never in git, logs, notes or commit messages.
-- **Sequential.** Each step ends with `pnpm check` green (checking its exit code, not a pipe), one commit,
-  CI green, and the stated live proof. Status is updated in note 12 §13 only after that proof.
-- **Stops:** a red credential, a genuine design fork, or any mainnet transaction (always waits for Kris).
+- **Evidence tiers** (R114-04): credential → operation → end-to-end, recorded in `docs/reality-check.md`
+  with a dated command or test. Planned, implemented/tested and live-verified are separate statuses.
+- **At most one economic effect** per operation (R114-07): durable operation records, reconciled against
+  the chain before any retry.
+- **Sequential.** Each step ends with `pnpm check` exit 0 (checked, not piped), one bounded commit, CI
+  green, and the stated proof. Status is updated in note 12 §13 only after that proof.
+- **Stops:** a red credential, a genuine design fork, or any mainnet transaction (always waits for Kris's
+  explicit go). "No deploy before S7 is green" covers the product contracts; a read-only infrastructure
+  probe may be deployed earlier, never a public write endpoint.
 
-## S-1 Reality check (first)
+## Order (one, same as note 12 §9)
 
-Status 26 Sep: run by hand, results in `docs/reality-check.md`; open items are CRE deploy access
-(pending with Chainlink), a CI workflow on the fixture repo (S5), and the staging deploy / verification
-/ CRE hello-world runs, which happen at the start of S7/B1.
+S-1 (credential tier, done) → **S7** → **B1** testnet deploy → **S5** live proof → **B2** (first real
+path, then quotes, contests, arbiter, wallets) → **B3** (S4 + Explore) → **B4–B5** → **Dispatch adapter**
+→ **B6a** testnet rehearsal → **B7** mainnet → **B6b** ship.
 
-`scripts/reality-check.ts` reads `.env.local`, runs one real call per dependency, and writes a green or red
-table to `docs/reality-check.md`:
+## S7 Contracts v3 (R20, R114)
 
-| Check | Real call |
-| :--- | :--- |
-| Monad testnet | `eth_chainId` = 10143; MON balance of the four EOAs above a floor |
-| Addresses | `cast code` + `symbol()` on the ERC-8004 registries and both USDC addresses |
-| Foundry | `forge --version` >= 1.8 (`foundryup` first) |
-| Verification | deploy and verify a trivial contract (Sourcify, Monadscan) |
-| Privy | server wallet `eth_sendTransaction` on `eip155:10143` (a self-transfer) |
-| MetaMask agent wallet | one transaction on 10143 from the configured address |
-| HyperSync | a log query on the testnet endpoint with the token |
-| GitHub App | installation token → check-runs of `FIXTURE_REPO`'s default branch head |
-| Chainlink CRE | `cre whoami`; deploy a hello-world workflow to Monad testnet and observe one delivery |
-| Jev | one screening call |
-| Model endpoint | one chat completion from `ARBITER_MODEL` |
-| Cloudflare | `alchemy deploy --stage staging` of the current probe Worker, then a GET |
+Acceptance: note 12 §13 S7 row; target surface: `contracts/SURFACE.md`.
 
-Done: every row green, table committed (no secrets in it).
-
-## S7 Contracts v3 (R20)
-
-Scope and acceptance: note 12 §4 and §13 (S7 row); target surface in `contracts/SURFACE.md`.
-
-1. `JobHolding`: approver field; `publish` refuses zero `policyHash` and contest `workerBond > 0`;
-   `activate(Selection, creatorSig, agentId, budgetAuth)` + `cancelSelection`; `award(candidate)` chaining
-   setProvider → `setBudgetWithAuthorization` → fund → `submitWithAuthorization` → evaluator completion;
-   bond outcomes recorded in Holding; `withdrawWorkerBond` guarded; identity registry wallet check.
-2. `JobsEvaluator`: approver-gated `accept` / `reject(violation, reasonHash)`; missed-delivery burn; late
-   submission rules; `rejectAfterWindow` burns on a named violation; `ruleWithSignature(Ruling, sig)`;
-   reason-aware `_recordOutcome`; `EvidenceAttached` with every binding field; `completeAward` for Holding.
+0. **Failing tests first** for the two defects R114 found at 47c4dd2:
+   - R114-02: reject → dispute → accept must revert (accept vs dispute, ruling, timeout; both orders;
+     approver = and ≠ creator).
+   - R114-03: timely submit → review window passes → nobody settles → `expiredAt` + grace →
+     `core.claimRefund` → Holding pays the **worker** exactly once (plus silence-vs-refund in both orders,
+     no-show, undisputed rejection and arbitration timeout after expiry; other escrows untouched).
+1. `JobHolding`: approver; `publish` refuses zero or already-listed `policyHash` and contest
+   `workerBond > 0`; **`activate` callable only by the worker** (checks the creator's `Selection`,
+   `activateBy`, delivery deadline, hold gate, `getAgentWallet(agentId) == msg.sender`; sets provider,
+   pulls bond, applies the worker's `SetBudgetAuthorization`, funds) + `cancelSelection`; `award`
+   (setProvider → `setBudgetWithAuthorization` → fund → `submitWithAuthorization` → evaluator completion);
+   reward and bond outcomes recorded in Holding; post-core-refund settlement from the evaluator's outcome;
+   `withdrawWorkerBond` guarded; no-faucet production config.
+2. `JobsEvaluator`: approver-gated `accept` (refused while disputed) / `reject(violation, reasonHash)`;
+   missed-delivery burn; late-submission rules; `rejectAfterWindow` burns on a named violation;
+   `ruleWithSignature(Ruling, sig)`; recorded outcome per job for Holding; reason-aware `_recordOutcome`;
+   `EvidenceAttached` with every binding field; `completeAward` for Holding.
 3. `MockPaymentToken(name, symbol)` for testnet.
-4. `script/Deploy.s.sol` + `config/<network>.json`: core proxy, Holding, real-window evaluator,
-   demo-window evaluator (testnet only), receiver address slot, token allowlist, verifier registration.
-5. Tests: the S7 acceptance list; existing S1b contest tests replaced; invariants extended; fork tests run
-   the deploy recipe against a fork of each network.
-6. Docs: `SURFACE.md` target section becomes the current surface; ADR-0004 status → implemented.
+4. `script/Deploy.s.sol` + `config/<network>.json`: core proxy, Holding, real-window and demo-window
+   evaluators, receiver slot, token allowlist, verifier registration; fork-tested per network.
+5. Existing S1b contest tests replaced; invariants: each reward and bond decided once, no double payout,
+   all assets conserved.
+6. Docs: `SURFACE.md` target becomes current; ADR-0004 status → implemented.
 
-Done: `forge test` (unit, fuzz, invariants) and fork tests green; CI green.
-
-## S5 Evidence (live)
-
-1. Attester module (`apps/api`): GitHub App token → check-runs of the tested commit → filter to the
-   policy's named checks and trusted producer → EIP-712 `EvidenceAttestation` → `attachEvidence`.
-2. `EvidenceReceiver` as a pinned CRE `ReceiverTemplate` (forwarder and workflow identity checked);
-   `workflows/cre-evidence` (TypeScript, CLI >= 1.30, SDK >= 1.19 pinned).
-3. Unit tests for the receiver (valid route, wrong forwarder, wrong workflow, direct call, ERC-165,
-   replay, policy/artifact binding); CLI simulation only against its own labelled test receiver.
-
-Done: after B1's deploy, the deployed workflow delivers an attestation on 10143 for a real commit, and the
-attester does the same; both visible on-chain.
+Done: `forge test` (unit, fuzz, invariants) and fork tests green; CI green. S5 receiver code and unit
+tests may be written in parallel.
 
 ## B1 Testnet deploy
 
-Run the recipe on 10143: core proxy, Holding, both evaluators, receiver, `FactoryToken`, `mUSD`, `mEUR`;
-verify all; register attester and receiver as verifiers; write `config/monad-testnet.json`; README
-addresses. Then complete S5's live delivery.
+Run the recipe on 10143: core proxy, Holding, both evaluators, the genuine CRE receiver, `FactoryToken`,
+`mUSD`, `mEUR`; verify on Monadscan; register the attester and receiver as verifiers; write
+`config/monad-testnet.json`; README addresses. Done: verified addresses and a scripted `cast` hire
+(publish → activate → submit → accept) on testnet.
 
-Done: addresses verified on the explorer; a scripted `cast` hire runs publish → activate → submit →
-accept on testnet.
+## S5 Evidence live proof
+
+Needs CRE deploy access and the first real job (fixture CI). The attester and the deployed CRE workflow
+each deliver an attestation on 10143 to the deployed receiver for a real commit of
+`runner-spike-fixture`. Record in `docs/reality-check.md` as end-to-end.
 
 ## B2 Board service (S8)
 
-1. `packages/spec`: Effect Schema for manifest, `OfferTerms`, `QuoteRequest`, `Quote`, `Selection`,
-   `Ruling`, `CandidateEntry`, submission, evidence, receipt, dispute; JSON Schema export.
-2. `packages/board`: Dispatch `board-logic` wrapped; hire handshake, quotes, contest candidates and award
-   reconciliation, arbitration records; S8 acceptance tests.
-3. `packages/sdk`: the functions listed in note 12 §7, network config driven.
-4. `apps/api`: SIWE sessions; MCP with worker, publisher and arbitrator tools; relay (signer-bound, spend
-   cap); authorised content-addressed manifest publication (the S0 probe PUT removed); fork SHA check;
-   attester; real Jev client.
-5. `apps/arbiter`: cron Worker, pluggable OpenAI-compatible endpoint, pinned prompt, signs `Ruling`,
-   calls `submit_ruling`. `skill/arbitrator/SKILL.md` for a Claude Code session.
-6. `skill/SKILL.md` worker skill + MCP snippets for Claude Code, Codex, Grok.
-7. `scripts/push-secrets.ts`; `alchemy deploy --stage staging`.
+1. **First real path:** the smallest SDK → API → MCP flow for one `cast`-wallet fixed-price hire of the
+   first real job (CI for `runner-spike-fixture`): publish → activate → submit → accept with correct
+   reward and bonds, no manual database repair.
+2. `packages/spec`, `packages/board` (Dispatch `board-logic` wrapped), `packages/sdk`, `apps/api` (SIWE,
+   MCP worker/publisher/arbitrator tools, relay for award authorisations and signed rulings only,
+   operation records in the board DO, authorised content-addressed manifest publication with the S0 PUT
+   removed before any public deployment, fork SHA check, attester, Jev client through the AI Gateway).
+3. Quotes on top of hire; contests on the proven award; evidence labels (candidate vs on-chain).
+4. `apps/arbiter`: model proposes → deterministic signer validates → decision persisted per dispute;
+   lease so one runner is active; `skill/arbitrator/SKILL.md` for a Claude Code session.
+5. Each demo wallet's full lifecycle (MetaMask agent, Privy server wallet); the second real job
+   (`scripts/reality-check.ts`).
 
-Done, on testnet: a fixed-price hire, a quoted hire and a contest award each settle end to end through the
-MCP with real harnesses; one dispute is ruled by `apps/arbiter` and one by a Claude Code session; each
-demo wallet (`cast`, MetaMask agent wallet, Privy server wallet) completes its full lifecycle.
+Done on testnet: fixed-price, quoted and contest routes settle end to end; one dispute ruled by each
+arbitrator harness; each wallet completes its lifecycle; S8 acceptance (incl. R114-06/07/08) green.
 
-## B3 Discovery (S4 + Explore)
+## B3 Discovery, B4–B5
 
-`apps/indexer` (HyperSync → D1, finalized blocks, lease, rebuild) with the S4 tests plus a live run against
-the testnet deployment; `apps/explore` (Explore, Job detail, Publish for all three routes, Worker profile)
-with Privy React, ethskills UX rules, Playwright smoke against `staging`.
+S4 indexer (finalized blocks, lease, rebuild of chain facts only) with a live log query; `apps/explore`
+with both evidence labels; Jev on the real path; dispute UI and early award; demo-window evaluator by
+config.
 
-Done: a full rebuild from the deploy block equals the live D1 state; Explore shows the B2 jobs correctly.
+## Dispatch adapter
 
-## B4 Trust signals / B5 Dispute UI
+Cloudflare OS Dispatch publishes a quote request through the SDK (demo step 1). Before B6a.
 
-Jev at publish and on submission against the real API; evidence from both verifiers on real repos; the
-dispute UI (violation, reasons, ruling, burns) and the early contest award; the demo-window evaluator
-selected by config.
+## B6a Testnet rehearsal
 
-## B6a Testnet demo run
+The whole note 12 §2 script on testnet with real harnesses and services, recorded; ethskills qa by a
+separate agent, crops, audit skim, independent adversarial review; fixes, then re-record.
 
-The whole note 12 §2 script on testnet, real harnesses (Claude Code, Codex), real services, recorded.
-ethskills qa by a separate agent (PASS/FAIL, no fixes), crops, audit skim; fixes, then re-record.
+## B7 Mainnet
 
-## B7 Mainnet (after B6a, after the note 12 §11 mainnet items are decided)
-
-Mainnet EOAs funded; `config/monad-mainnet.json` with USDC allowlisted and no faucet token; custom domain;
-the same recipe with real windows; verify; `prod` stage for API, arbiter, indexer, Explore; one real job
-published, activated, delivered and settled with real USDC. Every transaction waits for Kris's go.
+After B6a and Kris's FACTORY supply/mint decision. Same recipe, real windows, USDC allowlisted, no faucet,
+hold gates 0, custom domain, `prod` stage; one real job settled with real USDC. Every transaction waits
+for Kris's explicit go.
 
 ## B6b Ship
 
-Cloudflare OS Dispatch publish (request quotes); the three-minute video; README (admin, pause commitment,
-addresses and transaction hashes on both networks, "unaudited", AI disclosure); submission.
+Video, README (admin, pause commitment, addresses and transaction hashes on both networks, "unaudited",
+AI disclosure), submission per the official rules.
+
+## Starting a session on netcup
+
+```
+ssh netcup
+cd ~/code/agent-jobs && git status && git log --oneline -3
+claude
+```
+
+Prompt: "Read AGENTS.md, docs/implementation-plan.md, docs/reality-check.md and myplan note 12 (§1, §3,
+§4, §9, §13). Start S7: write the R114-02 and R114-03 counterexample tests first and show them failing,
+then implement direct activation and the atomic award. Bounded commits with checked `pnpm check` exit
+codes. Secrets only from .env.local. No mainnet transaction."
 
 ## Credentials
 
-See `.env.example` and note 12 §13a. Mainnet-only items are needed at B7, everything else at S-1.
+See `.env.example`, `docs/reality-check.md` and note 12 §13a.

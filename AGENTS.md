@@ -51,4 +51,8 @@ until tests prove them:
   `contracts/config/<network>.json`, never from code.
 - Secrets only in `.env.local` (template `.env.example`); never in git, logs, notes or commit messages.
 - Testnet is built exactly like mainnet. Any mainnet transaction waits for Kris's explicit go.
+- At most one economic effect per operation: persist an operation record before any money-moving call
+  and reconcile against the chain before retrying.
+- Status words mean different things: planned, implemented and tested, live-verified. Never report one
+  as another; record evidence tiers in `docs/reality-check.md`.
 - Execution order and done criteria: `docs/implementation-plan.md` (S-1 reality check first).
