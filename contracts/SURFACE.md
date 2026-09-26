@@ -18,7 +18,7 @@ guarantee survives.
 | `submit` | provider, Funded **or Open with budget 0** | Supported after funding. | Submit-before-accept leaves a Submitted job Holding never funded. The evaluator refuses to settle it (`NeverFunded`) and `rejectAfterDeliveryDeadline` clears it (`test_adversarial_submitBeforeAcceptCannotBeSettled`). |
 | `complete` | evaluator, Submitted | Supported: only `JobsEvaluator` (accept, silence, ruling). | Unreachable: the evaluator is our contract. |
 | `reject` | client/provider when Open; evaluator when Funded/Submitted | Supported: `JobHolding.cancel` and `expireContest` (Open), the evaluator's terminal paths. | The provider may reject its own Open job: nothing was escrowed in the core; `withdraw` returns the reward and creator bond, `withdrawWorkerBond` the worker's. |
-| `claimRefund` | anyone, after `expiredAt` (+1 h when Submitted) | Supported as the outage path: refunds land in Holding; `withdraw` (creator) and `withdrawWorkerBond` (worker) recover them since no evaluator path ran (`test_moneyPath_thirdPartyClaimRefund_workerRecoversOwnBond`). | Cannot pre-empt settlement: Holding requires `expiredAt >= deliveryDeadline + settlementWindow` (`test_adversarial_claimRefundCannotPreemptSettlement`). |
+| `claimRefund` | anyone, after `expiredAt` (+1 h when Submitted) | Supported as the outage path: refunds land in Holding as custody, not entitlement; `JobHolding.settle` pays the reward to whoever `JobsEvaluator.earnedByWorker` names (an earned silence payment → worker, R114-03) and returns unsettled bonds (`test_R114_03_*`, `test_moneyPath_thirdPartyClaimRefund_settleReturnsEverything`). | Cannot pre-empt settlement: Holding requires `expiredAt >= deliveryDeadline + settlementWindow` (`test_adversarial_claimRefundCannotPreemptSettlement`). |
 
 ## Milestone claims (not a product feature)
 
@@ -36,7 +36,7 @@ expiry and wrong-signer cases: `test_auth_*`. Supported: `setBudgetWithAuthoriza
 `submitWithAuthorization`. The others are unavailable and, if used, fall under the same rows as their
 direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; harmless.
 
-## Our own surface (v2, spike S1b; current at `47c4dd2`)
+## Our own surface (v2, spike S1b, plus the S7 steps landed so far)
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
@@ -46,9 +46,11 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | `JobHolding.fundAfterAccept` | anyone | Moves the reward into the core once bond posted + budget == reward. |
 | `JobHolding.cancel` | creator, **hire-first only** | `reject` while Open; nothing was in the core. A live contest cannot be cancelled (R16-02). |
 | `JobHolding.expireContest` | anyone, after `selectionDeadline`, no winner selected | `reject` while Open; prize and creator bond recoverable once. |
-| `JobHolding.withdraw` / `withdrawWorkerBond` | creator / worker | Pull-based recovery after a terminal status; each amount at most once. |
+| `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; unsettled bonds back to their owners; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` in S7 (R114-03). |
 | `JobHolding.burnBond` | evaluator only | Burns one side's bond. Only reachable through `rule(..., slashLoser = true)`. |
 | `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
+| `JobsEvaluator.accept` | creator | `complete`; refused while a dispute is open (`DisputeOpen`, R114-02). `dispute` requires a funded Submitted job. |
+| `JobsEvaluator.earnedByWorker` | view | Funded, submitted by the delivery deadline, unrejected, review window over. Read by `settle`. |
 | `JobsEvaluator.creatorReject` | creator, **only until `submittedAt + reviewWindow`** | None; opens the dispute window. After the cutoff silence is acceptance even if nobody called the timeout (R16-01). |
 | `JobsEvaluator.rule(jobId, forWorker, slashLoser)` | arbitrator, **only until `disputedAt + arbitrationWindow`** | `complete` or `reject`, then burn the loser's bond only if `slashLoser`, then return the rest. After the cutoff only the refund timeout settles (R16-01). |
 | `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Per-verifier record with `submissionHash`, `policyHash`, `testedSha`, `validUntil`; policy must equal the listing's; same verifier + same digest is an idempotent no-op; two verifiers on one digest are both kept (R16-06/07). |

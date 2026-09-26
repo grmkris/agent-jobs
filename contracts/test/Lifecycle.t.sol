@@ -132,12 +132,12 @@ contract LifecycleTest is Base {
         holding.cancel(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore, "reward back");
         assertEq(factory.balanceOf(creator), facBefore, "creator bond back");
         vm.prank(creator);
-        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdraw(jobId);
+        vm.expectRevert(JobHolding.NothingToSettle.selector);
+        holding.settle(jobId);
     }
 
     function test_moneyPath_terminalRejectAfterFundingReturnsBothBonds() public {
@@ -152,11 +152,11 @@ contract LifecycleTest is Base {
         assertEq(factory.balanceOf(creator), cFac, "creator bond returned by the timeout");
         assertEq(factory.balanceOf(worker), wFac, "worker bond returned by the timeout");
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore, "reward refunded");
     }
 
-    function test_moneyPath_thirdPartyClaimRefund_workerRecoversOwnBond() public {
+    function test_moneyPath_thirdPartyClaimRefund_settleReturnsEverything() public {
         uint256 payBefore = pay.balanceOf(creator);
         uint256 cFac = factory.balanceOf(creator);
         uint256 wFac = factory.balanceOf(worker);
@@ -165,24 +165,20 @@ contract LifecycleTest is Base {
         vm.prank(stranger);
         core.claimRefund(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Expired));
-        // No evaluator path ran, so each side pulls its own share.
-        vm.prank(creator);
-        holding.withdraw(jobId);
-        vm.prank(worker);
-        holding.withdrawWorkerBond(jobId);
+        // No evaluator path ran; anyone settles, and the evaluator says who is owed the reward.
+        vm.prank(stranger);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
         assertEq(factory.balanceOf(creator), cFac);
         assertEq(factory.balanceOf(worker), wFac);
-        vm.prank(worker);
-        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdrawWorkerBond(jobId);
+        vm.expectRevert(JobHolding.NothingToSettle.selector);
+        holding.settle(jobId);
     }
 
-    function test_withdrawWorkerBond_notBeforeTerminal() public {
+    function test_settle_notBeforeTerminal() public {
         uint256 jobId = fundedJob();
-        vm.prank(worker);
         vm.expectRevert(JobHolding.NotTerminal.selector);
-        holding.withdrawWorkerBond(jobId);
+        holding.settle(jobId);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -227,7 +223,7 @@ contract LifecycleTest is Base {
         holding.expireContest(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore, "prize back");
         assertEq(factory.balanceOf(creator), facBefore, "creator bond back");
     }
@@ -239,9 +235,8 @@ contract LifecycleTest is Base {
         vm.prank(creator);
         vm.expectRevert(JobHolding.WrongMode.selector);
         holding.cancel(jobId);
-        vm.prank(creator);
-        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdraw(jobId);
+        vm.expectRevert(JobHolding.NotTerminal.selector);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(address(holding)), REWARD, "the prize stays available to entrants");
     }
 
@@ -255,10 +250,10 @@ contract LifecycleTest is Base {
         vm.expectRevert();
         holding.expireContest(jobId);
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         vm.prank(creator);
-        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
-        holding.withdraw(jobId);
+        vm.expectRevert(JobHolding.NothingToSettle.selector);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
     }
 
@@ -371,7 +366,7 @@ contract LifecycleTest is Base {
         vm.prank(arbitrator);
         evaluator.rule(jobId, false, false);
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
         assertEq(factory.balanceOf(creator), cFac);
         assertEq(factory.balanceOf(worker), wFac);
@@ -448,7 +443,7 @@ contract LifecycleTest is Base {
         vm.prank(stranger);
         evaluator.refundAfterArbitrationTimeout(jobId);
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
         assertEq(factory.totalSupply(), supply, "a timeout never burns");
         assertEq(factory.balanceOf(address(holding)), 0);
@@ -508,7 +503,7 @@ contract LifecycleTest is Base {
         vm.warp(uint256(holding.deliveryDeadlineOf(jobId)) + 1);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         vm.prank(creator);
-        holding.withdraw(jobId);
+        holding.settle(jobId);
         assertEq(pay.balanceOf(worker), 0);
     }
 
@@ -650,7 +645,7 @@ contract LifecycleTest is Base {
         evaluator.rule(jobId, forWorker, slash);
         if (!forWorker) {
             vm.prank(creator);
-            holding.withdraw(jobId);
+            holding.settle(jobId);
         }
 
         uint256 burned = slash ? (forWorker ? cBond : wBond) : 0;

@@ -133,6 +133,17 @@ contract JobsEvaluator is EIP712 {
         return reviewWindow + disputeWindow + arbitrationWindow + margin;
     }
 
+    /// @notice Whether the worker is owed the reward regardless of what the core did since: a funded job, submitted
+    ///         by the delivery deadline, not rejected within the review window, and that window has passed.
+    ///         Holding reads this after a core refund, so an earned silence payment survives the core's outer
+    ///         expiry and a third party's `claimRefund` (R114-03). A late submission earns nothing by silence.
+    function earnedByWorker(uint256 jobId) public view returns (bool) {
+        if (!holding.isFunded(jobId) || rejectedAt[jobId] != 0) return false;
+        uint48 submittedAt = core.getJob(jobId).submittedAt;
+        if (submittedAt == 0 || submittedAt > holding.deliveryDeadlineOf(jobId)) return false;
+        return block.timestamp > uint256(submittedAt) + reviewWindow;
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Admin: the verifier set (visible, documented)
     // ---------------------------------------------------------------------------------------------

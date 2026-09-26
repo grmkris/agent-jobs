@@ -7,9 +7,11 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
 import {FactoryToken} from "./FactoryToken.sol";
 
-/// @dev The one thing Holding needs from the evaluator: how long settlement can take after delivery.
+/// @dev What Holding needs from the evaluator: how long settlement can take after delivery, and who is owed a
+///      reward that a core refund put back into Holding.
 interface ISettlementWindow {
     function settlementWindow() external view returns (uint48);
+    function earnedByWorker(uint256 jobId) external view returns (bool);
 }
 
 /// @title JobHolding
@@ -24,7 +26,8 @@ interface ISettlementWindow {
 ///
 ///         Money rules: one job's assets never mix with another's; a bond is burned only by the evaluator on
 ///         a ruling that found a violation; every other terminal path returns both bonds; every refund the
-///         core makes lands here and is recovered by its owner exactly once.
+///         core makes lands here as custody, not entitlement, and `settle` pays it to whoever the evaluator
+///         says is owed it, exactly once (R114-03).
 contract JobHolding {
     using SafeERC20 for IERC20;
 
@@ -47,7 +50,7 @@ contract JobHolding {
         uint48 selectionDeadline;
         bool funded;
         bool workerBondPosted;
-        bool rewardWithdrawn;
+        bool rewardSettled;
         bool creatorBondSettled;
         bool workerBondSettled;
         uint256 reward;
@@ -103,7 +106,7 @@ contract JobHolding {
     event Funded(uint256 indexed jobId);
     event Cancelled(uint256 indexed jobId);
     event ContestExpired(uint256 indexed jobId);
-    event RewardWithdrawn(uint256 indexed jobId, address indexed creator, uint256 amount);
+    event RewardSettled(uint256 indexed jobId, address indexed to, uint256 amount);
     event BondReturned(uint256 indexed jobId, Side side, address indexed to, uint256 amount);
     event BondBurned(uint256 indexed jobId, Side side, uint256 amount);
     event HoldRequirementsSet(uint256 minHoldToPublish, uint256 minHoldToClaim);
@@ -128,7 +131,8 @@ contract JobHolding {
     error BondNotPosted();
     error BondAlreadyPosted();
     error NotAccepted();
-    error NothingToWithdraw();
+    error UnknownJob();
+    error NothingToSettle();
     error NotTerminal();
 
     constructor(ERC8183 core_, FactoryToken factory_, uint256 minHoldToPublish_, uint256 minHoldToClaim_) {
@@ -235,7 +239,7 @@ contract JobHolding {
         _assign(jobId, worker, agentId, true);
     }
 
-    /// @notice Cancels an unassigned hire-first listing. Nothing was escrowed in the core; `withdraw` then
+    /// @notice Cancels an unassigned hire-first listing. Nothing was escrowed in the core; `settle` then
     ///         returns reward and creator bond. A published contest cannot be cancelled: entrants work against
     ///         the locked prize, so it ends only through `select` or `expireContest` (R16-02).
     function cancel(uint256 jobId) external onlyCreator(jobId) {
@@ -244,26 +248,6 @@ contract JobHolding {
         if (listings[jobId].worker != address(0)) revert AlreadyAssigned();
         core.reject(jobId, "cancelled", "");
         emit Cancelled(jobId);
-    }
-
-    /// @notice Recovers the creator's share of whatever is back in Holding: the reward once the core job is
-    ///         Rejected or Expired, the creator bond once the job is terminal and no ruling burned it.
-    function withdraw(uint256 jobId) external onlyCreator(jobId) {
-        Listing storage l = listings[jobId];
-        ERC8183.JobStatus status = core.getJob(jobId).status;
-        uint256 rewardOut;
-        if (!l.rewardWithdrawn && _rewardIsHere(status)) {
-            l.rewardWithdrawn = true;
-            rewardOut = l.reward;
-            emit RewardWithdrawn(jobId, l.creator, rewardOut);
-        }
-        bool bondOut;
-        if (!l.creatorBondSettled && _isTerminal(status)) {
-            bondOut = true;
-            _returnBond(jobId, l, Side.Creator);
-        }
-        if (rewardOut == 0 && !bondOut) revert NothingToWithdraw();
-        if (rewardOut > 0) l.token.safeTransfer(l.creator, rewardOut);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -280,16 +264,6 @@ contract JobHolding {
         l.workerBondPosted = true;
         if (l.workerBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), l.workerBond);
         emit WorkerBondPosted(jobId, msg.sender, l.workerBond);
-    }
-
-    /// @notice Recovers the worker's bond after a terminal settlement that did not burn it and that no
-    ///         evaluator path returned (a third-party `claimRefund`, for instance).
-    function withdrawWorkerBond(uint256 jobId) external {
-        Listing storage l = listings[jobId];
-        if (l.worker != msg.sender) revert NotWorker();
-        if (!_isTerminal(core.getJob(jobId).status)) revert NotTerminal();
-        if (l.workerBondSettled || !l.workerBondPosted) revert NothingToWithdraw();
-        _returnBond(jobId, l, Side.Worker);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -313,8 +287,37 @@ contract JobHolding {
         emit Funded(jobId);
     }
 
+    /// @notice Settles whatever of a terminal job is still in Holding, each amount once. The reward is here
+    ///         after any rejection and after the core's permissionless `claimRefund`; it goes to the worker when
+    ///         the evaluator says the worker earned it (a timely submission nobody rejected within the review
+    ///         window), otherwise to the creator. The core status alone never decides who is paid (R114-03).
+    ///         Bonds no evaluator path settled return to their owners. Anyone may call: the effect is fixed.
+    function settle(uint256 jobId) external {
+        Listing storage l = listings[jobId];
+        if (l.creator == address(0)) revert UnknownJob();
+        ERC8183.JobStatus status = core.getJob(jobId).status;
+        if (!_isTerminal(status)) revert NotTerminal();
+        bool settled;
+        address rewardTo;
+        if (!l.rewardSettled && _rewardIsHere(status)) {
+            l.rewardSettled = true;
+            rewardTo = ISettlementWindow(evaluator).earnedByWorker(jobId) ? l.worker : l.creator;
+            emit RewardSettled(jobId, rewardTo, l.reward);
+        }
+        if (!l.creatorBondSettled) {
+            settled = true;
+            _returnBond(jobId, l, Side.Creator);
+        }
+        if (!l.workerBondSettled && l.workerBondPosted) {
+            settled = true;
+            _returnBond(jobId, l, Side.Worker);
+        }
+        if (rewardTo == address(0) && !settled) revert NothingToSettle();
+        if (rewardTo != address(0)) l.token.safeTransfer(rewardTo, l.reward);
+    }
+
     /// @notice A contest nobody was picked for by its selection deadline is over; the prize returns via
-    ///         `withdraw`.
+    ///         `settle`.
     function expireContest(uint256 jobId) external {
         Listing storage l = listings[jobId];
         if (l.mode != Mode.Contest) revert WrongMode();

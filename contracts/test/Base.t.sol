@@ -232,7 +232,7 @@ abstract contract Base is Test {
             l.selectionDeadline,
             l.funded,
             l.workerBondPosted,
-            l.rewardWithdrawn,
+            l.rewardSettled,
             l.creatorBondSettled,
             l.workerBondSettled,
             l.reward,

@@ -26,6 +26,8 @@ contract Handler is Test {
     mapping(uint256 jobId => bool) public ruledForWorker;
     mapping(uint256 jobId => bool) public creatorSlashed;
     mapping(uint256 jobId => bool) public workerSlashed;
+    /// @dev Which party `settle` paid a reward in Holding to; read back by the balance equations.
+    mapping(uint256 jobId => bool) public settledToWorker;
     uint256 public payMinted;
     uint256 public factoryMintedCreator;
     uint256 public factoryMintedWorker;
@@ -154,12 +156,11 @@ contract Handler is Test {
         try holding.cancel(_pick(seed)) {} catch {}
     }
 
-    function withdraw(uint256 seed) external withJobs {
+    function settle(uint256 seed) external withJobs {
         uint256 jobId = _pick(seed);
-        vm.prank(creator);
-        try holding.withdraw(jobId) {} catch {}
-        vm.prank(worker);
-        try holding.withdrawWorkerBond(jobId) {} catch {}
+        uint256 before = pay.balanceOf(worker);
+        try holding.settle(jobId) {} catch {}
+        if (pay.balanceOf(worker) > before) settledToWorker[jobId] = true;
     }
 
     /// @dev The late actions R16-01 closes: they must never land after their cutoff, whoever calls first.
@@ -236,16 +237,21 @@ contract InvariantsTest is Base {
             if (l.workerBondPosted) workerBondDeposits += l.workerBond;
 
             bool refunded = s == ERC8183.JobStatus.Rejected || s == ERC8183.JobStatus.Expired;
-            bool rewardInHolding = !l.rewardWithdrawn && (!l.funded || refunded);
+            bool rewardInHolding = !l.rewardSettled && (!l.funded || refunded);
             bool rewardInCore = l.funded && (s == ERC8183.JobStatus.Funded || s == ERC8183.JobStatus.Submitted);
             bool rewardToWorker = s == ERC8183.JobStatus.Completed;
             assertTrue(!rewardToWorker || l.funded, "completed without funding");
-            assertFalse(rewardToWorker && l.rewardWithdrawn, "reward paid twice");
+            assertFalse(rewardToWorker && l.rewardSettled, "reward paid twice");
+            // Holding pays a refunded reward to the worker only after the core's own expiry (R114-03).
+            if (handler.settledToWorker(jobId)) assertEq(uint256(s), uint256(ERC8183.JobStatus.Expired));
 
             if (rewardInHolding) expectHoldingPay += l.reward;
             if (rewardInCore) expectCorePay += l.reward;
             if (rewardToWorker) expectWorkerPay += l.reward;
-            if (l.rewardWithdrawn) expectCreatorPay += l.reward;
+            if (l.rewardSettled) {
+                if (handler.settledToWorker(jobId)) expectWorkerPay += l.reward;
+                else expectCreatorPay += l.reward;
+            }
 
             // Creator bond: in Holding until settled; then burned iff the creator was slashed, else returned.
             if (!l.creatorBondSettled) expectHoldingFactory += l.creatorBond;
