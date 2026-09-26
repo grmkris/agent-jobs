@@ -5,6 +5,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
 import {JobHolding} from "./JobHolding.sol";
+import {IERC8004Reputation} from "./vendor/erc8004/IERC8004.sol";
 
 /// @title JobsEvaluator
 /// @notice The evaluator of every listed job (spec §4). It keeps the minimal dispute state on-chain and only
@@ -32,10 +33,16 @@ contract JobsEvaluator is EIP712 {
         uint256 validUntil;
     }
 
+    /// @dev One verifier's attestation for one job. The binding fields let a reader check what it covers
+    ///      without fetching the report; matching `submissionHash` to the finalized deliverable is the
+    ///      indexer's job, because the core keeps the deliverable only in its `JobSubmitted` event (R16-07).
     struct Evidence {
         bytes32 digest;
-        address verifier;
+        bytes32 submissionHash;
+        bytes32 policyHash;
+        bytes32 testedSha;
         uint48 at;
+        uint48 validUntil;
         uint8 conclusion;
     }
 
@@ -43,8 +50,13 @@ contract JobsEvaluator is EIP712 {
         "EvidenceAttestation(uint256 jobId,bytes32 submissionHash,bytes32 policyHash,bytes32 repo,bytes32 headSha,bytes32 testedSha,bytes32 checkRunsHash,uint8 conclusion,uint256 validUntil)"
     );
 
+    /// @dev Upper bound for the ERC-8004 feedback call. Monad charges the gas limit, so this is also a cost cap.
+    uint256 public constant FEEDBACK_GAS = 300_000;
+
     ERC8183 public immutable core;
     JobHolding public immutable holding;
+    /// @notice ERC-8004 Reputation Registry; zero disables feedback (tests, chains without the registry).
+    IERC8004Reputation public immutable reputation;
     address public immutable admin;
     /// @notice Pinned at deploy; never replaced mid-agreement.
     address public immutable arbitrator;
@@ -55,9 +67,10 @@ contract JobsEvaluator is EIP712 {
 
     mapping(uint256 jobId => uint48) public rejectedAt;
     mapping(uint256 jobId => uint48) public disputedAt;
-    mapping(uint256 jobId => Evidence) public evidence;
+    /// @notice Per-verifier evidence: two verifiers attesting the same statement are both kept (R16-06).
+    mapping(uint256 jobId => mapping(address verifier => Evidence)) public evidence;
     mapping(address => bool) public verifiers;
-    mapping(bytes32 digest => bool) public usedDigest;
+    mapping(address verifier => mapping(bytes32 digest => bool)) public usedDigest;
 
     event Accepted(uint256 indexed jobId, address indexed creator);
     event CreatorRejected(uint256 indexed jobId, address indexed creator);
@@ -68,6 +81,8 @@ contract JobsEvaluator is EIP712 {
         uint256 indexed jobId, address indexed verifier, bytes32 digest, bytes32 testedSha, uint8 conclusion
     );
     event VerifierSet(address indexed verifier, bool allowed);
+    event FeedbackRecorded(uint256 indexed jobId, uint256 indexed agentId, bool completed);
+    event FeedbackFailed(uint256 indexed jobId, uint256 indexed agentId, bytes reason);
 
     error NotAdmin();
     error NotCreator();
@@ -86,11 +101,15 @@ contract JobsEvaluator is EIP712 {
     error EvidenceExpired();
     error EvidenceReplayed();
     error EvidenceJobMismatch();
+    error EvidencePolicyMismatch();
+    error ReviewWindowClosed();
+    error ArbitrationWindowClosed();
     error InvalidSignature();
 
     constructor(
         ERC8183 core_,
         JobHolding holding_,
+        IERC8004Reputation reputation_,
         address arbitrator_,
         uint48 reviewWindow_,
         uint48 disputeWindow_,
@@ -99,6 +118,7 @@ contract JobsEvaluator is EIP712 {
     ) EIP712("AgentJobsEvaluator", "1") {
         core = core_;
         holding = holding_;
+        reputation = reputation_;
         admin = msg.sender;
         arbitrator = arbitrator_;
         reviewWindow = reviewWindow_;
@@ -137,8 +157,11 @@ contract JobsEvaluator is EIP712 {
     /// @notice The creator rejects. Nothing moves: the job stays Submitted and the dispute window opens.
     function creatorReject(uint256 jobId) external {
         if (holding.creatorOf(jobId) != msg.sender) revert NotCreator();
-        _requireSubmitted(jobId);
+        ERC8183.Job memory job = _requireSubmitted(jobId);
         if (rejectedAt[jobId] != 0) revert AlreadyRejected();
+        // The review window closes on its own: once silence has become acceptance, a late rejection must not
+        // be able to race the permissionless `completeAfterSilence` (R16-01).
+        if (block.timestamp > uint256(job.submittedAt) + reviewWindow) revert ReviewWindowClosed();
         rejectedAt[jobId] = uint48(block.timestamp);
         emit CreatorRejected(jobId, msg.sender);
     }
@@ -159,7 +182,10 @@ contract JobsEvaluator is EIP712 {
     ///         returns.
     function rule(uint256 jobId, bool forWorker, bool slashLoser) external {
         if (msg.sender != arbitrator) revert NotArbitrator();
-        if (disputedAt[jobId] == 0) revert NotDisputed();
+        uint48 at = disputedAt[jobId];
+        if (at == 0) revert NotDisputed();
+        // Strict cutoff: after the arbitration window only `refundAfterArbitrationTimeout` may settle (R16-01).
+        if (block.timestamp > uint256(at) + arbitrationWindow) revert ArbitrationWindowClosed();
         _requireSubmitted(jobId);
         emit Ruled(jobId, forWorker, slashLoser);
         if (forWorker) {
@@ -290,13 +316,43 @@ contract JobsEvaluator is EIP712 {
         private
     {
         if (a.jobId != jobId || holding.creatorOf(jobId) == address(0)) revert EvidenceJobMismatch();
+        if (a.policyHash != holding.policyHashOf(jobId)) revert EvidencePolicyMismatch();
         if (block.timestamp > a.validUntil) revert EvidenceExpired();
-        if (usedDigest[digest]) revert EvidenceReplayed();
-        usedDigest[digest] = true;
-        evidence[jobId] = Evidence({digest: digest, verifier: verifier, at: uint48(block.timestamp), conclusion: a.conclusion});
+        // Same verifier, same statement: acknowledged once, never a second endorsement (R16-06).
+        if (usedDigest[verifier][digest]) return;
+        usedDigest[verifier][digest] = true;
+        evidence[jobId][verifier] = Evidence({
+            digest: digest,
+            submissionHash: a.submissionHash,
+            policyHash: a.policyHash,
+            testedSha: a.testedSha,
+            at: uint48(block.timestamp),
+            validUntil: uint48(a.validUntil),
+            conclusion: a.conclusion
+        });
         emit EvidenceAttached(jobId, verifier, digest, a.testedSha, a.conclusion);
     }
 
-    /// @dev ERC-8004 feedback lands here in B1's deploy step with a bounded-gas `try/catch`.
-    function _recordOutcome(uint256 jobId, bool completed) internal virtual {}
+    /// @dev ERC-8004 feedback for the worker's agent, as the client of record. Bounded gas and `try/catch`: a
+    ///      registry failure is observable (`FeedbackFailed`) and never undoes a settlement that already moved
+    ///      money (R16-10). Silent when no registry is configured or the job never had an agent.
+    function _recordOutcome(uint256 jobId, bool completed) internal virtual {
+        if (address(reputation) == address(0)) return;
+        uint256 agentId = core.getJob(jobId).providerAgentId;
+        if (agentId == 0) return;
+        try reputation.giveFeedback{gas: FEEDBACK_GAS}(
+            agentId,
+            completed ? int128(1) : int128(0),
+            0,
+            "agent-jobs",
+            completed ? "completed" : "rejected",
+            "",
+            "",
+            bytes32(jobId)
+        ) {
+            emit FeedbackRecorded(jobId, agentId, completed);
+        } catch (bytes memory reason) {
+            emit FeedbackFailed(jobId, agentId, reason);
+        }
+    }
 }

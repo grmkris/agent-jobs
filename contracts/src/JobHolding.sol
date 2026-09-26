@@ -54,10 +54,14 @@ contract JobHolding {
         uint256 creatorBond;
         uint256 workerBond;
         bytes32 manifestHash;
+        /// @dev The board's `termsHash`: the canonical snapshot of the offer the worker accepts. Evidence is only
+        ///      stored against the policy it names (R16-07).
+        bytes32 policyHash;
     }
 
     struct PublishParams {
         bytes32 manifestHash;
+        bytes32 policyHash;
         IERC20 token;
         uint256 reward;
         uint256 creatorBond;
@@ -89,6 +93,7 @@ contract JobHolding {
         uint256 creatorBond,
         uint256 workerBond,
         bytes32 manifestHash,
+        bytes32 policyHash,
         uint48 deliveryDeadline,
         uint48 selectionDeadline,
         uint48 expiredAt
@@ -198,6 +203,7 @@ contract JobHolding {
         l.creatorBond = p.creatorBond;
         l.workerBond = p.workerBond;
         l.manifestHash = p.manifestHash;
+        l.policyHash = p.policyHash;
 
         emit Published(
             jobId,
@@ -208,6 +214,7 @@ contract JobHolding {
             p.creatorBond,
             p.workerBond,
             p.manifestHash,
+            p.policyHash,
             p.deliveryDeadline,
             p.selectionDeadline,
             p.expiredAt
@@ -228,9 +235,11 @@ contract JobHolding {
         _assign(jobId, worker, agentId, true);
     }
 
-    /// @notice Cancels an unassigned listing (either mode). Nothing was escrowed in the core; `withdraw`
-    ///         then returns reward and creator bond.
+    /// @notice Cancels an unassigned hire-first listing. Nothing was escrowed in the core; `withdraw` then
+    ///         returns reward and creator bond. A published contest cannot be cancelled: entrants work against
+    ///         the locked prize, so it ends only through `select` or `expireContest` (R16-02).
     function cancel(uint256 jobId) external onlyCreator(jobId) {
+        if (listings[jobId].mode != Mode.HireFirst) revert WrongMode();
         if (listings[jobId].funded) revert AlreadyFunded();
         if (listings[jobId].worker != address(0)) revert AlreadyAssigned();
         core.reject(jobId, "cancelled", "");
@@ -348,6 +357,10 @@ contract JobHolding {
 
     function deliveryDeadlineOf(uint256 jobId) external view returns (uint48) {
         return listings[jobId].deliveryDeadline;
+    }
+
+    function policyHashOf(uint256 jobId) external view returns (bytes32) {
+        return listings[jobId].policyHash;
     }
 
     function isFunded(uint256 jobId) external view returns (bool) {

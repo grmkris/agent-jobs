@@ -77,6 +77,7 @@ contract Handler is Test {
         uint48 dd = uint48(block.timestamp + 7 days);
         JobHolding.PublishParams memory p = JobHolding.PublishParams({
             manifestHash: keccak256(abi.encode(reward, jobs.length)),
+            policyHash: keccak256("policy-v1"),
             token: IERC20(address(pay)),
             reward: reward,
             creatorBond: creatorBond,
@@ -93,7 +94,7 @@ contract Handler is Test {
 
     function assignOrSelect(uint256 seed) external withJobs {
         uint256 jobId = _pick(seed);
-        (,,, JobHolding.Mode mode,,,,,,,,,,,) = holding.listings(jobId);
+        (,,, JobHolding.Mode mode,,,,,,,,,,,,) = holding.listings(jobId);
         vm.prank(creator);
         if (mode == JobHolding.Mode.Contest) {
             try holding.select(jobId, worker, 1) {} catch {}
@@ -109,7 +110,7 @@ contract Handler is Test {
 
     function setBudget(uint256 seed, bool exactAmount) external withJobs {
         uint256 jobId = _pick(seed);
-        (,,,,,,,,,,, uint256 reward,,,) = holding.listings(jobId);
+        (,,,,,,,,,,, uint256 reward,,,,) = holding.listings(jobId);
         vm.prank(worker);
         try core.setBudget(jobId, address(pay), exactAmount ? reward : reward + 1, "") {} catch {}
     }
@@ -159,6 +160,17 @@ contract Handler is Test {
         try holding.withdraw(jobId) {} catch {}
         vm.prank(worker);
         try holding.withdrawWorkerBond(jobId) {} catch {}
+    }
+
+    /// @dev The late actions R16-01 closes: they must never land after their cutoff, whoever calls first.
+    function lateActions(uint256 seed, bool forWorker) external withJobs {
+        uint256 jobId = _pick(seed);
+        vm.prank(creator);
+        try evaluator.creatorReject(jobId) {} catch {}
+        vm.prank(arbitrator);
+        try evaluator.rule(jobId, forWorker, false) {
+            if (forWorker) ruledForWorker[jobId] = true;
+        } catch {}
     }
 
     /// @dev Time passes, then every permissionless path is tried by a stranger, plus the two adversarial calls

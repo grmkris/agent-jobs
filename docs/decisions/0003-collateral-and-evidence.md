@@ -43,3 +43,26 @@ payouts on evidence is a later, opt-in policy that must apply to every payout pa
   screen batch them; the faucets hand out both tokens.
 - `EvidenceReceiver` is a minimal `IReceiver`; spike S5 swaps in Chainlink's `ReceiverTemplate` and pins
   the Monad forwarder.
+
+## Amendment (2026-09-26): R16 review fixes
+
+From ChatGPT's source review of `0bc93ae`:
+
+- **Cutoffs close the opposing action (R16-01).** `creatorReject` reverts after `submittedAt + reviewWindow`
+  and `rule` after `disputedAt + arbitrationWindow`, so a late action cannot race a permissionless timeout
+  that nobody has called yet. `accept` stays open until a terminal call.
+- **Live contests cannot be cancelled (R16-02).** `cancel` is hire-first only; a contest ends through
+  `select` or `expireContest`. Escrow guarantees the prize is available during the contest, not that
+  someone wins.
+- **Winner rights follow the agreement (R16-03).** A selected, funded winner has silence, rejection and
+  dispute exactly like hire-first; the evaluator already behaved this way, the board model now agrees.
+- **Evidence per verifier, bound to policy (R16-06/07).** Replay is keyed by `(verifier, digest)`;
+  records keep the binding fields; the attestation's `policyHash` must equal the listing's (the board's
+  `termsHash`, stored at publish). Matching `submissionHash` to the finalized deliverable is the indexer's
+  job: the core keeps the deliverable only in `JobSubmitted`.
+- **Reputation wired (R16-10).** `_recordOutcome` calls ERC-8004 `giveFeedback` with a 300k gas cap in
+  `try/catch`; failure emits `FeedbackFailed` and never undoes payment. The registry is a constructor
+  argument; zero disables.
+
+63 tests after the round (plus 7 opt-in fork tests), including the complete flow ending in reputation,
+settlement with no evidence, and settlement with a reverting and a gas-burning registry.

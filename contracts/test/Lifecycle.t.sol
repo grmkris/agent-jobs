@@ -232,6 +232,94 @@ contract LifecycleTest is Base {
         assertEq(factory.balanceOf(creator), facBefore, "creator bond back");
     }
 
+    function test_contest_liveContestCannotBeCancelled() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.WrongMode.selector);
+        holding.cancel(jobId);
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
+        holding.withdraw(jobId);
+        assertEq(pay.balanceOf(address(holding)), REWARD, "the prize stays available to entrants");
+    }
+
+    function test_contest_expiredOnceRecoveredOnce() public {
+        uint256 payBefore = pay.balanceOf(creator);
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+        vm.warp(uint256(p.selectionDeadline) + 1);
+        holding.expireContest(jobId);
+        vm.expectRevert();
+        holding.expireContest(jobId);
+        vm.prank(creator);
+        holding.withdraw(jobId);
+        vm.prank(creator);
+        vm.expectRevert(JobHolding.NothingToWithdraw.selector);
+        holding.withdraw(jobId);
+        assertEq(pay.balanceOf(creator), payBefore);
+    }
+
+    function test_contest_selectedCannotBeExpired() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+        vm.prank(creator);
+        holding.select(jobId, worker, AGENT_ID);
+        acceptDirect(jobId, REWARD);
+        fund(jobId);
+        vm.warp(uint256(p.selectionDeadline) + 1);
+        vm.expectRevert(JobHolding.AlreadyAssigned.selector);
+        holding.expireContest(jobId);
+    }
+
+    /// @dev R16-03: a selected winner's agreement settles exactly like hire-first.
+    function test_contest_winnerSilenceIsAcceptance() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+        vm.prank(creator);
+        holding.select(jobId, worker, AGENT_ID);
+        acceptDirect(jobId, REWARD);
+        fund(jobId);
+        submitDirect(jobId);
+        vm.warp(block.timestamp + REVIEW + 1);
+        evaluator.completeAfterSilence(jobId);
+        assertEq(pay.balanceOf(worker), REWARD);
+    }
+
+    function test_contest_winnerCanDisputeATimelyRejection() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+        vm.prank(creator);
+        holding.select(jobId, worker, AGENT_ID);
+        acceptDirect(jobId, REWARD);
+        fund(jobId);
+        submitDirect(jobId);
+        vm.prank(creator);
+        evaluator.creatorReject(jobId);
+        vm.prank(worker);
+        evaluator.dispute(jobId);
+        vm.prank(arbitrator);
+        evaluator.rule(jobId, true, false);
+        assertEq(pay.balanceOf(worker), REWARD);
+    }
+
+    function test_contest_unselectedEntrantHasNoAgreementPath() public {
+        JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
+        vm.prank(creator);
+        uint256 jobId = holding.publish(p);
+        vm.prank(worker);
+        vm.expectRevert(JobHolding.NotWorker.selector);
+        holding.postWorkerBond(jobId);
+        vm.prank(worker);
+        vm.expectRevert(JobsEvaluator.NotProvider.selector);
+        evaluator.dispute(jobId);
+    }
+
     function test_contest_selectionDeadlineMustPrecedeDelivery() public {
         JobHolding.PublishParams memory p = contestParams(REWARD, CREATOR_BOND, WORKER_BOND);
         p.selectionDeadline = p.deliveryDeadline;
@@ -480,9 +568,12 @@ contract LifecycleTest is Base {
         bytes memory sig = signEvidence(attesterPk, a);
         vm.prank(stranger);
         evaluator.attachEvidence(jobId, a, attester, sig);
-        (bytes32 digest, address verifier, uint48 at, uint8 conclusion) = evaluator.evidence(jobId);
+        (bytes32 digest, bytes32 submissionHash, bytes32 policyHash, bytes32 testedSha, uint48 at,, uint8 conclusion)
+        = evaluator.evidence(jobId, attester);
         assertEq(digest, evidenceDigest(a));
-        assertEq(verifier, attester);
+        assertEq(submissionHash, DELIVERABLE);
+        assertEq(policyHash, POLICY);
+        assertEq(testedSha, bytes32(uint256(0xdef)));
         assertEq(at, uint48(block.timestamp));
         assertEq(conclusion, 1);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Submitted), "still the reviewer's call");
@@ -506,8 +597,6 @@ contract LifecycleTest is Base {
         evaluator.attachEvidence(jobId, expired, attester, expiredSig);
 
         evaluator.attachEvidence(jobId, a, attester, good);
-        vm.expectRevert(JobsEvaluator.EvidenceReplayed.selector);
-        evaluator.attachEvidence(jobId, a, attester, good);
 
         JobsEvaluator.EvidenceAttestation memory other = attestation(jobId + 1, 1, block.timestamp + 1 days);
         bytes memory otherSig = signEvidence(attesterPk, other);
@@ -528,8 +617,8 @@ contract LifecycleTest is Base {
         receiver.onReport("", abi.encode(a));
         vm.prank(forwarder);
         receiver.onReport("", abi.encode(a));
-        (, address verifier,,) = evaluator.evidence(jobId);
-        assertEq(verifier, address(receiver));
+        (bytes32 digest,,,,,,) = evaluator.evidence(jobId, address(receiver));
+        assertEq(digest, evidenceDigest(a), "the receiver contract is the registered verifier");
     }
 
     // ------------------------------------------------------------------------------------------

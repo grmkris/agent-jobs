@@ -10,6 +10,8 @@ import {FactoryToken} from "../src/FactoryToken.sol";
 import {MockPaymentToken} from "../src/MockPaymentToken.sol";
 import {JobHolding} from "../src/JobHolding.sol";
 import {JobsEvaluator} from "../src/JobsEvaluator.sol";
+import {IERC8004Reputation} from "../src/vendor/erc8004/IERC8004.sol";
+import {MockReputation} from "./mocks/MockReputation.sol";
 
 /// @dev Deploys the whole system the way the demo will: our own core proxy (fees 0, the payment token
 ///      allowlisted, no hooks), Holding with a small hold gate, the evaluator with the arbitrator pinned and
@@ -26,6 +28,8 @@ abstract contract Base is Test {
     uint256 internal constant MIN_HOLD = 1e18;
     uint256 internal constant AGENT_ID = 42;
     bytes32 internal constant MANIFEST = keccak256("manifest-v1");
+    /// @dev The board's `termsHash` for the offer; evidence must name it.
+    bytes32 internal constant POLICY = keccak256("policy-v1");
     bytes32 internal constant DELIVERABLE = keccak256("deliverable");
 
     address internal deployer = makeAddr("deployer");
@@ -45,6 +49,7 @@ abstract contract Base is Test {
     ERC8183WithAuthorization internal core;
     JobHolding internal holding;
     JobsEvaluator internal evaluator;
+    MockReputation internal reputation;
 
     function setUp() public virtual {
         (worker, workerPk) = makeAddrAndKey("worker");
@@ -61,7 +66,10 @@ abstract contract Base is Test {
         core.setPlatformFee(0, deployer);
         core.setEvaluatorFee(0);
         holding = new JobHolding(core, factory, MIN_HOLD, MIN_HOLD);
-        evaluator = new JobsEvaluator(core, holding, arbitrator, REVIEW, DISPUTE, ARBITRATION, MARGIN);
+        reputation = new MockReputation();
+        evaluator = new JobsEvaluator(
+            core, holding, IERC8004Reputation(address(reputation)), arbitrator, REVIEW, DISPUTE, ARBITRATION, MARGIN
+        );
         holding.setEvaluator(address(evaluator));
         evaluator.setVerifier(attester, true);
         vm.stopPrank();
@@ -100,6 +108,7 @@ abstract contract Base is Test {
     {
         return JobHolding.PublishParams({
             manifestHash: MANIFEST,
+            policyHash: POLICY,
             token: IERC20(address(pay)),
             reward: reward,
             creatorBond: creatorBond,
@@ -229,7 +238,8 @@ abstract contract Base is Test {
             l.reward,
             l.creatorBond,
             l.workerBond,
-            l.manifestHash
+            l.manifestHash,
+            l.policyHash
         ) = holding.listings(jobId);
     }
 
@@ -277,7 +287,7 @@ abstract contract Base is Test {
         return JobsEvaluator.EvidenceAttestation({
             jobId: jobId,
             submissionHash: DELIVERABLE,
-            policyHash: keccak256("policy-v1"),
+            policyHash: POLICY,
             repo: keccak256("github.com/worker/fork"),
             headSha: bytes32(uint256(0xabc)),
             testedSha: bytes32(uint256(0xdef)),

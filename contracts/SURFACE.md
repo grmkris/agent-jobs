@@ -44,12 +44,15 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | `JobHolding.assign` / `select` | creator | None; sets the provider (contest: only before `selectionDeadline`). |
 | `JobHolding.postWorkerBond` | the assigned worker, holding >= `minHoldToClaim` | Pulls the worker bond (FACTORY). Required before funding even when zero. |
 | `JobHolding.fundAfterAccept` | anyone | Moves the reward into the core once bond posted + budget == reward. |
-| `JobHolding.cancel` / `expireContest` | creator / anyone after the deadline | `reject` while Open; nothing was in the core. |
+| `JobHolding.cancel` | creator, **hire-first only** | `reject` while Open; nothing was in the core. A live contest cannot be cancelled (R16-02). |
+| `JobHolding.expireContest` | anyone, after `selectionDeadline`, no winner selected | `reject` while Open; prize and creator bond recoverable once. |
 | `JobHolding.withdraw` / `withdrawWorkerBond` | creator / worker | Pull-based recovery after a terminal status; each amount at most once. |
 | `JobHolding.burnBond` | evaluator only | Burns one side's bond. Only reachable through `rule(..., slashLoser = true)`. |
 | `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
-| `JobsEvaluator.rule(jobId, forWorker, slashLoser)` | arbitrator | `complete` or `reject`, then burn the loser's bond only if `slashLoser`, then return the rest. |
-| `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Stores a digest; replay, expiry and job mismatch refused. |
+| `JobsEvaluator.creatorReject` | creator, **only until `submittedAt + reviewWindow`** | None; opens the dispute window. After the cutoff silence is acceptance even if nobody called the timeout (R16-01). |
+| `JobsEvaluator.rule(jobId, forWorker, slashLoser)` | arbitrator, **only until `disputedAt + arbitrationWindow`** | `complete` or `reject`, then burn the loser's bond only if `slashLoser`, then return the rest. After the cutoff only the refund timeout settles (R16-01). |
+| `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Per-verifier record with `submissionHash`, `policyHash`, `testedSha`, `validUntil`; policy must equal the listing's; same verifier + same digest is an idempotent no-op; two verifiers on one digest are both kept (R16-06/07). |
+| ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Capped at 300k gas in `try/catch`; `FeedbackRecorded` or `FeedbackFailed`; never reverts a payout (R16-10). |
 | the four timeouts | anyone | `complete` or `reject`; never burn. |
 
 ## Admin (deployer EOA, testnet)
