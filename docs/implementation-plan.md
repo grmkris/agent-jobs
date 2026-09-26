@@ -5,6 +5,10 @@ file is the execution order. Deadline 13 Oct 2026, 23:59 ET.
 
 ## Rules for every step
 
+- **Dev machine: `netcup`** (`ssh netcup`, `~/code/agent-jobs`). All work happens there, in a session
+  started on that machine; `.env.local` lives there (mode 600). Toolchain: Foundry 1.8.3, pnpm 10.13.1
+  (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre`, `mm`.
+
 - **No mocks in the product.** No stub code paths, no placeholder contracts in any deployment, no
   simulation presented as an integration. An unreachable service shows as unavailable. Unit tests may use
   test doubles for failure paths; every integration also has a real test (fork or live testnet, the real
@@ -20,6 +24,10 @@ file is the execution order. Deadline 13 Oct 2026, 23:59 ET.
 - **Stops:** a red credential, a genuine design fork, or any mainnet transaction (always waits for Kris).
 
 ## S-1 Reality check (first)
+
+Status 26 Sep: run by hand, results in `docs/reality-check.md`; open items are CRE deploy access
+(pending with Chainlink), a CI workflow on the fixture repo (S5), and the staging deploy / verification
+/ CRE hello-world runs, which happen at the start of S7/B1.
 
 `scripts/reality-check.ts` reads `.env.local`, runs one real call per dependency, and writes a green or red
 table to `docs/reality-check.md`:
