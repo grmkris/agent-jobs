@@ -1,7 +1,7 @@
 # ADR-0004: Finished-work contests, signed hire handshake, slashing, approver (R20)
 
-Date: 2026-09-26. Status: **accepted, not implemented.** Spike S7 (contracts) and S8 (board) build it; until
-then the code at `47c4dd2` implements ADR-0003's model. Spec: myplan note 12, R20 synthesis.
+Date: 2026-09-26. Status: **contracts implemented and tested (S7, 27 Sep, `main`); not yet deployed.** The board
+side (S8) is still to build. Current contract surface: `contracts/SURFACE.md`. Spec: myplan note 12, R20 synthesis.
 
 ## Decision
 

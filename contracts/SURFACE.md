@@ -36,7 +36,7 @@ expiry and wrong-signer cases: `test_auth_*`. Supported: `setBudgetWithAuthoriza
 `submitWithAuthorization` (inside `award`, and any relayer for a hire). The others are unavailable and, if used, fall under the same rows as their
 direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; harmless.
 
-## Our own surface (v2, spike S1b, plus the S7 steps landed so far)
+## Our own surface (v3, spike S7)
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
@@ -58,42 +58,22 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Reason-aware tags `completed`, `not-delivered`, `rejected`, `rejected-quality`, `rejected-falsified`; **none on arbitration timeout** (`skip-arb`). Capped at 300k gas in `try/catch`; `FeedbackRecorded(value, tag)` or `FeedbackFailed`; never reverts a payout (R16-10). |
 | the four timeouts | anyone | `completeAfterSilence` (timely submissions only), `rejectAfterWindow` (**burns the worker bond** if the undisputed rejection named a violation), `refundAfterArbitrationTimeout` (never burns, no feedback), `rejectAfterDeliveryDeadline` = the missed-delivery burn (funded, no timely submission: refund, **worker bond burned**, creator bond back). |
 
-## Target v3 (spike S7, ADR-0004) — in progress
+## What S7 changed from v2 (47c4dd2)
 
-Landed and tested (see the table above): the approver, publish refusals, `activate` + `cancelSelection`,
-`award`, `settle` after a core refund with the penalty guard, `accept` refused during a dispute, the
-violation-naming `reject`, burns, late-submission rules, `ruleWithSignature`, the evidence event fields and
-reason-aware feedback. **Not built yet:** `MockPaymentToken(name, symbol)`, the genuine CRE receiver and the
-deployment recipe.
+The table above is the current surface (v3, ADR-0004, S7). Removed: `assign`, `select`, `postWorkerBond`,
+`fundAfterAccept`, `withdraw`, `withdrawWorkerBond`, `creatorReject`. Added: `activate`, `cancelSelection`, `award`,
+`settle`, `reject(violation, reasonHash)`, `ruleWithSignature`, `completeAward`, `earnedByWorker`,
+`workerPenaltyDue`. Changed: `accept` is the approver's and refused during a dispute; the missed-delivery timeout and
+an undisputed violation burn the worker bond (v2's "timeouts never burn" no longer holds); feedback is
+reason-aware and skipped on arbitration timeout; `EvidenceAttached` carries every binding field; the CRE receiver
+is Chainlink's `ReceiverTemplate`, pinned and ownerless after configuration.
 
-| Function | Who | Change from v2 |
-| :--- | :--- | :--- |
-| `JobHolding.publish` | anyone holding >= `minHoldToPublish` | Also stores the offer's `approver`; refuses a zero `policyHash` and a contest with `workerBond > 0`. |
-| `JobHolding.activate(selection, creatorSig, agentId, budgetAuth)` | **the selected worker itself** (never relayed, R114-01) | Replaces `assign` + `postWorkerBond` + `fundAfterAccept`. Checks the creator's EIP-712 `Selection` (deadline, nonce, `termsHash`), `activateBy` and the delivery deadline, the hold gate and `getAgentWallet(agentId) == msg.sender`; then setProvider, worker bond, `setBudgetWithAuthorization`, fund. |
-| `JobHolding.cancelSelection(nonce)` | creator | Burns a selection nonce. |
-| `JobHolding.publish` (idempotency) | anyone | Refuses a `policyHash` it has already listed (R114-07). |
-| Holding settlement after a core refund | anyone | After the core's `claimRefund` (or any rejection) the reward in Holding goes by the evaluator's recorded outcome: earned silence payment → worker; undisputed rejection, no-show, arbitration timeout → creator; each once (R114-03). Replaces `withdraw` paying the creator on any Rejected/Expired status. |
-| `JobHolding.award(candidate)` | approver, before `selectionDeadline` | Replaces `select`. setProvider → `setBudgetWithAuthorization` → fund → `submitWithAuthorization` → evaluator completion in one transaction; any failure reverts all and the contest stays open. |
-| `JobHolding.cancel` | creator, hire only | Only before activation. |
-| `JobHolding.withdrawWorkerBond` | worker | Refuses while a penalty is due, whatever the core status (closes `claimRefund` → withdraw bypassing a burn). |
-| `JobsEvaluator.accept` | **approver** (was creator) | Refused while a dispute is open (R114-02). Also a late submission, until the missed-delivery burn has run. |
-| `JobsEvaluator.reject(jobId, violation, reasonHash)` | **approver**, until `submittedAt + reviewWindow`, timely submissions only | Replaces `creatorReject`; `violation ∈ {none, quality, falsified}`. |
-| `JobsEvaluator.rejectAfterWindow` | anyone | Burns the worker bond when the undisputed rejection named a violation. |
-| missed-delivery timeout | anyone, after `deliveryDeadline` | Funded, no timely submission: refund and **worker bond burned** (was: reject, bonds returned). |
-| `JobsEvaluator.refundAfterArbitrationTimeout` | anyone | Unchanged money; writes **no** worker feedback (`skip-arb`). |
-| `completeAfterSilence` | anyone | Only for a submission made by the delivery deadline. |
-| `EvidenceAttached` | — | Also emits `submissionHash`, `policyHash`, `validUntil`. |
-| ERC-8004 feedback | evaluator | Reason-aware (`completed`, `not-delivered`, `rejected`, `rejected-quality`, `rejected-falsified`); none on arbitration timeout. |
-
-"the four timeouts … never burn" in the v2 table stops being true in v3: the missed-delivery timeout and an
-undisputed violation burn the worker bond.
-
-## Admin (deployer EOA, testnet)
+## Admin (deployer EOA)
 
 `pause`/`unpause`, `emergencyWithdraw` (only while paused), `setPlatformFee`, `setEvaluatorFee`,
-`setHookWhitelist`, `setPaymentTokenAllowed`, `batchDetachHook`, UUPS upgrade. Deployed with fees 0,
-`MockPaymentToken` as the only allowed payment token (FACTORY is never allowlisted: collateral never enters the
-core), no hook whitelisted. `JobHolding.setHoldRequirements` and `JobsEvaluator.setVerifier` are the two admin
+`setHookWhitelist`, `setPaymentTokenAllowed`, `batchDetachHook`, UUPS upgrade. Deployed by `script/Recipe.sol` from
+`config/<network>.json` with fees 0, only the listed reward tokens allowlisted (testnet `mUSD` and `mEUR`, mainnet
+USDC; FACTORY never: collateral never enters the core), no hook whitelisted. `JobHolding.setHoldRequirements` and `JobsEvaluator.setVerifier` are the two admin
 knobs of ours. The README names the admin and commits to
 no upgrade during an active agreement. Pause blocks every lifecycle call above, including the timeouts,
 so an outage promise made while paused is void; this is stated rather than mitigated.
