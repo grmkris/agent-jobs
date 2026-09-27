@@ -40,6 +40,17 @@ Each step is one command from the repo root (or `contracts/` where stated). Secr
    Recommendation: **A** for the first real job, since the hackathon demo's slashing is proven on testnet. Decide B/C before announcing bonds.
 2. **Hold gates** stay 0 on mainnet (`holdGates` in the config); any other value locks out everyone until FACTORY exists.
 3. **Custom domain** for `prod` (optional; workers.dev works).
+4. **Who holds the admin role.** The independent review (28 Sep, Codex) rated this critical. The admin of the vendored core can:
+   - `pause`, then `emergencyWithdraw` the whole escrow balance while paused;
+   - authorize a UUPS upgrade;
+   - raise the platform and evaluator fees, which `_complete` reads at payout time, so a change after funding applies to live jobs.
+
+   The recipe gives all of this to one EOA (`0x6752…ad73`). Nothing in code changes that before B7. The options:
+   - **(a) Keep the EOA** and state the trust assumption and the commitment in the README (fees stay 0, no pause or upgrade during an active agreement). This is the smallest change for the hackathon.
+   - **(b) Move the admin roles to a Safe** right after the deploy. This takes one `grantRole`/`renounceRole` pair per role **[tx]**.
+   - **(c) Renounce the upgrade and fee roles** after the deploy. This cannot be undone.
+
+   Recommendation: (a) for tomorrow, plus a README "Trust" section; (b) before real volume.
 
 ## 2. Funding [tx, by Kris from his own wallet]
 
