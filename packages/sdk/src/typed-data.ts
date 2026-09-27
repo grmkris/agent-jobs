@@ -88,3 +88,21 @@ export const submitTypes = {
 
 /** keccak256 of empty bytes: the `optParamsHash` of every authorisation Holding applies (no hook params). */
 export const EMPTY_HASH: Hex = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
+
+/** A verifier's signed statement about the named CI checks of one commit (`JobsEvaluator.EvidenceAttestation`). */
+export const evidenceTypes = {
+  EvidenceAttestation: [
+    { name: 'jobId', type: 'uint256' },
+    { name: 'submissionHash', type: 'bytes32' },
+    { name: 'policyHash', type: 'bytes32' },
+    { name: 'repo', type: 'bytes32' },
+    { name: 'headSha', type: 'bytes32' },
+    { name: 'testedSha', type: 'bytes32' },
+    { name: 'checkRunsHash', type: 'bytes32' },
+    { name: 'conclusion', type: 'uint8' },
+    { name: 'validUntil', type: 'uint256' },
+  ],
+} as const
+
+/** `EvidenceAttestation.conclusion`: every required check completed successfully, or at least one did not. */
+export const EvidenceConclusion = { Success: 1, Failure: 2 } as const

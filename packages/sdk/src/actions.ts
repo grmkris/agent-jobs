@@ -438,3 +438,24 @@ export function rulingDigest(ctx: Ctx, r: Ruling) {
     args: [r],
   })
 }
+
+/** Attaches a verifier's signed evidence; the sender is only a relay (the evaluator checks the verifier's signature). */
+export function attachEvidence(
+  ctx: Ctx,
+  relay: Wallet,
+  attestation: {
+    jobId: bigint
+    submissionHash: Hex
+    policyHash: Hex
+    repo: Hex
+    headSha: Hex
+    testedSha: Hex
+    checkRunsHash: Hex
+    conclusion: number
+    validUntil: bigint
+  },
+  verifier: Address,
+  sig: Hex,
+) {
+  return write(ctx, relay, ctx.stack.evaluator, jobsEvaluatorAbi, 'attachEvidence', [attestation.jobId, attestation, verifier, sig])
+}

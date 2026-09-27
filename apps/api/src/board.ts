@@ -2,6 +2,7 @@ import { Board as BoardService, BoardError, fromDurableObjectSql } from '@agent-
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
+import { privateKeyToAccount } from 'viem/accounts'
 import { type ToolContext, toJson, tools } from './tools.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
@@ -16,8 +17,16 @@ export interface BoardCall {
     readonly domain: string
     readonly uri: string
     readonly manifestBaseUrl: string
+    /** Jev's model endpoint; an empty key means "unscreened". */
+    readonly screening: { readonly baseUrl: string; readonly apiKey: string; readonly model: string }
+    /** Attester and relay keys and the GitHub App; empty means evidence is unavailable. */
+    readonly attesterKey: string
+    readonly relayKey: string
+    readonly github: { readonly appId: string; readonly privateKeyPem: string; readonly installationId: string }
   }
 }
+
+const key32 = (k: string) => /^0x[0-9a-fA-F]{64}$/.test(k)
 
 export type BoardReply =
   | { readonly ok: true; readonly result: unknown }
@@ -47,6 +56,17 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         domain: env.domain,
         uri: env.uri,
         manifestBaseUrl: env.manifestBaseUrl,
+        ...(env.screening.apiKey === '' ? {} : { screening: env.screening }),
+        ...(key32(env.attesterKey) && key32(env.relayKey)
+          ? {
+              evidence: {
+                attester: privateKeyToAccount(env.attesterKey as `0x${string}`),
+                relay: privateKeyToAccount(env.relayKey as `0x${string}`),
+                rpcUrl: env.rpcUrl,
+                ...(env.github.appId === '' ? {} : { github: env.github }),
+              },
+            }
+          : {}),
       })
       service = { key, board }
       return board

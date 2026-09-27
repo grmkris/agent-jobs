@@ -48,7 +48,8 @@ const SCHEMA = [
     job_id TEXT,
     publish_tx TEXT,
     from_block INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    screening_json TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS applications (
     id TEXT PRIMARY KEY,
@@ -116,14 +117,54 @@ const SCHEMA = [
     address TEXT NOT NULL,
     expires_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS candidates (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    worker TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    deliverable_hash TEXT NOT NULL,
+    repo TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    sha TEXT NOT NULL,
+    deadline INTEGER NOT NULL,
+    budget_nonce TEXT NOT NULL,
+    submit_nonce TEXT NOT NULL,
+    budget_sig TEXT,
+    submit_sig TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE (task_id, worker, deliverable_hash)
+  )`,
+  `CREATE TABLE IF NOT EXISTS onchain_submissions (
+    task_id TEXT PRIMARY KEY,
+    deliverable_hash TEXT NOT NULL,
+    tx_hash TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS evidence (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    submission_hash TEXT NOT NULL,
+    verifier TEXT NOT NULL,
+    conclusion INTEGER NOT NULL,
+    tested_sha TEXT NOT NULL,
+    checks_json TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS mcp_sessions (
     id TEXT PRIMARY KEY,
     session TEXT NOT NULL
   )`,
 ]
 
+/** Columns added after a table first shipped; applied additively (never a destructive change to board data). */
+const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]> = [['tasks', 'screening_json', 'TEXT']]
+
 export function migrate(sql: Sql): void {
   for (const statement of SCHEMA) sql.run(statement)
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const columns = sql.all<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name)
+    if (!columns.includes(column)) sql.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+  }
 }
 
 export interface TaskRow {
@@ -136,6 +177,7 @@ export interface TaskRow {
   publish_tx: string | null
   from_block: number
   created_at: number
+  screening_json: string | null
 }
 
 export interface ApplicationRow {
@@ -155,6 +197,23 @@ export interface SelectionRow {
   agent_id: string
   activate_by: number
   signature: string | null
+  created_at: number
+}
+
+export interface CandidateRow {
+  id: string
+  task_id: string
+  worker: string
+  agent_id: string
+  deliverable_hash: string
+  repo: string
+  branch: string
+  sha: string
+  deadline: number
+  budget_nonce: string
+  submit_nonce: string
+  budget_sig: string | null
+  submit_sig: string | null
   created_at: number
 }
 

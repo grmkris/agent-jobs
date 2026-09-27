@@ -111,6 +111,7 @@ export const tools: Record<string, Tool> = {
         workerBond: str('The worker FACTORY bond, e.g. "3" ("0" for a contest).'),
         deliveryDeadline: num('Unix seconds.'),
         mode: { type: 'string', enum: ['hire', 'contest'] },
+        requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
         selectionDeadline: num('Contest only: unix seconds, before the delivery deadline.'),
         approver: str('Optional: who judges the work (default you).'),
         stack: { type: 'string', enum: ['main', 'demo'], description: 'Testnet: "demo" uses minute-long windows.' },
@@ -131,6 +132,7 @@ export const tools: Record<string, Tool> = {
         ...(a.selectionDeadline === undefined ? {} : { selectionDeadline: n(a, 'selectionDeadline') }),
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
+        ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
       }),
   },
 
@@ -253,6 +255,83 @@ export const tools: Record<string, Tool> = {
     description: 'Worker: dispute a rejection within the filing window.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.disputeRejection(caller, { taskId: s(a, 'taskId') }),
+  },
+
+  prepare_entry: {
+    description:
+      'Contest entrant: register a finished candidate (public repo, branch, full SHA) and get the two authorisations to sign once. If the approver awards it you are paid with no further action.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...taskId,
+        agentId: str('Your ERC-8004 agent id.'),
+        repo: str('Public repository URL.'),
+        branch: str('Branch.'),
+        sha: str('Full commit SHA.'),
+      },
+      required: ['taskId', 'agentId', 'repo', 'branch', 'sha'],
+    },
+    run: (board, caller, a) =>
+      board.prepareEntry(caller, {
+        taskId: s(a, 'taskId'),
+        agentId: s(a, 'agentId'),
+        repo: s(a, 'repo'),
+        branch: s(a, 'branch'),
+        sha: s(a, 'sha'),
+      }),
+  },
+
+  submit_entry: {
+    description: 'Contest entrant: the two signatures from prepare_entry. Your entry is complete.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...taskId,
+        candidateId: str('From prepare_entry.'),
+        budgetSignature: str('Signature over the SetBudgetAuthorization.'),
+        submitSignature: str('Signature over the SubmitAuthorization.'),
+      },
+      required: ['taskId', 'candidateId', 'budgetSignature', 'submitSignature'],
+    },
+    run: (board, caller, a) =>
+      board.submitEntry(caller, {
+        taskId: s(a, 'taskId'),
+        candidateId: s(a, 'candidateId'),
+        budgetSignature: s(a, 'budgetSignature'),
+        submitSignature: s(a, 'submitSignature'),
+      }),
+  },
+
+  list_candidates: {
+    description: 'Contest: complete entries (approver and creator see all; an entrant sees its own).',
+    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
+    run: (board, caller, a) => board.listCandidates(caller, { taskId: s(a, 'taskId') }),
+  },
+
+  award: {
+    description:
+      'Contest approver: buy one entry. One transaction pays it and closes the contest; if it fails, the contest stays open.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...taskId, candidateId: str('From list_candidates.') },
+      required: ['taskId', 'candidateId'],
+    },
+    run: (board, caller, a) => board.awardCandidate(caller, { taskId: s(a, 'taskId'), candidateId: s(a, 'candidateId') }),
+  },
+
+  request_evidence: {
+    description:
+      'Anyone signed in: the attester reads the GitHub check runs of a deliverable’s exact SHA (a contest candidate, or the hire’s deliverable), signs evidence bound to this offer, and attaches it on-chain. Advisory: it moves no money.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...taskId, candidateId: str('Contest: which candidate; omit for a hire.') },
+      required: ['taskId'],
+    },
+    run: (board, caller, a) =>
+      board.requestEvidence(caller, {
+        taskId: s(a, 'taskId'),
+        ...(a.candidateId === undefined ? {} : { candidateId: s(a, 'candidateId') }),
+      }),
   },
 
   settlement_actions: {

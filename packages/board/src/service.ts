@@ -22,8 +22,12 @@ import {
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
+import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
+import type { ModelEndpoint } from './model.ts'
+import { screenOffer } from './screening.ts'
 import {
   type ApplicationRow,
+  type CandidateRow,
   type OperationRow,
   type SelectionRow,
   type Sql,
@@ -51,6 +55,19 @@ export interface BoardConfig {
   /** Where manifests are publicly readable: `${manifestBaseUrl}/${termsHash}.json`. */
   readonly manifestBaseUrl: string
   readonly now?: () => number
+  /**
+   * The attester (spec §5): a registered verifier key that signs evidence about GitHub check runs, the relay that
+   * sends `attachEvidence` (it holds no authority: the evaluator checks the attester's signature), and the GitHub
+   * App it reads with. Absent: evidence is unavailable and says so.
+   */
+  /** Jev's model endpoint (advisory screening at publish); absent → "unscreened". */
+  readonly screening?: ModelEndpoint
+  readonly evidence?: {
+    readonly attester: import('viem').LocalAccount
+    readonly relay: import('viem').LocalAccount
+    readonly rpcUrl: string
+    readonly github?: GitHubApp
+  }
 }
 
 /** An unsigned transaction for the caller's wallet: `cast send <to> <data>`, or `eth_sendTransaction`. */
@@ -263,6 +280,8 @@ export class Board {
       approver?: string
       /** "main" (real windows) or, on testnet, "demo" (minute windows). */
       stack?: sdk.StackName
+      /** GitHub check names evidence must cover; they become the offer's evidence policy. */
+      requiredChecks?: string[]
     },
   ) {
     const creator = this.#requireCaller(caller)
@@ -304,7 +323,10 @@ export class Board {
       approver: input.approver === undefined ? creator : getAddress(input.approver),
       windows,
       eligibility: null,
-      evidencePolicy: null,
+      evidencePolicy:
+        input.requiredChecks === undefined || input.requiredChecks.length === 0
+          ? null
+          : { checks: input.requiredChecks, trustedProducer: 'github-actions', workflowPath: '.github/workflows' },
       quote: null,
       salt: `0x${randomId(32)}`,
     }
@@ -315,8 +337,10 @@ export class Board {
     }
     const hash = termsHash(terms)
     const manifest = canonicalJson(terms)
+    const symbol = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
+    const screening = await screenOffer(this.#config.screening, terms, `${input.reward} ${symbol}`, this.#now())
     this.#sql.run(
-      'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?)',
+      'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)',
       taskId,
       creator,
       stack,
@@ -324,6 +348,7 @@ export class Board {
       hash,
       Number(block),
       this.#now(),
+      JSON.stringify(screening),
     )
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
 
@@ -366,6 +391,7 @@ export class Board {
     return {
       taskId,
       termsHash: hash,
+      screening,
       manifestUrl: `${this.#config.manifestBaseUrl}/${hash}.json`,
       manifest,
       transactions,
@@ -434,6 +460,23 @@ export class Board {
           this.#now(),
           op.id,
         )
+      }
+    }
+    // The core's JobSubmitted is the one deliverable that counts; record it for the evidence labels.
+    for (const log of receipt.logs) {
+      if (!eq(log.address, ctx.deployment.core)) continue
+      try {
+        const event = decodeEventLog({ abi: sdk.coreAbi, data: log.data, topics: log.topics })
+        if (event.eventName === 'JobSubmitted' && task.job_id !== null && event.args.jobId === BigInt(task.job_id)) {
+          this.#sql.run(
+            'INSERT OR REPLACE INTO onchain_submissions (task_id, deliverable_hash, tx_hash) VALUES (?, ?, ?)',
+            task.id,
+            event.args.deliverable,
+            input.txHash,
+          )
+        }
+      } catch {
+        // another event
       }
     }
     if (task.job_id === null) {
@@ -724,6 +767,235 @@ export class Board {
   }
 
   // -----------------------------------------------------------------------------------------------
+  // Contest: finished entries and the approver's atomic award
+  // -----------------------------------------------------------------------------------------------
+
+  /**
+   * An entrant's finished candidate: the board records it and returns the two core authorisations to sign once
+   * (budget = the prize, submit = exactly this deliverable), valid until the selection deadline. After
+   * `submit_entry` the entrant is done: an award pays it with the entrant offline.
+   */
+  async prepareEntry(caller: Caller, input: { taskId: string; agentId: string; repo: string; branch: string; sha: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const terms = parseTerms(task.terms_json)
+    if (terms.mode !== 'contest') throw new BoardError('invalid', 'this task is a hire; apply instead')
+    const view = await this.#chainView(task)
+    if (view.status !== 'open') throw new BoardError('conflict', `the contest is ${view.status}`)
+    const ctx = this.#ctx(task.stack)
+    const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
+    if (!eq(agentWallet, me)) throw new BoardError('forbidden', `agent ${input.agentId}'s registered wallet is ${agentWallet}, not ${me}`)
+    if (!/^[0-9a-f]{40}$/.test(input.sha)) throw new BoardError('invalid', 'sha must be a full 40-character commit SHA')
+    const deliverableHash = sdk.hashText(canonicalJson({ repo: input.repo, branch: input.branch, sha: input.sha }))
+    const deadline = terms.selectionDeadline ?? 0
+    const id = randomId(8)
+    const budgetNonce = randomUint(9)
+    const submitNonce = randomUint(9)
+    this.#sql.run(
+      `INSERT INTO candidates (id, task_id, worker, agent_id, deliverable_hash, repo, branch, sha, deadline, budget_nonce, submit_nonce, budget_sig, submit_sig, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+       ON CONFLICT (task_id, worker, deliverable_hash) DO UPDATE SET agent_id = excluded.agent_id, budget_nonce = excluded.budget_nonce, submit_nonce = excluded.submit_nonce, budget_sig = NULL, submit_sig = NULL`,
+      id, task.id, me, input.agentId, deliverableHash, input.repo, input.branch, input.sha, deadline,
+      budgetNonce.toString(), submitNonce.toString(), this.#now(),
+    )
+    const [row] = this.#sql.all<CandidateRow>('SELECT * FROM candidates WHERE task_id = ? AND worker = ? AND deliverable_hash = ?', task.id, me, deliverableHash)
+    const candidate = row as CandidateRow
+    const core = sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core)
+    return {
+      candidateId: candidate.id,
+      deliverableHash,
+      sign: [
+        {
+          description: 'SetBudgetAuthorization for exactly the prize (used only if you are awarded)',
+          typedData: typedDataJson(core, sdk.setBudgetTypes, 'SetBudgetAuthorization', {
+            signer: me, jobId: this.#jobId(task), token: terms.token, amount: terms.reward,
+            optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(candidate.budget_nonce), deadline: BigInt(deadline),
+          }),
+        },
+        {
+          description: 'SubmitAuthorization for exactly this deliverable (used only if you are awarded)',
+          typedData: typedDataJson(core, sdk.submitTypes, 'SubmitAuthorization', {
+            signer: me, jobId: this.#jobId(task), deliverable: deliverableHash,
+            optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(candidate.submit_nonce), deadline: BigInt(deadline),
+          }),
+        },
+      ] satisfies SignRequest[],
+      next: 'Sign both, then submit_entry({taskId, candidateId, budgetSignature, submitSignature}). Nothing else is needed from you.',
+    }
+  }
+
+  /** Stores an entry's two signed authorisations after checking both recover to the entrant. */
+  async submitEntry(caller: Caller, input: { taskId: string; candidateId: string; budgetSignature: string; submitSignature: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const c = this.#candidate(task.id, input.candidateId)
+    if (!eq(c.worker, me)) throw new BoardError('forbidden', 'not your candidate')
+    const ctx = this.#ctx(task.stack)
+    const terms = parseTerms(task.terms_json)
+    const domain = sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core)
+    const budgetOk = await ctx.publicClient.verifyTypedData({
+      address: me, domain, types: sdk.setBudgetTypes, primaryType: 'SetBudgetAuthorization',
+      message: { signer: me, jobId: this.#jobId(task), token: terms.token, amount: terms.reward, optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(c.budget_nonce), deadline: BigInt(c.deadline) },
+      signature: input.budgetSignature as Hex,
+    })
+    const submitOk = await ctx.publicClient.verifyTypedData({
+      address: me, domain, types: sdk.submitTypes, primaryType: 'SubmitAuthorization',
+      message: { signer: me, jobId: this.#jobId(task), deliverable: c.deliverable_hash as Hex, optParamsHash: sdk.EMPTY_HASH, nonce: BigInt(c.submit_nonce), deadline: BigInt(c.deadline) },
+      signature: input.submitSignature as Hex,
+    })
+    if (!budgetOk || !submitOk) throw new BoardError('forbidden', 'a signature does not match your entry')
+    this.#sql.run('UPDATE candidates SET budget_sig = ?, submit_sig = ? WHERE id = ?', input.budgetSignature, input.submitSignature, c.id)
+    return { ok: true, candidateId: c.id, deliverableHash: c.deliverable_hash }
+  }
+
+  #candidate(taskId: string, candidateId: string): CandidateRow {
+    const [c] = this.#sql.all<CandidateRow>('SELECT * FROM candidates WHERE id = ? AND task_id = ?', candidateId, taskId)
+    if (c === undefined) throw new BoardError('not-found', 'no such candidate')
+    return c
+  }
+
+  /** The approver and creator see every complete entry; an entrant sees its own. */
+  listCandidates(caller: Caller, input: { taskId: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const terms = parseTerms(task.terms_json)
+    const all = eq(terms.approver, me) || eq(terms.creator, me)
+    const rows = this.#sql.all<CandidateRow>(
+      'SELECT * FROM candidates WHERE task_id = ? AND budget_sig IS NOT NULL AND submit_sig IS NOT NULL ORDER BY created_at',
+      task.id,
+    )
+    return rows
+      .filter((r) => all || eq(r.worker, me))
+      .map((r) => ({ candidateId: r.id, worker: r.worker, agentId: r.agent_id, repo: r.repo, branch: r.branch, sha: r.sha, deliverableHash: r.deliverable_hash }))
+  }
+
+  /** The approver's award: pays the chosen entry in one transaction; any failure leaves the contest open. */
+  async awardCandidate(caller: Caller, input: { taskId: string; candidateId: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const terms = parseTerms(task.terms_json)
+    if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver awards')
+    const c = this.#candidate(task.id, input.candidateId)
+    if (c.budget_sig === null || c.submit_sig === null) throw new BoardError('conflict', 'the entry is not complete')
+    const ctx = this.#ctx(task.stack)
+    this.#operation(task.id, 'award', me, { candidateId: c.id })
+    const auth = (nonce: string, sig: string) => ({ signer: getAddress(c.worker), nonce: BigInt(nonce), deadline: BigInt(c.deadline), sig: sig as Hex })
+    return {
+      transactions: [
+        this.#tx(ctx, 'award: pays this entry and closes the contest in one transaction', ctx.stack.holding,
+          encodeFunctionData({
+            abi: sdk.jobHoldingAbi,
+            functionName: 'award',
+            args: [this.#jobId(task), {
+              worker: getAddress(c.worker),
+              agentId: BigInt(c.agent_id),
+              deliverable: c.deliverable_hash as Hex,
+              budgetAuth: auth(c.budget_nonce, c.budget_sig),
+              submitAuth: auth(c.submit_nonce, c.submit_sig),
+            }],
+          })),
+      ],
+      next: 'Send it, then report_transaction.',
+    }
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Evidence (the attester)
+  // -----------------------------------------------------------------------------------------------
+
+  /**
+   * The attester reads the GitHub check runs of a deliverable's exact SHA (a contest candidate, or a hire's
+   * recorded deliverable), signs an `EvidenceAttestation` bound to this offer's policy and that deliverable, and the
+   * relay attaches it on-chain. Evidence is advisory: it moves no money and gates nothing.
+   */
+  async requestEvidence(caller: Caller, input: { taskId: string; candidateId?: string }) {
+    this.#requireCaller(caller)
+    const cfg = this.#config.evidence
+    if (cfg === undefined) throw new BoardError('invalid', 'the attester is not configured on this board (unavailable)')
+    const task = this.#task(input.taskId)
+    const terms = parseTerms(task.terms_json)
+    const ctx = this.#ctx(task.stack)
+    const target =
+      input.candidateId !== undefined
+        ? this.#candidate(task.id, input.candidateId)
+        : this.#sql.all<{ repo: string; sha: string; deliverable_hash: string }>(
+            'SELECT repo, sha, deliverable_hash FROM deliverables WHERE task_id = ? ORDER BY created_at DESC LIMIT 1',
+            task.id,
+          )[0]
+    if (target === undefined) throw new BoardError('not-found', 'no deliverable to attest')
+    const slug = repoSlug(target.repo)
+    if (slug === undefined) throw new BoardError('invalid', 'only public GitHub repositories are attested')
+    const token = cfg.github === undefined ? undefined : await installationToken(cfg.github, this.#now())
+    const runs = await checkRuns(token, slug, target.sha)
+    const required = terms.evidencePolicy?.checks ?? []
+    const relevant = required.length === 0 ? runs : runs.filter((r) => required.includes(r.name))
+    if (relevant.length === 0) throw new BoardError('conflict', `no ${required.length === 0 ? '' : 'required '}check runs on ${target.sha} yet`)
+    if (relevant.some((r) => r.status !== 'completed')) throw new BoardError('conflict', 'checks are still running; ask again when they finish')
+    const missing = required.filter((name) => !relevant.some((r) => r.name === name))
+    const success = missing.length === 0 && relevant.every((r) => r.conclusion === 'success')
+    const checks = relevant.map((r) => ({ name: r.name, conclusion: r.conclusion, app: r.app, sha: r.head_sha }))
+    const shaWord = `0x${target.sha.padStart(64, '0')}` as Hex
+    const attestation = {
+      jobId: this.#jobId(task),
+      submissionHash: target.deliverable_hash as Hex,
+      policyHash: task.terms_hash as Hex,
+      repo: sdk.hashText(target.repo),
+      headSha: shaWord,
+      testedSha: shaWord,
+      checkRunsHash: sdk.hashText(canonicalJson({ checks, missing })),
+      conclusion: success ? sdk.EvidenceConclusion.Success : sdk.EvidenceConclusion.Failure,
+      validUntil: BigInt(this.#now() + 7 * 24 * 3600),
+    }
+    const signature = await cfg.attester.signTypedData({
+      domain: sdk.evaluatorDomain(ctx.deployment.chainId, ctx.stack.evaluator),
+      types: sdk.evidenceTypes,
+      primaryType: 'EvidenceAttestation',
+      message: attestation,
+    })
+    const relay = sdk.wallet(this.#config.network, cfg.relay, cfg.rpcUrl)
+    const receipt = await sdk.attachEvidence(ctx, relay, attestation, cfg.attester.address, signature)
+    this.#sql.run(
+      'INSERT INTO evidence (id, task_id, submission_hash, verifier, conclusion, tested_sha, checks_json, tx_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      randomId(8), task.id, target.deliverable_hash, cfg.attester.address, attestation.conclusion, target.sha,
+      JSON.stringify({ checks, missing }), receipt.transactionHash, this.#now(),
+    )
+    return { conclusion: success ? 'success' : 'failure', checks, missing, txHash: receipt.transactionHash, evidence: this.#evidence(task) }
+  }
+
+  /**
+   * Every evidence statement on this task with its label (R114-06): "matches the awarded on-chain deliverable" only
+   * when it names the deliverable the core recorded in `JobSubmitted`; before that, "matches this submitted
+   * candidate" when it names a deliverable the board recorded. A job id alone is never a match.
+   */
+  #evidence(task: TaskRow) {
+    const onchain = this.#sql.all<{ deliverable_hash: string }>('SELECT deliverable_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0]
+    const known = new Set(
+      [
+        ...this.#sql.all<{ h: string }>('SELECT deliverable_hash AS h FROM candidates WHERE task_id = ?', task.id),
+        ...this.#sql.all<{ h: string }>('SELECT deliverable_hash AS h FROM deliverables WHERE task_id = ?', task.id),
+      ].map((r) => r.h.toLowerCase()),
+    )
+    return this.#sql
+      .all<{ submission_hash: string; verifier: string; conclusion: number; tested_sha: string; checks_json: string; tx_hash: string; created_at: number }>(
+        'SELECT submission_hash, verifier, conclusion, tested_sha, checks_json, tx_hash, created_at FROM evidence WHERE task_id = ? ORDER BY created_at',
+        task.id,
+      )
+      .map((e) => ({
+        verifier: e.verifier,
+        submissionHash: e.submission_hash,
+        conclusion: e.conclusion === 1 ? 'success' : 'failure',
+        testedSha: e.tested_sha,
+        checks: JSON.parse(e.checks_json) as unknown,
+        txHash: e.tx_hash,
+        label: eq(onchain?.deliverable_hash, e.submission_hash)
+          ? 'matches the awarded on-chain deliverable'
+          : known.has(e.submission_hash.toLowerCase())
+            ? 'matches this submitted candidate'
+            : 'unmatched',
+      }))
+  }
+
+  // -----------------------------------------------------------------------------------------------
   // Anyone
   // -----------------------------------------------------------------------------------------------
 
@@ -749,6 +1021,10 @@ export class Board {
     }
     if ((s === 'active' || (s === 'submitted' && !view.timely)) && now > view.deliveryDeadline) {
       txs.push(call('rejectAfterDeliveryDeadline', 'missed delivery: refund, the worker bond burns'))
+    }
+    if (s === 'selection-closed') {
+      txs.push(this.#tx(ctx, 'expireContest: no award by the selection deadline; the prize returns', ctx.stack.holding,
+        encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'expireContest', args: [jobId] })))
     }
     if (['rejected', 'expired', 'cancelled'].includes(s) || (view.coreStatus === 'Expired')) {
       txs.push(this.#tx(ctx, 'settle: pays out what is still in Holding', ctx.stack.holding,
@@ -781,7 +1057,8 @@ export class Board {
       'SELECT worker, deliverable_hash, repo, branch, sha FROM deliverables WHERE task_id = ? ORDER BY created_at',
       task.id,
     )
-    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, deliverables, operations }
+    const onchain = this.#sql.all<{ deliverable_hash: string; tx_hash: string }>('SELECT deliverable_hash, tx_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0] ?? null
+    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, deliverables, onchainSubmission: onchain, evidence: this.#evidence(task), operations }
   }
 
   async #summary(task: TaskRow, caller: Caller) {
@@ -803,6 +1080,7 @@ export class Board {
       termsHash: task.terms_hash,
       manifestUrl: `${this.#config.manifestBaseUrl}/${task.terms_hash}.json`,
       jobId: task.job_id,
+      screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),
       chain: view,
       you: caller.address === undefined ? null : this.#roles(terms, view, caller.address),
     }

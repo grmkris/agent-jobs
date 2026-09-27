@@ -21,3 +21,17 @@ describe('store', () => {
     expect(sql.all<{ n: number }>('SELECT count(*) AS n FROM tasks')[0]?.n).toBe(1)
   })
 })
+
+describe('additive migration', () => {
+  it('adds a column a table created by an earlier version lacks', () => {
+    const sql = fromNodeSqlite(new DatabaseSync(':memory:'))
+    sql.run(
+      'CREATE TABLE tasks (id TEXT PRIMARY KEY, creator TEXT NOT NULL, stack TEXT NOT NULL, terms_json TEXT NOT NULL, terms_hash TEXT NOT NULL UNIQUE, job_id TEXT, publish_tx TEXT, from_block INTEGER NOT NULL, created_at INTEGER NOT NULL)',
+    )
+    sql.run("INSERT INTO tasks VALUES ('t1', '0xc', 'main', '{}', '0xh', NULL, NULL, 0, 0)")
+    migrate(sql)
+    expect(sql.all<{ id: string; screening_json: string | null }>('SELECT id, screening_json FROM tasks')).toEqual([
+      { id: 't1', screening_json: null },
+    ])
+  })
+})
