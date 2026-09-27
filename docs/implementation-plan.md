@@ -52,6 +52,15 @@ hash recorded; mainnet still waits for an explicit go. Work lands on `main`. **T
 Holding + evaluator pair** sharing the core and tokens (windows stay immutable per deployment; no per-listing
 evaluator). S5 live stays blocked on Chainlink CRE deploy access.
 
+CP3 progress (27 Sep, evidence in `docs/reality-check.md`): done — contests with both evidence labels and the
+attester (job 8); Jev on the publish path; arbitration on the board (`list_disputes`, `get_dispute_bundle`,
+`prepare_ruling` with one decision per dispute, `submit_ruling` relayed, `arbiter_lease`), `apps/arbiter` and
+`skill/arbitrator`, each harness ruling one real dispute (jobs 9 and 10); quote-to-hire (job 11); the Privy server
+wallet's full lifecycle as a worker (agent 1940) and the MetaMask agent wallet's sign-only testnet lifecycle as a
+contest entrant (agent 1941, job 12: MetaMask cannot send on 10143). Open — the second real job
+(`scripts/reality-check.ts`, job 14, in progress); S8's R114-07 crash and lost-response tests beyond the contract
+refusals; a MetaMask transaction on mainnet 143.
+
 S7 progress: done — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`, fork tests
 running. Open — violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`,
 evidence event fields, reason-aware feedback, `MockPaymentToken(name, symbol)`, genuine CRE receiver, deploy recipe.
