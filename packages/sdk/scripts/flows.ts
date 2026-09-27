@@ -2,7 +2,8 @@
  * Live protocol flows on Monad testnet through the SDK only, against the deployed demo stack (2m review, 2m
  * dispute, 5m arbitration). Every step is a real transaction; every money outcome is checked against balances.
  *
- *   bun packages/sdk/scripts/flows.ts [hire|silence|dispute|contest|noshow|all]   (from the repo root)
+ *   bun packages/sdk/scripts/flows.ts [hire|silence|dispute|contest|noshow|cancel|unpicked|lapse|lapse-none|timeout|falsified|all]
+ *   (from the repo root; a comma-separated list runs several)
  *
  * Bun loads `.env.local` from the working directory: MONAD_TESTNET_RPC_URL, TESTNET_CREATOR_PRIVATE_KEY (creator
  * and approver), TESTNET_WORKER_PRIVATE_KEY (the `cast`-style worker), RELAY_PRIVATE_KEY (sends timeouts and the
@@ -246,7 +247,131 @@ async function noshow(agentId: bigint) {
   check(f, 'worker unpaid', after.wPayEur - before.wPayEur, 0n)
 }
 
-const all = { hire, silence, dispute, contest, noshow } as const
+/** Settles what a terminal job left in Holding (the refunded reward, bonds no evaluator path settled). */
+async function settle(f: string, jobId: bigint) {
+  tx(f, 'relay settle', await sdk.settle(ctx, relay, jobId))
+}
+
+/** A hire cancelled before anyone activates: reward and creator bond come back via settle; nothing burns. */
+async function cancel(agentId: bigint) {
+  const f = 'cancel'
+  const before = await balances()
+  const { jobId, termsHash, deliveryDeadline } = await publishHire(f, mEUR, 600)
+  // A signed selection the worker never used: the creator burns its nonce, so it can never activate.
+  const sel = { jobId, worker: worker.account.address, agentId, termsHash, activateBy: deliveryDeadline - 60, nonce: sdk.randomNonce() }
+  const sig = await sdk.signSelection(ctx, creator, sel)
+  tx(f, 'creator cancelSelection (burns the signed nonce)', await sdk.cancelSelection(ctx, creator, sel.nonce))
+  const activated = await sdk.activate(ctx, worker, sel, sig).then(() => true, () => false)
+  if (activated) failures++
+  log(f, `${activated ? '✗' : '✓'} the revoked selection cannot activate`)
+  tx(f, 'creator cancel', await sdk.cancel(ctx, creator, jobId))
+  await settle(f, jobId)
+  const after = await balances()
+  check(f, 'creator refunded in full', after.cPay - before.cPay, 0n)
+  check(f, 'creator bond back', after.cFac - before.cFac, 0n)
+  check(f, 'nothing burned', after.supply - before.supply, 0n)
+}
+
+/** A contest nobody awarded by its selection deadline: anyone expires it; prize and creator bond come back. */
+async function unpicked(_agentId: bigint) {
+  const f = 'unpicked'
+  const before = await balances()
+  const beforeUsd = await sdk.balanceOf(ctx, mUSD, creator.account.address)
+  const t = await now()
+  const { jobId, receipt } = await sdk.publish(ctx, creator, {
+    mode: 'contest',
+    token: mUSD,
+    reward: REWARD,
+    creatorBond: CREATOR_BOND,
+    workerBond: 0n,
+    manifestHash: sdk.hashText('manifest unpicked contest'),
+    termsHash: sdk.hashText(`unpicked-${Date.now()}-${sdk.randomNonce()}`),
+    deliveryDeadline: t + 600,
+    selectionDeadline: t + 60,
+  })
+  tx(f, `publish contest ${jobId}`, receipt)
+  await waitUntilAfter(f, t + 60)
+  tx(f, 'relay expireContest', await sdk.expireContest(ctx, relay, jobId))
+  await settle(f, jobId)
+  const after = await balances()
+  check(f, 'creator prize back (mUSD)', (await sdk.balanceOf(ctx, mUSD, creator.account.address)) - beforeUsd, 0n)
+  check(f, 'creator bond back', after.cFac - before.cFac, 0n)
+  check(f, 'nothing burned', after.supply - before.supply, 0n)
+}
+
+/** reject(violation) that nobody disputes: after the dispute window anyone finalises it. Quality burns the worker
+ *  bond; None returns both. The reward refunds to the creator. */
+async function lapse(agentId: bigint, violation: 'Quality' | 'None' = 'Quality') {
+  const f = violation === 'None' ? 'lapse-none' : 'lapse'
+  const before = await balances()
+  const { jobId, termsHash, deliveryDeadline } = await publishHire(f, mEUR, 600)
+  await selectAndActivate(f, agentId, jobId, termsHash, deliveryDeadline - 60)
+  tx(f, 'worker submit', await sdk.submit(ctx, worker, jobId, sdk.hashText(`deliverable: ${f}`)))
+  tx(f, `approver reject (${violation})`, await sdk.reject(ctx, creator, jobId, violation, sdk.hashText(`reason: ${f}`)))
+  const at = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rejectedAt', args: [jobId] }))
+  const window = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputeWindow' }))
+  await waitUntilAfter(f, at + window)
+  tx(f, 'relay rejectAfterWindow', await sdk.rejectAfterWindow(ctx, relay, jobId))
+  await settle(f, jobId)
+  const after = await balances()
+  check(f, 'creator refunded in full', after.cPay - before.cPay, 0n)
+  check(f, 'worker unpaid', after.wPayEur - before.wPayEur, 0n)
+  check(f, 'creator bond back', after.cFac - before.cFac, 0n)
+  check(f, violation === 'None' ? 'worker bond back (None names no violation)' : 'worker bond burned', before.wFac - after.wFac, violation === 'None' ? 0n : WORKER_BOND)
+}
+
+const lapseNone = (agentId: bigint) => lapse(agentId, 'None')
+
+/** A dispute the arbitrator never rules on: after the arbitration window anyone refunds; both bonds back. */
+async function timeout(agentId: bigint) {
+  const f = 'timeout'
+  const before = await balances()
+  const { jobId, termsHash, deliveryDeadline } = await publishHire(f, mEUR, 900)
+  await selectAndActivate(f, agentId, jobId, termsHash, deliveryDeadline - 60)
+  tx(f, 'worker submit', await sdk.submit(ctx, worker, jobId, sdk.hashText('deliverable: timeout')))
+  tx(f, 'approver reject (Quality)', await sdk.reject(ctx, creator, jobId, 'Quality', sdk.hashText('reason: timeout')))
+  tx(f, 'worker dispute', await sdk.dispute(ctx, worker, jobId))
+  const at = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [jobId] }))
+  const window = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrationWindow' }))
+  await waitUntilAfter(f, at + window)
+  tx(f, 'relay refundAfterArbitrationTimeout', await sdk.refundAfterArbitrationTimeout(ctx, relay, jobId))
+  await settle(f, jobId)
+  const after = await balances()
+  check(f, 'creator refunded in full', after.cPay - before.cPay, 0n)
+  check(f, 'both bonds back', after.supply - before.supply, 0n)
+  check(f, 'worker FACTORY back', after.wFac - before.wFac, 0n)
+}
+
+/** reject(Falsified) → dispute → signed ruling for the creator with slash: refund, worker bond burned. */
+async function falsified(agentId: bigint) {
+  const f = 'falsified'
+  const before = await balances()
+  const { jobId, termsHash, deliveryDeadline } = await publishHire(f, mEUR, 600)
+  await selectAndActivate(f, agentId, jobId, termsHash, deliveryDeadline - 60)
+  tx(f, 'worker submit', await sdk.submit(ctx, worker, jobId, sdk.hashText('deliverable: claims tests that do not exist')))
+  tx(f, 'approver reject (Falsified)', await sdk.reject(ctx, creator, jobId, 'Falsified', sdk.hashText('reason: the evidence is fabricated')))
+  tx(f, 'worker dispute', await sdk.dispute(ctx, worker, jobId))
+  const ruling = {
+    jobId,
+    forWorker: false,
+    slashLoser: true,
+    reasonHash: sdk.hashText('ruling: the claimed CI run does not exist for the submitted SHA'),
+    deadline: BigInt((await now()) + 600),
+    nonce: sdk.randomNonce(),
+  }
+  const sig = await sdk.signRuling(ctx, arbitrator, ruling)
+  tx(f, 'relay ruleWithSignature (for the creator, slash)', await sdk.ruleWithSignature(ctx, relay, ruling, sig))
+  const replay = await sdk.ruleWithSignature(ctx, relay, ruling, sig).then(() => true, () => false)
+  if (replay) failures++
+  log(f, `${replay ? '✗' : '✓'} the same signed ruling cannot be replayed`)
+  await settle(f, jobId)
+  const after = await balances()
+  check(f, 'creator refunded in full', after.cPay - before.cPay, 0n)
+  check(f, 'worker bond burned', before.wFac - after.wFac, WORKER_BOND)
+  check(f, 'creator bond back', after.cFac - before.cFac, 0n)
+}
+
+const all = { hire, silence, dispute, contest, noshow, cancel, unpicked, lapse, 'lapse-none': lapseNone, timeout, falsified } as const
 type FlowName = keyof typeof all
 
 async function main() {

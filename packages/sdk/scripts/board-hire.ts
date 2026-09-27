@@ -8,7 +8,8 @@
  *
  * Task text via TASK_TITLE / TASK_BRIEF / TASK_CRITERIA (JSON array) / TASK_CHECK (the check name the approver
  * requires); STACK (default demo), TASK_TOKEN / TASK_REWARD, DELIVERY_MINUTES. REVIEW=manual stops after the
- * submission and its check for the approver to decide by hand (approve_work / reject_work).
+ * submission and its check for the approver to decide by hand (`board-review.ts`). TASK_CREATOR_BOND /
+ * TASK_WORKER_BOND (FACTORY, default 2 / 1); APPLICANT selects only that worker address.
  */
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -80,8 +81,8 @@ async function main() {
         : (JSON.parse(process.env.TASK_CRITERIA) as string[]),
     token: env('TASK_TOKEN', 'mEUR'),
     reward: env('TASK_REWARD', '10'),
-    creatorBond: '2',
-    workerBond: '1',
+    creatorBond: env('TASK_CREATOR_BOND', '2'),
+    workerBond: env('TASK_WORKER_BOND', '1'),
     deliveryDeadline: now + Number(env('DELIVERY_MINUTES', '50')) * 60,
     mode: 'hire',
     stack: STACK,
@@ -96,7 +97,9 @@ async function main() {
 
   const app = await until('an application', 20 * 60, async () => {
     const apps = await board.call<Array<{ id: string; worker: string; agent_id: string; note: string }>>('list_applications', { taskId })
-    return apps[0]
+    // APPLICANT pins the hire to one worker address (a campaign names who takes which task); others are ignored.
+    const want = process.env.APPLICANT?.toLowerCase()
+    return want === undefined ? apps[0] : apps.find((a) => a.worker.toLowerCase() === want)
   })
   log(`application ${app.id} from ${app.worker} (agent ${app.agent_id}): ${app.note}`)
   const selection = await board.call('select_worker', { taskId, applicationId: app.id })

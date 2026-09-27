@@ -1511,8 +1511,14 @@ export class Board {
         encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'expireContest', args: [jobId] })))
     }
     if (['rejected', 'expired', 'cancelled'].includes(s) || (view.coreStatus === 'Expired')) {
-      txs.push(this.#tx(ctx, 'settle: pays out what is still in Holding', ctx.stack.holding,
-        encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })))
+      // Offered only while Holding still has something to pay out: a settled job answers NothingToSettle.
+      const pending = await ctx.publicClient
+        .simulateContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })
+        .then(() => true, () => false)
+      if (pending) {
+        txs.push(this.#tx(ctx, 'settle: pays out what is still in Holding', ctx.stack.holding,
+          encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })))
+      }
     }
     return { status: s, transactions: txs }
   }
