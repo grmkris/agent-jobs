@@ -604,6 +604,32 @@ export class Board {
     }
   }
 
+  /**
+   * Creator: withdraw an open hire nobody has activated. Holding's `cancel` ends it on-chain; `settle` in the same
+   * list returns the reward and the creator bond (both permissionless-effect, one wallet run). A contest cannot be
+   * cancelled: entrants work against the locked prize.
+   */
+  async cancelTask(caller: Caller, input: { taskId: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const terms = parseTerms(task.terms_json)
+    if (!eq(terms.creator, me)) throw new BoardError('forbidden', 'only the creator cancels')
+    if (terms.mode !== 'hire') throw new BoardError('invalid', 'a published contest cannot be cancelled; it ends by award or expiry')
+    const view = await this.#chainView(task)
+    if (view.status !== 'open' && view.status !== 'lapsed') throw new BoardError('conflict', `only an open hire nobody activated can be cancelled (it is ${view.status})`)
+    const ctx = this.#ctx(task.stack)
+    const jobId = this.#jobId(task)
+    this.#operation(task.id, 'cancel', me)
+    return {
+      transactions: [
+        this.#tx(ctx, 'cancel: ends the listing before anyone activated it', ctx.stack.holding,
+          encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'cancel', args: [jobId] })),
+        this.#tx(ctx, 'settle: returns the reward and your bond', ctx.stack.holding,
+          encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })),
+      ],
+    }
+  }
+
   async approveWork(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)

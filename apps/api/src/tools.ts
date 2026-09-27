@@ -268,6 +268,12 @@ export const tools: Record<string, Tool> = {
       board.submitSelection(caller, { taskId: s(a, 'taskId'), nonce: s(a, 'nonce'), signature: s(a, 'signature') }),
   },
 
+  cancel_task: {
+    description: 'Creator: cancel an open hire nobody has activated; returns cancel and settle (reward and your bond come back). Contests cannot be cancelled.',
+    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
+    run: (board, caller, a) => board.cancelTask(caller, { taskId: s(a, 'taskId') }),
+  },
+
   approve_work: {
     description: 'Approver: accept the submitted work (pays the reward, returns both bonds). Refused during a dispute.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },

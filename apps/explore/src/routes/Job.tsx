@@ -239,6 +239,11 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
             ))}
           </div>
         )}
+        {creator && mode === 'hire' && (status === 'open' || status === 'lapsed') && (
+          <div>
+            <Button variant="outline" busy={busy === 'cancel'} onClick={run('cancel', 'cancel_task', {})}>Cancel the offer (reward and bond back)</Button>
+          </div>
+        )}
         {approver && mode === 'contest' && status === 'open' && (
           <div>
             <h3 className="mb-2 text-sm font-medium">Entries (award one early: one transaction pays it and closes the contest)</h3>
