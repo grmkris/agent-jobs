@@ -34,6 +34,28 @@ S-1 (credential tier, done) → **S7** → **B1** testnet deploy → **S5** live
 path, then quotes, contests, arbiter, wallets) → **B3** (S4 + Explore) → **B4–B5** → **Dispatch adapter**
 → **B6a** testnet rehearsal → **B7** mainnet → **B6b** ship.
 
+## Checkpoints and standing decisions (27 Sep)
+
+Kris's go for one continuous push, CP1 → CP5, each ending in something he can test on testnet:
+
+- **CP1** S7 done → B1 testnet deploy, verified on Monadscan, plus `scripts/testnet/*` `cast` flows (hire, dispute
+  and ruling, contest award, no-show burn, signed ruling) run once live with hashes in `docs/reality-check.md`.
+- **CP2** B2.1 first real path: SDK → API (staging Worker, S0 PUT removed) → MCP; a Claude Code worker with a
+  `cast` wallet completes a testnet hire.
+- **CP3** B2.2–B2.5: quotes, contests with evidence labels, attester, Jev, `apps/arbiter` + arbitrator skill, Privy
+  and MetaMask wallets, first real job.
+- **CP4** B3–B5: HyperSync indexer, `apps/explore`, dispute UI, demo-window evaluator.
+- **CP5** Dispatch adapter and the B6a rehearsal.
+
+Standing decisions: testnet (10143) transactions and the `staging` deploy go ahead without per-step approval, every
+hash recorded; mainnet still waits for an explicit go. Work lands on `main`. **The demo-window evaluator is a second
+Holding + evaluator pair** sharing the core and tokens (windows stay immutable per deployment; no per-listing
+evaluator). S5 live stays blocked on Chainlink CRE deploy access.
+
+S7 progress: done — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`, fork tests
+running. Open — violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`,
+evidence event fields, reason-aware feedback, `MockPaymentToken(name, symbol)`, genuine CRE receiver, deploy recipe.
+
 ## S7 Contracts v3 (R20, R114)
 
 Acceptance: note 12 §13 S7 row; target surface: `contracts/SURFACE.md`.
