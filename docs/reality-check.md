@@ -21,7 +21,7 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 | Privy server wallet `0x9D04…B4b1` | operation | `eth_sendTransaction` with `caip2: eip155:10143`, tx `0x033d857d…aa91a` | full worker lifecycle in B2 |
 | MetaMask agent wallet `0xeffa…40c3` | credential | `mm doctor` authenticated (netcup and Mac); 1 MON | a transaction, then full worker lifecycle in B2 |
 | Etherscan v2 (Monadscan) | credential | balance query with `chainid=10143` | verify a contract in B1 |
-| Cloudflare | credential | token verify; list Workers, D1, R2, KV, Queues | alchemy `staging` deploy (read-only probe or post-S0-PUT removal) |
+| Cloudflare | operation | 27 Sep: `alchemy deploy --stage staging` created the Worker, Durable Object, D1 and R2 and enabled workers.dev (`agentjobs-api-staging-…workers.dev`). **The token lacks Secrets Store permission**, which alchemy's *remote* state store needs (`secrets_store/stores` → Authentication error), so staging uses local state in `.alchemy/` on netcup | add Secrets Store: Edit to the token, then switch staging to remote state |
 | Envio HyperSync | credential | `GET /height` on `monad-testnet.hypersync.xyz` | a log query with decoding and pagination (S4) |
 | GitHub App `agent-jobs-attester` | operation | JWT → installation 165115204 token → check-runs of `runner-spike-fixture@f75c817` (0 runs: no CI yet) | first real job adds CI; attester reads real runs (S5) |
 | Vercel AI Gateway | operation | `meta/muse-spark-1.3` completion; the model always reasons first (~300 reasoning tokens for "ok"), so callers allow ≥ 512 output tokens | Jev screening path and arbiter proposal (B2/B4) |
