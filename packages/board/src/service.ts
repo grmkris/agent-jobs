@@ -419,6 +419,23 @@ export class Board {
     const ctx = this.#ctx(task.stack)
     const receipt = await ctx.publicClient.getTransactionReceipt({ hash: input.txHash as Hex }).catch(() => undefined)
     if (receipt === undefined) throw new BoardError('chain', `no receipt yet for ${input.txHash}; retry shortly`)
+    // Any other confirmed transaction from a party of this task confirms that party's latest prepared operation.
+    if (task.job_id !== null && receipt.status === 'success') {
+      const [op] = this.#sql.all<OperationRow>(
+        "SELECT * FROM operations WHERE task_id = ? AND lower(actor) = lower(?) AND status = 'prepared' ORDER BY created_at DESC LIMIT 1",
+        task.id,
+        receipt.from,
+      )
+      const known = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE task_id = ? AND tx_hash = ?', task.id, input.txHash)
+      if (op !== undefined && known.length === 0) {
+        this.#sql.run(
+          "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE id = ?",
+          input.txHash,
+          this.#now(),
+          op.id,
+        )
+      }
+    }
     if (task.job_id === null) {
       for (const log of receipt.logs) {
         if (!eq(log.address, ctx.stack.holding)) continue

@@ -108,14 +108,20 @@ async function main() {
 
   // The on-chain submission must be exactly the deliverable the board recorded.
   const job = await sdk.getJob(ctx, BigInt(submitted.jobId))
-  const logs = await ctx.publicClient.getContractEvents({
-    address: ctx.deployment.core,
-    abi: sdk.coreAbi,
-    eventName: 'JobSubmitted',
-    args: { jobId: BigInt(submitted.jobId) },
-    fromBlock: (await ctx.publicClient.getBlockNumber()) - 5000n,
-  })
-  const onChain = (logs.at(-1)?.args as { deliverable?: Hex } | undefined)?.deliverable
+  // The public RPC answers eth_getLogs for at most 100 blocks, so walk back in windows.
+  const head = await ctx.publicClient.getBlockNumber()
+  let onChain: Hex | undefined
+  for (let to = head; to > head - 5000n && onChain === undefined; to -= 100n) {
+    const logs = await ctx.publicClient.getContractEvents({
+      address: ctx.deployment.core,
+      abi: sdk.coreAbi,
+      eventName: 'JobSubmitted',
+      args: { jobId: BigInt(submitted.jobId) },
+      fromBlock: to - 99n,
+      toBlock: to,
+    })
+    onChain = (logs.at(-1)?.args as { deliverable?: Hex } | undefined)?.deliverable
+  }
   log(`on-chain deliverable ${onChain} (board record ${deliverable.deliverable_hash}); provider ${job.provider}`)
 
   const verdict = await until('a completed check', 15 * 60, async () => {

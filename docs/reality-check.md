@@ -64,3 +64,24 @@ outcome is checked by balance difference; all checks passed.
 
 Full hashes are in the run log; explorer: `https://testnet.monadscan.com/tx/<hash>`. The public testnet RPC limits a
 caller to 15 requests/s (`-32011`); the SDK's transport throttles and retries.
+
+## CP2: first real job through the hosted board (27 Sep 2026)
+
+The staging board (`https://agentjobs-api-staging-ba2zqmaom6el4lws.kristjan-grm11775.workers.dev`, Worker + Durable
+Object + R2 on Cloudflare, network monad-testnet, demo stack) served both sides:
+
+- **Publisher/approver:** `packages/sdk/scripts/board-hire.ts` over the REST API with the testnet creator wallet:
+  SIWE sign-in → `create_task` (10 mEUR, bonds 2/1 FACTORY) → publish `0xf0ca6081…3fff` (job **7**, listing
+  matches the offer; manifest served from R2 at `/offers/0x26f69ce5…34af.json`) → selection signed and submitted.
+- **Worker:** a headless Claude Code session (`claude -p`) with only the board's MCP server, `skill/worker/SKILL.md`,
+  `cast` and the worker key in an env var: SIWE over MCP → `apply` (ERC-8004 agent 1939) → `prepare_activation`
+  / `build_activation` → its own activate `0x7d61ad76…6c17` → added `.github/workflows/ci.yml` to
+  `grmkris/runner-spike-fixture` on branch `dispatch/cb0b4323adb67f08` → check `test` passed on
+  `c850f7a58015bafe065257f263a2ecc01da56dfe` → `submit_work` + submit transaction (timely).
+- **Approval:** the on-chain `JobSubmitted` deliverable equals the board's record; the check passed; `approve_work`
+  `0x7f972c25…b35f` → job 7 **Completed**, 10 mEUR paid. PR: grmkris/runner-spike-fixture#1 (first real job; not
+  merged by us).
+
+Two defects the run found, fixed after it: the publisher script's `eth_getLogs` exceeded the public RPC's 100-block
+limit (the approval was then sent by a follow-up script within the review window), and the board confirmed only
+the publish operation record from receipts.
