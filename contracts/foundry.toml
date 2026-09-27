@@ -3,6 +3,8 @@ src = "src"
 test = "test"
 out = "out"
 libs = ["lib"]
+# The deploy script reads config/<network>.json and writes the addresses back into it.
+fs_permissions = [{ access = "read-write", path = "./config" }]
 solc_version = "0.8.28"
 evm_version = "cancun"
 # Monad network mode (Foundry >= 1.8): required to fork Monad in the fork tests.

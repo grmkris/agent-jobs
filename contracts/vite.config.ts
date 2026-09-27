@@ -18,8 +18,8 @@ export default defineConfig({
           { pattern: '!**/contracts/out/**', base: 'workspace' },
           { pattern: '!**/contracts/cache/**', base: 'workspace' },
         ],
-        // MONAD_TESTNET_RPC_URL enables the fork tests under test/fork; unset, they skip.
-        env: ['FOUNDRY_PROFILE', 'MONAD_TESTNET_RPC_URL'],
+        // MONAD_TESTNET_RPC_URL / MONAD_MAINNET_RPC_URL enable the fork tests under test/fork; unset, they skip.
+        env: ['FOUNDRY_PROFILE', 'MONAD_TESTNET_RPC_URL', 'MONAD_MAINNET_RPC_URL'],
       },
     },
   },

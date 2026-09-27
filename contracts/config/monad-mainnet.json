@@ -1,0 +1,31 @@
+{
+  "network": "monad-mainnet",
+  "chainId": 143,
+  "roles": {
+    "admin": "0x675269d710692d4d0d7166da11B76463577aad73",
+    "relay": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
+    "attester": "0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f",
+    "arbitrator": "0xc657F023F938BB89de590Ed96f79B775c7dDd632"
+  },
+  "erc8004": {
+    "identity": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    "reputation": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
+  },
+  "factory": { "faucet": false, "minter": "0x675269d710692d4d0d7166da11B76463577aad73" },
+  "holdGates": { "minHoldToPublish": 0, "minHoldToClaim": 0 },
+  "faucetTokens": { "names": [], "symbols": [] },
+  "allowedTokens": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
+  "stacks": {
+    "names": ["main"],
+    "review": [259200],
+    "dispute": [259200],
+    "arbitration": [604800],
+    "margin": [86400]
+  },
+  "cre": {
+    "forwarder": "0x76c9cf548b4179F8901cda1f8623568b58215E62",
+    "workflowOwner": null,
+    "workflowName": "agent-jobs-evidence"
+  },
+  "deployment": {}
+}

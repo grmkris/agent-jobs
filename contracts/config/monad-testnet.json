@@ -1,0 +1,31 @@
+{
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "roles": {
+    "admin": "0x675269d710692d4d0d7166da11B76463577aad73",
+    "relay": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
+    "attester": "0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f",
+    "arbitrator": "0xc657F023F938BB89de590Ed96f79B775c7dDd632"
+  },
+  "erc8004": {
+    "identity": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    "reputation": "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+  },
+  "factory": { "faucet": true, "minter": "0x0000000000000000000000000000000000000000" },
+  "holdGates": { "minHoldToPublish": 1000000000000000000, "minHoldToClaim": 1000000000000000000 },
+  "faucetTokens": { "names": ["Mock USD (testnet)", "Mock EUR (testnet)"], "symbols": ["mUSD", "mEUR"] },
+  "allowedTokens": [],
+  "stacks": {
+    "names": ["main", "demo"],
+    "review": [259200, 120],
+    "dispute": [259200, 120],
+    "arbitration": [604800, 300],
+    "margin": [86400, 60]
+  },
+  "cre": {
+    "forwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
+    "workflowOwner": null,
+    "workflowName": "agent-jobs-evidence"
+  },
+  "deployment": {}
+}
