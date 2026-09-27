@@ -1,0 +1,18 @@
+{
+  "name": "@agent-jobs/indexer-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@agent-jobs/indexer": "workspace:*",
+    "@agent-jobs/sdk": "workspace:*",
+    "alchemy": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

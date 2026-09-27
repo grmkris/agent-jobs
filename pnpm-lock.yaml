@@ -117,6 +117,34 @@ importers:
         specifier: 5.0.1
         version: 5.0.1(@types/node@24.13.6)(@vitest/browser-preview@5.0.1)(@vitest/ui@5.0.1(vitest@5.0.1))(vite@8.3.1(@types/node@24.13.6)(yaml@2.9.1))
 
+  apps/indexer:
+    dependencies:
+      '@agent-jobs/indexer':
+        specifier: workspace:*
+        version: link:../../packages/indexer
+      '@agent-jobs/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      alchemy:
+        specifier: 'catalog:'
+        version: 2.0.0-beta.79(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.117)(redis@6.2.1))(@types/node@24.13.6)(effect@4.0.0-rc.117)(typescript@7.0.2)(vite@8.3.1(@types/node@24.13.6)(yaml@2.9.1))(vitest@5.0.1(@types/node@24.13.6)(@vitest/browser-preview@5.0.1)(@vitest/ui@5.0.1(vitest@5.0.1))(vite@8.3.1(@types/node@24.13.6)(yaml@2.9.1)))(ws@8.21.3)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.117
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.0(@types/node@24.13.6)(@vitest/ui@5.0.1(vitest@5.0.1))(yaml@2.9.1)
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@24.13.6)(@vitest/browser-preview@5.0.1)(@vitest/ui@5.0.1(vitest@5.0.1))(vite@8.3.1(@types/node@24.13.6)(yaml@2.9.1))
+
   contracts:
     devDependencies:
       vite-plus:

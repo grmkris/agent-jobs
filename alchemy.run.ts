@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import { Database } from './apps/api/src/database.ts'
 import { Manifests } from './apps/api/src/manifests.ts'
 import Api from './apps/api/src/worker.ts'
+import Indexer from './apps/indexer/src/worker.ts'
 
 /**
  * The whole Cloudflare stack. `alchemy dev` runs it in local workerd; `alchemy deploy --stage
@@ -20,8 +21,10 @@ export default Alchemy.Stack(
     const database = yield* Database
     const manifests = yield* Manifests
     const api = yield* Api
+    const indexer = yield* Indexer
     return {
       apiUrl: api.url,
+      indexerUrl: indexer.url,
       databaseName: database.databaseName,
       manifestsBucket: manifests.bucketName,
     }
