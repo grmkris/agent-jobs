@@ -1,11 +1,14 @@
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import type * as sdk from '@agent-jobs/sdk'
+import { fromD1, indexStatus, jobDetail, listJobs } from '@agent-jobs/indexer'
+import * as sdk from '@agent-jobs/sdk'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
+import { Database } from './database.ts'
 import { Manifests } from './manifests.ts'
 import { tools } from './tools.ts'
 
@@ -70,6 +73,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
   Effect.gen(function* () {
     const boards = yield* Board
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
+    // Explore's chain facts: read-only here; the indexer is the only writer.
+    const facts = yield* Cloudflare.D1.QueryDatabase(Database)
 
     return {
       fetch: Effect.gen(function* () {
@@ -114,6 +119,27 @@ export default class Api extends Cloudflare.Worker<Api>()(
             }
             return reply
           })
+
+        if (path.startsWith('/data/') && request.method === 'GET') {
+          const raw = yield* facts.raw
+          const chainId = sdk.deployment(network).chainId
+          const now = Math.floor(Date.now() / 1000)
+          const body = yield* Effect.promise(async () => {
+            const sql = fromD1(raw as never)
+            try {
+              if (path === '/data/jobs') return { ok: true, index: await indexStatus(sql, chainId), jobs: await listJobs(sql, chainId) }
+              const m = /^\/data\/jobs\/(\d+)$/.exec(path)
+              if (m !== null) {
+                const detail = await jobDetail(sql, chainId, m[1] as string, now)
+                return detail === undefined ? { ok: false, code: 'not-found', message: 'not indexed (yet)' } : { ok: true, ...detail }
+              }
+              return { ok: false, code: 'not-found', message: 'no such data route' }
+            } catch {
+              return { ok: false, code: 'unavailable', message: 'the index is not built yet' }
+            }
+          })
+          return HttpServerResponse.jsonUnsafe(body, { status: body.ok ? 200 : 404 })
+        }
 
         if (path === '/health') {
           return HttpServerResponse.jsonUnsafe({ ok: true, runtime: navigator.userAgent, network })
@@ -194,5 +220,5 @@ export default class Api extends Cloudflare.Worker<Api>()(
         return HttpServerResponse.text('not found', { status: 404 })
       }).pipe(Effect.orDie),
     }
-  }).pipe(Effect.provide(Cloudflare.R2.ReadWriteBucketBinding)),
+  }).pipe(Effect.provide(Layer.mergeAll(Cloudflare.R2.ReadWriteBucketBinding, Cloudflare.D1.QueryDatabaseBinding))),
 ) {}

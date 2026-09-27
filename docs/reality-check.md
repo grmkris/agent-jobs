@@ -150,3 +150,16 @@ network call reviewed before running it with secrets; an empty environment print
 the real run's output contains none of the 26 secret values of `.env.local` and no EOA nonce changed. Accept
 `0xc89058c3…b994`: Completed, the worker paid 15 mEUR. The commit is on `main` (cherry-picked as `124f78a`). (A first
 publication, job 13, went out with the default title after an unquoted env file; it was left unused.)
+
+## CP4: Explore on staging (27 Sep 2026)
+
+`https://agentjobs-explore-staging-67xgxuclftbgtgxn.kristjan-grm11775.workers.dev` (`apps/explore`, Vite + React 19 +
+TanStack Router/Query + wagmi, deployed by `Cloudflare.Website.Vite` with the API bound as a service, same-origin).
+Chain facts come from the indexer's D1 (`/data/jobs`), offers and Jev from the board (`task_index`). Rendered in
+headless Chrome: the job list (14 jobs, filters by board, mode, bond and Jev verdict, the contest's early-award
+notice); job 10's outcome panel (violation Quality, ruling for the creator, worker bond burned, creator bond returned,
+reward settled to the creator, feedback `rejected-quality`); job 8's evidence labelled "matches the awarded on-chain
+deliverable". Signed-in parties get their actions as wallet steps (switch network, then each transaction, each
+reported): award an entry, approve, reject with a violation and reason, dispute with a statement, and the
+permissionless timeouts and settlement. Wallet actions were not clicked through in a browser here (no browser wallet
+on the box); the same board tools are proven by the scripts above.

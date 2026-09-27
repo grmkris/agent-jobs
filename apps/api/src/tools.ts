@@ -219,6 +219,12 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.pickQuote(caller, { requestId: s(a, 'requestId'), quoteId: s(a, 'quoteId') }),
   },
 
+  task_index: {
+    description: 'Anyone: every task’s offer fields, job id and Jev verdict, without chain reads (Explore’s board index). No sign-in needed.',
+    inputSchema: { type: 'object', properties: {} },
+    run: (board, caller) => board.taskIndex(caller),
+  },
+
   report_transaction: {
     description: 'After sending any returned transaction: the board reconciles the task from the chain.',
     inputSchema: {

@@ -1515,6 +1515,40 @@ export class Board {
     return { status: s, transactions: txs }
   }
 
+  /**
+   * Every task's off-chain record for Explore, without chain reads (Explore takes chain facts from the indexer's
+   * D1): the frozen offer's display fields, the job id once published, and Jev's advisory verdict.
+   */
+  taskIndex(_caller: Caller) {
+    return this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC LIMIT 500').map((t) => {
+      const terms = parseTerms(t.terms_json)
+      const screening = t.screening_json === null ? null : (JSON.parse(t.screening_json) as { verdict?: string; reasons?: string[] })
+      return {
+        taskId: t.id,
+        jobId: t.job_id,
+        stack: t.stack,
+        title: terms.title,
+        brief: terms.brief,
+        acceptanceCriteria: terms.acceptanceCriteria,
+        mode: terms.mode,
+        token: terms.token,
+        reward: terms.reward.toString(),
+        creatorBond: terms.creatorBond.toString(),
+        workerBond: terms.workerBond.toString(),
+        creator: terms.creator,
+        approver: terms.approver,
+        deliveryDeadline: terms.deliveryDeadline,
+        selectionDeadline: terms.selectionDeadline,
+        requiredChecks: terms.evidencePolicy?.checks ?? [],
+        quoted: terms.quote !== null,
+        termsHash: t.terms_hash,
+        manifestUrl: `${this.#config.manifestBaseUrl}/${t.terms_hash}.json`,
+        screening: { verdict: screening?.verdict ?? 'unscreened', reasons: screening?.reasons ?? [] },
+        createdAt: t.created_at,
+      }
+    })
+  }
+
   async listTasks(caller: Caller, input: { limit?: number }) {
     const rows = this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?', Math.min(input.limit ?? 20, 50))
     const out = []

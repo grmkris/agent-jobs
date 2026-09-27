@@ -5,9 +5,10 @@
   "type": "module",
   "dependencies": {
     "@agent-jobs/board": "workspace:*",
+    "@agent-jobs/indexer": "workspace:*",
+    "@agent-jobs/sdk": "workspace:*",
     "alchemy": "catalog:",
     "effect": "catalog:",
-    "@agent-jobs/sdk": "workspace:*",
     "viem": "2.56.9"
   },
   "devDependencies": {
