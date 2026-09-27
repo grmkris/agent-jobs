@@ -67,6 +67,17 @@ detail with both evidence labels, the dispute and outcome panel, party actions a
 the demo-window evaluator is the `demo` stack. Open — Publish and worker-profile screens; Privy React sign-in (Explore
 uses an injected wallet today); clicking the wallet actions through in a real browser wallet.
 
+Overnight 28 Sep (evidence in `docs/reality-check.md`): every lifecycle path live (coverage matrix, jobs 15–20);
+a multi-harness bounty campaign on five fresh public repos (Claude Code, Codex, Grok and a scripted adversary; jobs
+21–25); S8 R114-07 closed (lost publish recovered from the chain, relay crash after broadcasting a ruling, fork tests);
+CP4 closed (Publish screen, applicant selection, agent profile, cancel; a Playwright click-through with a real
+key-backed browser wallet, jobs 26–31); an independent Codex security review, its board findings fixed with
+regressions and its admin-trust finding in the runbook as a decision; CP5's Dispatch adapter
+(`sdk.dispatchPublisher`, a keyless OS publishing through its Privy wallet) live on testnet. B7 prep:
+`docs/mainnet-runbook.md`, a mainnet-fork rehearsal with real USDC and registries, `deploy:prod`. Open — wiring
+`dispatchPublisher` into the Cloudflare OS `gatekeeper-dispatch` package (its checkout is on the Mac), Privy React
+sign-in in Explore, S5 (CRE access), the B6a video, and everything on mainnet.
+
 S7 progress: done — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`, fork tests
 running. Open — violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`,
 evidence event fields, reason-aware feedback, `MockPaymentToken(name, symbol)`, genuine CRE receiver, deploy recipe.

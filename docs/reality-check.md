@@ -218,3 +218,47 @@ What the campaign found and fixed:
   simulates first. Verified live on job 24.
 - The testnet creator ran out of MON: Monad charges the gas *limit*, ≈ 0.06 MON per publish; topped up from the
   admin and arbitrator wallets (`0xc492ecc3`, `0x07ce148b`).
+
+## Overnight 28 Sep: Explore clicked through in a real browser
+
+`bun apps/explore/e2e/click-through.ts` (Playwright + Chromium against the staging site). The page's wallet is an
+EIP-1193 provider injected into the page and backed by the testnet creator's key in the test process, so every
+signature and transaction is real; the other party is scripted through the board API. Passed twice (the second run
+after the review fixes below):
+
+- Creator in the browser: connect → SIWE sign-in → **Publish** (demo board, Jev "clean" shown before signing) →
+  publish as a wallet step → the job page → **Select** the worker's application (EIP-712 Selection, no transaction) →
+  after the scripted worker activated and submitted, **Approve and pay**: jobs 28 and 30 completed.
+- Creator rejects (None, with a reason) and the worker **disputes** with a statement from its own browser wallet:
+  jobs 29 and 31. The arbiter then ruled job 31 for the worker (`0x4be0ec4e`); job 29's window lapsed and it settled by
+  `refundAfterArbitrationTimeout` (`0x45630329`) and `settle` (`0x4cf810e7`).
+- Found and fixed on the way: a just-published job was invisible to Explore until the indexer's next pass (so no
+  actions); a hire could not be selected, or cancelled, from the browser (new: applications panel, `cancel_task`).
+  The stray job 13 and the abandoned job 27 were cancelled with `cancel_task` (13: `0xb7f90b76`, `0x36f1b920`).
+
+## Overnight 28 Sep: independent security review (Codex) and fixes
+
+A separate Codex run reviewed the contracts, the board and the arbiter, read-only. Findings and what happened:
+
+| # | Severity (reviewer's) | Finding | Outcome |
+| :--- | :--- | :--- | :--- |
+| 1 | critical | The core's admin can pause, then `emergencyWithdraw` the escrow, or upgrade the implementation | Known trust assumption of the vendored core; in `docs/mainnet-runbook.md` §1 as a decision (EOA + stated commitment, or a Safe) |
+| 2 | high | The admin can raise fees after funding; payout reads them then | Same decision (fees stay 0 by commitment, or renounce/Safe) |
+| 3 | high | `policyHash` keys a listing but not its bonds: a creator could publish the board's terms hash with a larger worker bond; activation approved `maxUint256` | Fixed: no application, activation or contest entry unless the listing matches the offer; exact approvals. Fork regression |
+| 4 | high | Any signed-in wallet could add a "worker" statement to a dispute bundle | Fixed: only the job's provider. Fork regression. The arbiter itself ignored injected instructions in jobs 10 and 24 |
+| 5 | medium | Anyone signed in could make the relay pay for evidence repeatedly | Fixed: parties or the entrant only; an attached statement is not relayed again |
+| 6 | medium | Any receipt from a party confirmed its latest prepared operation | Fixed: only a receipt to this deployment with an event for this job |
+
+## Overnight 28 Sep: CP5 Dispatch adapter live (demo step 1)
+
+`sdk.dispatchPublisher` (packages/sdk/src/dispatch.ts) with the Privy server wallet as the Cloudflare OS instance's
+wallet (the OS holds no key), driven by `packages/sdk/scripts/dispatch-demo.ts` with a Dispatch task in the
+`DispatchSession.createTask` shape (the OS checkout itself is on the Mac; wiring the call into `gatekeeper-dispatch`
+is the remaining step). Dispatch task `t000042` (the roman-numerals bounty the adversary lost in job 24) became quote
+request `21dbd460…` ("Accepting quotes — reward not escrowed"); a headless Claude Code worker (agent 1942) quoted
+10 mEUR; the OS picked it. The first publish **reverted** (the OS wallet held 4.5 mEUR, less than the quote), which
+left a frozen, unpublished offer with no way to publish it again. Fixed: `publish_transactions` returns the same
+publish, and the adapter resumes a failed pick. The resumed pick published `0xa5badec4` (job **32**) and selected the
+worker; it activated (`0xcdd3cd81`), delivered `729db8b` (tests untouched, `test` green) and submitted
+(`0xbd8e3fe5`); the approver reviewed the diff and the tests, and the OS accepted through Privy (`0x0bb10514`):
+Completed, 10 mEUR paid.
