@@ -31,7 +31,7 @@ async function askJsonOnce<T>(
   opts: { maxTokens?: number; timeoutMs?: number },
 ): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 45_000)
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 90_000)
   try {
     const res = await fetch(`${endpoint.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -39,8 +39,9 @@ async function askJsonOnce<T>(
       headers: { 'content-type': 'application/json', authorization: `Bearer ${endpoint.apiKey}` },
       body: JSON.stringify({
         model: endpoint.model,
-        // The gateway's reasoning models think before answering; leave room for both.
-        max_tokens: opts.maxTokens ?? 2048,
+        // The gateway's reasoning models think before answering: muse-spark-1.3 used ~1.7-2k reasoning tokens on a
+        // one-offer screen and ran out at 2048 (finish_reason "length", empty answer). Leave room for both.
+        max_tokens: opts.maxTokens ?? 8192,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },

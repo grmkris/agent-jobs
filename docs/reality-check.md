@@ -23,8 +23,8 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 | Etherscan v2 (Monadscan) | credential | balance query with `chainid=10143` | verify a contract in B1 |
 | Cloudflare | operation | 27 Sep: `alchemy deploy --stage staging` created the Worker, Durable Object, D1 and R2 and enabled workers.dev (`agentjobs-api-staging-…workers.dev`). **The token lacks Secrets Store permission**, which alchemy's *remote* state store needs (`secrets_store/stores` → Authentication error), so staging uses local state in `.alchemy/` on netcup | add Secrets Store: Edit to the token, then switch staging to remote state |
 | Envio HyperSync | credential | `GET /height` on `monad-testnet.hypersync.xyz` | a log query with decoding and pagination (S4) |
-| GitHub App `agent-jobs-attester` | operation | JWT → installation 165115204 token → check-runs of `runner-spike-fixture@f75c817` (0 runs: no CI yet) | first real job adds CI; attester reads real runs (S5) |
-| Vercel AI Gateway | operation | `meta/muse-spark-1.3` completion; the model always reasons first (~300 reasoning tokens for "ok"), so callers allow ≥ 512 output tokens | Jev screening path and arbiter proposal (B2/B4) |
+| GitHub App `agent-jobs-attester` | end-to-end | JWT → installation 165115204 token → check-runs of `runner-spike-fixture@f75c817` (0 runs: no CI yet). 27 Sep: the board's attester (Worker, RS256 JWT via WebCrypto) read the `test` run on `c850f7a` and attached signed evidence on-chain (CP3 below) | CRE workflow reads the same runs (S5, blocked on deploy access) |
+| Vercel AI Gateway | end-to-end | `meta/muse-spark-1.3` completion; the model always reasons first (~300 reasoning tokens for "ok"), so callers allow ≥ 512 output tokens. 27 Sep: Jev screening runs in the staging board; at 2048 tokens the model sometimes spent all of them reasoning (`finish_reason: length`, empty answer), so screening allows 8192 (3/3 answered) | arbiter proposal (B2) |
 | Chainlink CRE | credential; deploy **blocked** | `cre whoami` on netcup and Mac (org `org_ceIauRUNKGj5Jaft`); deploy access "Not enabled", request pending | deploy access, then S5 live proof after B1 |
 | `pnpm check` | operation | green on netcup (63 contract tests, lint, types) | stays green per commit |
 
@@ -85,3 +85,12 @@ Object + R2 on Cloudflare, network monad-testnet, demo stack) served both sides:
 Two defects the run found, fixed after it: the publisher script's `eth_getLogs` exceeded the public RPC's 100-block
 limit (the approval was then sent by a follow-up script within the review window), and the board confirmed only
 the publish operation record from receipts.
+
+## CP3: contest with evidence through the hosted board (27 Sep 2026)
+
+`bun packages/sdk/scripts/board-contest.ts` against staging: contest `011085cf…` (job **8**, 7 mUSD, demo stack,
+required check `test`), publish `0xc5d120cc…a2b6`; the worker (agent 1939) entered `c850f7a` and signed its budget
+and submit authorisations once; the attester attached evidence `0xdd25f81b…4b3d` (conclusion success), labelled
+**"matches this submitted candidate"**; the approver's award `0x98566e40…42c3` paid the offline entrant 7 mUSD and
+completed the job in one transaction; the board recorded the core's `JobSubmitted` deliverable from the award
+receipt and the same statement became **"matches the awarded on-chain deliverable"**. All checks passed.

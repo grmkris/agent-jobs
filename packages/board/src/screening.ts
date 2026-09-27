@@ -42,7 +42,7 @@ export async function screenOffer(
     deliveryDeadline: terms.deliveryDeadline,
   }
   try {
-    const answer = await askJson<{ verdict?: string; reasons?: unknown }>(endpoint, SYSTEM, JSON.stringify(offer), { timeoutMs: 30_000 })
+    const answer = await askJson<{ verdict?: string; reasons?: unknown }>(endpoint, SYSTEM, JSON.stringify(offer), { timeoutMs: 60_000 })
     const verdict = answer.verdict === 'clean' || answer.verdict === 'caution' || answer.verdict === 'reject' ? answer.verdict : 'unscreened'
     const reasons = Array.isArray(answer.reasons) ? answer.reasons.filter((r): r is string => typeof r === 'string').slice(0, 5) : []
     return { verdict, reasons, model: endpoint.model, promptVersion: SCREENING_PROMPT_VERSION, at: now }
