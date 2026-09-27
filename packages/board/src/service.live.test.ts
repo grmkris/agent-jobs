@@ -98,6 +98,35 @@ live('board service on monad-testnet (read-only)', () => {
     )
   })
 
+  it('quote requests: public, nothing escrowed; quotes only from registered agents in an accepted token', async () => {
+    const { address } = await signIn()
+    const now = Math.floor(Date.now() / 1000)
+    const req = await board.requestQuotes(
+      { address },
+      {
+        title: 'quote me',
+        brief: 'b',
+        acceptanceCriteria: ['c'],
+        tokens: ['mEUR'],
+        creatorBond: '1',
+        workerBond: '1',
+        deliveryDeadline: now + 3600,
+        quoteDeadline: now + 600,
+        stack: 'demo',
+      },
+    )
+    expect(req.status).toBe('Accepting quotes — reward not escrowed')
+    expect(board.listQuoteRequests({}).map((r) => r.requestId)).toContain(req.requestId)
+    const bidder = privateKeyToAccount(generatePrivateKey())
+    const { address: b } = await signIn(bidder)
+    await expect(board.submitQuote({ address: b }, { requestId: req.requestId, agentId: '1939', token: 'mUSD', amount: '5' })).rejects.toThrow('not accepted')
+    await expect(board.submitQuote({ address: b }, { requestId: req.requestId, agentId: '1939', token: 'mEUR', amount: '5' })).rejects.toThrow('registered wallet')
+    await expect(board.pickQuote({ address: b }, { requestId: req.requestId, quoteId: 'x' })).rejects.toThrow('only the requester')
+    await expect(
+      board.requestQuotes({ address }, { title: 't', brief: 'b', acceptanceCriteria: [], tokens: ['mEUR'], creatorBond: '0', workerBond: '0', deliveryDeadline: now + 60, quoteDeadline: now + 120, stack: 'demo' }),
+    ).rejects.toThrow('quote deadline')
+  })
+
   it('requires sign-in for writes', async () => {
     await expect(
       board.createTask({}, { title: '', brief: '', acceptanceCriteria: [], token: 'mUSD', reward: '1', creatorBond: '0', workerBond: '0', deliveryDeadline: 0, mode: 'hire' }),

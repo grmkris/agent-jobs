@@ -150,6 +150,30 @@ const SCHEMA = [
     tx_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL
   )`,
+  // Quote-to-hire (ADR-0004): a request is a board record with nothing escrowed; quotes are private to the
+  // publisher and the bidder until the publisher picks one and publishes the ordinary offer.
+  `CREATE TABLE IF NOT EXISTS quote_requests (
+    id TEXT PRIMARY KEY,
+    creator TEXT NOT NULL,
+    stack TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    quote_deadline INTEGER NOT NULL,
+    task_id TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS quotes (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    worker TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    note TEXT NOT NULL,
+    quote_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (request_id, worker)
+  )`,
   `CREATE TABLE IF NOT EXISTS statements (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL,
@@ -273,5 +297,28 @@ export interface RulingRow {
   nonce: string
   signature: string | null
   tx_hash: string | null
+  created_at: number
+}
+
+export interface QuoteRequestRow {
+  id: string
+  creator: string
+  stack: string
+  request_json: string
+  request_hash: string
+  quote_deadline: number
+  task_id: string | null
+  created_at: number
+}
+
+export interface QuoteRow {
+  id: string
+  request_id: string
+  worker: string
+  agent_id: string
+  token: string
+  amount: string
+  note: string
+  quote_hash: string
   created_at: number
 }

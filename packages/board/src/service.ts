@@ -15,6 +15,7 @@ import {
   type Hex,
   decodeEventLog,
   encodeFunctionData,
+  formatUnits,
   getAddress,
   isAddress,
   maxUint256,
@@ -30,6 +31,8 @@ import {
   type ApplicationRow,
   type CandidateRow,
   type OperationRow,
+  type QuoteRequestRow,
+  type QuoteRow,
   type RulingRow,
   type SelectionRow,
   type Sql,
@@ -290,6 +293,8 @@ export class Board {
       /** GitHub check names evidence must cover; they become the offer's evidence policy. */
       requiredChecks?: string[]
     },
+    /** Set only by `pickQuote`: the offer carries the request and the picked quote. */
+    quote: { requestHash: Hex; quoteHash: Hex } | null = null,
   ) {
     const creator = this.#requireCaller(caller)
     const stack = input.stack ?? 'main'
@@ -334,7 +339,7 @@ export class Board {
         input.requiredChecks === undefined || input.requiredChecks.length === 0
           ? null
           : { checks: input.requiredChecks, trustedProducer: 'github-actions', workflowPath: '.github/workflows' },
-      quote: null,
+      quote,
       salt: `0x${randomId(32)}`,
     }
     try {
@@ -625,6 +630,174 @@ export class Board {
   #jobId(task: TaskRow): bigint {
     if (task.job_id === null) throw new BoardError('conflict', 'the offer is not published yet')
     return BigInt(task.job_id)
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Quotes (quote-to-hire, ADR-0004)
+  // -----------------------------------------------------------------------------------------------
+
+  /**
+   * A quote request: "Accepting quotes — reward not escrowed". It names the work, the accepted reward tokens, both
+   * bonds and the deadlines; bidders answer with one token and an exact amount. Nothing moves until a pick.
+   */
+  async requestQuotes(
+    caller: Caller,
+    input: {
+      title: string
+      brief: string
+      acceptanceCriteria: string[]
+      tokens: string[]
+      creatorBond: string
+      workerBond: string
+      deliveryDeadline: number
+      quoteDeadline: number
+      stack?: sdk.StackName
+      approver?: string
+      requiredChecks?: string[]
+    },
+  ) {
+    const creator = this.#requireCaller(caller)
+    const stack = input.stack ?? 'main'
+    const ctx = this.#ctx(stack)
+    if (input.tokens.length === 0) throw new BoardError('invalid', 'name at least one accepted token')
+    const tokens = await Promise.all(input.tokens.map((t) => this.#resolveToken(ctx, t)))
+    const now = this.#now()
+    if (input.quoteDeadline <= now || input.quoteDeadline >= input.deliveryDeadline) {
+      throw new BoardError('invalid', 'the quote deadline must be in the future and before the delivery deadline')
+    }
+    const request = {
+      v: 1,
+      chainId: ctx.deployment.chainId,
+      stack,
+      creator,
+      approver: input.approver === undefined ? creator : getAddress(input.approver),
+      title: input.title,
+      brief: input.brief,
+      acceptanceCriteria: input.acceptanceCriteria,
+      tokens,
+      creatorBond: input.creatorBond,
+      workerBond: input.workerBond,
+      deliveryDeadline: input.deliveryDeadline,
+      quoteDeadline: input.quoteDeadline,
+      requiredChecks: input.requiredChecks ?? [],
+      salt: `0x${randomId(32)}`,
+    }
+    const requestJson = canonicalJson(request)
+    const requestHash = sdk.hashText(requestJson)
+    const id = randomId(8)
+    this.#sql.run(
+      'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+      id, creator, stack, requestJson, requestHash, input.quoteDeadline, now,
+    )
+    return { requestId: id, requestHash, status: 'Accepting quotes — reward not escrowed', next: 'Wait for quotes; list_quotes, then pick_quote.' }
+  }
+
+  #quoteRequest(requestId: string): QuoteRequestRow {
+    const [row] = this.#sql.all<QuoteRequestRow>('SELECT * FROM quote_requests WHERE id = ?', requestId)
+    if (row === undefined) throw new BoardError('not-found', `no quote request ${requestId}`)
+    return row
+  }
+
+  /** Open requests anyone can read (the work, accepted tokens, bonds, deadlines); quotes themselves stay private. */
+  listQuoteRequests(_caller: Caller) {
+    return this.#sql
+      .all<QuoteRequestRow>('SELECT * FROM quote_requests WHERE task_id IS NULL AND quote_deadline > ? ORDER BY created_at DESC LIMIT 50', this.#now())
+      .map((r) => ({ requestId: r.id, requestHash: r.request_hash, status: 'Accepting quotes — reward not escrowed', ...(JSON.parse(r.request_json) as object) }))
+  }
+
+  /** A bidder's quote: one accepted token and an exact amount. A later quote from the same bidder replaces it. */
+  async submitQuote(caller: Caller, input: { requestId: string; agentId: string; token: string; amount: string; note?: string }) {
+    const me = this.#requireCaller(caller)
+    const req = this.#quoteRequest(input.requestId)
+    if (req.task_id !== null) throw new BoardError('conflict', 'a quote was already picked')
+    if (this.#now() >= req.quote_deadline) throw new BoardError('conflict', 'the quote deadline has passed')
+    const ctx = this.#ctx(req.stack)
+    const request = JSON.parse(req.request_json) as { tokens: Address[] }
+    const token = await this.#resolveToken(ctx, input.token)
+    if (!request.tokens.some((t) => eq(t, token))) throw new BoardError('invalid', 'that token is not accepted by this request')
+    const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
+    if (!eq(agentWallet, me)) throw new BoardError('forbidden', `agent ${input.agentId}'s registered wallet is ${agentWallet}, not ${me}`)
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    let amount: bigint
+    try {
+      amount = parseUnits(input.amount, decimals)
+    } catch {
+      throw new BoardError('invalid', 'amount must be a decimal number')
+    }
+    if (amount <= 0n) throw new BoardError('invalid', 'the amount must be positive')
+    const quote = { requestHash: req.request_hash, worker: me, agentId: input.agentId, token, amount: amount.toString(), note: input.note ?? '' }
+    const quoteHash = sdk.hashText(canonicalJson(quote))
+    const id = randomId(8)
+    this.#sql.run(
+      `INSERT INTO quotes (id, request_id, worker, agent_id, token, amount, note, quote_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (request_id, worker) DO UPDATE SET agent_id = excluded.agent_id, token = excluded.token, amount = excluded.amount, note = excluded.note, quote_hash = excluded.quote_hash, created_at = excluded.created_at`,
+      id, req.id, me, input.agentId, token, amount.toString(), quote.note, quoteHash, this.#now(),
+    )
+    const [row] = this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE request_id = ? AND worker = ?', req.id, me)
+    return { quoteId: row?.id ?? id, quoteHash, next: 'If the publisher picks your quote, the offer is published and you are selected; then prepare_activation.' }
+  }
+
+  /** The publisher sees every quote on its request; a bidder sees only its own. */
+  async listQuotes(caller: Caller, input: { requestId: string }) {
+    const me = this.#requireCaller(caller)
+    const req = this.#quoteRequest(input.requestId)
+    const all = eq(req.creator, me)
+    const ctx = this.#ctx(req.stack)
+    const out = []
+    for (const q of this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE request_id = ? ORDER BY created_at', req.id)) {
+      if (!all && !eq(q.worker, me)) continue
+      const [symbol, decimals] = await Promise.all([
+        ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
+        ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+      ])
+      out.push({ quoteId: q.id, worker: q.worker, agentId: q.agent_id, token: q.token, symbol, amount: formatUnits(BigInt(q.amount), decimals), note: q.note, quoteHash: q.quote_hash })
+    }
+    return { requestId: req.id, requestHash: req.request_hash, picked: req.task_id, quotes: out }
+  }
+
+  /**
+   * The publisher picks a quote (no automatic lowest bid): the ordinary escrow-backed offer is frozen with the quote's
+   * token and amount and both hashes, and the bidder's application is recorded. Then: send the publish transactions,
+   * report_transaction, select_worker with the returned applicationId, submit_selection.
+   */
+  async pickQuote(caller: Caller, input: { requestId: string; quoteId: string }) {
+    const me = this.#requireCaller(caller)
+    const req = this.#quoteRequest(input.requestId)
+    if (!eq(req.creator, me)) throw new BoardError('forbidden', 'only the requester picks a quote')
+    if (req.task_id !== null) throw new BoardError('conflict', `already picked: task ${req.task_id}`)
+    const [q] = this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE id = ? AND request_id = ?', input.quoteId, req.id)
+    if (q === undefined) throw new BoardError('not-found', 'no such quote')
+    const ctx = this.#ctx(req.stack)
+    const r = JSON.parse(req.request_json) as {
+      title: string; brief: string; acceptanceCriteria: string[]; creatorBond: string; workerBond: string
+      deliveryDeadline: number; approver: Address; requiredChecks: string[]
+    }
+    const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const created = await this.createTask(
+      caller,
+      {
+        title: r.title,
+        brief: r.brief,
+        acceptanceCriteria: r.acceptanceCriteria,
+        token: q.token,
+        reward: formatUnits(BigInt(q.amount), decimals),
+        creatorBond: r.creatorBond,
+        workerBond: r.workerBond,
+        deliveryDeadline: r.deliveryDeadline,
+        mode: 'hire',
+        stack: req.stack as sdk.StackName,
+        approver: r.approver,
+        ...(r.requiredChecks.length === 0 ? {} : { requiredChecks: r.requiredChecks }),
+      },
+      { requestHash: req.request_hash as Hex, quoteHash: q.quote_hash as Hex },
+    )
+    this.#sql.run('UPDATE quote_requests SET task_id = ? WHERE id = ?', created.taskId, req.id)
+    const applicationId = randomId(8)
+    this.#sql.run(
+      'INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      applicationId, created.taskId, q.worker, q.agent_id, `picked quote ${q.id}`, this.#now(),
+    )
+    return { ...created, applicationId, next: 'Send the transactions, report_transaction with the publish hash, then select_worker({taskId, applicationId}).' }
   }
 
   // -----------------------------------------------------------------------------------------------

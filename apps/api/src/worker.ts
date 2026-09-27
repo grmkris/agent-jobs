@@ -105,7 +105,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             const reply = JSON.parse(
               yield* boards.getByName(PUBLIC_BOARD).call({ tool, args, bearer, mcpSession, env }),
             ) as BoardReply
-            if (reply.ok && tool === 'create_task') {
+            if (reply.ok && (tool === 'create_task' || tool === 'pick_quote')) {
               const r = reply.result as { termsHash: string; manifest?: string }
               if (r.manifest !== undefined) {
                 yield* manifests.put(`offers/${r.termsHash}.json`, r.manifest)

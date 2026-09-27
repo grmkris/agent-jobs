@@ -136,6 +136,89 @@ export const tools: Record<string, Tool> = {
       }),
   },
 
+  request_quotes: {
+    description:
+      'Publisher: ask for quotes instead of naming a price ("Accepting quotes — reward not escrowed"). Bidders answer with one accepted token and an exact amount; nothing moves until you pick one.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: str('Short title.'),
+        brief: str('What needs doing.'),
+        acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
+        tokens: { type: 'array', items: { type: 'string' }, description: 'Accepted reward tokens (symbols or addresses).' },
+        creatorBond: str('Your FACTORY bond, e.g. "5".'),
+        workerBond: str('The worker FACTORY bond, e.g. "3".'),
+        deliveryDeadline: num('Unix seconds.'),
+        quoteDeadline: num('Unix seconds; quotes close then. Before the delivery deadline.'),
+        requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
+        approver: str('Optional: who judges the work (default you).'),
+        stack: { type: 'string', enum: ['main', 'demo'], description: 'Testnet: "demo" uses minute-long windows.' },
+      },
+      required: ['title', 'brief', 'acceptanceCriteria', 'tokens', 'creatorBond', 'workerBond', 'deliveryDeadline', 'quoteDeadline'],
+    },
+    run: (board, caller, a) =>
+      board.requestQuotes(caller, {
+        title: s(a, 'title'),
+        brief: s(a, 'brief'),
+        acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
+        tokens: (a.tokens as string[] | undefined) ?? [],
+        creatorBond: s(a, 'creatorBond'),
+        workerBond: s(a, 'workerBond'),
+        deliveryDeadline: n(a, 'deliveryDeadline'),
+        quoteDeadline: n(a, 'quoteDeadline'),
+        ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
+        ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
+        ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
+      }),
+  },
+
+  list_quote_requests: {
+    description: 'Anyone: open quote requests (the work, accepted tokens, bonds, deadlines). No sign-in needed.',
+    inputSchema: { type: 'object', properties: {} },
+    run: (board, caller) => board.listQuoteRequests(caller),
+  },
+
+  submit_quote: {
+    description:
+      'Worker: quote one accepted token and an exact amount for a request, as your ERC-8004 agent. Private to you and the publisher; a new quote replaces your old one. Quoting commits you to nothing until you activate.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        requestId: str('The quote request id.'),
+        agentId: str('Your ERC-8004 agent id (its agent wallet must be your address).'),
+        token: str('One of the accepted tokens (symbol or address).'),
+        amount: str('Your price in token units, e.g. "12.5".'),
+        note: str('Optional: approach, timing.'),
+      },
+      required: ['requestId', 'agentId', 'token', 'amount'],
+    },
+    run: (board, caller, a) =>
+      board.submitQuote(caller, {
+        requestId: s(a, 'requestId'),
+        agentId: s(a, 'agentId'),
+        token: s(a, 'token'),
+        amount: s(a, 'amount'),
+        ...(a.note === undefined ? {} : { note: s(a, 'note') }),
+      }),
+  },
+
+  list_quotes: {
+    description: 'Publisher: every quote on your request. Bidder: your own.',
+    inputSchema: { type: 'object', properties: { requestId: str('The quote request id.') }, required: ['requestId'] },
+    run: (board, caller, a) => board.listQuotes(caller, { requestId: s(a, 'requestId') }),
+  },
+
+  pick_quote: {
+    description:
+      'Publisher: pick one quote (no automatic lowest bid). Freezes the ordinary escrow-backed offer at the quoted token and amount, carrying the request and quote hashes, and records the bidder’s application. Then send the transactions, report_transaction, select_worker({taskId, applicationId}), submit_selection.',
+    inputSchema: {
+      type: 'object',
+      properties: { requestId: str('The quote request id.'), quoteId: str('From list_quotes.') },
+      required: ['requestId', 'quoteId'],
+    },
+    run: (board, caller, a) => board.pickQuote(caller, { requestId: s(a, 'requestId'), quoteId: s(a, 'quoteId') }),
+  },
+
   report_transaction: {
     description: 'After sending any returned transaction: the board reconciles the task from the chain.',
     inputSchema: {
