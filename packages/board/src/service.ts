@@ -350,7 +350,9 @@ export class Board {
     const hash = termsHash(terms)
     const manifest = canonicalJson(terms)
     const symbol = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
-    const screening = await screenOffer(this.#config.screening, terms, `${input.reward} ${symbol}`, this.#now())
+    // "mEUR"/"mUSD" read as millions to a model; say what the unit is.
+    const unit = this.#config.network === 'monad-testnet' ? ` (${symbol} is a testnet mock token worth about 1 ${symbol.replace(/^m/, '')} of play money; "m" means mock, not million)` : ''
+    const screening = await screenOffer(this.#config.screening, terms, `${input.reward} ${symbol}${unit}`, this.#now())
     this.#sql.run(
       'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)',
       taskId,

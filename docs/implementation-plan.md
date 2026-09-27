@@ -58,8 +58,14 @@ attester (job 8); Jev on the publish path; arbitration on the board (`list_dispu
 `skill/arbitrator`, each harness ruling one real dispute (jobs 9 and 10); quote-to-hire (job 11); the Privy server
 wallet's full lifecycle as a worker (agent 1940) and the MetaMask agent wallet's sign-only testnet lifecycle as a
 contest entrant (agent 1941, job 12: MetaMask cannot send on 10143). Open — the second real job
-(`scripts/reality-check.ts`, job 14, in progress); S8's R114-07 crash and lost-response tests beyond the contract
-refusals; a MetaMask transaction on mainnet 143.
+(`scripts/reality-check.ts`) is delivered and accepted (job 14). Open — S8's R114-07 crash and lost-response tests
+beyond the contract refusals; a MetaMask transaction on mainnet 143.
+
+CP4 progress (27 Sep): done — `packages/indexer` + `apps/indexer` (HyperSync cron into D1, finalized blocks, lease,
+rewind guard, rebuild tests on the real logs), live on staging; `apps/explore` on staging (jobs with filters, job
+detail with both evidence labels, the dispute and outcome panel, party actions as wallet steps incl. early award);
+the demo-window evaluator is the `demo` stack. Open — Publish and worker-profile screens; Privy React sign-in (Explore
+uses an injected wallet today); clicking the wallet actions through in a real browser wallet.
 
 S7 progress: done — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`, fork tests
 running. Open — violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`,
