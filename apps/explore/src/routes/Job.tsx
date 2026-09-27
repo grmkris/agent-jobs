@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useSignTypedData } from 'wagmi'
 import { type TxRequest, data, tool } from '../api.ts'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
@@ -75,7 +76,7 @@ export function JobPage({ auth }: { auth: Auth }) {
 
         <Card title="Work">
           <Row label="Worker"><Address value={d?.job.worker} /></Row>
-          <Row label="ERC-8004 agent">{d?.job.agent_id ?? '—'}</Row>
+          <Row label="ERC-8004 agent">{d?.job.agent_id == null ? '—' : <Link to="/agent/$agentId" params={{ agentId: d.job.agent_id }} className="underline">{d.job.agent_id}</Link>}</Row>
           <Row label="On-chain deliverable"><span className="font-mono text-xs">{d?.submission?.deliverable.slice(0, 14) ?? '—'}</span> <TxLink hash={d?.submission?.tx_hash} /></Row>
           {(board.data?.deliverables as Array<{ repo: string; branch: string; sha: string; deliverable_hash: string }> | undefined)?.map((x) => (
             <Row key={x.deliverable_hash} label="Declared">
@@ -162,6 +163,36 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
   const [statement, setStatement] = useState('')
   const approver = roles.includes('approver')
   const worker = roles.includes('worker')
+  const creator = roles.includes('creator')
+  const { signTypedDataAsync } = useSignTypedData()
+  const [selected, setSelected] = useState<string | null>(null)
+  const applications = useQuery({
+    queryKey: ['applications', taskId],
+    queryFn: () => tool<Array<{ id: string; worker: string; agent_id: string; note: string }>>('list_applications', { taskId }),
+    enabled: creator && mode === 'hire' && status === 'open',
+    refetchInterval: 15_000,
+  })
+  /** The creator's pick is an EIP-712 Selection signed off-chain; nothing is on-chain until the worker activates. */
+  const select = (applicationId: string) => async () => {
+    setBusy(`select-${applicationId}`)
+    setError(null)
+    try {
+      const sel = await tool<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId, applicationId })
+      const parsed = JSON.parse(sel.sign.typedData) as { types: Record<string, Array<{ name: string; type: string }>>; primaryType: string; domain: Record<string, unknown>; message: Record<string, unknown> }
+      const { EIP712Domain: _d, ...types } = parsed.types
+      const message = { ...parsed.message }
+      for (const f of types[parsed.primaryType] ?? []) {
+        if (/^u?int\d*$/.test(f.type) && typeof message[f.name] === 'string') message[f.name] = BigInt(message[f.name] as string)
+      }
+      const signature = await signTypedDataAsync({ domain: parsed.domain, types, primaryType: parsed.primaryType, message } as never)
+      await tool('submit_selection', { taskId, nonce: sel.nonce, signature })
+      setSelected(applicationId)
+    } catch (e) {
+      setError((e as Error).message.split('\n')[0] ?? 'failed')
+    } finally {
+      setBusy(null)
+    }
+  }
   const candidates = useQuery({
     queryKey: ['candidates', taskId],
     queryFn: () => tool<Array<{ candidateId: string; worker: string; agentId: string; repo: string; branch: string; sha: string }>>('list_candidates', { taskId }),
@@ -194,6 +225,20 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
   return (
     <Card title="Actions">
       <div className="space-y-4">
+        {creator && mode === 'hire' && status === 'open' && (
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Applications (select one: you sign a Selection, no transaction; the worker's own activate binds them)</h3>
+            {(applications.data ?? []).length === 0 && <p className="text-sm text-neutral-400">No applications yet.</p>}
+            {applications.data?.map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center gap-3 py-1 text-sm">
+                <Address value={a.worker} />
+                <Link to="/agent/$agentId" params={{ agentId: a.agent_id }} className="underline">agent {a.agent_id}</Link>
+                <span className="text-xs text-neutral-600">{a.note}</span>
+                {selected === a.id ? <Badge tone="green">selected; waiting for activation</Badge> : <Button busy={busy === `select-${a.id}`} onClick={select(a.id)}>Select</Button>}
+              </div>
+            ))}
+          </div>
+        )}
         {approver && mode === 'contest' && status === 'open' && (
           <div>
             <h3 className="mb-2 text-sm font-medium">Entries (award one early: one transaction pays it and closes the contest)</h3>

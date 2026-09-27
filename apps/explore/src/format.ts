@@ -1,11 +1,17 @@
 import { formatUnits } from 'viem'
-import { deployment } from './wallet.ts'
+import { deployment, isMainnet } from './wallet.ts'
 
-const TOKENS: Record<string, { symbol: string; decimals: number; usd: number | null }> = {
-  [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'mUSD', decimals: 6, usd: 1 },
-  [deployment.rewardTokens[1]?.toLowerCase() ?? '']: { symbol: 'mEUR', decimals: 6, usd: null },
-  [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18, usd: null },
-}
+/** The deployment's reward tokens: Circle USDC on mainnet; the mUSD / mEUR test tokens on testnet. */
+export const TOKENS: Record<string, { symbol: string; decimals: number; usd: number | null }> = isMainnet
+  ? {
+      [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'USDC', decimals: 6, usd: 1 },
+      [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18, usd: null },
+    }
+  : {
+      [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'mUSD', decimals: 6, usd: 1 },
+      [deployment.rewardTokens[1]?.toLowerCase() ?? '']: { symbol: 'mEUR', decimals: 6, usd: null },
+      [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18, usd: null },
+    }
 
 export function tokenInfo(address: string | null | undefined) {
   return TOKENS[(address ?? '').toLowerCase()] ?? { symbol: 'token', decimals: 18, usd: null }
@@ -16,7 +22,8 @@ export function amount(value: string | null | undefined, token: string | null | 
   if (value === null || value === undefined) return '—'
   const t = tokenInfo(token)
   const n = formatUnits(BigInt(value), t.decimals)
-  return t.usd === null ? `${n} ${t.symbol}` : `${n} ${t.symbol} (≈ $${(Number(n) * t.usd).toFixed(2)}, test token)`
+  if (t.usd === null) return `${n} ${t.symbol}`
+  return isMainnet ? `${n} ${t.symbol}` : `${n} ${t.symbol} (≈ $${(Number(n) * t.usd).toFixed(2)}, test token)`
 }
 
 export const bond = (value: string | null | undefined) => (value === null || value === undefined ? '—' : `${formatUnits(BigInt(value), 18)} FACTORY`)

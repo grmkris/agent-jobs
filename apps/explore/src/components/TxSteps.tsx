@@ -22,7 +22,7 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
         setBusy('switch')
         try { await switchChainAsync({ chainId: chain.id }) } catch (e) { setError((e as Error).message.split('\n')[0] ?? '') } finally { setBusy(null) }
       }}>
-        Switch to Monad testnet
+        Switch to {chain.name}
       </Button>
     )
   }

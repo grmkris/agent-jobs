@@ -20,7 +20,8 @@ export function useJobs() {
     const out: JobListItem[] = []
     for (const t of tasks.data ?? []) {
       if (t.jobId !== null && byJob.has(t.jobId)) (byJob.get(t.jobId) as JobListItem).task = t
-      else if (t.jobId === null) out.push({ jobId: null, task: t, chain: undefined })
+      // Awaiting publish, or published but not indexed yet (the indexer reads finalized blocks once a minute).
+      else out.push({ jobId: t.jobId, task: t, chain: undefined })
     }
     return [...byJob.values(), ...out].toSorted((a, b) => Number(b.jobId ?? 1e9) - Number(a.jobId ?? 1e9))
   }, [tasks.data, chain.data])
