@@ -14,6 +14,7 @@
     "lint:fix": "vp lint --fix",
     "dev": "alchemy dev",
     "deploy:staging": "ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage staging --yes",
+    "deploy:prod": "AGENT_JOBS_NETWORK=monad-mainnet ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage prod --yes",
     "alchemy": "alchemy",
     "testnet:flows": "bun packages/sdk/scripts/flows.ts",
     "reality-check": "bun scripts/reality-check.ts"

@@ -10,6 +10,7 @@ import * as sdk from '@agent-jobs/sdk'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
 import { Database } from './database.ts'
 import { Manifests } from './manifests.ts'
+import { rpcUrlForNetwork } from './network.ts'
 import { tools } from './tools.ts'
 
 /** The one hosted board for now; the Durable Object is keyed by name, so more boards are more names. */
@@ -59,7 +60,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     // Values come from the deploying shell (.env.local); secrets are bound as secret_text, never plain text.
     env: {
       NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
-      MONAD_RPC_URL: Redacted.make(process.env.MONAD_TESTNET_RPC_URL || 'unset'),
+      MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       SCREENING_BASE_URL: process.env.ARBITER_MODEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
       SCREENING_MODEL: process.env.SCREENING_MODEL || 'meta/muse-spark-1.3',
       AI_GATEWAY_API_KEY: Redacted.make(process.env.AI_GATEWAY_API_KEY || 'unset'),

@@ -423,10 +423,48 @@ async function cre(): Promise<Omit<Row, 'name'>> {
   }
 }
 
+/** B7 preconditions on 143, read-only: role balances, registries, the allowlisted token and the CRE forwarder. */
+async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
+  const m = missing(['MONAD_MAINNET_RPC_URL'])
+  if (m) return m
+  if (mainnet === undefined) return { tier: 'failed', evidence: 'no contracts/config/monad-mainnet.json', next: 'the config' }
+  const url = env('MONAD_MAINNET_RPC_URL')!
+  const parts: string[] = []
+  const gaps: string[] = []
+  for (const [role, address] of Object.entries<string>(mainnet.roles ?? {})) {
+    const [balance, nonce] = [await rpc(url, 'eth_getBalance', [address, 'latest']), await rpc(url, 'eth_getTransactionCount', [address, 'latest'])]
+    parts.push(`${role} ${short(address)} ${mon(balance)} n${Number(nonce)}`)
+    if (BigInt(balance) === 0n) gaps.push(`fund ${role}`)
+  }
+  const code: Array<[string, string | undefined]> = [
+    ...Object.entries<string>(mainnet.erc8004 ?? {}),
+    ['CRE forwarder', mainnet.cre?.forwarder],
+    ...((mainnet.allowedTokens ?? []) as string[]).map((t): [string, string] => [`token ${short(t)}`, t]),
+  ]
+  for (const [label, address] of code) {
+    if (address === undefined) continue
+    const c = await rpc(url, 'eth_getCode', [address, 'latest'])
+    if (c === '0x') gaps.push(`no code at ${label}`)
+    else parts.push(`${label} has code`)
+  }
+  for (const token of (mainnet.allowedTokens ?? []) as string[]) {
+    const decimals = Number(await rpc(url, 'eth_call', [{ to: token, data: '0x313ce567' }, 'latest']))
+    parts.push(`${short(token)} decimals ${decimals}`)
+  }
+  const deployed = Object.keys(mainnet.deployment ?? {}).length > 0
+  if (!deployed) gaps.push('the B7 deploy')
+  return {
+    tier: gaps.some((g) => g.startsWith('no code')) ? 'failed' : 'credential',
+    evidence: `${parts.join('; ')} (143)`,
+    next: gaps.join(', ') || 'end-to-end: a real USDC job',
+  }
+}
+
 const probes: Array<[string, Probe]> = [
   ['Monad testnet RPC', () => monadRpc('MONAD_TESTNET_RPC_URL', 10143, 'end-to-end: the B1 deploy (not provable read-only)')],
   ['Monad mainnet RPC', () => monadRpc('MONAD_MAINNET_RPC_URL', 143, 'end-to-end: the B7 deploy')],
   ['ERC-8004 registries, Circle USDC', registries],
+  ['Mainnet readiness (B7)', mainnetReadiness],
   ['Deployer EOA', () => eoa('DEPLOYER_PRIVATE_KEY', 'DEPLOYER_ADDRESS', 'admin')],
   ['Relay EOA', () => eoa('RELAY_PRIVATE_KEY', 'RELAY_ADDRESS', 'relay')],
   ['Attester EOA', () => eoa('ATTESTER_PRIVATE_KEY', 'ATTESTER_ADDRESS', 'attester')],
