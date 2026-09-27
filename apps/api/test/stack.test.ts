@@ -3,6 +3,7 @@ import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Test from 'alchemy/Test/Vitest'
 import * as Effect from 'effect/Effect'
 import * as HttpBody from 'effect/unstable/http/HttpBody'
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
 import { expect } from 'vitest'
 import Stack from '../../../alchemy.run.ts'
@@ -22,50 +23,90 @@ const stack = beforeAll(deploy(Stack))
 // destroying a local stack hangs the harness in alchemy 2.0.0-beta.79. Persisting it also makes
 // reruns fast, so every test below must be independent of what earlier runs left behind.
 
-/** A board id no earlier run has touched. */
-const freshBoardId = () => `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+const rpcSet = (process.env.MONAD_TESTNET_RPC_URL ?? '') !== ''
+
+const postJson = (url: string, body: unknown, headers: Record<string, string> = {}) =>
+  HttpClient.post(url, { body: HttpBody.text(JSON.stringify(body), 'application/json'), headers })
+
+const mcp = (apiUrl: string | undefined, method: string, params: unknown, session?: string | undefined) =>
+  Effect.gen(function* () {
+    const response = yield* postJson(
+      `${apiUrl}/mcp`,
+      { jsonrpc: '2.0', id: 1, method, params },
+      session === undefined ? {} : { 'mcp-session-id': session },
+    )
+    const body = (yield* response.json) as { result?: any; error?: any }
+    return { body, session: response.headers['mcp-session-id'] }
+  })
 
 test('the worker answers from workerd',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
     const response = yield* HttpClient.get(`${apiUrl}/health`)
-    const body = (yield* response.json) as { ok: boolean; runtime: string }
+    const body = (yield* response.json) as { ok: boolean; runtime: string; network: string }
     expect(body.ok).toBe(true)
     // The same probe cloudflare-os uses: workerd hardcodes this user agent, Node never does.
     expect(body.runtime).toBe('Cloudflare-Workers')
+    expect(body.network).toBe('monad-testnet')
   }))
 
-test('a board Durable Object keeps its count across requests',
+test('there is no unauthenticated manifest write (the S0 PUT is gone)',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
-    const boardId = freshBoardId()
-    const otherId = freshBoardId()
-    const first = yield* HttpClient.post(`${apiUrl}/boards/${boardId}/tasks`)
-    expect((yield* first.json) as unknown).toEqual({ boardId, tasks: 1 })
-    yield* HttpClient.post(`${apiUrl}/boards/${boardId}/tasks`)
-    const read = yield* HttpClient.get(`${apiUrl}/boards/${boardId}/tasks`)
-    expect((yield* read.json) as unknown).toEqual({ boardId, tasks: 2 })
-    const other = yield* HttpClient.get(`${apiUrl}/boards/${otherId}/tasks`)
-    expect((yield* other.json) as unknown).toEqual({ boardId: otherId, tasks: 0 })
+    const put = yield* HttpClient.put(`${apiUrl}/manifests/x.json`, { body: HttpBody.text('{}') })
+    expect(put.status).toBe(404)
+    const get = yield* HttpClient.get(`${apiUrl}/offers/0x${'00'.repeat(32)}.json`)
+    expect(get.status).toBe(404)
   }))
 
-test('manifests round-trip through R2',
+test('MCP: initialize opens a session and lists the board tools',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
-    const key = `${freshBoardId()}.json`
-    const put = yield* HttpClient.put(`${apiUrl}/manifests/${key}`, {
-      body: HttpBody.text('{"v":1}'),
-    })
-    expect(put.status).toBe(201)
-    const get = yield* HttpClient.get(`${apiUrl}/manifests/${key}`)
-    expect(yield* get.text).toBe('{"v":1}')
-    const missing = yield* HttpClient.get(`${apiUrl}/manifests/nope`)
-    expect(missing.status).toBe(404)
+    const init = yield* mcp(apiUrl, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } })
+    expect(init.body.result.protocolVersion).toBe('2025-06-18')
+    expect(init.session).toBeTypeOf('string')
+    const list = yield* mcp(apiUrl, 'tools/list', {}, init.session)
+    const names = (list.body.result.tools as Array<{ name: string }>).map((t) => t.name)
+    expect(names).toEqual(expect.arrayContaining(['protocol_info', 'auth_login', 'create_task', 'build_activation', 'submit_work']))
+    const info = yield* mcp(apiUrl, 'tools/call', { name: 'protocol_info', arguments: {} }, init.session)
+    const infoBody = JSON.parse(info.body.result.content[0].text) as { chainId: number }
+    expect(infoBody.chainId).toBe(10143)
+    const denied = yield* mcp(apiUrl, 'tools/call', { name: 'create_task', arguments: {} }, init.session)
+    expect(denied.body.result.isError).toBe(true)
+    expect(denied.body.result.content[0].text).toMatch(/^unauthenticated/)
   }))
 
-test('D1 answers a query',
+test.skipIf(!rpcSet)('sign in over MCP, create an offer, and serve its manifest',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
-    const response = yield* HttpClient.get(`${apiUrl}/db`)
-    expect((yield* response.json) as unknown).toEqual({ one: 1 })
+    const account = privateKeyToAccount(generatePrivateKey())
+    const init = yield* mcp(apiUrl, 'initialize', { protocolVersion: '2025-06-18' })
+    const challenge = yield* mcp(apiUrl, 'tools/call', { name: 'auth_challenge', arguments: { address: account.address } }, init.session)
+    const { message } = JSON.parse(challenge.body.result.content[0].text) as { message: string }
+    const signature = yield* Effect.promise(() => account.signMessage({ message }))
+    const login = yield* mcp(apiUrl, 'tools/call', { name: 'auth_login', arguments: { message, signature } }, init.session)
+    expect(login.body.result.isError).toBeUndefined()
+    const who = yield* mcp(apiUrl, 'tools/call', { name: 'whoami', arguments: {} }, init.session)
+    expect(JSON.parse(who.body.result.content[0].text)).toEqual({ address: account.address })
+
+    const created = yield* mcp(apiUrl, 'tools/call', {
+      name: 'create_task',
+      arguments: {
+        title: 'stack test',
+        brief: 'nothing is published',
+        acceptanceCriteria: [],
+        token: 'mUSD',
+        reward: '1',
+        creatorBond: '0',
+        workerBond: '0',
+        deliveryDeadline: Math.floor(Date.now() / 1000) + 3600,
+        mode: 'hire',
+        stack: 'demo',
+      },
+    }, init.session)
+    const task = JSON.parse(created.body.result.content[0].text) as { termsHash: string; manifestUrl: string; transactions: unknown[] }
+    expect(task.transactions.length).toBeGreaterThan(0)
+    const manifest = yield* HttpClient.get(`${apiUrl}/offers/${task.termsHash}.json`)
+    expect(manifest.status).toBe(200)
+    expect(((yield* manifest.json) as { title: string }).title).toBe('stack test')
   }))

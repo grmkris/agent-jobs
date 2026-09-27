@@ -116,6 +116,10 @@ const SCHEMA = [
     address TEXT NOT NULL,
     expires_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS mcp_sessions (
+    id TEXT PRIMARY KEY,
+    session TEXT NOT NULL
+  )`,
 ]
 
 export function migrate(sql: Sql): void {

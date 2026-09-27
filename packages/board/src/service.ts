@@ -216,6 +216,25 @@ export class Board {
     return getAddress(row.address)
   }
 
+  /** Binds an MCP session to a signed-in board session, so an agent that signed in through a tool stays signed in. */
+  bindMcpSession(mcpSession: string, session: string): void {
+    this.#sql.run(
+      'INSERT INTO mcp_sessions (id, session) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET session = excluded.session',
+      mcpSession,
+      session,
+    )
+  }
+
+  /** The caller behind a bearer session or, failing that, a bound MCP session. */
+  resolveCaller(auth: { bearer?: string | undefined; mcpSession?: string | undefined }): Caller {
+    const direct = this.sessionAddress(auth.bearer)
+    if (direct !== undefined) return { address: direct }
+    if (auth.mcpSession === undefined) return {}
+    const [row] = this.#sql.all<{ session: string }>('SELECT session FROM mcp_sessions WHERE id = ?', auth.mcpSession)
+    const bound = this.sessionAddress(row?.session)
+    return bound === undefined ? {} : { address: bound }
+  }
+
   // -----------------------------------------------------------------------------------------------
   // Publisher
   // -----------------------------------------------------------------------------------------------
