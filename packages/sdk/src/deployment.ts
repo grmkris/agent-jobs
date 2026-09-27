@@ -28,6 +28,8 @@ export interface Deployment {
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
+  /** The block the recipe deployed at: where an indexer starts and a rebuild restarts. */
+  readonly deployBlock: bigint
 }
 
 interface ConfigFile {
@@ -36,6 +38,7 @@ interface ConfigFile {
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
   erc8004: { identity: string; reputation: string }
   deployment: {
+    block?: number
     core?: string
     factory?: string
     rewardTokens?: string[]
@@ -79,6 +82,7 @@ export function deployment(network: Network): Deployment {
     arbitrator: c.roles.arbitrator as Address,
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,
+    deployBlock: BigInt(d.block ?? 0),
   }
 }
 
