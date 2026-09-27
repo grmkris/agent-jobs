@@ -4,12 +4,13 @@ pragma solidity ^0.8.28;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title MockPaymentToken
-/// @notice A 6-decimal, USDC-like faucet token for the demo's rewards. Any allowlisted ERC-20 works as a
-///         reward; this one exists so the demo shows a payment asset that is visibly not `$FACTORY`.
+/// @notice **Testnet only, never deployed on mainnet.** A 6-decimal faucet reward token, deployed twice on Monad
+///         testnet as `mUSD` and `mEUR` so a quote can name either. Anyone may mint: it has no value. Mainnet
+///         rewards are real allowlisted ERC-20s (USDC first); `config/monad-mainnet.json` lists no faucet token.
 contract MockPaymentToken is ERC20 {
     uint256 public constant FAUCET_AMOUNT = 1_000e6;
 
-    constructor() ERC20("Mock USD (testnet)", "mUSD") {}
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
 
     function decimals() public pure override returns (uint8) {
         return 6;

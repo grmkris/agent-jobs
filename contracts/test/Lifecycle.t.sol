@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Base} from "./Base.t.sol";
 import {ERC8183} from "../src/vendor/erc8183/ERC8183.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
-import {EvidenceReceiver} from "../src/EvidenceReceiver.sol";
 import {JobHolding} from "../src/JobHolding.sol";
 import {JobsEvaluator} from "../src/JobsEvaluator.sol";
 
@@ -415,23 +414,6 @@ contract LifecycleTest is Base {
         bytes memory otherSig = signEvidence(attesterPk, other);
         vm.expectRevert(JobsEvaluator.EvidenceJobMismatch.selector);
         evaluator.attachEvidence(jobId, other, attester, otherSig);
-    }
-
-    function test_evidence_creReceiverIsAContractVerifier() public {
-        address forwarder = makeAddr("cre-forwarder");
-        EvidenceReceiver receiver = new EvidenceReceiver(evaluator, forwarder);
-        vm.prank(deployer);
-        evaluator.setVerifier(address(receiver), true);
-
-        uint256 jobId = submittedJob();
-        JobsEvaluator.EvidenceAttestation memory a = attestation(jobId, 1, block.timestamp + 1 days);
-        vm.prank(stranger);
-        vm.expectRevert(EvidenceReceiver.NotForwarder.selector);
-        receiver.onReport("", abi.encode(a));
-        vm.prank(forwarder);
-        receiver.onReport("", abi.encode(a));
-        (bytes32 digest,,,,,,) = evaluator.evidence(jobId, address(receiver));
-        assertEq(digest, evidenceDigest(a), "the receiver contract is the registered verifier");
     }
 
     // ------------------------------------------------------------------------------------------

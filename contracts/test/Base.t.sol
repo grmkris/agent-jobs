@@ -64,8 +64,8 @@ abstract contract Base is Test {
         (attester, attesterPk) = makeAddrAndKey("attester");
 
         vm.startPrank(deployer);
-        factory = new FactoryToken();
-        pay = new MockPaymentToken();
+        factory = new FactoryToken("Factory (testnet)", "FACTORY", true, address(0));
+        pay = new MockPaymentToken("Mock USD (testnet)", "mUSD");
         ERC8183WithAuthorization impl = new ERC8183WithAuthorization();
         bytes memory init = abi.encodeCall(ERC8183WithAuthorization.initialize, (deployer, deployer));
         core = ERC8183WithAuthorization(address(new ERC1967Proxy(address(impl), init)));
