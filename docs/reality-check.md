@@ -7,7 +7,8 @@ Three tiers per dependency (R114-04):
 - **end-to-end**: the integration works inside our product.
 
 A row moves up only with a dated command or test and a redacted result. No secret appears here.
-`scripts/reality-check.ts` (the second real job) automates this table.
+`scripts/reality-check.ts` (the second real job, delivered through the board on 27 Sep) automates this table:
+`bun scripts/reality-check.ts` prints the credential and operation tiers read-only; end-to-end stays evidenced below.
 
 Machine: `netcup`, `~/code/agent-jobs`, `.env.local` (mode 600). Toolchain there: Foundry 1.8.3,
 pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `mm` 7.0.0.
@@ -137,3 +138,15 @@ activate `0x182f70b5…5aa7`, submit `0x0327219f…3137` (all sent by Privy) →
 sign-message`), entered contest job **12** (2 mEUR, publish `0x7109cca7…b697`) with two `mm wallet sign-typed-data`
 authorisations, and was paid 2 mEUR by the approver's `award` `0x508e798a…2207` without sending a transaction.
 All checks passed.
+
+## CP3: the second real job, `scripts/reality-check.ts`, through the board (27 Sep 2026)
+
+Main stack (real windows): task `bb01620a…` (job **14**, 15 mEUR, bonds 2 + 1 FACTORY, required check `check`),
+publish `0x2ea5f2ed…a256`. A headless `claude -p` worker with the worker skill, the board's MCP server, the cast
+worker key and nothing else from `.env.local` applied, was selected, activated, wrote the script in a fresh clone,
+pushed `job/bb01620ab4ed92c5-reality-check`, waited for `check` to pass on `c8f3a32` and submitted it in about seven
+minutes. Approver review: the diff touches only `scripts/reality-check.ts` and a `package.json` script; every
+network call reviewed before running it with secrets; an empty environment prints every row `missing` and exits 0;
+the real run's output contains none of the 26 secret values of `.env.local` and no EOA nonce changed. Accept
+`0xc89058c3…b994`: Completed, the worker paid 15 mEUR. The commit is on `main` (cherry-picked as `124f78a`). (A first
+publication, job 13, went out with the default title after an unquoted env file; it was left unused.)
