@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 import {Recipe} from "./Recipe.sol";
 
 /// @notice Broadcasts the recipe for one network and writes the addresses into `config/<network>.json`
@@ -22,7 +23,12 @@ contract Deploy is Script {
         require(msg.sender == c.admin, "broadcaster must be the configured admin");
         Recipe.Deployed memory d = Recipe.deploy(c);
         vm.stopBroadcast();
-        _write(network, c, d);
+        // A dry run (no --broadcast) must not record addresses that were never deployed.
+        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast) || vm.isContext(VmSafe.ForgeContext.ScriptResume)) {
+            _write(network, c, d);
+        } else {
+            console2.log("dry run: config not written");
+        }
     }
 
     function _write(string memory network, Recipe.Config memory c, Recipe.Deployed memory d) internal {

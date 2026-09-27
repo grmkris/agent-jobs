@@ -30,6 +30,15 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 
 End-to-end: nothing yet.
 
+## B1: product contracts on Monad testnet (27 Sep 2026)
+
+`NETWORK=monad-testnet forge script script/Deploy.s.sol --broadcast --slow --verify` from `contracts/`, deployer
+`0x6752…ad73`, from block 66169332. All 9 contracts verified on Monadscan (etherscan v2) and Sourcify. Addresses are
+in `contracts/config/monad-testnet.json` (`.deployment`). Wiring was then checked with `cast call`: each Holding →
+its evaluator, windows (main 1 209 600 s, demo 600 s), arbitrator `0xc657…d632`, the attester registered as
+verifier, `mUSD`/`mEUR` allowlisted, FACTORY not allowlisted, fees 0. Cost ≈ 2.76 MON. The CRE receiver is not
+deployed: no workflow owner is linked (CRE deploy access pending).
+
 ## Monad reserve balance (observed 26 Sep, checked against the docs)
 
 The 10 MON reserve applies to MON **value** an account sends, not to gas. An undelegated sender may dip

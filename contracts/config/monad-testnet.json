@@ -11,21 +11,68 @@
     "identity": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
     "reputation": "0x8004B663056A597Dffe9eCcC1965A193B7388713"
   },
-  "factory": { "faucet": true, "minter": "0x0000000000000000000000000000000000000000" },
-  "holdGates": { "minHoldToPublish": 1000000000000000000, "minHoldToClaim": 1000000000000000000 },
-  "faucetTokens": { "names": ["Mock USD (testnet)", "Mock EUR (testnet)"], "symbols": ["mUSD", "mEUR"] },
+  "factory": {
+    "faucet": true,
+    "minter": "0x0000000000000000000000000000000000000000"
+  },
+  "holdGates": {
+    "minHoldToPublish": 1000000000000000000,
+    "minHoldToClaim": 1000000000000000000
+  },
+  "faucetTokens": {
+    "names": [
+      "Mock USD (testnet)",
+      "Mock EUR (testnet)"
+    ],
+    "symbols": [
+      "mUSD",
+      "mEUR"
+    ]
+  },
   "allowedTokens": [],
   "stacks": {
-    "names": ["main", "demo"],
-    "review": [259200, 120],
-    "dispute": [259200, 120],
-    "arbitration": [604800, 300],
-    "margin": [86400, 60]
+    "names": [
+      "main",
+      "demo"
+    ],
+    "review": [
+      259200,
+      120
+    ],
+    "dispute": [
+      259200,
+      120
+    ],
+    "arbitration": [
+      604800,
+      300
+    ],
+    "margin": [
+      86400,
+      60
+    ]
   },
   "cre": {
     "forwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
     "workflowOwner": null,
     "workflowName": "agent-jobs-evidence"
   },
-  "deployment": {}
+  "deployment": {
+    "block": 66169332,
+    "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+    "demo": {
+      "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
+      "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3"
+    },
+    "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+    "main": {
+      "evaluator": "0x0445e425ff4092Dd1a862aa793d5277d42CfD4e8",
+      "holding": "0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC"
+    },
+    "network": "monad-testnet",
+    "rewardTokens": [
+      "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+      "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E"
+    ]
+  }
 }
