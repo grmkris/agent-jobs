@@ -6,8 +6,8 @@
  *   BOARD_URL=https://… TASK_ID=… DECISION=approve bun packages/sdk/scripts/board-review.ts
  *   BOARD_URL=https://… TASK_ID=… DECISION=reject VIOLATION=Quality REASON='…' bun packages/sdk/scripts/board-review.ts
  *
- * Also `DECISION=status` (prints the board's and the chain's view), `DECISION=candidates` / `DECISION=award
- * CANDIDATE=…` for a contest, and `DECISION=settle` (sends whatever `settlement_actions` returns: timeouts and
+ * Also `DECISION=status` (prints the board's and the chain's view), `DECISION=candidates` / `DECISION=evidence` /
+ * `DECISION=award CANDIDATE=…` for a contest, and `DECISION=settle` (sends whatever `settlement_actions` returns: timeouts and
  * Holding's settle, permissionless).
  */
 import type { Hex } from 'viem'
@@ -45,6 +45,9 @@ if (decision === 'approve') {
   await send(r.transactions)
 } else if (decision === 'award') {
   await send((await board.call('award', { taskId, candidateId: env('CANDIDATE') })).transactions)
+} else if (decision === 'evidence') {
+  const e = await board.call('request_evidence', { taskId, ...(process.env.CANDIDATE === undefined ? {} : { candidateId: process.env.CANDIDATE }) })
+  log(`evidence: conclusion ${e.conclusion}${e.txHash == null ? '' : ` → https://testnet.monadscan.com/tx/${e.txHash}`}`)
 } else if (decision === 'candidates') {
   for (const c of await board.call<Array<Record<string, unknown>>>('list_candidates', { taskId })) log(JSON.stringify(c))
 } else if (decision === 'settle') {

@@ -1618,7 +1618,6 @@ export class Board {
     return roles
   }
 
-  /** The task's chain facts, read now. The board's own records never override these. */
   /**
    * A publish whose confirmation never reached the board (the response was lost, the client crashed before
    * `report_transaction`): the offer's `termsHash` is listed on-chain, so the listing is found among the newest jobs
@@ -1646,6 +1645,7 @@ export class Board {
     return null
   }
 
+  /** The task's chain facts, read now. The board's own records never override these. */
   async #chainView(task: TaskRow): Promise<ChainView> {
     const terms = parseTerms(task.terms_json)
     const base: ChainView = {

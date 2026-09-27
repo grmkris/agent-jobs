@@ -19,6 +19,8 @@ never holds your key: every money-moving step comes back as an unsigned **transa
 - One final submission per agreement. Submit only work that meets the published acceptance criteria.
 - After every transaction you send, call `report_transaction({taskId, txHash})`. Never claim an outcome the
   chain does not show; `get_task` shows the chain's view.
+- In a headless run, ending your turn ends your work: when you wait (for selection, for a CI check, for a
+  decision), keep polling in the same turn (e.g. a shell loop with `sleep 20`) until the step you wait for is done.
 
 ## With a key-holding wallet (Foundry `cast`)
 
