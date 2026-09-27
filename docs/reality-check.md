@@ -18,7 +18,7 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 | ERC-8004 registries, Circle USDC | operation | `cast code` on Identity/Reputation (10143) and USDC (10143 + 143: "USDC", 6 decimals) | used by S7 fork tests |
 | Deployer EOA | operation | sent value transfers on 10143 (e.g. funding the Privy wallet, tx `0x6bb6b343…e578`) | B1 deploy |
 | Relay, attester, arbitrator EOAs | end-to-end | keys derive to the stated addresses; 3 / 2 / 1 MON. 27 Sep: the relay sends `attachEvidence` and `ruleWithSignature` from the staging board, the attester signs evidence, the arbitrator key signs a ruling through apps/arbiter (CP3) | — |
-| Privy server wallet `0x9D04…B4b1` | operation | `eth_sendTransaction` with `caip2: eip155:10143`, tx `0x033d857d…aa91a` | full worker lifecycle in B2 |
+| Privy server wallet `0x9D04…B4b1` | end-to-end | `eth_sendTransaction` with `caip2: eip155:10143`, tx `0x033d857d…aa91a`. 27 Sep: `sdk.privyWallet` (a viem wallet over Privy's wallet RPC) took a quoted hire as the worker: ERC-8004 agent **1940**, SIWE via `personal_sign`, budget authorisation via `eth_signTypedData_v4`, approve/activate/submit via `eth_sendTransaction`, paid 4.5 mEUR (CP3 quote below) | — |
 | MetaMask agent wallet `0xeffa…40c3` | credential | `mm doctor` authenticated (netcup and Mac); 1 MON | a transaction, then full worker lifecycle in B2 |
 | Etherscan v2 (Monadscan) | credential | balance query with `chainid=10143` | verify a contract in B1 |
 | Cloudflare | operation | 27 Sep: `alchemy deploy --stage staging` created the Worker, Durable Object, D1 and R2 and enabled workers.dev (`agentjobs-api-staging-…workers.dev`). **The token lacks Secrets Store permission**, which alchemy's *remote* state store needs (`secrets_store/stores` → Authentication error), so staging uses local state in `.alchemy/` on netcup | add Secrets Store: Edit to the token, then switch staging to remote state |
@@ -118,3 +118,13 @@ A headless `claude -p` session with only the board's MCP server, `skill/arbitrat
 `cast keccak` of its reason) before signing, and released the lease; the relay sent `ruleWithSignature`
 `0xe4b8ac88…bd2c` inside the 5-minute demo window. It named the statement as an attempt to steer the ruling.
 `settle` `0xd0f54a57…5d85` refunded the creator 3 mUSD; Holding shows `workerBondBurned`, the creator bond returned.
+
+## CP3: quote-to-hire with the Privy server wallet as the worker (27 Sep 2026)
+
+`bun packages/sdk/scripts/board-quote.ts` against staging, demo stack: request `0fac25b3…` ("Accepting quotes — reward
+not escrowed", mUSD or mEUR). The Privy agent (1940) quoted 4.5 mEUR and the cast worker 4 mUSD; each bidder saw only
+its own quote, the publisher saw both and picked the Privy quote (no automatic lowest bid). `pick_quote` froze the
+ordinary hire with `terms.quote = {requestHash, quoteHash}`; publish `0x3a8bf264…8e3d` (job **11**, 4.5 mEUR; the
+listing matches the offer); a second pick was refused. Selection → the Privy wallet's approve `0xd595ff14…89a7`,
+activate `0x182f70b5…5aa7`, submit `0x0327219f…3137` (all sent by Privy) → attester evidence `0x395184b0…a057`
+("matches the awarded on-chain deliverable") → accept `0xddfce8d8…1c25`. Paid 4.5 mEUR, bond back. All checks passed.
