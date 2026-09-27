@@ -22,6 +22,7 @@ import {
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
+import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
 import { screenOffer } from './screening.ts'
@@ -29,6 +30,7 @@ import {
   type ApplicationRow,
   type CandidateRow,
   type OperationRow,
+  type RulingRow,
   type SelectionRow,
   type Sql,
   type TaskRow,
@@ -62,6 +64,11 @@ export interface BoardConfig {
    */
   /** Jev's model endpoint (advisory screening at publish); absent → "unscreened". */
   readonly screening?: ModelEndpoint
+  /**
+   * The relay that sends signed rulings (`ruleWithSignature`). It holds no authority: the evaluator checks the
+   * arbitrator's signature. Absent: `submit_ruling` returns the transaction for anyone to send.
+   */
+  readonly relay?: { readonly account: import('viem').LocalAccount; readonly rpcUrl: string }
   readonly evidence?: {
     readonly attester: import('viem').LocalAccount
     readonly relay: import('viem').LocalAccount
@@ -753,10 +760,12 @@ export class Board {
     }
   }
 
-  async disputeRejection(caller: Caller, input: { taskId: string }) {
+  /** The worker disputes; an optional statement goes into the dispute bundle the arbitrator reads. */
+  async disputeRejection(caller: Caller, input: { taskId: string; statement?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     const ctx = this.#ctx(task.stack)
+    if (input.statement !== undefined && input.statement.trim() !== '') this.#statement(task, me, 'worker', input.statement)
     this.#operation(task.id, 'dispute', me)
     return {
       transactions: [
@@ -764,6 +773,23 @@ export class Board {
           encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'dispute', args: [this.#jobId(task)] })),
       ],
     }
+  }
+
+  /** A party's statement for the arbitrator (creator, approver or worker), while a rejection is pending or disputed. */
+  async addStatement(caller: Caller, input: { taskId: string; text: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const view = await this.#chainView(task)
+    if (view.status !== 'rejected-pending' && view.status !== 'disputed') throw new BoardError('conflict', `nothing to argue: the task is ${view.status}`)
+    const roles = this.#roles(parseTerms(task.terms_json), view, me)
+    if (roles.length === 0) throw new BoardError('forbidden', 'only the creator, approver or worker adds statements')
+    this.#statement(task, me, roles.join('+'), input.text)
+    return { ok: true }
+  }
+
+  #statement(task: TaskRow, author: Address, role: string, text: string) {
+    if (text.length > 4000) throw new BoardError('invalid', 'a statement is at most 4000 characters')
+    this.#sql.run('INSERT INTO statements (id, task_id, author, role, text, created_at) VALUES (?, ?, ?, ?, ?, ?)', randomId(8), task.id, author, role, text, this.#now())
   }
 
   // -----------------------------------------------------------------------------------------------
@@ -993,6 +1019,255 @@ export class Board {
             ? 'matches this submitted candidate'
             : 'unmatched',
       }))
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Arbitration (any harness holding the arbitrator key: apps/arbiter, a Claude Code session, a person)
+  // -----------------------------------------------------------------------------------------------
+
+  readonly #arbitrators = new Map<string, Address>()
+
+  async #arbitratorOf(stack: string): Promise<Address> {
+    const known = this.#arbitrators.get(stack)
+    if (known !== undefined) return known
+    const ctx = this.#ctx(stack)
+    const a = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })
+    this.#arbitrators.set(stack, a)
+    return a
+  }
+
+  async #requireArbitrator(caller: Caller, stack: string): Promise<Address> {
+    const me = this.#requireCaller(caller)
+    if (!eq(await this.#arbitratorOf(stack), me)) throw new BoardError('forbidden', `only the ${stack} stack's arbitrator`)
+    return me
+  }
+
+  /**
+   * One runner per arbitrator key (plan B2.4): a runner takes or renews the lease; another runner is told who holds
+   * it until when. Rulings refuse a runner without the lease, so two harnesses never decide the same dispute.
+   */
+  async arbiterLease(caller: Caller, input: { runner: string; ttlSeconds?: number; release?: boolean }) {
+    const me = this.#requireCaller(caller)
+    const stacks = Object.keys(this.#config.contexts)
+    const mine = await Promise.all(stacks.map(async (st) => eq(await this.#arbitratorOf(st), me)))
+    if (!mine.some(Boolean)) throw new BoardError('forbidden', 'only an arbitrator key holds an arbiter lease')
+    const key = me.toLowerCase()
+    const now = this.#now()
+    const [lease] = this.#sql.all<{ runner: string; expires_at: number }>('SELECT runner, expires_at FROM arbiter_leases WHERE arbitrator = ?', key)
+    if (lease !== undefined && lease.runner !== input.runner && lease.expires_at > now) {
+      return { held: false, holder: lease.runner, expiresAt: lease.expires_at }
+    }
+    if (input.release === true) {
+      this.#sql.run('DELETE FROM arbiter_leases WHERE arbitrator = ? AND runner = ?', key, input.runner)
+      return { held: false, holder: null, expiresAt: null }
+    }
+    const expiresAt = now + Math.min(Math.max(input.ttlSeconds ?? 120, 30), 900)
+    this.#sql.run('INSERT OR REPLACE INTO arbiter_leases (arbitrator, runner, expires_at) VALUES (?, ?, ?)', key, input.runner, expiresAt)
+    return { held: true, holder: input.runner, expiresAt }
+  }
+
+  #requireLease(arbitrator: Address, runner: string) {
+    const [lease] = this.#sql.all<{ runner: string; expires_at: number }>(
+      'SELECT runner, expires_at FROM arbiter_leases WHERE arbitrator = ?',
+      arbitrator.toLowerCase(),
+    )
+    if (lease !== undefined && lease.runner !== runner && lease.expires_at > this.#now()) {
+      throw new BoardError('conflict', `runner ${lease.runner} holds the arbiter lease until ${lease.expires_at}`)
+    }
+  }
+
+  /** Every open dispute the caller arbitrates, with its deadline and any decision already recorded. */
+  async listDisputes(caller: Caller) {
+    const me = this.#requireCaller(caller)
+    const out = []
+    for (const task of this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE job_id IS NOT NULL ORDER BY created_at')) {
+      if (this.#config.contexts[task.stack as sdk.StackName] === undefined) continue
+      if (!eq(await this.#arbitratorOf(task.stack), me)) continue
+      const ctx = this.#ctx(task.stack)
+      const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [this.#jobId(task)] })
+      if (disputedAt === 0) continue
+      const view = await this.#chainView(task)
+      if (view.status !== 'disputed') continue
+      const decision = this.#ruling(task.id, disputedAt)
+      out.push({
+        taskId: task.id,
+        jobId: task.job_id,
+        stack: task.stack,
+        title: parseTerms(task.terms_json).title,
+        violation: view.violation,
+        arbitrationEndsAt: view.arbitrationEndsAt,
+        decision: decision === undefined ? null : { forWorker: decision.for_worker === 1, slashLoser: decision.slash_loser === 1, signed: decision.signature !== null, txHash: decision.tx_hash },
+      })
+    }
+    return out
+  }
+
+  #ruling(taskId: string, disputedAt: number): RulingRow | undefined {
+    return this.#sql.all<RulingRow>('SELECT * FROM rulings WHERE task_id = ? AND disputed_at = ?', taskId, disputedAt)[0]
+  }
+
+  /**
+   * The whole dispute as the arbitrator decides it: the offer, the rejection and its published reason, the on-chain
+   * deliverable, the attested evidence with its label, and both sides' statements. Readable by the arbitrator and
+   * the parties. `bundleHash` pins the decision to exactly this bundle.
+   */
+  async getDisputeBundle(caller: Caller, input: { taskId: string }): Promise<{ bundle: DisputeBundle; bundleHash: Hex }> {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const bundle = await this.#bundle(task)
+    const terms = parseTerms(task.terms_json)
+    const view = await this.#chainView(task)
+    if (!eq(bundle.arbitrator, me) && this.#roles(terms, view, me).length === 0) throw new BoardError('forbidden', 'only the arbitrator and the parties')
+    return { bundle, bundleHash: bundleHash(bundle) }
+  }
+
+  async #bundle(task: TaskRow): Promise<DisputeBundle> {
+    const ctx = this.#ctx(task.stack)
+    const jobId = this.#jobId(task)
+    const terms = parseTerms(task.terms_json)
+    const [disputedAt, reasonHash, view, arbitrator] = await Promise.all([
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [jobId] }),
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rejectionReasonOf', args: [jobId] }),
+      this.#chainView(task),
+      this.#arbitratorOf(task.stack),
+    ])
+    if (disputedAt === 0) throw new BoardError('conflict', 'this job has not been disputed')
+    const reason = this.#sql.all<{ text: string }>('SELECT text FROM reasons WHERE hash = ?', reasonHash)[0]
+    const onchain = this.#sql.all<{ deliverable_hash: string }>('SELECT deliverable_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0]
+    const deliverable =
+      onchain === undefined
+        ? undefined
+        : this.#sql.all<{ repo: string; branch: string; sha: string }>(
+            'SELECT repo, branch, sha FROM deliverables WHERE task_id = ? AND lower(deliverable_hash) = lower(?)',
+            task.id,
+            onchain.deliverable_hash,
+          )[0]
+    return {
+      taskId: task.id,
+      jobId: jobId.toString(),
+      stack: task.stack,
+      chainId: ctx.deployment.chainId,
+      evaluator: ctx.stack.evaluator,
+      arbitrator,
+      disputedAt,
+      arbitrationEndsAt: disputedAt + terms.windows.arbitrationSeconds,
+      offer: {
+        title: terms.title,
+        brief: terms.brief,
+        acceptanceCriteria: terms.acceptanceCriteria,
+        reward: terms.reward.toString(),
+        token: terms.token,
+        creatorBond: terms.creatorBond.toString(),
+        workerBond: terms.workerBond.toString(),
+        deliveryDeadline: terms.deliveryDeadline,
+      },
+      rejection: {
+        violation: (view.violation ?? 'None') as ViolationName,
+        reasonHash,
+        // Only text whose hash is the on-chain reason hash counts as the published reason.
+        reasonText: reason === undefined || sdk.hashText(reason.text) !== reasonHash ? null : reason.text,
+      },
+      submission: { deliverableHash: (onchain?.deliverable_hash ?? null) as Hex | null, submittedAt: view.submittedAt, timely: view.timely },
+      deliverable: deliverable ?? null,
+      evidence: this.#evidence(task).map((e) => ({ conclusion: e.conclusion, label: e.label, checks: e.checks, txHash: e.txHash })),
+      statements: this.#sql
+        .all<{ role: string; text: string }>('SELECT role, text FROM statements WHERE task_id = ? ORDER BY created_at, id', task.id)
+        .map((r) => ({ role: r.role, text: r.text })),
+    }
+  }
+
+  /**
+   * Records the arbitrator's decision for this dispute and returns the EIP-712 `Ruling` to sign. The decision is
+   * persisted per dispute: the first one is final on the board (a different decision is refused; the same one returns
+   * the same message), it must be made on the current bundle, by the runner holding the lease, within the window.
+   */
+  async prepareRuling(
+    caller: Caller,
+    input: { taskId: string; forWorker: boolean; slashLoser: boolean; reason: string; bundleHash: string; runner: string },
+  ) {
+    const task = this.#task(input.taskId)
+    const me = await this.#requireArbitrator(caller, task.stack)
+    this.#requireLease(me, input.runner)
+    const bundle = await this.#bundle(task)
+    const view = await this.#chainView(task)
+    if (view.status !== 'disputed') throw new BoardError('conflict', `the task is ${view.status}, not disputed`)
+    const now = this.#now()
+    if (now >= bundle.arbitrationEndsAt) throw new BoardError('conflict', 'the arbitration window has closed; only the refund timeout settles')
+    if (!eq(bundleHash(bundle), input.bundleHash)) throw new BoardError('conflict', 'the dispute bundle changed; read it again')
+    const refusal = rulingRefusal(bundle.rejection.violation, input.forWorker, input.slashLoser)
+    if (refusal !== undefined) throw new BoardError('invalid', refusal)
+    if (input.reason.trim().length < 20 || input.reason.length > 2000) throw new BoardError('invalid', 'the reason is 20 to 2000 characters')
+    const reasonHash = sdk.hashText(input.reason.trim())
+    let row = this.#ruling(task.id, bundle.disputedAt)
+    if (row === undefined) {
+      this.#sql.run('INSERT OR IGNORE INTO reasons (hash, task_id, text, created_at) VALUES (?, ?, ?, ?)', reasonHash, task.id, input.reason.trim(), now)
+      this.#sql.run(
+        `INSERT INTO rulings (task_id, disputed_at, arbitrator, runner, bundle_hash, for_worker, slash_loser, reason_hash, deadline, nonce, signature, tx_hash, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)`,
+        task.id, bundle.disputedAt, me, input.runner, input.bundleHash, input.forWorker ? 1 : 0, input.slashLoser ? 1 : 0, reasonHash,
+        Math.min(bundle.arbitrationEndsAt, now + 3600), randomUint(16).toString(), now,
+      )
+      this.#operation(task.id, 'rule', me, { forWorker: input.forWorker, slashLoser: input.slashLoser, reasonHash })
+      row = this.#ruling(task.id, bundle.disputedAt) as RulingRow
+    } else if (row.for_worker !== (input.forWorker ? 1 : 0) || row.slash_loser !== (input.slashLoser ? 1 : 0) || !eq(row.reason_hash, reasonHash)) {
+      throw new BoardError('conflict', 'this dispute already has a different decision recorded')
+    }
+    const ctx = this.#ctx(task.stack)
+    return {
+      ruling: this.#rulingMessage(row),
+      sign: {
+        description: `Ruling for job ${bundle.jobId}: ${input.forWorker ? 'for the worker' : 'for the creator'}${input.slashLoser ? ', loser slashed' : ''}`,
+        typedData: typedDataJson(sdk.evaluatorDomain(ctx.deployment.chainId, ctx.stack.evaluator), sdk.rulingTypes, 'Ruling', this.#rulingMessage(row)),
+      } satisfies SignRequest,
+      next: 'Sign it with the arbitrator key, then submit_ruling({taskId, signature}).',
+    }
+  }
+
+  #rulingMessage(row: RulingRow): sdk.Ruling {
+    return {
+      jobId: BigInt(this.#task(row.task_id).job_id as string),
+      forWorker: row.for_worker === 1,
+      slashLoser: row.slash_loser === 1,
+      reasonHash: row.reason_hash as Hex,
+      deadline: BigInt(row.deadline),
+      nonce: BigInt(row.nonce),
+    }
+  }
+
+  /**
+   * The signed ruling: checked against the arbitrator key on the chain, stored, and relayed with
+   * `ruleWithSignature` (the relay pays gas and holds no authority). Idempotent: a relayed ruling returns its hash.
+   */
+  async submitRuling(caller: Caller, input: { taskId: string; signature: string }) {
+    this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    const ctx = this.#ctx(task.stack)
+    const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [this.#jobId(task)] })
+    const row = this.#ruling(task.id, disputedAt)
+    if (row === undefined) throw new BoardError('not-found', 'no decision recorded; prepare_ruling first')
+    if (row.tx_hash !== null) return { txHash: row.tx_hash, relayed: true, task: await this.getTask(caller, { taskId: task.id }) }
+    const ruling = this.#rulingMessage(row)
+    const valid = await ctx.publicClient.verifyTypedData({
+      address: await this.#arbitratorOf(task.stack),
+      domain: sdk.evaluatorDomain(ctx.deployment.chainId, ctx.stack.evaluator),
+      types: sdk.rulingTypes,
+      primaryType: 'Ruling',
+      message: { ...ruling },
+      signature: input.signature as Hex,
+    })
+    if (!valid) throw new BoardError('forbidden', 'the signature is not the arbitrator’s over this ruling')
+    this.#sql.run('UPDATE rulings SET signature = ? WHERE task_id = ? AND disputed_at = ?', input.signature, task.id, disputedAt)
+    const tx = this.#tx(ctx, 'ruleWithSignature: settles the dispute as ruled', ctx.stack.evaluator,
+      encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'ruleWithSignature', args: [ruling, input.signature as Hex] }))
+    const relay = this.#config.relay
+    if (relay === undefined) return { relayed: false, transactions: [tx], next: 'Anyone may send it; then report_transaction.' }
+    const receipt = await sdk.ruleWithSignature(ctx, sdk.wallet(this.#config.network, relay.account, relay.rpcUrl), ruling, input.signature as Hex)
+    this.#sql.run('UPDATE rulings SET tx_hash = ? WHERE task_id = ? AND disputed_at = ?', receipt.transactionHash, task.id, disputedAt)
+    this.#sql.run(
+      "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE task_id = ? AND kind = 'rule' AND status = 'prepared'",
+      receipt.transactionHash, this.#now(), task.id,
+    )
+    return { txHash: receipt.transactionHash, relayed: true, task: await this.getTask(caller, { taskId: task.id }) }
   }
 
   // -----------------------------------------------------------------------------------------------

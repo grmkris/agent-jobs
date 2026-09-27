@@ -57,6 +57,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         uri: env.uri,
         manifestBaseUrl: env.manifestBaseUrl,
         ...(env.screening.apiKey === '' ? {} : { screening: env.screening }),
+        ...(key32(env.relayKey) ? { relay: { account: privateKeyToAccount(env.relayKey as `0x${string}`), rpcUrl: env.rpcUrl } } : {}),
         ...(key32(env.attesterKey) && key32(env.relayKey)
           ? {
               evidence: {

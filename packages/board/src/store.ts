@@ -150,6 +150,37 @@ const SCHEMA = [
     tx_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS statements (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    author TEXT NOT NULL,
+    role TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  // One decision per dispute (task, disputedAt): the first recorded decision is the only one the board relays.
+  `CREATE TABLE IF NOT EXISTS rulings (
+    task_id TEXT NOT NULL,
+    disputed_at INTEGER NOT NULL,
+    arbitrator TEXT NOT NULL,
+    runner TEXT NOT NULL,
+    bundle_hash TEXT NOT NULL,
+    for_worker INTEGER NOT NULL,
+    slash_loser INTEGER NOT NULL,
+    reason_hash TEXT NOT NULL,
+    deadline INTEGER NOT NULL,
+    nonce TEXT NOT NULL,
+    signature TEXT,
+    tx_hash TEXT,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (task_id, disputed_at)
+  )`,
+  // Which arbiter runner is active for an arbitrator key (plan B2.4: one runner at a time).
+  `CREATE TABLE IF NOT EXISTS arbiter_leases (
+    arbitrator TEXT PRIMARY KEY,
+    runner TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS mcp_sessions (
     id TEXT PRIMARY KEY,
     session TEXT NOT NULL
@@ -227,4 +258,20 @@ export interface OperationRow {
   detail: string | null
   created_at: number
   updated_at: number
+}
+
+export interface RulingRow {
+  task_id: string
+  disputed_at: number
+  arbitrator: string
+  runner: string
+  bundle_hash: string
+  for_worker: number
+  slash_loser: number
+  reason_hash: string
+  deadline: number
+  nonce: string
+  signature: string | null
+  tx_hash: string | null
+  created_at: number
 }
