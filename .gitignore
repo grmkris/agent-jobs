@@ -10,3 +10,4 @@ dist/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+packages/sdk/scripts/.state.json

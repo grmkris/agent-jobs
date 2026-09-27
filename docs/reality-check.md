@@ -28,7 +28,7 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 | Chainlink CRE | credential; deploy **blocked** | `cre whoami` on netcup and Mac (org `org_ceIauRUNKGj5Jaft`); deploy access "Not enabled", request pending | deploy access, then S5 live proof after B1 |
 | `pnpm check` | operation | green on netcup (63 contract tests, lint, types) | stays green per commit |
 
-End-to-end: nothing yet.
+End-to-end: the protocol flows below (contracts + SDK, no board service yet).
 
 ## B1: product contracts on Monad testnet (27 Sep 2026)
 
@@ -46,3 +46,21 @@ below it only in an "emptying" transaction, at most once per 3 blocks; a second 
 blocks reverts. We saw exactly that: back-to-back transfers from one wallet reverted. Our service EOAs send
 value-0 contract calls, so low balances are fine; space out top-ups. Source:
 <https://docs.monad.xyz/developer-essentials/reserve-balance>.
+
+## CP1: live protocol flows on Monad testnet (27 Sep 2026)
+
+`bun packages/sdk/scripts/flows.ts all` (from the repo root; SDK only, demo stack 2m/2m/5m; creator/approver and
+the `cast`-style worker are testnet-only EOAs from `.env.local`; the relay sends timeouts and the signed ruling; the
+arbitrator only signs). The worker registered as ERC-8004 agent **1939** on the real Identity Registry. Every money
+outcome is checked by balance difference; all checks passed.
+
+| Flow | What happened | Key transactions |
+| :--- | :--- | :--- |
+| hire (mEUR) | publish → creator's signed Selection → worker's own `activate` → submit → approver `accept`; 25 mEUR paid, both bonds back, nothing in mUSD | activate `0x9c13bae5…f9d1`, accept `0xcdaf607a…0d55` |
+| silence | timely submit, no decision for 2m, relay `completeAfterSilence`; paid, nothing burned | `0xd5d37f07…994c` |
+| dispute | reject(quality) → dispute → approver's accept refused (R114-02) → arbitrator signs `Ruling(forWorker, slashLoser)` → relay `ruleWithSignature`; paid, creator bond (5 FACTORY) burned | `0xb4864cac…f8e5` |
+| contest (mUSD) | entrant signs entry and goes offline → approver `award`; paid in one transaction, Completed | `0x3c969ab9…10ce` |
+| no-show | activate, no submission, relay missed-delivery burn after 90 s, `settle`; worker bond (3 FACTORY) burned, creator refunded | burn `0x957a630a…2144` |
+
+Full hashes are in the run log; explorer: `https://testnet.monadscan.com/tx/<hash>`. The public testnet RPC limits a
+caller to 15 requests/s (`-32011`); the SDK's transport throttles and retries.
