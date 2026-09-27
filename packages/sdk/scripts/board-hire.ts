@@ -6,7 +6,9 @@
  *
  *   BOARD_URL=https://… bun packages/sdk/scripts/board-hire.ts   (from the repo root; .env.local is loaded)
  *
- * Task text via TASK_TITLE / TASK_BRIEF / TASK_CHECK (the check name the approver requires); demo windows.
+ * Task text via TASK_TITLE / TASK_BRIEF / TASK_CRITERIA (JSON array) / TASK_CHECK (the check name the approver
+ * requires); STACK (default demo), TASK_TOKEN / TASK_REWARD, DELIVERY_MINUTES. REVIEW=manual stops after the
+ * submission and its check for the approver to decide by hand (approve_work / reject_work).
  */
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -21,9 +23,10 @@ function env(name: string, fallback?: string): string {
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const CHECK = env('TASK_CHECK', 'test')
+const STACK = env('STACK', 'demo') as sdk.StackName
 const account = privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex)
 const creator = sdk.wallet('monad-testnet', account, RPC)
-const ctx = sdk.context('monad-testnet', 'demo', RPC)
+const ctx = sdk.context('monad-testnet', STACK, RPC)
 const board = sdk.boardClient(BOARD)
 const log = (msg: string) => console.log(`[publisher ${new Date().toISOString().slice(11, 19)}] ${msg}`)
 const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
@@ -68,17 +71,21 @@ async function main() {
       'TASK_BRIEF',
       'Add a GitHub Actions workflow to https://github.com/grmkris/runner-spike-fixture that installs dependencies and runs the test suite on every push and pull request. Push it on a new branch of that repository (not main).',
     ),
-    acceptanceCriteria: [
-      `A GitHub check run named "${CHECK}" completes with conclusion "success" on the submitted SHA.`,
-      'The workflow runs on push and pull_request and executes the repository’s existing tests.',
-    ],
-    token: 'mEUR',
-    reward: '10',
+    acceptanceCriteria:
+      process.env.TASK_CRITERIA === undefined
+        ? [
+            `A GitHub check run named "${CHECK}" completes with conclusion "success" on the submitted SHA.`,
+            'The workflow runs on push and pull_request and executes the repository’s existing tests.',
+          ]
+        : (JSON.parse(process.env.TASK_CRITERIA) as string[]),
+    token: env('TASK_TOKEN', 'mEUR'),
+    reward: env('TASK_REWARD', '10'),
     creatorBond: '2',
     workerBond: '1',
-    deliveryDeadline: now + 50 * 60,
+    deliveryDeadline: now + Number(env('DELIVERY_MINUTES', '50')) * 60,
     mode: 'hire',
-    stack: 'demo',
+    stack: STACK,
+    requiredChecks: [CHECK],
   })
   const taskId = created.taskId as string
   log(`task ${taskId}, terms ${created.termsHash}, manifest ${created.manifestUrl}`)
@@ -87,7 +94,7 @@ async function main() {
   log(`published: job ${published.jobId}, chain status ${published.chain.status}, listing matches offer: ${published.chain.listingMatchesOffer}`)
   console.log(`TASK_ID=${taskId}`)
 
-  const app = await until('an application', 30 * 60, async () => {
+  const app = await until('an application', 20 * 60, async () => {
     const apps = await board.call<Array<{ id: string; worker: string; agent_id: string; note: string }>>('list_applications', { taskId })
     return apps[0]
   })
@@ -97,7 +104,7 @@ async function main() {
   await board.call('submit_selection', { taskId, nonce: selection.nonce, signature })
   log('selection signed and submitted; waiting for the worker to activate and submit')
 
-  const submitted = await until('a submission', 45 * 60, async () => {
+  const submitted = await until('a submission', Number(env('DELIVERY_MINUTES', '50')) * 60, async () => {
     const t = await board.call('get_task', { taskId })
     if (t.chain.status === 'active') return undefined
     return ['submitted', 'completed', 'rejected', 'expired'].includes(t.chain.status) ? t : undefined
@@ -124,11 +131,15 @@ async function main() {
   }
   log(`on-chain deliverable ${onChain} (board record ${deliverable.deliverable_hash}); provider ${job.provider}`)
 
-  const verdict = await until('a completed check', 15 * 60, async () => {
+  const verdict = await until('a completed check', 30 * 60, async () => {
     const c = await checkPassed(deliverable.repo, deliverable.sha)
     return c.detail.includes('in_progress') || c.detail.includes('queued') || c.detail === 'no check runs' ? undefined : c
   })
   log(`GitHub checks on ${deliverable.sha}: ${verdict.detail}`)
+  if (process.env.REVIEW === 'manual') {
+    log(`manual review: check ${verdict.ok ? 'passed' : 'did not pass'}; on-chain deliverable ${onChain === undefined ? 'not found' : 'found'}. Decide with approve_work / reject_work.`)
+    return
+  }
   if (verdict.ok && onChain?.toLowerCase() === deliverable.deliverable_hash.toLowerCase()) {
     const a = await board.call('approve_work', { taskId })
     await send(taskId, a.transactions)
