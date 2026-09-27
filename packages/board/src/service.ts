@@ -367,6 +367,21 @@ export class Board {
     )
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
 
+    const transactions = await this.#publishTransactions(ctx, creator, terms, hash as Hex)
+    return {
+      taskId,
+      termsHash: hash,
+      screening,
+      manifestUrl: `${this.#config.manifestBaseUrl}/${hash}.json`,
+      manifest,
+      transactions,
+      next: 'Send the transactions in order from the creator wallet, then report_transaction with the publish tx hash.',
+    }
+  }
+
+  /** The approvals and the `publish` of one frozen offer, exactly as agreed (terms hash = manifest hash). */
+  async #publishTransactions(ctx: sdk.Ctx, creator: Address, terms: OfferTerms, hash: Hex): Promise<TxRequest[]> {
+    const token = terms.token
     const expiredAt =
       terms.deliveryDeadline +
       Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'settlementWindow' }))
@@ -403,15 +418,19 @@ export class Board {
         }),
       ),
     )
-    return {
-      taskId,
-      termsHash: hash,
-      screening,
-      manifestUrl: `${this.#config.manifestBaseUrl}/${hash}.json`,
-      manifest,
-      transactions,
-      next: 'Send the transactions in order from the creator wallet, then report_transaction with the publish tx hash.',
-    }
+    return transactions
+  }
+
+  /**
+   * Creator: the publish transactions of an offer that is frozen but not on-chain (a publish that reverted, e.g. an
+   * underfunded wallet after `pick_quote`, or a lost client). Safe to repeat: the contract lists a terms hash once.
+   */
+  async publishTransactions(caller: Caller, input: { taskId: string }) {
+    const me = this.#requireCaller(caller)
+    const task = this.#task(input.taskId)
+    if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator publishes')
+    if (task.job_id !== null || (await this.#recoverPublish(task)) !== null) throw new BoardError('conflict', `already published as job ${task.job_id}`)
+    return { transactions: await this.#publishTransactions(this.#ctx(task.stack), me, parseTerms(task.terms_json), task.terms_hash as Hex) }
   }
 
   async #resolveToken(ctx: sdk.Ctx, token: string): Promise<Address> {

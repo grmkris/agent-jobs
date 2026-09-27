@@ -268,6 +268,12 @@ export const tools: Record<string, Tool> = {
       board.submitSelection(caller, { taskId: s(a, 'taskId'), nonce: s(a, 'nonce'), signature: s(a, 'signature') }),
   },
 
+  publish_transactions: {
+    description: 'Creator: the approvals and publish transaction again for an offer that is frozen but not on-chain (an earlier publish reverted or was never sent). Safe to repeat: a terms hash is listed once.',
+    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
+    run: (board, caller, a) => board.publishTransactions(caller, { taskId: s(a, 'taskId') }),
+  },
+
   cancel_task: {
     description: 'Creator: cancel an open hire nobody has activated; returns cancel and settle (reward and your bond come back). Contests cannot be cancelled.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },

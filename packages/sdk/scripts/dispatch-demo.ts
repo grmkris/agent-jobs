@@ -42,11 +42,13 @@ const pub = await sdk.dispatchPublisher(env('BOARD_URL'), os, ctx.publicClient)
 log(`signed in as the OS wallet ${os.account.address} (Privy)`)
 
 if (env('MODE') === 'publish') {
-  // The OS wallet holds the reward tokens and FACTORY for its bond (testnet faucet).
+  // Enough of every token for any quote up to 100 (the testnet faucet gives 1000 per call).
   for (const token of [ctx.deployment.factory, ...ctx.deployment.rewardTokens]) {
-    if ((await sdk.balanceOf(ctx, token, os.account.address)) === 0n) log(`faucet ${token}: ${(await sdk.faucet(ctx, os, token)).transactionHash}`)
+    if ((await sdk.balanceOf(ctx, token, os.account.address)) < 100n * 10n ** 18n / (token === ctx.deployment.factory ? 1n : 10n ** 12n)) {
+      log(`faucet ${token}: ${(await sdk.faucet(ctx, os, token)).transactionHash}`)
+    }
   }
-  const { requestId } = await pub.requestQuotes(task, policy)
+  const requestId = process.env.REQUEST_ID ?? (await pub.requestQuotes(task, policy)).requestId
   log(`quote request ${requestId} for Dispatch task ${task.id}`)
   console.log(`REQUEST_ID=${requestId}`)
   const want = env('APPLICANT').toLowerCase()

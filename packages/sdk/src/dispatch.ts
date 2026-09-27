@@ -76,9 +76,16 @@ export async function dispatchPublisher(boardUrl: string, wallet: Wallet, public
       board.call<{ picked: string | null; quotes: Array<{ quoteId: string; worker: string; agentId: string; symbol: string; amount: string; note: string }> }>('list_quotes', { requestId }),
     /** Picks one quote (the OS owner's choice, not the cheapest by rule), publishes the escrowed hire and selects the bidder. */
     async pick(requestId: string, quoteId: string) {
-      const created = await board.call<{ taskId: string; applicationId: string; transactions: TxRequest[] }>('pick_quote', { requestId, quoteId })
+      const { picked } = await board.call<{ picked: string | null }>('list_quotes', { requestId })
+      // A pick whose publish failed (e.g. the wallet lacked the reward) resumes with the same frozen offer.
+      const created =
+        picked === null
+          ? await board.call<{ taskId: string; applicationId: string; transactions: TxRequest[] }>('pick_quote', { requestId, quoteId })
+          : { taskId: picked, applicationId: undefined, ...(await board.call<{ transactions: TxRequest[] }>('publish_transactions', { taskId: picked })) }
       const hashes = await send(created.taskId, created.transactions)
-      const sel = await board.call<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId: created.taskId, applicationId: created.applicationId })
+      const applicationId =
+        created.applicationId ?? (await board.call<Array<{ id: string; note: string }>>('list_applications', { taskId: created.taskId })).find((a) => a.note === `picked quote ${quoteId}`)?.id
+      const sel = await board.call<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId: created.taskId, applicationId })
       await board.call('submit_selection', { taskId: created.taskId, nonce: sel.nonce, signature: await signTypedDataJson(wallet, sel.sign.typedData) })
       return { taskId: created.taskId, publishTx: hashes.at(-1) }
     },
