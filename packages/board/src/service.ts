@@ -759,7 +759,12 @@ export class Board {
             selected: this.#sql.all<SelectionRow>('SELECT * FROM selections WHERE task_id = ? AND worker = ? AND signature IS NOT NULL', task.id, me).length > 0,
           }
     const operations = this.#sql.all<OperationRow>('SELECT kind, status, tx_hash, updated_at FROM operations WHERE task_id = ? ORDER BY created_at', task.id)
-    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, operations }
+    /** Candidate-level records the worker declared; the on-chain `JobSubmitted` deliverable is the one that counts. */
+    const deliverables = this.#sql.all<{ worker: string; deliverable_hash: string; repo: string; branch: string; sha: string }>(
+      'SELECT worker, deliverable_hash, repo, branch, sha FROM deliverables WHERE task_id = ? ORDER BY created_at',
+      task.id,
+    )
+    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, deliverables, operations }
   }
 
   async #summary(task: TaskRow, caller: Caller) {
