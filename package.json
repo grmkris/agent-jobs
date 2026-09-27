@@ -15,7 +15,8 @@
     "dev": "alchemy dev",
     "deploy:staging": "ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage staging --yes",
     "alchemy": "alchemy",
-    "testnet:flows": "bun packages/sdk/scripts/flows.ts"
+    "testnet:flows": "bun packages/sdk/scripts/flows.ts",
+    "reality-check": "bun scripts/reality-check.ts"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
