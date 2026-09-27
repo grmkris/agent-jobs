@@ -453,7 +453,8 @@ export const tools: Record<string, Tool> = {
   },
 
   list_disputes: {
-    description: 'Arbitrator: every open dispute you arbitrate, its violation, window end and any recorded decision.',
+    description:
+      'Arbitrator: every open dispute you arbitrate, its violation, window end and any recorded decision. A recorded decision is final: re-use it (prepare_ruling with the same values), never decide again.',
     inputSchema: { type: 'object', properties: {} },
     run: (board, caller) => board.listDisputes(caller),
   },
@@ -477,6 +478,8 @@ export const tools: Record<string, Tool> = {
         reason: str('20 to 2000 characters a third party can check; its hash goes on-chain.'),
         bundleHash: str('The bundleHash from get_dispute_bundle you decided on.'),
         runner: str('The runner id holding the arbiter lease.'),
+        model: str('Optional: the model that proposed the ruling (recorded with the decision).'),
+        promptVersion: str('Optional: the prompt version (recorded with the decision).'),
       },
       required: ['taskId', 'forWorker', 'slashLoser', 'reason', 'bundleHash', 'runner'],
     },
@@ -488,6 +491,8 @@ export const tools: Record<string, Tool> = {
         reason: s(a, 'reason'),
         bundleHash: s(a, 'bundleHash'),
         runner: s(a, 'runner'),
+        ...(a.model === undefined ? {} : { model: s(a, 'model') }),
+        ...(a.promptVersion === undefined ? {} : { promptVersion: s(a, 'promptVersion') }),
       }),
   },
 

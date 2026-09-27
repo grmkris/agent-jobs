@@ -8,7 +8,7 @@
  * (default monad-testnet), ARBITER_RUNNER (default arbiter@<host>), ARBITER_INTERVAL_SECONDS (default 60).
  */
 import { hostname } from 'node:os'
-import { proposeRuling } from '@agent-jobs/board'
+import { ARBITER_PROMPT_VERSION, proposeRuling } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -30,7 +30,16 @@ const log = (m: string) => console.log(`[arbiter ${new Date().toISOString().slic
 
 await board.signIn(account)
 log(`signed in as ${account.address} (runner ${runner}, model ${endpoint.model})`)
-const deps = { board, account, network, runner, propose: (b: Parameters<typeof proposeRuling>[1]) => proposeRuling(endpoint, b), log }
+const deps = {
+  board,
+  account,
+  network,
+  runner,
+  propose: (b: Parameters<typeof proposeRuling>[1]) => proposeRuling(endpoint, b),
+  log,
+  model: endpoint.model,
+  promptVersion: ARBITER_PROMPT_VERSION,
+}
 
 if (process.argv.includes('--once')) {
   const { outcomes } = await arbitrateOnce(deps)

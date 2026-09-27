@@ -212,7 +212,12 @@ const SCHEMA = [
 ]
 
 /** Columns added after a table first shipped; applied additively (never a destructive change to board data). */
-const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]> = [['tasks', 'screening_json', 'TEXT']]
+const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]> = [
+  ['tasks', 'screening_json', 'TEXT'],
+  // Which model and prompt produced a ruling (R114-08), when a harness reports them.
+  ['rulings', 'model', 'TEXT'],
+  ['rulings', 'prompt_version', 'TEXT'],
+]
 
 export function migrate(sql: Sql): void {
   for (const statement of SCHEMA) sql.run(statement)
@@ -298,6 +303,8 @@ export interface RulingRow {
   signature: string | null
   tx_hash: string | null
   created_at: number
+  model: string | null
+  prompt_version: string | null
 }
 
 export interface QuoteRequestRow {

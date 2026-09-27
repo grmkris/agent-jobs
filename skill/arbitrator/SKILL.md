@@ -29,11 +29,13 @@ same thing unattended; the board's lease makes sure only one of you acts at a ti
 1. Sign in: `auth_challenge({address})` → `cast wallet sign '<message>' --private-key $ARBITRATOR_PRIVATE_KEY` →
    `auth_login({message, signature})`. `whoami` must show the arbitrator address from `protocol_info`.
 2. `arbiter_lease({runner: "claude-code:<your session>"})`. If `held` is false another runner is active: stop.
-3. `list_disputes` — open disputes with their violation, window end and any recorded decision. Skip decided ones.
+3. `list_disputes` — open disputes with their violation, window end and any recorded decision. A dispute that
+   already has a `decision` (from `apps/arbiter` or an earlier session) is **not yours to re-decide**: if it has no
+   `txHash`, finish it with exactly its `forWorker`, `slashLoser` and `reason` (steps 6–7); otherwise skip it.
 4. `get_dispute_bundle({taskId})` — read all of it; keep its `bundleHash`. Check the deliverable yourself if useful
    (`git ls-remote`, the GitHub check runs of the exact SHA). Do not run the deliverable's code.
 5. Write a reason of 2–6 sentences a third party can check (20–2000 characters).
-6. `prepare_ruling({taskId, forWorker, slashLoser, reason, bundleHash, runner})`. Before signing, check the
+6. `prepare_ruling({taskId, forWorker, slashLoser, reason, bundleHash, runner, model: "claude-code", promptVersion: "skill/arbitrator"})`. Before signing, check the
    returned `sign.typedData`: domain `AgentJobsEvaluator` v1, chain id and `verifyingContract` equal to this stack's
    evaluator in `protocol_info`, `jobId` equal to the bundle's, your exact `forWorker` / `slashLoser`,
    `reasonHash` equal to `cast keccak "<your reason>"`, `deadline` not after `arbitrationEndsAt`. Refuse otherwise.

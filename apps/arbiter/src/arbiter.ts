@@ -23,6 +23,9 @@ export interface ArbiterDeps {
   readonly now?: () => number
   readonly log?: (message: string) => void
   readonly leaseSeconds?: number
+  /** Recorded with a new decision (R114-08). */
+  readonly model?: string
+  readonly promptVersion?: string
 }
 
 export type Outcome =
@@ -33,7 +36,7 @@ interface DisputeRow {
   taskId: string
   stack: string
   arbitrationEndsAt: number
-  decision: { signed: boolean; txHash: string | null } | null
+  decision: { forWorker: boolean; slashLoser: boolean; reason: string | null; txHash: string | null } | null
 }
 
 export async function arbitrateOnce(deps: ArbiterDeps): Promise<{ lease: boolean; outcomes: Outcome[] }> {
@@ -73,11 +76,17 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
     return { taskId: d.taskId, result: 'skipped', why: 'not this key’s dispute' }
   }
 
-  const raw = await deps.propose(bundle)
+  // A decision already recorded for this dispute (by this runner before a crash, or by another harness) is final:
+  // re-use it and never ask the model again (R114-08). It still passes the same deterministic gate.
+  const recorded = d.decision
+  const raw =
+    recorded !== null && recorded.reason !== null
+      ? { forWorker: recorded.forWorker, slashLoser: recorded.slashLoser, reason: recorded.reason }
+      : await deps.propose(bundle)
   const checked = validateProposal(bundle, raw)
   if (!checked.ok) return { taskId: d.taskId, result: 'skipped', why: `proposal refused: ${checked.error}` }
   const proposal = checked.proposal
-  log(`${d.taskId}: proposal forWorker=${proposal.forWorker} slashLoser=${proposal.slashLoser}`)
+  log(`${d.taskId}: ${recorded === null ? 'proposal' : 're-using the recorded decision'} forWorker=${proposal.forWorker} slashLoser=${proposal.slashLoser}`)
 
   const prepared = await deps.board.call<{ sign: { typedData: string } }>('prepare_ruling', {
     taskId: d.taskId,
@@ -86,6 +95,8 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
     reason: proposal.reason,
     bundleHash,
     runner: deps.runner,
+    ...(deps.model === undefined ? {} : { model: deps.model }),
+    ...(deps.promptVersion === undefined ? {} : { promptVersion: deps.promptVersion }),
   })
   const request = checkRulingRequest(bundle, proposal, prepared.sign.typedData, { chainId, evaluator: stack.evaluator, now: now() })
   if (!request.ok) return { taskId: d.taskId, result: 'skipped', why: `ruling request refused: ${request.error}` }

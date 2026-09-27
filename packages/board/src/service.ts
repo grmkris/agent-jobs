@@ -1252,6 +1252,9 @@ export class Board {
   /** Every open dispute the caller arbitrates, with its deadline and any decision already recorded. */
   async listDisputes(caller: Caller) {
     const me = this.#requireCaller(caller)
+    const stacks = Object.keys(this.#config.contexts)
+    const mine = await Promise.all(stacks.map(async (st) => eq(await this.#arbitratorOf(st), me)))
+    if (!mine.some(Boolean)) throw new BoardError('forbidden', 'arbitrator tools need a session signed in with the arbitrator wallet')
     const out = []
     for (const task of this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE job_id IS NOT NULL ORDER BY created_at')) {
       if (this.#config.contexts[task.stack as sdk.StackName] === undefined) continue
@@ -1269,10 +1272,26 @@ export class Board {
         title: parseTerms(task.terms_json).title,
         violation: view.violation,
         arbitrationEndsAt: view.arbitrationEndsAt,
-        decision: decision === undefined ? null : { forWorker: decision.for_worker === 1, slashLoser: decision.slash_loser === 1, signed: decision.signature !== null, txHash: decision.tx_hash },
+        decision: decision === undefined ? null : this.#decisionView(decision),
       })
     }
     return out
+  }
+
+  /** A recorded decision as every harness sees it: re-used as is, never re-asked of a model (R114-08). */
+  #decisionView(r: RulingRow) {
+    const reason = this.#sql.all<{ text: string }>('SELECT text FROM reasons WHERE hash = ?', r.reason_hash)[0]?.text ?? null
+    return {
+      forWorker: r.for_worker === 1,
+      slashLoser: r.slash_loser === 1,
+      reason,
+      reasonHash: r.reason_hash,
+      runner: r.runner,
+      model: r.model,
+      promptVersion: r.prompt_version,
+      signed: r.signature !== null,
+      txHash: r.tx_hash,
+    }
   }
 
   #ruling(taskId: string, disputedAt: number): RulingRow | undefined {
@@ -1356,7 +1375,16 @@ export class Board {
    */
   async prepareRuling(
     caller: Caller,
-    input: { taskId: string; forWorker: boolean; slashLoser: boolean; reason: string; bundleHash: string; runner: string },
+    input: {
+      taskId: string
+      forWorker: boolean
+      slashLoser: boolean
+      reason: string
+      bundleHash: string
+      runner: string
+      model?: string
+      promptVersion?: string
+    },
   ) {
     const task = this.#task(input.taskId)
     const me = await this.#requireArbitrator(caller, task.stack)
@@ -1366,19 +1394,21 @@ export class Board {
     if (view.status !== 'disputed') throw new BoardError('conflict', `the task is ${view.status}, not disputed`)
     const now = this.#now()
     if (now >= bundle.arbitrationEndsAt) throw new BoardError('conflict', 'the arbitration window has closed; only the refund timeout settles')
-    if (!eq(bundleHash(bundle), input.bundleHash)) throw new BoardError('conflict', 'the dispute bundle changed; read it again')
+    const recorded = this.#ruling(task.id, bundle.disputedAt)
+    // A recorded decision is re-used as is (another harness, a retry); a new one must be made on the current bundle.
+    if (recorded === undefined && !eq(bundleHash(bundle), input.bundleHash)) throw new BoardError('conflict', 'the dispute bundle changed; read it again')
     const refusal = rulingRefusal(bundle.rejection.violation, input.forWorker, input.slashLoser)
     if (refusal !== undefined) throw new BoardError('invalid', refusal)
     if (input.reason.trim().length < 20 || input.reason.length > 2000) throw new BoardError('invalid', 'the reason is 20 to 2000 characters')
     const reasonHash = sdk.hashText(input.reason.trim())
-    let row = this.#ruling(task.id, bundle.disputedAt)
+    let row = recorded
     if (row === undefined) {
       this.#sql.run('INSERT OR IGNORE INTO reasons (hash, task_id, text, created_at) VALUES (?, ?, ?, ?)', reasonHash, task.id, input.reason.trim(), now)
       this.#sql.run(
-        `INSERT INTO rulings (task_id, disputed_at, arbitrator, runner, bundle_hash, for_worker, slash_loser, reason_hash, deadline, nonce, signature, tx_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)`,
+        `INSERT INTO rulings (task_id, disputed_at, arbitrator, runner, bundle_hash, for_worker, slash_loser, reason_hash, deadline, nonce, signature, tx_hash, created_at, model, prompt_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)`,
         task.id, bundle.disputedAt, me, input.runner, input.bundleHash, input.forWorker ? 1 : 0, input.slashLoser ? 1 : 0, reasonHash,
-        Math.min(bundle.arbitrationEndsAt, now + 3600), randomUint(16).toString(), now,
+        Math.min(bundle.arbitrationEndsAt, now + 3600), randomUint(16).toString(), now, input.model ?? null, input.promptVersion ?? null,
       )
       this.#operation(task.id, 'rule', me, { forWorker: input.forWorker, slashLoser: input.slashLoser, reasonHash })
       row = this.#ruling(task.id, bundle.disputedAt) as RulingRow
@@ -1387,6 +1417,7 @@ export class Board {
     }
     const ctx = this.#ctx(task.stack)
     return {
+      decision: this.#decisionView(row),
       ruling: this.#rulingMessage(row),
       sign: {
         description: `Ruling for job ${bundle.jobId}: ${input.forWorker ? 'for the worker' : 'for the creator'}${input.slashLoser ? ', loser slashed' : ''}`,
@@ -1434,6 +1465,9 @@ export class Board {
       encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'ruleWithSignature', args: [ruling, input.signature as Hex] }))
     const relay = this.#config.relay
     if (relay === undefined) return { relayed: false, transactions: [tx], next: 'Anyone may send it; then report_transaction.' }
+    // A crash after an earlier relay: the nonce is spent, so that ruling is on-chain; never send a second one.
+    const spent = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rulingNonceUsed', args: [ruling.nonce] })
+    if (spent) return { relayed: true, txHash: null, note: 'this ruling is already on-chain (its nonce is spent)', task: await this.getTask(caller, { taskId: task.id }) }
     const receipt = await sdk.ruleWithSignature(ctx, sdk.wallet(this.#config.network, relay.account, relay.rpcUrl), ruling, input.signature as Hex)
     this.#sql.run('UPDATE rulings SET tx_hash = ? WHERE task_id = ? AND disputed_at = ?', receipt.transactionHash, task.id, disputedAt)
     this.#sql.run(
