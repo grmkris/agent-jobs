@@ -87,7 +87,7 @@ contract R114ExpiryTest is Base {
         uint256 creatorPay = pay.balanceOf(creator);
         uint256 jobId = submittedJob();
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         _pastCoreExpiry(jobId);
         core.claimRefund(jobId);
         _recoverAll(jobId);

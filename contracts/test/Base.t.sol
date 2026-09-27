@@ -33,6 +33,8 @@ abstract contract Base is Test {
     bytes32 internal constant POLICY = keccak256("policy-v1");
     uint256 internal policyNonce;
     bytes32 internal constant DELIVERABLE = keccak256("deliverable");
+    /// @dev Hash of a published reason (rejection or ruling).
+    bytes32 internal constant REASON = keccak256("reason");
 
     address internal deployer = makeAddr("deployer");
     address internal arbitrator = makeAddr("arbitrator");
@@ -268,10 +270,11 @@ abstract contract Base is Test {
         activate(jobId);
     }
 
+    /// @dev A timely submission rejected for `Quality` and disputed by the worker.
     function disputedJob() internal returns (uint256 jobId) {
         jobId = submittedJob();
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.Quality, REASON);
         vm.prank(worker);
         evaluator.dispute(jobId);
     }

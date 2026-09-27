@@ -18,7 +18,7 @@ contract CutoffsTest is Base {
         uint256 jobId = submittedJob();
         vm.warp(_reviewDeadline(jobId) - 1);
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.expectRevert(JobsEvaluator.AlreadyRejected.selector);
         evaluator.completeAfterSilence(jobId);
     }
@@ -28,7 +28,7 @@ contract CutoffsTest is Base {
         vm.warp(_reviewDeadline(jobId));
         // At the deadline the window is still open (silence needs strictly more), so rejection is allowed ...
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         // ... and silence cannot fire in the same second.
         vm.expectRevert(JobsEvaluator.AlreadyRejected.selector);
         evaluator.completeAfterSilence(jobId);
@@ -40,7 +40,7 @@ contract CutoffsTest is Base {
         // Nobody has called completeAfterSilence; the rejection is still closed.
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.ReviewWindowClosed.selector);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         evaluator.completeAfterSilence(jobId);
         assertEq(pay.balanceOf(worker), REWARD);
     }
@@ -51,7 +51,7 @@ contract CutoffsTest is Base {
         evaluator.completeAfterSilence(jobId);
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.NotSubmitted.selector);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
     }
 
     function test_review_acceptStaysOpenLate() public {
@@ -72,7 +72,7 @@ contract CutoffsTest is Base {
         uint256 jobId = disputedJob();
         vm.warp(_arbitrationDeadline(jobId) - 1);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
     }
 
@@ -82,7 +82,7 @@ contract CutoffsTest is Base {
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.refundAfterArbitrationTimeout(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
     }
 
     function test_arbitration_lateRuleFailsWithoutAnyKeeper() public {
@@ -90,7 +90,7 @@ contract CutoffsTest is Base {
         vm.warp(_arbitrationDeadline(jobId) + 1);
         vm.prank(arbitrator);
         vm.expectRevert(JobsEvaluator.ArbitrationWindowClosed.selector);
-        evaluator.rule(jobId, true, true);
+        evaluator.rule(jobId, true, true, REASON);
         evaluator.refundAfterArbitrationTimeout(jobId);
         assertEq(uint256(core.getJob(jobId).status), uint256(ERC8183.JobStatus.Rejected));
     }
@@ -101,7 +101,7 @@ contract CutoffsTest is Base {
         evaluator.refundAfterArbitrationTimeout(jobId);
         vm.prank(arbitrator);
         vm.expectRevert(JobsEvaluator.ArbitrationWindowClosed.selector);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
     }
 
     /// @dev The cutoffs stay inside the core's own protection: the latest possible ruling still precedes
@@ -112,7 +112,7 @@ contract CutoffsTest is Base {
         submitDirect(jobId);
         vm.warp(block.timestamp + REVIEW);
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.warp(block.timestamp + DISPUTE);
         vm.prank(worker);
         evaluator.dispute(jobId);
@@ -120,6 +120,6 @@ contract CutoffsTest is Base {
         vm.expectRevert(ERC8183.GracePeriodActive.selector);
         core.claimRefund(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
     }
 }

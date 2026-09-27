@@ -29,7 +29,7 @@ contract R114DisputedAcceptTest is Base {
         vm.expectRevert(JobsEvaluator.DisputeOpen.selector);
         evaluator.accept(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, true);
+        evaluator.rule(jobId, true, true, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
         assertEq(factory.totalSupply(), supply - CREATOR_BOND, "the bad-faith finding still burns");
     }
@@ -52,7 +52,7 @@ contract R114DisputedAcceptTest is Base {
     function test_R114_02_rulingFirstThenAccept() public {
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
-        evaluator.rule(jobId, false, false);
+        evaluator.rule(jobId, false, false, REASON);
         vm.prank(creator);
         vm.expectRevert();
         evaluator.accept(jobId);
@@ -72,7 +72,7 @@ contract R114DisputedAcceptTest is Base {
     function test_R114_02_reconsiderBeforeDispute_thenDisputeRefused() public {
         uint256 jobId = submittedJob();
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.prank(creator);
         evaluator.accept(jobId);
         assertEq(pay.balanceOf(worker), REWARD, "pre-dispute reconsideration pays");

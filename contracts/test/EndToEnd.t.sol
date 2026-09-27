@@ -22,7 +22,7 @@ contract EndToEndTest is Base {
         assertEq(policyHash, holding.policyHashOf(jobId), "matches the accepted policy");
 
         vm.expectEmit(true, true, false, true, address(evaluator));
-        emit JobsEvaluator.FeedbackRecorded(jobId, AGENT_ID, true);
+        emit JobsEvaluator.FeedbackRecorded(jobId, AGENT_ID, 1, "completed");
         vm.prank(creator);
         evaluator.accept(jobId);
 
@@ -66,7 +66,7 @@ contract EndToEndTest is Base {
     function test_rejectionRecordsNegativeFeedback() public {
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
-        evaluator.rule(jobId, false, false);
+        evaluator.rule(jobId, false, false, REASON);
         assertEq(reputation.lastValue(), 0);
         assertEq(reputation.lastTag2(), "rejected");
     }

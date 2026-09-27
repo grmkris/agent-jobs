@@ -16,6 +16,7 @@ import {FactoryToken} from "./FactoryToken.sol";
 interface ISettlementWindow {
     function settlementWindow() external view returns (uint48);
     function earnedByWorker(uint256 jobId) external view returns (bool);
+    function workerPenaltyDue(uint256 jobId) external view returns (bool);
     function completeAward(uint256 jobId) external;
 }
 
@@ -34,8 +35,9 @@ interface ISettlementWindow {
 ///         reverts everything and the contest stays open. With no award by the deadline anyone expires it and the
 ///         prize returns.
 ///
-///         Money rules: one job's assets never mix with another's; a bond is burned only by the evaluator on
-///         a ruling that found a violation; every other terminal path returns both bonds; every refund the
+///         Money rules: one job's assets never mix with another's; a bond burns only on a finding the evaluator
+///         made final (a ruling, an undisputed violation, a missed delivery); every other terminal path returns
+///         both bonds; every refund the
 ///         core makes lands here as custody, not entitlement, and `settle` pays it to whoever the evaluator
 ///         says is owed it, exactly once (R114-03).
 contract JobHolding is EIP712 {
@@ -93,6 +95,9 @@ contract JobHolding is EIP712 {
         bool rewardSettled;
         bool creatorBondSettled;
         bool workerBondSettled;
+        /// @dev Each bond's outcome once settled: burned, or returned to its owner.
+        bool creatorBondBurned;
+        bool workerBondBurned;
         uint256 reward;
         uint256 creatorBond;
         uint256 workerBond;
@@ -406,7 +411,9 @@ contract JobHolding is EIP712 {
     ///         after any rejection and after the core's permissionless `claimRefund`; it goes to the worker when
     ///         the evaluator says the worker earned it (a timely submission nobody rejected within the review
     ///         window), otherwise to the creator. The core status alone never decides who is paid (R114-03).
-    ///         Bonds no evaluator path settled return to their owners. Anyone may call: the effect is fixed.
+    ///         Bonds no evaluator path settled return to their owners, except a worker bond whose penalty is due
+    ///         (a missed delivery, an undisputed violation), which burns: a terminal core status alone never
+    ///         releases it. Anyone may call: the effect is fixed.
     function settle(uint256 jobId) external {
         Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert UnknownJob();
@@ -425,7 +432,8 @@ contract JobHolding is EIP712 {
         }
         if (!l.workerBondSettled && l.workerBondPosted) {
             settled = true;
-            _returnBond(jobId, l, Side.Worker);
+            if (ISettlementWindow(evaluator).workerPenaltyDue(jobId)) _burnBond(jobId, l, Side.Worker);
+            else _returnBond(jobId, l, Side.Worker);
         }
         if (rewardTo == address(0) && !settled) revert NothingToSettle();
         if (rewardTo != address(0)) l.token.safeTransfer(rewardTo, l.reward);
@@ -445,15 +453,13 @@ contract JobHolding is EIP712 {
     // Evaluator-only collateral movements
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice The only path by which a bond is destroyed: a ruling that found a violation on that side.
+    /// @notice Destroys one side's bond on a finding the evaluator made final: a ruling, an undisputed violation or
+    ///         a missed delivery.
     function burnBond(uint256 jobId, Side side) external onlyEvaluator {
         Listing storage l = _listings[jobId];
-        (uint256 amount, bool present) = _bondOf(l, side);
+        (, bool present) = _bondOf(l, side);
         if (!present) return;
-        _markSettled(l, side);
-        if (amount == 0) return;
-        factory.burn(amount);
-        emit BondBurned(jobId, side, amount);
+        _burnBond(jobId, l, side);
     }
 
     /// @notice Returns both bonds to their owners on any terminal settlement. Idempotent: a bond already
@@ -520,6 +526,16 @@ contract JobHolding is EIP712 {
     function _markSettled(Listing storage l, Side side) private {
         if (side == Side.Creator) l.creatorBondSettled = true;
         else l.workerBondSettled = true;
+    }
+
+    function _burnBond(uint256 jobId, Listing storage l, Side side) private {
+        (uint256 amount,) = _bondOf(l, side);
+        _markSettled(l, side);
+        if (side == Side.Creator) l.creatorBondBurned = true;
+        else l.workerBondBurned = true;
+        if (amount == 0) return;
+        factory.burn(amount);
+        emit BondBurned(jobId, side, amount);
     }
 
     function _returnBond(uint256 jobId, Listing storage l, Side side) private {

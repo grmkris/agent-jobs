@@ -211,9 +211,9 @@ contract Handler is Test {
         try evaluator.accept(_pick(seed)) {} catch {}
     }
 
-    function creatorReject(uint256 seed) external withJobs {
+    function reject(uint256 seed, uint8 violation) external withJobs {
         vm.prank(creator);
-        try evaluator.creatorReject(_pick(seed)) {} catch {}
+        try evaluator.reject(_pick(seed), JobsEvaluator.Violation(violation % 3), keccak256("reason")) {} catch {}
     }
 
     function dispute(uint256 seed) external withJobs {
@@ -224,7 +224,7 @@ contract Handler is Test {
     function rule(uint256 seed, bool forWorker, bool slash) external withJobs {
         uint256 jobId = _pick(seed);
         vm.prank(arbitrator);
-        try evaluator.rule(jobId, forWorker, slash) {
+        try evaluator.rule(jobId, forWorker, slash, keccak256("ruling")) {
             if (forWorker) ruledForWorker[jobId] = true;
             if (slash && forWorker) creatorSlashed[jobId] = true;
             if (slash && !forWorker) workerSlashed[jobId] = true;
@@ -247,9 +247,9 @@ contract Handler is Test {
     function lateActions(uint256 seed, bool forWorker) external withJobs {
         uint256 jobId = _pick(seed);
         vm.prank(creator);
-        try evaluator.creatorReject(jobId) {} catch {}
+        try evaluator.reject(jobId, JobsEvaluator.Violation.None, keccak256("reason")) {} catch {}
         vm.prank(arbitrator);
-        try evaluator.rule(jobId, forWorker, false) {
+        try evaluator.rule(jobId, forWorker, false, keccak256("ruling")) {
             if (forWorker) ruledForWorker[jobId] = true;
         } catch {}
     }
@@ -334,16 +334,28 @@ contract InvariantsTest is Base {
                 else expectCreatorPay += l.reward;
             }
 
-            // Creator bond: in Holding until settled; then burned iff the creator was slashed, else returned.
+            // Creator bond: in Holding until settled; then burned or returned, as Holding recorded.
             if (!l.creatorBondSettled) expectHoldingFactory += l.creatorBond;
-            else if (handler.creatorSlashed(jobId)) expectBurned += l.creatorBond;
+            else if (l.creatorBondBurned) expectBurned += l.creatorBond;
             else expectCreatorFactory += l.creatorBond;
             // Worker bond: minted to the worker at publish; still in its wallet until posted.
             if (!l.workerBondPosted) expectWorkerFactory += l.workerBond;
             else {
                 if (!l.workerBondSettled) expectHoldingFactory += l.workerBond;
-                else if (handler.workerSlashed(jobId)) expectBurned += l.workerBond;
+                else if (l.workerBondBurned) expectBurned += l.workerBond;
                 else expectWorkerFactory += l.workerBond;
+            }
+            // The creator's bond burns exactly when a ruling found the rejection in bad faith.
+            assertEq(l.creatorBondBurned, handler.creatorSlashed(jobId), "creator bond burned iff found in bad faith");
+            // The worker's bond burns only on a slashable finding: an upheld violation, an undisputed rejection
+            // that named one, or a missed delivery. Approver silence and arbitrator inactivity never burn.
+            if (handler.workerSlashed(jobId)) assertTrue(l.workerBondBurned, "an upheld violation burns");
+            if (l.workerBondBurned) {
+                uint48 submittedAt = core.getJob(jobId).submittedAt;
+                bool missed = submittedAt == 0 || submittedAt > l.deliveryDeadline;
+                bool undisputedViolation = evaluator.violationOf(jobId) != JobsEvaluator.Violation.None
+                    && evaluator.disputedAt(jobId) == 0;
+                assertTrue(handler.workerSlashed(jobId) || undisputedViolation || missed, "burn without a finding");
             }
             // A slash implies a ruling on that job, and a ruling implies a terminal job.
             if (handler.creatorSlashed(jobId)) assertTrue(handler.ruledForWorker(jobId), "creator slashed without a ruling for the worker");

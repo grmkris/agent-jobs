@@ -46,25 +46,25 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 | `JobHolding.award(jobId, candidate)` | the listing's approver, until `selectionDeadline` (allowed at it) | Replaced `select` + `postWorkerBond` + `fundAfterAccept`. Checks `getAgentWallet(agentId) == candidate.worker`, then setProvider → `setBudgetWithAuthorization` (exactly the prize) → fund → `submitWithAuthorization` (exactly the named deliverable) → `JobsEvaluator.completeAward`: the entrant is paid and the creator bond returns in one transaction, winner offline. Any failure reverts all; the contest stays open; at most once (`ContestTest`, `AdmissionForkTest`). |
 | `JobHolding.cancel` | creator, **hire only, before activation** | `reject` while Open; nothing was in the core. A live contest cannot be cancelled (R16-02). |
 | `JobHolding.expireContest` | anyone, after `selectionDeadline`, nothing awarded | `reject` while Open; prize and creator bond recoverable once through `settle`. An awarded contest cannot be expired. |
-| `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; unsettled bonds back to their owners; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` in S7 (R114-03). |
+| `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; an unsettled worker bond **burns if `workerPenaltyDue`** (missed delivery, undisputed violation), else returns; the creator bond returns; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` (R114-03). |
 | `JobsEvaluator.completeAward` | Holding only, inside `award` | `complete`, bonds back, feedback. |
-| `JobHolding.burnBond` | evaluator only | Burns one side's bond. Only reachable through `rule(..., slashLoser = true)`. |
+| `JobHolding.burnBond` | evaluator only | Burns one side's bond on a final finding: a ruling (`slashLoser`), an undisputed rejection naming a violation, a missed delivery. Holding records each bond's outcome (`creatorBondBurned`, `workerBondBurned`). |
 | `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
 | `JobsEvaluator.accept` | approver | `complete`; refused while a dispute is open (`DisputeOpen`, R114-02). `dispute` requires a funded Submitted job. |
-| `JobsEvaluator.earnedByWorker` | view | Funded, submitted by the delivery deadline, unrejected, review window over. Read by `settle`. |
-| `JobsEvaluator.creatorReject` | approver, **only until `submittedAt + reviewWindow`** | None; opens the dispute window. After the cutoff silence is acceptance even if nobody called the timeout (R16-01). |
-| `JobsEvaluator.rule(jobId, forWorker, slashLoser)` | arbitrator, **only until `disputedAt + arbitrationWindow`** | `complete` or `reject`, then burn the loser's bond only if `slashLoser`, then return the rest. After the cutoff only the refund timeout settles (R16-01). |
-| `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Per-verifier record with `submissionHash`, `policyHash`, `testedSha`, `validUntil`; policy must equal the listing's; same verifier + same digest is an idempotent no-op; two verifiers on one digest are both kept (R16-06/07). |
-| ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Capped at 300k gas in `try/catch`; `FeedbackRecorded` or `FeedbackFailed`; never reverts a payout (R16-10). |
-| the four timeouts | anyone | `complete` or `reject`; never burn. |
+| `JobsEvaluator.earnedByWorker` / `workerPenaltyDue` | view | Read by `settle`: the silence right (funded, timely, unrejected, review over) and a due penalty (missed delivery past the deadline, undisputed violation past the filing window). |
+| `JobsEvaluator.reject(jobId, violation, reasonHash)` | approver, **only until `submittedAt + reviewWindow`**, timely submissions only | None; records `violation ∈ {None, Quality, Falsified}` and opens the dispute window. After the cutoff silence is acceptance even if nobody called the timeout (R16-01). |
+| `JobsEvaluator.rule(jobId, forWorker, slashLoser, reasonHash)` / `ruleWithSignature(Ruling, sig)` | arbitrator / anyone relaying the arbitrator's EIP-712 `Ruling` (deadline, nonce), **only until `disputedAt + arbitrationWindow`** | `complete` or `reject`; `slashLoser` burns the creator bond (bad-faith rejection) or the worker bond (violation upheld; refused if the rejection named `None`). After the cutoff only the refund timeout settles (R16-01). |
+| `JobsEvaluator.attachEvidence` / `attachEvidenceDirect` | a registered verifier (signed / calling) | None. Per-verifier record with `submissionHash`, `policyHash`, `testedSha`, `validUntil`; policy must equal the listing's; same verifier + same digest is an idempotent no-op; two verifiers on one digest are both kept (R16-06/07). `EvidenceAttached` emits `digest`, `submissionHash`, `policyHash`, `testedSha`, `conclusion`, `validUntil`. |
+| ERC-8004 feedback (inside every settlement) | evaluator, as client of record | None. Reason-aware tags `completed`, `not-delivered`, `rejected`, `rejected-quality`, `rejected-falsified`; **none on arbitration timeout** (`skip-arb`). Capped at 300k gas in `try/catch`; `FeedbackRecorded(value, tag)` or `FeedbackFailed`; never reverts a payout (R16-10). |
+| the four timeouts | anyone | `completeAfterSilence` (timely submissions only), `rejectAfterWindow` (**burns the worker bond** if the undisputed rejection named a violation), `refundAfterArbitrationTimeout` (never burns, no feedback), `rejectAfterDeliveryDeadline` = the missed-delivery burn (funded, no timely submission: refund, **worker bond burned**, creator bond back). |
 
 ## Target v3 (spike S7, ADR-0004) — in progress
 
 Landed and tested (see the table above): the approver, publish refusals, `activate` + `cancelSelection`,
-`award`, `settle` after a core refund, and `accept` refused during a dispute. **Not built yet:** the
-violation-naming `reject`, burns (undisputed violation, missed delivery), the penalty guard on bond
-release, late-submission rules, `ruleWithSignature`, the evidence event fields, reason-aware feedback,
-`MockPaymentToken(name, symbol)` and the deployment recipe.
+`award`, `settle` after a core refund with the penalty guard, `accept` refused during a dispute, the
+violation-naming `reject`, burns, late-submission rules, `ruleWithSignature`, the evidence event fields and
+reason-aware feedback. **Not built yet:** `MockPaymentToken(name, symbol)`, the genuine CRE receiver and the
+deployment recipe.
 
 | Function | Who | Change from v2 |
 | :--- | :--- | :--- |

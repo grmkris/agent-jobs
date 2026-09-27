@@ -101,7 +101,7 @@ contract LifecycleTest is Base {
         uint256 wFac = factory.balanceOf(worker);
         uint256 jobId = submittedJob();
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.warp(block.timestamp + DISPUTE + 1);
         evaluator.rejectAfterWindow(jobId);
         assertEq(factory.balanceOf(creator), cFac, "creator bond returned by the timeout");
@@ -111,7 +111,7 @@ contract LifecycleTest is Base {
         assertEq(pay.balanceOf(creator), payBefore, "reward refunded");
     }
 
-    function test_moneyPath_thirdPartyClaimRefund_settleReturnsEverything() public {
+    function test_moneyPath_thirdPartyClaimRefund_noShowStillBurns() public {
         uint256 payBefore = pay.balanceOf(creator);
         uint256 cFac = factory.balanceOf(creator);
         uint256 wFac = factory.balanceOf(worker);
@@ -120,12 +120,14 @@ contract LifecycleTest is Base {
         vm.prank(stranger);
         core.claimRefund(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Expired));
-        // No evaluator path ran; anyone settles, and the evaluator says who is owed the reward.
+        // No evaluator path ran; anyone settles, and the evaluator says who is owed what. The no-show's bond
+        // burns: a direct claimRefund never releases a bond whose penalty is due.
         vm.prank(stranger);
         holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
         assertEq(factory.balanceOf(creator), cFac);
-        assertEq(factory.balanceOf(worker), wFac);
+        assertEq(factory.balanceOf(worker), wFac - WORKER_BOND);
+        assertTrue(listing(jobId).workerBondBurned);
         vm.expectRevert(JobHolding.NothingToSettle.selector);
         holding.settle(jobId);
     }
@@ -146,7 +148,7 @@ contract LifecycleTest is Base {
         uint256 supply = factory.totalSupply();
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
         assertEq(pay.balanceOf(worker), REWARD, "reward from escrow");
         assertEq(factory.balanceOf(creator), cFac, "creator bond back: losing is not misconduct");
         assertEq(factory.balanceOf(worker), wFac);
@@ -159,7 +161,7 @@ contract LifecycleTest is Base {
         uint256 supply = factory.totalSupply();
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, true);
+        evaluator.rule(jobId, true, true, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
         assertEq(factory.balanceOf(creator), cFac - CREATOR_BOND, "creator bond gone");
         assertEq(factory.balanceOf(worker), wFac, "worker bond back, worker does not receive the burn");
@@ -172,7 +174,7 @@ contract LifecycleTest is Base {
         uint256 wFac = factory.balanceOf(worker);
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
-        evaluator.rule(jobId, false, false);
+        evaluator.rule(jobId, false, false, REASON);
         vm.prank(creator);
         holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
@@ -185,7 +187,7 @@ contract LifecycleTest is Base {
         uint256 supply = factory.totalSupply();
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
-        evaluator.rule(jobId, false, true);
+        evaluator.rule(jobId, false, true, REASON);
         assertEq(factory.balanceOf(worker), wFac - WORKER_BOND, "worker bond gone");
         assertEq(factory.totalSupply(), supply - WORKER_BOND);
         assertEq(pay.balanceOf(worker), 0);
@@ -198,9 +200,9 @@ contract LifecycleTest is Base {
         evaluator.dispute(jobId);
         vm.prank(stranger);
         vm.expectRevert(JobsEvaluator.NotApprover.selector);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.prank(stranger);
         vm.expectRevert(JobsEvaluator.NotProvider.selector);
         evaluator.dispute(jobId);
@@ -214,18 +216,18 @@ contract LifecycleTest is Base {
         uint256 jobId = submittedJob();
         vm.prank(arbitrator);
         vm.expectRevert(JobsEvaluator.NotDisputed.selector);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.prank(worker);
         evaluator.dispute(jobId);
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.NotArbitrator.selector);
-        evaluator.rule(jobId, false, true);
+        evaluator.rule(jobId, false, true, REASON);
     }
 
     // ------------------------------------------------------------------------------------------
-    // Permissionless timeouts never burn
+    // Permissionless timeouts: silence and arbitrator inactivity never burn; a missed delivery does
     // ------------------------------------------------------------------------------------------
 
     function test_timeout_silenceIsAcceptance() public {
@@ -257,15 +259,26 @@ contract LifecycleTest is Base {
         assertEq(factory.balanceOf(address(holding)), 0);
     }
 
-    function test_timeout_deliveryDeadlineRejectsUnfinalizedJob() public {
+    /// @dev Funded no-show: anyone burns the whole worker bond after the deadline; the reward refunds and the
+    ///      creator bond returns.
+    function test_timeout_missedDeliveryBurnsWorkerBond() public {
+        uint256 payBefore = pay.balanceOf(creator);
+        uint256 cFac = factory.balanceOf(creator);
+        uint256 supply = factory.totalSupply();
         uint256 jobId = fundedJob();
+        vm.warp(holding.deliveryDeadlineOf(jobId));
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         vm.warp(uint256(holding.deliveryDeadlineOf(jobId)) + 1);
         vm.prank(stranger);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
-        assertEq(factory.balanceOf(address(holding)), 0, "both bonds returned");
+        assertEq(factory.totalSupply(), supply - WORKER_BOND, "the whole worker bond burned");
+        assertEq(factory.balanceOf(creator), cFac, "creator bond returned");
+        assertEq(reputation.lastTag2(), "not-delivered");
+        holding.settle(jobId);
+        assertEq(pay.balanceOf(creator), payBefore, "reward refunded");
+        assertEq(factory.balanceOf(address(holding)) + pay.balanceOf(address(holding)), 0);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -289,7 +302,7 @@ contract LifecycleTest is Base {
         submitDirect(jobId);
         vm.warp(block.timestamp + REVIEW);
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.warp(block.timestamp + DISPUTE);
         vm.prank(worker);
         evaluator.dispute(jobId);
@@ -297,7 +310,7 @@ contract LifecycleTest is Base {
         vm.expectRevert(ERC8183.GracePeriodActive.selector);
         core.claimRefund(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, false);
+        evaluator.rule(jobId, true, false, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
     }
 
@@ -441,11 +454,11 @@ contract LifecycleTest is Base {
         activate(jobId);
         submitDirect(jobId);
         vm.prank(creator);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.Quality, REASON);
         vm.prank(worker);
         evaluator.dispute(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, forWorker, slash);
+        evaluator.rule(jobId, forWorker, slash, REASON);
         if (!forWorker) {
             vm.prank(creator);
             holding.settle(jobId);

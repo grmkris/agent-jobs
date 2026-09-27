@@ -83,9 +83,9 @@ contract ApproverTest is Base {
         uint256 jobId = _submittedApproved();
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.NotApprover.selector);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.prank(approver);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.warp(block.timestamp + DISPUTE + 1);
         evaluator.rejectAfterWindow(jobId);
         vm.prank(approver);
@@ -99,7 +99,7 @@ contract ApproverTest is Base {
         uint256 supply = factory.totalSupply();
         uint256 jobId = _submittedApproved();
         vm.prank(approver);
-        evaluator.creatorReject(jobId);
+        evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
         vm.prank(worker);
         evaluator.dispute(jobId);
         vm.prank(approver);
@@ -109,7 +109,7 @@ contract ApproverTest is Base {
         vm.expectRevert(JobsEvaluator.NotApprover.selector);
         evaluator.accept(jobId);
         vm.prank(arbitrator);
-        evaluator.rule(jobId, true, true);
+        evaluator.rule(jobId, true, true, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
         assertEq(factory.totalSupply(), supply - CREATOR_BOND, "the creator's bond answers for the rejection");
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Completed));
