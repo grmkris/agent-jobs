@@ -9,7 +9,9 @@
  * Task text via TASK_TITLE / TASK_BRIEF / TASK_CRITERIA (JSON array) / TASK_CHECK (the check name the approver
  * requires); STACK (default demo), TASK_TOKEN / TASK_REWARD, DELIVERY_MINUTES. REVIEW=manual stops after the
  * submission and its check for the approver to decide by hand (`board-review.ts`). TASK_CREATOR_BOND /
- * TASK_WORKER_BOND (FACTORY, default 2 / 1); APPLICANT selects only that worker address.
+ * TASK_WORKER_BOND (FACTORY, default 2 / 1); APPLICANT selects only that worker address. MODE=contest publishes a
+ * contest and stops (SELECTION_MINUTES); MODE=quote requests quotes (TASK_TOKENS, QUOTE_MINUTES), picks APPLICANT's
+ * and continues as a hire.
  */
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -66,7 +68,7 @@ async function main() {
   await board.signIn(account)
   log(`signed in as ${account.address}`)
   const now = Math.floor(Date.now() / 1000)
-  const created = await board.call('create_task', {
+  const text = {
     title: env('TASK_TITLE', 'Add CI to runner-spike-fixture'),
     brief: env(
       'TASK_BRIEF',
@@ -79,16 +81,66 @@ async function main() {
             'The workflow runs on push and pull_request and executes the repository’s existing tests.',
           ]
         : (JSON.parse(process.env.TASK_CRITERIA) as string[]),
-    token: env('TASK_TOKEN', 'mEUR'),
-    reward: env('TASK_REWARD', '10'),
-    creatorBond: env('TASK_CREATOR_BOND', '2'),
-    workerBond: env('TASK_WORKER_BOND', '1'),
-    deliveryDeadline: now + Number(env('DELIVERY_MINUTES', '50')) * 60,
-    mode: 'hire',
-    stack: STACK,
-    requiredChecks: [CHECK],
-  })
-  const taskId = created.taskId as string
+  }
+  const MODE = env('MODE', 'hire')
+  const deliveryDeadline = now + Number(env('DELIVERY_MINUTES', '50')) * 60
+  if (MODE === 'contest') {
+    // A contest: publish the locked prize and stop; entries arrive over time and the approver awards by hand
+    // (`board-review.ts DECISION=award`).
+    const c = await board.call('create_task', {
+      ...text,
+      token: env('TASK_TOKEN', 'mEUR'),
+      reward: env('TASK_REWARD', '10'),
+      creatorBond: env('TASK_CREATOR_BOND', '2'),
+      workerBond: '0',
+      deliveryDeadline,
+      selectionDeadline: now + Number(env('SELECTION_MINUTES', '40')) * 60,
+      mode: 'contest',
+      stack: STACK,
+      requiredChecks: [CHECK],
+    })
+    await send(c.taskId as string, c.transactions)
+    const t = await board.call('get_task', { taskId: c.taskId })
+    log(`contest published: job ${t.jobId}, chain status ${t.chain.status}`)
+    console.log(`TASK_ID=${c.taskId}`)
+    return
+  }
+  let created: { taskId: string; termsHash: string; manifestUrl?: string; transactions: sdk.TxRequest[]; applicationId?: string }
+  if (MODE === 'quote') {
+    // Quote-to-hire: ask for quotes, pick the APPLICANT's (no automatic lowest bid), publish it as an ordinary hire.
+    const req = await board.call('request_quotes', {
+      ...text,
+      tokens: env('TASK_TOKENS', 'mUSD,mEUR').split(','),
+      creatorBond: env('TASK_CREATOR_BOND', '2'),
+      workerBond: env('TASK_WORKER_BOND', '1'),
+      deliveryDeadline,
+      quoteDeadline: now + Number(env('QUOTE_MINUTES', '20')) * 60,
+      stack: STACK,
+      requiredChecks: [CHECK],
+    })
+    log(`quote request ${req.requestId}`)
+    console.log(`REQUEST_ID=${req.requestId}`)
+    const want = env('APPLICANT').toLowerCase()
+    const quote = await until('a quote', Number(env('QUOTE_MINUTES', '20')) * 60, async () => {
+      const qs = await board.call<{ quotes: Array<{ quoteId: string; worker: string; symbol: string; amount: string; note: string }> }>('list_quotes', { requestId: req.requestId })
+      return qs.quotes.find((q) => q.worker.toLowerCase() === want)
+    })
+    log(`quote ${quote.quoteId}: ${quote.amount} ${quote.symbol} (${quote.note})`)
+    created = await board.call('pick_quote', { requestId: req.requestId, quoteId: quote.quoteId })
+  } else {
+    created = await board.call('create_task', {
+      ...text,
+      token: env('TASK_TOKEN', 'mEUR'),
+      reward: env('TASK_REWARD', '10'),
+      creatorBond: env('TASK_CREATOR_BOND', '2'),
+      workerBond: env('TASK_WORKER_BOND', '1'),
+      deliveryDeadline,
+      mode: 'hire',
+      stack: STACK,
+      requiredChecks: [CHECK],
+    })
+  }
+  const taskId = created.taskId
   log(`task ${taskId}, terms ${created.termsHash}, manifest ${created.manifestUrl}`)
   await send(taskId, created.transactions)
   const published = await board.call('get_task', { taskId })

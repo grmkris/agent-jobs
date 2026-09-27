@@ -810,7 +810,7 @@ export class Board {
   async apply(caller: Caller, input: { taskId: string; agentId: string; note?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (task.job_id === null) throw new BoardError('conflict', 'this offer is not funded on-chain yet')
+    if (task.job_id === null && (await this.#recoverPublish(task)) === null) throw new BoardError('conflict', 'this offer is not funded on-chain yet')
     const ctx = this.#ctx(task.stack)
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
     if (!eq(agentWallet, me)) {
@@ -1619,6 +1619,33 @@ export class Board {
   }
 
   /** The task's chain facts, read now. The board's own records never override these. */
+  /**
+   * A publish whose confirmation never reached the board (the response was lost, the client crashed before
+   * `report_transaction`): the offer's `termsHash` is listed on-chain, so the listing is found among the newest jobs
+   * and recorded, and a retry is never needed (a second publish of the same terms would revert on `PolicyHashUsed`).
+   */
+  async #recoverPublish(task: TaskRow): Promise<string | null> {
+    const ctx = this.#ctx(task.stack)
+    const listed = await ctx.publicClient
+      .readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'policyListed', args: [task.terms_hash as Hex] })
+      .catch(() => false)
+    if (!listed) return null
+    const counter = await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'jobCounter' })
+    for (let id = counter; id > 0n && id > counter - 64n; id--) {
+      const listing = await sdk.getListing(ctx, id).catch(() => undefined)
+      if (listing === undefined || !eq(listing.policyHash, task.terms_hash)) continue
+      this.#sql.run('UPDATE tasks SET job_id = ? WHERE id = ? AND job_id IS NULL', id.toString(), task.id)
+      this.#sql.run(
+        "UPDATE operations SET status = 'confirmed', updated_at = ? WHERE task_id = ? AND kind = 'publish' AND status = 'prepared'",
+        this.#now(),
+        task.id,
+      )
+      task.job_id = id.toString()
+      return task.job_id
+    }
+    return null
+  }
+
   async #chainView(task: TaskRow): Promise<ChainView> {
     const terms = parseTerms(task.terms_json)
     const base: ChainView = {
@@ -1634,9 +1661,9 @@ export class Board {
       arbitrationEndsAt: null,
       violation: null,
     }
-    if (task.job_id === null) return base
+    if (task.job_id === null && (await this.#recoverPublish(task)) === null) return base
     const ctx = this.#ctx(task.stack)
-    const jobId = BigInt(task.job_id)
+    const jobId = BigInt(task.job_id as string)
     const [job, listing, rejectedAt, disputedAt, violation] = await Promise.all([
       sdk.getJob(ctx, jobId),
       sdk.getListing(ctx, jobId),

@@ -338,8 +338,9 @@ async function timeout(agentId: bigint) {
   await settle(f, jobId)
   const after = await balances()
   check(f, 'creator refunded in full', after.cPay - before.cPay, 0n)
-  check(f, 'both bonds back', after.supply - before.supply, 0n)
-  check(f, 'worker FACTORY back', after.wFac - before.wFac, 0n)
+  // By balance, not supply: other wallets may use the testnet faucet meanwhile.
+  check(f, 'creator bond back', after.cFac - before.cFac, 0n)
+  check(f, 'worker bond back', after.wFac - before.wFac, 0n)
 }
 
 /** reject(Falsified) → dispute → signed ruling for the creator with slash: refund, worker bond burned. */

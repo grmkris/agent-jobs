@@ -6,8 +6,9 @@
  *   BOARD_URL=https://… TASK_ID=… DECISION=approve bun packages/sdk/scripts/board-review.ts
  *   BOARD_URL=https://… TASK_ID=… DECISION=reject VIOLATION=Quality REASON='…' bun packages/sdk/scripts/board-review.ts
  *
- * Also `DECISION=status` (prints the board's and the chain's view) and `DECISION=settle` (sends whatever
- * `settlement_actions` returns: timeouts and Holding's settle, permissionless).
+ * Also `DECISION=status` (prints the board's and the chain's view), `DECISION=candidates` / `DECISION=award
+ * CANDIDATE=…` for a contest, and `DECISION=settle` (sends whatever `settlement_actions` returns: timeouts and
+ * Holding's settle, permissionless).
  */
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -42,6 +43,10 @@ if (decision === 'approve') {
 } else if (decision === 'reject') {
   const r = await board.call('reject_work', { taskId, violation: env('VIOLATION', 'Quality'), reason: env('REASON') })
   await send(r.transactions)
+} else if (decision === 'award') {
+  await send((await board.call('award', { taskId, candidateId: env('CANDIDATE') })).transactions)
+} else if (decision === 'candidates') {
+  for (const c of await board.call<Array<Record<string, unknown>>>('list_candidates', { taskId })) log(JSON.stringify(c))
 } else if (decision === 'settle') {
   const r = await board.call('settlement_actions', { taskId })
   await send(r.transactions ?? [])
