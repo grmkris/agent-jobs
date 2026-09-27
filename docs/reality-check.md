@@ -17,14 +17,14 @@ pnpm 10.13.1 (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre` 1.35.0, `
 | Monad testnet RPC | operation | `cast chain-id` = 10143; balance and `cast code` reads | end-to-end in B1 (deploy) |
 | ERC-8004 registries, Circle USDC | operation | `cast code` on Identity/Reputation (10143) and USDC (10143 + 143: "USDC", 6 decimals) | used by S7 fork tests |
 | Deployer EOA | operation | sent value transfers on 10143 (e.g. funding the Privy wallet, tx `0x6bb6b343…e578`) | B1 deploy |
-| Relay, attester, arbitrator EOAs | credential | keys derive to the stated addresses; 3 / 2 / 1 MON | first relayed tx, first attestation, first ruling |
+| Relay, attester, arbitrator EOAs | end-to-end | keys derive to the stated addresses; 3 / 2 / 1 MON. 27 Sep: the relay sends `attachEvidence` and `ruleWithSignature` from the staging board, the attester signs evidence, the arbitrator key signs a ruling through apps/arbiter (CP3) | — |
 | Privy server wallet `0x9D04…B4b1` | operation | `eth_sendTransaction` with `caip2: eip155:10143`, tx `0x033d857d…aa91a` | full worker lifecycle in B2 |
 | MetaMask agent wallet `0xeffa…40c3` | credential | `mm doctor` authenticated (netcup and Mac); 1 MON | a transaction, then full worker lifecycle in B2 |
 | Etherscan v2 (Monadscan) | credential | balance query with `chainid=10143` | verify a contract in B1 |
 | Cloudflare | operation | 27 Sep: `alchemy deploy --stage staging` created the Worker, Durable Object, D1 and R2 and enabled workers.dev (`agentjobs-api-staging-…workers.dev`). **The token lacks Secrets Store permission**, which alchemy's *remote* state store needs (`secrets_store/stores` → Authentication error), so staging uses local state in `.alchemy/` on netcup | add Secrets Store: Edit to the token, then switch staging to remote state |
 | Envio HyperSync | credential | `GET /height` on `monad-testnet.hypersync.xyz` | a log query with decoding and pagination (S4) |
 | GitHub App `agent-jobs-attester` | end-to-end | JWT → installation 165115204 token → check-runs of `runner-spike-fixture@f75c817` (0 runs: no CI yet). 27 Sep: the board's attester (Worker, RS256 JWT via WebCrypto) read the `test` run on `c850f7a` and attached signed evidence on-chain (CP3 below) | CRE workflow reads the same runs (S5, blocked on deploy access) |
-| Vercel AI Gateway | end-to-end | `meta/muse-spark-1.3` completion; the model always reasons first (~300 reasoning tokens for "ok"), so callers allow ≥ 512 output tokens. 27 Sep: Jev screening runs in the staging board; at 2048 tokens the model sometimes spent all of them reasoning (`finish_reason: length`, empty answer), so screening allows 8192 (3/3 answered) | arbiter proposal (B2) |
+| Vercel AI Gateway | end-to-end | `meta/muse-spark-1.3` completion; the model always reasons first (~300 reasoning tokens for "ok"), so callers allow ≥ 512 output tokens. 27 Sep: Jev screening runs in the staging board; at 2048 tokens the model sometimes spent all of them reasoning (`finish_reason: length`, empty answer), so screening allows 8192 (3/3 answered). The arbiter's proposal runs on the same model (CP3 dispute below) | — |
 | Chainlink CRE | credential; deploy **blocked** | `cre whoami` on netcup and Mac (org `org_ceIauRUNKGj5Jaft`); deploy access "Not enabled", request pending | deploy access, then S5 live proof after B1 |
 | `pnpm check` | operation | green on netcup (63 contract tests, lint, types) | stays green per commit |
 
@@ -94,3 +94,14 @@ and submit authorisations once; the attester attached evidence `0xdd25f81b…4b3
 **"matches this submitted candidate"**; the approver's award `0x98566e40…42c3` paid the offline entrant 7 mUSD and
 completed the job in one transaction; the board recorded the core's `JobSubmitted` deliverable from the award
 receipt and the same statement became **"matches the awarded on-chain deliverable"**. All checks passed.
+
+## CP3: dispute ruled by apps/arbiter through the hosted board (27 Sep 2026)
+
+`bun packages/sdk/scripts/board-dispute.ts` against staging, demo stack: hire `a1467ec4…` (job **9**, 3 mUSD, bonds
+1 + 1 FACTORY, required check `test`). Activate `0x2ea75744…8ed0`, submit `c850f7a` `0x543d1cff…a412`, the approver
+rejects naming **None** ("a different CI provider") `0x7999a8bd…e4fc`, the worker disputes with a statement
+`0xee3d97b5…3694`, the attester attaches success evidence `0xc99230b4…a091` labelled "matches the awarded on-chain
+deliverable". One `apps/arbiter` pass with the arbitrator key: lease → `list_disputes` → bundle → `meta/muse-spark-1.3`
+proposed `forWorker=true, slashLoser=false` → `validateProposal` → `prepare_ruling` (decision recorded) →
+`checkRulingRequest` → signed → `submit_ruling`; the relay sent `ruleWithSignature` `0x4ec0128b…eafa`. Completed:
+worker paid 3 mUSD, both bonds returned in the ruling transaction. All checks passed.
