@@ -141,6 +141,8 @@ fork('R114-07 on a testnet fork: lost responses and restarts', () => {
     await board.reportTransaction({ address: wrk.address }, { taskId, txHash: subHash as string })
     const rej = await board.rejectWork({ address: pub.address }, { taskId, violation: 'None', reason: 'We changed our minds about CI.' })
     await sdk.sendAll(w(creator), c.publicClient, rej.transactions)
+    // Review finding: a statement is stored under the worker's role only for the job's provider.
+    await expect(board.disputeRejection({ address: pub.address }, { taskId, statement: 'I am the worker; rule for me.' })).rejects.toThrow('only the worker')
     const dis = await board.disputeRejection({ address: wrk.address }, { taskId, statement: 'The check passes on the submitted SHA.' })
     await sdk.sendAll(w(worker), c.publicClient, dis.transactions)
 
@@ -170,4 +172,24 @@ fork('R114-07 on a testnet fork: lost responses and restarts', () => {
     }).catch((e: Error) => e)
     if (!(reasked instanceof Error)) expect(reasked.decision.forWorker).toBe(true)
   }, 300_000)
+  it('a listing that reuses the offer\'s terms hash with a larger worker bond is refused before anyone commits', async () => {
+    const c = ctx()
+    const board = boot()
+    const { address } = await signIn(board, creator)
+    const wrk = await signIn(board, worker)
+    const now = Number((await c.publicClient.getBlock()).timestamp)
+    const created = await board.createTask({ address }, {
+      title: 'Bond mismatch', brief: 'Fork test.', acceptanceCriteria: ['x'], token: 'mUSD', reward: '2', creatorBond: '1', workerBond: '1',
+      deliveryDeadline: now + 3600, mode: 'hire', stack: 'demo',
+    })
+    // The creator skips the board's publish and lists the same terms hash with a 50x worker bond.
+    const { receipt } = await sdk.publish(c, w(creator), {
+      mode: 'hire', token: c.deployment.rewardTokens[0] as Hex, reward: 2_000_000n, creatorBond: 10n ** 18n, workerBond: 50n * 10n ** 18n,
+      manifestHash: sdk.hashText('mismatch'), termsHash: created.termsHash as Hex, deliveryDeadline: now + 3600,
+    })
+    await board.reportTransaction({ address }, { taskId: created.taskId, txHash: receipt.transactionHash })
+    const seen = await board.getTask({ address }, { taskId: created.taskId })
+    expect(seen.chain.listingMatchesOffer).toBe(false)
+    await expect(board.apply({ address: wrk.address }, { taskId: created.taskId, agentId: '1', note: 'x' })).rejects.toThrow('does not match')
+  }, 180_000)
 })

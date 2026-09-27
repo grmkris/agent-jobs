@@ -18,8 +18,9 @@ import {
   formatUnits,
   getAddress,
   isAddress,
-  maxUint256,
+  pad,
   parseUnits,
+  toHex,
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
@@ -442,7 +443,8 @@ export class Board {
           ctx,
           `approve ${label} for JobHolding`,
           token,
-          encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, maxUint256] }),
+          // Exactly the amount this step needs, never an unlimited allowance a mismatched listing could draw on.
+          encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, amount] }),
         ),
       )
     }
@@ -460,7 +462,14 @@ export class Board {
     const receipt = await ctx.publicClient.getTransactionReceipt({ hash: input.txHash as Hex }).catch(() => undefined)
     if (receipt === undefined) throw new BoardError('chain', `no receipt yet for ${input.txHash}; retry shortly`)
     // Any other confirmed transaction from a party of this task confirms that party's latest prepared operation.
-    if (task.job_id !== null && receipt.status === 'success') {
+    // Only a transaction to this deployment that emitted an event for this job (jobId is the first indexed topic of
+    // every lifecycle event) confirms anything; an unrelated transaction from the same wallet does not.
+    const jobTopic = task.job_id === null ? null : pad(toHex(BigInt(task.job_id)), { size: 32 }).toLowerCase()
+    const touchesJob =
+      jobTopic !== null &&
+      [ctx.deployment.core, ctx.stack.holding, ctx.stack.evaluator].some((a) => eq(receipt.to ?? zeroAddress, a)) &&
+      receipt.logs.some((l) => l.topics[1]?.toLowerCase() === jobTopic)
+    if (task.job_id !== null && receipt.status === 'success' && touchesJob) {
       const [op] = this.#sql.all<OperationRow>(
         "SELECT * FROM operations WHERE task_id = ? AND lower(actor) = lower(?) AND status = 'prepared' ORDER BY created_at DESC LIMIT 1",
         task.id,
@@ -806,11 +815,25 @@ export class Board {
   // Worker
   // -----------------------------------------------------------------------------------------------
 
+  /**
+   * Refuses to prepare a worker's commitment against a listing that differs from the frozen offer: the contract keys
+   * a listing by `policyHash` only, so a creator could publish the board's terms hash with, e.g., a larger worker
+   * bond. The worker signs and approves exactly the offer's amounts, never the listing's.
+   */
+  async #requireListingMatches(task: TaskRow) {
+    const view = await this.#chainView(task)
+    if (view.listingMatchesOffer !== true) {
+      throw new BoardError('conflict', 'the on-chain listing does not match the published offer (reward, bonds, deadlines or approver); do not take this job')
+    }
+    return view
+  }
+
   /** Applies with a registered ERC-8004 agent whose agent wallet is the signed-in wallet. */
   async apply(caller: Caller, input: { taskId: string; agentId: string; note?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     if (task.job_id === null && (await this.#recoverPublish(task)) === null) throw new BoardError('conflict', 'this offer is not funded on-chain yet')
+    await this.#requireListingMatches(task)
     const ctx = this.#ctx(task.stack)
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
     if (!eq(agentWallet, me)) {
@@ -838,6 +861,7 @@ export class Board {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     const sel = this.#liveSelectionFor(task, me)
+    await this.#requireListingMatches(task)
     const ctx = this.#ctx(task.stack)
     const terms = parseTerms(task.terms_json)
     const budgetNonce = randomUint(9)
@@ -886,6 +910,7 @@ export class Board {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     const sel = this.#liveSelectionFor(task, me)
+    await this.#requireListingMatches(task)
     const [prep] = this.#sql.all<{ nonce: string; budget_nonce: string; budget_deadline: number }>(
       'SELECT nonce, budget_nonce, budget_deadline FROM activation_preps WHERE task_id = ? AND worker = ?',
       task.id,
@@ -940,7 +965,12 @@ export class Board {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     const ctx = this.#ctx(task.stack)
-    if (input.statement !== undefined && input.statement.trim() !== '') this.#statement(task, me, 'worker', input.statement)
+    if (input.statement !== undefined && input.statement.trim() !== '') {
+      // Stored under the worker's role only for the job's provider: the bundle's roles are what the arbiter weighs.
+      const view = await this.#chainView(task)
+      if (!eq(view.provider ?? zeroAddress, me)) throw new BoardError('forbidden', 'only the worker disputes and adds a worker statement')
+      this.#statement(task, me, 'worker', input.statement)
+    }
     this.#operation(task.id, 'dispute', me)
     return {
       transactions: [
@@ -981,7 +1011,7 @@ export class Board {
     const task = this.#task(input.taskId)
     const terms = parseTerms(task.terms_json)
     if (terms.mode !== 'contest') throw new BoardError('invalid', 'this task is a hire; apply instead')
-    const view = await this.#chainView(task)
+    const view = await this.#requireListingMatches(task)
     if (view.status !== 'open') throw new BoardError('conflict', `the contest is ${view.status}`)
     const ctx = this.#ctx(task.stack)
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
@@ -1110,7 +1140,7 @@ export class Board {
    * relay attaches it on-chain. Evidence is advisory: it moves no money and gates nothing.
    */
   async requestEvidence(caller: Caller, input: { taskId: string; candidateId?: string }) {
-    this.#requireCaller(caller)
+    const me = this.#requireCaller(caller)
     const cfg = this.#config.evidence
     if (cfg === undefined) throw new BoardError('invalid', 'the attester is not configured on this board (unavailable)')
     const task = this.#task(input.taskId)
@@ -1124,6 +1154,16 @@ export class Board {
             task.id,
           )[0]
     if (target === undefined) throw new BoardError('not-found', 'no deliverable to attest')
+    // The relay pays for each attestation: only the parties (or the candidate's own entrant) may ask for one.
+    const entrant = 'worker' in target && eq(target.worker as string, me)
+    if (!entrant && this.#roles(terms, await this.#chainView(task), me).length === 0) {
+      throw new BoardError('forbidden', 'only the creator, approver, worker or the entrant asks for evidence')
+    }
+    const [already] = this.#sql.all<{ conclusion: number; tx_hash: string }>(
+      'SELECT conclusion, tx_hash FROM evidence WHERE task_id = ? AND submission_hash = ? AND tested_sha = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1',
+      task.id, target.deliverable_hash, target.sha, this.#now() - 6 * 24 * 3600,
+    )
+    if (already !== undefined) return { conclusion: already.conclusion === sdk.EvidenceConclusion.Success ? 'success' : 'failure', txHash: already.tx_hash, reused: true }
     const slug = repoSlug(target.repo)
     if (slug === undefined) throw new BoardError('invalid', 'only public GitHub repositories are attested')
     const token = cfg.github === undefined ? undefined : await installationToken(cfg.github, this.#now())
