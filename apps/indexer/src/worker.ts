@@ -2,6 +2,7 @@ import { contractsOf, fromD1, hyperSync, migrate, rpcHead, runOnce } from '@agen
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Config from 'effect/Config'
+import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
@@ -32,6 +33,21 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
 
+    /** The last cron outcome, kept in D1 for `GET /` (Workers logs need a permission the deploy token lacks). */
+    const record = (ok: boolean, detail: string) =>
+      Effect.gen(function* () {
+        const raw = yield* db.raw
+        const sql = fromD1(raw as never)
+        const hide = [yield* secret('MONAD_RPC_URL'), yield* secret('HYPERSYNC_API_TOKEN')].filter((v) => v.length >= 8)
+        const safe = hide.reduce((t, v) => t.split(v).join('[redacted]'), detail).slice(0, 2000)
+        yield* Effect.promise(async () => {
+          await sql.batch([
+            { query: 'CREATE TABLE IF NOT EXISTS indexer_runs (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL)', params: [] },
+            { query: 'INSERT OR REPLACE INTO indexer_runs (id, at, ok, detail) VALUES (1, ?, ?, ?)', params: [Math.floor(Date.now() / 1000), ok ? 1 : 0, safe] },
+          ])
+        })
+      })
+
     const run = Effect.gen(function* () {
       const network = (yield* Config.String('NETWORK')) as sdk.Network
       const token = yield* secret('HYPERSYNC_API_TOKEN')
@@ -55,8 +71,8 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
 
     yield* Cloudflare.Workers.cron('* * * * *', () =>
       run.pipe(
-        Effect.tap((r) => Effect.log('indexer run', r)),
-        Effect.catchCause((c) => Effect.logError('indexer run failed', c)),
+        Effect.flatMap((r) => record(true, JSON.stringify(r))),
+        Effect.catchCause((c) => record(false, Cause.pretty(c)).pipe(Effect.ignore)),
       ),
     )
 
@@ -69,6 +85,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
           return {
             checkpoint: await sql.all('SELECT chain_id, next_block, updated_at FROM checkpoint'),
             jobs: await sql.all<{ n: number }>('SELECT count(*) AS n FROM jobs'),
+            lastRun: await sql.all('SELECT at, ok, detail FROM indexer_runs').catch(() => []),
           }
         })
         return HttpServerResponse.jsonUnsafe({ ok: true, ...rows })
