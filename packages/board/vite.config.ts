@@ -9,6 +9,7 @@ export default defineConfig({
         // cache hit on 2026-09-26), so the inputs are declared by hand.
         input: [
           { pattern: 'src/**', base: 'package' },
+          { pattern: 'contracts/config/**', base: 'workspace' },
           { pattern: 'tsconfig.json', base: 'package' },
           { pattern: 'tsconfig.base.json', base: 'workspace' },
           { pattern: 'pnpm-lock.yaml', base: 'workspace' },
@@ -26,6 +27,8 @@ export default defineConfig({
           { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
           { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
         ],
+        // MONAD_TESTNET_RPC_URL enables the tests that read the deployed contracts; unset, they skip.
+        env: ['MONAD_TESTNET_RPC_URL'],
       },
     },
   },

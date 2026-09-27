@@ -9,9 +9,11 @@
   "devDependencies": {
     "typescript": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@types/node": "^24.3.0"
   },
   "dependencies": {
+    "@agent-jobs/sdk": "workspace:*",
     "viem": "2.56.9"
   }
 }
