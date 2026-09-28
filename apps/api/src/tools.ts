@@ -284,7 +284,7 @@ export const tools: Record<string, Tool> = {
 
   budget_grant_prepare: {
     description:
-      'Creator (Explore, Privy email/Google wallet): step 1 of granting a task’s execution budget. Answers with the one browser step left: add-signer (addSigners with the returned policy), sign-policy (sign the returned authorizationRequest), or confirm.',
+      'Creator (Explore, Privy email/Google wallet): step 1 of granting a task’s execution budget. Answers with the browser step left: add-signer (addSigners under the returned policy), replace-signer (removeSigners, then addSigners under it), or confirm.',
     inputSchema: {
       type: 'object',
       properties: { ...taskId, privyAccessToken: str('Your Privy access token (getAccessToken()).') },
@@ -295,33 +295,15 @@ export const tools: Record<string, Tool> = {
 
   budget_grant_confirm: {
     description:
-      'Creator: step 2 of a grant. Relays your signed policy change (if any) and checks at Privy that the board’s signer is on your wallet under a policy holding this budget; then the budget is live.',
-    inputSchema: {
-      type: 'object',
-      properties: { ...taskId, authorizationSignature: str('Only after sign-policy: the signature over authorizationRequest.') },
-      required: ['taskId'],
-    },
-    run: (board, caller, a) =>
-      board.budgetGrantConfirm(caller, {
-        taskId: s(a, 'taskId'),
-        ...(a.authorizationSignature === undefined ? {} : { authorizationSignature: s(a, 'authorizationSignature') }),
-      }),
+      'Creator: step 2 of a grant. Checks at Privy that the board’s signer is on your wallet under a policy holding this budget; then the budget is live.',
+    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
+    run: (board, caller, a) => board.budgetGrantConfirm(caller, { taskId: s(a, 'taskId') }),
   },
 
   revoke_budget: {
     description: 'Creator: withdraw a task’s execution budget. The board stops signing at once; `cleanup` says how to take it off your wallet.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.revokeBudget(caller, { taskId: s(a, 'taskId') }),
-  },
-
-  budget_policy_sync: {
-    description: 'Creator: relay a signed policy change from a budget’s cleanup (drops ended budgets from your wallet’s policy).',
-    inputSchema: {
-      type: 'object',
-      properties: { authorizationSignature: str('The signature over cleanup.authorizationRequest.') },
-      required: ['authorizationSignature'],
-    },
-    run: (board, caller, a) => board.budgetPolicySync(caller, { authorizationSignature: s(a, 'authorizationSignature') }),
   },
 
   task_index: {

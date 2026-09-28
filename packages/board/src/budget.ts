@@ -2,7 +2,8 @@
  * Execution budget (ADR-0005): the worker spends from the creator's Privy embedded wallet through the board's signer.
  *
  * - Privy enforces, per transaction, what the creator's policy allows: this chain, the budget token's `transfer`, no
- *   value, at most the cap, before the expiry. The policy is person-owned, so only the creator can widen it.
+ *   value, at most the cap, before the expiry. The policy is person-owned, so the board cannot widen it. It is never
+ *   edited: a change is a fresh policy that the creator's browser attaches the signer under (remove, then add).
  * - The board enforces what Privy cannot: the cumulative cap (the `budget_spends` ledger), that the caller is the
  *   job's activated worker, that the job is active and the core not paused, and revocation (immediate).
  * - Nothing is escrowed: spent is spent, the rest never left the creator's wallet.
@@ -13,7 +14,7 @@
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi, formatUnits, getAddress, isAddress, parseUnits, zeroAddress } from 'viem'
 import { budgetPolicyBody, budgetRuleName, type BudgetRuleInput } from './budget-policy.ts'
-import { PRIVY_API, PrivyApiError, type PrivyApp, privyFetch, signedPrivyFetch, verifyAccessToken } from './privy.ts'
+import { PrivyApiError, type PrivyApp, privyFetch, signedPrivyFetch, verifyAccessToken } from './privy.ts'
 import type { BudgetGrantRow, BudgetSpendRow, BudgetWalletRow, Sql, TaskRow } from './store.ts'
 import type { OfferTerms } from './terms.ts'
 
@@ -141,22 +142,33 @@ export class BudgetDesk {
     return s === undefined ? undefined : (s.override_policy_ids?.[0] ?? null)
   }
 
-  #policyRequest(policyId: string, body: { rules: unknown }) {
-    return { version: 1, method: 'PATCH' as const, url: `${PRIVY_API}/policies/${policyId}`, body, headers: { 'privy-app-id': this.#cfg().app.appId } }
-  }
+
 
   // ---------------------------------------------------------------------------------------------
   // Creator: grant, revoke
   // ---------------------------------------------------------------------------------------------
 
+  /** A fresh person-owned policy holding exactly these grants; never edited afterwards. */
+  async #freshPolicy(me: Address, did: string, grants: BudgetRuleInput[]): Promise<string> {
+    const body = budgetPolicyBody(me, grants, did)
+    const policy = await privyFetch<{ id: string }>(
+      this.#cfg().app,
+      { method: 'POST', path: '/policies', body, idempotencyKey: `aj-policy-${me.toLowerCase()}-${sdk.hashText(JSON.stringify(body)).slice(2, 18)}` },
+      this.#fetch(),
+    )
+    this.#deps.sql.run('UPDATE budget_wallets SET policy_id = ?, updated_at = ? WHERE address = ?', policy.id, this.#deps.now(), me.toLowerCase())
+    return policy.id
+  }
+
   /**
    * Step 1 of a grant, from the creator's browser with a Privy access token. Finds the creator's embedded wallet
-   * (it must be the signed-in wallet) and answers with the one browser action still needed:
-   * - `add-signer`: the board's signer is not on the wallet yet; a fresh person-owned policy holding every active
-   *   grant was created, and the browser adds the signer under it (`useSigners().addSigners`);
-   * - `sign-policy`: the signer is attached, the policy lacks this grant; the browser signs the exact PATCH
-   *   (`useAuthorizationSignature`) and passes the signature to `budget_grant_confirm`;
-   * - `confirm`: nothing to sign; call `budget_grant_confirm`.
+   * (it must be the signed-in wallet) and answers with the browser step still needed:
+   * - `add-signer`: the board's signer is not on the wallet; a fresh person-owned policy holding the live grants and
+   *   this one was created, and the browser adds the signer under it (`useSigners().addSigners`);
+   * - `replace-signer`: the signer is on the wallet under a policy without this grant; the same fresh policy, and the
+   *   browser removes the signer, then adds it under the new policy (Privy has one policy per signer);
+   * - `confirm`: the policy already holds this grant.
+   * Then `budget_grant_confirm`, which checks all of it at Privy.
    */
   async grantPrepare(me: Address, input: { taskId: string; privyAccessToken: string }) {
     const cfg = this.#cfg()
@@ -184,86 +196,48 @@ export class BudgetDesk {
     }
     const walletId = embedded.id
     this.#deps.sql.run(
-      `INSERT INTO budget_wallets (address, privy_user_id, wallet_id, policy_id, pending_json, updated_at) VALUES (?, ?, ?, NULL, NULL, ?)
+      `INSERT INTO budget_wallets (address, privy_user_id, wallet_id, policy_id, updated_at) VALUES (?, ?, ?, NULL, ?)
        ON CONFLICT (address) DO UPDATE SET privy_user_id = excluded.privy_user_id, wallet_id = excluded.wallet_id, updated_at = excluded.updated_at`,
       me.toLowerCase(), did, walletId, this.#deps.now(),
     )
-    const body = budgetPolicyBody(me, this.#activeGrants(me, st.ctx.deployment.chainId, input.taskId), did)
-    const wallet = await this.#privyWallet(walletId)
-    const attached = this.#attachedPolicy(wallet)
-    if (attached === undefined || attached === null) {
-      // No signer yet (or one without a policy, which the board never makes): a fresh policy, then addSigners.
-      const policy = await privyFetch<{ id: string }>(
-        cfg.app,
-        { method: 'POST', path: '/policies', body, idempotencyKey: `aj-policy-${me.toLowerCase()}-${sdk.hashText(JSON.stringify(body)).slice(2, 18)}` },
-        this.#fetch(),
-      )
-      this.#deps.sql.run('UPDATE budget_wallets SET policy_id = ?, pending_json = NULL, updated_at = ? WHERE address = ?', policy.id, this.#deps.now(), me.toLowerCase())
-      return {
-        step: 'add-signer' as const,
-        address: me,
-        walletId,
-        signerId: cfg.signerQuorumId,
-        policyId: policy.id,
-        next: 'In the browser: addSigners({address, signers: [{signerId, policyIds: [policyId]}]}), then budget_grant_confirm({taskId}).',
+    const attached = this.#attachedPolicy(await this.#privyWallet(walletId))
+    if (typeof attached === 'string') {
+      const policy = await privyFetch<PrivyPolicy>(cfg.app, { method: 'GET', path: `/policies/${attached}` }, this.#fetch())
+      if (policy.rules.some((r) => r.name === budgetRuleName(input.taskId))) {
+        this.#deps.sql.run('UPDATE budget_wallets SET policy_id = ?, updated_at = ? WHERE address = ?', attached, this.#deps.now(), me.toLowerCase())
+        return { step: 'confirm' as const, address: me, walletId, policyId: attached, next: 'budget_grant_confirm({taskId}).' }
       }
     }
-    const policy = await privyFetch<PrivyPolicy>(cfg.app, { method: 'GET', path: `/policies/${attached}` }, this.#fetch())
-    this.#deps.sql.run('UPDATE budget_wallets SET policy_id = ?, updated_at = ? WHERE address = ?', attached, this.#deps.now(), me.toLowerCase())
-    if (policy.rules.some((r) => r.name === budgetRuleName(input.taskId))) {
-      return { step: 'confirm' as const, address: me, walletId, policyId: attached, next: 'budget_grant_confirm({taskId}).' }
-    }
-    const patch = { rules: body.rules }
-    this.#deps.sql.run('UPDATE budget_wallets SET pending_json = ?, updated_at = ? WHERE address = ?', JSON.stringify(patch), this.#deps.now(), me.toLowerCase())
+    const policyId = await this.#freshPolicy(me, did, this.#activeGrants(me, st.ctx.deployment.chainId, input.taskId))
     return {
-      step: 'sign-policy' as const,
+      step: attached === undefined ? ('add-signer' as const) : ('replace-signer' as const),
       address: me,
       walletId,
-      policyId: attached,
-      authorizationRequest: this.#policyRequest(attached, patch),
-      next: 'In the browser: generateAuthorizationSignature(authorizationRequest), then budget_grant_confirm({taskId, authorizationSignature}).',
+      signerId: cfg.signerQuorumId,
+      policyId,
+      next:
+        attached === undefined
+          ? 'In the browser: addSigners({address, signers: [{signerId, policyIds: [policyId]}]}), then budget_grant_confirm({taskId}).'
+          : 'In the browser: removeSigners({address}), then addSigners({address, signers: [{signerId, policyIds: [policyId]}]}), then budget_grant_confirm({taskId}).',
     }
   }
 
-  /** Relays the creator's signed policy change, if any; returns whether the policy on the wallet now holds `taskId`. */
-  async #syncPolicy(me: Address, authorizationSignature: string | undefined): Promise<void> {
-    const cfg = this.#cfg()
-    const w = this.#wallet(me)
-    if (w === undefined || w.policy_id === null) throw this.#deps.fail('conflict', 'start with budget_grant_prepare')
-    if (authorizationSignature === undefined) return
-    if (w.pending_json === null) throw this.#deps.fail('conflict', 'no policy change is waiting for a signature')
-    try {
-      await privyFetch(
-        cfg.app,
-        { method: 'PATCH', path: `/policies/${w.policy_id}`, body: JSON.parse(w.pending_json) as unknown, signatures: [authorizationSignature] },
-        this.#fetch(),
-      )
-    } catch (e) {
-      if (e instanceof PrivyApiError) throw this.#deps.fail('forbidden', `Privy refused the policy change: ${e.body.slice(0, 200)}`)
-      throw e
-    }
-    this.#deps.sql.run('UPDATE budget_wallets SET pending_json = NULL, updated_at = ? WHERE address = ?', this.#deps.now(), me.toLowerCase())
-  }
-
-  /**
-   * Step 2 of a grant: relays the signed policy change, then checks at Privy that the board's signer is on the wallet
-   * under a policy holding this grant's rule. Only then is the grant live.
-   */
-  async grantConfirm(me: Address, input: { taskId: string; authorizationSignature?: string }) {
+  /** Step 2 of a grant: checks at Privy that the board's signer is on the wallet under a policy holding this grant. */
+  async grantConfirm(me: Address, input: { taskId: string }) {
     const cfg = this.#cfg()
     const st = await this.#deps.taskState(input.taskId)
     if (!eq(st.terms.creator, me)) throw this.#deps.fail('forbidden', 'only the creator grants the execution budget')
     const g = this.#endIfOver(this.#grant(input.taskId), st)
     if (g.status === 'ended' || g.status === 'revoked') throw this.#deps.fail('conflict', `this budget is ${g.status}`)
-    await this.#syncPolicy(me, input.authorizationSignature)
-    const w = this.#wallet(me) as BudgetWalletRow
+    const w = this.#wallet(me)
+    if (w === undefined) throw this.#deps.fail('conflict', 'start with budget_grant_prepare')
     const attached = this.#attachedPolicy(await this.#privyWallet(w.wallet_id))
     if (attached === undefined || attached === null) {
       throw this.#deps.fail('conflict', "the board's signer is not on your wallet yet: addSigners in the browser, then confirm again")
     }
     const policy = await privyFetch<PrivyPolicy>(cfg.app, { method: 'GET', path: `/policies/${attached}` }, this.#fetch())
     if (!policy.rules.some((r) => r.name === budgetRuleName(input.taskId))) {
-      throw this.#deps.fail('conflict', 'the policy on your wallet does not hold this budget yet: budget_grant_prepare again')
+      throw this.#deps.fail('conflict', 'the signer on your wallet is under a policy without this budget: replace it (budget_grant_prepare)')
     }
     if (g.status === 'promised') {
       this.#deps.sql.run("UPDATE budget_grants SET status = 'live', live_at = ? WHERE task_id = ? AND status = 'promised'", this.#deps.now(), input.taskId)
@@ -273,8 +247,8 @@ export class BudgetDesk {
   }
 
   /**
-   * The creator withdraws the budget. The board stops signing for it at once; the answer says how to take the rule
-   * off the wallet too (remove the signer when nothing else is live, else sign the smaller policy).
+   * The creator withdraws the budget. The board stops signing for it at once; the answer's `cleanup` says how to take
+   * the rule off the wallet too (remove the signer when nothing else is live, else re-attach it under a smaller policy).
    */
   async revoke(me: Address, input: { taskId: string }) {
     const st = await this.#deps.taskState(input.taskId)
@@ -286,26 +260,22 @@ export class BudgetDesk {
     return { ...(await this.getBudget(me, input)), next: 'The board no longer signs for this budget. Follow `cleanup` to take it off your wallet too.' }
   }
 
-  /** Relays a signed policy change prepared by `getBudget`'s cleanup (a smaller policy after a grant ended). */
-  async policySync(me: Address, input: { authorizationSignature: string }) {
-    await this.#syncPolicy(me, input.authorizationSignature)
-    return { ok: true }
-  }
-
-  /** What the creator should do on the wallet once grants end: nothing, remove the signer, or sign a smaller policy. */
+  /** What the creator should do on the wallet once grants end: nothing, remove the signer, or re-attach it under a smaller policy. */
   async #cleanup(me: Address, chainId: number) {
     const w = this.#wallet(me)
     if (w === undefined || this.#config === undefined) return null
     const attached = this.#attachedPolicy(await this.#privyWallet(w.wallet_id))
-    if (attached === undefined || attached === null) return null
+    if (typeof attached !== 'string') return null
     const active = this.#activeGrants(me, chainId)
-    if (active.length === 0) return { removeSigners: true as const, address: me, why: 'no budget of yours is active; remove the board’s signer from your wallet' }
+    if (active.length === 0) return { removeSigners: true as const, address: me, why: 'no budget of yours is active: remove the board’s signer from your wallet' }
     const policy = await privyFetch<PrivyPolicy>(this.#cfg().app, { method: 'GET', path: `/policies/${attached}` }, this.#fetch())
     const keep = new Set(active.map((a) => budgetRuleName(a.taskId)))
     if (policy.rules.every((r) => keep.has(r.name))) return null
-    const patch = { rules: budgetPolicyBody(me, active).rules }
-    this.#deps.sql.run('UPDATE budget_wallets SET pending_json = ?, updated_at = ? WHERE address = ?', JSON.stringify(patch), this.#deps.now(), me.toLowerCase())
-    return { authorizationRequest: this.#policyRequest(attached, patch), why: 'drop ended budgets from your policy, then budget_policy_sync({authorizationSignature})' }
+    const policyId = await this.#freshPolicy(me, w.privy_user_id, active)
+    return {
+      replaceSigner: { address: me, signerId: this.#cfg().signerQuorumId, policyId },
+      why: 'your wallet’s policy still allows ended budgets: removeSigners, then addSigners under this smaller policy',
+    }
   }
 
   // ---------------------------------------------------------------------------------------------

@@ -167,7 +167,7 @@ export class Board {
     return this.#budget.grantPrepare(this.#requireCaller(caller), input)
   }
 
-  budgetGrantConfirm(caller: Caller, input: { taskId: string; authorizationSignature?: string }) {
+  budgetGrantConfirm(caller: Caller, input: { taskId: string }) {
     return this.#budget.grantConfirm(this.#requireCaller(caller), input)
   }
 
@@ -181,10 +181,6 @@ export class Board {
 
   revokeBudget(caller: Caller, input: { taskId: string }) {
     return this.#budget.revoke(this.#requireCaller(caller), input)
-  }
-
-  budgetPolicySync(caller: Caller, input: { authorizationSignature: string }) {
-    return this.#budget.policySync(this.#requireCaller(caller), input)
   }
 
   #now(): number {

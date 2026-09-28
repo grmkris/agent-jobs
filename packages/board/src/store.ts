@@ -213,7 +213,6 @@ const SCHEMA = [
     privy_user_id TEXT NOT NULL,
     wallet_id TEXT NOT NULL,
     policy_id TEXT,
-    pending_json TEXT,
     updated_at INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS budget_grants (
@@ -376,8 +375,6 @@ export interface BudgetWalletRow {
   privy_user_id: string
   wallet_id: string
   policy_id: string | null
-  /** A policy PATCH waiting for the owner's authorization signature (the exact body the browser signs). */
-  pending_json: string | null
   updated_at: number
 }
 

@@ -111,11 +111,8 @@ class FakePrivy {
     if (pol !== null) {
       const p = this.policies.get(pol[1] as string)
       if (p === undefined) return json(404, { error: 'no policy' })
+      // Person-owned and never edited by the board: a change is a fresh policy.
       if (method === 'GET') return json(200, { id: pol[1], rules: p.rules })
-      // A person-owned policy: only the owner's authorization signature edits it (the browser's).
-      if (headers['privy-authorization-signature'] === undefined) return json(401, { error: 'owner signature required' })
-      p.rules = body?.rules as never
-      return json(200, { id: pol[1], rules: p.rules })
     }
     if (method === 'POST' && path === '/wallets/w1/rpc') {
       this.rpcCalls++
@@ -326,18 +323,21 @@ fork('execution budget on a testnet fork', () => {
     expect(privy.rpcCalls).toBe(calls)
   }, 300_000)
 
-  it('a second budget while the signer is attached asks the creator to sign the larger policy; expiry ends a grant', async () => {
+  it('a second budget while the signer is attached swaps it onto a fresh policy; expiry ends a grant', async () => {
     const sink = privateKeyToAccount(generatePrivateKey()).address
     const a = await activeHire('1', 900)
     const token = await privy.accessToken(await now())
+    const policiesBefore = privy.policies.size
     const first = await board.budgetGrantPrepare({ address: creator.address }, { taskId: a.taskId, privyAccessToken: token })
-    // The signer is still attached from the previous test (its budget is revoked): a new policy PATCH is needed.
-    expect(first.step).toBe('sign-policy')
-    const req = (first as { authorizationRequest: { method: string; body: { rules: Array<{ name: string }> } } }).authorizationRequest
-    expect(req.method).toBe('PATCH')
-    expect(req.body.rules.map((r) => r.name)).toEqual([`budget-${a.taskId}`])
-    await expect(board.budgetGrantConfirm({ address: creator.address }, { taskId: a.taskId })).rejects.toThrow('does not hold this budget')
-    const live = await board.budgetGrantConfirm({ address: creator.address }, { taskId: a.taskId, authorizationSignature: 'owner-signature' })
+    // The signer is still attached from the previous test, under a policy without this budget.
+    expect(first.step).toBe('replace-signer')
+    const { policyId, signerId } = first as { policyId: string; signerId: string }
+    expect(privy.policies.size).toBe(policiesBefore + 1)
+    // The fresh policy holds only this grant: the previous test's budget is revoked, the quote test's never granted.
+    expect(privy.policies.get(policyId)?.rules.map((r) => r.name)).toEqual([`budget-${a.taskId}`])
+    await expect(board.budgetGrantConfirm({ address: creator.address }, { taskId: a.taskId })).rejects.toThrow('without this budget')
+    privy.addSigner(signerId, policyId)
+    const live = await board.budgetGrantConfirm({ address: creator.address }, { taskId: a.taskId })
     expect(live.status).toBe('live')
     await board.spendBudget({ address: worker.address }, { taskId: a.taskId, to: sink, amount: '0.5' })
 
