@@ -55,6 +55,22 @@ contract EndToEndTest is Base {
         assertEq(factory.balanceOf(address(holding)), 0, "bonds returned");
     }
 
+    /// @dev Found live (testnet jobs 12, 34): a gas limit that covered the settlement but not the feedback call let the
+    ///      settlement succeed with the feedback silently starved. Such a limit now reverts, so estimation includes it.
+    function test_expensiveFeedback_tooLittleGasRevertsInsteadOfDroppingFeedback() public {
+        reputation.setMode(MockReputation.Mode.Expensive);
+        uint256 jobId = submittedJob();
+        vm.prank(creator);
+        (bool ok, bytes memory ret) = address(evaluator).call{gas: 420_000}(abi.encodeCall(JobsEvaluator.accept, (jobId)));
+        assertFalse(ok, "a starved feedback call is not a successful settlement");
+        assertEq(bytes4(ret), JobsEvaluator.FeedbackGasTooLow.selector);
+        assertEq(pay.balanceOf(worker), 0, "nothing moved");
+        vm.prank(creator);
+        evaluator.accept(jobId);
+        assertEq(reputation.calls(), 1, "with enough gas the expensive feedback is recorded");
+        assertEq(pay.balanceOf(worker), REWARD);
+    }
+
     function test_registryBurnsGasPaymentStillCompletes() public {
         reputation.setMode(MockReputation.Mode.BurnGas);
         uint256 jobId = submittedJob();

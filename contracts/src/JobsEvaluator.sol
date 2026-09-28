@@ -54,8 +54,9 @@ contract JobsEvaluator is EIP712 {
         "EvidenceAttestation(uint256 jobId,bytes32 submissionHash,bytes32 policyHash,bytes32 repo,bytes32 headSha,bytes32 testedSha,bytes32 checkRunsHash,uint8 conclusion,uint256 validUntil)"
     );
 
-    /// @dev Upper bound for the ERC-8004 feedback call. Monad charges the gas limit, so this is also a cost cap.
-    uint256 public constant FEEDBACK_GAS = 300_000;
+    /// @dev Upper bound for the ERC-8004 feedback call. Monad charges the gas limit, so this is also a cost cap. A
+    ///      first feedback for an agent costs ~270k on the testnet registry (cold storage), so the cap leaves margin.
+    uint256 public constant FEEDBACK_GAS = 400_000;
 
     enum Violation {
         None,
@@ -123,6 +124,8 @@ contract JobsEvaluator is EIP712 {
     event FeedbackFailed(uint256 indexed jobId, uint256 indexed agentId, bytes reason);
 
     error NotAdmin();
+    /// @dev The transaction's gas cannot cover the feedback call's full budget (see `_feedback`).
+    error FeedbackGasTooLow(uint256 left, uint256 needed);
     error NotApprover();
     error NotProvider();
     error NotArbitrator();
@@ -476,6 +479,11 @@ contract JobsEvaluator is EIP712 {
         if (address(reputation) == address(0)) return;
         uint256 agentId = core.getJob(jobId).providerAgentId;
         if (agentId == 0) return;
+        // A caller's gas limit must cover the whole feedback budget. Otherwise gas estimation settles on a limit at
+        // which the settlement succeeds and the feedback call, starved by the 63/64 rule, fails inside `try`: the
+        // worker is paid but its reputation entry is silently lost (found live, testnet jobs 12 and 34).
+        uint256 needed = FEEDBACK_GAS * 64 / 63 + 10_000;
+        if (gasleft() < needed) revert FeedbackGasTooLow(gasleft(), needed);
         try reputation.giveFeedback{gas: FEEDBACK_GAS}(agentId, value, 0, "agent-jobs", tag, "", "", bytes32(jobId)) {
             emit FeedbackRecorded(jobId, agentId, value, tag);
         } catch (bytes memory reason) {

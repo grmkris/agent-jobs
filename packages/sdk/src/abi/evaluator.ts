@@ -1186,6 +1186,22 @@ export const jobsEvaluatorAbi = [
   },
   {
     "type": "error",
+    "name": "FeedbackGasTooLow",
+    "inputs": [
+      {
+        "name": "left",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "needed",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidRuling",
     "inputs": []
   },

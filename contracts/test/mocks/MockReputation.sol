@@ -7,8 +7,11 @@ contract MockReputation {
     enum Mode {
         Ok,
         Revert,
-        BurnGas
+        BurnGas,
+        /// @dev Costs ~250k gas, like a first feedback for an agent on the real registry.
+        Expensive
     }
+    mapping(uint256 => uint256) internal sink;
 
     Mode public mode;
     uint256 public calls;
@@ -34,6 +37,9 @@ contract MockReputation {
         if (mode == Mode.Revert) revert("registry down");
         if (mode == Mode.BurnGas) {
             while (true) {}
+        }
+        if (mode == Mode.Expensive) {
+            for (uint256 i = 0; i < 6; i++) sink[uint256(keccak256(abi.encode(calls, i)))] = i + 1;
         }
         calls++;
         lastAgentId = agentId;
