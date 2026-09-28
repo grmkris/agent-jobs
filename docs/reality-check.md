@@ -296,3 +296,26 @@ Findings, each fixed in its own commit:
 - The click-through's contest scenario first polled entries as the worker, and `list_candidates` shows every entry
   only to the creator or approver. Fixed in the script.
 
+
+## 28 Sep: execution-budget spike, Privy session signer on Monad testnet (ADR-0005, Phase 0)
+
+`packages/board/scripts/budget-spike.ts`, a deliberate run. It used a throwaway Privy server wallet
+(`0x3C78797c…6234`, owned by a throwaway key quorum) standing in for a creator's embedded wallet. The board's signer is
+key quorum `groxbd3y…` (`packages/board/scripts/budget-signer-key.ts`), and its private key is in `.env.local` only.
+
+Authorization signatures are made with WebCrypto in `packages/board/src/privy.ts`, as RFC 8785 JSON, ECDSA P-256,
+low-S and DER. Offline, the payload is byte-identical to `@privy-io/node` 0.34's
+`formatRequestForAuthorizationSignature`, and both signatures verify under noble (`lowS`).
+
+| Check on eip155:10143 | Result |
+| :--- | :--- |
+| Policy with one budget rule (mUSD `transfer`, `transfer.amount lte 1`, chain `"10143"`, value 0, expiry) | accepted |
+| Wallet with the board quorum as `additional_signers` under that policy | accepted |
+| Board key alone sends 0.5 mUSD (`eth_sendTransaction`, gas paid by the wallet) | `0xc1fbb2a9`, ~1 s |
+| Same `privy-idempotency-key` again | same hash, no second send |
+| 1.5 mUSD (over the cap), `approve`, mEUR `transfer`, after the expiry | each `400 policy_violation` |
+| App secret without a signature on an owned wallet | `401` |
+| Owner-signed PATCH `additional_signers: []`, then the board key | removed; `401` |
+
+Still open, and gated to the Explore build: the embedded-wallet half (`addSigners` from the browser, and a
+person-owned policy edited with the user's `useAuthorizationSignature`). Policy names must be under 50 characters.
