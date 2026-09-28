@@ -317,8 +317,31 @@ low-S and DER. Offline, the payload is byte-identical to `@privy-io/node` 0.34's
 | App secret without a signature on an owned wallet | `401` |
 | Owner-signed PATCH `additional_signers: []`, then the board key | removed; `401` |
 
-Still open, and gated to the Explore build: the embedded-wallet half (`addSigners` from the browser, and a
-person-owned policy edited with the user's `useAuthorizationSignature`). Policy names must be under 50 characters.
+Correction, found later that day: this spike ran against **another project's Privy app**. `~/.config/secrets.env`
+exports a different `PRIVY_APP_ID` / `PRIVY_APP_SECRET`, and `bun --env-file` does not override variables that are
+already set. The Privy behaviour it proved still holds, and the live run below repeats it in the agent-jobs app. The
+scripts now read `.env.local` first. The board's signer is key quorum `x6p15aeo…`, in the agent-jobs app.
+
+## 28 Sep: execution budget live from an embedded wallet in a browser (ADR-0005, job 37)
+
+Kris's Privy email wallet `0x5884…b3E0` ran in a headless Chromium on netcup; Kris supplied only the email code. The
+worker was agent 1942 (the Claude campaign wallet), scripted through the board API.
+
+| Step | Proof | Result |
+| :--- | :--- | :--- |
+| Quote request from Explore (demo board); the worker quotes 5 mUSD plus declared costs of 2 mEUR | request `f7d21a06` | the quote lists the costs separately |
+| Pick in Explore with a 1.5 mEUR budget (less than asked); approve and publish from the Privy wallet | publish `0x43cb94c2` | job 37; the budget is in the terms, status "promised" |
+| Spend before the grant | — | refused by the board: not granted |
+| Select (EIP-712 via Privy), then the worker activates | activate `0x91665dfd` | active |
+| **Grant** in Explore: a fresh person-owned policy, then `addSigners` from the embedded wallet | policy `z3qhzyen…` | status **live**, confirmed at Privy |
+| Worker `spend_budget` 1 mEUR to itself | `0x82981ff0` | the wallet's mEUR went from 1000 to 999 |
+| Worker spends 1 mEUR more | — | refused by the board: "0.5 left of 1.5" |
+| The board key asks Privy directly for 2 mEUR, bypassing the board | — | refused by **Privy**: `400 policy_violation` |
+| Worker submits (`job/37-ci-badge` `44d73277`); then another spend | submit `0xeb2f5a99` | refused: the job is submitted, not active |
+| Approve and pay in Explore (Privy) | accept `0x43435001` | completed; the budget **ended** ("job completed") |
+| "Remove the signer" in Explore; the board key again | — | `additional_signers: []`; `401` |
+
+Policy names must be under 50 characters. An owner-signed policy PATCH stays unused and unproven.
 
 ## 28 Sep: testnet stacks redeployed with main's contracts (Phase 6)
 
