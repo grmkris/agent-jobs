@@ -69,6 +69,31 @@ describe('execution budget in the terms (ADR-0005)', () => {
   })
 })
 
+const bad = (deliverable: NonNullable<OfferTerms['deliverable']>, over: Partial<OfferTerms> = {}) => () =>
+  validateOffer(offer({ deliverable, ...over }), WINDOWS, NOW)
+
+describe('accepted deliverables in the terms (ADR-0006)', () => {
+  it('an offer without the field hashes as before and means git only', () => {
+    const o = offer()
+    expect(canonicalJson(o)).not.toContain('deliverable')
+    expect(termsHash({ ...o, deliverable: undefined } as unknown as OfferTerms)).toBe(termsHash(o))
+  })
+
+  it('the accepted kinds are bound into the terms hash and survive the manifest round trip', () => {
+    const o = offer({ deliverable: { accepts: ['git', 'artifact'], target: 'IPFS is fine' } })
+    expect(termsHash(o)).not.toBe(termsHash(offer()))
+    expect(termsHash(parseTerms(canonicalJson(o)))).toBe(termsHash(o))
+  })
+
+  it('refuses an empty or unknown list, and an evidence policy without git', () => {
+    expect(bad({ accepts: [] })).toThrow(TermsError)
+    expect(bad({ accepts: ['zip' as 'git'] })).toThrow(TermsError)
+    const policy = { checks: ['test'], trustedProducer: 'github-actions', workflowPath: '.github/workflows' }
+    expect(bad({ accepts: ['artifact'] }, { evidencePolicy: policy })).toThrow(/must accept git/)
+    expect(bad({ accepts: ['git', 'artifact'] }, { evidencePolicy: policy })).not.toThrow()
+  })
+})
+
 describe('offers (spec §1 "Offers")', () => {
   it('canonical JSON sorts keys and stringifies bigints', () => {
     expect(canonicalJson({ b: 2n, a: { d: 1, c: [3n] } })).toBe('{"a":{"c":["3"],"d":1},"b":"2"}')

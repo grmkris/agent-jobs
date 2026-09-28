@@ -5,6 +5,7 @@
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
 import { type Address, type Hex, keccak256, stringToHex } from 'viem'
+import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
 
 /** Named CI checks and the trusted producer an evidence attestation must cover. */
@@ -81,6 +82,11 @@ export interface OfferTerms {
   quote: { requestHash: Hex; quoteHash: Hex } | null
   /** Absent (not null) when there is none, so offers without a budget keep their terms hash. */
   executionBudget?: ExecutionBudget
+  /**
+   * The deliverable forms the creator accepts (ADR-0006). Absent (not null) means git only, so older offers keep
+   * their terms hash.
+   */
+  deliverable?: DeliverableSpec
   /** Distinguishes two publications of the same task (a retry is a new agreement, never a reused one). */
   salt: Hex
 }
@@ -124,7 +130,8 @@ export class TermsError extends Error {
       | 'invalid-deadlines'
       | 'invalid-amounts'
       | 'contest-worker-bond'
-      | 'invalid-budget',
+      | 'invalid-budget'
+      | 'invalid-deliverable',
     message: string,
   ) {
     super(message)
@@ -154,6 +161,13 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
     }
   } else if (offer.selectionDeadline !== null) {
     throw new TermsError('invalid-deadlines', 'A hire has no selection deadline.')
+  }
+  if (offer.deliverable !== undefined) {
+    const problem = validateSpec(offer.deliverable)
+    if (problem !== undefined) throw new TermsError('invalid-deliverable', `Deliverable: ${problem}.`)
+    if (offer.evidencePolicy !== null && !offer.deliverable.accepts.includes('git')) {
+      throw new TermsError('invalid-deliverable', 'An evidence policy reads CI checks on a commit, so the offer must accept git.')
+    }
   }
   const b = offer.executionBudget
   if (b !== undefined) {
