@@ -1,16 +1,17 @@
 import { type ReactNode, createContext, useContext, useState } from 'react'
-import { useAccount, useConnect, useDisconnect, useSignMessage } from 'wagmi'
+import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
 import { session, setSession, tool } from '../api.ts'
+import { FundButton } from './Fund.tsx'
 import { PrivyLogin, usePrivyLogout } from './Privy.tsx'
 import { Address, Button } from './ui.tsx'
 
-/** Connect an injected wallet, then sign in to the board with SIWE (one signature, no transaction). */
+/** Log in with Privy (email or social; an embedded wallet), then sign in to the board with SIWE (one signature). */
 export function useSignedIn() {
   const { address } = useAccount()
   const [token, setToken] = useState(session())
   const { signMessageAsync } = useSignMessage()
   const signIn = async () => {
-    if (address === undefined) throw new Error('connect a wallet first')
+    if (address === undefined) throw new Error('log in first')
     const { message } = await tool<{ message: string }>('auth_challenge', { address })
     const signature = await signMessageAsync({ message })
     const { session: s } = await tool<{ session: string }>('auth_login', { message, signature })
@@ -38,25 +39,15 @@ export function useAuth() {
 }
 
 export function WalletBar({ auth }: { auth: ReturnType<typeof useSignedIn> }) {
-  const { connectors, connect, isPending } = useConnect()
   const { disconnect } = useDisconnect()
   const privyLogout = usePrivyLogout()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  if (auth.address === undefined) {
-    const injected = connectors.find((c) => c.id !== 'privy')
-    return (
-      <div className="flex items-center gap-2">
-        <Button variant="outline" busy={isPending} disabled={injected === undefined} onClick={() => injected !== undefined && connect({ connector: injected })}>
-          Connect wallet
-        </Button>
-        <PrivyLogin />
-      </div>
-    )
-  }
+  if (auth.address === undefined) return <PrivyLogin />
   return (
     <div className="flex items-center gap-2">
       <Address value={auth.address} />
+      <FundButton address={auth.address} />
       {auth.signedIn ? (
         <Button variant="outline" onClick={() => { auth.signOut(); disconnect(); void privyLogout() }}>Sign out</Button>
       ) : (

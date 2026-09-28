@@ -1,5 +1,9 @@
 /**
- * Explore clicked through in a real browser against the staging site and Monad testnet (CP4). Playwright drives
+ * Explore clicked through in a real browser against the staging site and Monad testnet (CP4).
+ *
+ * NOTE (28 Sep): the site's sign-in is Privy only since then, so this script's injected key-backed wallet no longer
+ * has a "Connect wallet" button to press. It needs a Privy test account (email + fixed OTP from the Privy dashboard)
+ * to log in before it runs again; the flows below are unchanged. Playwright drives
  * Chromium; the page's wallet is an EIP-1193 provider injected into the page and backed by a testnet key in this
  * process, so every signature and transaction is real (nothing on the page is mocked). The other party is scripted
  * through the board API.

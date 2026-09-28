@@ -115,7 +115,7 @@ export function JobPage({ auth }: { auth: Auth }) {
       {auth.signedIn && task !== undefined && (
         <Actions taskId={task.taskId} status={status} mode={d?.job.mode ?? task.mode} roles={roles} />
       )}
-      {!auth.signedIn && <p className="text-sm text-neutral-500">Connect a wallet and sign in to act on this job (award, approve, reject, dispute, settle).</p>}
+      {!auth.signedIn && <p className="text-sm text-neutral-500">Log in and sign in to act on this job (award, approve, reject, dispute, settle).</p>}
     </div>
   )
 }

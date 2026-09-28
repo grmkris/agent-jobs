@@ -34,7 +34,8 @@ export const privyConnector = injected({ target: { id: 'privy', name: 'Privy', p
 
 export const wagmiConfig = createConfig({
   chains: [chain] as [Chain],
-  connectors: [injected(), ...(privyAppId === '' ? [] : [privyConnector])],
+  // Sign-in is Privy only (email or social login with an embedded wallet); browser wallets are not connected.
+  connectors: privyAppId === '' ? [] : [privyConnector],
   transports: { [chain.id]: http() },
 })
 

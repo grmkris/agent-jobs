@@ -3,14 +3,19 @@ import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { waitForTransactionReceipt } from 'wagmi/actions'
 import { type TxRequest, tool } from '../api.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
+import { usePrivyBatch } from './Privy.tsx'
 import { Button, TxLink } from './ui.tsx'
 
 /**
- * The transactions a board tool returned, as separate steps (switch network → approve → execute), each with its
- * own loader; every confirmed transaction is reported back so the board reconciles from the chain.
+ * The transactions a board tool returned. From the Privy embedded wallet, several go out as one EIP-7702 batch with
+ * one confirmation; otherwise (or on request) as separate steps (switch network → approve → execute), each with its
+ * own loader. Every confirmed transaction is reported back so the board reconciles from the chain.
  */
 export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxRequest[]; onDone: () => void }) {
-  const { chainId } = useAccount()
+  const { chainId, address } = useAccount()
+  const batch = usePrivyBatch(address)
+  const [oneByOne, setOneByOne] = useState(false)
+  const [batched, setBatched] = useState<string | null>(null)
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const [sent, setSent] = useState<string[]>([])
@@ -24,6 +29,44 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
       }}>
         Switch to {chain.name}
       </Button>
+    )
+  }
+  if (batch !== null && txs.length > 1 && !oneByOne) {
+    return (
+      <div className="space-y-2 text-sm">
+        <ol className="space-y-1 text-neutral-600">
+          {txs.map((tx, i) => <li key={`${tx.to}-${i}`}>{i + 1}. {tx.description}</li>)}
+        </ol>
+        {batched !== null ? (
+          <p className="flex items-center gap-2 text-emerald-700">✓ all {txs.length} in one transaction <TxLink hash={batched} /></p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              busy={busy === 0}
+              onClick={async () => {
+                setBusy(0)
+                setError(null)
+                try {
+                  const hash = await batch(txs)
+                  const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
+                  if (receipt.status !== 'success') throw new Error(`reverted: ${hash} (none of the steps happened)`)
+                  await tool('report_transaction', { taskId, txHash: hash })
+                  setBatched(hash)
+                  onDone()
+                } catch (e) {
+                  setError((e as Error).message.split('\n')[0] ?? 'failed')
+                } finally {
+                  setBusy(null)
+                }
+              }}
+            >
+              Confirm all {txs.length} as one transaction
+            </Button>
+            <button type="button" className="text-xs text-neutral-500 underline" onClick={() => setOneByOne(true)}>one at a time</button>
+          </div>
+        )}
+        {error !== null && <p className="text-xs text-red-600">{error}</p>}
+      </div>
     )
   }
   const next = sent.length

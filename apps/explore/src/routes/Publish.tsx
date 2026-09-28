@@ -30,7 +30,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 /**
- * Publish an offer from the browser wallet: the board freezes the offer and returns the approvals and the publish
+ * Publish an offer from the signed-in Privy wallet: the board freezes the offer and returns the approvals and the publish
  * transaction; Jev's advisory screening is shown before anything is signed. The reward is escrowed only when the
  * publish transaction confirms. Or ask for quotes: nothing is escrowed until a quote is picked.
  *
@@ -60,7 +60,7 @@ export function PublishPage({ auth }: { auth: Auth }) {
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<Created | null>(null)
 
-  if (!auth.signedIn) return <Card title="Publish"><p className="text-sm text-neutral-600">Connect a wallet and sign in to publish an offer.</p></Card>
+  if (!auth.signedIn) return <Card title="Publish"><p className="text-sm text-neutral-600">Log in and sign in to publish an offer.</p></Card>
 
   const submit = async () => {
     setBusy(true)

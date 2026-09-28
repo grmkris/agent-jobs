@@ -1,15 +1,17 @@
-import { PrivyProvider, usePrivy, useSigners, useWallets } from '@privy-io/react-auth'
+import * as sdk from '@agent-jobs/sdk'
+import { PrivyProvider, usePrivy, useSign7702Authorization, useSigners, useWallets } from '@privy-io/react-auth'
 import { type ReactNode, useEffect } from 'react'
-import type { EIP1193Provider } from 'viem'
+import { type EIP1193Provider, type Hex, createPublicClient, http, toHex } from 'viem'
 import { useAccount, useConnect } from 'wagmi'
-import { chain, privyAppId, setPrivyProvider } from '../wallet.ts'
+import type { TxRequest } from '../api.ts'
+import { chain, deployment, privyAppId, setPrivyProvider } from '../wallet.ts'
 import { Button } from './ui.tsx'
 
 /**
- * Email or social login (whatever the Privy dashboard enables: email, Google, X…) with a Privy embedded wallet, for
- * people without a browser wallet. Privy only creates and
- * holds the wallet; the app treats it like any other wallet (SIWE board sign-in, the same transaction steps). Absent
- * when the deploy has no PRIVY_APP_ID.
+ * The site's only sign-in: email or social login (whatever the Privy dashboard enables: email, Google, X…) with a
+ * Privy embedded wallet. Privy creates and holds the wallet; the app uses it for SIWE board sign-in, transaction
+ * steps (batched through EIP-7702) and the execution budget. People fund it from their own wallets. Absent when the
+ * deploy has no PRIVY_APP_ID (the site is then read-only).
  */
 /** The deploy's chain in Privy's shape (its type is stricter than viem's about optional fields). */
 const privyChain = {
@@ -60,9 +62,9 @@ function PrivyBridge() {
   return null
 }
 
-/** "Email / social" next to "Connect wallet"; renders nothing without Privy. */
+/** The only way in: Privy's login (email or social). Without a Privy app the site is read-only. */
 export function PrivyLogin() {
-  if (privyAppId === '') return null
+  if (privyAppId === '') return <span className="text-xs text-neutral-400">read-only</span>
   return <PrivyLoginButton />
 }
 
@@ -70,8 +72,8 @@ function PrivyLoginButton() {
   const { ready, authenticated, login } = usePrivy()
   if (authenticated) return null
   return (
-    <Button variant="outline" disabled={!ready} onClick={() => login()}>
-      Email / social
+    <Button disabled={!ready} onClick={() => login()}>
+      Log in
     </Button>
   )
 }
@@ -123,3 +125,42 @@ function usePrivyBudgetInner(address: string | undefined): PrivyBudget | null {
     },
   }
 }
+
+/**
+ * Several transactions as one from the Privy embedded wallet (EIP-7702): the first batch signs an authorization to
+ * the deployment's `Simple7702Account` and sends a type-4 transaction calling `executeBatch` on the wallet itself;
+ * later batches are plain calls to self. All or nothing, one confirmation. Null without Privy or for another wallet.
+ */
+export type BatchSend = (txs: TxRequest[]) => Promise<Hex>
+
+export function usePrivyBatch(address: string | undefined): BatchSend | null {
+  if (privyAppId === '') return null
+  // biome-ignore lint: the branch above is a build-time constant, so hook order never changes.
+  return usePrivyBatchInner(address)
+}
+
+const reads = createPublicClient({ chain, transport: http() })
+
+function usePrivyBatchInner(address: string | undefined): BatchSend | null {
+  const { authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  const { signAuthorization } = useSign7702Authorization()
+  const embedded = wallets.find((w) => w.walletClientType === 'privy')
+  if (!authenticated || embedded === undefined || address === undefined || embedded.address.toLowerCase() !== address.toLowerCase()) return null
+  const me = embedded.address as Hex
+  return async (txs) => {
+    const provider = (await embedded.getEthereumProvider()) as EIP1193Provider
+    const data = sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const })))
+    const delegate = deployment.batchDelegate
+    const current = await sdk.delegationOf(reads, me)
+    const request: Record<string, unknown> = { from: me, to: me, data, value: '0x0', chainId: toHex(chain.id) }
+    if (current === null || current.toLowerCase() !== delegate.toLowerCase()) {
+      const nonce = await reads.getTransactionCount({ address: me, blockTag: 'pending' })
+      const a = await signAuthorization({ contractAddress: delegate, chainId: chain.id, nonce: nonce + 1 }, { address: me })
+      request.type = '0x4'
+      request.authorizationList = [{ address: a.address, chainId: toHex(a.chainId), nonce: toHex(a.nonce), r: a.r, s: a.s, yParity: toHex(a.yParity) }]
+    }
+    return (await provider.request({ method: 'eth_sendTransaction', params: [request as never] })) as Hex
+  }
+}
+
