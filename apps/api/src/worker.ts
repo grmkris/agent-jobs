@@ -62,7 +62,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       SCREENING_BASE_URL: process.env.ARBITER_MODEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
-      SCREENING_MODEL: process.env.SCREENING_MODEL || 'meta/muse-spark-1.3',
+      SCREENING_MODEL: process.env.SCREENING_MODEL || 'anthropic/claude-haiku-4.5',
       AI_GATEWAY_API_KEY: Redacted.make(process.env.AI_GATEWAY_API_KEY || 'unset'),
       ATTESTER_PRIVATE_KEY: Redacted.make(process.env.ATTESTER_PRIVATE_KEY || 'unset'),
       RELAY_PRIVATE_KEY: Redacted.make(process.env.RELAY_PRIVATE_KEY || 'unset'),
