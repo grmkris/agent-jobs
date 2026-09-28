@@ -16,8 +16,8 @@ amendment). This file is the execution order and must agree with note 12 §9. Wo
   (`contracts/config/monad-testnet.json`, `monad-mainnet.json`), no address in code. Testnet differences:
   chain, faucet tokens (`FactoryToken` faucet, `mUSD`, `mEUR`) and the extra demo-window evaluator. The
   production config has no faucet, and a test proves it cannot enable one.
-- **Secrets** only in `.env.local` (template `.env.example`), pushed to Worker secrets by
-  `scripts/push-secrets.ts`. Never in git, logs, notes or commit messages.
+- **Secrets** only in `.env.local` (template `.env.example`), bound as Worker `secret_text` by the alchemy
+  deploy from the deploying shell (`apps/api/src/worker.ts`). Never in git, logs, notes or commit messages.
 - **Evidence tiers** (R114-04): credential → operation → end-to-end, recorded in `docs/reality-check.md`
   with a dated command or test. Planned, implemented/tested and live-verified are separate statuses.
 - **At most one economic effect** per operation (R114-07): durable operation records, reconciled against
@@ -38,7 +38,7 @@ path, then quotes, contests, arbiter, wallets) → **B3** (S4 + Explore) → **B
 
 Kris's go for one continuous push, CP1 → CP5, each ending in something he can test on testnet:
 
-- **CP1** S7 done → B1 testnet deploy, verified on Monadscan, plus `scripts/testnet/*` `cast` flows (hire, dispute
+- **CP1** S7 done → B1 testnet deploy, verified on Monadscan, plus live protocol flows (`packages/sdk/scripts/flows.ts`: hire, dispute
   and ruling, contest award, no-show burn, signed ruling) run once live with hashes in `docs/reality-check.md`.
 - **CP2** B2.1 first real path: SDK → API (staging Worker, S0 PUT removed) → MCP; a Claude Code worker with a
   `cast` wallet completes a testnet hire.
@@ -57,15 +57,15 @@ attester (job 8); Jev on the publish path; arbitration on the board (`list_dispu
 `prepare_ruling` with one decision per dispute, `submit_ruling` relayed, `arbiter_lease`), `apps/arbiter` and
 `skill/arbitrator`, each harness ruling one real dispute (jobs 9 and 10); quote-to-hire (job 11); the Privy server
 wallet's full lifecycle as a worker (agent 1940) and the MetaMask agent wallet's sign-only testnet lifecycle as a
-contest entrant (agent 1941, job 12: MetaMask cannot send on 10143). Open — the second real job
-(`scripts/reality-check.ts`) is delivered and accepted (job 14). Open — S8's R114-07 crash and lost-response tests
-beyond the contract refusals; a MetaMask transaction on mainnet 143.
+contest entrant (agent 1941, job 12: MetaMask cannot send on 10143); the second real job
+(`scripts/reality-check.ts`) delivered and accepted (job 14). S8's R114-07 tests closed overnight 28 Sep. Open — a
+MetaMask transaction on mainnet 143 (with B7).
 
 CP4 progress (27 Sep): done — `packages/indexer` + `apps/indexer` (HyperSync cron into D1, finalized blocks, lease,
 rewind guard, rebuild tests on the real logs), live on staging; `apps/explore` on staging (jobs with filters, job
 detail with both evidence labels, the dispute and outcome panel, party actions as wallet steps incl. early award);
-the demo-window evaluator is the `demo` stack. Open — Publish and worker-profile screens; Privy React sign-in (Explore
-uses an injected wallet today); clicking the wallet actions through in a real browser wallet.
+the demo-window evaluator is the `demo` stack. Publish and worker-profile screens and the browser click-through were
+closed overnight 28 Sep; Privy React sign-in is the one CP4 item left.
 
 Overnight 28 Sep (evidence in `docs/reality-check.md`): every lifecycle path live (coverage matrix, jobs 15–20);
 a multi-harness bounty campaign on five fresh public repos (Claude Code, Codex, Grok and a scripted adversary; jobs
@@ -78,9 +78,12 @@ regressions and its admin-trust finding in the runbook as a decision; CP5's Disp
 `dispatchPublisher` into the Cloudflare OS `gatekeeper-dispatch` package (its checkout is on the Mac), Privy React
 sign-in in Explore, S5 (CRE access), the B6a video, and everything on mainnet.
 
-S7 progress: done — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`, fork tests
-running. Open — violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`,
-evidence event fields, reason-aware feedback, `MockPaymentToken(name, symbol)`, genuine CRE receiver, deploy recipe.
+S7 progress: done (27 Sep) — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`,
+violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`, evidence event fields,
+reason-aware feedback, `MockPaymentToken(name, symbol)`, the CRE receiver code and the deploy recipe. Not deployed:
+the CRE receiver (S5, CRE access). 28 Sep: the bond token is any plain ERC-20 (a FACTORY launched elsewhere): slashes
+go to `0x…dEaD`, a fee-on-transfer token is refused, the recipe takes `factory.address`; testnet keeps the earlier
+bytecode.
 
 ## S7 Contracts v3 (R20, R114)
 
