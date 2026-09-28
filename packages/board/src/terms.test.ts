@@ -40,6 +40,35 @@ const offer = (over: Partial<OfferTerms> = {}): OfferTerms => ({
   ...over,
 })
 
+describe('execution budget in the terms (ADR-0005)', () => {
+  const budget = { token: A(7), cap: 2n * 10n ** 18n, expiresAt: NOW + 300 }
+
+  it('an offer without a budget hashes exactly as before (the key is absent, not null)', () => {
+    const o = offer()
+    expect(canonicalJson(o)).not.toContain('executionBudget')
+    expect(termsHash({ ...o, executionBudget: undefined } as unknown as OfferTerms)).toBe(termsHash(o))
+  })
+
+  it('a budget is bound into the terms hash and survives the manifest round trip', () => {
+    const o = offer({ executionBudget: budget })
+    expect(termsHash(o)).not.toBe(termsHash(offer()))
+    const back = parseTerms(canonicalJson(o))
+    expect(back.executionBudget).toEqual(budget)
+    expect(termsHash(back)).toBe(termsHash(o))
+    expect(termsHash(offer({ executionBudget: { ...budget, cap: budget.cap + 1n } }))).not.toBe(termsHash(o))
+  })
+
+  it('hire only, positive, expiring in the future and no later than the delivery deadline', () => {
+    expect(() => validateOffer(offer({ executionBudget: budget }), WINDOWS, NOW)).not.toThrow()
+    expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW + 600 } }), WINDOWS, NOW)).not.toThrow()
+    const contest = offer({ mode: 'contest', workerBond: 0n, selectionDeadline: NOW + 300, executionBudget: budget })
+    expect(() => validateOffer(contest, WINDOWS, NOW)).toThrow('Only a hire')
+    expect(() => validateOffer(offer({ executionBudget: { ...budget, cap: 0n } }), WINDOWS, NOW)).toThrow('positive')
+    expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW } }), WINDOWS, NOW)).toThrow('expires')
+    expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW + 601 } }), WINDOWS, NOW)).toThrow('expires')
+  })
+})
+
 describe('offers (spec §1 "Offers")', () => {
   it('canonical JSON sorts keys and stringifies bigints', () => {
     expect(canonicalJson({ b: 2n, a: { d: 1, c: [3n] } })).toBe('{"a":{"c":["3"],"d":1},"b":"2"}')

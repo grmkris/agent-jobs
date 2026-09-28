@@ -32,6 +32,19 @@ export interface OfferDefaults {
 
 export type OfferMode = 'hire' | 'contest'
 
+/**
+ * An execution budget (ADR-0005): what the creator approved for the worker's costs, apart from the reward. Nothing is
+ * escrowed: the worker spends from the creator's own wallet through the board's Privy signer, per transfer within
+ * Privy's policy and in total within the board's ledger, until `expiresAt`. Hire only.
+ */
+export interface ExecutionBudget {
+  token: Address
+  /** Base units of `token`. */
+  cap: bigint
+  /** Unix seconds; at most the delivery deadline. */
+  expiresAt: number
+}
+
 /** Where the offer is valid: the agreement is only ever with these contracts on this chain. */
 export interface DeploymentBinding {
   chainId: number
@@ -66,6 +79,8 @@ export interface OfferTerms {
   evidencePolicy: EvidencePolicy | null
   /** A quoted hire carries the request and the picked quote (R20 quote-to-hire). */
   quote: { requestHash: Hex; quoteHash: Hex } | null
+  /** Absent (not null) when there is none, so offers without a budget keep their terms hash. */
+  executionBudget?: ExecutionBudget
   /** Distinguishes two publications of the same task (a retry is a new agreement, never a reused one). */
   salt: Hex
 }
@@ -94,6 +109,9 @@ export function parseTerms(json: string): OfferTerms {
     reward: BigInt(raw.reward as string),
     creatorBond: BigInt(raw.creatorBond as string),
     workerBond: BigInt(raw.workerBond as string),
+    ...(raw.executionBudget === undefined
+      ? {}
+      : { executionBudget: { ...(raw.executionBudget as ExecutionBudget), cap: BigInt((raw.executionBudget as { cap: string }).cap) } }),
   }
 }
 
@@ -105,7 +123,8 @@ export class TermsError extends Error {
       | 'terms-hash-mismatch'
       | 'invalid-deadlines'
       | 'invalid-amounts'
-      | 'contest-worker-bond',
+      | 'contest-worker-bond'
+      | 'invalid-budget',
     message: string,
   ) {
     super(message)
@@ -135,6 +154,14 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
     }
   } else if (offer.selectionDeadline !== null) {
     throw new TermsError('invalid-deadlines', 'A hire has no selection deadline.')
+  }
+  const b = offer.executionBudget
+  if (b !== undefined) {
+    if (offer.mode !== 'hire') throw new TermsError('invalid-budget', 'Only a hire carries an execution budget.')
+    if (b.cap <= 0n) throw new TermsError('invalid-budget', 'An execution budget must be positive.')
+    if (b.expiresAt <= now || b.expiresAt > offer.deliveryDeadline) {
+      throw new TermsError('invalid-budget', 'An execution budget expires in the future and no later than the delivery deadline.')
+    }
   }
 }
 

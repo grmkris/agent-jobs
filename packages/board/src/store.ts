@@ -205,6 +205,41 @@ const SCHEMA = [
     runner TEXT NOT NULL,
     expires_at INTEGER NOT NULL
   )`,
+  // Execution budget (ADR-0005). One Privy policy per creator wallet whose rules are its live grants; the board's
+  // signer spends within them. `budget_spends` is the ledger that enforces each grant's cumulative cap: a row is
+  // written (reserved) before any money moves and reconciled from the chain afterwards.
+  `CREATE TABLE IF NOT EXISTS budget_wallets (
+    address TEXT PRIMARY KEY,
+    privy_user_id TEXT NOT NULL,
+    wallet_id TEXT NOT NULL,
+    policy_id TEXT,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS budget_grants (
+    task_id TEXT PRIMARY KEY,
+    creator TEXT NOT NULL,
+    token TEXT NOT NULL,
+    cap TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    live_at INTEGER,
+    ended_at INTEGER,
+    ended_reason TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS budget_spends (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    worker TEXT NOT NULL,
+    to_addr TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    note TEXT NOT NULL,
+    status TEXT NOT NULL,
+    tx_hash TEXT,
+    detail TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS mcp_sessions (
     id TEXT PRIMARY KEY,
     session TEXT NOT NULL
@@ -217,6 +252,8 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   // Which model and prompt produced a ruling (R114-08), when a harness reports them.
   ['rulings', 'model', 'TEXT'],
   ['rulings', 'prompt_version', 'TEXT'],
+  // A quote's declared execution costs, apart from its price (ADR-0005).
+  ['quotes', 'expected_costs_json', 'TEXT'],
 ]
 
 export function migrate(sql: Sql): void {
@@ -328,4 +365,44 @@ export interface QuoteRow {
   note: string
   quote_hash: string
   created_at: number
+  expected_costs_json: string | null
+}
+
+export type BudgetGrantStatus = 'promised' | 'live' | 'revoked' | 'ended'
+
+export interface BudgetWalletRow {
+  address: string
+  privy_user_id: string
+  wallet_id: string
+  policy_id: string | null
+  updated_at: number
+}
+
+export interface BudgetGrantRow {
+  task_id: string
+  creator: string
+  token: string
+  cap: string
+  expires_at: number
+  status: BudgetGrantStatus
+  created_at: number
+  live_at: number | null
+  ended_at: number | null
+  ended_reason: string | null
+}
+
+export type BudgetSpendStatus = 'reserved' | 'sent' | 'confirmed' | 'failed'
+
+export interface BudgetSpendRow {
+  id: string
+  task_id: string
+  worker: string
+  to_addr: string
+  amount: string
+  note: string
+  status: BudgetSpendStatus
+  tx_hash: string | null
+  detail: string | null
+  created_at: number
+  updated_at: number
 }

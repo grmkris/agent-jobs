@@ -40,7 +40,7 @@ import {
   type TaskRow,
   migrate,
 } from './store.ts'
-import { type OfferMode, type OfferTerms, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import { type ExecutionBudget, type OfferMode, type OfferTerms, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
 
 export class BoardError extends Error {
   constructor(
@@ -293,6 +293,11 @@ export class Board {
       stack?: sdk.StackName
       /** GitHub check names evidence must cover; they become the offer's evidence policy. */
       requiredChecks?: string[]
+      /**
+       * Hire only (ADR-0005): the worker may spend up to `cap` (decimal, in the token's units) of `token` from the
+       * creator's Privy wallet until `expiresAt` (default: the delivery deadline). Bound into the terms hash.
+       */
+      executionBudget?: { token: string; cap: string; expiresAt?: number }
     },
     /** Set only by `pickQuote`: the offer carries the request and the picked quote. */
     quote: { requestHash: Hex; quoteHash: Hex } | null = null,
@@ -309,6 +314,7 @@ export class Board {
       ctx.publicClient.getBlockNumber(),
     ])
     const windows = { reviewSeconds: review, disputeSeconds: dispute, arbitrationSeconds: arbitration }
+    const executionBudget = input.executionBudget === undefined ? undefined : await this.#executionBudget(ctx, input.executionBudget, input.deliveryDeadline)
     const taskId = randomId(8)
     const terms: OfferTerms = {
       v: 2,
@@ -341,6 +347,7 @@ export class Board {
           ? null
           : { checks: input.requiredChecks, trustedProducer: 'github-actions', workflowPath: '.github/workflows' },
       quote,
+      ...(executionBudget === undefined ? {} : { executionBudget }),
       salt: `0x${randomId(32)}`,
     }
     try {
@@ -366,6 +373,12 @@ export class Board {
       JSON.stringify(screening),
     )
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
+    if (executionBudget !== undefined) {
+      this.#sql.run(
+        "INSERT INTO budget_grants (task_id, creator, token, cap, expires_at, status, created_at) VALUES (?, ?, ?, ?, ?, 'promised', ?)",
+        taskId, creator, executionBudget.token, executionBudget.cap.toString(), executionBudget.expiresAt, this.#now(),
+      )
+    }
 
     const transactions = await this.#publishTransactions(ctx, creator, terms, hash as Hex)
     return {
@@ -431,6 +444,28 @@ export class Board {
     if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator publishes')
     if (task.job_id !== null || (await this.#recoverPublish(task)) !== null) throw new BoardError('conflict', `already published as job ${task.job_id}`)
     return { transactions: await this.#publishTransactions(this.#ctx(task.stack), me, parseTerms(task.terms_json), task.terms_hash as Hex) }
+  }
+
+  /** A requested budget as terms: an allowlisted token, the cap in its units, the expiry defaulting to the deadline. */
+  async #executionBudget(ctx: sdk.Ctx, b: { token: string; cap: string; expiresAt?: number }, deliveryDeadline: number): Promise<ExecutionBudget> {
+    const token = await this.#resolveToken(ctx, b.token)
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    let cap: bigint
+    try {
+      cap = parseUnits(b.cap, decimals)
+    } catch {
+      throw new BoardError('invalid', 'the execution budget cap must be a decimal number')
+    }
+    return { token, cap, expiresAt: b.expiresAt ?? deliveryDeadline }
+  }
+
+  /** A base-unit amount as people read it: the token's symbol and a decimal amount. */
+  async #displayAmount<T extends { token: Address; amount: string }>(ctx: sdk.Ctx, x: T): Promise<T & { symbol: string }> {
+    const [symbol, decimals] = await Promise.all([
+      ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+    ])
+    return { ...x, symbol, amount: formatUnits(BigInt(x.amount), decimals) }
   }
 
   async #resolveToken(ctx: sdk.Ctx, token: string): Promise<Address> {
@@ -762,7 +797,18 @@ export class Board {
   }
 
   /** A bidder's quote: one accepted token and an exact amount. A later quote from the same bidder replaces it. */
-  async submitQuote(caller: Caller, input: { requestId: string; agentId: string; token: string; amount: string; note?: string }) {
+  async submitQuote(
+    caller: Caller,
+    input: {
+      requestId: string
+      agentId: string
+      token: string
+      amount: string
+      note?: string
+      /** Optional (ADR-0005): what the work is expected to cost to run, in any allowlisted token; not part of the price. */
+      expectedCosts?: { token: string; amount: string; note?: string }
+    },
+  ) {
     const me = this.#requireCaller(caller)
     const req = this.#quoteRequest(input.requestId)
     if (req.task_id !== null) throw new BoardError('conflict', 'a quote was already picked')
@@ -781,13 +827,36 @@ export class Board {
       throw new BoardError('invalid', 'amount must be a decimal number')
     }
     if (amount <= 0n) throw new BoardError('invalid', 'the amount must be positive')
-    const quote = { requestHash: req.request_hash, worker: me, agentId: input.agentId, token, amount: amount.toString(), note: input.note ?? '' }
+    let expectedCosts: { token: Address; amount: string; note: string } | undefined
+    if (input.expectedCosts !== undefined) {
+      const costToken = await this.#resolveToken(ctx, input.expectedCosts.token)
+      const costDecimals = await ctx.publicClient.readContract({ address: costToken, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+      let cost: bigint
+      try {
+        cost = parseUnits(input.expectedCosts.amount, costDecimals)
+      } catch {
+        throw new BoardError('invalid', 'expected costs must be a decimal number')
+      }
+      if (cost <= 0n) throw new BoardError('invalid', 'expected costs must be positive (omit them for none)')
+      expectedCosts = { token: costToken, amount: cost.toString(), note: input.expectedCosts.note ?? '' }
+    }
+    // Declared costs enter the hash only when present, so a quote without them hashes as before.
+    const quote = {
+      requestHash: req.request_hash,
+      worker: me,
+      agentId: input.agentId,
+      token,
+      amount: amount.toString(),
+      note: input.note ?? '',
+      ...(expectedCosts === undefined ? {} : { expectedCosts }),
+    }
     const quoteHash = sdk.hashText(canonicalJson(quote))
     const id = randomId(8)
+    const costsJson = expectedCosts === undefined ? null : JSON.stringify(expectedCosts)
     this.#sql.run(
-      `INSERT INTO quotes (id, request_id, worker, agent_id, token, amount, note, quote_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (request_id, worker) DO UPDATE SET agent_id = excluded.agent_id, token = excluded.token, amount = excluded.amount, note = excluded.note, quote_hash = excluded.quote_hash, created_at = excluded.created_at`,
-      id, req.id, me, input.agentId, token, amount.toString(), quote.note, quoteHash, this.#now(),
+      `INSERT INTO quotes (id, request_id, worker, agent_id, token, amount, note, quote_hash, created_at, expected_costs_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (request_id, worker) DO UPDATE SET agent_id = excluded.agent_id, token = excluded.token, amount = excluded.amount, note = excluded.note, quote_hash = excluded.quote_hash, created_at = excluded.created_at, expected_costs_json = excluded.expected_costs_json`,
+      id, req.id, me, input.agentId, token, amount.toString(), quote.note, quoteHash, this.#now(), costsJson,
     )
     const [row] = this.#sql.all<QuoteRow>('SELECT * FROM quotes WHERE request_id = ? AND worker = ?', req.id, me)
     return { quoteId: row?.id ?? id, quoteHash, next: 'If the publisher picks your quote, the offer is published and you are selected; then prepare_activation.' }
@@ -806,7 +875,17 @@ export class Board {
         ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
         ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
       ])
-      out.push({ quoteId: q.id, worker: q.worker, agentId: q.agent_id, token: q.token, symbol, amount: formatUnits(BigInt(q.amount), decimals), note: q.note, quoteHash: q.quote_hash })
+      out.push({
+        quoteId: q.id,
+        worker: q.worker,
+        agentId: q.agent_id,
+        token: q.token,
+        symbol,
+        amount: formatUnits(BigInt(q.amount), decimals),
+        note: q.note,
+        expectedCosts: q.expected_costs_json === null ? null : await this.#displayAmount(ctx, JSON.parse(q.expected_costs_json) as { token: Address; amount: string; note: string }),
+        quoteHash: q.quote_hash,
+      })
     }
     return { requestId: req.id, requestHash: req.request_hash, picked: req.task_id, quotes: out }
   }
@@ -816,7 +895,18 @@ export class Board {
    * token and amount and both hashes, and the bidder's application is recorded. Then: send the publish transactions,
    * report_transaction, select_worker with the returned applicationId, submit_selection.
    */
-  async pickQuote(caller: Caller, input: { requestId: string; quoteId: string }) {
+  async pickQuote(
+    caller: Caller,
+    input: {
+      requestId: string
+      quoteId: string
+      /**
+       * The execution budget the creator approves (ADR-0005), possibly less than the worker declared. The token
+       * defaults to the declared costs' token, else the reward token; the expiry to the delivery deadline.
+       */
+      executionBudget?: { token?: string; cap: string; expiresAt?: number }
+    },
+  ) {
     const me = this.#requireCaller(caller)
     const req = this.#quoteRequest(input.requestId)
     if (!eq(req.creator, me)) throw new BoardError('forbidden', 'only the requester picks a quote')
@@ -844,6 +934,15 @@ export class Board {
         stack: req.stack as sdk.StackName,
         approver: r.approver,
         ...(r.requiredChecks.length === 0 ? {} : { requiredChecks: r.requiredChecks }),
+        ...(input.executionBudget === undefined
+          ? {}
+          : {
+              executionBudget: {
+                token: input.executionBudget.token ?? (q.expected_costs_json === null ? q.token : (JSON.parse(q.expected_costs_json) as { token: string }).token),
+                cap: input.executionBudget.cap,
+                ...(input.executionBudget.expiresAt === undefined ? {} : { expiresAt: input.executionBudget.expiresAt }),
+              },
+            }),
       },
       { requestHash: req.request_hash as Hex, quoteHash: q.quote_hash as Hex },
     )
@@ -1634,6 +1733,10 @@ export class Board {
         selectionDeadline: terms.selectionDeadline,
         requiredChecks: terms.evidencePolicy?.checks ?? [],
         quoted: terms.quote !== null,
+        executionBudget:
+          terms.executionBudget === undefined
+            ? null
+            : { token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt },
         termsHash: t.terms_hash,
         manifestUrl: `${this.#config.manifestBaseUrl}/${t.terms_hash}.json`,
         screening: { verdict: screening?.verdict ?? 'unscreened', reasons: screening?.reasons ?? [] },
@@ -1688,6 +1791,13 @@ export class Board {
       selectionDeadline: terms.selectionDeadline,
       termsHash: task.terms_hash,
       manifestUrl: `${this.#config.manifestBaseUrl}/${task.terms_hash}.json`,
+      executionBudget:
+        terms.executionBudget === undefined
+          ? null
+          : {
+              ...(await this.#displayAmount(this.#ctx(task.stack), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
+              expiresAt: terms.executionBudget.expiresAt,
+            },
       jobId: task.job_id,
       screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),
       chain: view,

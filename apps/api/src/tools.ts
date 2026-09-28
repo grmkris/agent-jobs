@@ -28,6 +28,18 @@ const str = (description: string) => ({ type: 'string', description })
 const num = (description: string) => ({ type: 'number', description })
 const taskId = { taskId: str('The board task id.') }
 
+const budgetSchema = (tokenHelp: string) => ({
+  type: 'object',
+  description:
+    'Optional execution budget (hire only): the worker may spend up to `cap` of `token` from your Privy wallet for running costs, apart from the reward. Nothing is escrowed; you grant it in Explore after publishing.',
+  properties: {
+    token: str(tokenHelp),
+    cap: str('Maximum total the worker may spend, in token units, e.g. "2".'),
+    expiresAt: num('Unix seconds; default and maximum: the delivery deadline.'),
+  },
+  required: ['cap'],
+})
+
 const s = (a: Record<string, unknown>, k: string) => a[k] as string
 const n = (a: Record<string, unknown>, k: string) => a[k] as number
 
@@ -115,6 +127,7 @@ export const tools: Record<string, Tool> = {
         selectionDeadline: num('Contest only: unix seconds, before the delivery deadline.'),
         approver: str('Optional: who judges the work (default you).'),
         stack: { type: 'string', enum: ['main', 'demo'], description: 'Testnet: "demo" uses minute-long windows.' },
+        executionBudget: budgetSchema('Budget token symbol or address (any reward token; required here).'),
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline', 'mode'],
     },
@@ -133,6 +146,9 @@ export const tools: Record<string, Tool> = {
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
+        ...(a.executionBudget === undefined
+          ? {}
+          : { executionBudget: a.executionBudget as { token: string; cap: string; expiresAt?: number } }),
       }),
   },
 
@@ -189,6 +205,17 @@ export const tools: Record<string, Tool> = {
         token: str('One of the accepted tokens (symbol or address).'),
         amount: str('Your price in token units, e.g. "12.5".'),
         note: str('Optional: approach, timing.'),
+        expectedCosts: {
+          type: 'object',
+          description:
+            'Optional: what running the work is expected to cost (models, compute, APIs), apart from your price. The publisher may approve an execution budget up to it, which you then spend with spend_budget.',
+          properties: {
+            token: str('Any reward token (symbol or address); may differ from the quote token.'),
+            amount: str('Expected total, in token units.'),
+            note: str('Optional: what the costs are.'),
+          },
+          required: ['token', 'amount'],
+        },
       },
       required: ['requestId', 'agentId', 'token', 'amount'],
     },
@@ -199,6 +226,7 @@ export const tools: Record<string, Tool> = {
         token: s(a, 'token'),
         amount: s(a, 'amount'),
         ...(a.note === undefined ? {} : { note: s(a, 'note') }),
+        ...(a.expectedCosts === undefined ? {} : { expectedCosts: a.expectedCosts as { token: string; amount: string; note?: string } }),
       }),
   },
 
@@ -213,10 +241,21 @@ export const tools: Record<string, Tool> = {
       'Publisher: pick one quote (no automatic lowest bid). Freezes the ordinary escrow-backed offer at the quoted token and amount, carrying the request and quote hashes, and records the bidder’s application. Then send the transactions, report_transaction, select_worker({taskId, applicationId}), submit_selection.',
     inputSchema: {
       type: 'object',
-      properties: { requestId: str('The quote request id.'), quoteId: str('From list_quotes.') },
+      properties: {
+        requestId: str('The quote request id.'),
+        quoteId: str('From list_quotes.'),
+        executionBudget: budgetSchema("Budget token; default the quote's declared cost token, else its reward token."),
+      },
       required: ['requestId', 'quoteId'],
     },
-    run: (board, caller, a) => board.pickQuote(caller, { requestId: s(a, 'requestId'), quoteId: s(a, 'quoteId') }),
+    run: (board, caller, a) =>
+      board.pickQuote(caller, {
+        requestId: s(a, 'requestId'),
+        quoteId: s(a, 'quoteId'),
+        ...(a.executionBudget === undefined
+          ? {}
+          : { executionBudget: a.executionBudget as { token?: string; cap: string; expiresAt?: number } }),
+      }),
   },
 
   task_index: {
