@@ -23,6 +23,11 @@ export interface Deployment {
   /** Allowlisted reward tokens: the faucet tokens on testnet (`mUSD`, `mEUR`), USDC on mainnet. */
   readonly rewardTokens: readonly Address[]
   readonly stacks: Readonly<Partial<Record<StackName, Stack>>>
+  /**
+   * Earlier pairs replaced by a stacks-only redeploy (`script/DeployStacks.s.sol`), by name (`main-v1`): jobs
+   * published on them stay there, so readers keep serving them. New offers go to `stacks` only.
+   */
+  readonly legacyStacks: Readonly<Record<string, Stack>>
   readonly identity: Address
   readonly reputation: Address
   readonly arbitrator: Address
@@ -44,6 +49,7 @@ interface ConfigFile {
     rewardTokens?: string[]
     main?: { holding: string; evaluator: string }
     demo?: { holding: string; evaluator: string }
+    legacy?: Record<string, { holding: string; evaluator: string }>
   }
 }
 
@@ -77,6 +83,9 @@ export function deployment(network: Network): Deployment {
     factory: d.factory as Address,
     rewardTokens: (d.rewardTokens ?? []) as Address[],
     stacks,
+    legacyStacks: Object.fromEntries(
+      Object.entries(d.legacy ?? {}).map(([name, s]) => [name, { holding: s.holding as Address, evaluator: s.evaluator as Address }]),
+    ),
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
     arbitrator: c.roles.arbitrator as Address,
@@ -95,4 +104,17 @@ export function stack(d: Deployment, name: StackName): Stack {
   const s = d.stacks[name]
   if (s === undefined) throw new Error(`${d.network} has no "${name}" stack`)
   return s
+}
+
+/** Every pair on the network, current and legacy, by name: what a reader of past jobs must know. */
+export function allStacks(d: Deployment): Array<[name: string, stack: Stack]> {
+  const out: Array<[string, Stack]> = []
+  for (const [name, s] of Object.entries(d.stacks)) if (s !== undefined) out.push([name, s])
+  for (const [name, s] of Object.entries(d.legacyStacks)) out.push([name, s])
+  return out
+}
+
+/** The pair (current or legacy) whose Holding is `holding`, with its name; undefined for an unknown address. */
+export function stackByHolding(d: Deployment, holding: string): [name: string, stack: Stack] | undefined {
+  return allStacks(d).find(([, s]) => s.holding.toLowerCase() === holding.toLowerCase())
 }

@@ -39,8 +39,8 @@ export interface Contracts {
 export function contractsOf(network: sdk.Network): Contracts {
   const d = sdk.deployment(network)
   const roles = new Map<string, { role: Role; stack: string | null }>([[d.core.toLowerCase(), { role: 'core', stack: null }]])
-  for (const [name, s] of Object.entries(d.stacks)) {
-    if (s === undefined) continue
+  // Legacy pairs too: jobs published before a stacks-only redeploy keep emitting there (same events and ABI).
+  for (const [name, s] of sdk.allStacks(d)) {
     roles.set(s.holding.toLowerCase(), { role: 'holding', stack: name })
     roles.set(s.evaluator.toLowerCase(), { role: 'evaluator', stack: name })
   }

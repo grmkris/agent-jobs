@@ -6,7 +6,7 @@
 import { type Account, type Chain, createPublicClient, createWalletClient, http } from 'viem'
 import { monad, monadTestnet } from 'viem/chains'
 import type { Ctx, Wallet } from './actions.ts'
-import { type Network, type StackName, deployment, stack } from './deployment.ts'
+import { type Network, type Stack, type StackName, deployment, stack } from './deployment.ts'
 
 export const chains: Record<Network, Chain> = { 'monad-testnet': monadTestnet, 'monad-mainnet': monad }
 
@@ -42,6 +42,11 @@ export function context(network: Network, stackName: StackName, rpcUrl: string):
     deployment: d,
     stack: stack(d, stackName),
   }
+}
+
+/** A context on any pair of the network, e.g. a legacy one (`stackByHolding`). */
+export function contextFor(network: Network, s: Stack, rpcUrl: string): Ctx {
+  return { publicClient: createPublicClient({ chain: chains[network], transport: transport(rpcUrl) }), deployment: deployment(network), stack: s }
 }
 
 export function wallet(network: Network, account: Account, rpcUrl: string): Wallet {

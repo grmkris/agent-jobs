@@ -55,7 +55,7 @@ export const tools: Record<string, Tool> = {
         paused: await board.paused().catch(() => null),
         chainId: d.chainId,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
-        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, identity: d.identity, reputation: d.reputation },
+        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation },
         rewardTokens: d.rewardTokens,
         howTo: {
           signIn: 'auth_challenge({address}) → sign the message (cast wallet sign "<message>") → auth_login({message, signature}).',

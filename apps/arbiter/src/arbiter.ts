@@ -66,10 +66,10 @@ export async function arbitrateOnce(deps: ArbiterDeps): Promise<{ lease: boolean
 async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: (m: string) => void): Promise<Outcome> {
   if (now() >= d.arbitrationEndsAt) return { taskId: d.taskId, result: 'skipped', why: 'the window has closed' }
   const { bundle, bundleHash } = await deps.board.call<{ bundle: DisputeBundle; bundleHash: Hex }>('get_dispute_bundle', { taskId: d.taskId })
-  const stack = sdk.deployment(deps.network).stacks[bundle.stack as sdk.StackName]
-  if (stack === undefined) return { taskId: d.taskId, result: 'skipped', why: `unknown stack ${bundle.stack}` }
+  // The evaluator must be one of this network's pairs, current or legacy (a job stays on the pair it was published on).
+  const stack = sdk.allStacks(sdk.deployment(deps.network)).find(([, s]) => s.evaluator.toLowerCase() === bundle.evaluator.toLowerCase())?.[1]
   const chainId = sdk.deployment(deps.network).chainId
-  if (bundle.chainId !== chainId || bundle.evaluator.toLowerCase() !== stack.evaluator.toLowerCase()) {
+  if (stack === undefined || bundle.chainId !== chainId) {
     return { taskId: d.taskId, result: 'skipped', why: 'the bundle names another chain or evaluator' }
   }
   if (bundle.arbitrator.toLowerCase() !== deps.account.address.toLowerCase()) {

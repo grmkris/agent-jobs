@@ -135,12 +135,23 @@ library Recipe {
             d.core.setPaymentTokenAllowed(d.rewardTokens[i], true);
         }
 
-        d.holdings = new JobHolding[](n);
-        d.evaluators = new JobsEvaluator[](n);
+        (d.holdings, d.evaluators) = deployStacks(c, d.core, d.factory);
+    }
+
+    /// @notice One `JobHolding` + `JobsEvaluator` pair per configured window set, against an existing core and bond
+    ///         token, each evaluator with the attester registered as verifier. Used by `deploy` and, to replace the
+    ///         pairs alone (the core, tokens and jobs stay), by `script/DeployStacks.s.sol`.
+    function deployStacks(Config memory c, ERC8183WithAuthorization core, IERC20 factory)
+        internal
+        returns (JobHolding[] memory holdings, JobsEvaluator[] memory evaluators)
+    {
+        uint256 n = c.stackNames.length;
+        holdings = new JobHolding[](n);
+        evaluators = new JobsEvaluator[](n);
         for (uint256 i; i < n; ++i) {
-            JobHolding holding = new JobHolding(d.core, d.factory, c.identity, c.minHoldToPublish, c.minHoldToClaim);
+            JobHolding holding = new JobHolding(core, factory, c.identity, c.minHoldToPublish, c.minHoldToClaim);
             JobsEvaluator evaluator = new JobsEvaluator(
-                d.core,
+                core,
                 holding,
                 c.reputation,
                 c.arbitrator,
@@ -151,8 +162,8 @@ library Recipe {
             );
             holding.setEvaluator(address(evaluator));
             evaluator.setVerifier(c.attester, true);
-            d.holdings[i] = holding;
-            d.evaluators[i] = evaluator;
+            holdings[i] = holding;
+            evaluators[i] = evaluator;
         }
     }
 

@@ -7,6 +7,10 @@ import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
 import {EvidenceReceiver} from "../../src/EvidenceReceiver.sol";
 import {FactoryToken} from "../../src/FactoryToken.sol";
 import {Recipe} from "../../script/Recipe.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC8183WithAuthorization} from "../../src/vendor/erc8183/ERC8183WithAuthorization.sol";
+import {JobHolding} from "../../src/JobHolding.sol";
+import {JobsEvaluator} from "../../src/JobsEvaluator.sol";
 
 /// @dev The deployment recipe against a fork of each network with its committed config (spec S7 item 4). Nothing is
 ///      broadcast. Skipped unless MONAD_TESTNET_RPC_URL / MONAD_MAINNET_RPC_URL are set.
@@ -45,6 +49,31 @@ contract DeployForkTest is Test {
         }
         assertGt(address(c.identity).code.length, 0, "identity registry exists on this chain");
         assertGt(address(c.reputation).code.length, 0, "reputation registry exists on this chain");
+    }
+
+    /// @dev The stacks-only redeploy (script/DeployStacks.s.sol): new pairs against the deployed core and FACTORY,
+    ///      wired like the recipe's, while the recorded pairs keep their evaluators.
+    function test_fork_testnetStacksOnly() public {
+        if (!_fork("MONAD_TESTNET_RPC_URL")) return vm.skip(true);
+        Recipe.Config memory c = Recipe.load(vm, "monad-testnet");
+        string memory json = vm.readFile(Recipe.path(vm, "monad-testnet"));
+        ERC8183WithAuthorization core = ERC8183WithAuthorization(vm.parseJsonAddress(json, ".deployment.core"));
+        IERC20 factory = IERC20(vm.parseJsonAddress(json, ".deployment.factory"));
+        JobHolding oldMain = JobHolding(vm.parseJsonAddress(json, ".deployment.main.holding"));
+        address oldEvaluator = oldMain.evaluator();
+        vm.startBroadcast(c.admin);
+        (JobHolding[] memory holdings, JobsEvaluator[] memory evaluators) = Recipe.deployStacks(c, core, factory);
+        vm.stopBroadcast();
+        assertEq(holdings.length, 2);
+        for (uint256 i; i < holdings.length; ++i) {
+            assertEq(address(holdings[i].core()), address(core));
+            assertEq(address(holdings[i].factory()), address(factory));
+            assertEq(holdings[i].evaluator(), address(evaluators[i]));
+            assertTrue(evaluators[i].verifiers(c.attester));
+            assertEq(evaluators[i].reviewWindow(), c.reviewWindows[i]);
+            assertTrue(address(holdings[i]) != address(oldMain));
+        }
+        assertEq(oldMain.evaluator(), oldEvaluator, "the recorded pair is untouched");
     }
 
     function test_fork_testnetRecipe() public {
