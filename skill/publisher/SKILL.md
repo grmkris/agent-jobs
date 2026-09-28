@@ -23,7 +23,9 @@ someone else) judges the work. The board never holds your key: it returns unsign
 
 1. `protocol_info`, then sign in (`auth_challenge` → sign → `auth_login`).
 2. `create_task({title, brief, acceptanceCriteria, token, reward, creatorBond, workerBond, deliveryDeadline, mode})`
-   → send the returned approvals and `publish` in order → `report_transaction` with the publish hash.
+   → send the returned approvals and `publish` in order → `report_transaction` with the publish hash. Or send
+   them as one EIP-7702 batch (all or nothing) through `protocol_info.contracts.batchDelegate`: see
+   `howTo.batch` there (`cast send <you> "executeBatch(...)" … --auth <batchDelegate>` the first time).
    `get_task` must show `chain.listingMatchesOffer: true`: the reward is now escrowed on-chain.
 3. `list_applications` → `select_worker({taskId, applicationId})` → sign `sign.typedData` →
    `submit_selection({taskId, nonce, signature})`. Nothing binds the worker until its own `activate`.

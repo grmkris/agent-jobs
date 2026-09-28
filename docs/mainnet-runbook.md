@@ -76,6 +76,16 @@ The first real job also needs a creator wallet with USDC (reward) and a little M
 
 Check: `node --experimental-strip-types scripts/reality-check.ts`. The "Mainnet readiness" row must list non-zero balances.
 
+### Before the mainnet deploy: signature checks for delegated wallets
+
+OZ's `SignatureChecker` consults only ERC-1271 once a signer has code, and a 7702-delegated EOA has code. Our own
+batches use `Simple7702Account`, whose ERC-1271 accepts the account's raw ECDSA signature, so they work (proven,
+testnet job 48). A wallet delegated to an account whose ERC-1271 wraps hashes (ERC-7739 style) would fail the
+Selection, budget/submit authorizations, rulings and evidence. Before the fresh mainnet deploy, switch those four
+checks (`JobHolding.sol` selection, `ERC8183WithAuthorization.sol` authorizations, `JobsEvaluator.sol` ruling and
+evidence) to ecrecover-first, then ERC-1271 (Solady's order), with 7702 tests (`vm.signDelegation`). It changes the
+vendored core, so record the patch next to the vendor pin in `contracts/SURFACE.md`.
+
 ## 3. Deploy and verify [tx]
 
 From `contracts/`:
