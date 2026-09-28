@@ -3,13 +3,19 @@
  * Appends BUDGET_SIGNER_QUORUM_ID and BUDGET_SIGNER_PRIVATE_KEY to .env.local and prints only the quorum id; the
  * private half is never logged. Run once per Privy app; a re-run makes a new quorum (every grant must be re-added).
  *
- *   node --env-file=.env.local packages/board/scripts/budget-signer-key.ts
+ *   bun packages/board/scripts/budget-signer-key.ts   (from the repo root; reads .env.local itself)
  */
 import { appendFileSync, readFileSync } from 'node:fs'
 import { generateAuthorizationKey, privyFetch } from '../src/privy.ts'
 
-const appId = process.env.PRIVY_APP_ID
-const appSecret = process.env.PRIVY_APP_SECRET
+/** `.env.local` wins over the shell: ~/.config/secrets.env exports another project's PRIVY_APP_ID (found 28 Sep). */
+function fromEnvLocal(name: string): string | undefined {
+  const line = readFileSync('.env.local', 'utf8').split('\n').find((l) => l.startsWith(`${name}=`))
+  return line?.slice(name.length + 1).trim() || process.env[name]
+}
+
+const appId = fromEnvLocal('PRIVY_APP_ID')
+const appSecret = fromEnvLocal('PRIVY_APP_SECRET')
 if (!appId || !appSecret) throw new Error('PRIVY_APP_ID and PRIVY_APP_SECRET are required')
 if (readFileSync('.env.local', 'utf8').includes('BUDGET_SIGNER_QUORUM_ID=')) throw new Error('.env.local already has a budget signer')
 

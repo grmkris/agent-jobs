@@ -9,16 +9,19 @@
  *   6. once the owner removes the signer, the board key is refused.
  * A deliberate live run (it sends testnet transactions), never a task.
  *
- *   bun --env-file=.env.local packages/board/scripts/budget-spike.ts
+ *   bun packages/board/scripts/budget-spike.ts   (from the repo root; reads .env.local itself)
  */
+import { readFileSync } from 'node:fs'
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi, parseEther, parseUnits } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { budgetPolicyBody } from '../src/budget-policy.ts'
 import { PrivyApiError, authorizationSignature, generateAuthorizationKey, PRIVY_API, privyFetch, signedPrivyFetch } from '../src/privy.ts'
 
+const local = readFileSync('.env.local', 'utf8').split('\n')
+/** `.env.local` wins over the shell: ~/.config/secrets.env exports another project's PRIVY_APP_ID (found 28 Sep). */
 const env = (n: string) => {
-  const v = process.env[n]
+  const v = local.find((l) => l.startsWith(`${n}=`))?.slice(n.length + 1).trim() || process.env[n]
   if (v === undefined || v === '') throw new Error(`${n} is not set`)
   return v
 }
