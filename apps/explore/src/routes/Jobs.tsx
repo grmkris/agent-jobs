@@ -1,3 +1,4 @@
+import { useAuth } from '../components/Wallet.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
@@ -45,11 +46,14 @@ export function Jev({ verdict }: { verdict: string | undefined }) {
 
 export function JobsPage() {
   const { items, index, loading, error } = useJobs()
+  const { address } = useAuth()
   const [stack, setStack] = useState('all')
   const [mode, setMode] = useState('all')
   const [bondOnly, setBondOnly] = useState(false)
   const [verdict, setVerdict] = useState('all')
   const shown = items.filter((i) => {
+    // An offer never published is a draft: nothing is escrowed, so only its creator sees it here.
+    if (i.jobId === null && (address === undefined || i.task?.creator.toLowerCase() !== address.toLowerCase())) return false
     const s = i.chain?.stack ?? i.task?.stack
     const m = i.chain?.mode ?? i.task?.mode
     const wb = i.chain?.worker_bond ?? i.task?.workerBond ?? '0'

@@ -28,7 +28,9 @@ export function PrivyRoot({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={privyAppId}
       config={{
-        embeddedWallets: { ethereum: { createOnLogin: 'users-without-wallets' } },
+        // Every user gets an embedded wallet, including one who logs in with an external wallet: the site acts only
+        // through the embedded wallet (PrivyBridge connects nothing else), so an external wallet is at most a login.
+        embeddedWallets: { ethereum: { createOnLogin: 'all-users' } },
         defaultChain: privyChain,
         supportedChains: [privyChain],
       }}
