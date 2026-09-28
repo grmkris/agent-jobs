@@ -254,6 +254,13 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   ['rulings', 'prompt_version', 'TEXT'],
   // A quote's declared execution costs, apart from its price (ADR-0005).
   ['quotes', 'expected_costs_json', 'TEXT'],
+  // Deliverables anywhere (ADR-0006): the descriptor and the one-time submission check. Legacy rows are git.
+  ['deliverables', 'kind', 'TEXT'],
+  ['deliverables', 'descriptor_json', 'TEXT'],
+  ['deliverables', 'check_json', 'TEXT'],
+  ['candidates', 'kind', 'TEXT'],
+  ['candidates', 'descriptor_json', 'TEXT'],
+  ['candidates', 'check_json', 'TEXT'],
 ]
 
 export function migrate(sql: Sql): void {
@@ -306,6 +313,9 @@ export interface CandidateRow {
   repo: string
   branch: string
   sha: string
+  kind: string | null
+  descriptor_json: string | null
+  check_json: string | null
   deadline: number
   budget_nonce: string
   submit_nonce: string

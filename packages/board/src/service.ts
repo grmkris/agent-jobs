@@ -43,6 +43,19 @@ import {
   migrate,
 } from './store.ts'
 import { type ExecutionBudget, type OfferMode, type OfferTerms, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import {
+  type Deliverable,
+  type DeliverableCheck,
+  type DeliverableSpec,
+  DELIVERABLE_KINDS,
+  DeliverableError,
+  checkDeliverable,
+  deliverableHash as hashDeliverable,
+  legacyColumns,
+  parseDeliverable,
+  specOf,
+  validateSpec,
+} from './deliverable.ts'
 
 export class BoardError extends Error {
   constructor(
@@ -63,6 +76,8 @@ export interface BoardConfig {
   /** Where manifests are publicly readable: `${manifestBaseUrl}/${termsHash}.json`. */
   readonly manifestBaseUrl: string
   readonly now?: () => number
+  /** Used for the one-time submission check of a deliverable (ADR-0006); defaults to the global fetch. */
+  readonly fetch?: typeof fetch
   /**
    * The attester (spec §5): a registered verifier key that signs evidence about GitHub check runs, the relay that
    * sends `attachEvidence` (it holds no authority: the evaluator checks the attester's signature), and the GitHub
@@ -135,6 +150,24 @@ function typedDataJson(domain: Record<string, unknown>, types: Record<string, un
   )
 }
 
+/** The spec as frozen into terms: kinds de-duplicated in canonical order, an empty target dropped. */
+function normalSpec(spec: DeliverableSpec): DeliverableSpec {
+  const problem = validateSpec(spec)
+  if (problem !== undefined) throw new BoardError('invalid', `deliverable: ${problem}`)
+  const target = spec.target?.trim()
+  return {
+    accepts: DELIVERABLE_KINDS.filter((k) => (spec.accepts as readonly string[]).includes(k)),
+    ...(target === undefined || target === '' ? {} : { target }),
+  }
+}
+
+/** A recorded deliverable as read back: its descriptor (legacy rows are git) and the submission check, if any. */
+function deliverableView<R extends { repo: string; branch: string; sha: string; kind: string | null; descriptor_json: string | null; check_json: string | null }>(r: R) {
+  const { kind: _kind, descriptor_json, check_json, ...rest } = r
+  const descriptor: Deliverable = descriptor_json === null ? { kind: 'git', url: r.repo, ref: r.branch, sha: r.sha } : (JSON.parse(descriptor_json) as Deliverable)
+  return { ...rest, descriptor, check: check_json === null ? null : (JSON.parse(check_json) as DeliverableCheck) }
+}
+
 export class Board {
   readonly #sql: Sql
   readonly #config: BoardConfig
@@ -182,6 +215,35 @@ export class Board {
 
   revokeBudget(caller: Caller, input: { taskId: string }) {
     return this.#budget.revoke(this.#requireCaller(caller), input)
+  }
+
+  /**
+   * The descriptor a worker submits (ADR-0006): `deliverable`, or the legacy `{repo, branch, sha}` as git. Refused
+   * when the offer does not accept its kind.
+   */
+  #acceptedDeliverable(terms: OfferTerms, input: { deliverable?: unknown; repo?: string; branch?: string; sha?: string }): Deliverable {
+    let d: Deliverable
+    try {
+      d = parseDeliverable(input.deliverable ?? { kind: 'git', url: input.repo, ref: input.branch, sha: input.sha })
+    } catch (e) {
+      if (e instanceof DeliverableError) throw new BoardError('invalid', e.message)
+      throw e
+    }
+    const spec = specOf(terms)
+    if (!spec.accepts.includes(d.kind)) {
+      throw new BoardError('invalid', `this offer accepts ${spec.accepts.join(', ')} deliverables, not ${d.kind}${spec.target === undefined ? '' : ` (target: ${spec.target})`}`)
+    }
+    return d
+  }
+
+  /** The one-time, advisory submission check; the board keeps the result, never the work. */
+  #checkDeliverable(d: Deliverable): Promise<DeliverableCheck> {
+    const contexts = Object.values(this.#config.contexts).filter((c): c is sdk.Ctx => c !== undefined)
+    return checkDeliverable(d, {
+      fetch: this.#config.fetch ?? ((...a) => fetch(...a)),
+      now: () => this.#now(),
+      chain: (chainId) => contexts.find((c) => c.deployment.chainId === chainId)?.publicClient,
+    })
   }
 
   #now(): number {
@@ -377,6 +439,8 @@ export class Board {
        * creator's Privy wallet until `expiresAt` (default: the delivery deadline). Bound into the terms hash.
        */
       executionBudget?: { token: string; cap: string; expiresAt?: number }
+      /** The deliverable forms accepted (ADR-0006); omitted means git only. Bound into the terms hash. */
+      deliverable?: DeliverableSpec
     },
     /** Set only by `pickQuote`: the offer carries the request and the picked quote. */
     quote: { requestHash: Hex; quoteHash: Hex } | null = null,
@@ -428,6 +492,7 @@ export class Board {
           : { checks: input.requiredChecks, trustedProducer: 'github-actions', workflowPath: '.github/workflows' },
       quote,
       ...(executionBudget === undefined ? {} : { executionBudget }),
+      ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
       salt: `0x${randomId(32)}`,
     }
     try {
@@ -829,6 +894,8 @@ export class Board {
       stack?: sdk.StackName
       approver?: string
       requiredChecks?: string[]
+      /** The deliverable forms accepted (ADR-0006); the picked hire inherits them. */
+      deliverable?: DeliverableSpec
     },
   ) {
     const creator = this.#requireCaller(caller)
@@ -855,6 +922,7 @@ export class Board {
       deliveryDeadline: input.deliveryDeadline,
       quoteDeadline: input.quoteDeadline,
       requiredChecks: input.requiredChecks ?? [],
+      ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
       salt: `0x${randomId(32)}`,
     }
     const requestJson = canonicalJson(request)
@@ -1000,7 +1068,7 @@ export class Board {
     const ctx = this.#ctx(req.stack)
     const r = JSON.parse(req.request_json) as {
       title: string; brief: string; acceptanceCriteria: string[]; creatorBond: string; workerBond: string
-      deliveryDeadline: number; approver: Address; requiredChecks: string[]
+      deliveryDeadline: number; approver: Address; requiredChecks: string[]; deliverable?: DeliverableSpec
     }
     const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     const created = await this.createTask(
@@ -1018,6 +1086,7 @@ export class Board {
         stack: req.stack as sdk.StackName,
         approver: r.approver,
         ...(r.requiredChecks.length === 0 ? {} : { requiredChecks: r.requiredChecks }),
+        ...(r.deliverable === undefined ? {} : { deliverable: r.deliverable }),
         ...(input.executionBudget === undefined
           ? {}
           : {
@@ -1171,23 +1240,28 @@ export class Board {
   }
 
   /** Records the deliverable (public fork, branch, full SHA) and returns the final `submit` transaction. */
-  async submitWork(caller: Caller, input: { taskId: string; repo: string; branch: string; sha: string }) {
+  async submitWork(caller: Caller, input: { taskId: string; deliverable?: unknown; repo?: string; branch?: string; sha?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     await this.#requireUnpaused(task.stack)
     const ctx = this.#taskCtx(task)
     const job = await sdk.getJob(ctx, this.#jobId(task))
     if (!eq(job.provider, me)) throw new BoardError('forbidden', 'only the activated worker submits')
-    if (!/^[0-9a-f]{40}$/.test(input.sha)) throw new BoardError('invalid', 'sha must be a full 40-character commit SHA')
-    const deliverable = { repo: input.repo, branch: input.branch, sha: input.sha }
-    const deliverableHash = sdk.hashText(canonicalJson(deliverable))
+    const deliverable = this.#acceptedDeliverable(parseTerms(task.terms_json), input)
+    const deliverableHash = hashDeliverable(deliverable)
+    const check = await this.#checkDeliverable(deliverable)
+    const cols = legacyColumns(deliverable)
     this.#sql.run(
-      'INSERT OR IGNORE INTO deliverables (task_id, worker, deliverable_hash, repo, branch, sha, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      task.id, me, deliverableHash, input.repo, input.branch, input.sha, this.#now(),
+      `INSERT INTO deliverables (task_id, worker, deliverable_hash, repo, branch, sha, kind, descriptor_json, check_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (task_id, deliverable_hash) DO UPDATE SET check_json = excluded.check_json`,
+      task.id, me, deliverableHash, cols.repo, cols.branch, cols.sha, deliverable.kind, canonicalJson(deliverable), JSON.stringify(check), this.#now(),
     )
     this.#operation(task.id, 'submit', me, { deliverableHash })
     return {
       deliverableHash,
+      deliverable,
+      check,
       transactions: [
         this.#tx(ctx, 'submit: your one final submission of this deliverable', ctx.deployment.core,
           encodeFunctionData({ abi: sdk.coreAbi, functionName: 'submit', args: [this.#jobId(task), deliverableHash, '0x'] })),
@@ -1242,7 +1316,7 @@ export class Board {
    * (budget = the prize, submit = exactly this deliverable), valid until the selection deadline. After
    * `submit_entry` the entrant is done: an award pays it with the entrant offline.
    */
-  async prepareEntry(caller: Caller, input: { taskId: string; agentId: string; repo: string; branch: string; sha: string }) {
+  async prepareEntry(caller: Caller, input: { taskId: string; agentId: string; deliverable?: unknown; repo?: string; branch?: string; sha?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
     const terms = parseTerms(task.terms_json)
@@ -1252,17 +1326,19 @@ export class Board {
     const ctx = this.#taskCtx(task)
     const agentWallet = await sdk.agentWallet(ctx, BigInt(input.agentId)).catch(() => zeroAddress)
     if (!eq(agentWallet, me)) throw new BoardError('forbidden', `agent ${input.agentId}'s registered wallet is ${agentWallet}, not ${me}`)
-    if (!/^[0-9a-f]{40}$/.test(input.sha)) throw new BoardError('invalid', 'sha must be a full 40-character commit SHA')
-    const deliverableHash = sdk.hashText(canonicalJson({ repo: input.repo, branch: input.branch, sha: input.sha }))
+    const deliverable = this.#acceptedDeliverable(terms, input)
+    const deliverableHash = hashDeliverable(deliverable)
+    const check = await this.#checkDeliverable(deliverable)
+    const cols = legacyColumns(deliverable)
     const deadline = terms.selectionDeadline ?? 0
     const id = randomId(8)
     const budgetNonce = randomUint(9)
     const submitNonce = randomUint(9)
     this.#sql.run(
-      `INSERT INTO candidates (id, task_id, worker, agent_id, deliverable_hash, repo, branch, sha, deadline, budget_nonce, submit_nonce, budget_sig, submit_sig, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
-       ON CONFLICT (task_id, worker, deliverable_hash) DO UPDATE SET agent_id = excluded.agent_id, budget_nonce = excluded.budget_nonce, submit_nonce = excluded.submit_nonce, budget_sig = NULL, submit_sig = NULL`,
-      id, task.id, me, input.agentId, deliverableHash, input.repo, input.branch, input.sha, deadline,
+      `INSERT INTO candidates (id, task_id, worker, agent_id, deliverable_hash, repo, branch, sha, kind, descriptor_json, check_json, deadline, budget_nonce, submit_nonce, budget_sig, submit_sig, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+       ON CONFLICT (task_id, worker, deliverable_hash) DO UPDATE SET agent_id = excluded.agent_id, check_json = excluded.check_json, budget_nonce = excluded.budget_nonce, submit_nonce = excluded.submit_nonce, budget_sig = NULL, submit_sig = NULL`,
+      id, task.id, me, input.agentId, deliverableHash, cols.repo, cols.branch, cols.sha, deliverable.kind, canonicalJson(deliverable), JSON.stringify(check), deadline,
       budgetNonce.toString(), submitNonce.toString(), this.#now(),
     )
     const [row] = this.#sql.all<CandidateRow>('SELECT * FROM candidates WHERE task_id = ? AND worker = ? AND deliverable_hash = ?', task.id, me, deliverableHash)
@@ -1271,6 +1347,8 @@ export class Board {
     return {
       candidateId: candidate.id,
       deliverableHash,
+      deliverable,
+      check,
       sign: [
         {
           description: 'SetBudgetAuthorization for exactly the prize (used only if you are awarded)',
@@ -1333,7 +1411,10 @@ export class Board {
     )
     return rows
       .filter((r) => all || eq(r.worker, me))
-      .map((r) => ({ candidateId: r.id, worker: r.worker, agentId: r.agent_id, repo: r.repo, branch: r.branch, sha: r.sha, deliverableHash: r.deliverable_hash }))
+      .map((r) => {
+        const v = deliverableView(r)
+        return { candidateId: r.id, worker: r.worker, agentId: r.agent_id, repo: r.repo, branch: r.branch, sha: r.sha, deliverableHash: r.deliverable_hash, descriptor: v.descriptor, check: v.check }
+      })
   }
 
   /** The approver's award: pays the chosen entry in one transaction; any failure leaves the contest open. */
@@ -1609,11 +1690,16 @@ export class Board {
     const deliverable =
       onchain === undefined
         ? undefined
-        : this.#sql.all<{ repo: string; branch: string; sha: string }>(
-            'SELECT repo, branch, sha FROM deliverables WHERE task_id = ? AND lower(deliverable_hash) = lower(?)',
-            task.id,
-            onchain.deliverable_hash,
-          )[0]
+        : this.#sql
+            .all<{ repo: string; branch: string; sha: string; kind: string | null; descriptor_json: string | null; check_json: string | null }>(
+              'SELECT repo, branch, sha, kind, descriptor_json, check_json FROM deliverables WHERE task_id = ? AND lower(deliverable_hash) = lower(?)',
+              task.id,
+              onchain.deliverable_hash,
+            )
+            .map(({ repo, branch, sha, ...rest }) => {
+              const v = deliverableView({ repo, branch, sha, ...rest })
+              return { repo, branch, sha, descriptor: v.descriptor, check: v.check }
+            })[0]
     return {
       taskId: task.id,
       jobId: jobId.toString(),
@@ -1835,6 +1921,7 @@ export class Board {
         selectionDeadline: terms.selectionDeadline,
         requiredChecks: terms.evidencePolicy?.checks ?? [],
         quoted: terms.quote !== null,
+        deliverable: specOf(terms),
         executionBudget:
           terms.executionBudget === undefined
             ? null
@@ -1867,10 +1954,12 @@ export class Board {
           }
     const operations = this.#sql.all<OperationRow>('SELECT kind, status, tx_hash, updated_at FROM operations WHERE task_id = ? ORDER BY created_at', task.id)
     /** Candidate-level records the worker declared; the on-chain `JobSubmitted` deliverable is the one that counts. */
-    const deliverables = this.#sql.all<{ worker: string; deliverable_hash: string; repo: string; branch: string; sha: string }>(
-      'SELECT worker, deliverable_hash, repo, branch, sha FROM deliverables WHERE task_id = ? ORDER BY created_at',
-      task.id,
-    )
+    const deliverables = this.#sql
+      .all<{ worker: string; deliverable_hash: string; repo: string; branch: string; sha: string; kind: string | null; descriptor_json: string | null; check_json: string | null }>(
+        'SELECT worker, deliverable_hash, repo, branch, sha, kind, descriptor_json, check_json FROM deliverables WHERE task_id = ? ORDER BY created_at',
+        task.id,
+      )
+      .map(deliverableView)
     const onchain = this.#sql.all<{ deliverable_hash: string; tx_hash: string }>('SELECT deliverable_hash, tx_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0] ?? null
     return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, deliverables, onchainSubmission: onchain, evidence: this.#evidence(task), operations }
   }
@@ -1893,6 +1982,7 @@ export class Board {
       selectionDeadline: terms.selectionDeadline,
       termsHash: task.terms_hash,
       manifestUrl: `${this.#config.manifestBaseUrl}/${task.terms_hash}.json`,
+      deliverable: specOf(terms),
       executionBudget:
         terms.executionBudget === undefined
           ? null

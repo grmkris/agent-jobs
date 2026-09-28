@@ -5,7 +5,7 @@
  * caller's own wallet: `cast send <to> <data>` and `cast wallet sign --data '<typedData>'` for a key-holding agent,
  * `eth_sendTransaction` / `eth_signTypedData_v4` for a wallet.
  */
-import type { Board, Caller } from '@agent-jobs/board'
+import type { Board, Caller, DeliverableSpec } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 
 export interface Tool {
@@ -39,6 +39,39 @@ const budgetSchema = (tokenHelp: string) => ({
   },
   required: ['cap'],
 })
+
+/** What the offer accepts as a deliverable (ADR-0006). Omitted: git only. */
+const deliverableSpecSchema = {
+  type: 'object',
+  description:
+    'Optional: which deliverable forms you accept (default git only). The board hosts nothing: workers bring their own hosting and it checks each submission once.',
+  properties: {
+    accepts: { type: 'array', items: { type: 'string', enum: ['git', 'patch', 'artifact', 'url', 'onchain'] }, description: 'Accepted kinds.' },
+    target: str('Optional: where and how you want it, e.g. "PR-able against github.com/o/r at <sha>".'),
+  },
+  required: ['accepts'],
+}
+
+/** One deliverable descriptor (ADR-0006); its hash is what core.submit records. */
+const deliverableSchema = {
+  type: 'object',
+  description:
+    'Where the work is, in a form the offer accepts: git {kind, url, ref, sha} on any host; patch {kind, url, sha256, base}; artifact {kind, url, sha256, mediaType, name}; url {kind, url}; onchain {kind, chainId, txHash?, address?}. url may be https:// or ipfs://; sha256 is lowercase hex of the exact file.',
+  properties: {
+    kind: { type: 'string', enum: ['git', 'patch', 'artifact', 'url', 'onchain'] },
+    url: str('Repository, file or page URL.'),
+    ref: str('git: branch or tag.'),
+    sha: str('git: full 40-character commit SHA.'),
+    base: str('patch: full commit SHA it applies to.'),
+    sha256: str('patch/artifact: sha256 of the file, lowercase hex.'),
+    mediaType: str('artifact: e.g. video/mp4.'),
+    name: str('artifact: file name.'),
+    chainId: num('onchain: chain id.'),
+    txHash: str('onchain: transaction hash.'),
+    address: str('onchain: contract address.'),
+  },
+  required: ['kind'],
+}
 
 const s = (a: Record<string, unknown>, k: string) => a[k] as string
 const n = (a: Record<string, unknown>, k: string) => a[k] as number
@@ -131,6 +164,7 @@ export const tools: Record<string, Tool> = {
         approver: str('Optional: who judges the work (default you).'),
         stack: { type: 'string', enum: ['main', 'demo'], description: 'Testnet: "demo" uses minute-long windows.' },
         executionBudget: budgetSchema('Budget token symbol or address (any reward token; required here).'),
+        deliverable: deliverableSpecSchema,
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline', 'mode'],
     },
@@ -152,6 +186,7 @@ export const tools: Record<string, Tool> = {
         ...(a.executionBudget === undefined
           ? {}
           : { executionBudget: a.executionBudget as { token: string; cap: string; expiresAt?: number } }),
+        ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
       }),
   },
 
@@ -172,6 +207,7 @@ export const tools: Record<string, Tool> = {
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
         approver: str('Optional: who judges the work (default you).'),
         stack: { type: 'string', enum: ['main', 'demo'], description: 'Testnet: "demo" uses minute-long windows.' },
+        deliverable: deliverableSpecSchema,
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'tokens', 'creatorBond', 'workerBond', 'deliveryDeadline', 'quoteDeadline'],
     },
@@ -188,6 +224,7 @@ export const tools: Record<string, Tool> = {
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
+        ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
       }),
   },
 
@@ -432,14 +469,17 @@ export const tools: Record<string, Tool> = {
 
   submit_work: {
     description:
-      'Worker: your final deliverable (public fork URL, branch, full 40-char SHA) and the submit transaction. One final submission per agreement.',
+      "Worker: your final deliverable and the submit transaction. Pass `deliverable` in a form the offer accepts (get_task → deliverable.accepts), hosted wherever you like; the board checks it once and returns the result. Legacy: repo, branch, sha (git). One final submission per agreement.",
     inputSchema: {
       type: 'object',
-      properties: { ...taskId, repo: str('Public repository URL.'), branch: str('Branch.'), sha: str('Full commit SHA.') },
-      required: ['taskId', 'repo', 'branch', 'sha'],
+      properties: { ...taskId, deliverable: deliverableSchema, repo: str('Legacy git: repository URL.'), branch: str('Legacy git: branch.'), sha: str('Legacy git: full commit SHA.') },
+      required: ['taskId'],
     },
     run: (board, caller, a) =>
-      board.submitWork(caller, { taskId: s(a, 'taskId'), repo: s(a, 'repo'), branch: s(a, 'branch'), sha: s(a, 'sha') }),
+      board.submitWork(caller, {
+        taskId: s(a, 'taskId'),
+        ...(a.deliverable === undefined ? { repo: s(a, 'repo'), branch: s(a, 'branch'), sha: s(a, 'sha') } : { deliverable: a.deliverable }),
+      }),
   },
 
   dispute: {
@@ -465,25 +505,24 @@ export const tools: Record<string, Tool> = {
 
   prepare_entry: {
     description:
-      'Contest entrant: register a finished candidate (public repo, branch, full SHA) and get the two authorisations to sign once. If the approver awards it you are paid with no further action.',
+      'Contest entrant: register a finished candidate (`deliverable` in a form the offer accepts, or legacy repo/branch/sha) and get the two authorisations to sign once. If the approver awards it you are paid with no further action.',
     inputSchema: {
       type: 'object',
       properties: {
         ...taskId,
         agentId: str('Your ERC-8004 agent id.'),
-        repo: str('Public repository URL.'),
-        branch: str('Branch.'),
-        sha: str('Full commit SHA.'),
+        deliverable: deliverableSchema,
+        repo: str('Legacy git: repository URL.'),
+        branch: str('Legacy git: branch.'),
+        sha: str('Legacy git: full commit SHA.'),
       },
-      required: ['taskId', 'agentId', 'repo', 'branch', 'sha'],
+      required: ['taskId', 'agentId'],
     },
     run: (board, caller, a) =>
       board.prepareEntry(caller, {
         taskId: s(a, 'taskId'),
         agentId: s(a, 'agentId'),
-        repo: s(a, 'repo'),
-        branch: s(a, 'branch'),
-        sha: s(a, 'sha'),
+        ...(a.deliverable === undefined ? { repo: s(a, 'repo'), branch: s(a, 'branch'), sha: s(a, 'sha') } : { deliverable: a.deliverable }),
       }),
   },
 
