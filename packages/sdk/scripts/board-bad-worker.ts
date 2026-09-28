@@ -16,12 +16,8 @@ import { join } from 'node:path'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
+import { env, log as stamp, sendReported, sleep } from './lib/common.ts'
 
-const env = (n: string) => {
-  const v = process.env[n]
-  if (v === undefined || v === '') throw new Error(`${n} is not set`)
-  return v
-}
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const taskId = env('TASK_ID')
 const repo = env('REPO')
@@ -29,16 +25,10 @@ const agentId = env('CAMPAIGN_BAD_AGENT_ID')
 const account = privateKeyToAccount(env('CAMPAIGN_BAD_PRIVATE_KEY') as Hex)
 const w = sdk.wallet('monad-testnet', account, RPC)
 const board = sdk.boardClient(env('BOARD_URL'))
-const log = (m: string) => console.log(`[bad-worker ${new Date().toISOString().slice(11, 19)}] ${m}`)
-const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
+const log = (m: string) => stamp('bad-worker', m)
 
-async function send(txs: sdk.TxRequest[]) {
-  const ctx = sdk.context('monad-testnet', 'main', RPC)
-  for (const [i, h] of (await sdk.sendAll(w, ctx.publicClient, txs)).entries()) {
-    log(`${txs[i]?.description} → https://testnet.monadscan.com/tx/${h}`)
-    await board.call('report_transaction', { taskId, txHash: h })
-  }
-}
+const send = (txs: sdk.TxRequest[]) =>
+  sendReported(board, w, sdk.context('monad-testnet', 'main', RPC).publicClient, taskId, txs, 'bad-worker')
 
 /** A commit that "passes" by deleting the tests: the approver must notice the diff, not just the green check. */
 function junkCommit(): { branch: string; sha: string } {

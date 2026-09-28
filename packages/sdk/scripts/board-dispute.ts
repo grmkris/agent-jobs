@@ -18,12 +18,8 @@ import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrateOnce } from '../../../apps/arbiter/src/arbiter.ts'
 import * as sdk from '../src/index.ts'
+import { check, checks, env, log, sendReported, sleep } from './lib/common.ts'
 
-const env = (n: string) => {
-  const v = process.env[n]
-  if (v === undefined || v === '') throw new Error(`${n} is not set`)
-  return v
-}
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const UNTESTED = process.env.SCENARIO === 'untested'
@@ -41,22 +37,10 @@ const worker = sdk.wallet('monad-testnet', workerAccount, RPC)
 const pub = sdk.boardClient(BOARD)
 const wrk = sdk.boardClient(BOARD)
 const arb = sdk.boardClient(BOARD)
-const log = (who: string, m: string) => console.log(`[${new Date().toISOString().slice(11, 19)} ${who}] ${m}`)
-const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
 
-let failures = 0
-const check = (what: string, ok: boolean, detail = '') => {
-  if (!ok) failures++
-  log('check', `${ok ? '✓' : '✗'} ${what}${detail === '' ? '' : `: ${detail}`}`)
-}
 
-async function send(client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) {
-  const hashes = await sdk.sendAll(w, ctx.publicClient, txs)
-  for (const [i, h] of hashes.entries()) {
-    log(who, `${txs[i]?.description} → https://testnet.monadscan.com/tx/${h}`)
-    await client.call('report_transaction', { taskId, txHash: h })
-  }
-}
+const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
+  sendReported(client, w, ctx.publicClient, taskId, txs, who)
 
 await pub.signIn(creatorAccount)
 await wrk.signIn(workerAccount)
@@ -110,7 +94,7 @@ check('disputed on-chain', disputed.chain.status === 'disputed', disputed.chain.
 if (!UNTESTED) check('evidence names the on-chain deliverable', disputed.evidence.at(-1)?.label === 'matches the awarded on-chain deliverable', disputed.evidence.at(-1)?.label)
 if (process.env.ARBITER === 'external') {
   console.log(`TASK_ID=${taskId} JOB_ID=${disputed.jobId} arbitrationEndsAt=${disputed.chain.arbitrationEndsAt}`)
-  process.exit(failures === 0 ? 0 : 1)
+  checks.done()
 }
 
 const factory = ctx.deployment.factory
@@ -156,5 +140,4 @@ if (mine.forWorker) {
   check('ruled for the creator: Rejected', done.chain.status === 'rejected', done.chain.status)
   check('no violation named: the worker bond returned', wBondAfter - wBondBefore === oneBond, `${wBondAfter - wBondBefore}`)
 }
-console.log(failures === 0 ? 'all checks passed' : `${failures} check(s) failed`)
-process.exit(failures === 0 ? 0 : 1)
+checks.done()

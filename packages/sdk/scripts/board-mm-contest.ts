@@ -12,13 +12,9 @@ import { join } from 'node:path'
 import { type Hex, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
+import { check, checks, env, log } from './lib/common.ts'
 import { metamaskAddress, metamaskSignMessage, metamaskSignTypedData } from './lib/metamask.ts'
 
-const env = (n: string) => {
-  const v = process.env[n]
-  if (v === undefined || v === '') throw new Error(`${n} is not set`)
-  return v
-}
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const CHAIN = 10143
@@ -32,13 +28,7 @@ const ownerAccount = privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as He
 const creator = sdk.wallet('monad-testnet', creatorAccount, RPC)
 const owner = sdk.wallet('monad-testnet', ownerAccount, RPC)
 const mmAddress = await metamaskAddress()
-const log = (who: string, m: string) => console.log(`[${new Date().toISOString().slice(11, 19)} ${who}] ${m}`)
 
-let failures = 0
-const check = (what: string, ok: boolean, detail = '') => {
-  if (!ok) failures++
-  log('check', `${ok ? '✓' : '✗'} ${what}${detail === '' ? '' : `: ${detail}`}`)
-}
 
 // 1. An ERC-8004 agent owned by the cast worker, its agent wallet set to the MetaMask address by MetaMask's signature.
 const identity = ctx.deployment.identity
@@ -128,5 +118,4 @@ const after = await sdk.balanceOf(ctx, mEUR, mmAddress)
 const done = await pub.call('get_task', { taskId })
 check('awarded: Completed', done.chain.status === 'completed', `job ${done.jobId} ${done.chain.status}`)
 check('the MetaMask wallet was paid 2 mEUR', after - before === 2_000_000n, `${after - before}`)
-console.log(failures === 0 ? 'all checks passed' : `${failures} check(s) failed`)
-process.exit(failures === 0 ? 0 : 1)
+checks.done()

@@ -11,12 +11,8 @@ import { join } from 'node:path'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
+import { check, checks, env, log, sendReported } from './lib/common.ts'
 
-const env = (n: string) => {
-  const v = process.env[n]
-  if (v === undefined || v === '') throw new Error(`${n} is not set`)
-  return v
-}
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const ENTRY = {
@@ -33,21 +29,10 @@ const creator = sdk.wallet('monad-testnet', creatorAccount, RPC)
 const worker = sdk.wallet('monad-testnet', workerAccount, RPC)
 const pub = sdk.boardClient(BOARD)
 const ent = sdk.boardClient(BOARD)
-const log = (who: string, m: string) => console.log(`[${who}] ${m}`)
 
-let failures = 0
-const check = (what: string, ok: boolean, detail = '') => {
-  if (!ok) failures++
-  log('check', `${ok ? '✓' : '✗'} ${what}${detail === '' ? '' : `: ${detail}`}`)
-}
 
-async function send(client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) {
-  const hashes = await sdk.sendAll(w, ctx.publicClient, txs)
-  for (const [i, h] of hashes.entries()) {
-    log(who, `${txs[i]?.description} → https://testnet.monadscan.com/tx/${h}`)
-    await client.call('report_transaction', { taskId, txHash: h })
-  }
-}
+const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
+  sendReported(client, w, ctx.publicClient, taskId, txs, who)
 
 await pub.signIn(creatorAccount)
 await ent.signIn(workerAccount)
@@ -93,5 +78,4 @@ check('awarded: Completed in one transaction', done.chain.status === 'completed'
 check('the offline entrant was paid 7 mUSD', after - before === 7_000_000n, `${after - before}`)
 check('on-chain deliverable recorded from the award receipt', done.onchainSubmission?.deliverable_hash === prepared.deliverableHash)
 check('the same evidence now matches the awarded on-chain deliverable', done.evidence.at(-1)?.label === 'matches the awarded on-chain deliverable', done.evidence.at(-1)?.label)
-console.log(failures === 0 ? 'all checks passed' : `${failures} check(s) failed`)
-process.exit(failures === 0 ? 0 : 1)
+checks.done()

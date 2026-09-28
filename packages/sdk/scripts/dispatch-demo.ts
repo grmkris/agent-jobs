@@ -12,12 +12,8 @@
  */
 import type { Address } from 'viem'
 import * as sdk from '../src/index.ts'
+import { env, log as stamp, sleep } from './lib/common.ts'
 
-const env = (n: string, fallback?: string) => {
-  const v = process.env[n] ?? fallback
-  if (v === undefined || v === '') throw new Error(`${n} is not set`)
-  return v
-}
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const ctx = sdk.context('monad-testnet', 'main', RPC)
 const os = sdk.privyWallet('monad-testnet', {
@@ -26,8 +22,7 @@ const os = sdk.privyWallet('monad-testnet', {
   walletId: env('PRIVY_SERVER_WALLET_ID'),
   address: env('PRIVY_SERVER_WALLET_ADDRESS') as Address,
 }, RPC)
-const log = (m: string) => console.log(`[dispatch ${new Date().toISOString().slice(11, 19)}] ${m}`)
-const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
+const log = (m: string) => stamp('dispatch', m)
 
 const task: sdk.DispatchTask = {
   id: 't000042',

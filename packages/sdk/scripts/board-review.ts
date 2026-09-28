@@ -13,28 +13,18 @@
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
+import { env, log as stamp, sendReported } from './lib/common.ts'
 
-function env(name: string, fallback?: string): string {
-  const v = process.env[name] ?? fallback
-  if (v === undefined || v === '') throw new Error(`${name} is not set`)
-  return v
-}
 
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const account = privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex)
 const creator = sdk.wallet('monad-testnet', account, RPC)
 const board = sdk.boardClient(env('BOARD_URL'))
 const taskId = env('TASK_ID')
-const log = (msg: string) => console.log(`[approver ${new Date().toISOString().slice(11, 19)}] ${msg}`)
+const log = (m: string) => stamp('approver', m)
 
-async function send(txs: sdk.TxRequest[]) {
-  const ctx = sdk.context('monad-testnet', 'main', RPC)
-  const hashes = await sdk.sendAll(creator, ctx.publicClient, txs)
-  for (const [i, h] of hashes.entries()) {
-    log(`${txs[i]?.description} → https://testnet.monadscan.com/tx/${h}`)
-    await board.call('report_transaction', { taskId, txHash: h })
-  }
-}
+const send = (txs: sdk.TxRequest[]) =>
+  sendReported(board, creator, sdk.context('monad-testnet', 'main', RPC).publicClient, taskId, txs, 'approver')
 
 await board.signIn(account)
 const decision = env('DECISION')

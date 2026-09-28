@@ -16,12 +16,8 @@
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
+import { env, log as stamp, sendReported, sleep } from './lib/common.ts'
 
-function env(name: string, fallback?: string): string {
-  const v = process.env[name] ?? fallback
-  if (v === undefined || v === '') throw new Error(`${name} is not set`)
-  return v
-}
 
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
@@ -31,16 +27,9 @@ const account = privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex)
 const creator = sdk.wallet('monad-testnet', account, RPC)
 const ctx = sdk.context('monad-testnet', STACK, RPC)
 const board = sdk.boardClient(BOARD)
-const log = (msg: string) => console.log(`[publisher ${new Date().toISOString().slice(11, 19)}] ${msg}`)
-const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000))
+const log = (m: string) => stamp('publisher', m)
 
-async function send(taskId: string, txs: sdk.TxRequest[]) {
-  const hashes = await sdk.sendAll(creator, ctx.publicClient, txs)
-  for (const [i, h] of hashes.entries()) {
-    log(`${txs[i]?.description} → https://testnet.monadscan.com/tx/${h}`)
-    await board.call('report_transaction', { taskId, txHash: h })
-  }
-}
+const send = (taskId: string, txs: sdk.TxRequest[]) => sendReported(board, creator, ctx.publicClient, taskId, txs, 'publisher')
 
 async function until<T>(what: string, timeoutS: number, probe: () => Promise<T | undefined>): Promise<T> {
   const end = Date.now() + timeoutS * 1000

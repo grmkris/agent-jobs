@@ -12,12 +12,8 @@ import { join } from 'node:path'
 import type { Address, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
+import { check, checks, env, log, sendReported } from './lib/common.ts'
 
-const env = (n: string) => {
-  const v = process.env[n]
-  if (v === undefined || v === '') throw new Error(`${n} is not set`)
-  return v
-}
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const DELIVERABLE = { repo: 'https://github.com/grmkris/runner-spike-fixture', branch: 'dispatch/cb0b4323adb67f08', sha: 'c850f7a58015bafe065257f263a2ecc01da56dfe' }
@@ -37,21 +33,10 @@ const privy = sdk.privyWallet('monad-testnet', {
 const pub = sdk.boardClient(BOARD)
 const pw = sdk.boardClient(BOARD)
 const cw = sdk.boardClient(BOARD)
-const log = (who: string, m: string) => console.log(`[${new Date().toISOString().slice(11, 19)} ${who}] ${m}`)
 
-let failures = 0
-const check = (what: string, ok: boolean, detail = '') => {
-  if (!ok) failures++
-  log('check', `${ok ? '✓' : '✗'} ${what}${detail === '' ? '' : `: ${detail}`}`)
-}
 
-async function send(client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) {
-  const hashes = await sdk.sendAll(w, ctx.publicClient, txs)
-  for (const [i, h] of hashes.entries()) {
-    log(who, `${txs[i]?.description} → https://testnet.monadscan.com/tx/${h}`)
-    await client.call('report_transaction', { taskId, txHash: h })
-  }
-}
+const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
+  sendReported(client, w, ctx.publicClient, taskId, txs, who)
 
 // The Privy wallet as an ERC-8004 agent holding FACTORY for its bond and the hold gate.
 const factory = ctx.deployment.factory
@@ -124,5 +109,4 @@ check('Completed', done.chain.status === 'completed', done.chain.status)
 check('the Privy worker was paid 4.5 mEUR', after - before === 4_500_000n, `${after - before}`)
 check('its bond returned', bondAfter - bondBefore === 10n ** 18n, `${bondAfter - bondBefore}`)
 check('evidence matches the on-chain deliverable', done.evidence.at(-1)?.label === 'matches the awarded on-chain deliverable', done.evidence.at(-1)?.label)
-console.log(failures === 0 ? 'all checks passed' : `${failures} check(s) failed`)
-process.exit(failures === 0 ? 0 : 1)
+checks.done()
