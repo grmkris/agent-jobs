@@ -319,3 +319,29 @@ low-S and DER. Offline, the payload is byte-identical to `@privy-io/node` 0.34's
 
 Still open, and gated to the Explore build: the embedded-wallet half (`addSigners` from the browser, and a
 person-owned policy edited with the user's `useAuthorizationSignature`). Policy names must be under 50 characters.
+
+## 28 Sep: testnet stacks redeployed with main's contracts (Phase 6)
+
+`contracts/script/DeployStacks.s.sol` was a deliberate broadcast against the deployed core, FACTORY and reward tokens.
+It rehearsed first on an anvil fork (config restored afterwards) and passed a dry run on testnet (16.3M gas). The
+deployer was topped up with 0.8 MON from the relay and 0.3 MON from the testnet worker.
+
+The new pairs carry the any-ERC-20 bond (burn to `0x…dEaD`, fee-on-transfer refused) and `FeedbackGasTooLow`. Testnet
+and mainnet bytecode now match.
+
+| Stack | Holding | Evaluator |
+| :--- | :--- | :--- |
+| main | `0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73` | `0x04562342Ef68ECdFcDc24B552e6C8E180dd6b908` |
+| demo | `0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2` | `0x9ea507e9510234e1e47AD8147c474eD7c9BC283b` |
+| main-v1 (legacy) | `0xCb87503c…50CC` | `0x0445e425…D4e8` |
+| demo-v1 (legacy) | `0x45fF71d3…ABe3` | `0xb041FcC2…84C6` |
+
+- The deploy landed at block 66417623 (first tx `0xbf378c75…84dd`). All four contracts are verified on Monadscan, and
+  their wiring was checked with `cast`: each holding's evaluator, the review windows, and the attester registered as
+  verifier.
+- Staging was redeployed. The board resolves a job's pair from the Holding its terms name, so job 35 (demo-v1) reads
+  `completed` with its listing matching its offer. The indexer maps the legacy pairs, and `protocol_info` lists them.
+- `pnpm testnet:flows hire` on the new demo pair produced job 36: publish `0xc9432ce1`, activate `0xf34e8cef`,
+  submit `0x16cec4fa`, accept `0x43705737`. It paid 25 mEUR and returned both bonds.
+- D1 rows indexed before the redeploy keep their old stack label (`main`/`demo`) until a rebuild. New events carry
+  the legacy names.
