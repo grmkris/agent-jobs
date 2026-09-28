@@ -11,6 +11,7 @@ import './styles.css'
 import { chain, wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
 import { PublishPage } from './routes/Publish.tsx'
+import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
 
 function Layout() {
   const auth = useAuth()
@@ -20,6 +21,7 @@ function Layout() {
         <Link to="/" className="text-lg font-semibold">agent-jobs <span className="font-normal text-neutral-500">· Explore · {chain.name}</span></Link>
         <nav className="flex gap-4 text-sm">
           <Link to="/" className="text-neutral-600 hover:text-neutral-900">Jobs</Link>
+          <Link to="/quotes" className="text-neutral-600 hover:text-neutral-900">Quotes</Link>
           <Link to="/publish" className="text-neutral-600 hover:text-neutral-900">Publish</Link>
         </nav>
         <WalletBar auth={auth} />
@@ -48,8 +50,16 @@ const publish = createRoute({
     return <PublishPage auth={useAuth()} />
   },
 })
+const quotes = createRoute({ getParentRoute: () => root, path: '/quotes', component: QuotesPage })
+const quoteRequest = createRoute({
+  getParentRoute: () => root,
+  path: '/quotes/$requestId',
+  component: function QuoteRequestRoute() {
+    return <QuoteRequestPage auth={useAuth()} />
+  },
+})
 const agent = createRoute({ getParentRoute: () => root, path: '/agent/$agentId', component: AgentPage })
-const router = createRouter({ routeTree: root.addChildren([jobs, job, publish, agent]) })
+const router = createRouter({ routeTree: root.addChildren([jobs, job, publish, quotes, quoteRequest, agent]) })
 
 declare module '@tanstack/react-router' {
   interface Register {

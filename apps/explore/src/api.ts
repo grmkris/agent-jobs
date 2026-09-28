@@ -70,6 +70,8 @@ export interface TaskIndexEntry {
   selectionDeadline: number | null
   requiredChecks: string[]
   quoted: boolean
+  /** ADR-0005: base units of `token`; null when the offer has none. */
+  executionBudget: { token: `0x${string}`; cap: string; expiresAt: number } | null
   termsHash: string
   manifestUrl: string
   screening: { verdict: string; reasons: string[] }
@@ -94,4 +96,51 @@ export interface ChainJob {
   deliverable: string | null
   violation: string | null
   published_tx: string | null
+}
+
+/** `get_budget`: a task's execution budget as the parties see it (amounts in token units). */
+export interface Budget {
+  taskId: string
+  token: `0x${string}`
+  symbol: string
+  cap: string
+  spent: string
+  reserved: string
+  remaining: string
+  expiresAt: number
+  status: 'promised' | 'live' | 'revoked' | 'ended'
+  endedReason: string | null
+  spends: Array<{ spendId: string; to: string; amount: string; note: string; status: string; txHash: string | null; at: number }>
+  cleanup:
+    | null
+    | { removeSigners: true; address: string; why: string }
+    | { replaceSigner: { address: string; signerId: string; policyId: string }; why: string }
+}
+
+export interface QuoteRequest {
+  requestId: string
+  requestHash: string
+  status: string
+  creator: string
+  title: string
+  brief: string
+  acceptanceCriteria: string[]
+  tokens: string[]
+  creatorBond: string
+  workerBond: string
+  deliveryDeadline: number
+  quoteDeadline: number
+  stack: string
+}
+
+export interface Quote {
+  quoteId: string
+  worker: string
+  agentId: string
+  token: string
+  symbol: string
+  amount: string
+  note: string
+  expectedCosts: { token: string; symbol: string; amount: string; note: string } | null
+  quoteHash: string
 }
