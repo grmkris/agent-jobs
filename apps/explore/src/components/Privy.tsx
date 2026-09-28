@@ -6,7 +6,8 @@ import { chain, privyAppId, setPrivyProvider } from '../wallet.ts'
 import { Button } from './ui.tsx'
 
 /**
- * Email or Google login with a Privy embedded wallet, for people without a browser wallet. Privy only creates and
+ * Email or social login (whatever the Privy dashboard enables: email, Google, X…) with a Privy embedded wallet, for
+ * people without a browser wallet. Privy only creates and
  * holds the wallet; the app treats it like any other wallet (SIWE board sign-in, the same transaction steps). Absent
  * when the deploy has no PRIVY_APP_ID.
  */
@@ -25,7 +26,6 @@ export function PrivyRoot({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={privyAppId}
       config={{
-        loginMethods: ['email', 'google'],
         embeddedWallets: { ethereum: { createOnLogin: 'users-without-wallets' } },
         defaultChain: privyChain,
         supportedChains: [privyChain],
@@ -60,7 +60,7 @@ function PrivyBridge() {
   return null
 }
 
-/** "Email / Google" next to "Connect wallet"; renders nothing without Privy. */
+/** "Email / social" next to "Connect wallet"; renders nothing without Privy. */
 export function PrivyLogin() {
   if (privyAppId === '') return null
   return <PrivyLoginButton />
@@ -71,7 +71,7 @@ function PrivyLoginButton() {
   if (authenticated) return null
   return (
     <Button variant="outline" disabled={!ready} onClick={() => login()}>
-      Email / Google
+      Email / social
     </Button>
   )
 }
