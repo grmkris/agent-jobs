@@ -96,7 +96,7 @@ contract ApproverTest is Base {
 
     /// @dev R114-02 with approver != creator: neither party can pay its way out of a dispute.
     function test_R114_02_approverCannotAcceptDuringDispute() public {
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = _submittedApproved();
         vm.prank(approver);
         evaluator.reject(jobId, JobsEvaluator.Violation.None, REASON);
@@ -111,7 +111,7 @@ contract ApproverTest is Base {
         vm.prank(arbitrator);
         evaluator.rule(jobId, true, true, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
-        assertEq(factory.totalSupply(), supply - CREATOR_BOND, "the creator's bond answers for the rejection");
+        assertEq(circulating(), supply - CREATOR_BOND, "the creator's bond answers for the rejection");
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Completed));
     }
 }

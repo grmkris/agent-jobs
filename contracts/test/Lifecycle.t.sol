@@ -144,27 +144,27 @@ contract LifecycleTest is Base {
     function test_ruling_forWorkerNoViolation_bothBondsReturn() public {
         uint256 cFac = factory.balanceOf(creator);
         uint256 wFac = factory.balanceOf(worker);
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
         evaluator.rule(jobId, true, false, REASON);
         assertEq(pay.balanceOf(worker), REWARD, "reward from escrow");
         assertEq(factory.balanceOf(creator), cFac, "creator bond back: losing is not misconduct");
         assertEq(factory.balanceOf(worker), wFac);
-        assertEq(factory.totalSupply(), supply, "nothing burned");
+        assertEq(circulating(), supply, "nothing burned");
     }
 
     function test_ruling_forWorkerWithViolation_burnsCreatorBond() public {
         uint256 cFac = factory.balanceOf(creator);
         uint256 wFac = factory.balanceOf(worker);
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
         evaluator.rule(jobId, true, true, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
         assertEq(factory.balanceOf(creator), cFac - CREATOR_BOND, "creator bond gone");
         assertEq(factory.balanceOf(worker), wFac, "worker bond back, worker does not receive the burn");
-        assertEq(factory.totalSupply(), supply - CREATOR_BOND, "burned, not transferred");
+        assertEq(circulating(), supply - CREATOR_BOND, "burned, not transferred");
     }
 
     function test_ruling_forCreatorNoViolation_refundAndBothBondsReturn() public {
@@ -183,12 +183,12 @@ contract LifecycleTest is Base {
 
     function test_ruling_forCreatorWithViolation_burnsWorkerBond() public {
         uint256 wFac = factory.balanceOf(worker);
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = disputedJob();
         vm.prank(arbitrator);
         evaluator.rule(jobId, false, true, REASON);
         assertEq(factory.balanceOf(worker), wFac - WORKER_BOND, "worker bond gone");
-        assertEq(factory.totalSupply(), supply - WORKER_BOND);
+        assertEq(circulating(), supply - WORKER_BOND);
         assertEq(pay.balanceOf(worker), 0);
     }
 
@@ -230,7 +230,7 @@ contract LifecycleTest is Base {
     // ------------------------------------------------------------------------------------------
 
     function test_timeout_silenceIsAcceptance() public {
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = submittedJob();
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.completeAfterSilence(jobId);
@@ -238,13 +238,13 @@ contract LifecycleTest is Base {
         vm.prank(stranger);
         evaluator.completeAfterSilence(jobId);
         assertEq(pay.balanceOf(worker), REWARD);
-        assertEq(factory.totalSupply(), supply);
+        assertEq(circulating(), supply);
         assertEq(factory.balanceOf(address(holding)), 0, "both bonds returned");
     }
 
     function test_timeout_arbitratorInactiveIsStatusQuo() public {
         uint256 payBefore = pay.balanceOf(creator);
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = disputedJob();
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
         evaluator.refundAfterArbitrationTimeout(jobId);
@@ -254,7 +254,7 @@ contract LifecycleTest is Base {
         vm.prank(creator);
         holding.settle(jobId);
         assertEq(pay.balanceOf(creator), payBefore);
-        assertEq(factory.totalSupply(), supply, "a timeout never burns");
+        assertEq(circulating(), supply, "a timeout never burns");
         assertEq(factory.balanceOf(address(holding)), 0);
     }
 
@@ -263,7 +263,7 @@ contract LifecycleTest is Base {
     function test_timeout_missedDeliveryBurnsWorkerBond() public {
         uint256 payBefore = pay.balanceOf(creator);
         uint256 cFac = factory.balanceOf(creator);
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = fundedJob();
         vm.warp(holding.deliveryDeadlineOf(jobId));
         vm.expectRevert(JobsEvaluator.WindowOpen.selector);
@@ -272,7 +272,7 @@ contract LifecycleTest is Base {
         vm.prank(stranger);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         assertEq(uint256(status(jobId)), uint256(ERC8183.JobStatus.Rejected));
-        assertEq(factory.totalSupply(), supply - WORKER_BOND, "the whole worker bond burned");
+        assertEq(circulating(), supply - WORKER_BOND, "the whole worker bond burned");
         assertEq(factory.balanceOf(creator), cFac, "creator bond returned");
         assertEq(reputation.lastTag2(), "not-delivered");
         holding.settle(jobId);
@@ -427,7 +427,6 @@ contract LifecycleTest is Base {
         pay.mint(creator, reward);
         factory.mint(creator, cBond);
         factory.mint(worker, wBond);
-        uint256 supply = factory.totalSupply();
         uint256 creatorPay = pay.balanceOf(creator);
         uint256 cFac = factory.balanceOf(creator);
         uint256 wFac = factory.balanceOf(worker);
@@ -446,8 +445,12 @@ contract LifecycleTest is Base {
             holding.settle(jobId);
         }
 
-        uint256 burned = slash ? (forWorker ? cBond : wBond) : 0;
-        assertEq(factory.totalSupply(), supply - burned, "burned exactly the loser's bond, or nothing");
+        // Nothing sat at the burn address before this job.
+        assertEq(
+            factory.balanceOf(holding.BURN_ADDRESS()),
+            slash ? (forWorker ? cBond : wBond) : 0,
+            "burned exactly the loser's bond, or nothing"
+        );
         assertEq(pay.balanceOf(worker), forWorker ? reward : 0);
         assertEq(pay.balanceOf(creator), forWorker ? creatorPay - reward : creatorPay);
         assertEq(factory.balanceOf(creator), (slash && forWorker) ? cFac - cBond : cFac);

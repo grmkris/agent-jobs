@@ -277,6 +277,9 @@ contract Handler is Test {
 contract InvariantsTest is Base {
     Handler internal handler;
 
+    /// @dev FACTORY the setUp drained to the burn address before any job; slashes add to it.
+    uint256 internal drainedFactory;
+
     function setUp() public override {
         super.setUp();
         handler = new Handler(factory, pay, core, holding, evaluator, creator, worker, arbitrator, creatorPk, workerPk);
@@ -292,6 +295,7 @@ contract InvariantsTest is Base {
         uint256 wf = factory.balanceOf(worker) - MIN_HOLD;
         vm.prank(worker);
         factory.transfer(address(0xdead), wf);
+        drainedFactory = cf + wf;
         targetContract(address(handler));
     }
 
@@ -376,10 +380,15 @@ contract InvariantsTest is Base {
         assertEq(factory.balanceOf(address(core)), 0, "factory never enters the core");
         // Minted to both wallets, minus what still sits in wallets/Holding, minus what was burned = 0.
         uint256 mintedTotal = handler.factoryMintedCreator() + handler.factoryMintedWorker() + 2 * MIN_HOLD;
+        _assertBurned(expectBurned);
         assertEq(
             mintedTotal - expectBurned,
             factory.balanceOf(creator) + factory.balanceOf(worker) + factory.balanceOf(address(holding)),
             "factory conservation incl. burns"
         );
+    }
+
+    function _assertBurned(uint256 expectBurned) internal view {
+        assertEq(factory.balanceOf(holding.BURN_ADDRESS()) - drainedFactory, expectBurned, "burned bonds sit at the burn address");
     }
 }

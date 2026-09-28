@@ -5,6 +5,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {IERC8004Identity, IERC8004Reputation} from "../src/vendor/erc8004/IERC8004.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {FactoryToken} from "../src/FactoryToken.sol";
 import {MockPaymentToken} from "../src/MockPaymentToken.sol";
 import {JobHolding} from "../src/JobHolding.sol";
@@ -34,6 +35,8 @@ library Recipe {
         IERC8004Reputation reputation;
         bool factoryFaucet;
         address factoryMinter;
+        /// @dev An existing bond token (e.g. FACTORY launched elsewhere); zero deploys our `FactoryToken`.
+        address factoryToken;
         uint256 minHoldToPublish;
         uint256 minHoldToClaim;
         string[] faucetTokenNames;
@@ -48,7 +51,7 @@ library Recipe {
 
     struct Deployed {
         ERC8183WithAuthorization core;
-        FactoryToken factory;
+        IERC20 factory;
         address[] rewardTokens;
         JobHolding[] holdings;
         JobsEvaluator[] evaluators;
@@ -73,6 +76,7 @@ library Recipe {
         c.reputation = IERC8004Reputation(vm.parseJsonAddress(json, ".erc8004.reputation"));
         c.factoryFaucet = vm.parseJsonBool(json, ".factory.faucet");
         c.factoryMinter = vm.parseJsonAddress(json, ".factory.minter");
+        if (vm.keyExistsJson(json, ".factory.address")) c.factoryToken = vm.parseJsonAddress(json, ".factory.address");
         c.minHoldToPublish = vm.parseJsonUint(json, ".holdGates.minHoldToPublish");
         c.minHoldToClaim = vm.parseJsonUint(json, ".holdGates.minHoldToClaim");
         c.faucetTokenNames = vm.parseJsonStringArray(json, ".faucetTokens.names");
@@ -96,9 +100,20 @@ library Recipe {
                 || c.margins.length != n || c.faucetTokenNames.length != c.faucetTokenSymbols.length
         ) revert BadConfig("array lengths");
 
-        d.factory = new FactoryToken(
-            c.factoryFaucet ? "Factory (testnet)" : "Factory", "FACTORY", c.factoryFaucet, c.factoryMinter
-        );
+        if (c.factoryToken != address(0)) {
+            // An existing token is used as it is: no faucet, and it must be a contract on this chain.
+            if (c.factoryFaucet) revert BadConfig("factory.address with a faucet");
+            if (c.factoryToken.code.length == 0) revert BadConfig("factory.address has no code");
+            d.factory = IERC20(c.factoryToken);
+        } else {
+            d.factory = IERC20(
+                address(
+                    new FactoryToken(
+                        c.factoryFaucet ? "Factory (testnet)" : "Factory", "FACTORY", c.factoryFaucet, c.factoryMinter
+                    )
+                )
+            );
+        }
 
         ERC8183WithAuthorization impl = new ERC8183WithAuthorization();
         d.core = ERC8183WithAuthorization(

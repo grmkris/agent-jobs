@@ -23,7 +23,7 @@ contract R114DisputedAcceptTest is Base {
     /// @dev The dodge R114 found: paying late during a dispute returned both bonds and escaped the bad-faith
     ///      finding. The ruling must still be able to burn the creator's bond.
     function test_R114_02_acceptRefused_thenBadFaithRulingBurnsCreatorBond() public {
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = disputedJob();
         vm.prank(creator);
         vm.expectRevert(JobsEvaluator.DisputeOpen.selector);
@@ -31,7 +31,7 @@ contract R114DisputedAcceptTest is Base {
         vm.prank(arbitrator);
         evaluator.rule(jobId, true, true, REASON);
         assertEq(pay.balanceOf(worker), REWARD);
-        assertEq(factory.totalSupply(), supply - CREATOR_BOND, "the bad-faith finding still burns");
+        assertEq(circulating(), supply - CREATOR_BOND, "the bad-faith finding still burns");
     }
 
     function test_R114_02_acceptRefused_thenArbitrationTimeoutRefunds() public {

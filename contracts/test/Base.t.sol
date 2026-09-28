@@ -103,6 +103,11 @@ abstract contract Base is Test {
     // Lifecycle helpers
     // ------------------------------------------------------------------------------------------
 
+    /// @dev FACTORY in circulation: slashed bonds sit at the burn address, never in a wallet or in Holding.
+    function circulating() internal view returns (uint256) {
+        return factory.totalSupply() - factory.balanceOf(holding.BURN_ADDRESS());
+    }
+
     function deliveryDeadline() internal view returns (uint48) {
         return uint48(block.timestamp + 7 days);
     }

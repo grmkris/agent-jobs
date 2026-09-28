@@ -98,14 +98,14 @@ contract R114ExpiryTest is Base {
 
     function test_R114_03_arbitrationTimeoutAfterExpiryRefundsCreatorBurnsNothing() public {
         uint256 creatorPay = pay.balanceOf(creator);
-        uint256 supply = factory.totalSupply();
+        uint256 supply = circulating();
         uint256 jobId = disputedJob();
         _pastCoreExpiry(jobId);
         core.claimRefund(jobId);
         _recoverAll(jobId);
         assertEq(pay.balanceOf(creator), creatorPay);
         assertEq(pay.balanceOf(worker), 0);
-        assertEq(factory.totalSupply(), supply, "arbitrator inactivity never burns");
+        assertEq(circulating(), supply, "arbitrator inactivity never burns");
         assertEq(pay.balanceOf(address(holding)) + factory.balanceOf(address(holding)), 0);
     }
 

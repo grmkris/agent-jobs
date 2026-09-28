@@ -9,7 +9,6 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
 import {ERC8183WithAuthorization} from "./vendor/erc8183/ERC8183WithAuthorization.sol";
 import {IERC8004Identity} from "./vendor/erc8004/IERC8004.sol";
-import {FactoryToken} from "./FactoryToken.sol";
 
 /// @dev What Holding needs from the evaluator: how long settlement can take after delivery, who is owed a reward
 ///      that a core refund put back into Holding, and the completion of an awarded contest entry.
@@ -124,7 +123,12 @@ contract JobHolding is EIP712 {
     }
 
     ERC8183WithAuthorization public immutable core;
-    FactoryToken public immutable factory;
+    /// @notice The bond token ("FACTORY"): any plain ERC-20, e.g. our `FactoryToken` or a token launched elsewhere. A
+    ///         fee-on-transfer token is refused at the first bond; a slashed bond is sent to `BURN_ADDRESS`, so the token
+    ///         needs no `burn` function.
+    IERC20 public immutable factory;
+    /// @notice Where slashed bonds go. Tokens sent here are out of circulation for good.
+    address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
     /// @notice ERC-8004 Identity Registry: a worker participates with its registered agent wallet.
     IERC8004Identity public immutable identity;
     address public immutable admin;
@@ -182,6 +186,7 @@ contract JobHolding is EIP712 {
     error SelectionDeadlineInvalid();
     error WrongMode();
     error InsufficientFactoryHeld(uint256 held, uint256 required);
+    error BondTokenFeeOnTransfer(uint256 expected, uint256 received);
     error AlreadyAwarded();
     error NotApprover();
     error SelectionWindowClosed();
@@ -200,7 +205,7 @@ contract JobHolding is EIP712 {
 
     constructor(
         ERC8183WithAuthorization core_,
-        FactoryToken factory_,
+        IERC20 factory_,
         IERC8004Identity identity_,
         uint256 minHoldToPublish_,
         uint256 minHoldToClaim_
@@ -268,7 +273,7 @@ contract JobHolding is EIP712 {
         policyListed[p.policyHash] = true;
         address approver = p.approver == address(0) ? msg.sender : p.approver;
         p.token.safeTransferFrom(msg.sender, address(this), p.reward);
-        if (p.creatorBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), p.creatorBond);
+        if (p.creatorBond > 0) _pullBond(msg.sender, p.creatorBond);
 
         jobId = core.createJob(
             address(0), evaluator, p.expiredAt, Strings.toHexString(uint256(p.manifestHash), 32), address(0), 0
@@ -395,7 +400,7 @@ contract JobHolding is EIP712 {
         emit Activated(jobId, msg.sender, sel.agentId, sel.nonce);
 
         core.setProvider(jobId, msg.sender, sel.agentId);
-        if (l.workerBond > 0) IERC20(address(factory)).safeTransferFrom(msg.sender, address(this), l.workerBond);
+        if (l.workerBond > 0) _pullBond(msg.sender, l.workerBond);
         emit WorkerBondPosted(jobId, msg.sender, l.workerBond);
         core.setBudgetWithAuthorization(jobId, address(l.token), l.reward, "", budgetAuth);
         l.token.forceApprove(address(core), l.reward);
@@ -518,6 +523,15 @@ contract JobHolding is EIP712 {
         if (held < required) revert InsufficientFactoryHeld(held, required);
     }
 
+    /// @dev Pulls a bond and checks the exact amount arrived: the holding pays bonds back 1:1, so a token that takes a
+    ///      fee on transfer would leave settlements short.
+    function _pullBond(address from, uint256 amount) private {
+        uint256 before = factory.balanceOf(address(this));
+        factory.safeTransferFrom(from, address(this), amount);
+        uint256 received = factory.balanceOf(address(this)) - before;
+        if (received != amount) revert BondTokenFeeOnTransfer(amount, received);
+    }
+
     function _bondOf(Listing storage l, Side side) private view returns (uint256 amount, bool present) {
         if (side == Side.Creator) return (l.creatorBond, !l.creatorBondSettled);
         return (l.workerBond, l.workerBondPosted && !l.workerBondSettled);
@@ -534,7 +548,7 @@ contract JobHolding is EIP712 {
         if (side == Side.Creator) l.creatorBondBurned = true;
         else l.workerBondBurned = true;
         if (amount == 0) return;
-        factory.burn(amount);
+        factory.safeTransfer(BURN_ADDRESS, amount);
         emit BondBurned(jobId, side, amount);
     }
 
@@ -542,7 +556,7 @@ contract JobHolding is EIP712 {
         (uint256 amount,) = _bondOf(l, side);
         _markSettled(l, side);
         address to = side == Side.Creator ? l.creator : l.worker;
-        if (amount > 0) IERC20(address(factory)).safeTransfer(to, amount);
+        if (amount > 0) factory.safeTransfer(to, amount);
         emit BondReturned(jobId, side, to, amount);
     }
 

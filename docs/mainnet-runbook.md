@@ -37,7 +37,16 @@ Each step is one command from the repo root (or `contracts/` where stated). Secr
    | B. Fixed supply now, minter kept | none; after deploy, one `mint(treasury, supply)` **[tx]** | Bonds possible from day one; supply can still grow |
    | C. Fixed supply, no further minting | `minter` is immutable and there is no renounce, so either a contract change (`renounceMinter`, a re-audit of `FactoryToken`) or mint the full supply to a treasury and freeze admin minting by public commitment | Hard cap only with the contract change |
 
-   Recommendation: **A** for the first real job, since the hackathon demo's slashing is proven on testnet. Decide B/C before announcing bonds.
+   | D. A token launched elsewhere (e.g. nad.fun) | `"factory": { "faucet": false, "minter": "<unused>", "address": "0x…" }` in `config/monad-mainnet.json`; the recipe then deploys no `FactoryToken` and Holding bonds in that token | Supply, price and liquidity come from the launcher; Holding needs no mint or burn rights (a slash sends the bond to `0x…dEaD`) |
+
+   **Option D checks before deploy** (Holding's bond token is immutable; a wrong token means a new Holding pair):
+   - A plain ERC-20 with 18 decimals. **No fee or tax on transfer**: Holding compares balances around every bond pull and reverts `BondTokenFeeOnTransfer` (`BondTokenTest`), so a taxed token makes every bonded listing fail. Pons v2 offers an optional creator tax and runs on Robinhood Chain rather than Monad; nad.fun is the Monad-native launcher (1% trading fee on the curve, not on transfers; confirm on the verified token source).
+   - Transfers to and from a contract work before the token graduates to a DEX (some launchers limit transfers while on the bonding curve).
+   - No blacklist or pause the launcher controls, since either could freeze bonds held by Holding.
+   - Verified with a fork test: `MainnetRehearsal.t.sol::test_fork_mainnet_launchedFactoryTokenBondsAndSlashes` with the real token address in place of `LaunchedFactory`.
+   - Testnet keeps the old bytecode (FACTORY via `FactoryToken.burn`); the generalized Holding deploys first on mainnet.
+
+   Recommendation: **A** for the first real job, since the hackathon demo's slashing is proven on testnet. Decide B/C/D before announcing bonds. **Kris, 28 Sep: mainnet waits for the FACTORY decision; D (a launched token) is likely.**
 2. **Hold gates** stay 0 on mainnet (`holdGates` in the config); any other value locks out everyone until FACTORY exists.
 3. **Custom domain** for `prod` (optional; workers.dev works).
 4. **Who holds the admin role.** The independent review (28 Sep, Codex) rated this critical. The admin of the vendored core can:

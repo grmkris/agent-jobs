@@ -11,7 +11,7 @@ export const jobHoldingAbi = [
       {
         "name": "factory_",
         "type": "address",
-        "internalType": "contract FactoryToken"
+        "internalType": "contract IERC20"
       },
       {
         "name": "identity_",
@@ -30,6 +30,19 @@ export const jobHoldingAbi = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "BURN_ADDRESS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -414,7 +427,7 @@ export const jobHoldingAbi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract FactoryToken"
+        "internalType": "contract IERC20"
       }
     ],
     "stateMutability": "view"
@@ -1189,6 +1202,22 @@ export const jobHoldingAbi = [
     "type": "error",
     "name": "AlreadyAwarded",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BondTokenFeeOnTransfer",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "received",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

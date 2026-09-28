@@ -36,7 +36,7 @@ contract SlashingTest is Base {
         vm.prank(worker);
         factory.approve(address(holding), type(uint256).max);
 
-        supply = factory.totalSupply();
+        supply = circulating();
         creatorPay = pay.balanceOf(creator);
         cFac = factory.balanceOf(creator);
         wFac = factory.balanceOf(worker);
@@ -61,7 +61,7 @@ contract SlashingTest is Base {
         assertEq(factory.balanceOf(worker), workerBurned ? wFac - WORKER_BOND : wFac, "worker bond");
         assertEq(factory.balanceOf(creator), creatorBurned ? cFac - CREATOR_BOND : cFac, "creator bond");
         uint256 burned = (workerBurned ? WORKER_BOND : 0) + (creatorBurned ? CREATOR_BOND : 0);
-        assertEq(factory.totalSupply(), supply - burned, "burned, not transferred");
+        assertEq(circulating(), supply - burned, "burned, not transferred");
         assertEq(listing(jobId).workerBondBurned, workerBurned);
         assertEq(listing(jobId).creatorBondBurned, creatorBurned);
         assertEq(pay.balanceOf(address(holding)) + factory.balanceOf(address(holding)), 0, "each amount once");

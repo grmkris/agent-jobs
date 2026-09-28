@@ -2,13 +2,22 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
 import {ERC8183WithAuthorization} from "../../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {IERC8004Identity, IERC8004Reputation} from "../../src/vendor/erc8004/IERC8004.sol";
+import {FactoryToken} from "../../src/FactoryToken.sol";
 import {JobHolding} from "../../src/JobHolding.sol";
 import {JobsEvaluator} from "../../src/JobsEvaluator.sol";
 import {Recipe} from "../../script/Recipe.sol";
+
+/// @dev A FACTORY launched outside this repo (a token launcher): a plain ERC-20 with no `burn` and no minter here.
+contract LaunchedFactory is ERC20 {
+    constructor(address holder) ERC20("Factory", "FACTORY") {
+        _mint(holder, 1_000_000e18);
+    }
+}
 
 /// @dev The B7 rehearsal on a local fork of Monad mainnet (nothing is sent): the committed mainnet recipe, then real
 ///      Circle USDC jobs against the real ERC-8004 registries, with the arbitrator's key signing a ruling as the board
@@ -73,13 +82,13 @@ contract MainnetRehearsalForkTest is Test {
 
     function _bonds() internal {
         vm.startPrank(c.factoryMinter);
-        d.factory.mint(creator, BOND);
-        d.factory.mint(worker, BOND);
+        FactoryToken(address(d.factory)).mint(creator, BOND);
+        FactoryToken(address(d.factory)).mint(worker, BOND);
         vm.stopPrank();
         vm.prank(creator);
-        IERC20(address(d.factory)).approve(address(holding), BOND);
+        d.factory.approve(address(holding), BOND);
         vm.prank(worker);
-        IERC20(address(d.factory)).approve(address(holding), BOND);
+        d.factory.approve(address(holding), BOND);
     }
 
     function _hire(uint256 creatorBond, uint256 workerBond) internal returns (uint256 jobId) {
@@ -166,8 +175,8 @@ contract MainnetRehearsalForkTest is Test {
         // The core refund lands in Holding; the permissionless `settle` pays it to whoever is owed (R114-03).
         holding.settle(jobId);
         assertEq(usdc.balanceOf(creator) - creatorBefore, REWARD, "reward refunded to the creator");
-        assertEq(IERC20(address(d.factory)).balanceOf(worker), 0, "worker bond burned");
-        assertEq(IERC20(address(d.factory)).balanceOf(creator), BOND, "creator bond returned");
+        assertEq(d.factory.balanceOf(worker), 0, "worker bond burned");
+        assertEq(d.factory.balanceOf(creator), BOND, "creator bond returned");
         vm.expectRevert(JobsEvaluator.RulingNonceUsed.selector);
         evaluator.ruleWithSignature(r, abi.encodePacked(rs, s, v));
     }
@@ -191,5 +200,40 @@ contract MainnetRehearsalForkTest is Test {
         vm.prank(creator);
         vm.expectRevert();
         holding.publish(p);
+    }
+
+    function test_fork_mainnet_launchedFactoryTokenBondsAndSlashes() public onFork {
+        // The recipe with `factory.address` set: Holding takes the launched token as it is.
+        address treasury = makeAddr("factory-treasury");
+        c.factoryToken = address(new LaunchedFactory(treasury));
+        vm.startBroadcast(c.admin);
+        d = Recipe.deploy(c);
+        vm.stopBroadcast();
+        assertEq(address(d.factory), c.factoryToken, "no FactoryToken deployed");
+        holding = d.holdings[0];
+        evaluator = d.evaluators[0];
+        core = ERC8183WithAuthorization(address(d.core));
+        vm.prank(creator);
+        usdc.approve(address(holding), type(uint256).max);
+        vm.startPrank(treasury);
+        d.factory.transfer(creator, BOND);
+        d.factory.transfer(worker, BOND);
+        vm.stopPrank();
+        vm.prank(creator);
+        d.factory.approve(address(holding), BOND);
+        vm.prank(worker);
+        d.factory.approve(address(holding), BOND);
+
+        uint256 jobId = _hire(BOND, BOND);
+        vm.prank(creator);
+        evaluator.reject(jobId, JobsEvaluator.Violation.Quality, keccak256("tests fail"));
+        vm.prank(worker);
+        evaluator.dispute(jobId);
+        vm.prank(c.arbitrator);
+        evaluator.rule(jobId, false, true, keccak256("the tests fail on the submitted commit"));
+        holding.settle(jobId);
+        assertEq(d.factory.balanceOf(worker), 0, "worker bond slashed");
+        assertEq(d.factory.balanceOf(holding.BURN_ADDRESS()), BOND, "to the burn address, no burn() needed");
+        assertEq(d.factory.balanceOf(creator), BOND, "creator bond returned");
     }
 }

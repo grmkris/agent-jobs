@@ -56,7 +56,7 @@ contract DeployForkTest is Test {
         assertEq(d.evaluators[1].settlementWindow(), 600, "demo windows 2m/2m/5m + 1m");
         assertEq(IERC20Metadata(d.rewardTokens[0]).symbol(), "mUSD");
         assertEq(IERC20Metadata(d.rewardTokens[1]).symbol(), "mEUR");
-        assertTrue(d.factory.faucetEnabled());
+        assertTrue(FactoryToken(address(d.factory)).faucetEnabled());
     }
 
     function test_fork_mainnetRecipeHasNoFaucet() public {
@@ -67,9 +67,9 @@ contract DeployForkTest is Test {
         assertEq(d.holdings.length, 1);
         assertEq(d.rewardTokens.length, 1);
         assertEq(IERC20Metadata(d.rewardTokens[0]).symbol(), "USDC", "real USDC allowlisted");
-        assertFalse(d.factory.faucetEnabled(), "no faucet");
+        assertFalse(FactoryToken(address(d.factory)).faucetEnabled(), "no faucet");
         vm.expectRevert(FactoryToken.FaucetDisabled.selector);
-        d.factory.faucet();
+        FactoryToken(address(d.factory)).faucet();
     }
 
     function test_fork_mainnetRecipeRefusesAFaucetConfig() public {
