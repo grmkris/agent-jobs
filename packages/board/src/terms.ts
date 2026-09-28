@@ -4,7 +4,7 @@
  * reward, both bonds, deadlines, approver, criteria, evidence policy, the originating quote when there is one, and
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
-import { type Address, type Hex, keccak256, stringToHex } from 'viem'
+import { type AbiFunction, type Address, type Hex, keccak256, parseAbiItem, stringToHex } from 'viem'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
 
@@ -38,12 +38,39 @@ export type OfferMode = 'hire' | 'contest'
  * escrowed: the worker spends from the creator's own wallet through the board's Privy signer, per transfer within
  * Privy's policy and in total within the board's ledger, until `expiresAt`. Hire only.
  */
-export interface ExecutionBudget {
+export type ExecutionBudget = TokenBudget | CallBudget
+
+/** The worker pays running costs in `token` (an ERC-20 `transfer` to anyone). Carries no `kind`, as before. */
+export interface TokenBudget {
   token: Address
   /** Base units of `token`. */
   cap: bigint
   /** Unix seconds; at most the delivery deadline. */
   expiresAt: number
+}
+
+/**
+ * The worker makes calls from the creator's wallet to one contract function (ADR-0005 amendment), e.g. a launchpad's
+ * `create()`, so the creator is `msg.sender` and owns what it makes. `cap` bounds the native value sent in total.
+ */
+export interface CallBudget {
+  kind: 'call'
+  target: Address
+  /** Human-readable ABI of the one allowed function, e.g. `function create((string,string) params) payable`. */
+  function: string
+  /** Native units (wei) of value, in total across calls. */
+  cap: bigint
+  /** Unix seconds; at most the delivery deadline. */
+  expiresAt: number
+}
+
+export const isCallBudget = (b: ExecutionBudget): b is CallBudget => 'kind' in b && b.kind === 'call'
+
+/** The allowed function of a call budget, parsed; throws on anything that is not one function. */
+export function callFunction(b: CallBudget): AbiFunction {
+  const item = parseAbiItem(b.function) as AbiFunction | { type: string }
+  if (item.type !== 'function') throw new Error('not a function')
+  return item as AbiFunction
 }
 
 /** Where the offer is valid: the agreement is only ever with these contracts on this chain. */
@@ -173,6 +200,13 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
   if (b !== undefined) {
     if (offer.mode !== 'hire') throw new TermsError('invalid-budget', 'Only a hire carries an execution budget.')
     if (b.cap <= 0n) throw new TermsError('invalid-budget', 'An execution budget must be positive.')
+    if (isCallBudget(b)) {
+      try {
+        callFunction(b)
+      } catch {
+        throw new TermsError('invalid-budget', 'A call budget names exactly one function in human-readable ABI form.')
+      }
+    }
     if (b.expiresAt <= now || b.expiresAt > offer.deliveryDeadline) {
       throw new TermsError('invalid-budget', 'An execution budget expires in the future and no later than the delivery deadline.')
     }

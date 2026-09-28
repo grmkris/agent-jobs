@@ -25,7 +25,7 @@ import {
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
-import { type BudgetConfig, BudgetDesk } from './budget.ts'
+import { type BudgetConfig, BudgetDesk, nativeSymbol } from './budget.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
@@ -42,7 +42,7 @@ import {
   type TaskRow,
   migrate,
 } from './store.ts'
-import { type ExecutionBudget, type OfferMode, type OfferTerms, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, isCallBudget, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
 import {
   type Deliverable,
   type DeliverableCheck,
@@ -150,6 +150,19 @@ function typedDataJson(domain: Record<string, unknown>, types: Record<string, un
   )
 }
 
+/**
+ * An execution budget as a caller asks for it (decimal cap). A token budget (the default) names `token`; a call budget
+ * (`kind: 'call'`) names the contract `target` and the one allowed `function`, and caps native value.
+ */
+export interface BudgetInput {
+  kind?: 'token' | 'call'
+  token?: string
+  target?: string
+  function?: string
+  cap: string
+  expiresAt?: number
+}
+
 /** The spec as frozen into terms: kinds de-duplicated in canonical order, an empty target dropped. */
 function normalSpec(spec: DeliverableSpec): DeliverableSpec {
   const problem = validateSpec(spec)
@@ -211,6 +224,10 @@ export class Board {
 
   spendBudget(caller: Caller, input: { taskId: string; to: string; amount: string; note?: string }) {
     return this.#budget.spend(this.#requireCaller(caller), input)
+  }
+
+  spendBudgetCall(caller: Caller, input: { taskId: string; data: string; value?: string; note?: string }) {
+    return this.#budget.spendCall(this.#requireCaller(caller), input)
   }
 
   revokeBudget(caller: Caller, input: { taskId: string }) {
@@ -438,7 +455,7 @@ export class Board {
        * Hire only (ADR-0005): the worker may spend up to `cap` (decimal, in the token's units) of `token` from the
        * creator's Privy wallet until `expiresAt` (default: the delivery deadline). Bound into the terms hash.
        */
-      executionBudget?: { token: string; cap: string; expiresAt?: number }
+      executionBudget?: BudgetInput
       /** The deliverable forms accepted (ADR-0006); omitted means git only. Bound into the terms hash. */
       deliverable?: DeliverableSpec
     },
@@ -520,8 +537,13 @@ export class Board {
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
     if (executionBudget !== undefined) {
       this.#sql.run(
-        "INSERT INTO budget_grants (task_id, creator, token, cap, expires_at, status, created_at) VALUES (?, ?, ?, ?, ?, 'promised', ?)",
-        taskId, creator, executionBudget.token, executionBudget.cap.toString(), executionBudget.expiresAt, this.#now(),
+        "INSERT INTO budget_grants (task_id, creator, token, cap, expires_at, kind, fn, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'promised', ?)",
+        taskId, creator,
+        isCallBudget(executionBudget) ? executionBudget.target : executionBudget.token,
+        executionBudget.cap.toString(), executionBudget.expiresAt,
+        isCallBudget(executionBudget) ? 'call' : 'token',
+        isCallBudget(executionBudget) ? executionBudget.function : null,
+        this.#now(),
       )
     }
 
@@ -593,7 +615,26 @@ export class Board {
   }
 
   /** A requested budget as terms: an allowlisted token, the cap in its units, the expiry defaulting to the deadline. */
-  async #executionBudget(ctx: sdk.Ctx, b: { token: string; cap: string; expiresAt?: number }, deliveryDeadline: number): Promise<ExecutionBudget> {
+  async #executionBudget(ctx: sdk.Ctx, b: BudgetInput, deliveryDeadline: number): Promise<ExecutionBudget> {
+    const expiresAt = b.expiresAt ?? deliveryDeadline
+    if (b.kind === 'call') {
+      if (b.target === undefined || !isAddress(b.target)) throw new BoardError('invalid', 'a call budget needs the contract address (`target`)')
+      if (b.function === undefined) throw new BoardError('invalid', 'a call budget needs the allowed `function`, e.g. "function create((string,string) params) payable"')
+      let cap: bigint
+      try {
+        cap = parseUnits(b.cap, 18)
+      } catch {
+        throw new BoardError('invalid', 'the call budget cap must be a decimal amount of the native token')
+      }
+      const call: CallBudget = { kind: 'call', target: getAddress(b.target), function: b.function.trim(), cap, expiresAt }
+      try {
+        callFunction(call)
+      } catch {
+        throw new BoardError('invalid', '`function` must be one function in human-readable ABI form')
+      }
+      return call
+    }
+    if (b.token === undefined) throw new BoardError('invalid', 'a token budget needs its `token`')
     const token = await this.#resolveToken(ctx, b.token)
     const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     let cap: bigint
@@ -602,7 +643,7 @@ export class Board {
     } catch {
       throw new BoardError('invalid', 'the execution budget cap must be a decimal number')
     }
-    return { token, cap, expiresAt: b.expiresAt ?? deliveryDeadline }
+    return { token, cap, expiresAt }
   }
 
   /** A base-unit amount as people read it: the token's symbol and a decimal amount. */
@@ -1056,7 +1097,7 @@ export class Board {
        * The execution budget the creator approves (ADR-0005), possibly less than the worker declared. The token
        * defaults to the declared costs' token, else the reward token; the expiry to the delivery deadline.
        */
-      executionBudget?: { token?: string; cap: string; expiresAt?: number }
+      executionBudget?: BudgetInput
     },
   ) {
     const me = this.#requireCaller(caller)
@@ -1090,11 +1131,14 @@ export class Board {
         ...(input.executionBudget === undefined
           ? {}
           : {
-              executionBudget: {
-                token: input.executionBudget.token ?? (q.expected_costs_json === null ? q.token : (JSON.parse(q.expected_costs_json) as { token: string }).token),
-                cap: input.executionBudget.cap,
-                ...(input.executionBudget.expiresAt === undefined ? {} : { expiresAt: input.executionBudget.expiresAt }),
-              },
+              executionBudget:
+                input.executionBudget.kind === 'call'
+                  ? input.executionBudget
+                  : {
+                      token: input.executionBudget.token ?? (q.expected_costs_json === null ? q.token : (JSON.parse(q.expected_costs_json) as { token: string }).token),
+                      cap: input.executionBudget.cap,
+                      ...(input.executionBudget.expiresAt === undefined ? {} : { expiresAt: input.executionBudget.expiresAt }),
+                    },
             }),
       },
       { requestHash: req.request_hash as Hex, quoteHash: q.quote_hash as Hex },
@@ -1925,7 +1969,9 @@ export class Board {
         executionBudget:
           terms.executionBudget === undefined
             ? null
-            : { token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt },
+            : isCallBudget(terms.executionBudget)
+              ? { kind: 'call', target: terms.executionBudget.target, function: terms.executionBudget.function, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt }
+              : { token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt },
         termsHash: t.terms_hash,
         manifestUrl: `${this.#config.manifestBaseUrl}/${t.terms_hash}.json`,
         screening: { verdict: screening?.verdict ?? 'unscreened', reasons: screening?.reasons ?? [] },
@@ -1987,7 +2033,15 @@ export class Board {
         terms.executionBudget === undefined
           ? null
           : {
-              ...(await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
+              ...(isCallBudget(terms.executionBudget)
+                ? {
+                    kind: 'call',
+                    target: terms.executionBudget.target,
+                    function: terms.executionBudget.function,
+                    amount: formatUnits(terms.executionBudget.cap, 18),
+                    symbol: nativeSymbol(this.#taskCtx(task)),
+                  }
+                : await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
               expiresAt: terms.executionBudget.expiresAt,
               /** promised: in the terms, not granted yet; live: the worker can spend; revoked / ended. */
               grant: this.#budget.grantStatus(task.id),

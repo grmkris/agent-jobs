@@ -74,6 +74,22 @@ describe('budget policy', () => {
     ])
   })
 
+  it('a call rule pins the target, caps the value and allows only the one function', () => {
+    const fn = 'function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable'
+    const r = budgetRule({ kind: 'call', taskId: 't3', chainId: 10143, target: '0x865054F0F6A288adaAc30261731361EA7E908003', function: fn, cap: 12n * 10n ** 18n, expiresAt: 1800000000 })
+    expect(r.name).toBe('budget-t3')
+    expect(r.conditions.map((c) => [c.field_source, c.field, c.operator, c.value])).toEqual([
+      ['ethereum_transaction', 'chain_id', 'eq', '10143'],
+      ['ethereum_transaction', 'to', 'eq', '0x865054F0F6A288adaAc30261731361EA7E908003'],
+      ['ethereum_transaction', 'value', 'lte', '12000000000000000000'],
+      ['ethereum_calldata', 'function_name', 'eq', 'create'],
+      ['system', 'current_unix_timestamp', 'lt', '1800000000'],
+    ])
+    const abi = r.conditions[3]?.abi as Array<{ name: string; type: string }>
+    expect(abi).toHaveLength(1)
+    expect(abi[0]).toMatchObject({ type: 'function', name: 'create' })
+  })
+
   it('is the union of a wallet’s grants, in a stable order, under a name Privy accepts', () => {
     const body = budgetPolicyBody('0x1234567890abcdef1234567890abcdef12345678', [{ ...g, taskId: 't2' }, g], 'did:privy:x')
     expect(body.rules.map((r) => r.name)).toEqual(['budget-t1', 'budget-t2'])

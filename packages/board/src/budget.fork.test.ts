@@ -10,10 +10,10 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
-import { type Address, type Hex, decodeFunctionData, erc20Abi, parseEther, parseUnits } from 'viem'
+import { type AbiFunction, type Address, type Hex, decodeFunctionData, encodeFunctionData, erc20Abi, parseAbiItem, parseEther, parseUnits } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Board, type BoardConfig, fromNodeSqlite, generateAuthorizationKey, parseTerms, signaturePayload } from './index.ts'
+import { Board, type BoardConfig, type BudgetInput, fromNodeSqlite, generateAuthorizationKey, parseTerms, signaturePayload } from './index.ts'
 
 const rpc = process.env.MONAD_TESTNET_RPC_URL ?? ''
 const hasAnvil = (() => {
@@ -52,7 +52,7 @@ const pad32 = (b: Uint8Array) => [...Array.from({ length: 32 - (b[0] === 0 ? b.l
 class FakePrivy {
   readonly jwt = crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
   signerPublic: Awaited<ReturnType<typeof crypto.subtle.importKey>> | undefined
-  readonly policies = new Map<string, { rules: Array<{ name: string; conditions: Array<{ field: string; operator: string; value: string }> }> }>()
+  readonly policies = new Map<string, { rules: Array<{ name: string; conditions: Array<{ field: string; operator: string; value: string; abi?: unknown }> }> }>()
   signers: Array<{ signer_id: string; override_policy_ids: string[] }> = []
   readonly sent = new Map<string, Hex>()
   refuseNextSend = false
@@ -124,18 +124,34 @@ class FakePrivy {
         this.refuseNextSend = false
         return json(400, { error: 'RPC request denied due to policy violation', code: 'policy_violation' })
       }
-      const tx = ((body ?? {}).params as { transaction: { to: Address; data: Hex } }).transaction
+      const tx = ((body ?? {}).params as { transaction: { to: Address; data: Hex; value: Hex } }).transaction
       const signer = this.signers[0]
       const rules = signer === undefined ? [] : (this.policies.get(signer.override_policy_ids[0] as string)?.rules ?? [])
-      const { args, functionName } = decodeFunctionData({ abi: erc20Abi, data: tx.data })
       const now = Number((await ctx().publicClient.getBlock()).timestamp)
+      const value = BigInt(tx.value)
       const allowed = rules.some((r) => {
-        const c = (f: string) => r.conditions.find((x) => x.field === f)?.value as string
-        return functionName === 'transfer' && c('to').toLowerCase() === tx.to.toLowerCase() && (args[1] as bigint) <= BigInt(c('transfer.amount')) && now < Number(c('current_unix_timestamp'))
+        const cond = (f: string) => r.conditions.find((x) => x.field === f)
+        const c = (f: string) => cond(f)?.value as string
+        if (c('to').toLowerCase() !== tx.to.toLowerCase() || now >= Number(c('current_unix_timestamp'))) return false
+        const fn = cond('function_name')
+        if (fn !== undefined) {
+          // A call rule: this one function (decoded with the rule's ABI) and at most the value cap.
+          try {
+            return decodeFunctionData({ abi: fn.abi as [AbiFunction], data: tx.data }).functionName === fn.value && value <= BigInt(c('value'))
+          } catch {
+            return false
+          }
+        }
+        try {
+          const { args, functionName } = decodeFunctionData({ abi: erc20Abi, data: tx.data })
+          return functionName === 'transfer' && value === 0n && (args[1] as bigint) <= BigInt(c('transfer.amount'))
+        } catch {
+          return false
+        }
       })
       if (!allowed) return json(400, { error: 'RPC request denied due to policy violation', code: 'policy_violation' })
       await rpcCall('anvil_impersonateAccount', [this.creator])
-      const hash = (await rpcCall('eth_sendTransaction', [{ from: this.creator, to: tx.to, data: tx.data }])) as Hex
+      const hash = (await rpcCall('eth_sendTransaction', [{ from: this.creator, to: tx.to, data: tx.data, value: tx.value }])) as Hex
       this.sent.set(key, hash)
       return json(200, { data: { hash } })
     }
@@ -251,12 +267,12 @@ fork('execution budget on a testnet fork', () => {
   }, 180_000)
 
   /** A hire with a budget, published, the worker selected and activated. */
-  async function activeHire(cap: string, expiresIn = 1800) {
+  async function activeHire(cap: string, expiresIn = 1800, budget?: BudgetInput) {
     const c = ctx()
     const t = await now()
     const created = await board.createTask({ address: creator.address }, {
       title: 'Budgeted hire', brief: 'Fork test.', acceptanceCriteria: ['x'], token: 'mUSD', reward: '2', creatorBond: '1', workerBond: '1',
-      deliveryDeadline: t + 3600, mode: 'hire', stack: 'demo', executionBudget: { token: 'mEUR', cap, expiresAt: t + expiresIn },
+      deliveryDeadline: t + 3600, mode: 'hire', stack: 'demo', executionBudget: budget ?? { token: 'mEUR', cap, expiresAt: t + expiresIn },
     })
     const hashes = await sdk.sendAll(w(creator), c.publicClient, created.transactions)
     await board.reportTransaction({ address: creator.address }, { taskId: created.taskId, txHash: hashes.at(-1) as string })
@@ -350,6 +366,46 @@ fork('execution budget on a testnet fork', () => {
     expect(privy.rpcCalls).toBe(calls)
     const ended = await board.getBudget({ address: creator.address }, { taskId: a.taskId })
     expect(ended).toMatchObject({ status: 'ended', endedReason: 'expired' })
+  }, 300_000)
+
+  it('a call budget launches a token on nad.fun from the creator’s wallet: the creator is msg.sender, the value is capped', async () => {
+    // nad.fun's bonding-curve router on Monad testnet; `create` costs a 10 MON deploy fee.
+    const router = '0x865054F0F6A288adaAc30261731361EA7E908003' as const
+    const fn = 'function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable'
+    const create = parseAbiItem(fn) as AbiFunction
+    const t = await now()
+    const { taskId, seenBeforeActivation } = await activeHire('12', 1800, { kind: 'call', target: router, function: fn, cap: '12', expiresAt: t + 1800 })
+    expect(seenBeforeActivation.executionBudget).toMatchObject({ kind: 'call', target: router, amount: '12', symbol: 'MON', grant: 'promised' })
+
+    const prep = await board.budgetGrantPrepare({ address: creator.address }, { taskId, privyAccessToken: await privy.accessToken(await now()) })
+    const { policyId, signerId } = prep as { policyId: string; signerId: string }
+    const rule = privy.policies.get(policyId)?.rules.find((r) => r.name === `budget-${taskId}`)
+    expect(rule?.conditions.map((c) => c.field)).toEqual(['chain_id', 'to', 'value', 'function_name', 'current_unix_timestamp'])
+    privy.addSigner(signerId, policyId)
+    expect(await board.budgetGrantConfirm({ address: creator.address }, { taskId })).toMatchObject({ status: 'live', kind: 'call', cap: '12', symbol: 'MON' })
+
+    const salt = `0x${'ab'.repeat(32)}` as Hex
+    const data = encodeFunctionData({ abi: [create], args: [{ name: 'Chomp', symbol: 'CHOMP', tokenURI: 'https://example.test/chomp.json', amountOut: 0n, salt, actionId: 1 }] })
+    // Only the worker, only that function, only a call budget's tool, only within the cap.
+    await expect(board.spendBudgetCall({ address: stranger.address }, { taskId, data, value: '10' })).rejects.toThrow('activated worker')
+    await expect(board.spendBudgetCall({ address: worker.address }, { taskId, data: '0xa9059cbb00', value: '0' })).rejects.toThrow('selector')
+    await expect(board.spendBudget({ address: worker.address }, { taskId, to: worker.address, amount: '1' })).rejects.toThrow('spend_budget_call')
+    await expect(board.spendBudgetCall({ address: worker.address }, { taskId, data, value: '13' })).rejects.toThrow('over the budget')
+
+    const before = await ctx().publicClient.getBalance({ address: creator.address })
+    const spent = await board.spendBudgetCall({ address: worker.address }, { taskId, data, value: '10', note: 'nad.fun deploy fee' })
+    const receipt = await ctx().publicClient.waitForTransactionReceipt({ hash: spent.txHash })
+    expect(receipt.status).toBe('success')
+    // The creator sent it, so the launchpad records the creator (not the worker) as the token's creator.
+    expect(receipt.from.toLowerCase()).toBe(creator.address.toLowerCase())
+    const creatorTopic = `0x${creator.address.slice(2).toLowerCase().padStart(64, '0')}`
+    expect(receipt.logs.some((l) => (l.topics as readonly string[]).includes(creatorTopic) || l.data.toLowerCase().includes(creator.address.slice(2).toLowerCase()))).toBe(true)
+    expect(before - (await ctx().publicClient.getBalance({ address: creator.address }))).toBeGreaterThanOrEqual(parseEther('10'))
+
+    const after = await board.getBudget({ address: creator.address }, { taskId })
+    expect(after).toMatchObject({ spent: '10', remaining: '2' })
+    expect(after.spends[0]).toMatchObject({ selector: data.slice(0, 10), status: 'confirmed' })
+    await expect(board.spendBudgetCall({ address: worker.address }, { taskId, data, value: '10' })).rejects.toThrow('over the budget')
   }, 300_000)
 
   it('while the core is paused the board hands out no transaction and no spend', async () => {

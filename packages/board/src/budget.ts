@@ -12,11 +12,11 @@
  * as Privy's idempotency key, and reconciled from the chain (receipt) afterwards.
  */
 import * as sdk from '@agent-jobs/sdk'
-import { type Address, type Hex, encodeFunctionData, erc20Abi, formatUnits, getAddress, isAddress, parseUnits, zeroAddress } from 'viem'
+import { type Address, type Hex, encodeFunctionData, erc20Abi, formatUnits, getAddress, isAddress, isHex, parseUnits, toFunctionSelector, toHex, zeroAddress } from 'viem'
 import { budgetPolicyBody, budgetRuleName, type BudgetRuleInput } from './budget-policy.ts'
 import { PrivyApiError, type PrivyApp, privyFetch, signedPrivyFetch, verifyAccessToken } from './privy.ts'
 import type { BudgetGrantRow, BudgetSpendRow, BudgetWalletRow, Sql, TaskRow } from './store.ts'
-import type { OfferTerms } from './terms.ts'
+import { type CallBudget, type OfferTerms, type TokenBudget, callFunction, isCallBudget } from './terms.ts'
 
 export interface BudgetConfig {
   readonly app: PrivyApp
@@ -41,6 +41,11 @@ export interface BudgetDeps {
   readonly now: () => number
   readonly taskState: (taskId: string) => Promise<BudgetTaskState>
   readonly fail: (code: 'unauthenticated' | 'forbidden' | 'not-found' | 'invalid' | 'conflict' | 'chain', message: string) => Error
+}
+
+/** The chain's native token symbol (a call budget's cap is in it). */
+export function nativeSymbol(ctx: sdk.Ctx): string {
+  return ctx.publicClient.chain?.nativeCurrency.symbol ?? (ctx.deployment.chainId === 10143 || ctx.deployment.chainId === 143 ? 'MON' : 'ETH')
 }
 
 /** Chain statuses after which nothing may be spent: the job is settled or can no longer be delivered. */
@@ -109,7 +114,11 @@ export class BudgetDesk {
         granting ?? '',
         this.#deps.now(),
       )
-      .map((g) => ({ taskId: g.task_id, chainId, token: getAddress(g.token), cap: BigInt(g.cap), expiresAt: g.expires_at }))
+      .map((g): BudgetRuleInput =>
+        g.kind === 'call'
+          ? { kind: 'call', taskId: g.task_id, chainId, target: getAddress(g.token), function: g.fn ?? '', cap: BigInt(g.cap), expiresAt: g.expires_at }
+          : { taskId: g.task_id, chainId, token: getAddress(g.token), cap: BigInt(g.cap), expiresAt: g.expires_at },
+      )
   }
 
   /** Ends a grant whose job settled or whose time ran out; the board stops signing for it at once. */
@@ -290,17 +299,19 @@ export class BudgetDesk {
     if (b === undefined) throw this.#deps.fail('not-found', `task ${input.taskId} has no execution budget`)
     const g = this.#endIfOver(this.#grant(input.taskId), st)
     await this.#reconcile(st, g)
-    const [symbol, decimals] = await Promise.all([
-      st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
-      st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
-    ])
+    const [symbol, decimals] = isCallBudget(b)
+      ? [nativeSymbol(st.ctx), 18]
+      : await Promise.all([
+          st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
+          st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+        ])
     const { spent, reserved } = this.#ledger(input.taskId)
     const fmt = (x: bigint) => formatUnits(x, decimals)
     const spends = this.#deps.sql.all<BudgetSpendRow>('SELECT * FROM budget_spends WHERE task_id = ? ORDER BY created_at', input.taskId)
     const isCreator = eq(st.terms.creator, me)
     return {
       taskId: input.taskId,
-      token: b.token,
+      ...(isCallBudget(b) ? { kind: 'call' as const, target: b.target, function: b.function } : { kind: 'token' as const, token: b.token }),
       symbol,
       cap: fmt(b.cap),
       spent: fmt(spent),
@@ -309,7 +320,16 @@ export class BudgetDesk {
       expiresAt: b.expiresAt,
       status: g.status,
       endedReason: g.ended_reason,
-      spends: spends.map((r) => ({ spendId: r.id, to: r.to_addr, amount: fmt(BigInt(r.amount)), note: r.note, status: r.status, txHash: r.tx_hash, at: r.created_at })),
+      spends: spends.map((r) => ({
+        spendId: r.id,
+        to: r.to_addr,
+        amount: fmt(BigInt(r.amount)),
+        ...(r.call_data === null ? {} : { selector: r.call_data.slice(0, 10) }),
+        note: r.note,
+        status: r.status,
+        txHash: r.tx_hash,
+        at: r.created_at,
+      })),
       cleanup: isCreator && (g.status === 'ended' || g.status === 'revoked') ? await this.#cleanup(me, st.ctx.deployment.chainId) : null,
     }
   }
@@ -334,8 +354,15 @@ export class BudgetDesk {
     const cfg = this.#cfg()
     const w = this.#wallet(st.terms.creator)
     if (w === undefined) throw this.#deps.fail('conflict', 'the creator has not granted this budget')
-    const token = (st.terms.executionBudget as { token: Address }).token
-    const data = encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [row.to_addr as Address, BigInt(row.amount)] })
+    // A call spend sends its calldata and value to the target; a token spend is the budget token's transfer.
+    const tx =
+      row.call_data === null
+        ? {
+            to: (st.terms.executionBudget as TokenBudget).token,
+            data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [row.to_addr as Address, BigInt(row.amount)] }),
+            value: '0x0',
+          }
+        : { to: row.to_addr, data: row.call_data, value: toHex(BigInt(row.amount)) }
     try {
       const res = await signedPrivyFetch<{ data: { hash: Hex } }>(
         cfg.app,
@@ -343,7 +370,7 @@ export class BudgetDesk {
         {
           method: 'POST',
           path: `/wallets/${w.wallet_id}/rpc`,
-          body: { method: 'eth_sendTransaction', caip2: `eip155:${st.ctx.deployment.chainId}`, params: { transaction: { to: token, data, value: '0x0' } } },
+          body: { method: 'eth_sendTransaction', caip2: `eip155:${st.ctx.deployment.chainId}`, params: { transaction: tx } },
           idempotencyKey: `aj-spend-${row.id}`,
         },
         this.#fetch(),
@@ -369,18 +396,9 @@ export class BudgetDesk {
   async spend(me: Address, input: { taskId: string; to: string; amount: string; note?: string }) {
     this.#cfg()
     const st = await this.#deps.taskState(input.taskId)
-    const b = st.terms.executionBudget
-    if (b === undefined) throw this.#deps.fail('not-found', `task ${input.taskId} has no execution budget`)
-    if (!eq(st.provider, me)) throw this.#deps.fail('forbidden', 'only the job’s activated worker spends its execution budget')
-    const g = this.#endIfOver(this.#grant(input.taskId), st)
-    if (g.status !== 'live') {
-      throw this.#deps.fail('conflict', g.status === 'promised' ? 'the creator has not granted this budget yet' : `this budget is ${g.status}${g.ended_reason === null ? '' : ` (${g.ended_reason})`}`)
-    }
-    if (st.status !== 'active') throw this.#deps.fail('conflict', `spending is only while the job is active (it is ${st.status})`)
+    const b = await this.#spendable(me, st, input.taskId)
+    if (isCallBudget(b)) throw this.#deps.fail('invalid', 'this is a call budget: spend it with spend_budget_call')
     const now = this.#deps.now()
-    if (now >= Math.min(b.expiresAt, st.terms.deliveryDeadline)) throw this.#deps.fail('conflict', 'the budget has expired')
-    const paused = await st.ctx.publicClient.readContract({ address: st.ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })
-    if (paused) throw this.#deps.fail('conflict', 'the core is paused; nothing moves until it is unpaused')
     if (!isAddress(input.to) || eq(input.to, zeroAddress)) throw this.#deps.fail('invalid', '`to` must be a non-zero address')
     const decimals = await st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     let amount: bigint
@@ -401,6 +419,7 @@ export class BudgetDesk {
       worker: me,
       to_addr: getAddress(input.to),
       amount: amount.toString(),
+      call_data: null,
       note: input.note ?? '',
       status: 'reserved',
       tx_hash: null,
@@ -414,6 +433,72 @@ export class BudgetDesk {
     )
     const hash = await this.#send(st, row)
     return { spendId: row.id, txHash: hash, status: 'sent', next: 'get_budget shows it confirmed once the transfer is mined.' }
+  }
+
+  /** The checks every spend shares: the caller is the activated worker, the grant is live, the job active, the core not paused. */
+  async #spendable(me: Address, st: BudgetTaskState, taskId: string) {
+    const b = st.terms.executionBudget
+    if (b === undefined) throw this.#deps.fail('not-found', `task ${taskId} has no execution budget`)
+    if (!eq(st.provider, me)) throw this.#deps.fail('forbidden', 'only the job’s activated worker spends its execution budget')
+    const g = this.#endIfOver(this.#grant(taskId), st)
+    if (g.status !== 'live') {
+      throw this.#deps.fail('conflict', g.status === 'promised' ? 'the creator has not granted this budget yet' : `this budget is ${g.status}${g.ended_reason === null ? '' : ` (${g.ended_reason})`}`)
+    }
+    if (st.status !== 'active') throw this.#deps.fail('conflict', `spending is only while the job is active (it is ${st.status})`)
+    if (this.#deps.now() >= Math.min(b.expiresAt, st.terms.deliveryDeadline)) throw this.#deps.fail('conflict', 'the budget has expired')
+    const paused = await st.ctx.publicClient.readContract({ address: st.ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })
+    if (paused) throw this.#deps.fail('conflict', 'the core is paused; nothing moves until it is unpaused')
+    return b
+  }
+
+  /**
+   * The worker spends a call budget: one call to the budget's contract function, sent from the creator's wallet, so
+   * the creator is `msg.sender` (and, on a launchpad, the token's creator). `value` (native, decimal) counts against
+   * the cap; gas is the creator's. Refused unless the calldata is the allowed function's and the ledger has room.
+   */
+  async spendCall(me: Address, input: { taskId: string; data: string; value?: string; note?: string }) {
+    this.#cfg()
+    const st = await this.#deps.taskState(input.taskId)
+    const b = await this.#spendable(me, st, input.taskId)
+    if (!isCallBudget(b)) throw this.#deps.fail('invalid', 'this is a token budget: spend it with spend_budget')
+    const call: CallBudget = b
+    const selector = toFunctionSelector(callFunction(call))
+    if (!isHex(input.data) || input.data.length < 10 || input.data.slice(0, 10).toLowerCase() !== selector) {
+      throw this.#deps.fail('invalid', `data must be calldata for ${call.function} (selector ${selector})`)
+    }
+    let value: bigint
+    try {
+      value = parseUnits(input.value ?? '0', 18)
+    } catch {
+      throw this.#deps.fail('invalid', 'value must be a decimal amount of the native token')
+    }
+    if (value < 0n) throw this.#deps.fail('invalid', 'value must not be negative')
+    const now = this.#deps.now()
+    // Checked and reserved with no await in between: two concurrent spends cannot both fit.
+    const { spent, reserved } = this.#ledger(input.taskId)
+    if (spent + reserved + value > call.cap) {
+      throw this.#deps.fail('conflict', `over the budget: ${formatUnits(call.cap - spent - reserved, 18)} left of ${formatUnits(call.cap, 18)}`)
+    }
+    const row: BudgetSpendRow = {
+      id: randomId(),
+      task_id: input.taskId,
+      worker: me,
+      to_addr: call.target,
+      amount: value.toString(),
+      call_data: input.data.toLowerCase(),
+      note: input.note ?? '',
+      status: 'reserved',
+      tx_hash: null,
+      detail: null,
+      created_at: now,
+      updated_at: now,
+    }
+    this.#deps.sql.run(
+      "INSERT INTO budget_spends (id, task_id, worker, to_addr, amount, call_data, note, status, tx_hash, detail, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'reserved', NULL, NULL, ?, ?)",
+      row.id, row.task_id, row.worker, row.to_addr, row.amount, row.call_data, row.note, now, now,
+    )
+    const hash = await this.#send(st, row)
+    return { spendId: row.id, txHash: hash, status: 'sent', next: 'get_budget shows it confirmed once the call is mined; read its receipt for what it made.' }
   }
 
   /** The grant's state for the task view: whether a worker can rely on it yet. */

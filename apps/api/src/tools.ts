@@ -5,7 +5,7 @@
  * caller's own wallet: `cast send <to> <data>` and `cast wallet sign --data '<typedData>'` for a key-holding agent,
  * `eth_sendTransaction` / `eth_signTypedData_v4` for a wallet.
  */
-import type { Board, Caller, DeliverableSpec } from '@agent-jobs/board'
+import type { Board, BudgetInput, Caller, DeliverableSpec } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 
 export interface Tool {
@@ -31,10 +31,13 @@ const taskId = { taskId: str('The board task id.') }
 const budgetSchema = (tokenHelp: string) => ({
   type: 'object',
   description:
-    'Optional execution budget (hire only): the worker may spend up to `cap` of `token` from your Privy wallet for running costs, apart from the reward. Nothing is escrowed; you grant it in Explore after publishing.',
+    'Optional execution budget (hire only), spent from your Privy wallet apart from the reward; nothing is escrowed and you grant it in Explore after publishing. A token budget (default) lets the worker pay running costs: up to `cap` of `token`, to anyone. A call budget (`kind: "call"`) lets the worker call one function of one contract from your wallet, so you are msg.sender and own what it makes (e.g. a launchpad token): up to `cap` native value in total.',
   properties: {
+    kind: { type: 'string', enum: ['token', 'call'], description: 'Default "token".' },
     token: str(tokenHelp),
-    cap: str('Maximum total the worker may spend, in token units, e.g. "2".'),
+    target: str('Call budget: the contract address.'),
+    function: str('Call budget: the one allowed function, human-readable ABI, e.g. "function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable".'),
+    cap: str('Maximum total, e.g. "2": token units, or native units (MON) for a call budget.'),
     expiresAt: num('Unix seconds; default and maximum: the delivery deadline.'),
   },
   required: ['cap'],
@@ -185,7 +188,7 @@ export const tools: Record<string, Tool> = {
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
         ...(a.executionBudget === undefined
           ? {}
-          : { executionBudget: a.executionBudget as { token: string; cap: string; expiresAt?: number } }),
+          : { executionBudget: a.executionBudget as BudgetInput }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
       }),
   },
@@ -294,7 +297,7 @@ export const tools: Record<string, Tool> = {
         quoteId: s(a, 'quoteId'),
         ...(a.executionBudget === undefined
           ? {}
-          : { executionBudget: a.executionBudget as { token?: string; cap: string; expiresAt?: number } }),
+          : { executionBudget: a.executionBudget as BudgetInput }),
       }),
   },
 
@@ -303,6 +306,28 @@ export const tools: Record<string, Tool> = {
       'Creator, approver or worker: a task’s execution budget (ADR-0005): cap, spent, reserved, remaining, expiry, grant status (promised → live → revoked/ended) and every spend with its tx. For the creator of an ended budget, `cleanup` says how to take the board’s signer off the wallet.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.getBudget(caller, { taskId: s(a, 'taskId') }),
+  },
+
+  spend_budget_call: {
+    description:
+      'Worker: spend a call budget, one call to its contract function sent from the creator’s wallet (the creator is msg.sender). `data` is the full calldata for exactly that function; `value` (native, decimal) counts against the cap; gas is the creator’s. Only while the job is active and the grant is live. Returns the tx hash; a lost answer is reconciled by get_budget — never repeat a spend yourself.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...taskId,
+        data: str('0x calldata (e.g. `cast calldata "<function>" <args>`).'),
+        value: str('Native value in MON, e.g. "10"; default "0".'),
+        note: str('Optional: what it is for (shown to the creator).'),
+      },
+      required: ['taskId', 'data'],
+    },
+    run: (board, caller, a) =>
+      board.spendBudgetCall(caller, {
+        taskId: s(a, 'taskId'),
+        data: s(a, 'data'),
+        ...(a.value === undefined ? {} : { value: s(a, 'value') }),
+        ...(a.note === undefined ? {} : { note: s(a, 'note') }),
+      }),
   },
 
   spend_budget: {

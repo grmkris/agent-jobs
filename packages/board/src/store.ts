@@ -261,6 +261,11 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   ['candidates', 'kind', 'TEXT'],
   ['candidates', 'descriptor_json', 'TEXT'],
   ['candidates', 'check_json', 'TEXT'],
+  // Call budgets (ADR-0005 amendment): a grant's kind and allowed function (`token` then holds the call target),
+  // and a call spend's calldata (`to_addr` is the target, `amount` the native value).
+  ['budget_grants', 'kind', 'TEXT'],
+  ['budget_grants', 'fn', 'TEXT'],
+  ['budget_spends', 'call_data', 'TEXT'],
 ]
 
 export function migrate(sql: Sql): void {
@@ -391,9 +396,14 @@ export interface BudgetWalletRow {
 export interface BudgetGrantRow {
   task_id: string
   creator: string
+  /** The budget token, or a call budget's target. */
   token: string
   cap: string
   expires_at: number
+  /** null (legacy) or 'token'; 'call' for a call budget. */
+  kind: string | null
+  /** A call budget's allowed function (human-readable ABI). */
+  fn: string | null
   status: BudgetGrantStatus
   created_at: number
   live_at: number | null
@@ -409,6 +419,8 @@ export interface BudgetSpendRow {
   worker: string
   to_addr: string
   amount: string
+  /** A call spend's calldata; null for a token transfer. */
+  call_data: string | null
   note: string
   status: BudgetSpendStatus
   tx_hash: string | null

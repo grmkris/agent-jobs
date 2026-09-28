@@ -1,17 +1,35 @@
 /**
  * The Privy policy behind the execution budget (ADR-0005). A creator's embedded wallet carries one policy for the
- * board's signer; its rules are the union of that wallet's live grants, one rule per task. A rule allows exactly one
- * shape: an ERC-20 `transfer(to, amount)` on the grant's token, on this chain, with no value, `amount` at most the
- * cap, before the expiry. `to` is free (the worker may pay anyone). Privy checks each transaction on its own; the
- * cumulative cap is the board's ledger.
+ * board's signer; its rules are the union of that wallet's live grants, one rule per task. A token rule allows
+ * exactly one shape: an ERC-20 `transfer(to, amount)` on the grant's token, on this chain, with no value, `amount` at
+ * most the cap, before the expiry; `to` is free (the worker may pay anyone). A call rule allows calls to one
+ * function of one contract, with at most the cap in native value, before the expiry. Privy checks each transaction
+ * on its own; the cumulative cap is the board's ledger.
  */
-import type { Address } from 'viem'
+import { type AbiFunction, type Address, parseAbiItem } from 'viem'
 
-export interface BudgetRuleInput {
+export type BudgetRuleInput = TokenRuleInput | CallRuleInput
+
+export interface TokenRuleInput {
+  readonly kind?: 'token'
   readonly taskId: string
   readonly chainId: number
   readonly token: Address
   /** Base units. */
+  readonly cap: bigint
+  /** Unix seconds. */
+  readonly expiresAt: number
+}
+
+/** A call budget: calls to `target`'s one `function` only, each with at most `cap` native value. */
+export interface CallRuleInput {
+  readonly kind: 'call'
+  readonly taskId: string
+  readonly chainId: number
+  readonly target: Address
+  /** Human-readable ABI of the allowed function. */
+  readonly function: string
+  /** Wei. */
   readonly cap: bigint
   /** Unix seconds. */
   readonly expiresAt: number
@@ -49,6 +67,22 @@ export const ERC20_TRANSFER_ABI = [
 export const budgetRuleName = (taskId: string) => `budget-${taskId}`
 
 export function budgetRule(g: BudgetRuleInput): PolicyRule {
+  if (g.kind === 'call') {
+    const fn = parseAbiItem(g.function) as AbiFunction
+    return {
+      name: budgetRuleName(g.taskId),
+      method: 'eth_sendTransaction',
+      action: 'ALLOW',
+      conditions: [
+        { field_source: 'ethereum_transaction', field: 'chain_id', operator: 'eq', value: String(g.chainId) },
+        { field_source: 'ethereum_transaction', field: 'to', operator: 'eq', value: g.target },
+        { field_source: 'ethereum_transaction', field: 'value', operator: 'lte', value: g.cap.toString() },
+        // Privy decodes the calldata with this one-function ABI: any other function fails to match.
+        { field_source: 'ethereum_calldata', field: 'function_name', operator: 'eq', value: fn.name, abi: [fn] },
+        { field_source: 'system', field: 'current_unix_timestamp', operator: 'lt', value: String(g.expiresAt) },
+      ],
+    }
+  }
   return {
     name: budgetRuleName(g.taskId),
     method: 'eth_sendTransaction',

@@ -67,6 +67,16 @@ describe('execution budget in the terms (ADR-0005)', () => {
     expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW } }), WINDOWS, NOW)).toThrow('expires')
     expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW + 601 } }), WINDOWS, NOW)).toThrow('expires')
   })
+
+  it('a call budget names one function, round-trips and is bound into the hash', () => {
+    const call = { kind: 'call' as const, target: A(8), function: 'function create((string,string) params) payable', cap: 10n ** 19n, expiresAt: NOW + 300 }
+    const o = offer({ executionBudget: call })
+    expect(() => validateOffer(o, WINDOWS, NOW)).not.toThrow()
+    expect(parseTerms(canonicalJson(o)).executionBudget).toEqual(call)
+    expect(termsHash(parseTerms(canonicalJson(o)))).toBe(termsHash(o))
+    expect(() => validateOffer(offer({ executionBudget: { ...call, function: 'event Created(address)' } }), WINDOWS, NOW)).toThrow('one function')
+    expect(() => validateOffer(offer({ executionBudget: { ...call, function: 'not abi' } }), WINDOWS, NOW)).toThrow('one function')
+  })
 })
 
 const bad = (deliverable: NonNullable<OfferTerms['deliverable']>, over: Partial<OfferTerms> = {}) => () =>
