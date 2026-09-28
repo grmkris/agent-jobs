@@ -1,6 +1,7 @@
 import { type ReactNode, createContext, useContext, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useSignMessage } from 'wagmi'
 import { session, setSession, tool } from '../api.ts'
+import { PrivyLogin, usePrivyLogout } from './Privy.tsx'
 import { Address, Button } from './ui.tsx'
 
 /** Connect an injected wallet, then sign in to the board with SIWE (one signature, no transaction). */
@@ -39,21 +40,25 @@ export function useAuth() {
 export function WalletBar({ auth }: { auth: ReturnType<typeof useSignedIn> }) {
   const { connectors, connect, isPending } = useConnect()
   const { disconnect } = useDisconnect()
+  const privyLogout = usePrivyLogout()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   if (auth.address === undefined) {
-    const injected = connectors[0]
+    const injected = connectors.find((c) => c.id !== 'privy')
     return (
-      <Button variant="outline" busy={isPending} disabled={injected === undefined} onClick={() => injected !== undefined && connect({ connector: injected })}>
-        Connect wallet
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" busy={isPending} disabled={injected === undefined} onClick={() => injected !== undefined && connect({ connector: injected })}>
+          Connect wallet
+        </Button>
+        <PrivyLogin />
+      </div>
     )
   }
   return (
     <div className="flex items-center gap-2">
       <Address value={auth.address} />
       {auth.signedIn ? (
-        <Button variant="outline" onClick={() => { auth.signOut(); disconnect() }}>Sign out</Button>
+        <Button variant="outline" onClick={() => { auth.signOut(); disconnect(); void privyLogout() }}>Sign out</Button>
       ) : (
         <Button
           busy={busy}

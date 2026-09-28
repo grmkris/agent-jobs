@@ -3,6 +3,7 @@ import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRoute
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
+import { PrivyRoot } from './components/Privy.tsx'
 import { AuthProvider, WalletBar, useAuth } from './components/Wallet.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
@@ -62,9 +63,11 @@ createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
+        <PrivyRoot>
+          <AuthProvider>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </PrivyRoot>
       </QueryClientProvider>
     </WagmiProvider>
   </StrictMode>,

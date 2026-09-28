@@ -6,7 +6,11 @@ import { defineConfig } from 'vite-plus'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   // The network is fixed per deploy stage (AGENT_JOBS_NETWORK, the same variable the API and indexer read).
-  define: { __AGENT_JOBS_NETWORK__: JSON.stringify(process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet') },
+  // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
+  define: {
+    __AGENT_JOBS_NETWORK__: JSON.stringify(process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'),
+    __PRIVY_APP_ID__: JSON.stringify(process.env.PRIVY_APP_ID ?? ''),
+  },
   run: {
     tasks: {
       typecheck: {
