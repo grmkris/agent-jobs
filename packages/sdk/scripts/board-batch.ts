@@ -8,7 +8,7 @@
  * 2. The Privy server wallet does the same publish (its key is in Privy: Privy signs the authorization).
  * 3. A hire the testnet worker takes: it signs its budget authorization first, then sends approve + activate as one.
  *
- *   BOARD_URL=https://… bun packages/sdk/scripts/board-batch.ts   (from the repo root; .env.local loaded)
+ *   BOARD_URL=https://… [WORKER_KEY_VAR=CAMPAIGN_GROK_PRIVATE_KEY] bun packages/sdk/scripts/board-batch.ts
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -22,10 +22,14 @@ const RPC = env('MONAD_TESTNET_RPC_URL')
 const ctx = sdk.context('monad-testnet', 'demo', RPC)
 const D = ctx.deployment.batchDelegate
 const creatorAccount = privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex)
-const workerAccount = privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex)
+// WORKER_KEY_VAR picks another worker key from .env.local (its agent id from the matching *_AGENT_ID).
+const WORKER_KEY_VAR = env('WORKER_KEY_VAR', 'TESTNET_WORKER_PRIVATE_KEY')
+const workerAccount = privateKeyToAccount(env(WORKER_KEY_VAR) as Hex)
 const creator = sdk.wallet('monad-testnet', creatorAccount, RPC)
 const worker = sdk.wallet('monad-testnet', workerAccount, RPC)
-const agentId = (JSON.parse(readFileSync(join(import.meta.dirname, '.state.json'), 'utf8')) as { workerAgentId: string }).workerAgentId
+const agentId = WORKER_KEY_VAR === 'TESTNET_WORKER_PRIVATE_KEY'
+  ? (JSON.parse(readFileSync(join(import.meta.dirname, '.state.json'), 'utf8')) as { workerAgentId: string }).workerAgentId
+  : env(WORKER_KEY_VAR.replace(/_PRIVATE_KEY$/, '_AGENT_ID'))
 const txCount = async (h: string) => (await ctx.publicClient.getTransactionReceipt({ hash: h as Hex })).transactionHash === h ? 1 : 0
 
 async function offer(title: string) {
@@ -68,7 +72,7 @@ check('creator: cancelled and settled in one transaction', c.length === 1)
 check('creator: the job is cancelled', (await pub.call('get_task', { taskId: t1 })).chain.status === 'cancelled')
 
 // 2. Privy server wallet: the same publish, authorization signed by Privy.
-if (process.env.PRIVY_SERVER_WALLET_ID !== undefined) {
+if ((process.env.PRIVY_SERVER_WALLET_ID ?? '') !== '') {
   const privy = sdk.privyWallet('monad-testnet', {
     appId: env('PRIVY_APP_ID'),
     appSecret: env('PRIVY_APP_SECRET'),
@@ -91,7 +95,9 @@ const sel = await pub.call('select_worker', { taskId: t3, applicationId: app.app
 await pub.call('submit_selection', { taskId: t3, nonce: sel.nonce, signature: await sdk.signTypedDataJson(creator, sel.sign.typedData) })
 const prep = await wrk.call('prepare_activation', { taskId: t3 })
 const act = await wrk.call('build_activation', { taskId: t3, budgetSignature: await sdk.signTypedDataJson(worker, prep.sign.typedData) })
-check('worker: build_activation returns the approval and activate', act.transactions.length === 2, act.transactions.map((t: sdk.TxRequest) => t.description.split(':')[0]).join(', '))
+// The bond approval is included only when the worker's allowance does not cover it yet.
+const allowance = await ctx.publicClient.readContract({ address: ctx.deployment.factory, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [workerAccount.address, ctx.stack.holding] })
+check('worker: build_activation returns activate, preceded by the approval only if missing', act.transactions.length === (allowance >= 10n ** 18n ? 1 : 2), act.transactions.map((t: sdk.TxRequest) => t.description.split(':')[0]).join(', '))
 const a = await sendReported(wrk, worker, ctx.publicClient, t3, act.transactions, 'worker', D)
 check('worker: activated in one transaction', a.length === 1)
 check('worker: the job is active', (await wrk.call('get_task', { taskId: t3 })).chain.status === 'active')

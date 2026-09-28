@@ -368,3 +368,23 @@ and mainnet bytecode now match.
   submit `0x16cec4fa`, accept `0x43705737`. It paid 25 mEUR and returned both bonds.
 - D1 rows indexed before the redeploy keep their old stack label (`main`/`demo`) until a rebuild. New events carry
   the legacy names.
+
+## 28 Sep: EIP-7702 batches through the hosted board (demo board)
+
+`BOARD_URL=… [WORKER_KEY_VAR=CAMPAIGN_GROK_PRIVATE_KEY] bun packages/sdk/scripts/board-batch.ts`. The delegate is the
+canonical ERC-4337 v0.8 `Simple7702Account` `0xe6Cae83B…555B` (EntryPoint v0.8 `0x4337084D…f108`), already on
+Monad testnet and mainnet (`eth_getCode`). Each account's first batch is a type-4 transaction that also delegates.
+
+| What | Wallet | Job | Tx | Result |
+| :--- | :--- | :--- | :--- | :--- |
+| approve mUSD + publish, one tx (type 4, delegates) | testnet creator (cast key) | 42 | `0x99d85fc8` | open; the board confirmed publish from the batch receipt |
+| cancel + settle, one tx | testnet creator | 42 | `0x5a829e8c` | cancelled, reward and bond back |
+| approve mUSD + approve FACTORY + publish, one tx; the authorization signed by Privy (`eth_sign7702Authorization`) | Privy server wallet | 43 | `0xcde360cd` | open |
+| cancel + settle, one tx | Privy server wallet | 43 | `0xe75bf277` | cancelled |
+| approve FACTORY + activate, one tx (type 4, delegates), after signing the budget authorization first | Grok campaign worker | 47 | `0xcd560e4a` | active; the delegated creator's Selection verified through Simple7702Account's ERC-1271 |
+
+Found on the way: a nearly empty delegated account (0.023 MON) fails a batch's gas estimate with
+`ExecuteError(1, 0x)`, because the estimate's gas cap is what the balance can pay, and `publish` runs out of gas
+inside the batch. That is the balance, not the batch; the same batch simulates fine once funded. A batch of approve
++ approve + publish used a 626k–651k gas limit (Monad charges the limit).
+
