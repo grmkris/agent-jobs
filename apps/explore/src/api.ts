@@ -52,6 +52,32 @@ export interface TxRequest {
   value: '0'
 }
 
+export type DeliverableKind = 'git' | 'patch' | 'artifact' | 'url' | 'onchain'
+export const DELIVERABLE_KINDS: ReadonlyArray<{ kind: DeliverableKind; label: string }> = [
+  { kind: 'git', label: 'git (any host)' },
+  { kind: 'patch', label: 'patch' },
+  { kind: 'artifact', label: 'file' },
+  { kind: 'url', label: 'live URL' },
+  { kind: 'onchain', label: 'on-chain' },
+]
+export interface DeliverableSpec {
+  accepts: DeliverableKind[]
+  target?: string
+}
+/** Where a submitted deliverable is (ADR-0006); the board hosts none of it. */
+export type Deliverable =
+  | { kind: 'git'; url: string; ref: string; sha: string }
+  | { kind: 'patch'; url: string; sha256: string; base: string }
+  | { kind: 'artifact'; url: string; sha256: string; mediaType: string; name: string }
+  | { kind: 'url'; url: string }
+  | { kind: 'onchain'; chainId: number; txHash?: string; address?: string }
+/** The board's one-time check at submit: null when it could not tell. */
+export interface DeliverableCheck {
+  ok: boolean | null
+  detail: string
+  checkedAt: number
+}
+
 export interface TaskIndexEntry {
   taskId: string
   jobId: string | null
@@ -72,6 +98,8 @@ export interface TaskIndexEntry {
   quoted: boolean
   /** ADR-0005: base units of `token`; null when the offer has none. */
   executionBudget: { token: `0x${string}`; cap: string; expiresAt: number } | null
+  /** ADR-0006: the deliverable forms the offer accepts (git only when absent). */
+  deliverable?: DeliverableSpec
   termsHash: string
   manifestUrl: string
   screening: { verdict: string; reasons: string[] }

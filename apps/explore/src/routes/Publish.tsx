@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { type TxRequest, tool } from '../api.ts'
+import { DELIVERABLE_KINDS, type DeliverableKind, type TxRequest, tool } from '../api.ts'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Badge, Button, Card } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
@@ -55,6 +55,8 @@ export function PublishPage({ auth }: { auth: Auth }) {
   const [deliveryHours, setDeliveryHours] = useState('48')
   const [selectionHours, setSelectionHours] = useState('24')
   const [check, setCheck] = useState('test')
+  const [accepts, setAccepts] = useState<DeliverableKind[]>(['git'])
+  const [target, setTarget] = useState('')
   const [stack, setStack] = useState<'main' | 'demo'>('main')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +70,9 @@ export function PublishPage({ auth }: { auth: Auth }) {
     try {
       const now = Math.floor(Date.now() / 1000)
       const acceptanceCriteria = criteria.split('\n').map((l) => l.trim()).filter((l) => l !== '')
+      // Git only with no target is the default: leave the field out so the terms stay as before (ADR-0006).
+      const deliverable = accepts.length === 1 && accepts[0] === 'git' && target.trim() === '' ? {} : { deliverable: { accepts, ...(target.trim() === '' ? {} : { target: target.trim() }) } }
+      const checks = check.trim() === '' || !accepts.includes('git') ? {} : { requiredChecks: [check.trim()] }
       if (mode === 'quotes') {
         const r = await tool<{ requestId: string }>('request_quotes', {
           title,
@@ -78,7 +83,8 @@ export function PublishPage({ auth }: { auth: Auth }) {
           workerBond,
           deliveryDeadline: now + Math.round(Number(deliveryHours) * 3600),
           quoteDeadline: now + Math.round(Number(quoteHours) * 3600),
-          ...(check.trim() === '' ? {} : { requiredChecks: [check.trim()] }),
+          ...checks,
+          ...deliverable,
           stack,
         })
         await navigate({ to: '/quotes/$requestId', params: { requestId: r.requestId } })
@@ -95,7 +101,8 @@ export function PublishPage({ auth }: { auth: Auth }) {
         deliveryDeadline: now + Math.round(Number(deliveryHours) * 3600),
         mode,
         ...(mode === 'contest' ? { selectionDeadline: now + Math.round(Number(selectionHours) * 3600) } : {}),
-        ...(check.trim() === '' ? {} : { requiredChecks: [check.trim()] }),
+        ...checks,
+        ...deliverable,
         ...(mode === 'hire' && budgetOn ? { executionBudget: { token: budgetToken, cap: budgetCap } } : {}),
         stack,
       })
@@ -197,7 +204,34 @@ export function PublishPage({ auth }: { auth: Auth }) {
         {mode !== 'contest' && <Field label="Worker bond (FACTORY)"><input value={workerBond} onChange={(e) => setWorkerBond(e.target.value)} className={input} inputMode="decimal" /></Field>}
         <Field label="Delivery within (hours)"><input value={deliveryHours} onChange={(e) => setDeliveryHours(e.target.value)} className={input} inputMode="decimal" /></Field>
         {mode === 'contest' && <Field label="Award within (hours)" hint="Must end before the delivery window; unawarded, the prize and your bond come back."><input value={selectionHours} onChange={(e) => setSelectionHours(e.target.value)} className={input} inputMode="decimal" /></Field>}
-        <Field label="Required GitHub check" hint="Evidence must cover this check on the submitted SHA."><input value={check} onChange={(e) => setCheck(e.target.value)} className={input} /></Field>
+        <div className="rounded border border-neutral-200 p-3 sm:col-span-2">
+          <span className="text-sm font-medium">Accepted deliverables</span>
+          <p className="mt-1 text-xs text-neutral-500">
+            Workers host the work themselves (their own fork on any git host, IPFS, a server, the chain); the board only records where it is and checks it once.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {DELIVERABLE_KINDS.map(({ kind, label }) => (
+              <label key={kind} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={accepts.includes(kind)}
+                  onChange={(e) =>
+                    setAccepts((a) => DELIVERABLE_KINDS.map((k) => k.kind).filter((k) => (k === kind ? e.target.checked : a.includes(k))))
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="mt-2">
+            <Field label="Where you want it (optional)" hint='e.g. "PR-able against github.com/o/r at main" or "an mp4 on IPFS".'>
+              <input value={target} onChange={(e) => setTarget(e.target.value)} className={input} />
+            </Field>
+          </div>
+        </div>
+        {accepts.includes('git') && (
+          <Field label="Required GitHub check" hint="Evidence must cover this check on the submitted SHA."><input value={check} onChange={(e) => setCheck(e.target.value)} className={input} /></Field>
+        )}
         {mode === 'hire' && (
           <div className="rounded border border-neutral-200 p-3 sm:col-span-2">
             <label className="flex items-center gap-2 text-sm font-medium">
@@ -221,7 +255,7 @@ export function PublishPage({ auth }: { auth: Auth }) {
         )}
       </div>
       <div className="mt-4 flex items-center gap-3">
-        <Button busy={busy} disabled={title.trim() === '' || brief.trim() === '' || (mode === 'quotes' && quoteTokens.length === 0)} onClick={submit}>
+        <Button busy={busy} disabled={title.trim() === '' || brief.trim() === '' || (mode === 'quotes' && quoteTokens.length === 0) || accepts.length === 0} onClick={submit}>
           {mode === 'quotes' ? 'Ask for quotes' : 'Freeze offer and screen'}
         </Button>
         {error !== null && <span className="text-xs text-red-600">{error}</span>}

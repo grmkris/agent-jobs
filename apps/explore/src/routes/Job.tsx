@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useSignTypedData } from 'wagmi'
-import { type TxRequest, data, tool } from '../api.ts'
+import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TxRequest, data, tool } from '../api.ts'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
@@ -22,6 +22,43 @@ interface Detail {
 }
 
 type Auth = ReturnType<typeof useSignedIn>
+
+const httpUrl = (url: string) => (url.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${url.slice('ipfs://'.length)}` : url)
+const ext = 'text-xs text-sky-700 hover:underline'
+
+/** Where the worker put the deliverable (ADR-0006): any git host, a file, a page or the chain. */
+function DeliverableLink({ d }: { d: Deliverable }) {
+  switch (d.kind) {
+    case 'git': {
+      const tree = /^https:\/\/(github\.com|gitlab\.com|codeberg\.org|gitea\.com)\//.test(d.url) ? `${d.url.replace(/\.git$/, '')}/tree/${d.sha}` : d.url
+      return <a className={ext} href={tree} target="_blank" rel="noreferrer">{new URL(d.url).hostname} · {d.ref} @ {d.sha.slice(0, 7)}</a>
+    }
+    case 'patch':
+      return <a className={ext} href={httpUrl(d.url)} target="_blank" rel="noreferrer">patch on {d.base.slice(0, 7)} · sha256 {d.sha256.slice(0, 8)}…</a>
+    case 'artifact':
+      return <a className={ext} href={httpUrl(d.url)} target="_blank" rel="noreferrer">{d.name} ({d.mediaType}) · sha256 {d.sha256.slice(0, 8)}…</a>
+    case 'url':
+      return <a className={ext} href={d.url} target="_blank" rel="noreferrer">{d.url}</a>
+    case 'onchain':
+      return (
+        <span className="text-xs">
+          chain {d.chainId}
+          {d.txHash !== undefined && <> · <TxLink hash={d.txHash} /></>}
+          {d.address !== undefined && <> · <Address value={d.address} /></>}
+        </span>
+      )
+  }
+}
+
+/** The board's one-time check at submit; advisory, the approver decides. */
+function CheckBadge({ check }: { check: DeliverableCheck }) {
+  return (
+    <span className="ml-2 inline-flex items-center gap-1" title={check.detail}>
+      <Badge tone={check.ok === true ? 'green' : check.ok === false ? 'red' : 'gray'}>{check.ok === true ? '✓ checked' : check.ok === false ? '✗ check failed' : 'unchecked'}</Badge>
+      <span className="text-xs text-neutral-500">{check.detail}</span>
+    </span>
+  )
+}
 
 export function JobPage({ auth }: { auth: Auth }) {
   const { jobId } = useParams({ from: '/job/$jobId' })
@@ -66,6 +103,12 @@ export function JobPage({ auth }: { auth: Auth }) {
           <Row label="Approver"><Address value={d?.job.approver ?? task?.approver} /></Row>
           <Row label="Delivery deadline">{when(d?.job.delivery_deadline ?? task?.deliveryDeadline)}</Row>
           {(d?.job.mode ?? task?.mode) === 'contest' && <Row label="Selection deadline">{when(d?.job.selection_deadline ?? task?.selectionDeadline)}</Row>}
+          {task !== undefined && (
+            <Row label="Accepts">
+              {(task.deliverable?.accepts ?? ['git']).map((k) => DELIVERABLE_KINDS.find((x) => x.kind === k)?.label ?? k).join(', ')}
+              {task.deliverable?.target !== undefined && <span className="block text-xs text-neutral-500">{task.deliverable.target}</span>}
+            </Row>
+          )}
           {task !== undefined && <Row label="Required checks">{task.requiredChecks.join(', ') || '—'}</Row>}
           {task !== undefined && <Row label="Manifest"><a className="text-xs text-sky-700 hover:underline" href={`/offers/${task.termsHash}.json`}>{task.termsHash.slice(0, 12)}…</a></Row>}
           <Row label="Published"><TxLink hash={d?.job.published_tx} /></Row>
@@ -81,9 +124,10 @@ export function JobPage({ auth }: { auth: Auth }) {
           <Row label="Worker"><Address value={d?.job.worker} /></Row>
           <Row label="ERC-8004 agent">{d?.job.agent_id == null ? '—' : <Link to="/agent/$agentId" params={{ agentId: d.job.agent_id }} className="underline">{d.job.agent_id}</Link>}</Row>
           <Row label="On-chain deliverable"><span className="font-mono text-xs">{d?.submission?.deliverable.slice(0, 14) ?? '—'}</span> <TxLink hash={d?.submission?.tx_hash} /></Row>
-          {(board.data?.deliverables as Array<{ repo: string; branch: string; sha: string; deliverable_hash: string }> | undefined)?.map((x) => (
+          {(board.data?.deliverables as Array<{ repo: string; branch: string; sha: string; deliverable_hash: string; descriptor?: Deliverable; check?: DeliverableCheck | null }> | undefined)?.map((x) => (
             <Row key={x.deliverable_hash} label="Declared">
-              <a className="text-xs text-sky-700 hover:underline" href={`${x.repo}/tree/${x.sha}`} target="_blank" rel="noreferrer">{x.branch} @ {x.sha.slice(0, 7)}</a>
+              <DeliverableLink d={x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha }} />
+              {x.check != null && <CheckBadge check={x.check} />}
             </Row>
           ))}
           <h3 className="mb-1 mt-3 text-xs font-semibold uppercase text-neutral-500">Evidence</h3>
@@ -203,7 +247,7 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
   }
   const candidates = useQuery({
     queryKey: ['candidates', taskId],
-    queryFn: () => tool<Array<{ candidateId: string; worker: string; agentId: string; repo: string; branch: string; sha: string }>>('list_candidates', { taskId }),
+    queryFn: () => tool<Array<{ candidateId: string; worker: string; agentId: string; repo: string; branch: string; sha: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>>('list_candidates', { taskId }),
     enabled: approver && mode === 'contest' && status === 'open',
   })
   const run = (key: string, name: string, args: Record<string, unknown>) => async () => {
@@ -260,7 +304,8 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
             {candidates.data?.map((c) => (
               <div key={c.candidateId} className="flex flex-wrap items-center gap-3 py-1 text-sm">
                 <Address value={c.worker} /> <span>agent {c.agentId}</span>
-                <a className="text-xs text-sky-700 hover:underline" href={`${c.repo}/tree/${c.sha}`} target="_blank" rel="noreferrer">{c.branch} @ {c.sha.slice(0, 7)}</a>
+                <DeliverableLink d={c.descriptor ?? { kind: 'git', url: c.repo, ref: c.branch, sha: c.sha }} />
+                {c.check != null && <CheckBadge check={c.check} />}
                 <Button busy={busy === `award-${c.candidateId}`} onClick={run(`award-${c.candidateId}`, 'award', { candidateId: c.candidateId })}>Award</Button>
               </div>
             ))}
