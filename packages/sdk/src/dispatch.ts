@@ -8,7 +8,8 @@
  * and whose acceptance criteria include the required GitHub check on the submitted SHA. Picking a quote then
  * publishes the ordinary escrow-backed hire from the same wallet.
  */
-import type { Hex } from 'viem'
+import type { Address, Hex } from 'viem'
+import { sendBatch } from './batch.ts'
 import { type TxRequest, boardClient, sendAll, signTypedDataJson } from './board-client.ts'
 import type { Wallet } from './actions.ts'
 import { signerOf } from './privy.ts'
@@ -58,12 +59,19 @@ export function quoteRequestFromDispatch(task: DispatchTask, policy: DispatchPol
   }
 }
 
-/** A Dispatch board's connection to agent-jobs: one signed-in board client acting for the OS's wallet. */
-export async function dispatchPublisher(boardUrl: string, wallet: Wallet, publicClient: { waitForTransactionReceipt(a: { hash: Hex }): Promise<{ status: string }> }) {
+type Reads = Parameters<typeof sendBatch>[1]
+
+/**
+ * A Dispatch board's connection to agent-jobs: one signed-in board client acting for the OS's wallet. With
+ * `batchDelegate` (the deployment's EIP-7702 delegate), each step's transactions go out as one batch.
+ */
+export async function dispatchPublisher(boardUrl: string, wallet: Wallet, publicClient: Reads, opts: { batchDelegate?: Address } = {}) {
   const board = boardClient(boardUrl)
   await board.signIn(signerOf(wallet) as never)
   const send = async (taskId: string, txs: TxRequest[]) => {
-    const hashes = await sendAll(wallet, publicClient, txs)
+    const hashes = opts.batchDelegate === undefined || txs.length < 2
+      ? await sendAll(wallet, publicClient, txs)
+      : [await sendBatch(wallet, publicClient, txs, opts.batchDelegate)]
     for (const h of hashes) await board.call('report_transaction', { taskId, txHash: h })
     return hashes
   }

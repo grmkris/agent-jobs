@@ -32,7 +32,7 @@ const ent = sdk.boardClient(BOARD)
 
 
 const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
-  sendReported(client, w, ctx.publicClient, taskId, txs, who)
+  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.batchDelegate)
 
 await pub.signIn(creatorAccount)
 await ent.signIn(workerAccount)

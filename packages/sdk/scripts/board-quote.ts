@@ -36,7 +36,7 @@ const cw = sdk.boardClient(BOARD)
 
 
 const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
-  sendReported(client, w, ctx.publicClient, taskId, txs, who)
+  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.batchDelegate)
 
 // The Privy wallet as an ERC-8004 agent holding FACTORY for its bond and the hold gate.
 const factory = ctx.deployment.factory
@@ -90,8 +90,8 @@ check('a second pick is refused', await pub.call('pick_quote', { requestId: req.
 
 const sel = await pub.call('select_worker', { taskId, applicationId: picked.applicationId })
 await pub.call('submit_selection', { taskId, nonce: sel.nonce, signature: await sdk.signTypedDataJson(creator, sel.sign.typedData) })
+// Sign first: build_activation then returns the bond approval and activate, sent as one batch.
 const prep = await pw.call('prepare_activation', { taskId })
-await send(pw, privy, taskId, prep.transactions, 'privy')
 const act = await pw.call('build_activation', { taskId, budgetSignature: await sdk.signTypedDataJson(privy, prep.sign.typedData) })
 await send(pw, privy, taskId, act.transactions, 'privy')
 const sub = await pw.call('submit_work', { taskId, ...DELIVERABLE })

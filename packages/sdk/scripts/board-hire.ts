@@ -29,7 +29,7 @@ const ctx = sdk.context('monad-testnet', STACK, RPC)
 const board = sdk.boardClient(BOARD)
 const log = (m: string) => stamp('publisher', m)
 
-const send = (taskId: string, txs: sdk.TxRequest[]) => sendReported(board, creator, ctx.publicClient, taskId, txs, 'publisher')
+const send = (taskId: string, txs: sdk.TxRequest[]) => sendReported(board, creator, ctx.publicClient, taskId, txs, 'publisher', ctx.deployment.batchDelegate)
 
 async function until<T>(what: string, timeoutS: number, probe: () => Promise<T | undefined>): Promise<T> {
   const end = Date.now() + timeoutS * 1000

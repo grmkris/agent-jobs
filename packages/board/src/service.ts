@@ -600,10 +600,10 @@ export class Board {
     // Only a transaction to this deployment that emitted an event for this job (jobId is the first indexed topic of
     // every lifecycle event) confirms anything; an unrelated transaction from the same wallet does not.
     const jobTopic = task.job_id === null ? null : pad(toHex(BigInt(task.job_id)), { size: 32 }).toLowerCase()
+    // By the emitting contract, not the receipt's `to`: an EIP-7702 batch is a call to the sender itself.
+    const ours = [ctx.deployment.core, ctx.stack.holding, ctx.stack.evaluator]
     const touchesJob =
-      jobTopic !== null &&
-      [ctx.deployment.core, ctx.stack.holding, ctx.stack.evaluator].some((a) => eq(receipt.to ?? zeroAddress, a)) &&
-      receipt.logs.some((l) => l.topics[1]?.toLowerCase() === jobTopic)
+      jobTopic !== null && receipt.logs.some((l) => ours.some((a) => eq(l.address, a)) && l.topics[1]?.toLowerCase() === jobTopic)
     if (task.job_id !== null && receipt.status === 'success' && touchesJob) {
       const [op] = this.#sql.all<OperationRow>(
         "SELECT * FROM operations WHERE task_id = ? AND lower(actor) = lower(?) AND status = 'prepared' ORDER BY created_at DESC LIMIT 1",
@@ -1119,7 +1119,7 @@ export class Board {
           deadline: BigInt(budgetDeadline),
         }),
       } satisfies SignRequest,
-      next: 'Send any approval, sign the typed data, then build_activation({ taskId, budgetSignature }).',
+      next: 'Sign the typed data, then build_activation({ taskId, budgetSignature }): it returns any approval still missing and activate, which a batching wallet sends as one transaction. Or send the approval now, then sign and build.',
     }
   }
 
@@ -1148,9 +1148,13 @@ export class Board {
     )
     if (prep === undefined || prep.nonce !== sel.nonce) throw new BoardError('conflict', 'call prepare_activation first')
     const ctx = this.#taskCtx(task)
+    const terms = parseTerms(task.terms_json)
     this.#operation(task.id, 'activate', me, { selectionNonce: sel.nonce })
     return {
       transactions: [
+        // Any approval not sent yet: a wallet that batches (EIP-7702) signs first and sends approve + activate as
+        // one transaction; one that already sent prepare_activation's approval gets none here.
+        ...(await this.#approvals(ctx, me, [[ctx.deployment.factory, terms.workerBond, 'FACTORY (worker bond)']])),
         this.#tx(ctx, 'activate: your final confirmation; sets you as provider, posts your bond, funds the job', ctx.stack.holding,
           encodeFunctionData({
             abi: sdk.jobHoldingAbi,
@@ -1162,7 +1166,7 @@ export class Board {
             ],
           })),
       ],
-      next: 'Send it from your wallet, then report_transaction.',
+      next: 'Send them in order (or as one batch) from your wallet, then report_transaction for each hash.',
     }
   }
 
@@ -1786,7 +1790,13 @@ export class Board {
       txs.push(this.#tx(ctx, 'expireContest: no award by the selection deadline; the prize returns', ctx.stack.holding,
         encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'expireContest', args: [jobId] })))
     }
-    if (['rejected', 'expired', 'cancelled'].includes(s) || (view.coreStatus === 'Expired')) {
+    // A timeout that ends in a refund leaves the reward in Holding: offer settle right after it, so a batching
+    // wallet sends both as one transaction (a sequential one sends them in order).
+    const completes = txs.length === 1 && s === 'submitted' && view.timely
+    if (txs.length === 1 && !completes) {
+      txs.push(this.#tx(ctx, 'settle: pays out what the timeout left in Holding', ctx.stack.holding,
+        encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })))
+    } else if (['rejected', 'expired', 'cancelled'].includes(s) || (view.coreStatus === 'Expired')) {
       // Offered only while Holding still has something to pay out: a settled job answers NothingToSettle.
       const pending = await ctx.publicClient
         .simulateContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })

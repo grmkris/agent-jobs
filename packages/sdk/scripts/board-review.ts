@@ -24,7 +24,7 @@ const taskId = env('TASK_ID')
 const log = (m: string) => stamp('approver', m)
 
 const send = (txs: sdk.TxRequest[]) =>
-  sendReported(board, creator, sdk.context('monad-testnet', 'main', RPC).publicClient, taskId, txs, 'approver')
+  sendReported(board, creator, sdk.context('monad-testnet', 'main', RPC).publicClient, taskId, txs, 'approver', sdk.context('monad-testnet', 'main', RPC).deployment.batchDelegate)
 
 await board.signIn(account)
 const decision = env('DECISION')

@@ -40,7 +40,7 @@ const arb = sdk.boardClient(BOARD)
 
 
 const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
-  sendReported(client, w, ctx.publicClient, taskId, txs, who)
+  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.batchDelegate)
 
 await pub.signIn(creatorAccount)
 await wrk.signIn(workerAccount)
@@ -66,8 +66,8 @@ await send(pub, creator, taskId, created.transactions, 'publisher')
 const app = await wrk.call('apply', { taskId, agentId, note: 'I have the CI branch ready.' })
 const sel = await pub.call('select_worker', { taskId, applicationId: app.applicationId })
 await pub.call('submit_selection', { taskId, nonce: sel.nonce, signature: await sdk.signTypedDataJson(creator, sel.sign.typedData) })
+// Sign first: build_activation then returns the bond approval and activate, sent as one batch.
 const prep = await wrk.call('prepare_activation', { taskId })
-await send(wrk, worker, taskId, prep.transactions, 'worker')
 const act = await wrk.call('build_activation', { taskId, budgetSignature: await sdk.signTypedDataJson(worker, prep.sign.typedData) })
 await send(wrk, worker, taskId, act.transactions, 'worker')
 const sub = await wrk.call('submit_work', { taskId, ...DELIVERABLE })

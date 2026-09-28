@@ -30,6 +30,11 @@ export interface Deployment {
   readonly legacyStacks: Readonly<Record<string, Stack>>
   readonly identity: Address
   readonly reputation: Address
+  /**
+   * The EIP-7702 delegate a wallet points its code at to send a batch as one transaction: the canonical ERC-4337
+   * v0.8 `Simple7702Account` (`executeBatch`, ERC-1271 by the account's own key), already deployed on Monad.
+   */
+  readonly batchDelegate: Address
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
@@ -42,6 +47,7 @@ interface ConfigFile {
   chainId: number
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
   erc8004: { identity: string; reputation: string }
+  eip7702: { delegate: string; entryPoint: string }
   deployment: {
     block?: number
     core?: string
@@ -88,6 +94,7 @@ export function deployment(network: Network): Deployment {
     ),
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
+    batchDelegate: c.eip7702.delegate as Address,
     arbitrator: c.roles.arbitrator as Address,
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,

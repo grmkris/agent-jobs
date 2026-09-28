@@ -28,7 +28,7 @@ const board = sdk.boardClient(env('BOARD_URL'))
 const log = (m: string) => stamp('bad-worker', m)
 
 const send = (txs: sdk.TxRequest[]) =>
-  sendReported(board, w, sdk.context('monad-testnet', 'main', RPC).publicClient, taskId, txs, 'bad-worker')
+  sendReported(board, w, sdk.context('monad-testnet', 'main', RPC).publicClient, taskId, txs, 'bad-worker', sdk.context('monad-testnet', 'main', RPC).deployment.batchDelegate)
 
 /** A commit that "passes" by deleting the tests: the approver must notice the diff, not just the green check. */
 function junkCommit(): { branch: string; sha: string } {
@@ -76,7 +76,6 @@ for (;;) {
   await sleep(15)
 }
 const prep = await board.call('prepare_activation', { taskId })
-await send(prep.transactions)
 await send((await board.call('build_activation', { taskId, budgetSignature: await sdk.signTypedDataJson(w, prep.sign.typedData) })).transactions)
 const { branch, sha } = junkCommit()
 // Wait for the check to finish so the approver sees a green run on the junk commit.
