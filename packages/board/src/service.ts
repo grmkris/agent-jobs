@@ -24,6 +24,7 @@ import {
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
+import { type BudgetConfig, BudgetDesk } from './budget.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
@@ -73,6 +74,11 @@ export interface BoardConfig {
    * arbitrator's signature. Absent: `submit_ruling` returns the transaction for anyone to send.
    */
   readonly relay?: { readonly account: import('viem').LocalAccount; readonly rpcUrl: string }
+  /**
+   * The execution-budget signer (ADR-0005): the Privy app and the board's P-256 key quorum that creators add to their
+   * embedded wallets. Absent: budgets can be offered but never granted or spent ("unavailable").
+   */
+  readonly budget?: BudgetConfig
   readonly evidence?: {
     readonly attester: import('viem').LocalAccount
     readonly relay: import('viem').LocalAccount
@@ -132,10 +138,53 @@ export class Board {
   readonly #sql: Sql
   readonly #config: BoardConfig
 
+  readonly #budget: BudgetDesk
+
   constructor(sql: Sql, config: BoardConfig) {
     this.#sql = sql
     this.#config = config
     migrate(sql)
+    this.#budget = new BudgetDesk(
+      {
+        sql,
+        now: () => this.#now(),
+        fail: (code, message) => new BoardError(code, message),
+        taskState: async (taskId) => {
+          const task = this.#task(taskId)
+          const view = await this.#chainView(task)
+          return { task, terms: parseTerms(task.terms_json), status: view.status, provider: view.provider, ctx: this.#ctx(task.stack) }
+        },
+      },
+      config.budget,
+    )
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Execution budget (ADR-0005)
+  // -----------------------------------------------------------------------------------------------
+
+  budgetGrantPrepare(caller: Caller, input: { taskId: string; privyAccessToken: string }) {
+    return this.#budget.grantPrepare(this.#requireCaller(caller), input)
+  }
+
+  budgetGrantConfirm(caller: Caller, input: { taskId: string; authorizationSignature?: string }) {
+    return this.#budget.grantConfirm(this.#requireCaller(caller), input)
+  }
+
+  getBudget(caller: Caller, input: { taskId: string }) {
+    return this.#budget.getBudget(this.#requireCaller(caller), input)
+  }
+
+  spendBudget(caller: Caller, input: { taskId: string; to: string; amount: string; note?: string }) {
+    return this.#budget.spend(this.#requireCaller(caller), input)
+  }
+
+  revokeBudget(caller: Caller, input: { taskId: string }) {
+    return this.#budget.revoke(this.#requireCaller(caller), input)
+  }
+
+  budgetPolicySync(caller: Caller, input: { authorizationSignature: string }) {
+    return this.#budget.policySync(this.#requireCaller(caller), input)
   }
 
   #now(): number {
@@ -1797,6 +1846,8 @@ export class Board {
           : {
               ...(await this.#displayAmount(this.#ctx(task.stack), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
               expiresAt: terms.executionBudget.expiresAt,
+              /** promised: in the terms, not granted yet; live: the worker can spend; revoked / ended. */
+              grant: this.#budget.grantStatus(task.id),
             },
       jobId: task.job_id,
       screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),

@@ -23,6 +23,8 @@ export interface BoardCall {
     readonly attesterKey: string
     readonly relayKey: string
     readonly github: { readonly appId: string; readonly privateKeyPem: string; readonly installationId: string }
+    /** The execution-budget signer (ADR-0005); any empty field means budgets are unavailable. */
+    readonly budget: { readonly appId: string; readonly appSecret: string; readonly signerKey: string; readonly signerQuorumId: string }
   }
 }
 
@@ -68,6 +70,15 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               },
             }
           : {}),
+        ...(env.budget.appId === '' || env.budget.appSecret === '' || env.budget.signerKey === '' || env.budget.signerQuorumId === ''
+          ? {}
+          : {
+              budget: {
+                app: { appId: env.budget.appId, appSecret: env.budget.appSecret },
+                signerKey: env.budget.signerKey,
+                signerQuorumId: env.budget.signerQuorumId,
+              },
+            }),
       })
       service = { key, board }
       return board

@@ -131,3 +131,31 @@ export async function signedPrivyFetch<T>(
   })
   return privyFetch<T>(app, { ...req, signatures: [signature] }, fetchFn)
 }
+
+const b64urlToBytes = (s: string) => unb64(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='))
+
+/**
+ * Verifies a Privy access token (ES256 JWT from the browser's `getAccessToken`) against the app's published JWKS and
+ * returns the user's DID. Issuer `privy.io`, audience the app id, not expired.
+ */
+export async function verifyAccessToken(appId: string, token: string, now: number, fetchFn: typeof fetch = fetch): Promise<string> {
+  const [h, p, sig] = token.split('.')
+  if (h === undefined || p === undefined || sig === undefined) throw new Error('not a JWT')
+  const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h))) as { alg?: string; kid?: string }
+  const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p))) as { iss?: string; aud?: string | string[]; sub?: string; exp?: number }
+  if (header.alg !== 'ES256') throw new Error('unexpected token algorithm')
+  const res = await fetchFn(`https://auth.privy.io/api/v1/apps/${appId}/jwks.json`)
+  const { keys } = (await res.json()) as { keys: Array<{ kid?: string; kty?: string; crv?: string; x?: string; y?: string }> }
+  const jwk = keys.find((k) => k.kid === header.kid)
+  if (jwk === undefined) throw new Error('unknown signing key')
+  if (jwk.x === undefined || jwk.y === undefined) throw new Error('signing key has no point')
+  const point = Uint8Array.from([0x04, ...b64urlToBytes(jwk.x), ...b64urlToBytes(jwk.y)])
+  const key = await crypto.subtle.importKey('raw', point, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+  const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64urlToBytes(sig), new TextEncoder().encode(`${h}.${p}`))
+  if (!ok) throw new Error('bad signature')
+  const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud]
+  if (payload.iss !== 'privy.io' || !aud.includes(appId)) throw new Error('token is not for this app')
+  if (payload.exp === undefined || payload.exp <= now) throw new Error('token expired')
+  if (payload.sub === undefined) throw new Error('token has no subject')
+  return payload.sub
+}

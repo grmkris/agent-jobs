@@ -69,6 +69,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
       GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
       GITHUB_APP_INSTALLATION_ID: process.env.GITHUB_APP_INSTALLATION_ID || '',
       GITHUB_APP_PRIVATE_KEY: Redacted.make(process.env.GITHUB_APP_PRIVATE_KEY || 'unset'),
+      // Execution budget (ADR-0005): the Privy app Explore signs in with, and the board's signer key quorum.
+      PRIVY_APP_ID: process.env.PRIVY_APP_ID || '',
+      PRIVY_APP_SECRET: Redacted.make(process.env.PRIVY_APP_SECRET || 'unset'),
+      BUDGET_SIGNER_QUORUM_ID: process.env.BUDGET_SIGNER_QUORUM_ID || '',
+      BUDGET_SIGNER_PRIVATE_KEY: Redacted.make(process.env.BUDGET_SIGNER_PRIVATE_KEY || 'unset'),
     },
   },
   Effect.gen(function* () {
@@ -101,6 +106,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
             appId: yield* Config.String('GITHUB_APP_ID'),
             installationId: yield* Config.String('GITHUB_APP_INSTALLATION_ID'),
             privateKeyPem: yield* secret('GITHUB_APP_PRIVATE_KEY'),
+          },
+          budget: {
+            appId: yield* Config.String('PRIVY_APP_ID'),
+            appSecret: yield* secret('PRIVY_APP_SECRET'),
+            signerKey: yield* secret('BUDGET_SIGNER_PRIVATE_KEY'),
+            signerQuorumId: yield* Config.String('BUDGET_SIGNER_QUORUM_ID'),
           },
         }
         const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '') || undefined
