@@ -86,7 +86,7 @@ beforeEach(async () => {
 describe('indexer on the real testnet logs', () => {
   it('folds known jobs: ruled for the worker, ruled for the creator with a burn, a contest award', async () => {
     const job = async (id: number) => (await liveDb.all<Record<string, unknown>>('SELECT * FROM jobs WHERE job_id = ?', String(id)))[0]
-    expect(await job(9)).toMatchObject({ status: 'completed', stack: 'demo', mode: 'hire', violation: 'None' })
+    expect(await job(9)).toMatchObject({ status: 'completed', stack: 'demo-v1', mode: 'hire', violation: 'None' })
     expect(await liveDb.all('SELECT for_worker, slash_loser FROM rulings WHERE job_id = ?', '9')).toEqual([{ for_worker: 1, slash_loser: 0 }])
     expect(await job(10)).toMatchObject({ status: 'rejected', violation: 'Quality' })
     expect(await liveDb.all("SELECT side FROM bond_outcomes WHERE job_id = ? AND outcome = 'burned'", '10')).toEqual([{ side: 'worker' }])

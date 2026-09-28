@@ -61,18 +61,29 @@
     "block": 66169332,
     "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
     "demo": {
-      "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
-      "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3"
+      "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+      "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2"
     },
     "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+    "legacy": {
+      "demo-v1": {
+        "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
+        "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3"
+      },
+      "main-v1": {
+        "evaluator": "0x0445e425ff4092Dd1a862aa793d5277d42CfD4e8",
+        "holding": "0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC"
+      }
+    },
     "main": {
-      "evaluator": "0x0445e425ff4092Dd1a862aa793d5277d42CfD4e8",
-      "holding": "0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC"
+      "evaluator": "0x04562342Ef68ECdFcDc24B552e6C8E180dd6b908",
+      "holding": "0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73"
     },
     "network": "monad-testnet",
     "rewardTokens": [
       "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
       "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E"
-    ]
+    ],
+    "stacksBlock": 66417623
   }
 }
