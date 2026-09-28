@@ -3,6 +3,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useSignTypedData } from 'wagmi'
 import { type TxRequest, data, tool } from '../api.ts'
+import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
@@ -57,6 +58,7 @@ export function JobPage({ auth }: { auth: Auth }) {
           )}
           <Row label="Mode">{d?.job.mode ?? task?.mode}{task?.quoted === true ? ' (from a picked quote)' : ''}</Row>
           <Row label="Reward">{amount(d?.job.reward ?? task?.reward, d?.job.token ?? task?.token)}</Row>
+          {task?.executionBudget != null && <Row label="Execution budget">up to {amount(task.executionBudget.cap, task.executionBudget.token)}, not escrowed</Row>}
           <Row label="Creator bond">{bond(d?.job.creator_bond ?? task?.creatorBond)}</Row>
           <Row label="Worker bond">{bond(d?.job.worker_bond ?? task?.workerBond)}</Row>
           <Row label="Creator"><Address value={d?.job.creator ?? task?.creator} /></Row>
@@ -100,6 +102,10 @@ export function JobPage({ auth }: { auth: Auth }) {
           })}
         </Card>
       </div>
+
+      {task !== undefined && task.executionBudget !== null && (
+        <BudgetPanel task={task} roles={roles} signedIn={auth.signedIn} address={auth.address} />
+      )}
 
       {d !== undefined && (d.job.violation !== null || d.ruling !== null || d.bonds.length > 0 || d.rewards.length > 0) && (
         <DisputePanel d={d} taskId={task?.taskId} signedIn={auth.signedIn} roles={roles} />

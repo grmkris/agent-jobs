@@ -1,4 +1,4 @@
-import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth'
+import { PrivyProvider, usePrivy, useSigners, useWallets } from '@privy-io/react-auth'
 import { type ReactNode, useEffect } from 'react'
 import type { EIP1193Provider } from 'viem'
 import { useAccount, useConnect } from 'wagmi'
@@ -83,5 +83,43 @@ export function usePrivyLogout(): () => Promise<void> {
   const { authenticated, logout } = usePrivy()
   return async () => {
     if (authenticated) await logout()
+  }
+}
+
+/**
+ * What the execution budget (ADR-0005) needs from Privy in the browser: an access token for the board, and adding or
+ * removing the board's signer on the embedded wallet. Null without Privy, or when the signed-in wallet is not the
+ * user's Privy embedded wallet (a budget is granted only from that wallet).
+ */
+export interface PrivyBudget {
+  getAccessToken: () => Promise<string>
+  addSigner: (address: string, signerId: string, policyId: string) => Promise<void>
+  removeSigners: (address: string) => Promise<void>
+}
+
+export function usePrivyBudget(address: string | undefined): PrivyBudget | null {
+  if (privyAppId === '') return null
+  // biome-ignore lint: the branch above is a build-time constant, so hook order never changes.
+  return usePrivyBudgetInner(address)
+}
+
+function usePrivyBudgetInner(address: string | undefined): PrivyBudget | null {
+  const { authenticated, getAccessToken } = usePrivy()
+  const { wallets } = useWallets()
+  const { addSigners, removeSigners } = useSigners()
+  const embedded = wallets.find((w) => w.walletClientType === 'privy')
+  if (!authenticated || embedded === undefined || address === undefined || embedded.address.toLowerCase() !== address.toLowerCase()) return null
+  return {
+    getAccessToken: async () => {
+      const t = await getAccessToken()
+      if (t === null) throw new Error('Privy session expired: log in again')
+      return t
+    },
+    addSigner: async (a, signerId, policyId) => {
+      await addSigners({ address: a, signers: [{ signerId, policyIds: [policyId] }] })
+    },
+    removeSigners: async (a) => {
+      await removeSigners({ address: a })
+    },
   }
 }
