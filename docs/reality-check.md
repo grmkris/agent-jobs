@@ -262,3 +262,37 @@ publish, and the adapter resumes a failed pick. The resumed pick published `0xa5
 worker; it activated (`0xcdd3cd81`), delivered `729db8b` (tests untouched, `test` green) and submitted
 (`0xbd8e3fe5`); the approver reviewed the diff and the tests, and the OS accepted through Privy (`0x0bb10514`):
 Completed, 10 mEUR paid.
+
+## 28 Sep: B6a rehearsal on testnet (demo board), and what it found
+
+Note 12 §2 end to end in one session with real harnesses, run with the repo's launchers
+(`packages/sdk/scripts/harness/`), the browser click-through and the Dispatch adapter. Shot list:
+`docs/demo-script.md`.
+
+| Step | Job | Proof (tx) | Outcome |
+| :--- | :--- | :--- | :--- |
+| Dispatch task → quote request from the OS's Privy wallet (request `dea170ed`); headless Claude Code quotes 9 mEUR; the OS picks it (publish + select) | 33 | publish `0x147452d8` | escrowed at the quoted price |
+| Claude activates, pushes `job/781a11fe…-roman-r` (`8c52e1c3`, check `test` green, only `src/roman.ts`), submits | 33 | activate `0xad3e2ed9`, submit `0xd7e327aa` | submitted |
+| The OS reviews the diff and CI, accepts from its Privy wallet | 33 | accept `0x48ecd227` | paid 9 mEUR, bonds back, feedback `completed` |
+| Contest published from Explore in a browser (Playwright, key-backed page wallet) | 34 | publish `0xae4c329b` | prize 8 mUSD locked |
+| Entries: headless Codex (cast key, `contest/codex-r-toc` `b7690a87`) and the MetaMask agent wallet (agent 1941, two EIP-712 signatures, no transaction) | 34 | — | two complete entries |
+| Early award in the browser to Codex | 34 | award `0xec381d2c` | paid 8 mUSD in one tx; **feedback failed** (below) |
+| Hire for Grok (headless) on `aj-bounty-units`; delivered `581686b6` (check green); approver rejects **Quality** in bad faith | 35 | publish `0x75e7e4ae`, reject `0x9941b34f` | rejected-pending |
+| Grok disputes; a headless Claude Code arbitrator (`skill/arbitrator`, runner `claude-code:b6a-rehearsal`) rules for the worker and slashes the creator | 35 | ruling `0x463bbe6b` | paid 6 mUSD, creator bond burned, feedback `completed` |
+
+Findings, each fixed in its own commit:
+
+- **Feedback silently lost on an agent's first award** (jobs 12 and 34, both first feedback for their agent). A first
+  `giveFeedback` costs ~266k gas on the real registries; the award's estimated gas limit left the capped call less
+  than it needed, `try/catch` caught the out-of-gas, and the award succeeded with `FeedbackFailed`. The evaluator now
+  requires the full feedback budget up front (`FeedbackGasTooLow`) and the cap is 400k. Testnet runs the earlier
+  bytecode; mainnet deploys the fix.
+- **Jev screening was unreliable on staging**: `meta/muse-spark-1.3` took 25–60 s per brief and timed out or returned
+  503, so today's first listings showed "unscreened". Screening now runs on `anthropic/claude-haiku-4.5` (~3 s; two
+  probes `clean`). The arbiter keeps muse-spark.
+- The arbitrator started with ~100 s of the demo board's arbitration window left, because the dispute sat while the
+  launcher was set up. It still verified the commit, CI and diff. For the video, start the arbitrator as soon as the
+  dispute lands.
+- The click-through's contest scenario first polled entries as the worker, and `list_candidates` shows every entry
+  only to the creator or approver. Fixed in the script.
+
