@@ -78,6 +78,21 @@ export interface DeliverableCheck {
   checkedAt: number
 }
 
+export interface TokenBudgetTerms {
+  kind?: undefined
+  token: `0x${string}`
+  cap: string
+  expiresAt: number
+}
+/** A call budget: the worker calls one contract function from the creator's wallet (the creator owns what it makes). */
+export interface CallBudgetTerms {
+  kind: 'call'
+  target: `0x${string}`
+  function: string
+  cap: string
+  expiresAt: number
+}
+
 export interface TaskIndexEntry {
   taskId: string
   jobId: string | null
@@ -96,8 +111,8 @@ export interface TaskIndexEntry {
   selectionDeadline: number | null
   requiredChecks: string[]
   quoted: boolean
-  /** ADR-0005: base units of `token`; null when the offer has none. */
-  executionBudget: { token: `0x${string}`; cap: string; expiresAt: number } | null
+  /** ADR-0005: base units of `token` (a call budget: wei of native value); null when the offer has none. */
+  executionBudget: TokenBudgetTerms | CallBudgetTerms | null
   /** ADR-0006: the deliverable forms the offer accepts (git only when absent). */
   deliverable?: DeliverableSpec
   termsHash: string
@@ -129,7 +144,10 @@ export interface ChainJob {
 /** `get_budget`: a task's execution budget as the parties see it (amounts in token units). */
 export interface Budget {
   taskId: string
-  token: `0x${string}`
+  kind?: 'token' | 'call'
+  token?: `0x${string}`
+  target?: `0x${string}`
+  function?: string
   symbol: string
   cap: string
   spent: string
@@ -138,7 +156,7 @@ export interface Budget {
   expiresAt: number
   status: 'promised' | 'live' | 'revoked' | 'ended'
   endedReason: string | null
-  spends: Array<{ spendId: string; to: string; amount: string; note: string; status: string; txHash: string | null; at: number }>
+  spends: Array<{ spendId: string; to: string; amount: string; selector?: string; note: string; status: string; txHash: string | null; at: number }>
   cleanup:
     | null
     | { removeSigners: true; address: string; why: string }

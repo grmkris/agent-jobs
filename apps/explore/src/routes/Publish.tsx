@@ -17,6 +17,13 @@ interface Created {
 }
 
 const rewardTokens = Object.entries(TOKENS).filter(([, t]) => t.symbol !== 'FACTORY')
+
+/** nad.fun's launch call on Monad testnet: a call budget for it makes the creator the token's creator (ADR-0005). */
+const NADFUN_TESTNET = {
+  target: '0x865054F0F6A288adaAc30261731361EA7E908003',
+  function: 'function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable',
+  cap: '12',
+}
 const input = 'w-full rounded border border-neutral-300 px-2 py-1 text-sm'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -45,6 +52,10 @@ export function PublishPage({ auth }: { auth: Auth }) {
   const [budgetOn, setBudgetOn] = useState(false)
   const [budgetToken, setBudgetToken] = useState(rewardTokens[0]?.[0] ?? '')
   const [budgetCap, setBudgetCap] = useState('2')
+  const [budgetKind, setBudgetKind] = useState<'token' | 'call'>('token')
+  const [callTarget, setCallTarget] = useState(isMainnet ? '' : NADFUN_TESTNET.target)
+  const [callFunction, setCallFunction] = useState(isMainnet ? '' : NADFUN_TESTNET.function)
+  const [callCap, setCallCap] = useState(NADFUN_TESTNET.cap)
   const [title, setTitle] = useState('')
   const [brief, setBrief] = useState('')
   const [criteria, setCriteria] = useState('A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.')
@@ -103,7 +114,12 @@ export function PublishPage({ auth }: { auth: Auth }) {
         ...(mode === 'contest' ? { selectionDeadline: now + Math.round(Number(selectionHours) * 3600) } : {}),
         ...checks,
         ...deliverable,
-        ...(mode === 'hire' && budgetOn ? { executionBudget: { token: budgetToken, cap: budgetCap } } : {}),
+        ...(mode === 'hire' && budgetOn
+          ? {
+              executionBudget:
+                budgetKind === 'call' ? { kind: 'call', target: callTarget.trim(), function: callFunction.trim(), cap: callCap } : { token: budgetToken, cap: budgetCap },
+            }
+          : {}),
         stack,
       })
       setCreated(c)
@@ -242,6 +258,38 @@ export function PublishPage({ auth }: { auth: Auth }) {
               Apart from the reward, the worker may spend up to this much from your wallet (model calls, compute), until the delivery deadline. Nothing is escrowed; you grant it on the job page with an email/Google (Privy) wallet and can revoke it any time.
             </p>
             {budgetOn && (
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Field
+                    label="Kind"
+                    hint={
+                      budgetKind === 'call'
+                        ? 'The worker calls one contract function from your wallet, so you are the sender and own what it makes (e.g. a nad.fun token). The cap bounds the MON it may send in total; you pay the gas.'
+                        : 'The worker pays running costs in a token, to anyone.'
+                    }
+                  >
+                    <select value={budgetKind} onChange={(e) => setBudgetKind(e.target.value as 'token' | 'call')} className={input}>
+                      <option value="token">running costs (token transfers)</option>
+                      <option value="call">{isMainnet ? 'one contract call from my wallet' : 'launch on nad.fun from my wallet (contract call)'}</option>
+                    </select>
+                  </Field>
+                </div>
+              </div>
+            )}
+            {budgetOn && budgetKind === 'call' && (
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <Field label="Contract"><input value={callTarget} onChange={(e) => setCallTarget(e.target.value)} className={`${input} font-mono`} /></Field>
+                <Field label="Cap (MON)" hint={isMainnet ? 'The total MON the calls may send.' : 'nad.fun charges a 10 MON deploy fee on testnet.'}>
+                  <input value={callCap} onChange={(e) => setCallCap(e.target.value)} className={input} inputMode="decimal" />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Allowed function" hint="Exactly one function, in human-readable ABI form.">
+                    <input value={callFunction} onChange={(e) => setCallFunction(e.target.value)} className={`${input} font-mono text-xs`} />
+                  </Field>
+                </div>
+              </div>
+            )}
+            {budgetOn && budgetKind === 'token' && (
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 <Field label="Budget token">
                   <select value={budgetToken} onChange={(e) => setBudgetToken(e.target.value)} className={input}>

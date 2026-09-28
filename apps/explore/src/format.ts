@@ -1,4 +1,5 @@
 import { formatUnits } from 'viem'
+import type { CallBudgetTerms, TokenBudgetTerms } from './api.ts'
 import { deployment, isMainnet } from './wallet.ts'
 
 /** The deployment's reward tokens: Circle USDC on mainnet; the mUSD / mEUR test tokens on testnet. */
@@ -24,6 +25,13 @@ export function amount(value: string | null | undefined, token: string | null | 
   const n = formatUnits(BigInt(value), t.decimals)
   if (t.usd === null) return `${n} ${t.symbol}`
   return isMainnet ? `${n} ${t.symbol}` : `${n} ${t.symbol} (≈ $${(Number(n) * t.usd).toFixed(2)}, test token)`
+}
+
+/** An execution budget's cap as people read it; a call budget names the function and contract it may call. */
+export function budgetCap(eb: TokenBudgetTerms | CallBudgetTerms): string {
+  if (eb.kind !== 'call') return amount(eb.cap, eb.token)
+  const name = /function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'call'
+  return `${formatUnits(BigInt(eb.cap), 18)} MON for ${name}() on ${eb.target.slice(0, 8)}…${eb.target.slice(-4)}`
 }
 
 export const bond = (value: string | null | undefined) => (value === null || value === undefined ? '—' : `${formatUnits(BigInt(value), 18)} FACTORY`)

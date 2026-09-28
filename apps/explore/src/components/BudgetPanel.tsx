@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { formatEther } from 'viem'
+import { formatEther, parseEther } from 'viem'
 import { useBalance } from 'wagmi'
 import { type Budget, type TaskIndexEntry, tool } from '../api.ts'
-import { amount, when } from '../format.ts'
+import { budgetCap, when } from '../format.ts'
 import { chain } from '../wallet.ts'
 import { usePrivyBudget } from './Privy.tsx'
 import { Address, Badge, Button, Card, Row, TxLink } from './ui.tsx'
@@ -79,7 +79,12 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
       <p className="mb-2 text-xs text-neutral-500">
         Running costs the worker may spend from the creator’s wallet, apart from the reward. Not escrowed: spent is spent, the rest never leaves the wallet.
       </p>
-      <Row label="Cap">{amount(eb.cap, eb.token)}</Row>
+      <Row label="Cap">{budgetCap(eb)}</Row>
+      {eb.kind === 'call' && (
+        <p className="mb-1 text-xs text-neutral-500">
+          A call budget: the worker calls <span className="font-mono">{eb.function}</span> on <Address value={eb.target} /> from your wallet, so you are the sender and own what it makes.
+        </p>
+      )}
       <Row label="Until">{when(eb.expiresAt)}</Row>
       {b !== undefined ? (
         <>
@@ -94,7 +99,7 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
               {b.spends.map((x) => (
                 <div key={x.spendId} className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge tone={x.status === 'confirmed' ? 'green' : x.status === 'failed' ? 'red' : 'amber'}>{x.status}</Badge>
-                  <span>{x.amount} {b.symbol} →</span>
+                  <span>{x.amount} {b.symbol} {x.selector === undefined ? '→' : `call ${x.selector} on`}</span>
                   <Address value={x.to} />
                   {x.note !== '' && <span className="text-neutral-500">{x.note}</span>}
                   <TxLink hash={x.txHash} />
@@ -125,16 +130,25 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
               <Button variant="outline" busy={busy === 'cleanup'} onClick={cleanup}>{'removeSigners' in b.cleanup ? 'Remove the signer' : 'Re-attach under the smaller policy'}</Button>
             </div>
           )}
-          {b.status === 'live' && gas.data !== undefined && gas.data.value < LOW_GAS && (
-            <p className="text-xs text-amber-700">Your wallet holds {formatEther(gas.data.value)} MON; each spend is a transaction your wallet pays gas for.</p>
+          {b.status === 'live' && gas.data !== undefined && gas.data.value < LOW_GAS + (eb.kind === 'call' ? parseEther(b.remaining) : 0n) && (
+            <p className="text-xs text-amber-700">
+              Your wallet holds {formatEther(gas.data.value)} MON;{' '}
+              {eb.kind === 'call' ? `the calls may send up to ${b.remaining} MON more, plus gas.` : 'each spend is a transaction your wallet pays gas for.'}
+            </p>
           )}
           <p className="text-xs text-neutral-500">
-            Privy checks every transfer against your wallet’s policy (this token, at most the cap, before the deadline); the board checks the total, that only the activated worker spends, and only while the job is active.
+            {eb.kind === 'call'
+              ? 'Privy checks every call against your wallet’s policy (this contract, this function, at most the cap in value, before the deadline); the board checks the total, that only the activated worker calls, and only while the job is active.'
+              : 'Privy checks every transfer against your wallet’s policy (this token, at most the cap, before the deadline); the board checks the total, that only the activated worker spends, and only while the job is active.'}
           </p>
         </div>
       )}
       {roles.includes('worker') && b?.status === 'live' && (
-        <p className="mt-2 text-xs text-neutral-500">Spend with the board’s MCP tool `spend_budget({'{'}taskId, to, amount, note{'}'})` while the job is active.</p>
+        <p className="mt-2 text-xs text-neutral-500">
+          {eb.kind === 'call'
+            ? "Call with the board's MCP tool `spend_budget_call({taskId, data, value, note})` while the job is active."
+            : "Spend with the board's MCP tool `spend_budget({taskId, to, amount, note})` while the job is active."}
+        </p>
       )}
       {error !== null && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </Card>
