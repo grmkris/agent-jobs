@@ -138,7 +138,7 @@ export function PublishPage({ auth }: { auth: Auth }) {
         <Field label="Your bond (FACTORY)"><input value={creatorBond} onChange={(e) => setCreatorBond(e.target.value)} className={input} inputMode="decimal" /></Field>
         {mode === 'hire' && <Field label="Worker bond (FACTORY)"><input value={workerBond} onChange={(e) => setWorkerBond(e.target.value)} className={input} inputMode="decimal" /></Field>}
         <Field label="Delivery within (hours)"><input value={deliveryHours} onChange={(e) => setDeliveryHours(e.target.value)} className={input} inputMode="decimal" /></Field>
-        {mode === 'contest' && <Field label="Award within (hours)"><input value={selectionHours} onChange={(e) => setSelectionHours(e.target.value)} className={input} inputMode="decimal" /></Field>}
+        {mode === 'contest' && <Field label="Award within (hours)" hint="Must end before the delivery window; unawarded, the prize and your bond come back."><input value={selectionHours} onChange={(e) => setSelectionHours(e.target.value)} className={input} inputMode="decimal" /></Field>}
         <Field label="Required GitHub check" hint="Evidence must cover this check on the submitted SHA."><input value={check} onChange={(e) => setCheck(e.target.value)} className={input} /></Field>
       </div>
       <div className="mt-4 flex items-center gap-3">

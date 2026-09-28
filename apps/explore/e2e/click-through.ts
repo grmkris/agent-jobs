@@ -11,6 +11,10 @@
  * approval and publish as wallet steps), select the scripted worker's application, approve its submission.
  * Scenario 2 (both parties in browsers): the creator rejects a submission with a reason; the worker disputes it
  * with a statement from its own browser wallet. Screenshots go to SHOTS (default /tmp/explore-e2e).
+ * Scenario 3 (SCENARIOS=contest): the creator publishes a contest in the browser (or resumes CONTEST_JOB/CONTEST_TASK),
+ * waits for CONTEST_ENTRIES outside entries (harness workers, the MetaMask wallet), then awards AWARD_WORKER's entry
+ * (default the first) early.
+ * SCENARIOS picks which run: "hire,dispute" by default.
  */
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -143,18 +147,37 @@ async function workerActivateAndSubmit(taskId: string) {
   log('worker activated and submitted')
 }
 
-async function publishInBrowser(page: Page, title: string): Promise<{ jobId: string; taskId: string }> {
+interface PublishForm {
+  mode: 'hire' | 'contest'
+  brief: string
+  criteria?: string
+  reward: string
+  awardHours?: string
+}
+const CI_HIRE: PublishForm = {
+  mode: 'hire',
+  brief: 'Add CI to https://github.com/grmkris/runner-spike-fixture that runs its tests on push and pull_request (browser click-through).',
+  reward: '3',
+}
+
+async function publishInBrowser(page: Page, title: string, form: PublishForm = CI_HIRE): Promise<{ jobId: string; taskId: string }> {
   await page.getByRole('link', { name: 'Publish' }).click()
+  await page.getByLabel(/^Mode/).selectOption(form.mode)
   await page.getByLabel('Board').selectOption('demo')
   await page.getByLabel('Title').fill(title)
-  await page.getByLabel('Brief').fill('Add CI to https://github.com/grmkris/runner-spike-fixture that runs its tests on push and pull_request (browser click-through).')
-  await page.getByLabel('Reward', { exact: true }).fill('3')
+  await page.getByLabel('Brief').fill(form.brief)
+  if (form.criteria !== undefined) await page.getByLabel('Acceptance criteria').fill(form.criteria)
+  await page.getByLabel('Reward', { exact: true }).fill(form.reward)
   await page.getByLabel('Your bond (FACTORY)').fill('1')
-  await page.getByLabel('Worker bond (FACTORY)').fill('1')
+  if (form.mode === 'hire') await page.getByLabel('Worker bond (FACTORY)').fill('1')
   await page.getByLabel('Delivery within (hours)').fill('1')
+  if (form.awardHours !== undefined) await page.getByLabel('Award within (hours)').fill(form.awardHours)
   await snap(page, 'publish-form')
   await page.getByRole('button', { name: 'Freeze offer and screen' }).click()
-  await page.getByText('Review and publish').waitFor({ timeout: 90_000 })
+  await page.getByText('Review and publish').waitFor({ timeout: 90_000 }).catch(async (e: Error) => {
+    await snap(page, 'publish-failed')
+    throw new Error(`publish form: ${(await page.locator('.text-red-600').allInnerTexts()).join('; ') || e.message}`)
+  })
   await snap(page, 'publish-screened')
   await clickSteps(page)
   await page.waitForURL(/\/job\/\d+$/, { timeout: 60_000 })
@@ -187,41 +210,87 @@ mkdirSync(SHOTS, { recursive: true })
 const browser = await chromium.launch({ headless: true, ...(CHROME === undefined ? {} : { executablePath: CHROME }) })
 try {
   await board.signIn(workerKey)
-  // Scenario 1: publish → select → approve, all by the creator in the browser.
+  const scenarios = env('SCENARIOS', 'hire,dispute').split(',')
   const creatorCtx = await walletContext(browser, creatorKey)
   const page = await creatorCtx.newPage()
   await signIn(page)
   await snap(page, 'signed-in')
-  const one = await publishInBrowser(page, 'Browser click-through: approve path')
-  await selectInBrowser(page, one.jobId, one.taskId)
-  await workerActivateAndSubmit(one.taskId)
-  await waitStatus(page, one.jobId, 'submitted')
-  await page.getByRole('button', { name: 'Approve and pay' }).click()
-  await clickSteps(page)
-  await waitStatus(page, one.jobId, 'completed')
-  await snap(page, 'approved-completed')
+  const done: Array<{ jobId: string; taskId: string }> = []
 
-  // Scenario 2: publish → select → reject by the creator; dispute by the worker in its own browser.
-  const two = await publishInBrowser(page, 'Browser click-through: reject and dispute path')
-  await selectInBrowser(page, two.jobId, two.taskId)
-  await workerActivateAndSubmit(two.taskId)
-  await waitStatus(page, two.jobId, 'submitted')
-  await page.getByRole('combobox').first().selectOption('None')
-  await page.getByPlaceholder('Reason (published; its hash goes on-chain)').fill('Browser click-through: rejected to exercise the dispute UI; no defect is claimed.')
-  await page.getByRole('button', { name: 'Reject' }).click()
-  await clickSteps(page)
-  await waitStatus(page, two.jobId, 'rejected-pending')
-  await snap(page, 'rejected')
-  const workerCtx = await walletContext(browser, workerKey)
-  const wpage = await workerCtx.newPage()
-  await signIn(wpage)
-  await wpage.goto(`${EXPLORE}/job/${two.jobId}`)
-  await wpage.getByPlaceholder('Your case for the arbitrator').fill('The required check passes on the submitted SHA and the rejection names no defect.')
-  await wpage.getByRole('button', { name: 'Dispute' }).click()
-  await clickSteps(wpage)
-  await waitStatus(wpage, two.jobId, 'disputed')
-  await snap(wpage, 'disputed')
-  console.log(`JOBS=${one.jobId},${two.jobId} TASKS=${one.taskId},${two.taskId}`)
+  if (scenarios.includes('hire')) {
+    // Scenario 1: publish → select → approve, all by the creator in the browser.
+    const one = await publishInBrowser(page, 'Browser click-through: approve path')
+    await selectInBrowser(page, one.jobId, one.taskId)
+    await workerActivateAndSubmit(one.taskId)
+    await waitStatus(page, one.jobId, 'submitted')
+    await page.getByRole('button', { name: 'Approve and pay' }).click()
+    await clickSteps(page)
+    await waitStatus(page, one.jobId, 'completed')
+    await snap(page, 'approved-completed')
+    done.push(one)
+  }
+
+  if (scenarios.includes('dispute')) {
+    // Scenario 2: publish → select → reject by the creator; dispute by the worker in its own browser.
+    const two = await publishInBrowser(page, 'Browser click-through: reject and dispute path')
+    await selectInBrowser(page, two.jobId, two.taskId)
+    await workerActivateAndSubmit(two.taskId)
+    await waitStatus(page, two.jobId, 'submitted')
+    await page.getByRole('combobox').first().selectOption('None')
+    await page.getByPlaceholder('Reason (published; its hash goes on-chain)').fill('Browser click-through: rejected to exercise the dispute UI; no defect is claimed.')
+    await page.getByRole('button', { name: 'Reject' }).click()
+    await clickSteps(page)
+    await waitStatus(page, two.jobId, 'rejected-pending')
+    await snap(page, 'rejected')
+    const workerCtx = await walletContext(browser, workerKey)
+    const wpage = await workerCtx.newPage()
+    await signIn(wpage)
+    await wpage.goto(`${EXPLORE}/job/${two.jobId}`)
+    await wpage.getByPlaceholder('Your case for the arbitrator').fill('The required check passes on the submitted SHA and the rejection names no defect.')
+    await wpage.getByRole('button', { name: 'Dispute' }).click()
+    await clickSteps(wpage)
+    await waitStatus(wpage, two.jobId, 'disputed')
+    await snap(wpage, 'disputed')
+    done.push(two)
+  }
+
+  if (scenarios.includes('contest')) {
+    // Scenario 3: a contest from the website; outside entrants deliver first; the approver awards one early.
+    const repo = env('CONTEST_REPO', 'grmkris/aj-bounty-md-toc')
+    const resume = process.env.CONTEST_TASK === undefined ? undefined : { jobId: env('CONTEST_JOB'), taskId: env('CONTEST_TASK') }
+    const c = resume ?? await publishInBrowser(page, env('CONTEST_TITLE', 'Contest: Markdown table of contents'), {
+      mode: 'contest',
+      brief: `Implement the spec in the README of https://github.com/${repo} (TypeScript, Bun). Enter a finished commit on a new branch of that repository, never main. Only the awarded entry is paid; the approver may award early.`,
+      criteria: 'A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.\nThe implementation meets the spec in the repository README.\nThe existing tests under test/ are unchanged: none edited or deleted.',
+      reward: env('CONTEST_REWARD', '8'),
+      awardHours: env('CONTEST_AWARD_HOURS', '0.5'),
+    })
+    console.log(`CONTEST_JOB=${c.jobId} CONTEST_TASK=${c.taskId}`)
+    // Only the creator or approver sees every entry.
+    const creatorBoard = sdk.boardClient(EXPLORE)
+    await creatorBoard.signIn(creatorKey)
+    const want = Number(env('CONTEST_ENTRIES', '2'))
+    type Entry = { candidateId: string; worker: string }
+    let entries: Entry[] = []
+    for (let i = 0; i < 240 && entries.length < want; i++) {
+      entries = await creatorBoard.call<Entry[]>('list_candidates', { taskId: c.taskId })
+      if (entries.length < want) await new Promise((r) => setTimeout(r, 15_000))
+    }
+    log(`${entries.length} entries: ${entries.map((e) => e.worker).join(', ')}`)
+    const pick = process.env.AWARD_WORKER?.toLowerCase()
+    const winner = entries.find((e) => e.worker.toLowerCase() === pick) ?? entries[0]
+    if (winner === undefined) throw new Error('no entries to award')
+    await page.goto(`${EXPLORE}/job/${c.jobId}`)
+    await page.getByRole('button', { name: 'Award' }).first().waitFor({ timeout: 60_000 })
+    await snap(page, 'contest-entries')
+    const idx = entries.indexOf(winner)
+    await page.getByRole('button', { name: 'Award' }).nth(idx).click()
+    await clickSteps(page)
+    await waitStatus(page, c.jobId, 'completed')
+    await snap(page, 'contest-awarded')
+    done.push(c)
+  }
+  console.log(`JOBS=${done.map((d) => d.jobId).join(',')} TASKS=${done.map((d) => d.taskId).join(',')}`)
 } finally {
   await browser.close()
 }
