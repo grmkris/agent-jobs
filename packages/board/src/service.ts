@@ -1,8 +1,9 @@
 /**
- * The hosted board (spec §5): one service behind both the REST API and the MCP tools. It coordinates; it never holds
- * keys or moves money. Every money-moving step comes back as an unsigned transaction or EIP-712 message for the
- * caller's own wallet (cast, MetaMask agent wallet, Privy, a browser), and every chain fact is read from the chain,
- * never taken from a client's claim (spec §3: a board receipt never overrides chain state).
+ * The hosted board (spec §5): one service behind both the REST API and the MCP tools. It coordinates. Every
+ * money-moving step of the protocol comes back as an unsigned transaction or EIP-712 message for the caller's own
+ * wallet (cast, MetaMask agent wallet, Privy, a browser), and every chain fact is read from the chain, never taken from
+ * a client's claim (spec §3: a board receipt never overrides chain state). The one exception is the execution budget
+ * (ADR-0005, `budget.ts`): a creator may add the board's signer to their Privy wallet, bounded by their own policy.
  *
  * At most one economic effect per operation (R114-07): an operation record is written before a money-moving
  * transaction is handed out and reconciled from the chain (receipt, or the listing itself) afterwards; the

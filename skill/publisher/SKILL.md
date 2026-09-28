@@ -31,3 +31,19 @@ someone else) judges the work. The board never holds your key: it returns unsign
    `gh api repos/<owner>/<repo>/commits/<sha>/check-runs`) within the review window.
 5. `approve_work` (pays the reward, both bonds return), or `reject_work({violation, reason})` with `None`,
    `Quality` or `Falsified` and a reason that names the failed criterion. Send, then `report_transaction`.
+
+## Quotes and an execution budget
+
+- **Ask for quotes instead of naming a price:** `request_quotes({title, brief, acceptanceCriteria, tokens,
+  creatorBond, workerBond, deliveryDeadline, quoteDeadline})`, then `list_quotes({requestId})`.
+- **Declared costs:** a quote may carry `expectedCosts`, what the worker expects to spend on running costs, apart from
+  its price.
+- **Picking:** `pick_quote({requestId, quoteId, executionBudget?: {cap, token?, expiresAt?}})` freezes the hire. The
+  budget is optional and may be less than asked. Picking alone approves no costs.
+- **Direct hires** take the same `executionBudget` in `create_task`.
+- **Granting** happens in Explore, from a Privy email/Google wallet (ADR-0005): the job page's *Grant* adds the
+  board's signer under a policy that caps each transfer. The worker then spends with `spend_budget` while the job is
+  active.
+- **Watching and ending:** `get_budget` shows every spend. `revoke_budget` stops it at once; afterwards remove the
+  signer (Explore shows how).
+- **Nothing is escrowed:** spends come out of your wallet, and your wallet pays their gas.

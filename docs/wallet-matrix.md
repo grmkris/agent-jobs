@@ -27,6 +27,17 @@ docs do not say. Chain 10143 = Monad testnet.
   typed-data-only wallet sufficient; every row above can at least sign typed data or a raw payload.
 - SIWE for the board sign-in needs only EIP-191; every row has it.
 
+## Privy session signer on an embedded wallet (execution budget, 28 Sep)
+
+Proven on 10143 with a server wallet (`docs/reality-check.md`, "execution-budget spike"), used for ADR-0005:
+- A key quorum (the board's P-256 key) can be an `additional_signer` under a policy. A request signed with that key
+  alone sends `eth_sendTransaction`.
+- The policy engine refuses, each with `400 policy_violation`: over the cap (`ethereum_calldata transfer.amount lte`),
+  a different function, a different token, and past `system.current_unix_timestamp`.
+- On a wallet with an owner, the app secret alone cannot send. Once the signer is removed, the board key is refused.
+- The browser half (`useSigners().addSigners` on an embedded wallet, a person-owned policy) is built in Explore but not
+  yet live-verified. Policy names must be under 50 characters, and chain ids are decimal strings.
+
 ## Not covered
 
 Harness-side MCP bearer support was verified for Claude Code and Codex in the Cloudflare OS Dispatch

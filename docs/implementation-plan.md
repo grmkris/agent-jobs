@@ -65,7 +65,7 @@ CP4 progress (27 Sep): done — `packages/indexer` + `apps/indexer` (HyperSync c
 rewind guard, rebuild tests on the real logs), live on staging; `apps/explore` on staging (jobs with filters, job
 detail with both evidence labels, the dispute and outcome panel, party actions as wallet steps incl. early award);
 the demo-window evaluator is the `demo` stack. Publish and worker-profile screens and the browser click-through were
-closed overnight 28 Sep; Privy React sign-in is the one CP4 item left.
+closed overnight 28 Sep; Privy React sign-in (email/Google, embedded wallet) is built (`0e02b97`).
 
 Overnight 28 Sep (evidence in `docs/reality-check.md`): every lifecycle path live (coverage matrix, jobs 15–20);
 a multi-harness bounty campaign on five fresh public repos (Claude Code, Codex, Grok and a scripted adversary; jobs
@@ -75,15 +75,25 @@ key-backed browser wallet, jobs 26–31); an independent Codex security review, 
 regressions and its admin-trust finding in the runbook as a decision; CP5's Dispatch adapter
 (`sdk.dispatchPublisher`, a keyless OS publishing through its Privy wallet) live on testnet. B7 prep:
 `docs/mainnet-runbook.md`, a mainnet-fork rehearsal with real USDC and registries, `deploy:prod`. Open — wiring
-`dispatchPublisher` into the Cloudflare OS `gatekeeper-dispatch` package (its checkout is on the Mac), Privy React
-sign-in in Explore, S5 (CRE access), the B6a video, and everything on mainnet.
+`dispatchPublisher` into the Cloudflare OS `gatekeeper-dispatch` package (its checkout is on the Mac), S5 (CRE
+access), the B6a video, and everything on mainnet.
+
+28 Sep afternoon (ADR-0005, evidence in `docs/reality-check.md`):
+- **Execution budget, built:** declared costs in quotes, an approved budget frozen into the offer, the grant through
+  a Privy session signer under a person-owned policy, the `spend_budget` ledger, and the Explore quote UI and budget
+  panel.
+- **Proven:** the Privy side is live on 10143 with a server wallet, and the board side is covered by fork tests.
+  **Open:** a live grant from an embedded wallet in a browser, which needs a Privy test account.
+- **Pause:** the board withholds transactions while the core is paused, and Explore shows a banner.
+- **Testnet redeploy:** the stacks now run main's bytecode (jobs 1–35 stay on the legacy pairs), and job 36 ran on
+  the new demo pair.
 
 S7 progress: done (27 Sep) — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`,
 violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`, evidence event fields,
 reason-aware feedback, `MockPaymentToken(name, symbol)`, the CRE receiver code and the deploy recipe. Not deployed:
 the CRE receiver (S5, CRE access). 28 Sep: the bond token is any plain ERC-20 (a FACTORY launched elsewhere): slashes
-go to `0x…dEaD`, a fee-on-transfer token is refused, the recipe takes `factory.address`; testnet keeps the earlier
-bytecode.
+go to `0x…dEaD`, a fee-on-transfer token is refused, the recipe takes `factory.address`. Testnet's stacks were
+redeployed with this bytecode the same day (`script/DeployStacks.s.sol`).
 
 ## S7 Contracts v3 (R20, R114)
 

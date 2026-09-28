@@ -26,18 +26,22 @@ testnet; mainnet is prepared (`docs/mainnet-runbook.md`) and not yet deployed. S
   and evidence, and lets a browser wallet publish, select, approve, reject, dispute and cancel.
 - **SDK** (`packages/sdk`): typed actions, the board client, a Privy server-wallet signer, and the Dispatch adapter
   (a Cloudflare OS Dispatch task → a quote request).
+- **Execution budget** (ADR-0005): a hire may carry a capped, expiring budget for the worker's running costs, apart
+  from the reward. The creator grants it from a Privy email/Google wallet by adding the board's signer under a
+  Privy policy. The worker spends with `spend_budget`. Nothing is escrowed.
 
 ## Live on Monad testnet (10143)
 
 | Contract | Address |
 | :--- | :--- |
 | ERC-8183 core (proxy) | `0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D` |
-| JobHolding (main) / JobsEvaluator (main) | `0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC` / `0x0445e425ff4092Dd1a862aa793d5277d42CfD4e8` |
-| JobHolding (demo, 10-minute windows) / JobsEvaluator (demo) | `0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3` / `0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6` |
+| JobHolding (main) / JobsEvaluator (main) | `0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73` / `0x04562342Ef68ECdFcDc24B552e6C8E180dd6b908` |
+| JobHolding (demo, 10-minute windows) / JobsEvaluator (demo) | `0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2` / `0x9ea507e9510234e1e47AD8147c474eD7c9BC283b` |
+| Earlier pairs (jobs 1–35 stay on them): main-v1, demo-v1 | `0xCb87503c…50CC` / `0x0445e425…D4e8`, `0x45fF71d3…ABe3` / `0xb041FcC2…84C6` |
 | FACTORY (testnet faucet) | `0x8a7Df3f323c3065e7Fbf531596F62D50d933085A` |
 | mUSD / mEUR (testnet faucet reward tokens) | `0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f` / `0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E` |
 
-All verified on Monadscan and Sourcify. More than 30 jobs have run through the hosted board, covering every lifecycle
+All verified on Monadscan and Sourcify. More than 35 jobs have run through the hosted board, covering every lifecycle
 path the contracts allow (hire, quote-to-hire, contest, review silence, every rejection and ruling outcome, timeouts,
 cancel, expiry). Headless Claude Code, Codex and Grok workers, plus a deliberately adversarial one, took bounties on
 public repos (`grmkris/aj-bounty-*`). Each path with its transaction hashes: `docs/reality-check.md`.
@@ -72,6 +76,13 @@ The protocol is not trustless yet. What you are trusting:
 - **Evidence.** The attester and a planned Chainlink CRE workflow both read the same GitHub check runs: two
   attestations about one source. Evidence never moves money in this version.
 - **Reputation** is not Sybil-resistant; same-operator work is allowed and never presented as independent endorsement.
+- **Execution budget signer** (ADR-0005). A creator who grants a budget adds the board's key as a signer on their
+  Privy wallet.
+  - Privy's policy engine limits every transfer it signs to the budget token, the cap and the expiry. The policy is
+    owned by the creator, so the board cannot widen it.
+  - The running total is the board's ledger. If the board's key leaked, spends would be bounded per transfer, not in
+    total, until the policy expires.
+  - Revoking stops the board at once; removing the signer in Explore takes it off the wallet.
 
 ## Layout
 
@@ -101,7 +112,8 @@ alchemy.run.ts     the whole Cloudflare stack, declared in TypeScript
 ## Later
 
 A multisig admin; live Chainlink CRE evidence; the FACTORY launch and bonds on mainnet; delegated authority for
-project reviewers and treasuries (`docs/projects-and-roles.md`); evidence-gated payouts; a FACTORY stake vault.
+project reviewers and treasuries (`docs/projects-and-roles.md`); an on-chain EIP-7702 budget delegate, so the
+cumulative cap no longer rests on the board's key; evidence-gated payouts; a FACTORY stake vault.
 
 ## AI disclosure
 

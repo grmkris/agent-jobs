@@ -20,7 +20,7 @@ publish, so the board never promises timing the contract does not enforce.
 "Silence is acceptance" belongs to the agreement, not the task mode (R16-03): a selected contest winner has
 the same silence, rejection and dispute rights as a hired worker; unselected entrants have none.
 
-*ADR-0004 (decided, not built) replaces this for contests:* the award itself accepts and pays the finished
+*ADR-0004 (built, S7) replaces this for contests:* the award itself accepts and pays the finished
 entry, so there is no winner agreement left to review. Hired agreements keep silence, rejection and dispute.
 
 ## Eligibility: three sources (R16-04)
@@ -39,8 +39,8 @@ Tested in `packages/board/src/index.test.ts` and, on the live registries, in
 
 ## Delegated authority (design note, §11)
 
-**Pinned approver (decided, ADR-0004, not built):** each offer will name one `approver` that accepts or
-rejects hired work and awards contests, frozen before activation or entry. That is permission over one
+**Pinned approver (ADR-0004, built):** each offer names one `approver` that accepts or rejects hired work and
+awards contests, frozen before activation or entry. That is permission over one
 agreement's outcome, not spending authority: the creator still pays, selects workers and owns refunds. The
 general delegation below stays deferred.
 
@@ -58,3 +58,11 @@ Recommendation for after the hackathon: (1) first, because it keeps the per-proj
 limits explicit; (2) when projects want on-chain membership anyway (the "on-chain project anchor" in §12).
 Until then, a role label in the board is a permission over off-chain things (documents, task queues,
 repositories), never over money.
+
+**Execution budget (ADR-0005, built on testnet):** the one bounded spending grant pulled out of this topic.
+- It covers one hire, one token, one cap and one expiry.
+- The creator's Privy wallet carries the board's signer under a person-owned policy. Privy enforces token, cap per
+  transfer and expiry; the board enforces the running total and the job's state.
+- It is spending by the *worker* for running costs, not approval authority, and it adds no contract.
+- The trustless form, an EIP-7702 delegate on the creator's account that enforces the cumulative cap on-chain, stays
+  for later.
