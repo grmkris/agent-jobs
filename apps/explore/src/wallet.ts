@@ -1,7 +1,7 @@
 import * as sdk from '@agent-jobs/sdk'
 import type { Chain } from 'viem'
 import type { EIP1193Provider } from 'viem'
-import { createConfig, http } from 'wagmi'
+import { createConfig, http, useReadContract } from 'wagmi'
 import { monad, monadTestnet } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
 
@@ -37,5 +37,11 @@ export const wagmiConfig = createConfig({
   connectors: [injected(), ...(privyAppId === '' ? [] : [privyConnector])],
   transports: { [chain.id]: http() },
 })
+
+/** The core's pause flag (admin power, README Trust): while set, every core call reverts and the board hands out none. */
+export function usePaused(): boolean {
+  const { data } = useReadContract({ address: deployment.core, abi: sdk.coreAbi, functionName: 'paused', chainId: chain.id, query: { refetchInterval: 30_000 } })
+  return data === true
+}
 
 export const explorer = (kind: 'tx' | 'address', value: string) => `${chain.blockExplorers?.default.url ?? ''}/${kind}/${value}`

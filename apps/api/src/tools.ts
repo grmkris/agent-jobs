@@ -48,10 +48,11 @@ export const tools: Record<string, Tool> = {
     description:
       'Chain, contract addresses, reward tokens and how to act with a key-holding wallet. Read this first. No sign-in needed.',
     inputSchema: { type: 'object', properties: {} },
-    run: (_board, _caller, _args, ctx) => {
+    run: async (board, _caller, _args, ctx) => {
       const d = sdk.deployment(ctx.network)
       return {
         network: ctx.network,
+        paused: await board.paused().catch(() => null),
         chainId: d.chainId,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
         contracts: { core: d.core, factory: d.factory, stacks: d.stacks, identity: d.identity, reputation: d.reputation },

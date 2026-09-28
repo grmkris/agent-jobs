@@ -8,15 +8,21 @@ import { AuthProvider, WalletBar, useAuth } from './components/Wallet.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
 import './styles.css'
-import { chain, wagmiConfig } from './wallet.ts'
+import { chain, usePaused, wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
 import { PublishPage } from './routes/Publish.tsx'
 import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
 
 function Layout() {
   const auth = useAuth()
+  const paused = usePaused()
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
+      {paused && (
+        <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          The core contract is paused by its admin. Nothing can be published, delivered, paid or spent until it is unpaused; deadlines keep running (see the README’s Trust section).
+        </div>
+      )}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link to="/" className="text-lg font-semibold">agent-jobs <span className="font-normal text-neutral-500">· Explore · {chain.name}</span></Link>
         <nav className="flex gap-4 text-sm">

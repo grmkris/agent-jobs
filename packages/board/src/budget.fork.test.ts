@@ -351,4 +351,27 @@ fork('execution budget on a testnet fork', () => {
     const ended = await board.getBudget({ address: creator.address }, { taskId: a.taskId })
     expect(ended).toMatchObject({ status: 'ended', endedReason: 'expired' })
   }, 300_000)
+
+  it('while the core is paused the board hands out no transaction and no spend', async () => {
+    // OpenZeppelin PausableUpgradeable's ERC-7201 slot ("openzeppelin.storage.Pausable"); the admin pauses live.
+    const slot = '0xcd5ed15c6e187e77e9aee88184c21f4f2182ab5827cb3b7e07fbedcd63f03300'
+    const core = ctx().deployment.core
+    const t = await now()
+    const base = { title: 'x', brief: 'x', acceptanceCriteria: ['x'], token: 'mUSD', reward: '2', creatorBond: '1', workerBond: '1', mode: 'hire' as const, stack: 'demo' as const }
+    const open = await board.createTask({ address: creator.address }, { ...base, deliveryDeadline: t + 3600 })
+    await rpcCall('anvil_setStorageAt', [core, slot, `0x${'0'.repeat(63)}1`])
+    skew += 20 // past the 15 s cache
+    try {
+      expect(await ctx().publicClient.readContract({ address: core, abi: sdk.coreAbi, functionName: 'paused' })).toBe(true)
+      await expect(board.createTask({ address: creator.address }, { ...base, deliveryDeadline: t + 3600 })).rejects.toThrow('paused')
+      await expect(board.publishTransactions({ address: creator.address }, { taskId: open.taskId })).rejects.toThrow('paused')
+      await expect(board.settlementActions({}, { taskId: open.taskId })).rejects.toThrow('paused')
+      const seen = await board.getTask({ address: creator.address }, { taskId: open.taskId })
+      expect(seen.chain.paused).toBe(true)
+    } finally {
+      await rpcCall('anvil_setStorageAt', [core, slot, `0x${'0'.repeat(64)}`])
+      skew += 20
+    }
+    expect(await board.paused('demo')).toBe(false)
+  }, 180_000)
 })

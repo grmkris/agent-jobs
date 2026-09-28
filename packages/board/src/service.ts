@@ -193,6 +193,24 @@ export class Board {
     return ctx
   }
 
+  readonly #pausedCache = new Map<string, { at: number; paused: boolean }>()
+
+  /** The core's pause flag, read at most every 15 s. While paused every core call reverts, so the board hands out none. */
+  async paused(stack: sdk.StackName = 'main'): Promise<boolean> {
+    const hit = this.#pausedCache.get(stack)
+    if (hit !== undefined && this.#now() - hit.at < 15) return hit.paused
+    const ctx = this.#ctx(stack)
+    const paused = await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })
+    this.#pausedCache.set(stack, { at: this.#now(), paused })
+    return paused
+  }
+
+  async #requireUnpaused(stack: string): Promise<void> {
+    if (await this.paused(stack as sdk.StackName)) {
+      throw new BoardError('conflict', 'the core contract is paused by its admin; nothing can move until it is unpaused (README, Trust)')
+    }
+  }
+
   #tx(ctx: sdk.Ctx, description: string, to: Address, data: Hex): TxRequest {
     return { description, chainId: ctx.deployment.chainId, to, data, value: '0' }
   }
@@ -350,6 +368,7 @@ export class Board {
     const creator = this.#requireCaller(caller)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
+    await this.#requireUnpaused(stack)
     const token = await this.#resolveToken(ctx, input.token)
     const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     const [review, dispute, arbitration, block] = await Promise.all([
@@ -486,6 +505,7 @@ export class Board {
   async publishTransactions(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator publishes')
     if (task.job_id !== null || (await this.#recoverPublish(task)) !== null) throw new BoardError('conflict', `already published as job ${task.job_id}`)
     return { transactions: await this.#publishTransactions(this.#ctx(task.stack), me, parseTerms(task.terms_json), task.terms_hash as Hex) }
@@ -711,6 +731,7 @@ export class Board {
   async cancelTask(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.creator, me)) throw new BoardError('forbidden', 'only the creator cancels')
     if (terms.mode !== 'hire') throw new BoardError('invalid', 'a published contest cannot be cancelled; it ends by award or expiry')
@@ -732,6 +753,7 @@ export class Board {
   async approveWork(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver accepts')
     const ctx = this.#ctx(task.stack)
@@ -747,6 +769,7 @@ export class Board {
   async rejectWork(caller: Caller, input: { taskId: string; violation: sdk.ViolationName; reason: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver rejects')
     if (!(input.violation in sdk.Violation)) throw new BoardError('invalid', 'violation is None, Quality or Falsified')
@@ -1049,6 +1072,7 @@ export class Board {
   async prepareActivation(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const sel = this.#liveSelectionFor(task, me)
     await this.#requireListingMatches(task)
     const ctx = this.#ctx(task.stack)
@@ -1098,6 +1122,7 @@ export class Board {
   async buildActivation(caller: Caller, input: { taskId: string; budgetSignature: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const sel = this.#liveSelectionFor(task, me)
     await this.#requireListingMatches(task)
     const [prep] = this.#sql.all<{ nonce: string; budget_nonce: string; budget_deadline: number }>(
@@ -1129,6 +1154,7 @@ export class Board {
   async submitWork(caller: Caller, input: { taskId: string; repo: string; branch: string; sha: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const ctx = this.#ctx(task.stack)
     const job = await sdk.getJob(ctx, this.#jobId(task))
     if (!eq(job.provider, me)) throw new BoardError('forbidden', 'only the activated worker submits')
@@ -1153,6 +1179,7 @@ export class Board {
   async disputeRejection(caller: Caller, input: { taskId: string; statement?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const ctx = this.#ctx(task.stack)
     if (input.statement !== undefined && input.statement.trim() !== '') {
       // Stored under the worker's role only for the job's provider: the bundle's roles are what the arbiter weighs.
@@ -1293,6 +1320,7 @@ export class Board {
   async awardCandidate(caller: Caller, input: { taskId: string; candidateId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver awards')
     const c = this.#candidate(task.id, input.candidateId)
@@ -1333,6 +1361,7 @@ export class Board {
     const cfg = this.#config.evidence
     if (cfg === undefined) throw new BoardError('invalid', 'the attester is not configured on this board (unavailable)')
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const terms = parseTerms(task.terms_json)
     const ctx = this.#ctx(task.stack)
     const target =
@@ -1676,6 +1705,7 @@ export class Board {
   async submitRuling(caller: Caller, input: { taskId: string; signature: string }) {
     this.#requireCaller(caller)
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const ctx = this.#ctx(task.stack)
     const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [this.#jobId(task)] })
     const row = this.#ruling(task.id, disputedAt)
@@ -1715,6 +1745,7 @@ export class Board {
   /** Whatever permissionless step the chain allows now (timeouts, settlement), as transactions anyone may send. */
   async settlementActions(_caller: Caller, input: { taskId: string }) {
     const task = this.#task(input.taskId)
+    await this.#requireUnpaused(task.stack)
     const ctx = this.#ctx(task.stack)
     const view = await this.#chainView(task)
     const jobId = this.#jobId(task)
@@ -1847,7 +1878,7 @@ export class Board {
             },
       jobId: task.job_id,
       screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),
-      chain: view,
+      chain: { ...view, paused: await this.paused(task.stack as sdk.StackName) },
       you: caller.address === undefined ? null : this.#roles(terms, view, caller.address),
     }
   }

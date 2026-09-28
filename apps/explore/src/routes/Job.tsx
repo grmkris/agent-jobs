@@ -8,6 +8,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, when } from '../format.ts'
+import { usePaused } from '../wallet.ts'
 import { Jev, useJobs } from './Jobs.tsx'
 
 interface Detail {
@@ -160,6 +161,7 @@ function DisputePanel({ d, taskId, signedIn, roles }: { d: Detail; taskId: strin
 }
 
 function Actions({ taskId, status, mode, roles }: { taskId: string; status: string; mode: string | null; roles: string[] }) {
+  const paused = usePaused()
   const qc = useQueryClient()
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -220,6 +222,7 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
     setTxs(null)
     void qc.invalidateQueries()
   }
+  if (paused) return <Card title="Actions"><p className="text-sm text-red-700">Paused: the core refuses every action until the admin unpauses it.</p></Card>
   if (txs !== null) {
     return (
       <Card title="Send from your wallet">
