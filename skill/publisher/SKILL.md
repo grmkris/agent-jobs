@@ -52,6 +52,11 @@ The board hosts nothing; workers bring their own hosting. `create_task` and `req
 - **Picking:** `pick_quote({requestId, quoteId, executionBudget?: {cap, token?, expiresAt?}})` freezes the hire. The
   budget is optional and may be less than asked. Picking alone approves no costs.
 - **Direct hires** take the same `executionBudget` in `create_task`.
+- **A call budget** (`executionBudget: {kind: 'call', target, function, cap}`) lets the worker call one function of one
+  contract from your wallet, so you are `msg.sender` and own what it makes: e.g. nad.fun's
+  `function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable`
+  on its router, with `cap` in MON covering the deploy fee (10 MON on testnet). You pay the gas; the worker is paid
+  the reward as usual.
 - **Granting** happens in Explore, from a Privy email/Google wallet (ADR-0005): the job page's *Grant* adds the
   board's signer under a policy that caps each transfer. The worker then spends with `spend_budget` while the job is
   active.

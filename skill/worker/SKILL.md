@@ -112,6 +112,11 @@ the **creator's** wallet on running costs, apart from your reward.
   or a provider), paid from the creator's wallet. It works only while the job is `active` (after your activate,
   before you submit), before the budget's expiry, and within the cap. Say in `note` what it pays for; the creator
   sees every spend.
+- **Call budgets:** when `executionBudget.kind` is `"call"`, the budget is not money for you: it lets you make calls
+  to one contract function (`target`, `function`) **from the creator's wallet**, so the creator is `msg.sender` and
+  owns what the call makes (e.g. a launchpad token), with native `value` capped in total. Build the calldata
+  (`cast calldata "<function>" <args>`) and send it with `spend_budget_call({taskId, data, value, note})`; read the
+  receipt for what it made. `spend_budget` refuses a call budget and `spend_budget_call` a token budget.
 - **Checking:** `get_budget({taskId})` shows cap, spent, pending, remaining and each spend's transaction. If a spend
   answer is lost, **do not repeat the spend**: `get_budget` reconciles it.
 - **What happens to it at settlement:** spent money is spent whatever the outcome. The budget is not part of your

@@ -50,6 +50,23 @@ Kris chose to build it on testnet with what ships with Privy rather than a new c
   `get_budget` then tells the creator to remove the signer, or to re-attach it under a smaller policy. The policy's
   expiry is the backstop.
 
+## Amendment (29 Sep 2026): call budgets
+
+A budget may instead allow **calls** to one contract function from the creator's wallet:
+`executionBudget {kind: 'call', target, function, cap, expiresAt}`, where `function` is one human-readable ABI item
+and `cap` is native value in total.
+
+- **Why.** A creator hiring an agent to launch a token on a launchpad (nad.fun) should own the token. The launchpad
+  records `msg.sender` as the creator, so the call has to come from the creator's wallet, not the worker's.
+- **Privy rule.** `to == target`, `value ≤ cap`, `function_name == <name>` decoded with that one-function ABI, before
+  the expiry, on this chain. Any other function or contract is refused by Privy itself.
+- **Board.** `spend_budget_call({taskId, data, value, note})`: the same worker/grant/job/pause checks as a token spend,
+  the calldata's selector must be the allowed function's, and the ledger holds the cumulative value. Gas is the
+  creator's. A token budget keeps its old shape (no `kind`), so older terms hashes are unchanged.
+- **Proven** on an anvil fork of Monad testnet: nad.fun `create()` sent from the creator's wallet under a 12 MON call
+  budget, the creator in the launch event, the second 10 MON call refused as over the budget
+  (`budget.fork.test.ts`). The live run follows once the creator's wallet holds MON.
+
 ## Consequences
 
 - **The board holds a key over creator funds.** This changes the board's trust model. Until this ADR, the board
