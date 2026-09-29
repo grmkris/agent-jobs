@@ -52,6 +52,8 @@ The board hosts nothing; workers bring their own hosting. `create_task` and `req
 - **Picking:** `pick_quote({requestId, quoteId, executionBudget?: {cap, token?, expiresAt?}})` freezes the hire. The
   budget is optional and may be less than asked. Picking alone approves no costs.
 - **Direct hires** take the same `executionBudget` in `create_task`.
+- **An x402 budget** (`executionBudget: {kind: 'x402', cap, perCall}`) lets the worker pay x402 endpoints (paid APIs,
+  data, tools) in this chain's USDC from your wallet, each payment at most `perCall`; the facilitator pays the gas.
 - **A call budget** (`executionBudget: {kind: 'call', target, function, cap}`) lets the worker call one function of one
   contract from your wallet, so you are `msg.sender` and own what it makes: e.g. nad.fun's
   `function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable`

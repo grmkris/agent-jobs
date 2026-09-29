@@ -67,6 +67,26 @@ and `cap` is native value in total.
   budget, the creator in the launch event, the second 10 MON call refused as over the budget
   (`budget.fork.test.ts`). The live run follows once the creator's wallet holds MON.
 
+## Amendment (29 Sep 2026): x402 budgets
+
+A budget may let the worker pay x402 endpoints: `executionBudget {kind: 'x402', token, cap, perCall, expiresAt}`,
+where `token` is the chain's EIP-3009 USDC (recorded per network with Monad's facilitator,
+`https://x402-facilitator.molandak.org`).
+
+- **Remote signer.** The worker's x402 client uses the board as its signer: `sign_budget_x402({taskId, typedData})`.
+  The board rebuilds the `TransferWithAuthorization` it signs from checked fields (this chain's USDC as the domain,
+  `from` the creator, value ≤ `perCall`, valid for at most an hour and within the budget, a fresh nonce, room in the
+  ledger) and has Privy sign it with the creator's wallet. The facilitator settles it and pays the gas.
+- **Privy rule.** `eth_signTypedData_v4` with domain `chainId` and `verifyingContract` pinned and message `value`
+  ≤ `perCall` (typed-data schema `TransferWithAuthorization`), before the expiry.
+- **Ledger.** A signed authorization is reserved; it is spent once USDC's `authorizationState` says it was used (the
+  `AuthorizationUsed` log gives the settlement transaction), and released once it expired unused.
+- **Proven.** Fork test: a payment signed, settled by a third party, confirmed with its transaction; an unused one
+  released on expiry (`budget.fork.test.ts`). Live against real Privy and Monad's facilitator
+  (`scripts/x402-spike.ts`, 29 Sep): the rule accepted; an in-cap authorization signed by the board key alone and
+  recovering to the wallet; over the cap, another contract and a USDC `Permit` refused; the facilitator rejects the
+  payload only for insufficient funds.
+
 ## Consequences
 
 - **The board holds a key over creator funds.** This changes the board's trust model. Until this ADR, the board

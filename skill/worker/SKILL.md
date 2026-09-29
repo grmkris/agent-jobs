@@ -117,6 +117,10 @@ the **creator's** wallet on running costs, apart from your reward.
   owns what the call makes (e.g. a launchpad token), with native `value` capped in total. Build the calldata
   (`cast calldata "<function>" <args>`) and send it with `spend_budget_call({taskId, data, value, note})`; read the
   receipt for what it made. `spend_budget` refuses a call budget and `spend_budget_call` a token budget.
+- **x402 budgets:** when `executionBudget.kind` is `"x402"`, you pay x402 endpoints (HTTP 402, "exact" scheme on this
+  chain's USDC) from the creator's wallet. Use the creator's wallet (`get_budget` → `from` in the typed data) as your
+  x402 signer's address and have `sign_budget_x402({taskId, typedData, note})` produce each signature; each payment
+  is capped at `perCall` and all of them at the cap. A payment is spent once the facilitator settles it.
 - **Checking:** `get_budget({taskId})` shows cap, spent, pending, remaining and each spend's transaction. If a spend
   answer is lost, **do not repeat the spend**: `get_budget` reconciles it.
 - **What happens to it at settlement:** spent money is spent whatever the outcome. The budget is not part of your
