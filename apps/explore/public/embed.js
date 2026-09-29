@@ -22,7 +22,7 @@
   params.set('view', view)
   const iframe = document.createElement('iframe')
   iframe.src = `${base}/embed/${encodeURIComponent(board)}?${params.toString()}`
-  iframe.title = 'agent-jobs'
+  iframe.title = 'Hireling'
   iframe.setAttribute('allow', 'clipboard-write; publickey-credentials-get *; web-share')
   iframe.style.cssText = `width:100%;border:0;display:block;min-height:${ds.height || '520'}px;background:transparent`
   const wrap = document.createElement('div')
@@ -33,7 +33,7 @@
   open.href = target
   open.target = '_blank'
   open.rel = 'noreferrer'
-  open.textContent = 'Open in agent-jobs ↗'
+  open.textContent = 'Open in Hireling ↗'
   open.style.cssText = 'display:inline-block;margin-top:6px;font:12px/1.4 system-ui,sans-serif;color:#6b7280;text-decoration:underline'
   wrap.appendChild(open)
   script.insertAdjacentElement('afterend', wrap)

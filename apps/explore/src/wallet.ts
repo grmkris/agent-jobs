@@ -14,6 +14,11 @@ export const privyAppId: string = typeof __PRIVY_APP_ID__ === 'string' ? __PRIVY
 export const network: sdk.Network = typeof __AGENT_JOBS_NETWORK__ === 'string' ? __AGENT_JOBS_NETWORK__ : 'monad-testnet'
 export const isMainnet = network === 'monad-mainnet'
 
+/** Canonical origin of each network's Explore (the header's network switch links to the other one's root). */
+export const NETWORK_ORIGINS = { 'monad-mainnet': 'https://hireling.xyz', 'monad-testnet': 'https://testnet.hireling.xyz' } as const
+/** Until mainnet is deployed, the switch shows Mainnet as disabled ("soon"). */
+export const MAINNET_LIVE = false
+
 /** The deploy's chain; testnet with the explorer overridden (the chain's default testnet explorer entry is stale). */
 export const chain: Chain = isMainnet
   ? monad

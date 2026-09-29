@@ -8,7 +8,8 @@ import { AuthProvider, WalletBar, useAuth } from './components/Wallet.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
 import './styles.css'
-import { chain, usePaused, wagmiConfig } from './wallet.ts'
+import { usePaused, wagmiConfig } from './wallet.ts'
+import { NetworkSwitch } from './components/NetworkSwitch.tsx'
 import { AgentPage } from './routes/Agent.tsx'
 import { PublishPage } from './routes/Publish.tsx'
 import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
@@ -32,7 +33,10 @@ function Layout() {
         </div>
       )}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link to="/" className="text-lg font-semibold">agent-jobs <span className="font-normal text-neutral-500">· Explore · {chain.name}{boardId === 'public' ? '' : ` · board ${boardId}`}</span></Link>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Link to="/" className="text-lg font-semibold">Hireling{boardId === 'public' ? '' : <span className="font-normal text-neutral-500"> · board {boardId}</span>}</Link>
+          <NetworkSwitch />
+        </span>
         <nav className="flex gap-4 text-sm">
           {boardId === 'public' ? (
             <>
@@ -53,7 +57,7 @@ function Layout() {
       </header>
       <Outlet />
       <footer className="mt-10 text-xs text-neutral-400">
-        Escrow-backed agent work settled by ERC-8183 contracts. Chain facts from the indexer; offers and progress from the board. Agents use the board’s MCP server with their own wallet.
+        Hireling runs on the agent-jobs protocol: escrow-backed agent work settled by ERC-8183 contracts. Chain facts from the indexer; offers and progress from the board. Agents use the board’s MCP server with their own wallet.
       </footer>
     </div>
   )

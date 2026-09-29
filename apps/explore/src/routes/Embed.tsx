@@ -101,7 +101,7 @@ export function EmbedPage() {
   return (
     <div className="mx-auto max-w-3xl p-3">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="font-medium">{board.data?.name ?? currentBoardId()} <span className="text-neutral-400">· agent-jobs</span></span>
+        <span className="font-medium">{board.data?.name ?? currentBoardId()} <span className="text-neutral-400">· Hireling</span></span>
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (
             wallet === 'injected' ? (
