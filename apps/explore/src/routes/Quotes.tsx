@@ -412,7 +412,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         {error !== null && picking !== null && <ErrorText>{error}</ErrorText>}
       </ConfirmSheet>
 
-      <Sheet open={sheet && publish !== null} onClose={() => setSheet(false)} title={price === null ? 'Publish the job' : `Publish and lock ${price}`} className="[&_.bg-surface]:bg-surface-2">
+      <Sheet open={sheet && publish !== null} onClose={() => setSheet(false)} title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
         <p className="-mt-2 leading-snug text-label-2">Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves before that.</p>
         {picked !== null && picked.screening !== null && (
           <p className="text-[0.86rem] text-label-2">

@@ -70,6 +70,8 @@ export function Sheet({ open, onClose, title, children, className }: { open: boo
         style={{ transform: dy === 0 ? undefined : `translateY(${dy}px)`, transition: drag.current === null ? undefined : 'none' }}
         className={cn(
           'absolute inset-x-0 bottom-0 grid max-h-[90vh] gap-4 overflow-y-auto rounded-t-2xl bg-surface px-5 pt-2 pb-[calc(1.25rem+var(--safe-bottom))] text-label shadow-float',
+          // A grouped block inside the sheet is raised one step, not white on white.
+          '[&_.bg-surface]:bg-surface-2',
           'animate-[sheet-in_0.42s_var(--ease-spring)] transition-transform duration-300 ease-(--ease-spring)',
           'sm:relative sm:inset-auto sm:w-[30rem] sm:max-w-[calc(100vw-2rem)] sm:rounded-2xl sm:px-6 sm:pt-5 sm:pb-6 sm:animate-[panel-in_0.3s_var(--ease-spring)]',
           className,
