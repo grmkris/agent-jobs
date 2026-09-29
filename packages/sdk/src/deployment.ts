@@ -8,7 +8,7 @@ import testnet from '../../../contracts/config/monad-testnet.json' with { type: 
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 
 export type Network = 'monad-testnet' | 'monad-mainnet'
-export type StackName = 'main' | 'demo'
+export type StackName = 'main' | 'demo' | 'fast'
 
 export interface Stack {
   readonly holding: Address
@@ -63,6 +63,7 @@ interface ConfigFile {
     rewardTokens?: string[]
     main?: { holding: string; evaluator: string }
     demo?: { holding: string; evaluator: string }
+    fast?: { holding: string; evaluator: string }
     legacy?: Record<string, { holding: string; evaluator: string }>
   }
 }
@@ -90,6 +91,7 @@ export function deployment(network: Network): Deployment {
     main: { holding: d.main.holding as Address, evaluator: d.main.evaluator as Address },
   }
   if (d.demo !== undefined) stacks.demo = { holding: d.demo.holding as Address, evaluator: d.demo.evaluator as Address }
+  if (d.fast !== undefined) stacks.fast = { holding: d.fast.holding as Address, evaluator: d.fast.evaluator as Address }
   return {
     network,
     chainId: c.chainId,

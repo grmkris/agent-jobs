@@ -7,15 +7,15 @@
 import { type Hex, getAddress, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
-import { env, log, txUrl } from './lib/common.ts'
+import { env, envLocal, log, txUrl } from './lib/common.ts'
 
 const network = (process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet') as sdk.Network
 if (network !== 'monad-testnet') throw new Error('this script is testnet only')
 const verifier = env('VERIFIER')
 if (!isAddress(verifier)) throw new Error('VERIFIER must be a 0x address')
 const allowed = (process.env.ALLOWED ?? 'true') !== 'false'
-const rpc = env('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
-const admin = sdk.wallet(network, privateKeyToAccount(env('DEPLOYER_PRIVATE_KEY') as Hex), rpc)
+const rpc = envLocal('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
+const admin = sdk.wallet(network, privateKeyToAccount(envLocal('DEPLOYER_PRIVATE_KEY') as Hex), rpc)
 const d = sdk.deployment(network)
 if (admin.account.address.toLowerCase() !== d.admin.toLowerCase()) throw new Error(`DEPLOYER is ${admin.account.address}, the admin is ${d.admin}`)
 

@@ -4,6 +4,31 @@
  */
 import * as sdk from '../../src/index.ts'
 
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+let localEnv: Record<string, string> | undefined
+/**
+ * A value from the repo's `.env.local` first, then the process env. The interactive shell exports another project's
+ * values for a few names (DEPLOYER_PRIVATE_KEY, PRIVY_APP_ID, …) and `bun --env-file` never overrides an exported
+ * variable, so a script that means this repo's key must read the file.
+ */
+export function envLocal(name: string, fallback?: string): string {
+  if (localEnv === undefined) {
+    localEnv = {}
+    const file = join(import.meta.dirname, '../../../../.env.local')
+    if (existsSync(file)) {
+      for (const line of readFileSync(file, 'utf8').split('\n')) {
+        const m = /^([A-Z0-9_]+)=(.*)$/.exec(line)
+        if (m !== null) localEnv[m[1] as string] = m[2] as string
+      }
+    }
+  }
+  const v = localEnv[name] ?? process.env[name] ?? fallback
+  if (v === undefined || v === '') throw new Error(`${name} is not set`)
+  return v
+}
+
 /** A required env var (or its fallback); throws naming the variable when neither is set. */
 export function env(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback

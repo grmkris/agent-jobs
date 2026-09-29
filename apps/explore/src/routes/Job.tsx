@@ -255,6 +255,7 @@ function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; sta
     queryKey: ['candidates', taskId],
     queryFn: () => tool<Array<{ candidateId: string; worker: string; agentId: string; repo: string; branch: string; sha: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>>('list_candidates', { taskId }),
     enabled: approver && mode === 'contest' && status === 'open',
+    refetchInterval: 15_000,
   })
   const run = (key: string, name: string, args: Record<string, unknown>) => async () => {
     setBusy(key)

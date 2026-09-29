@@ -40,6 +40,11 @@ testnet; mainnet is prepared (`docs/mainnet-runbook.md`) and not yet deployed. S
 | Earlier pairs (jobs 1–35 stay on them): main-v1, demo-v1 | `0xCb87503c…50CC` / `0x0445e425…D4e8`, `0x45fF71d3…ABe3` / `0xb041FcC2…84C6` |
 | FACTORY (testnet faucet) | `0x8a7Df3f323c3065e7Fbf531596F62D50d933085A` |
 | mUSD / mEUR (testnet faucet reward tokens) | `0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f` / `0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E` |
+| $CHOMP (Monad Pet's token, allowlisted as a reward token on 30 Sep) | `0x130556848511554b181e645309754F265522F3c2` |
+
+A third `fast` pair (2 h review and dispute, 12 h arbitration, 1 h margin) is in the recipe and deploys with
+`contracts/script/AddStack.s.sol` once the deployer holds the ~1.7 MON it costs at 102 gwei; until then `fast` is a
+known name without a deployment.
 
 All verified on Monadscan and Sourcify. More than 35 jobs have run through the hosted board, covering every lifecycle
 path the contracts allow (hire, quote-to-hire, contest, review silence, every rejection and ruling outcome, timeouts,

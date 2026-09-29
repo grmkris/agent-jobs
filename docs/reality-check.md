@@ -388,3 +388,21 @@ Found on the way: a nearly empty delegated account (0.023 MON) fails a batch's g
 inside the batch. That is the balance, not the batch; the same batch simulates fine once funded. A batch of approve
 + approve + publish used a 626k–651k gas limit (Monad charges the limit).
 
+
+## 30 Sep: $CHOMP allowlisted as a reward token; the `fast` stack recipe (deploy deferred)
+
+- `core.setPaymentTokenAllowed(0x1305…F3c2, true)` from the admin (deployer) key:
+  `0xa3ecadf94e89f29fc239f15ce451b4384c5453ba38793cb42852f649901b11da`. `allowedPaymentTokens(CHOMP)` reads `true`;
+  the config's `rewardTokens` gained the token (`packages/sdk/scripts/admin-allow-token.ts`). 5000 CHOMP each to the
+  testnet creator, the curator and both pledgers from the launch wallet
+  (`0x891ffc25…1119e`, `0xb7436b40…c1ba`, `0x30ebdddb…e53a`, `0x09be7b0a…fbf7`).
+- A third `fast` pair (review 2 h, dispute 2 h, arbitration 12 h, margin 1 h) is in `contracts/config/monad-testnet.json`
+  (`.stacks`) and `contracts/script/AddStack.s.sol` deploys exactly one pair from that recipe and writes only
+  `.deployment.<stack>`. The dry run (`NETWORK=monad-testnet STACK=fast forge script script/AddStack.s.sol`) succeeds and
+  estimates **1.656 MON** at the testnet's 102 gwei; the deployer held 0.91 MON and every named testnet wallet
+  together 5.6 MON. Deploying it would have drained the wallets the overnight proofs and the pool factory need, so the
+  broadcast is **deferred** until the deployer holds ≥1.7 MON. `StackName` already knows `fast`; the board only
+  offers stacks present in the deployment, so nothing lists it until it exists. The overnight proofs run on `demo`.
+- Found: `~/.config/secrets.env` exports another project's `DEPLOYER_PRIVATE_KEY`, and `bun --env-file` does not
+  override an exported variable, so the first allowlist attempt signed with the wrong key (a plain revert, no funds
+  moved). Scripts now read `.env.local` first (`envLocal()` in `packages/sdk/scripts/lib/common.ts`).

@@ -52,7 +52,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
       const key = JSON.stringify(env)
       if (service?.key === key) return service.board
       const contexts: Partial<Record<sdk.StackName, sdk.Ctx>> = {}
-      for (const name of ['main', 'demo'] as const) {
+      for (const name of ['main', 'demo', 'fast'] as const) {
         if (sdk.deployment(env.network).stacks[name] !== undefined) contexts[name] = sdk.context(env.network, name, env.rpcUrl)
       }
       const board = new BoardService(fromDurableObjectSql(state.storage.sql.raw), {

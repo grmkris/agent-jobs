@@ -31,27 +31,34 @@
       "mEUR"
     ]
   },
-  "allowedTokens": [],
+  "allowedTokens": [
+    "0x130556848511554b181e645309754F265522F3c2"
+  ],
   "stacks": {
     "names": [
       "main",
-      "demo"
+      "demo",
+      "fast"
     ],
     "review": [
       259200,
-      120
+      120,
+      7200
     ],
     "dispute": [
       259200,
-      120
+      120,
+      7200
     ],
     "arbitration": [
       604800,
-      300
+      300,
+      43200
     ],
     "margin": [
       86400,
-      60
+      60,
+      3600
     ]
   },
   "cre": {
@@ -84,7 +91,8 @@
     "network": "monad-testnet",
     "rewardTokens": [
       "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
-      "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E"
+      "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E",
+      "0x130556848511554b181e645309754F265522F3c2"
     ],
     "stacksBlock": 66417623
   }

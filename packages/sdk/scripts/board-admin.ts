@@ -10,7 +10,7 @@
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
-import { env, log } from './lib/common.ts'
+import { env, envLocal, log } from './lib/common.ts'
 
 const [command, ...rest] = process.argv.slice(2)
 const flags: Record<string, string | true> = {}
@@ -28,7 +28,7 @@ const list = (k: string) => (typeof flags[k] === 'string' ? (flags[k] as string)
 const str = (k: string) => (typeof flags[k] === 'string' ? (flags[k] as string) : undefined)
 
 const board = sdk.boardClient(env('BOARD_URL'))
-const key = env(env('KEY_VAR', 'TESTNET_CREATOR_PRIVATE_KEY'))
+const key = envLocal(env('KEY_VAR', 'TESTNET_CREATOR_PRIVATE_KEY'))
 const me = privateKeyToAccount(key as Hex)
 await board.signIn(me)
 log('admin', `signed in as ${me.address}`)

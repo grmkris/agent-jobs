@@ -10,15 +10,15 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { type Address, type Hex, getAddress, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
-import { env, log, txUrl } from './lib/common.ts'
+import { env, envLocal, log, txUrl } from './lib/common.ts'
 
 const network = (process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet') as sdk.Network
 if (network !== 'monad-testnet') throw new Error('allowlisting through this script is testnet only')
 const token = env('TOKEN')
 if (!isAddress(token)) throw new Error('TOKEN must be a 0x address')
-const rpc = env('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
+const rpc = envLocal('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
 const ctx = sdk.context(network, 'main', rpc)
-const admin = sdk.wallet(network, privateKeyToAccount(env('DEPLOYER_PRIVATE_KEY') as Hex), rpc)
+const admin = sdk.wallet(network, privateKeyToAccount(envLocal('DEPLOYER_PRIVATE_KEY') as Hex), rpc)
 if (admin.account.address.toLowerCase() !== ctx.deployment.admin.toLowerCase()) throw new Error(`DEPLOYER is ${admin.account.address}, the admin is ${ctx.deployment.admin}`)
 
 const address = getAddress(token) as Address

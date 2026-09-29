@@ -76,7 +76,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
   const [check, setCheck] = useState('test')
   const [accepts, setAccepts] = useState<DeliverableKind[]>(['git'])
   const [target, setTarget] = useState('')
-  const [stack, setStack] = useState<'main' | 'demo'>('main')
+  const [stack, setStack] = useState<'main' | 'demo' | 'fast'>('main')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<Created | null>(null)
@@ -192,9 +192,8 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
         </Field>
         {!isMainnet && (
           <Field label="Board" hint="demo: minute-long review and dispute windows for trying things out.">
-            <select value={stack} onChange={(e) => setStack(e.target.value as 'main' | 'demo')} className={input}>
-              <option value="main">main</option>
-              <option value="demo">demo</option>
+            <select value={stack} onChange={(e) => setStack(e.target.value as 'main' | 'demo' | 'fast')} className={input}>
+              {Object.keys(deployment.stacks).map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
         )}
