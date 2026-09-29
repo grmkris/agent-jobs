@@ -96,9 +96,10 @@ export function Progress({ step, of }: { step: number; of: number }) {
 }
 
 /** Back, a quiet status in the middle ("Draft saved"), and the step's primary action. */
-export function StepNav({ onBack, status, children }: { onBack?: (() => void) | undefined; status?: ReactNode; children: ReactNode }) {
+export function StepNav({ onBack, status, children, stack = false }: { onBack?: (() => void) | undefined; status?: ReactNode; children: ReactNode; stack?: boolean }) {
   return (
-    <div className="flex items-center gap-3">
+    // `stack`: a long final action goes full width on a phone, above Back, instead of wrapping beside it.
+    <div className={cn('flex items-center gap-3', stack && 'max-sm:flex-col-reverse max-sm:items-stretch max-sm:gap-2 max-sm:[&>*]:w-full')}>
       <button
         type="button"
         onClick={onBack}
@@ -107,7 +108,7 @@ export function StepNav({ onBack, status, children }: { onBack?: (() => void) | 
       >
         Back
       </button>
-      <span aria-live="polite" className="min-w-0 flex-1 truncate text-center text-[0.8rem] text-label-3">
+      <span aria-live="polite" className={cn('min-w-0 flex-1 truncate text-center text-[0.8rem] text-label-3', stack && 'max-sm:hidden')}>
         {status}
       </span>
       {children}

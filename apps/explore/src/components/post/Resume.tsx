@@ -223,7 +223,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
         </Group>
       </Section>
 
-      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`}>
+      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`} className="[&_.bg-surface]:bg-surface-2">
         <p className="-mt-2 leading-snug text-label-2">Your wallet sends these in order. The {contest ? 'prize' : 'reward'} and your bond are locked in escrow when the publish step confirms; nothing moves before that.</p>
         {txs !== null && <TxSteps taskId={taskId} txs={txs} onDone={(hashes) => void published(hashes)} />}
       </Sheet>

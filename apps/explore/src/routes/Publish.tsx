@@ -590,7 +590,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         </div>
 
         {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-[0.86rem] text-label-2">{problem}</p>}
-        <StepNav onBack={step === 1 ? undefined : () => go((step - 1) as Step)} status={step === 4 ? <span className="hidden sm:inline">{status}</span> : status}>
+        <StepNav onBack={step === 1 ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
           {step < 3 ? (
             next((step + 1) as Step)
           ) : step === 3 ? (
@@ -613,7 +613,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         </StepNav>
       </form>
 
-      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`}>
+      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`} className="[&_.bg-surface]:bg-surface-2">
         <p className="-mt-2 leading-snug text-label-2">
           Your wallet sends these in order. The {contest ? 'prize' : 'reward'} and your bond are locked in escrow when the publish step confirms; nothing moves before that.
         </p>
