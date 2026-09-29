@@ -18,12 +18,25 @@ export default defineConfig({
         input: [
           { pattern: 'src/**', base: 'package' },
           { pattern: 'worker.ts', base: 'package' },
+          { pattern: 'routing.ts', base: 'package' },
           { pattern: 'contracts/config/**', base: 'workspace' },
           { pattern: 'tsconfig.json', base: 'package' },
           { pattern: 'tsconfig.base.json', base: 'workspace' },
           { pattern: 'pnpm-lock.yaml', base: 'workspace' },
         ],
         output: [],
+      },
+      test: {
+        command: 'vitest run',
+        input: [
+          { auto: true },
+          { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
+          { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
+        ],
+        output: [
+          { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
+          { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
+        ],
       },
     },
   },

@@ -8,14 +8,14 @@
  * framing (`frame-ancestors 'none'`, `X-Frame-Options: DENY`). The drop-in widget (`/embed/<board>`, ADR-0008) is the
  * one page meant to be framed: only by the board's own `allowedOrigins`, read from its public `get_board`.
  */
+import { isApiPath, isFilePath } from './routing.ts'
+
 interface Env {
   readonly API: { fetch(request: Request): Promise<Response> }
   readonly ASSETS: { fetch(request: Request): Promise<Response> }
   readonly REDIRECT_FROM?: string
   readonly REDIRECT_TO?: string
 }
-
-const PROXIED = ['/api/', '/b/', '/data/', '/offers/', '/mcp', '/health']
 
 const PRIVY_FRAMES = ['https://auth.privy.io', 'https://verify.walletconnect.com', 'https://verify.walletconnect.org']
 const CSP_BASE = [
@@ -92,7 +92,15 @@ export default {
     if (env.REDIRECT_FROM && env.REDIRECT_TO && hostname === env.REDIRECT_FROM) {
       return Response.redirect(`${env.REDIRECT_TO}${pathname}${search}`, 301)
     }
-    if (PROXIED.some((p) => pathname === p || pathname.startsWith(p))) return env.API.fetch(request)
-    return withHeaders(await env.ASSETS.fetch(request), env, request, pathname)
+    if (isApiPath(pathname)) return env.API.fetch(request)
+    const asset = await env.ASSETS.fetch(request)
+    // The SPA fallback answers any unknown path with index.html; a missing file must be a 404, or iOS takes the page
+    // for an icon or a manifest.
+    if (isFilePath(pathname) && !pathname.endsWith('.html') && asset.headers.get('content-type')?.startsWith('text/html')) {
+      return withHeaders(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }), env, request, pathname)
+    }
+    const res = await withHeaders(asset, env, request, pathname)
+    if (pathname.endsWith('.webmanifest')) res.headers.set('Content-Type', 'application/manifest+json')
+    return res
   },
 }
