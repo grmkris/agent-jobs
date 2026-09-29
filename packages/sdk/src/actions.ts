@@ -25,6 +25,8 @@ import {
   faucetTokenAbi,
   identityAbi,
   jobHoldingAbi,
+  jobPoolAbi,
+  jobPoolFactoryAbi,
   jobsEvaluatorAbi,
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
@@ -459,3 +461,152 @@ export function attachEvidence(
 ) {
   return write(ctx, relay, ctx.stack.evaluator, jobsEvaluatorAbi, 'attachEvidence', [attestation.jobId, attestation, verifier, sig])
 }
+
+// -------------------------------------------------------------------------------------------------
+// Pools (ADR-0007): pooled funding of one offer through a JobPool clone
+// -------------------------------------------------------------------------------------------------
+
+export interface PoolInput {
+  /** The salt the creator picks; with the creator's address it fixes the pool's address. */
+  readonly salt: Hex
+  readonly curator: Address
+  readonly goal: bigint
+  readonly pledgeDeadline: number
+  /** The offer the pool publishes at launch: its reward is the goal, its creator bond zero. */
+  readonly publish: Omit<PublishInput, 'reward' | 'creatorBond' | 'approver'>
+  /** Receives the FACTORY hold back; defaults to the creator. */
+  readonly holdProvider?: Address
+}
+
+function poolFactoryOf(ctx: Ctx): Address {
+  const f = ctx.deployment.poolFactory
+  if (f === null) throw new Error(`no JobPoolFactory on ${ctx.deployment.network}`)
+  return f
+}
+
+/** The address `createPool` will give this creator's pool for `salt`. */
+export function predictPool(ctx: Ctx, creator: Address, salt: Hex) {
+  return ctx.publicClient.readContract({ address: poolFactoryOf(ctx), abi: jobPoolFactoryAbi, functionName: 'predict', args: [creator, salt] })
+}
+
+/** The `JobPool.Params` tuple `create` takes, as the SDK builds it. */
+export async function poolParams(ctx: Ctx, p: PoolInput) {
+  const pub = p.publish
+  return {
+    token: pub.token,
+    goal: p.goal,
+    pledgeDeadline: p.pledgeDeadline,
+    curator: p.curator,
+    holding: ctx.stack.holding,
+    publish: {
+      approver: p.curator,
+      manifestHash: pub.manifestHash,
+      policyHash: pub.termsHash,
+      token: pub.token,
+      reward: p.goal,
+      creatorBond: 0n,
+      workerBond: pub.workerBond,
+      deliveryDeadline: pub.deliveryDeadline,
+      expiredAt: await minExpiry(ctx, pub.deliveryDeadline),
+      mode: pub.mode === 'hire' ? Mode.Hire : Mode.Contest,
+      selectionDeadline: pub.selectionDeadline ?? 0,
+    },
+    governance: 0,
+    holdProvider: p.holdProvider ?? '0x0000000000000000000000000000000000000000',
+  } as const
+}
+
+/** Clones the pool (approving the FACTORY hold to the factory first). Returns the pool address. */
+export async function createPool(ctx: Ctx, creator: Wallet, p: PoolInput) {
+  const factory = poolFactoryOf(ctx)
+  const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: jobHoldingAbi, functionName: 'minHoldToPublish' })
+  if (hold > 0n) await ensureAllowance(ctx, creator, ctx.deployment.factory, factory, hold)
+  const receipt = await write(ctx, creator, factory, jobPoolFactoryAbi, 'create', [p.salt, await poolParams(ctx, p)])
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== factory.toLowerCase()) continue
+    try {
+      const event = decodeEventLog({ abi: jobPoolFactoryAbi, data: log.data, topics: log.topics })
+      if (event.eventName === 'PoolCreated') return { pool: event.args.pool, receipt }
+    } catch {
+      // not ours
+    }
+  }
+  throw new Error(`createPool ${receipt.transactionHash} emitted no PoolCreated event`)
+}
+
+/** Pledges `amount` of the pool's token (approving it first); the pool caps it to what the goal still needs. */
+export async function pledge(ctx: Ctx, pledger: Wallet, pool: Address, token: Address, amount: bigint) {
+  await ensureAllowance(ctx, pledger, token, pool, amount)
+  return write(ctx, pledger, pool, jobPoolAbi, 'pledge', [amount])
+}
+
+export function unpledge(ctx: Ctx, pledger: Wallet, pool: Address, amount: bigint) {
+  return write(ctx, pledger, pool, jobPoolAbi, 'unpledge', [amount])
+}
+
+/** Publishes the full pool's offer. Returns the job id from the pool's `Launched` event. */
+export async function launchPool(ctx: Ctx, anyone: Wallet, pool: Address) {
+  const receipt = await write(ctx, anyone, pool, jobPoolAbi, 'launch', [])
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== pool.toLowerCase()) continue
+    try {
+      const event = decodeEventLog({ abi: jobPoolAbi, data: log.data, topics: log.topics })
+      if (event.eventName === 'Launched') return { jobId: event.args.jobId, receipt }
+    } catch {
+      // not ours
+    }
+  }
+  throw new Error(`launch ${receipt.transactionHash} emitted no Launched event`)
+}
+
+export function poolRefund(ctx: Ctx, pledger: Wallet, pool: Address) {
+  return write(ctx, pledger, pool, jobPoolAbi, 'refund', [])
+}
+
+/** The curator cancels the launched, unactivated hire (Holding's `cancel`, forwarded by the pool). */
+export function poolCancel(ctx: Ctx, curator: Wallet, pool: Address) {
+  return write(ctx, curator, pool, jobPoolAbi, 'cancel', [])
+}
+
+export function poolCancelPool(ctx: Ctx, curator: Wallet, pool: Address) {
+  return write(ctx, curator, pool, jobPoolAbi, 'cancelPool', [])
+}
+
+export function reclaimHold(ctx: Ctx, anyone: Wallet, pool: Address) {
+  return write(ctx, anyone, pool, jobPoolAbi, 'reclaimHold', [])
+}
+
+export const PoolPhase = ['funding', 'launched', 'cancelled', 'expired'] as const
+
+/** One read of a pool: its params, totals, phase and job id. */
+export async function getPool(ctx: Ctx, pool: Address) {
+  const read = <F extends string>(functionName: F, args: readonly unknown[] = []) =>
+    ctx.publicClient.readContract({ address: pool, abi: jobPoolAbi, functionName, args } as never)
+  const [params, totalPledged, paidOut, jobId, launchedAt, cancelledAt, phase, refundable, holdAmount] = await Promise.all([
+    read('params'),
+    read('totalPledged'),
+    read('paidOut'),
+    read('jobId'),
+    read('launchedAt'),
+    read('cancelledAt'),
+    read('phase'),
+    read('refundable'),
+    read('holdAmount'),
+  ])
+  return {
+    params: params as Awaited<ReturnType<typeof poolParams>>,
+    totalPledged: totalPledged as bigint,
+    paidOut: paidOut as bigint,
+    jobId: jobId as bigint,
+    launchedAt: Number(launchedAt),
+    cancelledAt: Number(cancelledAt),
+    phase: PoolPhase[Number(phase)] ?? 'funding',
+    refundable: refundable as boolean,
+    holdAmount: holdAmount as bigint,
+  }
+}
+
+export function pledgedBy(ctx: Ctx, pool: Address, who: Address) {
+  return ctx.publicClient.readContract({ address: pool, abi: jobPoolAbi, functionName: 'pledged', args: [who] })
+}
+

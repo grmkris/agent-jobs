@@ -37,6 +37,8 @@ export interface Deployment {
   readonly batchDelegate: Address
   /** The core's admin (deployer EOA): pauses, upgrades, the token allowlist and verifier registration. */
   readonly admin: Address
+  /** `JobPoolFactory` (ADR-0007): pooled funding of one offer. Null where none is deployed. */
+  readonly poolFactory: Address | null
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
@@ -61,6 +63,7 @@ interface ConfigFile {
     core?: string
     factory?: string
     rewardTokens?: string[]
+    poolFactory?: string
     main?: { holding: string; evaluator: string }
     demo?: { holding: string; evaluator: string }
     fast?: { holding: string; evaluator: string }
@@ -106,6 +109,7 @@ export function deployment(network: Network): Deployment {
     reputation: c.erc8004.reputation as Address,
     batchDelegate: c.eip7702.delegate as Address,
     admin: c.roles.admin as Address,
+    poolFactory: d.poolFactory === undefined ? null : (d.poolFactory as Address),
     arbitrator: c.roles.arbitrator as Address,
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,

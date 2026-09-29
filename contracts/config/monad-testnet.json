@@ -94,6 +94,7 @@
       "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E",
       "0x130556848511554b181e645309754F265522F3c2"
     ],
-    "stacksBlock": 66417623
+    "stacksBlock": 66417623,
+    "poolFactory": "0xbdd6A1ba2589203f252260bCE63C8888D693ed37"
   }
 }

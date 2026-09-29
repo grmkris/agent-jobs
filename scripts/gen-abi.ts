@@ -19,6 +19,8 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['MockPaymentToken.sol', 'MockPaymentToken', 'faucetToken', 'faucetTokenAbi'],
   ['IERC8004.sol', 'IERC8004Identity', 'identity', 'identityAbi'],
   ['IERC8004.sol', 'IERC8004Reputation', 'reputation', 'reputationAbi'],
+  ['JobPool.sol', 'JobPool', 'pool', 'jobPoolAbi'],
+  ['JobPoolFactory.sol', 'JobPoolFactory', 'poolFactory', 'jobPoolFactoryAbi'],
 ]
 
 const index: string[] = []
