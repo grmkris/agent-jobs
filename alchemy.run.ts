@@ -29,19 +29,20 @@ export default Alchemy.Stack(
       return { apiUrl: api.url, indexerUrl: indexer.url, databaseName: database.databaseName, manifestsBucket: manifests.bucketName }
     }
     // Hireling: mainnet on the apex, testnet on testnet.hireling.xyz. Until the prod stack exists the testnet stack
-    // also answers the apex with a 301 (HIRELING_APEX_REDIRECT=0 releases it for prod; docs/mainnet-runbook.md).
-    // workers.dev stays on: older sessions, published manifests and embeds still point there.
+    // also holds the apex and answers it with a 301 from the Worker (HIRELING_APEX_REDIRECT=0 releases it for prod;
+    // docs/mainnet-runbook.md). The Worker does the redirect because a zone redirect rule needs a token with ruleset
+    // rights. workers.dev stays on: older sessions, published manifests and embeds still point there.
     const mainnet = process.env.AGENT_JOBS_NETWORK === 'monad-mainnet'
+    const apexRedirect = !mainnet && process.env.HIRELING_APEX_REDIRECT !== '0'
     const explore = yield* Cloudflare.Website.Vite('Explore', {
       rootDir: fileURLToPath(new URL('./apps/explore/', import.meta.url)),
       main: 'worker.ts',
-      domain: mainnet
-        ? { name: 'hireling.xyz' }
-        : { name: 'testnet.hireling.xyz', redirects: process.env.HIRELING_APEX_REDIRECT === '0' ? [] : ['hireling.xyz'] },
-      env: { API: api },
+      domain: mainnet ? { name: 'hireling.xyz' } : { name: 'testnet.hireling.xyz', aliases: apexRedirect ? ['hireling.xyz'] : [] },
+      env: { API: api, REDIRECT_FROM: apexRedirect ? 'hireling.xyz' : '', REDIRECT_TO: 'https://testnet.hireling.xyz' },
       assets: {
         notFoundHandling: 'single-page-application',
-        runWorkerFirst: ['/api/*', '/b/*', '/data/*', '/offers/*', '/mcp', '/health'],
+        // every path, so the apex redirect sees `/` too; the Worker hands everything else to ASSETS
+        runWorkerFirst: true,
       },
     })
     return {
