@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
   - contracts
+  - workflows/*
 
 # One place for the toolchain versions every package shares. Exact where the spec says "pin".
 catalog:
@@ -19,3 +20,10 @@ catalog:
 overrides:
   vite: 'catalog:'
   vitest: 'catalog:'
+
+# CRE's compiler uses the TypeScript JS API, absent from our native TS7 checker.
+# Keep its private compiler dependency on TS5; workspace gates still use TS7.
+packageExtensions:
+  '@chainlink/cre-sdk@1.22.0':
+    dependencies:
+      typescript: 5.9.3

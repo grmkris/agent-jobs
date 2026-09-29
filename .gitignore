@@ -11,3 +11,9 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 packages/sdk/scripts/.state.json
+
+# CRE compiler output and local transaction journals
+workflows/ci-evidence/.local/
+workflows/ci-evidence/*.wasm
+workflows/ci-evidence/*.wasm.br
+workflows/ci-evidence/binary.wasm*

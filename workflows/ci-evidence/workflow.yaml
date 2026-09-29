@@ -1,0 +1,7 @@
+simulation:
+  user-workflow:
+    workflow-name: agent-jobs-ci-evidence-simulation
+  workflow-artifacts:
+    workflow-path: ./main.ts
+    config-path: ../../contracts/config/monad-testnet.json
+    secrets-path: ""

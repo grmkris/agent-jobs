@@ -1,0 +1,24 @@
+{
+  "name": "@agent-jobs/ci-evidence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "simulate": "tsc -p tsconfig.json && tsc -p tsconfig.tools.json && node --experimental-strip-types scripts/simulate.ts",
+    "setup": "node --experimental-strip-types scripts/setup.ts",
+    "cleanup": "node --experimental-strip-types scripts/setup.ts cleanup"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "1.22.0",
+    "viem": "2.56.9",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@agent-jobs/sdk": "workspace:*",
+    "@agent-jobs/board": "workspace:*",
+    "@types/node": "^24.3.0",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

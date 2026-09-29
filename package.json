@@ -17,7 +17,10 @@
     "deploy:prod": "AGENT_JOBS_NETWORK=monad-mainnet ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage prod --yes",
     "alchemy": "alchemy",
     "testnet:flows": "bun packages/sdk/scripts/flows.ts",
-    "reality-check": "bun scripts/reality-check.ts"
+    "reality-check": "bun scripts/reality-check.ts",
+    "cre:simulate": "pnpm --filter @agent-jobs/ci-evidence simulate",
+    "cre:setup": "pnpm --filter @agent-jobs/ci-evidence setup",
+    "cre:cleanup": "pnpm --filter @agent-jobs/ci-evidence cleanup"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
