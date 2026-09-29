@@ -1,7 +1,7 @@
 # ADR-0007: JobPool, pooled funding of one offer
 
-Date: 2026-09-30. Status: **implemented, unit-tested (26 tests), deployed on Monad testnet; live proof pending**
-(`docs/reality-check.md`). Testnet only.
+Date: 2026-09-30. Status: **implemented, unit-tested (26 tests), deployed on Monad testnet, live cancel-and-refund path
+proven on the `monad-pet` board (job 55); the hire path's run is recorded in `docs/reality-check.md`.** Testnet only.
 
 ## Context
 

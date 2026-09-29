@@ -436,3 +436,29 @@ capture `~/code/aj-launch-video/raw/embed-commission.webm`).
   - `renameSync` across filesystems (`/tmp` → the raw directory) failed with EXDEV; the script now copies.
   - Codex's harness logs a PostHog MCP auth error at start (a global MCP entry of the operator's Codex config);
     harmless, the board's MCP server is the one it used.
+
+## 30 Sep: a feature crowdfunded through JobPool on the monad-pet board (ADR-0007, job 55; cancel-and-refund path)
+
+`packages/sdk/scripts/monadpet-crowdfund.ts`, `MODE=cancel`, stack `demo`, board `monad-pet`, token CHOMP, goal 300.
+
+- **Create.** The curator (`0x0605…61f1`) called `create_pool`; the board froze the offer with the predicted pool
+  address as creator (task/pool `95a82804b8b60f5d`, terms `0x918ca4a2…c5cd`), the curator approved the 1 FACTORY
+  hold to the factory (`0xf35531a6…4d08`) and cloned the pool (`0x9530d367…dc22`): it exists at the predicted
+  `0xb5C30AaFd6A90B28b964ECE52e36691e49d90A79`, phase `funding`, holding 1 FACTORY.
+- **Pledge, capped.** A pledged 180 (`0xaaeee3cb…b866`); B asked for 200 and the pool took 120
+  (`0x968f0c61…6717`): 300/300, B's `pledged_by` reads 120.
+- **Launch by a pledger.** B sent `launch` (`0x3aeb10c5…45f6`): **job 55**, chain `open`, the listing matches the
+  offer, listing creator = the pool, approver = the curator. The board recorded the job id from the launch receipt
+  through the ordinary `report_transaction` (the `Published` event carries the terms hash).
+- **Cancel through the pool, refund pro rata.** The curator's `cancel_task` forwarded `cancel` through the pool
+  (`0xcb84e1e5…c114`) and settled (`0x9b7fd7ed…d831b`): chain `cancelled`, the pool held 300 CHOMP again. Refunds
+  `0x02db3f44…fd92` (A) and `0x4efc71b9…411e` (B): A and B are back to their starting balances (180 and 120
+  returned), the pool holds 0, `paidOut` 300, `refundable` true. `reclaimHold` (`0x0066508d…2bec`) returned the
+  1 FACTORY to the curator.
+- **Found.** `#approvals` approved JobHolding for every need, so the first run's `create` reverted in simulation
+  (the factory had no allowance for the hold); approvals now name their spender. A first `create_pool` therefore
+  left a pool row whose contract never existed (`phase: pending`); harmless, listed.
+- **Hire path** (`MODE=hire`, a headless Claude worker on `/b/monad-pet/mcp`, the curator's Selection verified through
+  the pool's ERC-1271 answer, approve, payment, refund refused): started at 07:38, running at the time of writing;
+  its log is `/tmp/monadpet-crowdfund/hire.log` and the outcome goes into this section when it ends.
+- No capture: Explore has no pool page yet (cut, see the run log).
