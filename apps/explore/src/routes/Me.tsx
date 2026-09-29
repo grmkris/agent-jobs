@@ -3,6 +3,7 @@ import { ChevronRight, Clock, Send } from 'lucide-react'
 import { useMemo } from 'react'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { WalletCard } from '../components/Fund.tsx'
+import { InstallHint } from '../components/InstallHint.tsx'
 import { Sentence, phaseOf } from '../components/Phase.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useNow } from '../components/Time.tsx'
@@ -25,12 +26,14 @@ export function MePage() {
             <PrivyLogin />
           </div>
         </section>
+        <InstallHint />
       </>
     )
   }
   return (
     <>
       <PageTitle>Me</PageTitle>
+      <InstallHint />
       <NeedsYou address={auth.address} />
       <WalletCard address={auth.address} />
       <Section title="More">

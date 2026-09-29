@@ -39,11 +39,13 @@ function places(): { main: Place[]; more: Place[] } {
   }
 }
 
+/** The brand mark (src/brand/mark.svg), in the tint so it follows light, dark and a tint change. */
 function Mark() {
   return (
-    <span aria-hidden className="grid size-7 place-items-center rounded-lg bg-tint text-on-tint">
-      <BriefcaseBusiness className="size-4" strokeWidth={2.2} />
-    </span>
+    <svg aria-hidden viewBox="0 0 32 32" className="size-7 shrink-0">
+      <rect width="32" height="32" rx="7" className="fill-tint" />
+      <path d="M10 8v16M22 8v16M10 16h12" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" />
+    </svg>
   )
 }
 
