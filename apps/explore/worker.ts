@@ -101,6 +101,8 @@ export default {
     }
     const res = await withHeaders(asset, env, request, pathname)
     if (pathname.endsWith('.webmanifest')) res.headers.set('Content-Type', 'application/manifest+json')
+    // The agent skills (/skills/<role>/SKILL.md): readable in a browser and by `curl`, in UTF-8.
+    if (pathname.endsWith('.md')) res.headers.set('Content-Type', 'text/markdown; charset=utf-8')
     return res
   },
 }

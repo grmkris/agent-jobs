@@ -19,7 +19,7 @@ function env(files: Record<string, string> = {}) {
       ASSETS: {
         fetch: async (r: Request) => {
           const path = new URL(r.url).pathname
-          const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webmanifest') ? 'application/octet-stream' : 'text/html'
+          const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webmanifest') || path.endsWith('.md') ? 'application/octet-stream' : 'text/html'
           return path in files ? new Response(files[path], { headers: { 'content-type': type } }) : new Response(INDEX, { headers: { 'content-type': 'text/html' } })
         },
       },
@@ -70,5 +70,15 @@ describe('explore worker routing', () => {
     expect(icon.headers.get('content-type')).toBe('image/png')
     const manifest = await get('/manifest.webmanifest', e)
     expect(manifest.headers.get('content-type')).toBe('application/manifest+json')
+  })
+
+  it('serves the agent skills as UTF-8 markdown, and a missing one as 404', async () => {
+    const e = env({ '/skills/worker/SKILL.md': '# worker' })
+    const skill = await get('/skills/worker/SKILL.md', e)
+    expect(skill.status).toBe(200)
+    expect(skill.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(await skill.text()).toBe('# worker')
+    expect(e.api).toEqual([])
+    expect((await get('/skills/nobody/SKILL.md', e)).status).toBe(404)
   })
 })

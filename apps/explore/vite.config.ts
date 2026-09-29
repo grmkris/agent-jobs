@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
@@ -42,9 +45,33 @@ function manifest() {
   }
 }
 
+/**
+ * The agent skills (the repo's `skill/<role>/SKILL.md`) at `/skills/<role>/SKILL.md`, so an operator can `curl` the
+ * skill that matches this deploy (the Run your agent page shows how). Emitted into the build; served from the repo in
+ * dev.
+ */
+const SKILL_ROLES = ['worker', 'publisher', 'arbitrator'] as const
+const skillSource = (role: string) => readFileSync(fileURLToPath(new URL(`../../skill/${role}/SKILL.md`, import.meta.url)), 'utf8')
+function skills() {
+  return {
+    name: 'hireling-skills',
+    configureServer(server: { middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void } }) {
+      server.middlewares.use((req, res, next) => {
+        const role = /^\/skills\/([a-z]+)\/SKILL\.md$/.exec((req.url ?? '').split('?')[0] ?? '')?.[1]
+        if (role === undefined || !(SKILL_ROLES as readonly string[]).includes(role)) return next()
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+        res.end(skillSource(role))
+      })
+    },
+    generateBundle(this: { emitFile(f: { type: 'asset'; fileName: string; source: string }): void }) {
+      for (const role of SKILL_ROLES) this.emitFile({ type: 'asset', fileName: `skills/${role}/SKILL.md`, source: skillSource(role) })
+    },
+  }
+}
+
 // Alchemy's Cloudflare.Website.Vite injects the Cloudflare plugin at deploy; `worker.ts` is the Worker entry.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), manifest()],
+  plugins: [react(), tailwindcss(), manifest(), skills()],
   // The network is fixed per deploy stage (AGENT_JOBS_NETWORK, the same variable the API and indexer read).
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {
