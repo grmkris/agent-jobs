@@ -173,6 +173,14 @@ export const SCHEMA: readonly string[] = [
     tx_hash TEXT NOT NULL,
     PRIMARY KEY (chain_id, job_id)
   )`,
+  // Unix times of the blocks events are in, for job timelines. Chain facts of finalized blocks: never folded, and
+  // kept across a rewind or rebuild, since a finalized block's time does not change.
+  `CREATE TABLE IF NOT EXISTS block_times (
+    chain_id INTEGER NOT NULL,
+    block INTEGER NOT NULL,
+    timestamp INTEGER NOT NULL,
+    PRIMARY KEY (chain_id, block)
+  )`,
 ]
 
 /** Tables folded from events: a job's rows here are always replaced together from its events. */

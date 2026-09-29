@@ -57,10 +57,33 @@ export async function jobDetail(sql: AsyncSql, chainId: number, jobId: string, n
     rewards: await sql.all('SELECT kind, recipient, amount, block, tx_hash FROM reward_outcomes WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
     bonds: await sql.all('SELECT side, outcome, recipient, amount, block, tx_hash FROM bond_outcomes WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
     feedback: (await sql.all('SELECT agent_id, value, tag, recorded, tx_hash FROM feedback WHERE chain_id = ? AND job_id = ?', chainId, jobId))[0] ?? null,
+    timeline: await jobTimeline(sql, chainId, jobId),
   }
 }
 
 export async function indexStatus(sql: AsyncSql, chainId: number) {
   const [cp] = await sql.all<{ next_block: number; updated_at: number }>('SELECT next_block, updated_at FROM checkpoint WHERE chain_id = ?', chainId)
   return cp ?? null
+}
+
+export interface TimelineEvent {
+  name: string
+  block: number
+  logIndex: number
+  txHash: string
+  args: Record<string, unknown>
+  /** The block's unix time; null until the indexer has looked it up. */
+  at: number | null
+}
+
+/** Every decoded event of one job in chain order, with its block's time: the steps of the job's timeline. */
+export async function jobTimeline(sql: AsyncSql, chainId: number, jobId: string): Promise<TimelineEvent[]> {
+  const rows = await sql.all<{ name: string; block: number; log_index: number; tx_hash: string; args_json: string; timestamp: number | null }>(
+    `SELECT e.name, e.block, e.log_index, e.tx_hash, e.args_json, b.timestamp FROM events e
+     LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
+     WHERE e.chain_id = ? AND e.job_id = ? ORDER BY e.block, e.log_index`,
+    chainId,
+    jobId,
+  )
+  return rows.map((r) => ({ name: r.name, block: r.block, logIndex: r.log_index, txHash: r.tx_hash, args: JSON.parse(r.args_json) as Record<string, unknown>, at: r.timestamp }))
 }

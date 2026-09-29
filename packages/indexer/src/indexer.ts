@@ -24,6 +24,8 @@ export interface IndexerConfig {
   readonly leaseSeconds?: number
   /** How far to rewind when the last indexed block's hash no longer matches the chain. */
   readonly rewindBlocks?: number
+  /** Event blocks without a stored time to look up per run (newest first), through `head.blockTimestamp`. */
+  readonly backfillBlocks?: number
 }
 
 export interface RunResult {
@@ -33,6 +35,8 @@ export interface RunResult {
   readonly jobs: number
   readonly nextBlock: number | null
   readonly rewound: boolean
+  /** Block times looked up for events indexed before block times were stored. */
+  readonly backfilled: number
 }
 
 interface EventRow {
@@ -110,7 +114,7 @@ async function rewindTo(sql: AsyncSql, cfg: IndexerConfig, block: number, now: n
 export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunResult> {
   const now = (cfg.now ?? (() => Math.floor(Date.now() / 1000)))()
   const chainId = cfg.contracts.chainId
-  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, jobs: 0, nextBlock: null, rewound: false }
+  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, jobs: 0, nextBlock: null, rewound: false, backfilled: 0 }
   const addresses = [...cfg.contracts.roles.keys()]
   let [cp] = await sql.all<{ next_block: number; block_hash: string | null }>('SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?', chainId)
   let rewound = false
@@ -133,10 +137,14 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
     const pageJobs = new Set(fresh.map((e) => e.jobId))
     const upTo = Math.min(Math.max(page.nextBlock, next), finalized + 1)
     const hash = await cfg.head.blockHash(upTo - 1)
+    const eventBlocks = new Set(fresh.map((e) => e.block))
     await sql.batch([
       ...fresh.map((e) =>
         stmt('INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           chainId, e.contract, e.block, e.logIndex, e.txHash, e.jobId, e.name, JSON.stringify(e.args))),
+      ...(page.blockTimes ?? [])
+        .filter((b) => eventBlocks.has(b.block))
+        .map((b) => stmt('INSERT OR IGNORE INTO block_times (chain_id, block, timestamp) VALUES (?, ?, ?)', chainId, b.block, b.timestamp)),
       ...(await refold(sql, cfg, pageJobs, fresh)),
       stmt('INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, ?, ?)', chainId, upTo, hash, now),
     ])
@@ -146,7 +154,25 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
     if (upTo === next) break // no progress possible now
     next = upTo
   }
-  return { lease: true, pages, events, jobs: jobs.size, nextBlock: next, rewound }
+  const backfilled = await backfillBlockTimes(sql, cfg)
+  return { lease: true, pages, events, jobs: jobs.size, nextBlock: next, rewound, backfilled }
+}
+
+/** Looks up the times of a few event blocks that have none (indexed before block times were stored), newest first. */
+async function backfillBlockTimes(sql: AsyncSql, cfg: IndexerConfig): Promise<number> {
+  const lookup = cfg.head.blockTimestamp?.bind(cfg.head)
+  if (lookup === undefined) return 0
+  const chainId = cfg.contracts.chainId
+  const missing = await sql.all<{ block: number }>(
+    `SELECT DISTINCT e.block FROM events e WHERE e.chain_id = ?
+     AND NOT EXISTS (SELECT 1 FROM block_times b WHERE b.chain_id = e.chain_id AND b.block = e.block)
+     ORDER BY e.block DESC LIMIT ?`,
+    chainId, cfg.backfillBlocks ?? 40,
+  )
+  const found = await Promise.all(missing.map(async ({ block }) => ({ block, timestamp: await lookup(block) })))
+  const rows = found.filter((f): f is { block: number; timestamp: number } => f.timestamp !== null)
+  await sql.batch(rows.map((r) => stmt('INSERT OR IGNORE INTO block_times (chain_id, block, timestamp) VALUES (?, ?, ?)', chainId, r.block, r.timestamp)))
+  return rows.length
 }
 
 /** Full rebuild: chain facts only, from the deploy block (board records are not the indexer's). */

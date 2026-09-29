@@ -24,5 +24,8 @@ live('HyperSync on monad-testnet (read-only)', () => {
     const events = page.logs.map((l) => decode(contracts, l)).filter((e) => e !== undefined)
     expect(events.some((e) => e.name === 'Published')).toBe(true)
     expect(events.every((e) => e.block >= from && e.block <= finalized)).toBe(true)
+    // Every event's block comes with its time, as unix seconds after the deployment.
+    const times = new Map((page.blockTimes ?? []).map((b) => [b.block, b.timestamp]))
+    expect(events.every((e) => (times.get(e.block) ?? 0) > 1_700_000_000)).toBe(true)
   }, 60_000)
 })

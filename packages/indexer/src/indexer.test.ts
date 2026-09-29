@@ -16,6 +16,7 @@ import {
   type RawLog,
   contractsOf,
   fromNodeSqlite,
+  jobDetail,
   migrate,
   resetIndex,
   runOnce,
@@ -27,8 +28,11 @@ const deployBlock = Number(sdk.deployment('monad-testnet').deployBlock)
 const finalized = fixture.toBlock
 const hashOf = (b: number) => `0x${b.toString(16).padStart(64, '0')}` as const
 
+/** A block's time in these tests (the fixture has none): one second per block after a fixed start. */
+const timeOf = (b: number) => 1_790_000_000 + (b - deployBlock)
+
 /** Pages of at most `perPage` blocks' worth of logs, like HyperSync's partial answers. */
-function pagedSource(perPage: number, opts: { repeatFirst?: boolean; emptyFirst?: boolean } = {}): LogSource & { calls: number } {
+function pagedSource(perPage: number, opts: { repeatFirst?: boolean; emptyFirst?: boolean; times?: boolean } = {}): LogSource & { calls: number } {
   let calls = 0
   const src = {
     calls: 0,
@@ -37,7 +41,9 @@ function pagedSource(perPage: number, opts: { repeatFirst?: boolean; emptyFirst?
       src.calls = calls
       if (opts.emptyFirst === true && calls === 1) return { logs: [], nextBlock: fromBlock + 10 }
       const end = Math.min(toBlock, fromBlock + perPage)
-      return { logs: logs.filter((l) => l.block_number >= fromBlock && l.block_number < end), nextBlock: end }
+      const page = logs.filter((l) => l.block_number >= fromBlock && l.block_number < end)
+      if (opts.times !== true) return { logs: page, nextBlock: end }
+      return { logs: page, nextBlock: end, blockTimes: [...new Set(page.map((l) => l.block_number))].map((block) => ({ block, timestamp: timeOf(block) })) }
     },
   }
   return src
@@ -153,5 +159,34 @@ describe('indexer on the real testnet logs', () => {
     expect((await liveDb.all('SELECT * FROM jobs')).length).toBe(0)
     await runToEnd(liveDb, config({ source: pagedSource(777) }))
     expect(await snapshot(liveDb)).toEqual(live)
+  })
+})
+
+describe('block times for job timelines', () => {
+  it('stores the times HyperSync joins to a page, and a job detail lists its events with them', async () => {
+    const sql = await freshDb()
+    await runToEnd(sql, config({ source: pagedSource(1_000_000, { times: true }) }))
+    const detail = await jobDetail(sql, contracts.chainId, '9', 0)
+    const timeline = detail?.timeline ?? []
+    expect(timeline.map((e) => e.name)).toContain('Ruled')
+    expect(timeline.every((e) => e.at === timeOf(e.block))).toBe(true)
+    expect(timeline.map((e) => e.block)).toEqual(timeline.map((e) => e.block).toSorted((a, b) => a - b))
+  })
+
+  it('backfills blocks indexed without times, a bounded number per run, newest first', async () => {
+    const sql = await freshDb()
+    await runToEnd(sql, config())
+    const [{ n: blocks } = { n: 0 }] = await sql.all<{ n: number }>('SELECT count(DISTINCT block) AS n FROM events')
+    expect(blocks).toBeGreaterThan(10)
+    const lookups: number[] = []
+    const timed: ChainHead = { ...head(), blockTimestamp: async (b) => (lookups.push(b), timeOf(b)) }
+    const r = await runOnce(sql, config({ head: timed, backfillBlocks: 10 }))
+    expect(r.backfilled).toBe(10)
+    expect(lookups).toEqual(lookups.toSorted((a, b) => b - a))
+    for (let i = 0; i < 100 && (await runOnce(sql, config({ head: timed, backfillBlocks: 10 }))).backfilled > 0; i++);
+    const [{ n: timedBlocks } = { n: 0 }] = await sql.all<{ n: number }>('SELECT count(*) AS n FROM block_times')
+    expect(timedBlocks).toBe(blocks)
+    // The chain facts are the live state; block times sit beside them.
+    expect(await snapshot(sql)).toEqual(live)
   })
 })
