@@ -2,6 +2,11 @@
  * The Explore Worker: static assets for the SPA, and the board API proxied same-origin through the `API` service
  * binding (no CORS, no API URL baked into the build). A request to `REDIRECT_FROM` (the apex while only the testnet
  * stack exists) gets a 301 to the same path on `REDIRECT_TO`.
+ *
+ * Pages carry the security headers Privy asks for before production: a Content Security Policy built from Privy's
+ * recommended policy (its iframe, WalletConnect, Cloudflare Turnstile) plus the Monad RPCs the app reads from, and no
+ * framing (`frame-ancestors 'none'`, `X-Frame-Options: DENY`). The drop-in widget (`/embed/<board>`, ADR-0008) is the
+ * one page meant to be framed: only by the board's own `allowedOrigins`, read from its public `get_board`.
  */
 interface Env {
   readonly API: { fetch(request: Request): Promise<Response> }
@@ -12,13 +17,82 @@ interface Env {
 
 const PROXIED = ['/api/', '/b/', '/data/', '/offers/', '/mcp', '/health']
 
+const PRIVY_FRAMES = ['https://auth.privy.io', 'https://verify.walletconnect.com', 'https://verify.walletconnect.org']
+const CSP_BASE = [
+  "default-src 'self'",
+  "script-src 'self' https://challenges.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://explorer-api.walletconnect.com",
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  `child-src ${PRIVY_FRAMES.join(' ')}`,
+  `frame-src ${PRIVY_FRAMES.join(' ')} https://challenges.cloudflare.com`,
+  [
+    "connect-src 'self'",
+    'https://auth.privy.io',
+    'wss://relay.walletconnect.com',
+    'wss://relay.walletconnect.org',
+    'wss://www.walletlink.org',
+    'https://*.rpc.privy.systems',
+    'https://explorer-api.walletconnect.com',
+    // viem's default transports for Monad testnet and mainnet (wallet.ts, Privy.tsx)
+    'https://testnet-rpc.monad.xyz',
+    'https://rpc.monad.xyz',
+    'https://rpc1.monad.xyz',
+  ].join(' '),
+  "worker-src 'self'",
+  "manifest-src 'self'",
+].join('; ')
+
+const COMMON: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=31536000',
+}
+
+/** Who may frame a board's widget: the board's allowed origins, cached a minute per isolate. */
+const embedders = new Map<string, { at: number; origins: string[] }>()
+async function frameAncestors(env: Env, request: Request, board: string): Promise<string[]> {
+  const hit = embedders.get(board)
+  if (hit !== undefined && Date.now() - hit.at < 60_000) return hit.origins
+  let origins: string[] = []
+  try {
+    const url = new URL(`/b/${encodeURIComponent(board)}/api/get_board`, request.url)
+    const res = await env.API.fetch(new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }))
+    const body = (await res.json()) as { ok?: boolean; result?: { board?: { allowedOrigins?: unknown } } }
+    const listed = body.result?.board?.allowedOrigins
+    // origin expressions only (https://host[:port], http://localhost:*); anything else is dropped, not trusted
+    if (Array.isArray(listed)) origins = listed.filter((o): o is string => typeof o === 'string' && /^https?:\/\/[a-z0-9.-]+(:(\d+|\*))?$/i.test(o))
+  } catch {
+    origins = []
+  }
+  embedders.set(board, { at: Date.now(), origins })
+  return origins
+}
+
+async function withHeaders(response: Response, env: Env, request: Request, pathname: string): Promise<Response> {
+  const res = new Response(response.body, response)
+  for (const [k, v] of Object.entries(COMMON)) res.headers.set(k, v)
+  const embed = /^\/embed\/([^/]+)/.exec(pathname)
+  if (embed?.[1] !== undefined) {
+    const ancestors = ["'self'", ...(await frameAncestors(env, request, decodeURIComponent(embed[1])))]
+    res.headers.set('Content-Security-Policy', `${CSP_BASE}; frame-ancestors ${ancestors.join(' ')}`)
+  } else {
+    res.headers.set('Content-Security-Policy', `${CSP_BASE}; frame-ancestors 'none'`)
+    res.headers.set('X-Frame-Options', 'DENY')
+  }
+  return res
+}
+
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const { hostname, pathname, search } = new URL(request.url)
     if (env.REDIRECT_FROM && env.REDIRECT_TO && hostname === env.REDIRECT_FROM) {
-      return Promise.resolve(Response.redirect(`${env.REDIRECT_TO}${pathname}${search}`, 301))
+      return Response.redirect(`${env.REDIRECT_TO}${pathname}${search}`, 301)
     }
     if (PROXIED.some((p) => pathname === p || pathname.startsWith(p))) return env.API.fetch(request)
-    return env.ASSETS.fetch(request)
+    return withHeaders(await env.ASSETS.fetch(request), env, request, pathname)
   },
 }
