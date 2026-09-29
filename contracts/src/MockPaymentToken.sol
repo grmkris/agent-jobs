@@ -6,7 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /// @title MockPaymentToken
 /// @notice **Testnet only, never deployed on mainnet.** A 6-decimal faucet reward token, deployed twice on Monad
 ///         testnet as `mUSD` and `mEUR` so a quote can name either. Anyone may mint: it has no value. Mainnet
-///         rewards are real allowlisted ERC-20s (USDC first); `config/monad-mainnet.json` lists no faucet token.
+///         rewards are real ERC-20s (any, ADR-0010; USDC listed first); `config/monad-mainnet.json` lists no faucet token.
 contract MockPaymentToken is ERC20 {
     uint256 public constant FAUCET_AMOUNT = 1_000e6;
 

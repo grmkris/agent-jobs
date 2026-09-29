@@ -1,6 +1,7 @@
 # ADR-0010: Permissionless payment tokens
 
-Date: 2026-09-29 (overnight). Status: **in progress on testnet**; mainnet unchanged until Kris decides.
+Date: 2026-09-29 (overnight). Status: **live on testnet** (`main` pair, job 60, `docs/reality-check.md`); `demo`
+awaits a redeploy; mainnet unchanged until Kris decides.
 
 ## Context
 

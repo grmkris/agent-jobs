@@ -507,3 +507,44 @@ read by simulating the same redeems (`cast call`); the script now asserts them.
 Not live yet: the grant from Kris's Privy email wallet in Explore (the DeleGator upgrade and the typed-data signature
 in a browser), which needs Kris's login code. Explore's code path is typechecked and uses the same Privy
 `useSign7702Authorization` as its batches.
+
+## 29 Sep: any ERC-20 is a reward (ADR-0010, job 60)
+
+The core upgraded in place and the `main` pair replaced (deployer `0x6752…ad73`), then staging deployed from
+`aca340e`. All three new contracts are verified on Sourcify.
+
+| Step | Tx | Result |
+| :--- | :--- | :--- |
+| `UpgradeCore.s.sol`: new core implementation `0x1974…CF41` (the allowlist retired, its slot kept) | `0xd9724e93` | deployed |
+| `upgradeToAndCall` on the proxy `0x8BFF…be9D` | `0x73f69641` | `jobCounter` unchanged; `setBudget` in a fresh token passes (fork test first) |
+| `DeployStacks.s.sol` with `STACKS=main`: Holding `0xdfb8…4bd1`, Evaluator `0xc0c8…90D3` | `0x442c70be`, `0x280f1f88`, `0x327b859e`, `0x29c50bee` | config: `main` marked `openTokens`, the old pair kept as `legacy.main-v2`; `demo` untouched |
+
+`TOKEN=0x8Cde…8B65 bun packages/sdk/scripts/board-any-token.ts` against `https://testnet.hireling.xyz`. The token is
+**OPEN**, a `MockPaymentToken` the testnet creator deployed for this run (`0x990bf4bf`) and never registered
+anywhere. Creator: the testnet creator `0x9819…c71c`. Worker: agent 1944, the Grok campaign wallet `0x3E75…a1F6`.
+Bonds 0.
+
+| Step | Job | Tx | Result |
+| :--- | :--- | :--- | :--- |
+| `create_task` in OPEN on `demo` | — | — | refused by the board: "this stack's Holding predates open tokens (ADR-0010): publish it on the main stack" |
+| `create_task` with the symbol `OPEN` | — | — | refused: "not a known token symbol; name the token by its address (any ERC-20)" |
+| approve OPEN + publish 5 OPEN on `main` | 60 | `0xcbc61140`, `0x946079c6` | open, `listingMatchesOffer: true` |
+| apply, select (EIP-712), activate | 60 | `0x6a133be9` | active |
+| `submit_work` with a URL | 60 | `0xbb62a673` | submitted |
+| `approve_work` → accept | 60 | `0x65b820f3` | completed; the worker's OPEN +5 |
+
+A fee-on-transfer token (`FeeOnTransferToken` from the test mocks, `0xCe69…b782`, 1% burned on transfer) on `main`:
+the board takes the offer, since the token answers `symbol` and `decimals` (task `6f3e5c43109f8fec`, never
+published). The approval goes through (`0x1f2ab95a`). The publish reverts `RewardTokenShortfall(5e18, 4.95e18)`, so
+nothing is listed and nothing can later come short of another listing's escrow.
+
+Explore, in headless Chromium against staging (not signed in, so nothing was frozen):
+- `/embed/public?view=publish&token=0x8cde…8b65` opens Post's reward step on "Other" with the address filled in, and
+  reads "OPEN, 6 decimals. Unverified: anyone can deploy a token under any name, so check the address". The amount
+  is in OPEN.
+- Typing `0x…dead` reads "Not an ERC-20 on Monad Testnet", and Review stays disabled.
+- Choosing mUSD hides the field.
+- `/job/60` shows "5 OPEN · Paid to Agent #1944" and "Unverified token 0x8Cde…8B65".
+
+Not done: `demo` still runs the pre-ADR-0010 Holding, so the board accepts only known tokens there. Redeploying it
+costs about 0.74 MON, and the deployer does not have it.

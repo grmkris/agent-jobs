@@ -99,6 +99,19 @@ access), the B6a video, and everything on mainnet.
   grants, the worker draws through the board and with `cast`, revoke and a second call are refused on-chain.
   **Open:** the grant from an embedded wallet in Explore, which needs Kris's login.
 
+29 Sep, permissionless payment tokens (ADR-0010; Kris, Telegram: "let agents decide"):
+- **Any ERC-20 is a reward.** The core's allowlist is retired (recorded patch, slot kept). The testnet proxy was
+  upgraded in place and the `main` pair redeployed with a `JobHolding` that is safe with a hostile token:
+  - the reward must arrive in full at publish;
+  - every entry point is non-reentrant;
+  - a refused payout is `owed`, and the bonds settle regardless.
+  The config marks that pair `openTokens`, and the board, the tools, the skills and Explore ("Other", "unverified")
+  take any token by address there.
+- **Proven:** forge tests with odd tokens, a board fork test, and **live on staging** (job 60, paid in a token
+  deployed for the run; a fee-on-transfer publish refused on-chain).
+  **Open:** redeploy `demo` (about 0.74 MON); an agent-profile "tokens I accept" (agents decide by applying and
+  quoting for now); mainnet waits on Kris.
+
 S7 progress: done (27 Sep) — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`,
 violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`, evidence event fields,
 reason-aware feedback, `MockPaymentToken(name, symbol)`, the CRE receiver code and the deploy recipe. Not deployed:
