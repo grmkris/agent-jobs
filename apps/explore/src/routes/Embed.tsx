@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAccount, useConnect } from 'wagmi'
 import { type BoardInfo, currentBoardId, tool } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
-import { Address, Badge, Button } from '../components/ui.tsx'
+import { Address, Badge, Button, ErrorText } from '../components/ui.tsx'
 import { FundButton } from '../components/Fund.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { JobPage } from './Job.tsx'
@@ -82,6 +82,22 @@ export function EmbedPage() {
     if (auth.signedIn && auth.address !== undefined) postToHost(boardId, 'signed-in', { address: auth.address })
   }, [auth.signedIn, auth.address, boardId])
 
+  // The host's look: a forced light or dark theme, its own accent (validated), and no background of our own.
+  useEffect(() => {
+    const root = document.documentElement
+    const theme = search.get('theme')
+    if (theme === 'light' || theme === 'dark') root.dataset.theme = theme
+    const accent = search.get('accent')
+    if (accent !== null && /^[0-9a-fA-F]{6}$/.test(accent)) {
+      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(accent.slice(i, i + 2), 16) / 255) as [number, number, number]
+      const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6
+      root.style.setProperty('--tint', `#${accent}`)
+      root.style.setProperty('--on-tint', light ? '#111114' : '#ffffff')
+    }
+    document.body.style.background = 'transparent'
+    root.style.background = 'transparent'
+  }, [])
+
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const signIn = async () => {
@@ -99,13 +115,22 @@ export function EmbedPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-3">
-      <header className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="font-medium">{board.data?.name ?? currentBoardId()} <span className="text-label-3">· Hireling</span></span>
+    <div className="mx-auto grid max-w-3xl gap-5 p-3">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 font-semibold">
+          <svg aria-hidden viewBox="0 0 32 32" className="size-5 shrink-0">
+            <rect width="32" height="32" rx="7" className="fill-tint" />
+            <path d="M10 8v16M22 8v16M10 16h12" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" />
+          </svg>
+          <span className="truncate">{board.data?.name ?? currentBoardId()}</span>
+          <span className="text-[0.85rem] font-normal text-label-3">on Hireling</span>
+        </span>
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (
             wallet === 'injected' ? (
-              <Button disabled={injected === undefined} onClick={() => injected !== undefined && connect({ connector: injected })}>Connect wallet</Button>
+              <Button size="sm" disabled={injected === undefined} onClick={() => injected !== undefined && connect({ connector: injected })}>
+                Connect wallet
+              </Button>
             ) : (
               <PrivyLogin />
             )
@@ -113,12 +138,18 @@ export function EmbedPage() {
             <>
               <Address value={auth.address} />
               <FundButton address={auth.address} />
-              {auth.signedIn ? <Badge tone="green">signed in</Badge> : <Button busy={busy} onClick={signIn}>Sign in</Button>}
+              {auth.signedIn ? (
+                <Badge tone="success">Signed in</Badge>
+              ) : (
+                <Button size="sm" busy={busy} onClick={signIn}>
+                  Sign in
+                </Button>
+              )}
             </>
           )}
         </span>
       </header>
-      {error !== null && <p className="mb-2 text-xs text-bad">{error}</p>}
+      {error !== null && <ErrorText>{error}</ErrorText>}
       {view === 'jobs' && <JobsPage />}
       {view === 'publish' && (
         <PublishPage
@@ -135,7 +166,7 @@ export function EmbedPage() {
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (
           <JobPage auth={auth} jobId={task.data.jobId} onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })} />
         ) : (
-          <p className="text-sm text-label-2">{taskId === null ? 'No task selected.' : 'Waiting for the publish transaction to confirm…'}</p>
+          <p className="text-[0.92rem] text-label-2">{taskId === null ? 'No job selected.' : 'Waiting for the publish transaction to confirm…'}</p>
         ))}
     </div>
   )

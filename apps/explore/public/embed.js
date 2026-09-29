@@ -7,8 +7,10 @@
  * It inserts an iframe of the hosted widget for that board right after the script tag, relays the widget's events
  * to `window.AgentJobs.on(type, fn)` (ready, signed-in, published, entered, awarded, approved, rejected, pledged,
  * launched, error, resize), and lets the page prefill the form with `AgentJobs.prefill({title, brief, reward, token})`.
- * data-* attributes: board, view (publish | task | pool | jobs), taskId, poolId, title, brief, reward, token, mode
- * (hire | contest), wallet (privy | injected), worker, agentId, explore (override the widget origin), height.
+ * data-* attributes: board, view (publish | task | pool | jobs), taskId, jobId (for the "Open in Hireling" link of a
+ * task view), poolId, title, brief, reward, token, mode (hire | contest), wallet (privy | injected), worker, agentId,
+ * theme (light | dark | auto: follow the visitor's system, the default), accent (a #rrggbb colour for buttons and
+ * links), explore (override the widget origin), height.
  */
 ;(() => {
   const script = document.currentScript
@@ -18,7 +20,8 @@
   const board = ds.board || 'public'
   const view = ds.view || 'publish'
   const params = new URLSearchParams()
-  for (const k of ['taskId', 'poolId', 'title', 'brief', 'reward', 'token', 'mode', 'wallet', 'worker', 'agentId']) if (ds[k]) params.set(k, ds[k])
+  for (const k of ['taskId', 'poolId', 'title', 'brief', 'reward', 'token', 'mode', 'wallet', 'worker', 'agentId', 'theme']) if (ds[k]) params.set(k, ds[k])
+  if (ds.accent && /^#?[0-9a-fA-F]{6}$/.test(ds.accent)) params.set('accent', ds.accent.replace(/^#/, ''))
   params.set('view', view)
   const iframe = document.createElement('iframe')
   iframe.src = `${base}/embed/${encodeURIComponent(board)}?${params.toString()}`
