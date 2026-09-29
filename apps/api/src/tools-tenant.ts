@@ -135,7 +135,7 @@ export const tenantTools: Record<string, TenantTool> = {
 }
 
 /** Board tools whose arguments a tenant shapes: the board's defaults filled in, stacks and tokens outside it refused. */
-export const PUBLISH_TOOLS: ReadonlySet<string> = new Set(['create_task', 'request_quotes'])
+export const PUBLISH_TOOLS: ReadonlySet<string> = new Set(['create_task', 'request_quotes', 'create_pool'])
 
 export function tenantArgs(tenant: TenantConfig, tool: string, args: Record<string, unknown>): Record<string, unknown> {
   if (!PUBLISH_TOOLS.has(tool)) return args

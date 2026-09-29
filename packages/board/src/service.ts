@@ -15,6 +15,7 @@ import {
   type Address,
   type Hex,
   decodeEventLog,
+  bytesToHex,
   encodeFunctionData,
   formatUnits,
   getAddress,
@@ -41,6 +42,7 @@ import {
   type Sql,
   type TaskRow,
   migrate,
+  type PoolRow,
 } from './store.ts'
 import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, isCallBudget, isX402Budget, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
 import {
@@ -793,7 +795,7 @@ export class Board {
   listApplications(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator sees applications')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) sees applications')
     return this.#sql.all<ApplicationRow>('SELECT * FROM applications WHERE task_id = ? ORDER BY created_at', task.id)
   }
 
@@ -801,7 +803,7 @@ export class Board {
   async selectWorker(caller: Caller, input: { taskId: string; applicationId: string; activateBy?: number }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator selects')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) selects')
     const terms = parseTerms(task.terms_json)
     if (terms.mode !== 'hire') throw new BoardError('invalid', 'contests are awarded, not selected')
     if (task.job_id === null) throw new BoardError('conflict', 'publish the offer first')
@@ -842,7 +844,7 @@ export class Board {
   async submitSelection(caller: Caller, input: { taskId: string; nonce: string; signature: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator selects')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) selects')
     const [sel] = this.#sql.all<SelectionRow>('SELECT * FROM selections WHERE task_id = ? AND nonce = ?', task.id, input.nonce)
     if (sel === undefined) throw new BoardError('not-found', 'no such pending selection')
     const ctx = this.#taskCtx(task)
@@ -854,7 +856,7 @@ export class Board {
       message: { ...this.#selection(task, sel) },
       signature: input.signature as Hex,
     })
-    if (!valid) throw new BoardError('forbidden', 'the signature is not the creator’s over this selection')
+    if (!valid) throw new BoardError('forbidden', 'the signature is not the creator’s over this selection (a pool accepts its curator’s, ERC-1271)')
     this.#sql.run('UPDATE selections SET signature = ? WHERE task_id = ? AND nonce = ?', input.signature, task.id, input.nonce)
     return { ok: true, worker: sel.worker, activateBy: sel.activate_by }
   }
@@ -880,21 +882,226 @@ export class Board {
     const task = this.#task(input.taskId)
     await this.#requireUnpaused(task.stack)
     const terms = parseTerms(task.terms_json)
-    if (!eq(terms.creator, me)) throw new BoardError('forbidden', 'only the creator cancels')
+    if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) cancels')
     if (terms.mode !== 'hire') throw new BoardError('invalid', 'a published contest cannot be cancelled; it ends by award or expiry')
     const view = await this.#chainView(task)
     if (view.status !== 'open' && view.status !== 'lapsed') throw new BoardError('conflict', `only an open hire nobody activated can be cancelled (it is ${view.status})`)
     const ctx = this.#taskCtx(task)
     const jobId = this.#jobId(task)
     this.#operation(task.id, 'cancel', me)
+    const pool = task.pool_id === null ? null : this.#poolRow(task.pool_id)
     return {
       transactions: [
-        this.#tx(ctx, 'cancel: ends the listing before anyone activated it', ctx.stack.holding,
-          encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'cancel', args: [jobId] })),
-        this.#tx(ctx, 'settle: returns the reward and your bond', ctx.stack.holding,
+        pool === null
+          ? this.#tx(ctx, 'cancel: ends the listing before anyone activated it', ctx.stack.holding,
+              encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'cancel', args: [jobId] }))
+          : this.#tx(ctx, 'cancel: the curator ends the pool’s listing before anyone activated it (forwarded by the pool)', getAddress(pool.pool),
+              encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'cancel', args: [] })),
+        this.#tx(ctx, pool === null ? 'settle: returns the reward and your bond' : 'settle: returns the reward to the pool; pledgers then call pool_refund', ctx.stack.holding,
           encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })),
       ],
     }
+  }
+
+  // -----------------------------------------------------------------------------------------------
+  // Pools (ADR-0007): a JobPool is the creator; its curator acts where the creator would
+  // -----------------------------------------------------------------------------------------------
+
+  /** The creator, or the curator of the pool that is the creator. */
+  #actsForCreator(task: TaskRow, me: Address): boolean {
+    if (eq(task.creator, me)) return true
+    if (task.pool_id === null || task.pool_id === undefined) return false
+    return eq(this.#poolRow(task.pool_id).curator, me)
+  }
+
+  #poolRow(poolId: string): PoolRow {
+    const [row] = this.#sql.all<PoolRow>('SELECT * FROM pools WHERE id = ?', poolId)
+    if (row === undefined) throw new BoardError('not-found', 'no such pool')
+    return row
+  }
+
+  /**
+   * Curator (or anyone): freeze an offer whose creator is a pool that does not exist yet, at the address the factory
+   * will give it. The caller becomes the curator unless one is named: approver of the offer, signer of its
+   * selections, the one who cancels. Returns the transactions that clone the pool (the FACTORY publish hold moves
+   * in with it). Pledgers then `pledge`; anyone launches once the goal is reached.
+   */
+  async createPool(
+    caller: Caller,
+    input: Omit<Parameters<Board['createTask']>[1], 'reward' | 'creatorBond' | 'approver' | 'executionBudget'> & {
+      /** The goal, in the token's units: the offer's reward. */
+      goal: string
+      /** Unix seconds; pledging closes here and a full pool may still launch for a day after. */
+      pledgeDeadline: number
+      curator?: string
+    },
+  ) {
+    const me = this.#requireCaller(caller)
+    const stack = input.stack ?? 'main'
+    const ctx = this.#ctx(stack)
+    const factory = ctx.deployment.poolFactory
+    if (factory === null) throw new BoardError('invalid', `no JobPoolFactory on ${ctx.deployment.network}`)
+    const curator = getAddress(input.curator ?? me)
+    const now = this.#now()
+    if (input.pledgeDeadline <= now + 60) throw new BoardError('invalid', 'the pledge deadline must be in the future')
+    if (input.deliveryDeadline <= input.pledgeDeadline + 86_400) {
+      throw new BoardError('invalid', 'the delivery deadline must lie at least a day past the pledge deadline (the launch grace)')
+    }
+    if (input.mode === 'contest' && (input.selectionDeadline ?? 0) <= input.pledgeDeadline + 86_400) {
+      throw new BoardError('invalid', 'a pooled contest’s selection deadline must lie past the launch grace (pledge deadline + 1 day)')
+    }
+    const salt = bytesToHex(crypto.getRandomValues(new Uint8Array(32)))
+    const pool = await sdk.predictPool(ctx, me, salt)
+    const { goal, pledgeDeadline, curator: _c, ...offer } = input
+    const created = await this.createTask({ address: pool }, { ...offer, stack, reward: goal, creatorBond: '0', approver: curator })
+    const task = this.#task(created.taskId)
+    const terms = parseTerms(task.terms_json)
+    this.#sql.run(
+      'INSERT INTO pools (id, task_id, factory, salt, pool, curator, token, goal, pledge_deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      task.id, task.id, factory, salt, pool, curator, terms.token, terms.reward.toString(), pledgeDeadline, now,
+    )
+    this.#sql.run('UPDATE tasks SET pool_id = ? WHERE id = ?', task.id, task.id)
+    this.#operation(task.id, 'create-pool', me, { pool, curator, salt })
+    const params = await sdk.poolParams(ctx, {
+      salt,
+      curator,
+      goal: terms.reward,
+      pledgeDeadline,
+      publish: {
+        mode: terms.mode,
+        token: terms.token,
+        workerBond: terms.workerBond,
+        manifestHash: task.terms_hash as Hex,
+        termsHash: task.terms_hash as Hex,
+        deliveryDeadline: terms.deliveryDeadline,
+        ...(typeof terms.selectionDeadline === 'number' ? { selectionDeadline: terms.selectionDeadline } : {}),
+      },
+    })
+    const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'minHoldToPublish' })
+    const transactions: TxRequest[] = [
+      ...(await this.#approvals(ctx, me, [[ctx.deployment.factory, hold, 'FACTORY (the publish hold, held by the pool and returned after)']])),
+      this.#tx(ctx, 'create pool: clones the pool at its predicted address and moves the hold in', factory,
+        encodeFunctionData({ abi: sdk.jobPoolFactoryAbi, functionName: 'create', args: [salt, params] })),
+    ]
+    return {
+      poolId: task.id,
+      taskId: task.id,
+      termsHash: task.terms_hash,
+      pool,
+      curator,
+      goal: terms.reward.toString(),
+      token: terms.token,
+      pledgeDeadline,
+      manifestUrl: created.manifestUrl,
+      transactions,
+      next: 'Send the transactions from your wallet. Pledgers call pledge; once the goal is reached anyone calls launch_pool and reports its hash with report_transaction.',
+    }
+  }
+
+  /** Anyone: the approval and the pledge of `amount` (decimal, in the token's units); the pool caps it to the goal. */
+  async pledge(caller: Caller, input: { poolId: string; amount: string }) {
+    const me = this.#requireCaller(caller)
+    const row = this.#poolRow(input.poolId)
+    const task = this.#task(row.task_id)
+    const ctx = this.#taskCtx(task)
+    const token = getAddress(row.token)
+    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+    const amount = parseUnits(input.amount, decimals)
+    if (amount <= 0n) throw new BoardError('invalid', 'amount must be positive')
+    const pool = getAddress(row.pool)
+    return {
+      transactions: [
+        ...(await this.#approvals(ctx, me, [[token, amount, 'reward token (the pledge)']])),
+        this.#tx(ctx, 'pledge: puts the amount into the pool (capped to what the goal still needs)', pool,
+          encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'pledge', args: [amount] })),
+      ],
+    }
+  }
+
+  /** Anyone, once the goal is reached: the launch transaction. Report its hash with report_transaction. */
+  launchPool(caller: Caller, input: { poolId: string }) {
+    this.#requireCaller(caller)
+    const row = this.#poolRow(input.poolId)
+    const task = this.#task(row.task_id)
+    const ctx = this.#taskCtx(task)
+    return {
+      taskId: task.id,
+      transactions: [
+        this.#tx(ctx, 'launch: the pool publishes the offer as its creator, the curator as approver', getAddress(row.pool),
+          encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'launch', args: [] })),
+      ],
+    }
+  }
+
+  /** A pledger: the refund transaction (whatever came back to the pool, pro rata), plus the hold reclaim. */
+  poolRefund(caller: Caller, input: { poolId: string }) {
+    this.#requireCaller(caller)
+    const row = this.#poolRow(input.poolId)
+    const task = this.#task(row.task_id)
+    const ctx = this.#taskCtx(task)
+    const pool = getAddress(row.pool)
+    return {
+      transactions: [
+        this.#tx(ctx, 'refund: your share of what came back to the pool (settles the listing first if needed)', pool,
+          encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'refund', args: [] })),
+      ],
+      reclaimHold: this.#tx(ctx, 'reclaim hold: returns the FACTORY publish hold to the pool’s creator (anyone, once the pool is over)', pool,
+        encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'reclaimHold', args: [] })),
+    }
+  }
+
+  async #poolView(row: PoolRow) {
+    const task = this.#task(row.task_id)
+    const ctx = this.#taskCtx(task)
+    const pool = getAddress(row.pool)
+    const code = await ctx.publicClient.getCode({ address: pool })
+    const terms = parseTerms(task.terms_json)
+    const base = {
+      poolId: row.id,
+      taskId: row.task_id,
+      title: terms.title,
+      mode: terms.mode,
+      stack: task.stack,
+      pool,
+      curator: row.curator,
+      token: row.token,
+      goal: row.goal,
+      pledgeDeadline: row.pledge_deadline,
+      jobId: task.job_id,
+    }
+    if (code === undefined || code === '0x') return { ...base, phase: 'pending' as const, totalPledged: '0', paidOut: '0', refundable: false }
+    const s = await sdk.getPool(ctx, pool)
+    return {
+      ...base,
+      phase: s.phase,
+      totalPledged: s.totalPledged.toString(),
+      paidOut: s.paidOut.toString(),
+      refundable: s.refundable,
+      launchedAt: s.launchedAt,
+      cancelledAt: s.cancelledAt,
+      jobId: task.job_id ?? (s.jobId === 0n ? null : s.jobId.toString()),
+    }
+  }
+
+  async listPools(caller: Caller, input: { limit?: number }) {
+    void caller
+    const rows = this.#sql.all<PoolRow>('SELECT * FROM pools ORDER BY created_at DESC LIMIT ?', Math.min(input.limit ?? 50, 200))
+    return { pools: await Promise.all(rows.map((r) => this.#poolView(r))) }
+  }
+
+  async getPool(caller: Caller, input: { poolId: string }) {
+    void caller
+    return this.#poolView(this.#poolRow(input.poolId))
+  }
+
+  /** What a wallet pledged, from the chain. */
+  async pledgedBy(caller: Caller, input: { poolId: string; address?: string }) {
+    const who = input.address === undefined ? this.#requireCaller(caller) : getAddress(input.address)
+    const row = this.#poolRow(input.poolId)
+    const ctx = this.#taskCtx(this.#task(row.task_id))
+    const code = await ctx.publicClient.getCode({ address: getAddress(row.pool) })
+    if (code === undefined || code === '0x') return { address: who, pledged: '0' }
+    return { address: who, pledged: (await sdk.pledgedBy(ctx, getAddress(row.pool), who)).toString() }
   }
 
   async approveWork(caller: Caller, input: { taskId: string }) {

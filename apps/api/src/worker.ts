@@ -240,7 +240,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             const reply = JSON.parse(
               yield* boards.getByName(tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, env }),
             ) as BoardReply
-            if (reply.ok && (tool === 'create_task' || tool === 'pick_quote')) {
+            if (reply.ok && (tool === 'create_task' || tool === 'pick_quote' || tool === 'create_pool')) {
               const r = reply.result as { taskId: string; termsHash: string; manifest?: string }
               if (r.manifest !== undefined) {
                 yield* manifests.put(`offers/${r.termsHash}.json`, r.manifest)

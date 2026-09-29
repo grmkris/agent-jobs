@@ -51,6 +51,18 @@ const SCHEMA = [
     created_at INTEGER NOT NULL,
     screening_json TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS pools (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL UNIQUE,
+    factory TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    pool TEXT NOT NULL,
+    curator TEXT NOT NULL,
+    token TEXT NOT NULL,
+    goal TEXT NOT NULL,
+    pledge_deadline INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS applications (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL,
@@ -261,6 +273,7 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   ['candidates', 'kind', 'TEXT'],
   ['candidates', 'descriptor_json', 'TEXT'],
   ['candidates', 'check_json', 'TEXT'],
+  ['tasks', 'pool_id', 'TEXT'],
   // Call budgets (ADR-0005 amendment): a grant's kind and allowed function (`token` then holds the call target),
   // and a call spend's calldata (`to_addr` is the target, `amount` the native value).
   ['budget_grants', 'kind', 'TEXT'],
@@ -290,6 +303,21 @@ export interface TaskRow {
   from_block: number
   created_at: number
   screening_json: string | null
+  /** Set when a JobPool is the creator (ADR-0007): the pool row's id; its curator acts where the creator would. */
+  pool_id: string | null
+}
+
+export interface PoolRow {
+  id: string
+  task_id: string
+  factory: string
+  salt: string
+  pool: string
+  curator: string
+  token: string
+  goal: string
+  pledge_deadline: number
+  created_at: number
 }
 
 export interface ApplicationRow {

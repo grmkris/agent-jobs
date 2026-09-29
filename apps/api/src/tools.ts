@@ -394,6 +394,82 @@ export const tools: Record<string, Tool> = {
     run: (board, caller) => board.taskIndex(caller),
   },
 
+  create_pool: {
+    description:
+      'Crowdfund one offer (ADR-0007): freeze it with a JobPool as creator and get the transactions that clone the pool. You are the curator unless you name one: approver of the work, signer of its selection, the one who cancels. Pledgers call pledge; anyone launches once the goal is reached; whatever comes back is refunded pro rata.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: str('Short title.'),
+        brief: str('What needs doing.'),
+        acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the curator will check.' },
+        token: str('Reward token symbol or address (one the board offers).'),
+        goal: str('The goal in token units, e.g. "300": the reward once launched.'),
+        workerBond: str('The worker FACTORY bond, e.g. "1" ("0" for a contest).'),
+        pledgeDeadline: num('Unix seconds; pledging closes here, a full pool may still launch for a day after.'),
+        deliveryDeadline: num('Unix seconds; at least a day past the pledge deadline.'),
+        mode: { type: 'string', enum: ['hire', 'contest'] },
+        selectionDeadline: num('Contest only; past the pledge deadline plus a day.'),
+        curator: str('Defaults to you.'),
+        stack: { type: 'string', enum: ['main', 'demo', 'fast'] },
+        deliverable: deliverableSchema,
+      },
+      required: ['title', 'brief', 'acceptanceCriteria', 'token', 'goal', 'workerBond', 'pledgeDeadline', 'deliveryDeadline', 'mode'],
+    },
+    run: (board, caller, a) =>
+      board.createPool(caller, {
+        title: s(a, 'title'),
+        brief: s(a, 'brief'),
+        acceptanceCriteria: a.acceptanceCriteria as string[],
+        token: s(a, 'token'),
+        goal: s(a, 'goal'),
+        workerBond: s(a, 'workerBond'),
+        pledgeDeadline: n(a, 'pledgeDeadline'),
+        deliveryDeadline: n(a, 'deliveryDeadline'),
+        mode: s(a, 'mode') as 'hire' | 'contest',
+        ...(a.selectionDeadline === undefined ? {} : { selectionDeadline: n(a, 'selectionDeadline') }),
+        ...(a.curator === undefined ? {} : { curator: s(a, 'curator') }),
+        ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
+        ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
+      }),
+  },
+
+  pledge: {
+    description: 'Pledger: the approval and pledge transactions for a pool (capped to what its goal still needs).',
+    inputSchema: { type: 'object', properties: { poolId: str('The pool id.'), amount: str('In the token’s units, e.g. "120".') }, required: ['poolId', 'amount'] },
+    run: (board, caller, a) => board.pledge(caller, { poolId: s(a, 'poolId'), amount: s(a, 'amount') }),
+  },
+
+  launch_pool: {
+    description: 'Anyone, once the goal is reached: the launch transaction; the pool publishes the offer. Report its hash with report_transaction (taskId = poolId).',
+    inputSchema: { type: 'object', properties: { poolId: str('The pool id.') }, required: ['poolId'] },
+    run: (board, caller, a) => board.launchPool(caller, { poolId: s(a, 'poolId') }),
+  },
+
+  pool_refund: {
+    description: 'Pledger: the refund transaction (your pro-rata share of what came back to the pool), and the hold-reclaim transaction anyone may send once the pool is over.',
+    inputSchema: { type: 'object', properties: { poolId: str('The pool id.') }, required: ['poolId'] },
+    run: (board, caller, a) => board.poolRefund(caller, { poolId: s(a, 'poolId') }),
+  },
+
+  list_pools: {
+    description: 'Every pool on this board with its phase, pledged total and job (chain-read). No sign-in needed.',
+    inputSchema: { type: 'object', properties: { limit: num('Default 50.') } },
+    run: (board, caller, a) => board.listPools(caller, a.limit === undefined ? {} : { limit: n(a, 'limit') }),
+  },
+
+  get_pool: {
+    description: 'One pool by id. No sign-in needed.',
+    inputSchema: { type: 'object', properties: { poolId: str('The pool id.') }, required: ['poolId'] },
+    run: (board, caller, a) => board.getPool(caller, { poolId: s(a, 'poolId') }),
+  },
+
+  pledged_by: {
+    description: 'What a wallet (default: yours) pledged to a pool, from the chain.',
+    inputSchema: { type: 'object', properties: { poolId: str('The pool id.'), address: str('Defaults to the signed-in wallet.') }, required: ['poolId'] },
+    run: (board, caller, a) => board.pledgedBy(caller, { poolId: s(a, 'poolId'), ...(a.address === undefined ? {} : { address: s(a, 'address') }) }),
+  },
+
   report_transaction: {
     description: 'After sending any returned transaction: the board reconciles the task from the chain.',
     inputSchema: {
