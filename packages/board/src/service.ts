@@ -17,15 +17,18 @@ import {
   decodeEventLog,
   bytesToHex,
   encodeFunctionData,
+  fromRlp,
   formatUnits,
   getAddress,
   isAddress,
+  isHex,
   pad,
   parseUnits,
   toHex,
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
+import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
@@ -59,6 +62,24 @@ import {
   specOf,
   validateSpec,
 } from './deliverable.ts'
+
+/** A signed authorization as `cast wallet sign-auth` prints it: RLP of [chainId, address, nonce, yParity, r, s]. */
+function authorizationFromRlp(rlp: string): Record<string, unknown> {
+  let items: unknown
+  try {
+    items = fromRlp(rlp as Hex, 'hex')
+  } catch {
+    throw new BoardError('invalid', 'authorization must be the signed authorization (an object, or the RLP hex `cast wallet sign-auth` prints)')
+  }
+  if (!Array.isArray(items) || items.length !== 6 || !items.every((x) => typeof x === 'string')) {
+    throw new BoardError('invalid', 'the RLP authorization must be [chainId, address, nonce, yParity, r, s]')
+  }
+  const [chainId, address, nonce, yParity, r, sig] = items as [Hex, Hex, Hex, Hex, Hex, Hex]
+  return { chainId: rlpInt(chainId), address, nonce: rlpInt(nonce), yParity: rlpInt(yParity), r: pad(r, { size: 32 }), s: pad(sig, { size: 32 }) }
+}
+
+/** RLP writes zero as empty bytes. */
+const rlpInt = (x: Hex) => (x === '0x' ? '0' : x)
 
 export class BoardError extends Error {
   constructor(
@@ -2036,6 +2057,47 @@ export class Board {
       deadline: BigInt(row.deadline),
       nonce: BigInt(row.nonce),
     }
+  }
+
+  /**
+   * Points the caller's account at the deployment's DeleGator (EIP-7702) with an authorization the caller signed; the
+   * relay sends the type-4 transaction. For wallets that sign an authorization but cannot send one: Privy's
+   * TEE-backed embedded wallets drop `authorizationList` from a transaction. The relay pays the gas and gains nothing:
+   * the authorization names only the DeleGator, and the account's own key keeps control of it.
+   */
+  async upgradeAccount(caller: Caller, input: { authorization: Record<string, unknown> | string }) {
+    const me = this.#requireCaller(caller)
+    const ctx = this.#ctx('main')
+    const delegator = ctx.deployment.delegation.delegator
+    if (eq(await sdk.delegationOf(ctx.publicClient, me), delegator)) return { upgraded: true, txHash: null, note: 'your account already points at the DeleGator' }
+    const relay = this.#config.relay
+    if (relay === undefined) throw new BoardError('conflict', 'this board has no relay: send the authorization yourself, in a type-4 transaction to your own address')
+    const a = typeof input.authorization === 'string' ? authorizationFromRlp(input.authorization) : (input.authorization ?? {})
+    const hex = (k: string) => {
+      const v = a[k]
+      if (typeof v !== 'string' || !isHex(v)) throw new BoardError('invalid', `authorization.${k} must be hex`)
+      return v
+    }
+    const int = (k: string) => {
+      const v = a[k]
+      if ((typeof v !== 'number' && typeof v !== 'string') || !/^(0x[0-9a-fA-F]+|\d+)$/.test(String(v))) throw new BoardError('invalid', `authorization.${k} must be an integer`)
+      return Number(v)
+    }
+    const address = hex('address')
+    if (!isAddress(address) || !eq(address, delegator)) throw new BoardError('invalid', `the authorization must name the DeleGator ${delegator}`)
+    if (int('chainId') !== ctx.deployment.chainId) throw new BoardError('invalid', `the authorization must be for chain ${ctx.deployment.chainId}`)
+    const yParity = int('yParity')
+    if (yParity !== 0 && yParity !== 1) throw new BoardError('invalid', 'authorization.yParity must be 0 or 1')
+    const authorization = { address: getAddress(address), chainId: ctx.deployment.chainId, nonce: int('nonce'), r: hex('r'), s: hex('s'), yParity }
+    if (!eq(await recoverAuthorizationAddress({ authorization }), me)) throw new BoardError('forbidden', 'the authorization is not signed by your account')
+    const nonce = await ctx.publicClient.getTransactionCount({ address: me, blockTag: 'pending' })
+    if (authorization.nonce !== nonce) throw new BoardError('conflict', `the authorization's nonce is ${authorization.nonce} but your account's is ${nonce}: sign it again`)
+    const hash = await sdk.wallet(this.#config.network, relay.account, relay.rpcUrl).sendTransaction({ to: me, data: '0x', authorizationList: [authorization] })
+    const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash })
+    if (receipt.status !== 'success' || !eq(await sdk.delegationOf(ctx.publicClient, me), delegator)) {
+      throw new BoardError('chain', `the upgrade ${hash} did not point your account at the DeleGator`)
+    }
+    return { upgraded: true, txHash: hash }
   }
 
   /**

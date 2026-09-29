@@ -41,8 +41,12 @@ async function rpcCall(method: string, params: unknown[]) {
 /** Seconds the fork's clock was moved ahead; the board's clock follows it, as wall clock and chain agree live. */
 let skew = 0
 
+/** The board's relay: it sends rulings and, here, the upgrade of a wallet that can only sign an authorization. */
+const relayer = privateKeyToAccount(generatePrivateKey())
+
 const config = (): BoardConfig => ({
   network: NET,
+  relay: { account: relayer, rpcUrl: url },
   contexts: { main: sdk.context(NET, 'main', url), demo: ctx() },
   domain: 'board.test',
   uri: 'https://board.test',
@@ -107,7 +111,7 @@ fork('execution budget on a testnet fork', () => {
       if (id !== undefined) break
       await new Promise((r) => setTimeout(r, 500))
     }
-    for (const a of [creator, worker, stranger]) await rpcCall('anvil_setBalance', [a.address, `0x${parseEther('100').toString(16)}`])
+    for (const a of [creator, worker, stranger, relayer]) await rpcCall('anvil_setBalance', [a.address, `0x${parseEther('100').toString(16)}`])
     const c = ctx()
     // mUSD and mEUR: later reward tokens (e.g. $CHOMP) are real tokens with no faucet
     for (const token of [c.deployment.factory, ...c.deployment.rewardTokens.slice(0, 2)]) await sdk.faucet(c, w(creator), token)
@@ -334,5 +338,25 @@ fork('execution budget on a testnet fork', () => {
     expect(before - (await ctx().publicClient.getBalance({ address: creator.address }))).toBe(parseEther('10'))
     expect(await board.getBudget({ address: creator.address }, { taskId })).toMatchObject({ drawn: '10', remaining: '2', calls: { made: 1, allowed: 1 } })
   }, 300_000)
+
+  it('a wallet that can only sign an authorization is upgraded by the relay, and only with its own, current one', async () => {
+    const key = generatePrivateKey()
+    const signer = privateKeyToAccount(key)
+    await signIn(signer)
+    const me = { address: signer.address }
+    const delegator = ctx().deployment.delegation.delegator
+    const sign = (contractAddress: Address, nonce: number, by = signer) => by.signAuthorization({ contractAddress, chainId: ctx().deployment.chainId, nonce })
+    const json = (a: Awaited<ReturnType<typeof sign>>) => ({ address: a.address, chainId: a.chainId, nonce: a.nonce, r: a.r, s: a.s, yParity: a.yParity })
+    await expect(board.upgradeAccount(me, { authorization: json(await sign(ctx().deployment.rewardTokens[0] as Address, 0)) })).rejects.toThrow('must name the DeleGator')
+    await expect(board.upgradeAccount(me, { authorization: json(await sign(delegator, 0, stranger)) })).rejects.toThrow('not signed by your account')
+    await expect(board.upgradeAccount(me, { authorization: json(await sign(delegator, 5)) })).rejects.toThrow('sign it again')
+    // The wallet holds no MON and sends nothing: the relay pays. The authorization as `cast wallet sign-auth` prints it.
+    const rlp = execFileSync('cast', ['wallet', 'sign-auth', delegator, '--nonce', '0', '--chain', String(ctx().deployment.chainId), '--private-key', key], { encoding: 'utf8' }).trim()
+    const up = await board.upgradeAccount(me, { authorization: rlp })
+    expect(up.txHash).toMatch(/^0x/)
+    expect((await sdk.delegationOf(ctx().publicClient, signer.address))?.toLowerCase()).toBe(delegator.toLowerCase())
+    expect(await ctx().publicClient.getBalance({ address: signer.address })).toBe(0n)
+    expect(await board.upgradeAccount(me, { authorization: json(await sign(delegator, 1)) })).toMatchObject({ upgraded: true, txHash: null })
+  }, 120_000)
 })
 

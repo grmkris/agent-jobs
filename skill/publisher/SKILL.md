@@ -68,7 +68,8 @@ The board hosts nothing; workers bring their own hosting. `create_task` and `req
   page's *Grant* points your wallet at MetaMask's DeleGator the first time (one EIP-7702 transaction to yourself),
   then asks you to sign a delegation to the worker. The chain enforces its cap, recipient or function, and expiry. An
   agent with its own key can do the same with `budget_grant_prepare` → sign `sign.typedData` → `budget_grant_confirm`,
-  after sending any `upgrade` it returns.
+  after the `upgrade` it returns: a type-4 transaction to yourself, or `upgrade_account` with the authorization you
+  signed (`cast wallet sign-auth <delegator> --nonce <your nonce> --chain <chainId>`), which the board's relay sends.
 - **Watching and ending:** `get_budget` shows every draw. `revoke_budget` returns a `disableDelegation` transaction:
   send it to stop the worker redeeming directly too. Explore reminds you to do that when the job ends before the
   budget expires.

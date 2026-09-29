@@ -347,9 +347,32 @@ export const tools: Record<string, Tool> = {
       }),
   },
 
+  upgrade_account: {
+    description:
+      'Signed in: point your account at the DeleGator (EIP-7702, protocol_info.contracts.delegator) with an authorization you signed; the board\'s relay sends the type-4 transaction. For wallets that can sign an authorization but not send one (Privy\'s embedded wallets). Sign it for your current nonce: `cast wallet sign-auth <delegator> --nonce $(cast nonce <you>) --chain <chainId> --private-key $KEY` and pass the printed hex as `authorization`. Already upgraded: txHash null.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authorization: {
+          description: 'The signed EIP-7702 authorization: the RLP hex `cast wallet sign-auth` prints, or {address, chainId, nonce, r, s, yParity}.',
+          oneOf: [
+            { type: 'string' },
+            {
+              type: 'object',
+              properties: { address: str('The DeleGator.'), chainId: num('This chain.'), nonce: num('Your account\'s current nonce.'), r: str('0x…'), s: str('0x…'), yParity: num('0 or 1.') },
+              required: ['address', 'chainId', 'nonce', 'r', 's', 'yParity'],
+            },
+          ],
+        },
+      },
+      required: ['authorization'],
+    },
+    run: (board, caller, a) => board.upgradeAccount(caller, { authorization: a.authorization as Record<string, unknown> | string }),
+  },
+
   budget_grant_prepare: {
     description:
-      'Creator, once the worker has activated: the delegation to sign for the execution budget. `upgrade` is set when your wallet does not point at the DeleGator (EIP-7702) yet: send that first (one transaction to yourself with an authorization for `upgrade.delegator`; Explore does it). Then sign `sign.typedData` and call budget_grant_confirm.',
+      'Creator, once the worker has activated: the delegation to sign for the execution budget. `upgrade` is set when your wallet does not point at the DeleGator (EIP-7702) yet: do that first, either a type-4 transaction to yourself with an authorization for `upgrade.delegator`, or upgrade_account with the signed authorization (Explore does the latter). Then sign `sign.typedData` and call budget_grant_confirm.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.budgetGrantPrepare(caller, { taskId: s(a, 'taskId') }),
   },

@@ -30,8 +30,10 @@ wallet, and the board goes back to holding no keys and moving no money.
     the worker is the only recipient, `Timestamp(0, expiresAt)`;
   - call: `AllowedTargets(target)`, `AllowedMethods(selector)`, `ValueLte(cap)`, `LimitedCalls(1)`,
     `Timestamp(0, expiresAt)`.
-- **The creator's account is an EIP-7702 DeleGator.** At grant time Explore sends the creator's type-4 self-transaction
-  pointing the account at `EIP7702StatelessDeleGatorImpl` when it does not already. The same DeleGator serves batched
+- **The creator's account is an EIP-7702 DeleGator.** At grant time, when the account does not point at
+  `EIP7702StatelessDeleGatorImpl` yet, the creator signs an authorization for it and the board's relay sends the type-4
+  transaction (`upgrade_account`). Privy's embedded wallets run in Privy's TEE, whose transaction signing drops
+  `authorizationList`, so they cannot send it themselves; a wallet that can may send its own. The same DeleGator serves batched
   transactions for everyone (`execute(bytes32,bytes)` in batch mode); Simple7702Account is gone.
 - **A grant needs the job `active`.** The delegation names the worker and is valid on-chain from the moment it is
   signed, with no job check, so granting before the worker has posted its bond would let it draw without one.
@@ -67,6 +69,7 @@ wallet, and the board goes back to holding no keys and moving no money.
   creator's wallet; Explore checks it.
 - **Only a Privy email/Google wallet can grant in Explore**, since it signs the 7702 authorization for the DeleGator.
   A browser-wallet creator can publish a budget but not grant it there. The creator's account stays a DeleGator
-  afterwards.
+  afterwards. The relay pays for each upgrade; it gains no authority, but anyone signed in can make it spend gas once
+  per fresh account, which needs a limit before mainnet.
 - **Not built:** sub-delegation, periodic or streaming allowances, project-level delegation, a grant UI for browser
   wallets, and paying x402 on the creator's behalf (a worker pays x402 from its own wallet after an advance).
