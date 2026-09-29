@@ -2,7 +2,8 @@
  * The board's REST API and the indexer's chain facts, same-origin through the Explore Worker, for the board the
  * current route is on: `/b/<slug>/…` and `/embed/<slug>` address that board, everything else the public one
  * (ADR-0008). The client, the session and the result types come from `@agent-jobs/react`; the session token is
- * kept in sessionStorage for this tab and is valid on every board.
+ * kept in localStorage (so a new tab stays signed in until it expires) and is valid on every board. Which address it
+ * belongs to is kept beside it (`Wallet.tsx`), so another wallet never inherits it.
  */
 import { type BoardApi, PUBLIC_BOARD_ID, createBoardApi } from '@agent-jobs/react'
 
@@ -38,10 +39,35 @@ export function boardPrefix(): string {
 
 const apis = new Map<string, BoardApi>()
 
+/** localStorage where the browser allows it (private windows and blocked storage can throw), else this tab only. */
+const persistent = {
+  getItem: (k: string) => {
+    try {
+      return localStorage.getItem(k)
+    } catch {
+      return sessionStorage.getItem(k)
+    }
+  },
+  setItem: (k: string, v: string) => {
+    try {
+      localStorage.setItem(k, v)
+    } catch {
+      sessionStorage.setItem(k, v)
+    }
+  },
+  removeItem: (k: string) => {
+    try {
+      localStorage.removeItem(k)
+    } catch {
+      sessionStorage.removeItem(k)
+    }
+  },
+}
+
 export function boardApi(id = currentBoardId()): BoardApi {
   let api = apis.get(id)
   if (api === undefined) {
-    api = createBoardApi({ baseUrl: '', boardId: id })
+    api = createBoardApi({ baseUrl: '', boardId: id, storage: persistent })
     apis.set(id, api)
   }
   return api
