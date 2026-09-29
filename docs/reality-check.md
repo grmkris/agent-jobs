@@ -458,7 +458,17 @@ capture `~/code/aj-launch-video/raw/embed-commission.webm`).
 - **Found.** `#approvals` approved JobHolding for every need, so the first run's `create` reverted in simulation
   (the factory had no allowance for the hold); approvals now name their spender. A first `create_pool` therefore
   left a pool row whose contract never existed (`phase: pending`); harmless, listed.
-- **Hire path** (`MODE=hire`, a headless Claude worker on `/b/monad-pet/mcp`, the curator's Selection verified through
-  the pool's ERC-1271 answer, approve, payment, refund refused): started at 07:38, running at the time of writing;
-  its log is `/tmp/monadpet-crowdfund/hire.log` and the outcome goes into this section when it ends.
+- **Hire path** (`MODE=hire`, **job 56**): pool `3b91be71e9cd72af` at the predicted `0x169a5e12…eD94`, A 180 + B
+  capped to 120, launched by B (`0xe3e290ab…d381b`), listing creator = pool, approver = curator. A headless Claude
+  worker (agent 1942, `0xEABa…61BB`) on `/b/monad-pet/mcp` applied 30 s after launch; the curator's `select_worker`
+  → signed Selection → `submit_selection` was **accepted by the board for a listing whose creator is a contract**
+  (viem's `verifyTypedData` against the pool → `isValidSignature` → the curator). The worker's activation, branch
+  `feature/blocks-since-breakfast-3b91be`, submission, the curator's approval and the refused refund follow in the
+  log `/tmp/monadpet-crowdfund/hire.log`; see the addendum below when it ended.
+- **Found (gas).** The pledgers and curator started the night with ~0.11–0.19 MON; the cancel path spent most of it,
+  and two hire attempts died at the first approval with "Signer had insufficient balance" (two dead pool rows,
+  `12bcc3e70fda9a40` and `8fe07300e86aa7f5`; A's 180 CHOMP in the first was pulled back with `unpledge`). Top-ups
+  from the testnet creator were refused with Monad's "reserve balance violation", and forced with a gas limit they
+  were included and failed; the same transfers from the relay wallet went through at once. Worth a note in the
+  runbook: keep proof wallets at ≥0.3 MON and top up from the relay.
 - No capture: Explore has no pool page yet (cut, see the run log).
