@@ -173,6 +173,9 @@ export const SCHEMA: readonly string[] = [
     tx_hash TEXT NOT NULL,
     PRIMARY KEY (chain_id, job_id)
   )`,
+  // Agent pages look jobs up by agent and by worker wallet (viem checksums addresses; lookups compare lowercased).
+  'CREATE INDEX IF NOT EXISTS jobs_agent ON jobs (chain_id, agent_id)',
+  'CREATE INDEX IF NOT EXISTS jobs_worker ON jobs (chain_id, lower(worker))',
   // Unix times of the blocks events are in, for job timelines. Chain facts of finalized blocks: never folded, and
   // kept across a rewind or rebuild, since a finalized block's time does not change.
   `CREATE TABLE IF NOT EXISTS block_times (

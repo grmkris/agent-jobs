@@ -6,7 +6,7 @@ import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
-import { type AsyncSql, fromD1, indexStatus, jobDetail } from '@agent-jobs/indexer'
+import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
@@ -259,6 +259,23 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 if (detail === undefined) return { ok: false, code: 'not-found', message: 'not indexed (yet)' }
                 const board = detail.job.policy_hash === null ? undefined : await boardOfTerms(sql, detail.job.policy_hash)
                 return { ok: true, ...detail, board: board ?? null }
+              }
+              // Agents and headline numbers: chain facts across every board (an agent's record is not a board's).
+              if (path === '/data/stats') return { ok: true, ...(await networkStats(sql, chainId)) }
+              if (path === '/data/agents') {
+                const wallet = url.searchParams.get('wallet')
+                if (wallet !== null) {
+                  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return { ok: false, code: 'invalid', message: 'wallet must be a 0x address' }
+                  return { ok: true, wallet, agents: await agentsOfWallet(sql, chainId, wallet) }
+                }
+                const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500)
+                return { ok: true, agents: await listAgents(sql, chainId, limit) }
+              }
+              const agent = /^\/data\/agents\/(\d{1,78})$/.exec(path)
+              if (agent !== null) {
+                const detail = await agentDetail(sql, chainId, agent[1] as string)
+                if (detail === undefined) return { ok: false, code: 'not-found', message: 'this agent has taken no job here' }
+                return { ok: true, ...detail }
               }
               return { ok: false, code: 'not-found', message: 'no such data route' }
             } catch {

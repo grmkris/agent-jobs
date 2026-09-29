@@ -78,12 +78,158 @@ export interface TimelineEvent {
 
 /** Every decoded event of one job in chain order, with its block's time: the steps of the job's timeline. */
 export async function jobTimeline(sql: AsyncSql, chainId: number, jobId: string): Promise<TimelineEvent[]> {
-  const rows = await sql.all<{ name: string; block: number; log_index: number; tx_hash: string; args_json: string; timestamp: number | null }>(
-    `SELECT e.name, e.block, e.log_index, e.tx_hash, e.args_json, b.timestamp FROM events e
-     LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
-     WHERE e.chain_id = ? AND e.job_id = ? ORDER BY e.block, e.log_index`,
-    chainId,
-    jobId,
-  )
+  type Row = { name: string; block: number; log_index: number; tx_hash: string; args_json: string; timestamp: number | null }
+  const rows = await sql
+    .all<Row>(
+      `SELECT e.name, e.block, e.log_index, e.tx_hash, e.args_json, b.timestamp FROM events e
+       LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
+       WHERE e.chain_id = ? AND e.job_id = ? ORDER BY e.block, e.log_index`,
+      chainId,
+      jobId,
+    )
+    // Before the indexer's first run after a deploy has created block_times, the times read as unknown.
+    .catch(() =>
+      sql.all<Row>('SELECT name, block, log_index, tx_hash, args_json, NULL AS timestamp FROM events WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
+    )
   return rows.map((r) => ({ name: r.name, block: r.block, logIndex: r.log_index, txHash: r.tx_hash, args: JSON.parse(r.args_json) as Record<string, unknown>, at: r.timestamp }))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Agents: what any operator or creator can read about an ERC-8004 agent's work here, from chain facts only.
+// Amounts are base-unit strings summed with BigInt (SQLite integers overflow above 9.2e18). Lost contest entries
+// are off-chain and never counted.
+// ---------------------------------------------------------------------------------------------------------------
+
+const IN_PROGRESS = ['active', 'awarded', 'submitted', 'rejected-pending', 'disputed']
+
+export interface AgentSummary {
+  agentId: string
+  jobs: number
+  completed: number
+  inProgress: number
+  /** Rejected or expired after the agent took the job. */
+  lost: number
+  /** Base units per reward token, paid to the agent's wallet. */
+  earned: Record<string, string>
+  /** ERC-8004 feedback this protocol's evaluators wrote, by tag (`completed`, `rejected-quality`, …). */
+  feedback: Record<string, number>
+  lastBlock: number
+}
+
+function sumBy(rows: ReadonlyArray<{ key: string; token: string | null; amount: string }>): Map<string, Record<string, string>> {
+  const out = new Map<string, Record<string, bigint>>()
+  for (const r of rows) {
+    if (r.token === null) continue
+    const per = out.get(r.key) ?? {}
+    per[r.token] = (per[r.token] ?? 0n) + BigInt(r.amount)
+    out.set(r.key, per)
+  }
+  return new Map([...out].map(([k, per]) => [k, Object.fromEntries(Object.entries(per).map(([t, v]) => [t, v.toString()]))]))
+}
+
+async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly string[] | null, limit: number): Promise<AgentSummary[]> {
+  const only = agentIds === null ? '' : `AND agent_id IN (${agentIds.map(() => '?').join(', ')})`
+  const ids = agentIds ?? []
+  const counts = await sql.all<{ agent_id: string; jobs: number; completed: number; in_progress: number; lost: number; last_block: number }>(
+    `SELECT agent_id, COUNT(*) AS jobs,
+       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+       SUM(CASE WHEN status IN (${IN_PROGRESS.map(() => '?').join(', ')}) THEN 1 ELSE 0 END) AS in_progress,
+       SUM(CASE WHEN status IN ('rejected', 'expired') THEN 1 ELSE 0 END) AS lost,
+       MAX(updated_block) AS last_block
+     FROM jobs WHERE chain_id = ? AND agent_id IS NOT NULL AND agent_id <> '0' ${only}
+     GROUP BY agent_id ORDER BY completed DESC, last_block DESC LIMIT ?`,
+    ...IN_PROGRESS, chainId, ...ids, limit,
+  )
+  if (counts.length === 0) return []
+  const listed = counts.map((c) => c.agent_id)
+  const marks = listed.map(() => '?').join(', ')
+  const paid = await sql.all<{ key: string; token: string | null; amount: string }>(
+    `SELECT j.agent_id AS key, j.token, r.amount FROM reward_outcomes r
+     JOIN jobs j ON j.chain_id = r.chain_id AND j.job_id = r.job_id
+     WHERE r.chain_id = ? AND r.kind = 'paid' AND lower(r.recipient) = lower(j.worker) AND j.agent_id IN (${marks})`,
+    chainId, ...listed,
+  )
+  const earned = sumBy(paid)
+  const tags = await sql.all<{ agent_id: string; tag: string | null; n: number }>(
+    `SELECT agent_id, tag, COUNT(*) AS n FROM feedback WHERE chain_id = ? AND recorded = 1 AND agent_id IN (${marks}) GROUP BY agent_id, tag`,
+    chainId, ...listed,
+  )
+  return counts.map((c) => ({
+    agentId: c.agent_id,
+    jobs: c.jobs,
+    completed: c.completed,
+    inProgress: c.in_progress,
+    lost: c.lost,
+    earned: earned.get(c.agent_id) ?? {},
+    feedback: Object.fromEntries(tags.filter((t) => t.agent_id === c.agent_id && t.tag !== null).map((t) => [t.tag as string, t.n])),
+    lastBlock: c.last_block,
+  }))
+}
+
+/** Every agent that has taken a job here, most completed first. */
+export async function listAgents(sql: AsyncSql, chainId: number, limit = 200): Promise<AgentSummary[]> {
+  return summaries(sql, chainId, null, limit)
+}
+
+/** The agents a wallet has worked as (ERC-8004 has no reverse lookup; only agents with a job are found). */
+export async function agentsOfWallet(sql: AsyncSql, chainId: number, wallet: string): Promise<string[]> {
+  const rows = await sql.all<{ agent_id: string }>(
+    "SELECT DISTINCT agent_id FROM jobs WHERE chain_id = ? AND lower(worker) = lower(?) AND agent_id IS NOT NULL AND agent_id <> '0' ORDER BY agent_id",
+    chainId, wallet,
+  )
+  return rows.map((r) => r.agent_id)
+}
+
+/** One agent's record: its summary, the wallets it worked from, and each job it took with the job's outcome rows. */
+export async function agentDetail(sql: AsyncSql, chainId: number, agentId: string) {
+  const [summary] = await summaries(sql, chainId, [agentId], 1)
+  if (summary === undefined) return undefined
+  const jobs = await sql.all<JobRow & { submitted_block: number | null }>(
+    `SELECT j.*, s.block AS submitted_block FROM jobs j LEFT JOIN submissions s ON s.chain_id = j.chain_id AND s.job_id = j.job_id
+     WHERE j.chain_id = ? AND j.agent_id = ? ORDER BY CAST(j.job_id AS INTEGER) DESC`,
+    chainId, agentId,
+  )
+  const bonds = await sql.all<{ outcome: string; n: number }>(
+    `SELECT b.outcome, COUNT(*) AS n FROM bond_outcomes b JOIN jobs j ON j.chain_id = b.chain_id AND j.job_id = b.job_id
+     WHERE b.chain_id = ? AND j.agent_id = ? AND b.side = 'worker' GROUP BY b.outcome`,
+    chainId, agentId,
+  )
+  const feedback = await sql.all<{ job_id: string; value: string | null; tag: string | null; recorded: number; tx_hash: string }>(
+    'SELECT job_id, value, tag, recorded, tx_hash FROM feedback WHERE chain_id = ? AND agent_id = ? ORDER BY CAST(job_id AS INTEGER) DESC',
+    chainId, agentId,
+  )
+  return {
+    agent: summary,
+    wallets: [...new Set(jobs.map((j) => j.worker).filter((w): w is string => w !== null))],
+    bonds: Object.fromEntries(bonds.map((b) => [b.outcome, b.n])) as Record<string, number>,
+    jobs,
+    feedback,
+  }
+}
+
+/** The network's headline numbers for a first visit: jobs, paid jobs, agents, what is paid out and what is held now. */
+export async function networkStats(sql: AsyncSql, chainId: number) {
+  const [counts] = await sql.all<{ jobs: number; completed: number; agents: number }>(
+    `SELECT COUNT(*) AS jobs, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+       COUNT(DISTINCT CASE WHEN agent_id IS NOT NULL AND agent_id <> '0' THEN agent_id END) AS agents
+     FROM jobs WHERE chain_id = ?`,
+    chainId,
+  )
+  const paid = await sql.all<{ key: string; token: string | null; amount: string }>(
+    `SELECT 'all' AS key, j.token, r.amount FROM reward_outcomes r JOIN jobs j ON j.chain_id = r.chain_id AND j.job_id = r.job_id
+     WHERE r.chain_id = ? AND r.kind = 'paid'`,
+    chainId,
+  )
+  // Held in escrow now: published jobs whose reward has not left Holding or the core.
+  const held = await sql.all<{ key: string; token: string | null; amount: string }>(
+    `SELECT 'all' AS key, token, reward AS amount FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND status IN ('open', ${IN_PROGRESS.map(() => '?').join(', ')})`,
+    chainId, ...IN_PROGRESS,
+  )
+  return {
+    jobs: counts?.jobs ?? 0,
+    completed: counts?.completed ?? 0,
+    agents: counts?.agents ?? 0,
+    paidOut: sumBy(paid).get('all') ?? {},
+    inEscrow: sumBy(held).get('all') ?? {},
+  }
 }
