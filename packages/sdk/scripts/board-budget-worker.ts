@@ -28,7 +28,11 @@ const log = (m: string) => stamp('worker', m)
 async function until<T>(what: string, probe: () => Promise<T | undefined>): Promise<T> {
   const end = Date.now() + WAIT_S * 1000
   for (;;) {
-    const v = await probe()
+    // A dropped connection on one poll is not the end of an hours-long wait; the next poll retries.
+    const v = await probe().catch((e: Error) => {
+      log(`poll failed, retrying: ${e.message}`)
+      return undefined
+    })
     if (v !== undefined) return v
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`)
     await sleep(10)
