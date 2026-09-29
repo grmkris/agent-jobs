@@ -36,26 +36,19 @@ export interface DeliverableCheck {
   checkedAt: number
 }
 
-export interface TokenBudgetTerms {
-  kind?: undefined
+/** An operating advance: the worker draws up to `cap` of `token` into its own wallet (ADR-0009). */
+export interface AdvanceBudgetTerms {
+  kind: 'advance'
   token: `0x${string}`
   cap: string
   expiresAt: number
 }
-/** A call budget: the worker calls one contract function from the creator's wallet (the creator owns what it makes). */
+/** A call budget: one call to one contract function from the creator's account (the creator owns what it makes). */
 export interface CallBudgetTerms {
   kind: 'call'
   target: `0x${string}`
   function: string
   cap: string
-  expiresAt: number
-}
-/** An x402 budget: the worker pays x402 endpoints in the chain's USDC from the creator's wallet, capped per payment. */
-export interface X402BudgetTerms {
-  kind: 'x402'
-  token: `0x${string}`
-  cap: string
-  perCall: string
   expiresAt: number
 }
 
@@ -78,7 +71,7 @@ export interface TaskIndexEntry {
   requiredChecks: string[]
   quoted: boolean
   /** ADR-0005: base units of `token` (a call budget: wei of native value); null when the offer has none. */
-  executionBudget: TokenBudgetTerms | CallBudgetTerms | X402BudgetTerms | null
+  executionBudget: AdvanceBudgetTerms | CallBudgetTerms | null
   /** ADR-0006: the deliverable forms the offer accepts (git only when absent). */
   deliverable?: DeliverableSpec
   termsHash: string
@@ -112,25 +105,25 @@ export interface ChainJob {
 /** `get_budget`: a task's execution budget as the parties see it (amounts in token units). */
 export interface Budget {
   taskId: string
-  kind?: 'token' | 'call' | 'x402'
-  perCall?: string
-  payer?: `0x${string}`
+  kind: 'advance' | 'call'
   token?: `0x${string}`
   target?: `0x${string}`
   function?: string
   symbol: string
   cap: string
-  spent: string
-  reserved: string
+  /** An advance: what the enforcer counted on-chain. A call: the value of the calls the board saw. */
+  drawn: string
   remaining: string
+  calls?: { made: number; allowed: 1 }
   expiresAt: number
   status: 'promised' | 'live' | 'revoked' | 'ended'
   endedReason: string | null
-  spends: Array<{ spendId: string; to: string; amount: string; selector?: string; note: string; status: string; txHash: string | null; at: number }>
-  cleanup:
-    | null
-    | { removeSigners: true; address: string; why: string }
-    | { replaceSigner: { address: string; signerId: string; policyId: string }; why: string }
+  enforcement: string
+  /** Whether the chain would still honour the signed delegation (not expired, not disabled). */
+  redeemable: boolean
+  worker: `0x${string}` | null
+  draws: Array<{ drawId: string; amount: string | null; selector?: string; note: string; status: 'prepared' | 'confirmed' | 'failed'; txHash: string | null; at: number }>
+  delegation: { manager: `0x${string}`; delegation: Record<string, unknown> } | null
 }
 
 export interface QuoteRequest {

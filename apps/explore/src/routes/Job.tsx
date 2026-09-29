@@ -9,6 +9,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, when } from '../format.ts'
+import { typedDataArgs } from '../typed-data.ts'
 import { usePaused } from '../wallet.ts'
 import { Jev, useJobs } from './Jobs.tsx'
 
@@ -154,7 +155,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       </div>
 
       {task !== undefined && task.executionBudget !== null && (
-        <BudgetPanel task={task} roles={roles} signedIn={auth.signedIn} address={auth.address} />
+        <BudgetPanel task={task} status={status} roles={roles} signedIn={auth.signedIn} address={auth.address} />
       )}
 
       {d !== undefined && (d.job.violation !== null || d.ruling !== null || d.bonds.length > 0 || d.rewards.length > 0) && (
@@ -236,13 +237,7 @@ function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; sta
     setError(null)
     try {
       const sel = await tool<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId, applicationId })
-      const parsed = JSON.parse(sel.sign.typedData) as { types: Record<string, Array<{ name: string; type: string }>>; primaryType: string; domain: Record<string, unknown>; message: Record<string, unknown> }
-      const { EIP712Domain: _d, ...types } = parsed.types
-      const message = { ...parsed.message }
-      for (const f of types[parsed.primaryType] ?? []) {
-        if (/^u?int\d*$/.test(f.type) && typeof message[f.name] === 'string') message[f.name] = BigInt(message[f.name] as string)
-      }
-      const signature = await signTypedDataAsync({ domain: parsed.domain, types, primaryType: parsed.primaryType, message } as never)
+      const signature = await signTypedDataAsync(typedDataArgs(sel.sign.typedData))
       await tool('submit_selection', { taskId, nonce: sel.nonce, signature })
       setSelected(applicationId)
     } catch (e) {

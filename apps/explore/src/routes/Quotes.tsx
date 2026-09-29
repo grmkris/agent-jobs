@@ -40,8 +40,9 @@ interface Picked {
 
 /**
  * One request. The requester sees every quote with its declared running costs and picks one: the offer is frozen at
- * the quoted price and, if approved, with an execution budget (ADR-0005), possibly less than the worker asked. Then
- * the publish transactions escrow the reward; the job page selects the bidder and grants the budget.
+ * the quoted price and, if approved, with an execution budget (ADR-0009), possibly less than the worker asked. Then
+ * the publish transactions escrow the reward; the job page selects the bidder and, once the worker has activated,
+ * grants the budget.
  */
 export function QuoteRequestPage({ auth }: { auth: Auth }) {
   const { requestId } = useParams({ strict: false }) as { requestId: string }
@@ -75,7 +76,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       const p = await tool<Picked>('pick_quote', {
         requestId,
         quoteId: picking.quoteId,
-        ...(withBudget ? { executionBudget: { cap: cap.trim() } } : {}),
+        ...(withBudget ? { executionBudget: { kind: 'advance', cap: cap.trim() } } : {}),
       })
       setPicked(p)
     } catch (e) {
@@ -99,7 +100,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               if (t.jobId !== null) await navigate(boardRoutes().job(t.jobId))
             }}
           />
-          <p className="text-xs text-neutral-500">Next, on the job page: select the bidder (a signature, no transaction), then grant the execution budget.</p>
+          <p className="text-xs text-neutral-500">Next, on the job page: select the bidder (a signature, no transaction); once the worker has activated, grant the execution budget.</p>
         </div>
       </Card>
     )
@@ -171,7 +172,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                     </label>
                   )}
                   <p className="text-xs text-neutral-500">
-                    Picking does not approve costs by itself: the budget is bound into the offer only if you tick it, and spendable only once you grant it on the job page. Nothing is escrowed; it is spent from your wallet, up to the cap, until the delivery deadline.
+                    Picking does not approve costs by itself: the advance is bound into the offer only if you tick it, and drawable only once you grant it on the job page after the worker activates. Nothing is escrowed; the worker draws it from your wallet into its own, up to the cap, until the delivery deadline.
                   </p>
                 </>
               ) : (

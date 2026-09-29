@@ -7,10 +7,12 @@
     ".": "./src/index.ts"
   },
   "devDependencies": {
+    "@metamask/delegation-core": "3.0.0",
+    "@metamask/delegation-deployments": "2.1.0",
+    "@types/node": "^24.3.0",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "catalog:",
-    "@types/node": "^24.3.0"
+    "vitest": "catalog:"
   },
   "dependencies": {
     "@agent-jobs/sdk": "workspace:*",

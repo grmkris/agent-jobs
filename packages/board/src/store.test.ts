@@ -35,3 +35,25 @@ describe('additive migration', () => {
     ])
   })
 })
+
+describe('ADR-0005 budgets are retired (ADR-0009)', () => {
+  it('drops the old budget tables and removes tasks frozen with an old budget shape, with what hangs off them', () => {
+    const sql = fromNodeSqlite(new DatabaseSync(':memory:'))
+    sql.run('CREATE TABLE budget_grants (task_id TEXT PRIMARY KEY)')
+    migrate(sql)
+    const task = (id: string, budget: unknown) =>
+      sql.run(
+        'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, 0, 0)',
+        id, '0xc', 'main', JSON.stringify(budget === undefined ? {} : { executionBudget: budget }), `0x${id}`,
+      )
+    task('none', undefined)
+    task('token', { token: '0x7', cap: '1', expiresAt: 1 })
+    task('x402', { kind: 'x402', token: '0x7', cap: '1', perCall: '1', expiresAt: 1 })
+    task('advance', { kind: 'advance', token: '0x7', cap: '1', expiresAt: 1 })
+    sql.run("INSERT INTO operations (id, task_id, kind, actor, status, tx_hash, detail, created_at, updated_at) VALUES ('o1', 'token', 'publish', '0xc', 'prepared', NULL, NULL, 0, 0)")
+    migrate(sql)
+    expect(sql.all<{ id: string }>('SELECT id FROM tasks ORDER BY id').map((r) => r.id)).toEqual(['advance', 'none'])
+    expect(sql.all('SELECT id FROM operations')).toEqual([])
+    expect(sql.all("SELECT name FROM sqlite_master WHERE name IN ('budget_wallets', 'budget_grants', 'budget_spends')")).toEqual([])
+  })
+})

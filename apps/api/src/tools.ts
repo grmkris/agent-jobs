@@ -31,17 +31,16 @@ const taskId = { taskId: str('The board task id.') }
 const budgetSchema = (tokenHelp: string) => ({
   type: 'object',
   description:
-    'Optional execution budget (hire only), spent from your Privy wallet apart from the reward; nothing is escrowed and you grant it in Explore after publishing. A token budget (default) lets the worker pay running costs: up to `cap` of `token`, to anyone. A call budget (`kind: "call"`) lets the worker call one function of one contract from your wallet, so you are msg.sender and own what it makes (e.g. a launchpad token): up to `cap` native value in total.',
+    'Optional execution budget (hire only), apart from the reward and not escrowed: once the worker has activated you grant it in Explore as an on-chain delegation from your wallet (MetaMask Delegation Framework), and the chain enforces it. An advance ("advance") lets the worker draw up to `cap` of `token` into its own wallet for running costs. A call budget ("call") lets the worker make one call to one function of one contract from your wallet, so you are msg.sender and own what it makes (e.g. a launchpad token), sending at most `cap` native value.',
   properties: {
-    kind: { type: 'string', enum: ['token', 'call', 'x402'], description: 'Default "token". "x402": the worker pays x402 endpoints in this chain\'s USDC from your wallet, capped per payment and in total.' },
-    perCall: str('x402 budget: the most one payment may be, in USDC, e.g. "0.05"; default the cap.'),
+    kind: { type: 'string', enum: ['advance', 'call'] },
     token: str(tokenHelp),
     target: str('Call budget: the contract address.'),
     function: str('Call budget: the one allowed function, human-readable ABI, e.g. "function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable".'),
-    cap: str('Maximum total, e.g. "2": token units, or native units (MON) for a call budget.'),
+    cap: str('Maximum, e.g. "2": token units for an advance, native units (MON) for a call budget.'),
     expiresAt: num('Unix seconds; default and maximum: the delivery deadline.'),
   },
-  required: ['cap'],
+  required: ['kind', 'cap'],
 })
 
 /** What the offer accepts as a deliverable (ADR-0006). Omitted: git only. */
@@ -94,6 +93,8 @@ export const tools: Record<string, Tool> = {
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
         contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager },
         rewardTokens: d.rewardTokens,
+        /** Where a worker pays x402 endpoints from its own wallet (after drawing an advance, say). */
+        x402: d.x402,
         howTo: {
           signIn: 'auth_challenge({address}) → sign the message (cast wallet sign "<message>") → auth_login({message, signature}).',
           sendTransaction: 'cast send <to> <data> --rpc-url $RPC --private-key $KEY  (every returned transaction, in order)',
@@ -167,7 +168,7 @@ export const tools: Record<string, Tool> = {
         selectionDeadline: num('Contest only: unix seconds, before the delivery deadline.'),
         approver: str('Optional: who judges the work (default you).'),
         stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
-        executionBudget: budgetSchema('Budget token symbol or address (any reward token; required here).'),
+        executionBudget: budgetSchema('Advance: any ERC-20 address, or a reward token symbol (required here).'),
         deliverable: deliverableSpecSchema,
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline', 'mode'],
@@ -288,7 +289,7 @@ export const tools: Record<string, Tool> = {
       properties: {
         requestId: str('The quote request id.'),
         quoteId: str('From list_quotes.'),
-        executionBudget: budgetSchema("Budget token; default the quote's declared cost token, else its reward token."),
+        executionBudget: budgetSchema("Advance token; default the quote's declared cost token, else its reward token."),
       },
       required: ['requestId', 'quoteId'],
     },
@@ -304,30 +305,29 @@ export const tools: Record<string, Tool> = {
 
   get_budget: {
     description:
-      'Creator, approver or worker: a task’s execution budget (ADR-0005): cap, spent, reserved, remaining, expiry, grant status (promised → live → revoked/ended) and every spend with its tx. For the creator of an ended budget, `cleanup` says how to take the board’s signer off the wallet.',
+      'Creator, approver or worker: a task’s execution budget (ADR-0009): cap, drawn (as the chain’s enforcer counts it), remaining, expiry, status (promised → live → revoked/ended), every draw with its tx, and for the creator and the worker the signed delegation, which the worker can redeem at `delegation.manager` without the board.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.getBudget(caller, { taskId: s(a, 'taskId') }),
   },
 
-  sign_budget_x402: {
+  spend_budget: {
     description:
-      "Worker: pay an x402 endpoint from an x402 budget. Pass the EIP-712 typed data your x402 client asks its signer to sign (an EIP-3009 TransferWithAuthorization on this chain's USDC, `from` = the creator's wallet from get_budget); the board checks it against the budget (per-payment cap, total, validity of at most an hour), signs it with the creator's wallet and returns the signature for the PAYMENT-SIGNATURE header. The amount is reserved until the facilitator settles it or it expires unused. Never ask twice for one payment.",
+      'Worker: draw from an advance, `amount` of the budget token from the creator’s wallet to yours. Returns the `redeemDelegations` transaction to send from your wallet; then report_transaction. The chain enforces the total, the token and that you are the recipient. Only while the job is active and the grant is live.',
     inputSchema: {
       type: 'object',
       properties: {
         ...taskId,
-        typedData: { type: 'object', description: 'The EIP-712 typed data {domain, types, primaryType, message} to sign.' },
+        amount: str('Amount in token units, e.g. "0.5".'),
         note: str('Optional: what it pays for (shown to the creator).'),
       },
-      required: ['taskId', 'typedData'],
+      required: ['taskId', 'amount'],
     },
-    run: (board, caller, a) =>
-      board.signBudgetX402(caller, { taskId: s(a, 'taskId'), typedData: a.typedData, ...(a.note === undefined ? {} : { note: s(a, 'note') }) }),
+    run: (board, caller, a) => board.spendBudget(caller, { taskId: s(a, 'taskId'), amount: s(a, 'amount'), ...(a.note === undefined ? {} : { note: s(a, 'note') }) }),
   },
 
   spend_budget_call: {
     description:
-      'Worker: spend a call budget, one call to its contract function sent from the creator’s wallet (the creator is msg.sender). `data` is the full calldata for exactly that function; `value` (native, decimal) counts against the cap; gas is the creator’s. Only while the job is active and the grant is live. Returns the tx hash; a lost answer is reconciled by get_budget — never repeat a spend yourself.',
+      'Worker: a call budget’s one call, made from the creator’s account (the creator is msg.sender). `data` is the full calldata for exactly its function; `value` (native, decimal) at most the cap. Returns the `redeemDelegations` transaction to send from your wallet; then report_transaction and read the receipt for what the call made.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -347,43 +347,22 @@ export const tools: Record<string, Tool> = {
       }),
   },
 
-  spend_budget: {
-    description:
-      'Worker: spend from the execution budget, an ERC-20 transfer of the budget token to any address, paid from the creator’s wallet through the board’s Privy signer. Only while the job is active (after activate, before submit), the grant is live and unexpired, and within the cap. Returns the tx hash; a lost answer is reconciled by get_budget — never repeat a spend yourself.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ...taskId,
-        to: str('Recipient address (e.g. your wallet, or a provider).'),
-        amount: str('Amount in token units, e.g. "0.5".'),
-        note: str('Optional: what it pays for (shown to the creator).'),
-      },
-      required: ['taskId', 'to', 'amount'],
-    },
-    run: (board, caller, a) =>
-      board.spendBudget(caller, { taskId: s(a, 'taskId'), to: s(a, 'to'), amount: s(a, 'amount'), ...(a.note === undefined ? {} : { note: s(a, 'note') }) }),
-  },
-
   budget_grant_prepare: {
     description:
-      'Creator (Explore, Privy email/Google wallet): step 1 of granting a task’s execution budget. Answers with the browser step left: add-signer (addSigners under the returned policy), replace-signer (removeSigners, then addSigners under it), or confirm.',
-    inputSchema: {
-      type: 'object',
-      properties: { ...taskId, privyAccessToken: str('Your Privy access token (getAccessToken()).') },
-      required: ['taskId', 'privyAccessToken'],
-    },
-    run: (board, caller, a) => board.budgetGrantPrepare(caller, { taskId: s(a, 'taskId'), privyAccessToken: s(a, 'privyAccessToken') }),
+      'Creator, once the worker has activated: the delegation to sign for the execution budget. `upgrade` is set when your wallet does not point at the DeleGator (EIP-7702) yet: send that first (one transaction to yourself with an authorization for `upgrade.delegator`; Explore does it). Then sign `sign.typedData` and call budget_grant_confirm.',
+    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
+    run: (board, caller, a) => board.budgetGrantPrepare(caller, { taskId: s(a, 'taskId') }),
   },
 
   budget_grant_confirm: {
-    description:
-      'Creator: step 2 of a grant. Checks at Privy that the board’s signer is on your wallet under a policy holding this budget; then the budget is live.',
-    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
-    run: (board, caller, a) => board.budgetGrantConfirm(caller, { taskId: s(a, 'taskId') }),
+    description: 'Creator: your signature over the prepared delegation. The board checks it and that your wallet runs the DeleGator; then the budget is live.',
+    inputSchema: { type: 'object', properties: { ...taskId, signature: str('0x EIP-712 signature of `sign.typedData`.') }, required: ['taskId', 'signature'] },
+    run: (board, caller, a) => board.budgetGrantConfirm(caller, { taskId: s(a, 'taskId'), signature: s(a, 'signature') }),
   },
 
   revoke_budget: {
-    description: 'Creator: withdraw a task’s execution budget. The board stops signing at once; `cleanup` says how to take it off your wallet.',
+    description:
+      'Creator: withdraw a task’s execution budget. The board stops preparing draws at once; send the returned `disableDelegation` transaction from your wallet to stop direct redemptions too.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.revokeBudget(caller, { taskId: s(a, 'taskId') }),
   },

@@ -40,8 +40,8 @@ const offer = (over: Partial<OfferTerms> = {}): OfferTerms => ({
   ...over,
 })
 
-describe('execution budget in the terms (ADR-0005)', () => {
-  const budget = { token: A(7), cap: 2n * 10n ** 18n, expiresAt: NOW + 300 }
+describe('execution budget in the terms (ADR-0009)', () => {
+  const budget = { kind: 'advance' as const, token: A(7), cap: 2n * 10n ** 18n, expiresAt: NOW + 300 }
 
   it('an offer without a budget hashes exactly as before (the key is absent, not null)', () => {
     const o = offer()
@@ -49,7 +49,7 @@ describe('execution budget in the terms (ADR-0005)', () => {
     expect(termsHash({ ...o, executionBudget: undefined } as unknown as OfferTerms)).toBe(termsHash(o))
   })
 
-  it('a budget is bound into the terms hash and survives the manifest round trip', () => {
+  it('an advance is bound into the terms hash and survives the manifest round trip', () => {
     const o = offer({ executionBudget: budget })
     expect(termsHash(o)).not.toBe(termsHash(offer()))
     const back = parseTerms(canonicalJson(o))
@@ -68,24 +68,20 @@ describe('execution budget in the terms (ADR-0005)', () => {
     expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW + 601 } }), WINDOWS, NOW)).toThrow('expires')
   })
 
-  it('an x402 budget caps each payment within the total and round-trips', () => {
-    const x = { kind: 'x402' as const, token: A(9), cap: 1_000_000n, perCall: 250_000n, expiresAt: NOW + 300 }
-    const o = offer({ executionBudget: x })
-    expect(() => validateOffer(o, WINDOWS, NOW)).not.toThrow()
-    expect(parseTerms(canonicalJson(o)).executionBudget).toEqual(x)
-    expect(termsHash(parseTerms(canonicalJson(o)))).toBe(termsHash(o))
-    expect(() => validateOffer(offer({ executionBudget: { ...x, perCall: 2_000_000n } }), WINDOWS, NOW)).toThrow('each payment')
-    expect(() => validateOffer(offer({ executionBudget: { ...x, perCall: 0n } }), WINDOWS, NOW)).toThrow('each payment')
-  })
-
-  it('a call budget names one function, round-trips and is bound into the hash', () => {
+  it('a call budget names one function, may send no value, round-trips and is bound into the hash', () => {
     const call = { kind: 'call' as const, target: A(8), function: 'function create((string,string) params) payable', cap: 10n ** 19n, expiresAt: NOW + 300 }
     const o = offer({ executionBudget: call })
     expect(() => validateOffer(o, WINDOWS, NOW)).not.toThrow()
+    expect(() => validateOffer(offer({ executionBudget: { ...call, function: 'function faucet()', cap: 0n } }), WINDOWS, NOW)).not.toThrow()
     expect(parseTerms(canonicalJson(o)).executionBudget).toEqual(call)
     expect(termsHash(parseTerms(canonicalJson(o)))).toBe(termsHash(o))
     expect(() => validateOffer(offer({ executionBudget: { ...call, function: 'event Created(address)' } }), WINDOWS, NOW)).toThrow('one function')
     expect(() => validateOffer(offer({ executionBudget: { ...call, function: 'not abi' } }), WINDOWS, NOW)).toThrow('one function')
+  })
+
+  it('stored terms with a retired budget shape do not parse', () => {
+    const json = canonicalJson(offer()).replace(/}$/, ',"executionBudget":{"cap":"1","expiresAt":1,"token":"0x0000000000000000000000000000000000000007"}}')
+    expect(() => parseTerms(json)).toThrow(TermsError)
   })
 })
 

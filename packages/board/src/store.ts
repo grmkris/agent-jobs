@@ -217,38 +217,33 @@ const SCHEMA = [
     runner TEXT NOT NULL,
     expires_at INTEGER NOT NULL
   )`,
-  // Execution budget (ADR-0005). One Privy policy per creator wallet whose rules are its live grants; the board's
-  // signer spends within them. `budget_spends` is the ledger that enforces each grant's cumulative cap: a row is
-  // written (reserved) before any money moves and reconciled from the chain afterwards.
-  `CREATE TABLE IF NOT EXISTS budget_wallets (
-    address TEXT PRIMARY KEY,
-    privy_user_id TEXT NOT NULL,
-    wallet_id TEXT NOT NULL,
-    policy_id TEXT,
-    updated_at INTEGER NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS budget_grants (
+  // Execution budget (ADR-0009). One delegation per hire, from the creator's account to the activated worker: the
+  // board keeps what it prepared, the creator's signature once granted, and the draws it prepared or saw on-chain.
+  // The chain's enforcers hold the cap; these rows are records, never the limit.
+  `CREATE TABLE IF NOT EXISTS budget_delegations (
     task_id TEXT PRIMARY KEY,
     creator TEXT NOT NULL,
-    token TEXT NOT NULL,
-    cap TEXT NOT NULL,
-    expires_at INTEGER NOT NULL,
+    kind TEXT NOT NULL,
     status TEXT NOT NULL,
+    worker TEXT,
+    delegation_json TEXT,
+    delegation_hash TEXT,
+    signature TEXT,
     created_at INTEGER NOT NULL,
     live_at INTEGER,
     ended_at INTEGER,
     ended_reason TEXT
   )`,
-  `CREATE TABLE IF NOT EXISTS budget_spends (
+  `CREATE TABLE IF NOT EXISTS budget_draws (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL,
     worker TEXT NOT NULL,
-    to_addr TEXT NOT NULL,
-    amount TEXT NOT NULL,
+    amount TEXT,
+    call_data TEXT,
+    redeem_data TEXT,
     note TEXT NOT NULL,
     status TEXT NOT NULL,
     tx_hash TEXT,
-    detail TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -264,7 +259,7 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   // Which model and prompt produced a ruling (R114-08), when a harness reports them.
   ['rulings', 'model', 'TEXT'],
   ['rulings', 'prompt_version', 'TEXT'],
-  // A quote's declared execution costs, apart from its price (ADR-0005).
+  // A quote's declared execution costs, apart from its price.
   ['quotes', 'expected_costs_json', 'TEXT'],
   // Deliverables anywhere (ADR-0006): the descriptor and the one-time submission check. Legacy rows are git.
   ['deliverables', 'kind', 'TEXT'],
@@ -274,15 +269,29 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   ['candidates', 'descriptor_json', 'TEXT'],
   ['candidates', 'check_json', 'TEXT'],
   ['tasks', 'pool_id', 'TEXT'],
-  // Call budgets (ADR-0005 amendment): a grant's kind and allowed function (`token` then holds the call target),
-  // and a call spend's calldata (`to_addr` is the target, `amount` the native value).
-  ['budget_grants', 'kind', 'TEXT'],
-  ['budget_grants', 'fn', 'TEXT'],
-  ['budget_spends', 'call_data', 'TEXT'],
-  // x402 budgets: the per-payment cap, and each signed payment authorization ({nonce, validAfter, validBefore}).
-  ['budget_grants', 'per_call', 'TEXT'],
-  ['budget_spends', 'authorization_json', 'TEXT'],
 ]
+
+/**
+ * ADR-0005's execution budgets (a Privy signer over creator funds, a board ledger as the cap) are gone (ADR-0009):
+ * their tables are dropped, and the tasks whose frozen offer carries one of their budget shapes are removed with
+ * everything recorded against them (decided 29 Sep 2026: not migrated). A no-op once done.
+ */
+const RETIRED_TABLES = ['budget_wallets', 'budget_grants', 'budget_spends']
+const RETIRED_TASKS = `SELECT id FROM tasks WHERE json_extract(terms_json, '$.executionBudget') IS NOT NULL
+  AND coalesce(json_extract(terms_json, '$.executionBudget.kind'), '') NOT IN ('advance', 'call')`
+const TASK_TABLES = [
+  'pools', 'applications', 'selections', 'activation_preps', 'deliverables', 'reasons', 'operations', 'candidates',
+  'onchain_submissions', 'evidence', 'statements', 'rulings', 'budget_delegations', 'budget_draws',
+]
+
+function dropRetiredBudgets(sql: Sql): void {
+  for (const table of RETIRED_TABLES) sql.run(`DROP TABLE IF EXISTS ${table}`)
+  if (sql.all(`${RETIRED_TASKS} LIMIT 1`).length === 0) return
+  for (const table of TASK_TABLES) sql.run(`DELETE FROM ${table} WHERE task_id IN (${RETIRED_TASKS})`)
+  sql.run(`DELETE FROM quotes WHERE request_id IN (SELECT id FROM quote_requests WHERE task_id IN (${RETIRED_TASKS}))`)
+  sql.run(`DELETE FROM quote_requests WHERE task_id IN (${RETIRED_TASKS})`)
+  sql.run(`DELETE FROM tasks WHERE id IN (${RETIRED_TASKS})`)
+}
 
 export function migrate(sql: Sql): void {
   for (const statement of SCHEMA) sql.run(statement)
@@ -290,6 +299,7 @@ export function migrate(sql: Sql): void {
     const columns = sql.all<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name)
     if (!columns.includes(column)) sql.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
   }
+  dropRetiredBudgets(sql)
 }
 
 export interface TaskRow {
@@ -414,52 +424,41 @@ export interface QuoteRow {
   expected_costs_json: string | null
 }
 
-export type BudgetGrantStatus = 'promised' | 'live' | 'revoked' | 'ended'
+export type BudgetStatus = 'promised' | 'live' | 'revoked' | 'ended'
 
-export interface BudgetWalletRow {
-  address: string
-  privy_user_id: string
-  wallet_id: string
-  policy_id: string | null
-  updated_at: number
-}
-
-export interface BudgetGrantRow {
+export interface BudgetDelegationRow {
   task_id: string
   creator: string
-  /** The budget token, or a call budget's target. */
-  token: string
-  cap: string
-  expires_at: number
-  /** null (legacy) or 'token'; 'call' for a call budget. */
-  kind: string | null
-  /** A call budget's allowed function (human-readable ABI). */
-  fn: string | null
-  /** An x402 budget's per-payment cap, base units. */
-  per_call: string | null
-  status: BudgetGrantStatus
+  kind: 'advance' | 'call'
+  status: BudgetStatus
+  /** The activated worker the delegation names; null until the creator prepares the grant. */
+  worker: string | null
+  /** The unsigned delegation (`delegation.ts`), salt as a decimal string. */
+  delegation_json: string | null
+  delegation_hash: string | null
+  /** The creator's EIP-712 signature once granted. */
+  signature: string | null
   created_at: number
   live_at: number | null
   ended_at: number | null
   ended_reason: string | null
 }
 
-export type BudgetSpendStatus = 'reserved' | 'sent' | 'confirmed' | 'failed'
+export type BudgetDrawStatus = 'prepared' | 'confirmed' | 'failed'
 
-export interface BudgetSpendRow {
+export interface BudgetDrawRow {
   id: string
   task_id: string
   worker: string
-  to_addr: string
-  amount: string
-  /** A call spend's calldata; null for a token transfer. */
+  /** Base units of the advance token, or a call's native value; null when a direct redemption's value is unknown. */
+  amount: string | null
+  /** A call draw's calldata. */
   call_data: string | null
-  /** An x402 payment's signed authorization: `{nonce, validAfter, validBefore}`; null otherwise. */
-  authorization_json: string | null
+  /** The `redeemDelegations` calldata the board prepared: a reported transaction with exactly this input is this draw. */
+  redeem_data: string | null
   note: string
-  status: BudgetSpendStatus
+  status: BudgetDrawStatus
   tx_hash: string | null
-  detail: string | null
   created_at: number
   updated_at: number
 }

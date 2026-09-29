@@ -26,11 +26,12 @@ import {
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
-import { type BudgetConfig, BudgetDesk, nativeSymbol } from './budget.ts'
+import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
 import { screenOffer } from './screening.ts'
+import { typedDataJson } from './typed-data.ts'
 import {
   type ApplicationRow,
   type CandidateRow,
@@ -44,7 +45,7 @@ import {
   migrate,
   type PoolRow,
 } from './store.ts'
-import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, isCallBudget, isX402Budget, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
 import {
   type Deliverable,
   type DeliverableCheck,
@@ -92,11 +93,6 @@ export interface BoardConfig {
    * arbitrator's signature. Absent: `submit_ruling` returns the transaction for anyone to send.
    */
   readonly relay?: { readonly account: import('viem').LocalAccount; readonly rpcUrl: string }
-  /**
-   * The execution-budget signer (ADR-0005): the Privy app and the board's P-256 key quorum that creators add to their
-   * embedded wallets. Absent: budgets can be offered but never granted or spent ("unavailable").
-   */
-  readonly budget?: BudgetConfig
   readonly evidence?: {
     readonly attester: import('viem').LocalAccount
     readonly relay: import('viem').LocalAccount
@@ -138,30 +134,13 @@ function randomUint(bytes: number): bigint {
 const eq = (a: string | null | undefined, b: string | null | undefined) =>
   a !== null && a !== undefined && b !== null && b !== undefined && a.toLowerCase() === b.toLowerCase()
 
-/** The EIP-712 JSON wallets sign: `eth_signTypedData_v4` shape, bigints as decimal strings. */
-function typedDataJson(domain: Record<string, unknown>, types: Record<string, unknown>, primaryType: string, message: unknown): string {
-  const domainFields = [
-    { name: 'name', type: 'string' },
-    { name: 'version', type: 'string' },
-    { name: 'chainId', type: 'uint256' },
-    { name: 'verifyingContract', type: 'address' },
-  ]
-  return JSON.stringify(
-    { types: { EIP712Domain: domainFields, ...types }, primaryType, domain, message },
-    (_, v) => (typeof v === 'bigint' ? v.toString() : v),
-  )
-}
-
 /**
- * An execution budget as a caller asks for it (decimal cap). A token budget (the default) names `token`; a call budget
- * (`kind: 'call'`) names the contract `target` and the one allowed `function`, and caps native value; an x402 budget
- * (`kind: 'x402'`) pays x402 endpoints in the chain's USDC, capped per payment (`perCall`) and in total.
+ * An execution budget as a caller asks for it (decimal cap). An advance names the ERC-20 `token` the worker draws; a
+ * call budget names the contract `target` and the one allowed `function`, and caps the call's native value.
  */
 export interface BudgetInput {
-  kind?: 'token' | 'call' | 'x402'
+  kind: 'advance' | 'call'
   token?: string
-  /** x402 budget: the most one payment may be (decimal, USDC); default the cap. */
-  perCall?: string
   target?: string
   function?: string
   cap: string
@@ -196,30 +175,27 @@ export class Board {
     this.#sql = sql
     this.#config = config
     migrate(sql)
-    this.#budget = new BudgetDesk(
-      {
-        sql,
-        now: () => this.#now(),
-        fail: (code, message) => new BoardError(code, message),
-        taskState: async (taskId) => {
-          const task = this.#task(taskId)
-          const view = await this.#chainView(task)
-          return { task, terms: parseTerms(task.terms_json), status: view.status, provider: view.provider, ctx: this.#taskCtx(task) }
-        },
+    this.#budget = new BudgetDesk({
+      sql,
+      now: () => this.#now(),
+      fail: (code, message) => new BoardError(code, message),
+      taskState: async (taskId) => {
+        const task = this.#task(taskId)
+        const view = await this.#chainView(task)
+        return { task, terms: parseTerms(task.terms_json), status: view.status, provider: view.provider, ctx: this.#taskCtx(task) }
       },
-      config.budget,
-    )
+    })
   }
 
   // -----------------------------------------------------------------------------------------------
-  // Execution budget (ADR-0005)
+  // Execution budget (ADR-0009)
   // -----------------------------------------------------------------------------------------------
 
-  budgetGrantPrepare(caller: Caller, input: { taskId: string; privyAccessToken: string }) {
+  budgetGrantPrepare(caller: Caller, input: { taskId: string }) {
     return this.#budget.grantPrepare(this.#requireCaller(caller), input)
   }
 
-  budgetGrantConfirm(caller: Caller, input: { taskId: string }) {
+  budgetGrantConfirm(caller: Caller, input: { taskId: string; signature: string }) {
     return this.#budget.grantConfirm(this.#requireCaller(caller), input)
   }
 
@@ -227,12 +203,8 @@ export class Board {
     return this.#budget.getBudget(this.#requireCaller(caller), input)
   }
 
-  spendBudget(caller: Caller, input: { taskId: string; to: string; amount: string; note?: string }) {
+  spendBudget(caller: Caller, input: { taskId: string; amount: string; note?: string }) {
     return this.#budget.spend(this.#requireCaller(caller), input)
-  }
-
-  signBudgetX402(caller: Caller, input: { taskId: string; typedData: unknown; note?: string }) {
-    return this.#budget.signX402(this.#requireCaller(caller), input)
   }
 
   spendBudgetCall(caller: Caller, input: { taskId: string; data: string; value?: string; note?: string }) {
@@ -544,18 +516,7 @@ export class Board {
       JSON.stringify(screening),
     )
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
-    if (executionBudget !== undefined) {
-      this.#sql.run(
-        "INSERT INTO budget_grants (task_id, creator, token, cap, expires_at, kind, fn, per_call, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'promised', ?)",
-        taskId, creator,
-        isCallBudget(executionBudget) ? executionBudget.target : executionBudget.token,
-        executionBudget.cap.toString(), executionBudget.expiresAt,
-        'kind' in executionBudget ? executionBudget.kind : 'token',
-        isCallBudget(executionBudget) ? executionBudget.function : null,
-        isX402Budget(executionBudget) ? executionBudget.perCall.toString() : null,
-        this.#now(),
-      )
-    }
+    if (executionBudget !== undefined) this.#budget.promise(taskId, creator, executionBudget)
 
     const transactions = await this.#publishTransactions(ctx, creator, terms, hash as Hex)
     return {
@@ -624,7 +585,7 @@ export class Board {
     return { transactions: await this.#publishTransactions(this.#taskCtx(task), me, parseTerms(task.terms_json), task.terms_hash as Hex) }
   }
 
-  /** A requested budget as terms: an allowlisted token, the cap in its units, the expiry defaulting to the deadline. */
+  /** A requested budget as terms: the cap in the token's (or the native) units, the expiry defaulting to the deadline. */
   async #executionBudget(ctx: sdk.Ctx, b: BudgetInput, deliveryDeadline: number): Promise<ExecutionBudget> {
     const expiresAt = b.expiresAt ?? deliveryDeadline
     if (b.kind === 'call') {
@@ -644,33 +605,27 @@ export class Board {
       }
       return call
     }
-    if (b.kind === 'x402') {
-      const x402 = ctx.deployment.x402
-      if (x402 === null) throw new BoardError('invalid', `x402 budgets are not available on ${ctx.deployment.network}`)
-      if (b.token !== undefined && !(isAddress(b.token) && eq(b.token, x402.usdc)) && b.token.toUpperCase() !== 'USDC') {
-        throw new BoardError('invalid', `an x402 budget pays in this chain's USDC (${x402.usdc})`)
-      }
-      const decimals = await ctx.publicClient.readContract({ address: x402.usdc, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-      let cap: bigint
-      let perCall: bigint
-      try {
-        cap = parseUnits(b.cap, decimals)
-        perCall = b.perCall === undefined ? cap : parseUnits(b.perCall, decimals)
-      } catch {
-        throw new BoardError('invalid', 'the x402 budget cap and perCall must be decimal USDC amounts')
-      }
-      return { kind: 'x402', token: x402.usdc, cap, perCall, expiresAt }
-    }
-    if (b.token === undefined) throw new BoardError('invalid', 'a token budget needs its `token`')
-    const token = await this.#resolveToken(ctx, b.token)
+    if (b.kind !== 'advance') throw new BoardError('invalid', "an execution budget is an 'advance' or a 'call'")
+    if (b.token === undefined) throw new BoardError('invalid', 'an advance needs its `token`')
+    const token = await this.#advanceToken(ctx, b.token)
     const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     let cap: bigint
     try {
       cap = parseUnits(b.cap, decimals)
     } catch {
-      throw new BoardError('invalid', 'the execution budget cap must be a decimal number')
+      throw new BoardError('invalid', 'the advance cap must be a decimal number')
     }
-    return { token, cap, expiresAt }
+    return { kind: 'advance', token, cap, expiresAt }
+  }
+
+  /** Any ERC-20 by address (it must answer `decimals`), or a reward token by symbol. */
+  async #advanceToken(ctx: sdk.Ctx, token: string): Promise<Address> {
+    if (!isAddress(token)) return this.#resolveToken(ctx, token)
+    const t = getAddress(token)
+    await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'decimals' }).catch(() => {
+      throw new BoardError('invalid', `${t} is not an ERC-20 on ${ctx.deployment.network}`)
+    })
+    return t
   }
 
   /** A base-unit amount as people read it: the token's symbol and a decimal amount. */
@@ -791,6 +746,8 @@ export class Board {
         }
       }
     }
+    // A redemption of this task's execution-budget delegation (to the manager, or inside the worker's own batch).
+    await this.#budget.observe({ task, terms: parseTerms(task.terms_json), ctx }, receipt)
     return this.getTask(caller, { taskId: input.taskId })
   }
 
@@ -1369,9 +1326,8 @@ export class Board {
                 input.executionBudget.kind === 'call'
                   ? input.executionBudget
                   : {
+                      ...input.executionBudget,
                       token: input.executionBudget.token ?? (q.expected_costs_json === null ? q.token : (JSON.parse(q.expected_costs_json) as { token: string }).token),
-                      cap: input.executionBudget.cap,
-                      ...(input.executionBudget.expiresAt === undefined ? {} : { expiresAt: input.executionBudget.expiresAt }),
                     },
             }),
       },
@@ -2200,14 +2156,7 @@ export class Board {
         requiredChecks: terms.evidencePolicy?.checks ?? [],
         quoted: terms.quote !== null,
         deliverable: specOf(terms),
-        executionBudget:
-          terms.executionBudget === undefined
-            ? null
-            : isCallBudget(terms.executionBudget)
-              ? { kind: 'call', target: terms.executionBudget.target, function: terms.executionBudget.function, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt }
-              : isX402Budget(terms.executionBudget)
-                ? { kind: 'x402', token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), perCall: terms.executionBudget.perCall.toString(), expiresAt: terms.executionBudget.expiresAt }
-                : { token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt },
+        executionBudget: terms.executionBudget === undefined ? null : { ...terms.executionBudget, cap: terms.executionBudget.cap.toString() },
         termsHash: t.terms_hash,
         manifestUrl: `${this.#config.manifestBaseUrl}/${t.terms_hash}.json`,
         screening: { verdict: screening?.verdict ?? 'unscreened', reasons: screening?.reasons ?? [] },
@@ -2269,7 +2218,7 @@ export class Board {
         terms.executionBudget === undefined
           ? null
           : {
-              ...(isCallBudget(terms.executionBudget)
+              ...(terms.executionBudget.kind === 'call'
                 ? {
                     kind: 'call',
                     target: terms.executionBudget.target,
@@ -2277,15 +2226,12 @@ export class Board {
                     amount: formatUnits(terms.executionBudget.cap, 18),
                     symbol: nativeSymbol(this.#taskCtx(task)),
                   }
-                : isX402Budget(terms.executionBudget)
-                  ? {
-                      kind: 'x402',
-                      ...(await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
-                      perCall: (await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.perCall.toString() })).amount,
-                    }
-                  : await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
+                : {
+                    kind: 'advance',
+                    ...(await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
+                  }),
               expiresAt: terms.executionBudget.expiresAt,
-              /** promised: in the terms, not granted yet; live: the worker can spend; revoked / ended. */
+              /** promised: in the terms, not granted yet; live: the worker can draw; revoked / ended. */
               grant: this.#budget.grantStatus(task.id),
             },
       jobId: task.job_id,

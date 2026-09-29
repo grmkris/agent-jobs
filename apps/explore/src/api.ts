@@ -9,6 +9,7 @@ import { type BoardApi, PUBLIC_BOARD_ID, createBoardApi } from '@agent-jobs/reac
 export {
   ApiError,
   DELIVERABLE_KINDS,
+  type AdvanceBudgetTerms,
   type Budget,
   type CallBudgetTerms,
   type ChainJob,
@@ -19,9 +20,7 @@ export {
   type Quote,
   type QuoteRequest,
   type TaskIndexEntry,
-  type TokenBudgetTerms,
   type TxRequest,
-  type X402BudgetTerms,
   type BoardInfo,
 } from '@agent-jobs/react'
 

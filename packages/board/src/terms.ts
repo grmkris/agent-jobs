@@ -34,54 +34,38 @@ export interface OfferDefaults {
 export type OfferMode = 'hire' | 'contest'
 
 /**
- * An execution budget (ADR-0005): what the creator approved for the worker's costs, apart from the reward. Nothing is
- * escrowed: the worker spends from the creator's own wallet through the board's Privy signer, per transfer within
- * Privy's policy and in total within the board's ledger, until `expiresAt`. Hire only.
+ * An execution budget (ADR-0009): what the creator approved for the worker's running costs, apart from the reward.
+ * Nothing is escrowed. Once the worker has activated, the creator signs it as one delegation from its own account
+ * (MetaMask Delegation Framework, ERC-7710) and the worker redeems that delegation from its own wallet; the chain's
+ * caveat enforcers hold the cap. Hire only.
  */
-export type ExecutionBudget = TokenBudget | CallBudget | X402Budget
+export type ExecutionBudget = AdvanceBudget | CallBudget
 
-/** The worker pays running costs in `token` (an ERC-20 `transfer` to anyone). Carries no `kind`, as before. */
-export interface TokenBudget {
+/** An operating advance: the worker draws up to `cap` of `token` into its own wallet and pays its costs from there. */
+export interface AdvanceBudget {
+  kind: 'advance'
+  /** Any ERC-20. */
   token: Address
-  /** Base units of `token`. */
+  /** Base units of `token`, in total across draws. */
   cap: bigint
   /** Unix seconds; at most the delivery deadline. */
   expiresAt: number
 }
 
 /**
- * The worker makes calls from the creator's wallet to one contract function (ADR-0005 amendment), e.g. a launchpad's
- * `create()`, so the creator is `msg.sender` and owns what it makes. `cap` bounds the native value sent in total.
+ * One call from the creator's account to one contract function, e.g. a launchpad's `create()`, so the creator is
+ * `msg.sender` and owns what it makes. `cap` bounds the native value the call may send.
  */
 export interface CallBudget {
   kind: 'call'
   target: Address
   /** Human-readable ABI of the one allowed function, e.g. `function create((string,string) params) payable`. */
   function: string
-  /** Native units (wei) of value, in total across calls. */
+  /** Native units (wei) of value. */
   cap: bigint
   /** Unix seconds; at most the delivery deadline. */
   expiresAt: number
 }
-
-/**
- * The worker makes x402 payments from the creator's wallet: the board signs EIP-3009 `transferWithAuthorization`
- * messages for `token` (the chain's USDC), each at most `perCall`, in total at most `cap`. A facilitator settles them.
- */
-export interface X402Budget {
-  kind: 'x402'
-  token: Address
-  /** Base units of `token`, in total. */
-  cap: bigint
-  /** Base units of `token`, per payment. */
-  perCall: bigint
-  /** Unix seconds; at most the delivery deadline. */
-  expiresAt: number
-}
-
-export const isX402Budget = (b: ExecutionBudget): b is X402Budget => 'kind' in b && b.kind === 'x402'
-
-export const isCallBudget = (b: ExecutionBudget): b is CallBudget => 'kind' in b && b.kind === 'call'
 
 /** The allowed function of a call budget, parsed; throws on anything that is not one function. */
 export function callFunction(b: CallBudget): AbiFunction {
@@ -167,8 +151,10 @@ export function parseTerms(json: string): OfferTerms {
 
 function parseBudget(b: Record<string, unknown>): ExecutionBudget {
   const cap = BigInt(b.cap as string)
-  if (b.kind === 'x402') return { ...(b as unknown as X402Budget), cap, perCall: BigInt(b.perCall as string) }
-  return { ...(b as unknown as ExecutionBudget), cap }
+  const expiresAt = b.expiresAt as number
+  if (b.kind === 'advance') return { kind: 'advance', token: b.token as Address, cap, expiresAt }
+  if (b.kind === 'call') return { kind: 'call', target: b.target as Address, function: b.function as string, cap, expiresAt }
+  throw new TermsError('invalid-budget', `unknown execution budget kind: ${String(b.kind)}`)
 }
 
 export class TermsError extends Error {
@@ -222,11 +208,9 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
   const b = offer.executionBudget
   if (b !== undefined) {
     if (offer.mode !== 'hire') throw new TermsError('invalid-budget', 'Only a hire carries an execution budget.')
-    if (b.cap <= 0n) throw new TermsError('invalid-budget', 'An execution budget must be positive.')
-    if (isX402Budget(b) && (b.perCall <= 0n || b.perCall > b.cap)) {
-      throw new TermsError('invalid-budget', 'An x402 budget caps each payment at a positive amount no larger than the total.')
-    }
-    if (isCallBudget(b)) {
+    if (b.kind === 'advance' && b.cap <= 0n) throw new TermsError('invalid-budget', 'An advance must be positive.')
+    if (b.kind === 'call' && b.cap < 0n) throw new TermsError('invalid-budget', 'A call budget cannot send negative value.')
+    if (b.kind === 'call') {
       try {
         callFunction(b)
       } catch {

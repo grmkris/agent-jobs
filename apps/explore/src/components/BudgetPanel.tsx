@@ -1,27 +1,33 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { formatEther, parseEther } from 'viem'
-import { useBalance } from 'wagmi'
-import { type Budget, type TaskIndexEntry, tool } from '../api.ts'
+import { useBalance, useSignTypedData } from 'wagmi'
+import { waitForTransactionReceipt } from 'wagmi/actions'
+import { type Budget, type TaskIndexEntry, type TxRequest, tool } from '../api.ts'
 import { budgetCap, when } from '../format.ts'
-import { chain } from '../wallet.ts'
-import { usePrivyBudget } from './Privy.tsx'
+import { typedDataArgs } from '../typed-data.ts'
+import { chain, wagmiConfig } from '../wallet.ts'
+import { useDelegatorUpgrade } from './Privy.tsx'
+import { TxSteps } from './TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink } from './ui.tsx'
 
 const STATUS_TONE = { promised: 'amber', live: 'green', revoked: 'red', ended: 'gray' } as const
-/** Enough MON for a few transfers; below it a spend may fail for gas. */
-const LOW_GAS = 50_000_000_000_000_000n
+const STATUS_LABEL = { promised: 'approved, not granted yet', live: 'granted', revoked: 'revoked', ended: 'expired or over' } as const
+/** Monad: a transaction may not lower a delegated account's MON below 10 by more than its gas fee. */
+const RESERVE = parseEther('10')
 
 /**
- * A hire's execution budget (ADR-0005): the worker spends from the creator's Privy wallet through the board's signer,
- * per transfer within the wallet's Privy policy and in total within the board's ledger. The creator grants it here
- * (adds the board's signer to the embedded wallet), watches the spends, revokes it, and cleans the signer up after.
+ * A hire's execution budget (ADR-0009): a delegation from the creator's account to the activated worker, enforced
+ * on-chain by the MetaMask Delegation Framework. The creator grants it here once the worker has activated (the
+ * wallet points at the DeleGator, then signs the delegation), watches the draws, and revokes it on-chain.
  */
-export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskIndexEntry; roles: string[]; signedIn: boolean; address: string | undefined }) {
+export function BudgetPanel({ task, status, roles, signedIn, address }: { task: TaskIndexEntry; status: string; roles: string[]; signedIn: boolean; address: string | undefined }) {
   const qc = useQueryClient()
   const creator = roles.includes('creator')
   const party = roles.length > 0
-  const privy = usePrivyBudget(address)
+  const eb = task.executionBudget
+  const upgrade = useDelegatorUpgrade(address)
+  const { signTypedDataAsync } = useSignTypedData()
   const budget = useQuery({
     queryKey: ['get_budget', task.taskId, address],
     queryFn: () => tool<Budget>('get_budget', { taskId: task.taskId }),
@@ -29,19 +35,20 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
     refetchInterval: 10_000,
     retry: false,
   })
-  const gas = useBalance({ address: task.creator, chainId: chain.id, query: { enabled: creator } })
+  const mon = useBalance({ address: task.creator, chainId: chain.id, query: { enabled: creator && eb?.kind === 'call' } })
+  const [txs, setTxs] = useState<TxRequest[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const eb = task.executionBudget
   if (eb === null) return null
   const b = budget.data
+  const refresh = () => qc.invalidateQueries({ queryKey: ['get_budget', task.taskId] })
 
   const act = (key: string, fn: () => Promise<void>) => async () => {
     setBusy(key)
     setError(null)
     try {
       await fn()
-      await qc.invalidateQueries({ queryKey: ['get_budget', task.taskId] })
+      await refresh()
     } catch (e) {
       setError((e as Error).message.split('\n')[0] ?? 'failed')
     } finally {
@@ -50,62 +57,56 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
   }
 
   const grant = act('grant', async () => {
-    if (privy === null) throw new Error('grant from your Privy email/Google wallet')
-    const prep = await tool<{ step: 'add-signer' | 'replace-signer' | 'confirm'; address: string; signerId?: string; policyId: string }>('budget_grant_prepare', {
-      taskId: task.taskId,
-      privyAccessToken: await privy.getAccessToken(),
-    })
-    if (prep.step === 'replace-signer') await privy.removeSigners(prep.address)
-    if (prep.step !== 'confirm') await privy.addSigner(prep.address, prep.signerId as string, prep.policyId)
-    await tool('budget_grant_confirm', { taskId: task.taskId })
+    const prep = await tool<{ sign: { typedData: string }; upgrade: { delegator: string } | null }>('budget_grant_prepare', { taskId: task.taskId })
+    if (prep.upgrade !== null) {
+      if (upgrade === null) throw new Error('Grant from the Privy email/Google wallet that published the task: it points at the DeleGator first.')
+      const hash = await upgrade()
+      if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
+    }
+    const signature = await signTypedDataAsync(typedDataArgs(prep.sign.typedData))
+    await tool('budget_grant_confirm', { taskId: task.taskId, signature })
   })
 
   const revoke = act('revoke', async () => {
-    await tool('revoke_budget', { taskId: task.taskId })
-  })
-
-  const cleanup = act('cleanup', async () => {
-    if (privy === null || b?.cleanup == null) throw new Error('clean up from your Privy email/Google wallet')
-    if ('removeSigners' in b.cleanup) {
-      await privy.removeSigners(b.cleanup.address)
-    } else {
-      await privy.removeSigners(b.cleanup.replaceSigner.address)
-      await privy.addSigner(b.cleanup.replaceSigner.address, b.cleanup.replaceSigner.signerId, b.cleanup.replaceSigner.policyId)
-    }
+    const r = await tool<{ transactions: TxRequest[] }>('revoke_budget', { taskId: task.taskId })
+    if (r.transactions.length > 0) setTxs(r.transactions)
   })
 
   return (
     <Card title="Execution budget">
       <p className="mb-2 text-xs text-neutral-500">
-        Running costs the worker may spend from the creator’s wallet, apart from the reward. Not escrowed: spent is spent, the rest never leaves the wallet.
+        Running costs apart from the reward, from the creator’s wallet. Not escrowed: what the worker draws is the worker’s, the rest never leaves the wallet. Enforced on-chain by a delegation from the creator’s account (MetaMask Delegation Framework).
       </p>
-      <Row label="Cap">{budgetCap(eb)}</Row>
-      {eb.kind === 'x402' && (
-        <p className="mb-1 text-xs text-neutral-500">
-          An x402 budget: the worker pays x402 endpoints (paid APIs and tools) in USDC from your wallet; each payment is signed by the board only within the caps, and the facilitator pays the gas.
-        </p>
-      )}
+      <Row label="Approved">{budgetCap(eb)}</Row>
       {eb.kind === 'call' && (
         <p className="mb-1 text-xs text-neutral-500">
-          A call budget: the worker calls <span className="font-mono">{eb.function}</span> on <Address value={eb.target} /> from your wallet, so you are the sender and own what it makes.
+          One call to <span className="font-mono">{eb.function}</span> on <Address value={eb.target} />, made from the creator’s account, so the creator owns what it makes.
         </p>
       )}
       <Row label="Until">{when(eb.expiresAt)}</Row>
       {b !== undefined ? (
         <>
           <Row label="Status">
-            <Badge tone={STATUS_TONE[b.status]}>{b.status === 'promised' ? 'promised, not granted yet' : b.status}</Badge>
+            <Badge tone={STATUS_TONE[b.status]}>{STATUS_LABEL[b.status]}</Badge>
             {b.endedReason !== null && <span className="ml-2 text-xs text-neutral-500">{b.endedReason}</span>}
           </Row>
-          <Row label="Spent">{b.spent} {b.symbol}{b.reserved !== '0' ? ` (+ ${b.reserved} pending)` : ''}</Row>
-          <Row label="Remaining">{b.remaining} {b.symbol}</Row>
-          {b.spends.length > 0 && (
+          {b.kind === 'advance' ? (
+            <>
+              <Row label="Advanced to worker">{b.drawn} {b.symbol}</Row>
+              <Row label="Remaining">{b.remaining} {b.symbol}</Row>
+            </>
+          ) : (
+            <Row label="Call">{b.calls?.made ?? 0} of 1 made{b.drawn !== '0' ? `, ${b.drawn} ${b.symbol} sent` : ''}</Row>
+          )}
+          {b.status === 'live' && b.redeemable && (
+            <p className="text-xs text-neutral-500">Drawable until {when(b.expiresAt)} unless revoked.</p>
+          )}
+          {b.draws.length > 0 && (
             <div className="mt-2 space-y-1">
-              {b.spends.map((x) => (
-                <div key={x.spendId} className="flex flex-wrap items-center gap-2 text-xs">
+              {b.draws.map((x) => (
+                <div key={x.drawId} className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge tone={x.status === 'confirmed' ? 'green' : x.status === 'failed' ? 'red' : 'amber'}>{x.status}</Badge>
-                  <span>{x.amount} {b.symbol} {x.selector !== undefined ? `call ${x.selector} on` : eb.kind === 'x402' ? 'x402 payment to' : '→'}</span>
-                  <Address value={x.to} />
+                  <span>{x.amount === null ? '—' : `${x.amount} ${b.symbol}`}{x.selector !== undefined ? ` · call ${x.selector}` : ''}</span>
                   {x.note !== '' && <span className="text-neutral-500">{x.note}</span>}
                   <TxLink hash={x.txHash} />
                 </div>
@@ -116,47 +117,41 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
       ) : (
         signedIn && party && budget.error !== null && <p className="text-xs text-red-600">{(budget.error as Error).message}</p>
       )}
-      {!signedIn && <p className="mt-2 text-xs text-neutral-500">Sign in as a party to see the spends.</p>}
+      {!signedIn && <p className="mt-2 text-xs text-neutral-500">Sign in as a party to see the draws.</p>}
 
       {creator && b !== undefined && (
         <div className="mt-3 space-y-2">
-          {privy === null && (b.status === 'promised' || b.cleanup !== null) && (
-            <p className="text-xs text-amber-700">A budget is granted from the Privy email/Google wallet that published the task; this wallet cannot add the board’s signer.</p>
+          {b.status === 'promised' && status !== 'active' && (
+            <p className="text-xs text-neutral-500">Grant it once the worker has activated: the delegation names that worker.</p>
           )}
-          {b.status === 'promised' && privy !== null && (
-            <Button busy={busy === 'grant'} onClick={grant}>Grant the budget (adds the board’s signer to your wallet)</Button>
+          {b.status === 'promised' && status === 'active' && (
+            <Button busy={busy === 'grant'} onClick={grant}>Grant the budget (sign a delegation from your wallet)</Button>
           )}
           {(b.status === 'promised' || b.status === 'live') && (
             <Button variant="outline" busy={busy === 'revoke'} onClick={revoke}>Revoke</Button>
           )}
-          {b.cleanup !== null && privy !== null && (
+          {(b.status === 'ended' || b.status === 'revoked') && b.redeemable && (
             <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs">
-              <p className="mb-1">{b.cleanup.why}</p>
-              <Button variant="outline" busy={busy === 'cleanup'} onClick={cleanup}>{'removeSigners' in b.cleanup ? 'Remove the signer' : 'Re-attach under the smaller policy'}</Button>
+              <p className="mb-1">The signed delegation is still valid on-chain until {when(b.expiresAt)}: the worker could redeem it directly. Disable it now.</p>
+              <Button variant="outline" busy={busy === 'revoke'} onClick={revoke}>Disable on-chain</Button>
             </div>
           )}
-          {b.status === 'live' && gas.data !== undefined && gas.data.value < LOW_GAS + (eb.kind === 'call' ? parseEther(b.remaining) : 0n) && (
+          {eb.kind === 'call' && b.status !== 'ended' && b.status !== 'revoked' && mon.data !== undefined && mon.data.value < BigInt(eb.cap) + RESERVE && (
             <p className="text-xs text-amber-700">
-              Your wallet holds {formatEther(gas.data.value)} MON;{' '}
-              {eb.kind === 'call' ? `the calls may send up to ${b.remaining} MON more, plus gas.` : 'each spend is a transaction your wallet pays gas for.'}
+              Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to {formatEther(BigInt(eb.cap))} MON, and Monad keeps 10 MON in a delegated account: hold at least {formatEther(BigInt(eb.cap) + RESERVE)} MON when the worker calls.
             </p>
           )}
-          <p className="text-xs text-neutral-500">
-            {eb.kind === 'x402'
-              ? 'Privy checks every payment signature against your wallet’s policy (this chain’s USDC, at most the per-payment cap, before the deadline); the board checks the total, that only the activated worker pays, and only while the job is active.'
-              : eb.kind === 'call'
-              ? 'Privy checks every call against your wallet’s policy (this contract, this function, at most the cap in value, before the deadline); the board checks the total, that only the activated worker calls, and only while the job is active.'
-              : 'Privy checks every transfer against your wallet’s policy (this token, at most the cap, before the deadline); the board checks the total, that only the activated worker spends, and only while the job is active.'}
-          </p>
+          {txs !== null && (
+            <TxSteps taskId={task.taskId} txs={txs} onDone={() => { setTxs(null); void refresh() }} />
+          )}
         </div>
       )}
       {roles.includes('worker') && b?.status === 'live' && (
         <p className="mt-2 text-xs text-neutral-500">
-          {eb.kind === 'x402'
-            ? "Pay x402 endpoints with the board's MCP tool `sign_budget_x402({taskId, typedData, note})` as your x402 signer while the job is active."
-            : eb.kind === 'call'
-            ? "Call with the board's MCP tool `spend_budget_call({taskId, data, value, note})` while the job is active."
-            : "Spend with the board's MCP tool `spend_budget({taskId, to, amount, note})` while the job is active."}
+          {eb.kind === 'call'
+            ? "Make the call with the board's MCP tool `spend_budget_call({taskId, data, value, note})`: it returns a transaction you send from your wallet, then report_transaction."
+            : "Draw with the board's MCP tool `spend_budget({taskId, amount, note})`: it returns a transaction you send from your wallet, then report_transaction."}{' '}
+          `get_budget` holds the signed delegation, redeemable without the board.
         </p>
       )}
       {error !== null && <p className="mt-2 text-xs text-red-600">{error}</p>}

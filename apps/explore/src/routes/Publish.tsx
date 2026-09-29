@@ -58,9 +58,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
   const [budgetOn, setBudgetOn] = useState(false)
   const [budgetToken, setBudgetToken] = useState(rewardTokens[0]?.[0] ?? '')
   const [budgetCap, setBudgetCap] = useState('2')
-  const [budgetKind, setBudgetKind] = useState<'token' | 'call' | 'x402'>('token')
-  const [x402Cap, setX402Cap] = useState('1')
-  const [x402PerCall, setX402PerCall] = useState('0.1')
+  const [budgetKind, setBudgetKind] = useState<'advance' | 'call'>('advance')
   const [callTarget, setCallTarget] = useState(isMainnet ? '' : NADFUN_TESTNET.target)
   const [callFunction, setCallFunction] = useState(isMainnet ? '' : NADFUN_TESTNET.function)
   const [callCap, setCallCap] = useState(NADFUN_TESTNET.cap)
@@ -127,9 +125,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
               executionBudget:
                 budgetKind === 'call'
                   ? { kind: 'call', target: callTarget.trim(), function: callFunction.trim(), cap: callCap }
-                  : budgetKind === 'x402'
-                    ? { kind: 'x402', cap: x402Cap, perCall: x402PerCall }
-                    : { token: budgetToken, cap: budgetCap },
+                  : { kind: 'advance', token: budgetToken.trim(), cap: budgetCap },
             }
           : {}),
         stack,
@@ -267,7 +263,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
               Execution budget for running costs (optional)
             </label>
             <p className="mt-1 text-xs text-neutral-500">
-              Apart from the reward, the worker may spend up to this much from your wallet (model calls, compute), until the delivery deadline. Nothing is escrowed; you grant it on the job page with an email/Google (Privy) wallet and can revoke it any time.
+              Apart from the reward, the worker may draw up to this much from your wallet (model calls, compute), until the delivery deadline. Nothing is escrowed: once the worker has activated, you grant it on the job page with an email/Google (Privy) wallet as an on-chain delegation, and can revoke it any time.
             </p>
             {budgetOn && (
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -275,16 +271,13 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
                   <Field
                     label="Kind"
                     hint={
-                      budgetKind === 'x402'
-                        ? 'The worker pays x402 endpoints (paid APIs, data, tools) in USDC from your wallet; the board signs each payment only within the caps and the facilitator pays the gas.'
-                        : budgetKind === 'call'
-                        ? 'The worker calls one contract function from your wallet, so you are the sender and own what it makes (e.g. a nad.fun token). The cap bounds the MON it may send in total; you pay the gas.'
-                        : 'The worker pays running costs in a token, to anyone.'
+                      budgetKind === 'call'
+                        ? 'The worker calls one contract function from your wallet, once, so you are the sender and own what it makes (e.g. a nad.fun token). The cap bounds the MON the call may send; the worker pays the gas.'
+                        : 'An advance: the worker draws it into its own wallet, up to the cap, and pays its running costs from there.'
                     }
                   >
-                    <select value={budgetKind} onChange={(e) => setBudgetKind(e.target.value as 'token' | 'call' | 'x402')} className={input}>
-                      <option value="token">running costs (token transfers)</option>
-                      {deployment.x402 !== null && <option value="x402">paid APIs and tools (x402, USDC)</option>}
+                    <select value={budgetKind} onChange={(e) => setBudgetKind(e.target.value as 'advance' | 'call')} className={input}>
+                      <option value="advance">operating advance (token, drawn by the worker)</option>
                       <option value="call">{isMainnet ? 'one contract call from my wallet' : 'launch on nad.fun from my wallet (contract call)'}</option>
                     </select>
                   </Field>
@@ -304,18 +297,13 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
                 </div>
               </div>
             )}
-            {budgetOn && budgetKind === 'x402' && (
+            {budgetOn && budgetKind === 'advance' && (
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                <Field label="Total (USDC)"><input value={x402Cap} onChange={(e) => setX402Cap(e.target.value)} className={input} inputMode="decimal" /></Field>
-                <Field label="Per payment (USDC)" hint="The most one x402 payment may be."><input value={x402PerCall} onChange={(e) => setX402PerCall(e.target.value)} className={input} inputMode="decimal" /></Field>
-              </div>
-            )}
-            {budgetOn && budgetKind === 'token' && (
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                <Field label="Budget token">
-                  <select value={budgetToken} onChange={(e) => setBudgetToken(e.target.value)} className={input}>
+                <Field label="Advance token" hint="Any ERC-20 you hold; the reward tokens are suggested.">
+                  <input value={budgetToken} onChange={(e) => setBudgetToken(e.target.value)} className={`${input} font-mono`} list="advance-tokens" />
+                  <datalist id="advance-tokens">
                     {rewardTokens.map(([address, t]) => <option key={address} value={address}>{t.symbol}</option>)}
-                  </select>
+                  </datalist>
                 </Field>
                 <Field label="Cap"><input value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} className={input} inputMode="decimal" /></Field>
               </div>

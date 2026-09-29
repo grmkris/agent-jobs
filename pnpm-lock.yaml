@@ -233,6 +233,12 @@ importers:
         specifier: 2.56.9
         version: 2.56.9(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@4.6.5)
     devDependencies:
+      '@metamask/delegation-core':
+        specifier: 3.0.0
+        version: 3.0.0
+      '@metamask/delegation-deployments':
+        specifier: 2.1.0
+        version: 2.1.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.6
@@ -984,6 +990,18 @@ packages:
     peerDependencies:
       react: ^17.0.2 || ^18.0.0 || ^19.0
       react-dom: ^17.0.2 || ^18.0.0 || ^19.0
+
+  '@metamask/abi-utils@3.0.0':
+    resolution: {integrity: sha512-a/l0DiSIr7+CBYVpHygUa3ztSlYLFCQMsklLna+t6qmNY9+eIO5TedNxhyIyvaJ+4cN7TLy0NQFbp9FV3X2ktg==}
+    engines: {node: ^18.18 || ^20.14 || >=22}
+
+  '@metamask/delegation-core@3.0.0':
+    resolution: {integrity: sha512-crrbAFb6+uyzQ+q9F8wyOFK42/f6tpFiUiLq8fxV7+McD2AbqmsxFEBH0bB4pKFjdxi3HxKn8naEDR7/w7k45A==}
+    engines: {node: '>=20'}
+
+  '@metamask/delegation-deployments@2.1.0':
+    resolution: {integrity: sha512-uBl02XH8nUF0vgqVBRy9W2FKsrc5g5rDHY48VNamGdQRxr5vcUYcNFfhfZ5p/o0DP3aH6gPgMRo/SKSkahlXnQ==}
+    engines: {node: '>=20'}
 
   '@metamask/eth-json-rpc-provider@1.0.1':
     resolution: {integrity: sha512-whiUMPlAOrVGmX8aKYVPvlKyG4CpQXiNNyt74vE1xb5sPvmx5oA7B/kOi/JdBvhGQq97U1/AVdXEdk2zkP8qyA==}
@@ -5999,6 +6017,23 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
+  '@metamask/abi-utils@3.0.0':
+    dependencies:
+      '@metamask/superstruct': 3.4.1
+      '@metamask/utils': 11.12.1
+    transitivePeerDependencies:
+      - supports-color
+
+  '@metamask/delegation-core@3.0.0':
+    dependencies:
+      '@metamask/abi-utils': 3.0.0
+      '@metamask/utils': 11.12.1
+      '@noble/hashes': 1.8.0
+    transitivePeerDependencies:
+      - supports-color
+
+  '@metamask/delegation-deployments@2.1.0': {}
+
   '@metamask/eth-json-rpc-provider@1.0.1':
     dependencies:
       '@metamask/json-rpc-engine': 7.3.3
@@ -6169,7 +6204,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.13
-      debug: 4.3.4
+      debug: 4.4.3
       pony-cause: 2.1.11
       semver: 7.8.5
       uuid: 9.0.1
@@ -6183,7 +6218,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
       '@types/debug': 4.1.13
-      debug: 4.3.4
+      debug: 4.4.3
       pony-cause: 2.1.11
       semver: 7.8.5
       uuid: 9.0.1
