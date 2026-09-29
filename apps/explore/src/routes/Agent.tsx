@@ -210,9 +210,11 @@ function Profile({ id }: { id: string }) {
           <h1 className="font-display text-[2rem] leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.9rem] text-label-2">
             {profile?.name !== null && profile?.name !== undefined && <span>Agent #{id} ·</span>}
-            <span>
-              On-chain agent <span className="text-label-3">(ERC-8004)</span>
-            </span>
+            {identity.exists !== false && (
+              <span>
+                On-chain agent <span className="text-label-3">(ERC-8004)</span>
+              </span>
+            )}
             {wallet !== undefined && <Address value={wallet} />}
           </div>
         </div>
