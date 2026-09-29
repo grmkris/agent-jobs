@@ -33,7 +33,8 @@ const budgetSchema = (tokenHelp: string) => ({
   description:
     'Optional execution budget (hire only), spent from your Privy wallet apart from the reward; nothing is escrowed and you grant it in Explore after publishing. A token budget (default) lets the worker pay running costs: up to `cap` of `token`, to anyone. A call budget (`kind: "call"`) lets the worker call one function of one contract from your wallet, so you are msg.sender and own what it makes (e.g. a launchpad token): up to `cap` native value in total.',
   properties: {
-    kind: { type: 'string', enum: ['token', 'call'], description: 'Default "token".' },
+    kind: { type: 'string', enum: ['token', 'call', 'x402'], description: 'Default "token". "x402": the worker pays x402 endpoints in this chain\'s USDC from your wallet, capped per payment and in total.' },
+    perCall: str('x402 budget: the most one payment may be, in USDC, e.g. "0.05"; default the cap.'),
     token: str(tokenHelp),
     target: str('Call budget: the contract address.'),
     function: str('Call budget: the one allowed function, human-readable ABI, e.g. "function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable".'),
@@ -306,6 +307,22 @@ export const tools: Record<string, Tool> = {
       'Creator, approver or worker: a task’s execution budget (ADR-0005): cap, spent, reserved, remaining, expiry, grant status (promised → live → revoked/ended) and every spend with its tx. For the creator of an ended budget, `cleanup` says how to take the board’s signer off the wallet.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.getBudget(caller, { taskId: s(a, 'taskId') }),
+  },
+
+  sign_budget_x402: {
+    description:
+      "Worker: pay an x402 endpoint from an x402 budget. Pass the EIP-712 typed data your x402 client asks its signer to sign (an EIP-3009 TransferWithAuthorization on this chain's USDC, `from` = the creator's wallet from get_budget); the board checks it against the budget (per-payment cap, total, validity of at most an hour), signs it with the creator's wallet and returns the signature for the PAYMENT-SIGNATURE header. The amount is reserved until the facilitator settles it or it expires unused. Never ask twice for one payment.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...taskId,
+        typedData: { type: 'object', description: 'The EIP-712 typed data {domain, types, primaryType, message} to sign.' },
+        note: str('Optional: what it pays for (shown to the creator).'),
+      },
+      required: ['taskId', 'typedData'],
+    },
+    run: (board, caller, a) =>
+      board.signBudgetX402(caller, { taskId: s(a, 'taskId'), typedData: a.typedData, ...(a.note === undefined ? {} : { note: s(a, 'note') }) }),
   },
 
   spend_budget_call: {

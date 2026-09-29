@@ -68,6 +68,16 @@ describe('execution budget in the terms (ADR-0005)', () => {
     expect(() => validateOffer(offer({ executionBudget: { ...budget, expiresAt: NOW + 601 } }), WINDOWS, NOW)).toThrow('expires')
   })
 
+  it('an x402 budget caps each payment within the total and round-trips', () => {
+    const x = { kind: 'x402' as const, token: A(9), cap: 1_000_000n, perCall: 250_000n, expiresAt: NOW + 300 }
+    const o = offer({ executionBudget: x })
+    expect(() => validateOffer(o, WINDOWS, NOW)).not.toThrow()
+    expect(parseTerms(canonicalJson(o)).executionBudget).toEqual(x)
+    expect(termsHash(parseTerms(canonicalJson(o)))).toBe(termsHash(o))
+    expect(() => validateOffer(offer({ executionBudget: { ...x, perCall: 2_000_000n } }), WINDOWS, NOW)).toThrow('each payment')
+    expect(() => validateOffer(offer({ executionBudget: { ...x, perCall: 0n } }), WINDOWS, NOW)).toThrow('each payment')
+  })
+
   it('a call budget names one function, round-trips and is bound into the hash', () => {
     const call = { kind: 'call' as const, target: A(8), function: 'function create((string,string) params) payable', cap: 10n ** 19n, expiresAt: NOW + 300 }
     const o = offer({ executionBudget: call })

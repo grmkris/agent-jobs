@@ -266,6 +266,9 @@ const ADDED_COLUMNS: ReadonlyArray<[table: string, column: string, type: string]
   ['budget_grants', 'kind', 'TEXT'],
   ['budget_grants', 'fn', 'TEXT'],
   ['budget_spends', 'call_data', 'TEXT'],
+  // x402 budgets: the per-payment cap, and each signed payment authorization ({nonce, validAfter, validBefore}).
+  ['budget_grants', 'per_call', 'TEXT'],
+  ['budget_spends', 'authorization_json', 'TEXT'],
 ]
 
 export function migrate(sql: Sql): void {
@@ -404,6 +407,8 @@ export interface BudgetGrantRow {
   kind: string | null
   /** A call budget's allowed function (human-readable ABI). */
   fn: string | null
+  /** An x402 budget's per-payment cap, base units. */
+  per_call: string | null
   status: BudgetGrantStatus
   created_at: number
   live_at: number | null
@@ -421,6 +426,8 @@ export interface BudgetSpendRow {
   amount: string
   /** A call spend's calldata; null for a token transfer. */
   call_data: string | null
+  /** An x402 payment's signed authorization: `{nonce, validAfter, validBefore}`; null otherwise. */
+  authorization_json: string | null
   note: string
   status: BudgetSpendStatus
   tx_hash: string | null

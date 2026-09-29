@@ -12,6 +12,7 @@
     "reputation": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
   },
   "eip7702": { "delegate": "0xe6Cae83BdE06E4c305530e199D7217f42808555B", "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108" },
+  "x402": { "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", "facilitator": "https://x402-facilitator.molandak.org" },
   "factory": { "faucet": false, "minter": "0x675269d710692d4d0d7166da11B76463577aad73" },
   "holdGates": { "minHoldToPublish": 0, "minHoldToClaim": 0 },
   "faucetTokens": { "names": [], "symbols": [] },

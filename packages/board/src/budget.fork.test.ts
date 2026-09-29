@@ -10,7 +10,7 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
-import { type AbiFunction, type Address, type Hex, decodeFunctionData, encodeFunctionData, erc20Abi, parseAbiItem, parseEther, parseUnits } from 'viem'
+import { type AbiFunction, type Address, type Hex, decodeFunctionData, encodeFunctionData, erc20Abi, parseAbi, parseAbiItem, parseEther, parseSignature, parseUnits } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Board, type BoardConfig, type BudgetInput, fromNodeSqlite, generateAuthorizationKey, parseTerms, signaturePayload } from './index.ts'
@@ -32,6 +32,14 @@ const NET = 'monad-testnet' as const
 let anvil: ChildProcess | undefined
 const ctx = () => sdk.context(NET, 'demo', url)
 
+/** Like `rpcCall`, but a JSON-RPC error throws instead of reading as an undefined result. */
+async function rpcStrict(method: string, params: unknown[]) {
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })
+  const body = (await res.json()) as { result?: unknown; error?: { message: string } }
+  if (body.error !== undefined) throw new Error(`${method}: ${body.error.message}`)
+  return body.result
+}
+
 async function rpcCall(method: string, params: unknown[]) {
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })
   return ((await res.json()) as { result: unknown }).result
@@ -49,6 +57,8 @@ const pad32 = (b: Uint8Array) => [...Array.from({ length: 32 - (b[0] === 0 ? b.l
  * Privy as the live spike found it: signed wallet RPC under the attached signer's policy, person-owned policies, JWKS
  * access tokens. Transfers are sent from the creator on the fork (impersonated), as Privy sends from the wallet.
  */
+const randomBytesHex = () => [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('')
+
 class FakePrivy {
   readonly jwt = crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
   signerPublic: Awaited<ReturnType<typeof crypto.subtle.importKey>> | undefined
@@ -57,6 +67,8 @@ class FakePrivy {
   readonly sent = new Map<string, Hex>()
   refuseNextSend = false
   rpcCalls = 0
+  /** The embedded wallet's key, for `eth_signTypedData_v4` (Privy signs inside its enclave). */
+  signTypedData: ((td: { domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown> }) => Promise<Hex>) | undefined
   constructor(
     readonly creator: Address,
     readonly did: string,
@@ -124,6 +136,26 @@ class FakePrivy {
         this.refuseNextSend = false
         return json(400, { error: 'RPC request denied due to policy violation', code: 'policy_violation' })
       }
+      if (body?.method === 'eth_signTypedData_v4') {
+        // An x402 rule: the domain's chain and contract, the message's value at most the cap, before the expiry.
+        const td = (body.params as { typed_data: { domain: Record<string, unknown>; types: Record<string, unknown>; primary_type: string; message: Record<string, string> } }).typed_data
+        const signer = this.signers[0]
+        const rules = signer === undefined ? [] : (this.policies.get(signer.override_policy_ids[0] as string)?.rules ?? [])
+        const now = Number((await ctx().publicClient.getBlock()).timestamp)
+        const allowed = rules.some((r) => {
+          const c = (f: string) => r.conditions.find((x) => x.field === f)?.value as string
+          return (
+            c('chainId') === String(td.domain.chainId) &&
+            c('verifyingContract') === td.domain.verifyingContract &&
+            BigInt(td.message.value as string) <= BigInt(c('value')) &&
+            now < Number(c('current_unix_timestamp'))
+          )
+        })
+        if (!allowed || this.signTypedData === undefined) return json(400, { error: 'RPC request denied due to policy violation', code: 'policy_violation' })
+        const signature = await this.signTypedData({ domain: td.domain, types: td.types, primaryType: td.primary_type, message: td.message })
+        this.sent.set(key, signature)
+        return json(200, { data: { signature } })
+      }
       const tx = ((body ?? {}).params as { transaction: { to: Address; data: Hex; value: Hex } }).transaction
       const signer = this.signers[0]
       const rules = signer === undefined ? [] : (this.policies.get(signer.override_policy_ids[0] as string)?.rules ?? [])
@@ -181,6 +213,7 @@ fork('execution budget on a testnet fork', () => {
   const worker = privateKeyToAccount(generatePrivateKey())
   const stranger = privateKeyToAccount(generatePrivateKey())
   privy = new FakePrivy(creator.address, 'did:privy:creator')
+  privy.signTypedData = (td) => creator.signTypedData(td as never)
   let board: Board
   const w = (a: typeof creator) => sdk.wallet(NET, a, url)
   let agentId = ''
@@ -406,6 +439,80 @@ fork('execution budget on a testnet fork', () => {
     expect(after).toMatchObject({ spent: '10', remaining: '2' })
     expect(after.spends[0]).toMatchObject({ selector: data.slice(0, 10), status: 'confirmed' })
     await expect(board.spendBudgetCall({ address: worker.address }, { taskId, data, value: '10' })).rejects.toThrow('over the budget')
+  }, 300_000)
+
+  it('an x402 budget signs capped payment authorizations; the ledger settles them on-chain or releases them', async () => {
+    const usdc = ctx().deployment.x402?.usdc as Address
+    const minter = '0x87f2e95621D8f12b83bb4a3E9975c0eAd524D437' as const // the testnet USDC's masterMinter
+    const usdcAbi = parseAbi([
+      'function configureMinter(address minter, uint256 allowance) returns (bool)',
+      'function mint(address to, uint256 amount) returns (bool)',
+      'function balanceOf(address) view returns (uint256)',
+      'function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)',
+    ])
+
+    const t = await now()
+    const { taskId, seenBeforeActivation } = await activeHire('1', 1800, { kind: 'x402', cap: '1', perCall: '0.25', expiresAt: t + 1800 })
+    expect(seenBeforeActivation.executionBudget).toMatchObject({ kind: 'x402', symbol: 'USDC', amount: '1', perCall: '0.25', grant: 'promised' })
+    const prep = await board.budgetGrantPrepare({ address: creator.address }, { taskId, privyAccessToken: await privy.accessToken(await now()) })
+    const { policyId, signerId } = prep as { policyId: string; signerId: string }
+    const rule = privy.policies.get(policyId)?.rules.find((r) => r.name === `budget-${taskId}`)
+    expect(rule?.conditions.map((c) => [c.field, c.value])).toEqual([
+      ['chainId', '10143'], ['verifyingContract', usdc], ['value', '250000'], ['current_unix_timestamp', String(t + 1800)],
+    ])
+    privy.addSigner(signerId, policyId)
+    expect(await board.budgetGrantConfirm({ address: creator.address }, { taskId })).toMatchObject({ status: 'live', kind: 'x402', perCall: '0.25', symbol: 'USDC' })
+
+    // The creator holds testnet USDC (minted through its masterMinter on the fork).
+    await rpcCall('anvil_setBalance', [minter, `0x${parseEther('10').toString(16)}`])
+    await rpcCall('anvil_impersonateAccount', [minter])
+    for (const data of [
+      encodeFunctionData({ abi: usdcAbi, functionName: 'configureMinter', args: [minter, parseUnits('100', 6)] }),
+      encodeFunctionData({ abi: usdcAbi, functionName: 'mint', args: [creator.address, parseUnits('5', 6)] }),
+    ]) {
+      const hash = (await rpcStrict('eth_sendTransaction', [{ from: minter, to: usdc, data }])) as Hex
+      expect((await ctx().publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
+    }
+
+    // What an x402 client asks its signer to sign for a 0.1 USDC endpoint.
+    const seller = privateKeyToAccount(generatePrivateKey()).address
+    const payment = (over: Record<string, unknown> = {}, domain: Record<string, unknown> = {}) => ({
+      domain: { name: 'USDC', version: '2', chainId: 10143, verifyingContract: usdc, ...domain },
+      types: { TransferWithAuthorization: [] },
+      primaryType: 'TransferWithAuthorization',
+      message: { from: creator.address, to: seller, value: '100000', validAfter: '0', validBefore: String(t + 300), nonce: `0x${randomBytesHex()}`, ...over },
+    })
+    await expect(board.signBudgetX402({ address: stranger.address }, { taskId, typedData: payment() })).rejects.toThrow('activated worker')
+    await expect(board.signBudgetX402({ address: worker.address }, { taskId, typedData: payment({ value: '300000' }) })).rejects.toThrow('per-payment cap')
+    await expect(board.signBudgetX402({ address: worker.address }, { taskId, typedData: payment({}, { verifyingContract: seller }) })).rejects.toThrow('USDC')
+    await expect(board.signBudgetX402({ address: worker.address }, { taskId, typedData: payment({ from: worker.address }) })).rejects.toThrow('creator')
+    await expect(board.signBudgetX402({ address: worker.address }, { taskId, typedData: payment({ validBefore: String(t + 7200) }) })).rejects.toThrow('validBefore')
+    await expect(board.spendBudget({ address: worker.address }, { taskId, to: seller, amount: '0.1' })).rejects.toThrow('sign_budget_x402')
+
+    const p1 = payment()
+    const signed = await board.signBudgetX402({ address: worker.address }, { taskId, typedData: p1, note: 'paid search' })
+    await expect(board.signBudgetX402({ address: worker.address }, { taskId, typedData: p1 })).rejects.toThrow('nonce')
+    // The facilitator settles it: anyone may submit the creator's authorization; the seller is paid from the creator.
+    const { r, s: sv, v } = parseSignature(signed.signature)
+    const a = signed.authorization
+    const settle = await w(stranger).writeContract({
+      address: usdc, abi: usdcAbi, functionName: 'transferWithAuthorization',
+      args: [a.from, a.to, BigInt(a.value), BigInt(a.validAfter), BigInt(a.validBefore), a.nonce as Hex, Number(v), r, sv],
+    })
+    await ctx().publicClient.waitForTransactionReceipt({ hash: settle })
+    expect(await ctx().publicClient.readContract({ address: usdc, abi: usdcAbi, functionName: 'balanceOf', args: [seller] })).toBe(100000n)
+
+    // A second authorization is signed but never used: reserved, then released once it expires.
+    await board.signBudgetX402({ address: worker.address }, { taskId, typedData: payment({ value: '250000', validBefore: String(t + 120) }) })
+    const mid = await board.getBudget({ address: creator.address }, { taskId })
+    expect(mid).toMatchObject({ spent: '0.1', reserved: '0.25', remaining: '0.65' })
+    expect(mid.spends[0]).toMatchObject({ status: 'confirmed', txHash: settle, amount: '0.1' })
+    await rpcCall('evm_increaseTime', [200])
+    await rpcCall('evm_mine', [])
+    skew += 200
+    const after = await board.getBudget({ address: creator.address }, { taskId })
+    expect(after).toMatchObject({ spent: '0.1', reserved: '0', remaining: '0.9' })
+    expect(after.spends.map((x) => x.status)).toEqual(['confirmed', 'failed'])
   }, 300_000)
 
   it('while the core is paused the board hands out no transaction and no spend', async () => {

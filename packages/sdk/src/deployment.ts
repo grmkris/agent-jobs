@@ -38,6 +38,11 @@ export interface Deployment {
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
+  /**
+   * x402 on this chain: the EIP-3009 USDC an x402 execution budget pays in, and Monad's facilitator. Null where
+   * none is recorded.
+   */
+  readonly x402: { readonly usdc: Address; readonly facilitator: string } | null
   /** The block the recipe deployed at: where an indexer starts and a rebuild restarts. */
   readonly deployBlock: bigint
 }
@@ -48,6 +53,7 @@ interface ConfigFile {
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
   erc8004: { identity: string; reputation: string }
   eip7702: { delegate: string; entryPoint: string }
+  x402?: { usdc: string; facilitator: string }
   deployment: {
     block?: number
     core?: string
@@ -98,6 +104,7 @@ export function deployment(network: Network): Deployment {
     arbitrator: c.roles.arbitrator as Address,
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,
+    x402: c.x402 === undefined ? null : { usdc: c.x402.usdc as Address, facilitator: c.x402.facilitator },
     deployBlock: BigInt(d.block ?? 0),
   }
 }

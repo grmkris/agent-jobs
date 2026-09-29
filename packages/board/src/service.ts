@@ -42,7 +42,7 @@ import {
   type TaskRow,
   migrate,
 } from './store.ts'
-import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, isCallBudget, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, isCallBudget, isX402Budget, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
 import {
   type Deliverable,
   type DeliverableCheck,
@@ -152,11 +152,14 @@ function typedDataJson(domain: Record<string, unknown>, types: Record<string, un
 
 /**
  * An execution budget as a caller asks for it (decimal cap). A token budget (the default) names `token`; a call budget
- * (`kind: 'call'`) names the contract `target` and the one allowed `function`, and caps native value.
+ * (`kind: 'call'`) names the contract `target` and the one allowed `function`, and caps native value; an x402 budget
+ * (`kind: 'x402'`) pays x402 endpoints in the chain's USDC, capped per payment (`perCall`) and in total.
  */
 export interface BudgetInput {
-  kind?: 'token' | 'call'
+  kind?: 'token' | 'call' | 'x402'
   token?: string
+  /** x402 budget: the most one payment may be (decimal, USDC); default the cap. */
+  perCall?: string
   target?: string
   function?: string
   cap: string
@@ -224,6 +227,10 @@ export class Board {
 
   spendBudget(caller: Caller, input: { taskId: string; to: string; amount: string; note?: string }) {
     return this.#budget.spend(this.#requireCaller(caller), input)
+  }
+
+  signBudgetX402(caller: Caller, input: { taskId: string; typedData: unknown; note?: string }) {
+    return this.#budget.signX402(this.#requireCaller(caller), input)
   }
 
   spendBudgetCall(caller: Caller, input: { taskId: string; data: string; value?: string; note?: string }) {
@@ -537,12 +544,13 @@ export class Board {
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
     if (executionBudget !== undefined) {
       this.#sql.run(
-        "INSERT INTO budget_grants (task_id, creator, token, cap, expires_at, kind, fn, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'promised', ?)",
+        "INSERT INTO budget_grants (task_id, creator, token, cap, expires_at, kind, fn, per_call, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'promised', ?)",
         taskId, creator,
         isCallBudget(executionBudget) ? executionBudget.target : executionBudget.token,
         executionBudget.cap.toString(), executionBudget.expiresAt,
-        isCallBudget(executionBudget) ? 'call' : 'token',
+        'kind' in executionBudget ? executionBudget.kind : 'token',
         isCallBudget(executionBudget) ? executionBudget.function : null,
+        isX402Budget(executionBudget) ? executionBudget.perCall.toString() : null,
         this.#now(),
       )
     }
@@ -633,6 +641,23 @@ export class Board {
         throw new BoardError('invalid', '`function` must be one function in human-readable ABI form')
       }
       return call
+    }
+    if (b.kind === 'x402') {
+      const x402 = ctx.deployment.x402
+      if (x402 === null) throw new BoardError('invalid', `x402 budgets are not available on ${ctx.deployment.network}`)
+      if (b.token !== undefined && !(isAddress(b.token) && eq(b.token, x402.usdc)) && b.token.toUpperCase() !== 'USDC') {
+        throw new BoardError('invalid', `an x402 budget pays in this chain's USDC (${x402.usdc})`)
+      }
+      const decimals = await ctx.publicClient.readContract({ address: x402.usdc, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+      let cap: bigint
+      let perCall: bigint
+      try {
+        cap = parseUnits(b.cap, decimals)
+        perCall = b.perCall === undefined ? cap : parseUnits(b.perCall, decimals)
+      } catch {
+        throw new BoardError('invalid', 'the x402 budget cap and perCall must be decimal USDC amounts')
+      }
+      return { kind: 'x402', token: x402.usdc, cap, perCall, expiresAt }
     }
     if (b.token === undefined) throw new BoardError('invalid', 'a token budget needs its `token`')
     const token = await this.#resolveToken(ctx, b.token)
@@ -1971,7 +1996,9 @@ export class Board {
             ? null
             : isCallBudget(terms.executionBudget)
               ? { kind: 'call', target: terms.executionBudget.target, function: terms.executionBudget.function, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt }
-              : { token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt },
+              : isX402Budget(terms.executionBudget)
+                ? { kind: 'x402', token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), perCall: terms.executionBudget.perCall.toString(), expiresAt: terms.executionBudget.expiresAt }
+                : { token: terms.executionBudget.token, cap: terms.executionBudget.cap.toString(), expiresAt: terms.executionBudget.expiresAt },
         termsHash: t.terms_hash,
         manifestUrl: `${this.#config.manifestBaseUrl}/${t.terms_hash}.json`,
         screening: { verdict: screening?.verdict ?? 'unscreened', reasons: screening?.reasons ?? [] },
@@ -2041,7 +2068,13 @@ export class Board {
                     amount: formatUnits(terms.executionBudget.cap, 18),
                     symbol: nativeSymbol(this.#taskCtx(task)),
                   }
-                : await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
+                : isX402Budget(terms.executionBudget)
+                  ? {
+                      kind: 'x402',
+                      ...(await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
+                      perCall: (await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.perCall.toString() })).amount,
+                    }
+                  : await this.#displayAmount(this.#taskCtx(task), { token: terms.executionBudget.token, amount: terms.executionBudget.cap.toString() })),
               expiresAt: terms.executionBudget.expiresAt,
               /** promised: in the terms, not granted yet; live: the worker can spend; revoked / ended. */
               grant: this.#budget.grantStatus(task.id),

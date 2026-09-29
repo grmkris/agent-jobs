@@ -13,10 +13,10 @@
  */
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi, formatUnits, getAddress, isAddress, isHex, parseUnits, toFunctionSelector, toHex, zeroAddress } from 'viem'
-import { budgetPolicyBody, budgetRuleName, type BudgetRuleInput } from './budget-policy.ts'
+import { TRANSFER_WITH_AUTHORIZATION, budgetPolicyBody, budgetRuleName, type BudgetRuleInput } from './budget-policy.ts'
 import { PrivyApiError, type PrivyApp, privyFetch, signedPrivyFetch, verifyAccessToken } from './privy.ts'
 import type { BudgetGrantRow, BudgetSpendRow, BudgetWalletRow, Sql, TaskRow } from './store.ts'
-import { type CallBudget, type OfferTerms, type TokenBudget, callFunction, isCallBudget } from './terms.ts'
+import { type CallBudget, type OfferTerms, type TokenBudget, type X402Budget, callFunction, isCallBudget, isX402Budget } from './terms.ts'
 
 export interface BudgetConfig {
   readonly app: PrivyApp
@@ -47,6 +47,24 @@ export interface BudgetDeps {
 export function nativeSymbol(ctx: sdk.Ctx): string {
   return ctx.publicClient.chain?.nativeCurrency.symbol ?? (ctx.deployment.chainId === 10143 || ctx.deployment.chainId === 143 ? 'MON' : 'ETH')
 }
+
+/** EIP-3009 on USDC: the domain's name/version, whether an authorization was used, and the event that says so. */
+const EIP3009_ABI = [
+  { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  { type: 'function', name: 'version', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  {
+    type: 'function',
+    name: 'authorizationState',
+    stateMutability: 'view',
+    inputs: [{ name: 'authorizer', type: 'address' }, { name: 'nonce', type: 'bytes32' }],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    type: 'event',
+    name: 'AuthorizationUsed',
+    inputs: [{ name: 'authorizer', type: 'address', indexed: true }, { name: 'nonce', type: 'bytes32', indexed: true }],
+  },
+] as const
 
 /** Chain statuses after which nothing may be spent: the job is settled or can no longer be delivered. */
 const OVER = new Set(['completed', 'rejected', 'cancelled', 'expired', 'lapsed'])
@@ -117,7 +135,9 @@ export class BudgetDesk {
       .map((g): BudgetRuleInput =>
         g.kind === 'call'
           ? { kind: 'call', taskId: g.task_id, chainId, target: getAddress(g.token), function: g.fn ?? '', cap: BigInt(g.cap), expiresAt: g.expires_at }
-          : { taskId: g.task_id, chainId, token: getAddress(g.token), cap: BigInt(g.cap), expiresAt: g.expires_at },
+          : g.kind === 'x402'
+            ? { kind: 'x402', taskId: g.task_id, chainId, token: getAddress(g.token), perCall: BigInt(g.per_call ?? g.cap), expiresAt: g.expires_at }
+            : { taskId: g.task_id, chainId, token: getAddress(g.token), cap: BigInt(g.cap), expiresAt: g.expires_at },
       )
   }
 
@@ -311,7 +331,11 @@ export class BudgetDesk {
     const isCreator = eq(st.terms.creator, me)
     return {
       taskId: input.taskId,
-      ...(isCallBudget(b) ? { kind: 'call' as const, target: b.target, function: b.function } : { kind: 'token' as const, token: b.token }),
+      ...(isCallBudget(b)
+        ? { kind: 'call' as const, target: b.target, function: b.function }
+        : isX402Budget(b)
+          ? { kind: 'x402' as const, token: b.token, perCall: fmt(b.perCall) }
+          : { kind: 'token' as const, token: b.token }),
       symbol,
       cap: fmt(b.cap),
       spent: fmt(spent),
@@ -338,6 +362,10 @@ export class BudgetDesk {
   async #reconcile(st: BudgetTaskState, g: BudgetGrantRow): Promise<void> {
     const rows = this.#deps.sql.all<BudgetSpendRow>("SELECT * FROM budget_spends WHERE task_id = ? AND status IN ('reserved', 'sent')", g.task_id)
     for (const r of rows) {
+      if (r.authorization_json !== null) {
+        await this.#reconcileX402(st, r)
+        continue
+      }
       if (r.status === 'sent' && r.tx_hash !== null) {
         const receipt = await st.ctx.publicClient.getTransactionReceipt({ hash: r.tx_hash as Hex }).catch(() => null)
         if (receipt === null) continue
@@ -398,6 +426,7 @@ export class BudgetDesk {
     const st = await this.#deps.taskState(input.taskId)
     const b = await this.#spendable(me, st, input.taskId)
     if (isCallBudget(b)) throw this.#deps.fail('invalid', 'this is a call budget: spend it with spend_budget_call')
+    if (isX402Budget(b)) throw this.#deps.fail('invalid', 'this is an x402 budget: pay x402 endpoints with sign_budget_x402')
     const now = this.#deps.now()
     if (!isAddress(input.to) || eq(input.to, zeroAddress)) throw this.#deps.fail('invalid', '`to` must be a non-zero address')
     const decimals = await st.ctx.publicClient.readContract({ address: b.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
@@ -420,6 +449,7 @@ export class BudgetDesk {
       to_addr: getAddress(input.to),
       amount: amount.toString(),
       call_data: null,
+      authorization_json: null,
       note: input.note ?? '',
       status: 'reserved',
       tx_hash: null,
@@ -486,6 +516,7 @@ export class BudgetDesk {
       to_addr: call.target,
       amount: value.toString(),
       call_data: input.data.toLowerCase(),
+      authorization_json: null,
       note: input.note ?? '',
       status: 'reserved',
       tx_hash: null,
@@ -499,6 +530,160 @@ export class BudgetDesk {
     )
     const hash = await this.#send(st, row)
     return { spendId: row.id, txHash: hash, status: 'sent', next: 'get_budget shows it confirmed once the call is mined; read its receipt for what it made.' }
+  }
+
+  /**
+   * The worker pays an x402 endpoint from an x402 budget: the board signs, for the creator's wallet, the EIP-3009
+   * `TransferWithAuthorization` the endpoint asked for, and returns the signature for the worker's x402 client (its
+   * signer's `signTypedData`). The board rebuilds the message it signs from the checked fields: this chain's USDC as
+   * the domain, `from` the creator, at most the per-payment cap, a validity window of at most an hour and within the
+   * budget, a fresh nonce, and room in the ledger. A facilitator settles it; the ledger then reads on-chain whether the
+   * authorization was used (`authorizationState`), and releases it once it expired unused.
+   */
+  async signX402(me: Address, input: { taskId: string; typedData: unknown; note?: string }) {
+    const cfg = this.#cfg()
+    const st = await this.#deps.taskState(input.taskId)
+    const b = await this.#spendable(me, st, input.taskId)
+    if (!isX402Budget(b)) throw this.#deps.fail('invalid', 'this is not an x402 budget')
+    const x: X402Budget = b
+    let td: { domain?: Record<string, unknown>; message?: Record<string, unknown>; primaryType?: string; primary_type?: string }
+    try {
+      td = (typeof input.typedData === 'string' ? JSON.parse(input.typedData) : input.typedData) as typeof td
+    } catch {
+      throw this.#deps.fail('invalid', 'typedData must be the EIP-712 JSON the x402 client asked to sign')
+    }
+    const domain = td.domain ?? {}
+    const m = td.message ?? {}
+    const bad = (why: string) => this.#deps.fail('invalid', `not a payment this budget allows: ${why}`)
+    if ((td.primaryType ?? td.primary_type) !== 'TransferWithAuthorization') throw bad('primaryType must be TransferWithAuthorization (x402 exact on EVM)')
+    const [name, version] = await Promise.all([
+      st.ctx.publicClient.readContract({ address: x.token, abi: EIP3009_ABI, functionName: 'name' }),
+      st.ctx.publicClient.readContract({ address: x.token, abi: EIP3009_ABI, functionName: 'version' }),
+    ])
+    if (Number(domain.chainId) !== st.ctx.deployment.chainId || !eq(String(domain.verifyingContract), x.token)) throw bad(`the domain must be this chain's USDC (${x.token})`)
+    if (domain.name !== name || String(domain.version) !== version) throw bad(`the domain must be name "${name}", version "${version}"`)
+    if (!eq(String(m.from), st.terms.creator)) throw bad(`from must be the creator's wallet ${st.terms.creator}`)
+    const to = String(m.to)
+    if (!isAddress(to) || eq(to, zeroAddress)) throw bad('to must be a non-zero address')
+    let value: bigint
+    let validAfter: bigint
+    let validBefore: bigint
+    try {
+      value = BigInt(String(m.value))
+      validAfter = BigInt(String(m.validAfter))
+      validBefore = BigInt(String(m.validBefore))
+    } catch {
+      throw bad('value, validAfter and validBefore must be integers')
+    }
+    const nonce = String(m.nonce).toLowerCase()
+    if (!/^0x[0-9a-f]{64}$/.test(nonce)) throw bad('nonce must be 32 bytes')
+    const [symbol, decimals] = await Promise.all([
+      st.ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
+      st.ctx.publicClient.readContract({ address: x.token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+    ])
+    const fmt = (v: bigint) => `${formatUnits(v, decimals)} ${symbol}`
+    if (value <= 0n) throw bad('the value must be positive')
+    if (value > x.perCall) throw bad(`${fmt(value)} is over the per-payment cap of ${fmt(x.perCall)}`)
+    const now = this.#deps.now()
+    const latest = Math.min(now + 3600, x.expiresAt, st.terms.deliveryDeadline)
+    if (validAfter > BigInt(now)) throw bad('validAfter must not be in the future')
+    if (validBefore <= BigInt(now) || validBefore > BigInt(latest)) throw bad(`validBefore must be after now and no later than ${latest}`)
+    const used = await st.ctx.publicClient.readContract({ address: x.token, abi: EIP3009_ABI, functionName: 'authorizationState', args: [st.terms.creator, nonce as Hex] })
+    if (used || this.#deps.sql.all('SELECT id FROM budget_spends WHERE task_id = ? AND authorization_json LIKE ?', input.taskId, `%${nonce}%`).length > 0) {
+      throw bad('that nonce was used already')
+    }
+    const block = await st.ctx.publicClient.getBlockNumber()
+    const row: BudgetSpendRow = {
+      id: randomId(),
+      task_id: input.taskId,
+      worker: me,
+      to_addr: getAddress(to),
+      amount: value.toString(),
+      call_data: null,
+      authorization_json: JSON.stringify({ nonce, validAfter: validAfter.toString(), validBefore: validBefore.toString(), block: block.toString() }),
+      note: input.note ?? '',
+      status: 'reserved',
+      tx_hash: null,
+      detail: null,
+      created_at: now,
+      updated_at: now,
+    }
+    // Checked and reserved with no await in between: two concurrent payments cannot both fit.
+    const { spent, reserved } = this.#ledger(input.taskId)
+    if (spent + reserved + value > x.cap) throw this.#deps.fail('conflict', `over the budget: ${fmt(x.cap - spent - reserved)} left of ${fmt(x.cap)}`)
+    this.#deps.sql.run(
+      "INSERT INTO budget_spends (id, task_id, worker, to_addr, amount, call_data, authorization_json, note, status, tx_hash, detail, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 'reserved', NULL, NULL, ?, ?)",
+      row.id, row.task_id, row.worker, row.to_addr, row.amount, row.authorization_json, row.note, now, now,
+    )
+    const w = this.#wallet(st.terms.creator)
+    if (w === undefined) throw this.#deps.fail('conflict', 'the creator has not granted this budget')
+    const message = { from: getAddress(st.terms.creator), to: getAddress(to), value: value.toString(), validAfter: validAfter.toString(), validBefore: validBefore.toString(), nonce }
+    try {
+      const res = await signedPrivyFetch<{ data: { signature: Hex } }>(
+        cfg.app,
+        cfg.signerKey,
+        {
+          method: 'POST',
+          path: `/wallets/${w.wallet_id}/rpc`,
+          body: {
+            method: 'eth_signTypedData_v4',
+            params: {
+              typed_data: {
+                domain: { name, version, chainId: st.ctx.deployment.chainId, verifyingContract: x.token },
+                types: { TransferWithAuthorization: [...TRANSFER_WITH_AUTHORIZATION] },
+                primary_type: 'TransferWithAuthorization',
+                message,
+              },
+            },
+          },
+          idempotencyKey: `aj-x402-${row.id}`,
+        },
+        this.#fetch(),
+      )
+      this.#deps.sql.run("UPDATE budget_spends SET status = 'sent', detail = NULL, updated_at = ? WHERE id = ?", this.#deps.now(), row.id)
+      return {
+        spendId: row.id,
+        signature: res.data.signature,
+        authorization: message,
+        next: 'Put this signature in your x402 payment (PAYMENT-SIGNATURE). The amount stays reserved until the facilitator settles it (get_budget shows it confirmed) or it expires unused (released).',
+      }
+    } catch (e) {
+      if (e instanceof PrivyApiError && e.status >= 400 && e.status < 500) {
+        this.#deps.sql.run("UPDATE budget_spends SET status = 'failed', detail = ?, updated_at = ? WHERE id = ?", e.body.slice(0, 500), this.#deps.now(), row.id)
+        throw this.#deps.fail('conflict', `Privy refused to sign (nothing can be paid with it): ${e.body.slice(0, 200)}`)
+      }
+      this.#deps.sql.run('UPDATE budget_spends SET detail = ?, updated_at = ? WHERE id = ?', `outcome unknown: ${(e as Error).message.slice(0, 300)}`, this.#deps.now(), row.id)
+      throw this.#deps.fail('chain', 'the signature’s outcome is unknown; the amount stays reserved until the authorization expires')
+    }
+  }
+
+  /** An x402 payment is spent once its authorization is used on-chain, and released once it expired unused. */
+  async #reconcileX402(st: BudgetTaskState, r: BudgetSpendRow): Promise<void> {
+    const b = st.terms.executionBudget
+    if (b === undefined || !isX402Budget(b)) return
+    const a = JSON.parse(r.authorization_json as string) as { nonce: Hex; validBefore: string; block: string }
+    const used = await st.ctx.publicClient
+      .readContract({ address: b.token, abi: EIP3009_ABI, functionName: 'authorizationState', args: [st.terms.creator, a.nonce] })
+      .catch(() => undefined)
+    if (used === undefined) return
+    if (used) {
+      const tx = await this.#settlementTx(st, b.token, a.nonce, BigInt(a.block))
+      this.#deps.sql.run("UPDATE budget_spends SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE id = ?", tx, this.#deps.now(), r.id)
+    } else if (BigInt(this.#deps.now()) >= BigInt(a.validBefore)) {
+      this.#deps.sql.run("UPDATE budget_spends SET status = 'failed', detail = 'expired unused', updated_at = ? WHERE id = ?", this.#deps.now(), r.id)
+    }
+  }
+
+  /** The transaction that used an authorization (its `AuthorizationUsed` log), searched in bounded block ranges. */
+  async #settlementTx(st: BudgetTaskState, token: Address, nonce: Hex, from: bigint): Promise<Hex | null> {
+    const latest = await st.ctx.publicClient.getBlockNumber().catch(() => from)
+    for (let start = from; start <= latest && start < from + 20_000n; start += 1000n) {
+      const logs = await st.ctx.publicClient
+        .getLogs({ address: token, event: EIP3009_ABI[3], args: { authorizer: st.terms.creator, nonce }, fromBlock: start, toBlock: start + 999n > latest ? latest : start + 999n })
+        .catch(() => [])
+      if (logs[0] !== undefined) return logs[0].transactionHash
+    }
+    return null
   }
 
   /** The grant's state for the task view: whether a worker can rely on it yet. */

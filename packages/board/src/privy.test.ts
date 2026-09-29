@@ -90,6 +90,20 @@ describe('budget policy', () => {
     expect(abi[0]).toMatchObject({ type: 'function', name: 'create' })
   })
 
+  it('an x402 rule signs only EIP-3009 authorizations on the chain’s USDC, each at most the per-payment cap', () => {
+    const usdc = '0x534b2f3A21130d7a60830c2Df862319e593943A3' as const
+    const r = budgetRule({ kind: 'x402', taskId: 't4', chainId: 10143, token: usdc, perCall: 250000n, expiresAt: 1800000000 })
+    expect(r.method).toBe('eth_signTypedData_v4')
+    expect(r.conditions.map((c) => [c.field_source, c.field, c.operator, c.value])).toEqual([
+      ['ethereum_typed_data_domain', 'chainId', 'eq', '10143'],
+      ['ethereum_typed_data_domain', 'verifyingContract', 'eq', usdc],
+      ['ethereum_typed_data_message', 'value', 'lte', '250000'],
+      ['system', 'current_unix_timestamp', 'lt', '1800000000'],
+    ])
+    expect(r.conditions[2]?.typed_data?.primary_type).toBe('TransferWithAuthorization')
+    expect(r.conditions[2]?.typed_data?.types.TransferWithAuthorization?.map((f) => f.name)).toEqual(['from', 'to', 'value', 'validAfter', 'validBefore', 'nonce'])
+  })
+
   it('is the union of a wallet’s grants, in a stable order, under a name Privy accepts', () => {
     const body = budgetPolicyBody('0x1234567890abcdef1234567890abcdef12345678', [{ ...g, taskId: 't2' }, g], 'did:privy:x')
     expect(body.rules.map((r) => r.name)).toEqual(['budget-t1', 'budget-t2'])

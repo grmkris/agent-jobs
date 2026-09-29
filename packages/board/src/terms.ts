@@ -38,7 +38,7 @@ export type OfferMode = 'hire' | 'contest'
  * escrowed: the worker spends from the creator's own wallet through the board's Privy signer, per transfer within
  * Privy's policy and in total within the board's ledger, until `expiresAt`. Hire only.
  */
-export type ExecutionBudget = TokenBudget | CallBudget
+export type ExecutionBudget = TokenBudget | CallBudget | X402Budget
 
 /** The worker pays running costs in `token` (an ERC-20 `transfer` to anyone). Carries no `kind`, as before. */
 export interface TokenBudget {
@@ -63,6 +63,23 @@ export interface CallBudget {
   /** Unix seconds; at most the delivery deadline. */
   expiresAt: number
 }
+
+/**
+ * The worker makes x402 payments from the creator's wallet: the board signs EIP-3009 `transferWithAuthorization`
+ * messages for `token` (the chain's USDC), each at most `perCall`, in total at most `cap`. A facilitator settles them.
+ */
+export interface X402Budget {
+  kind: 'x402'
+  token: Address
+  /** Base units of `token`, in total. */
+  cap: bigint
+  /** Base units of `token`, per payment. */
+  perCall: bigint
+  /** Unix seconds; at most the delivery deadline. */
+  expiresAt: number
+}
+
+export const isX402Budget = (b: ExecutionBudget): b is X402Budget => 'kind' in b && b.kind === 'x402'
 
 export const isCallBudget = (b: ExecutionBudget): b is CallBudget => 'kind' in b && b.kind === 'call'
 
@@ -144,8 +161,14 @@ export function parseTerms(json: string): OfferTerms {
     workerBond: BigInt(raw.workerBond as string),
     ...(raw.executionBudget === undefined
       ? {}
-      : { executionBudget: { ...(raw.executionBudget as ExecutionBudget), cap: BigInt((raw.executionBudget as { cap: string }).cap) } }),
+      : { executionBudget: parseBudget(raw.executionBudget as Record<string, unknown>) }),
   }
+}
+
+function parseBudget(b: Record<string, unknown>): ExecutionBudget {
+  const cap = BigInt(b.cap as string)
+  if (b.kind === 'x402') return { ...(b as unknown as X402Budget), cap, perCall: BigInt(b.perCall as string) }
+  return { ...(b as unknown as ExecutionBudget), cap }
 }
 
 export class TermsError extends Error {
@@ -200,6 +223,9 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
   if (b !== undefined) {
     if (offer.mode !== 'hire') throw new TermsError('invalid-budget', 'Only a hire carries an execution budget.')
     if (b.cap <= 0n) throw new TermsError('invalid-budget', 'An execution budget must be positive.')
+    if (isX402Budget(b) && (b.perCall <= 0n || b.perCall > b.cap)) {
+      throw new TermsError('invalid-budget', 'An x402 budget caps each payment at a positive amount no larger than the total.')
+    }
     if (isCallBudget(b)) {
       try {
         callFunction(b)
