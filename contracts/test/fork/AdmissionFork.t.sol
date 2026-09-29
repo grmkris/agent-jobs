@@ -52,7 +52,6 @@ contract AdmissionForkTest is Test {
                 )
             )
         );
-        core.setPaymentTokenAllowed(address(pay), true);
         holding = new JobHolding(core, factory, IDENTITY, 0, 0);
         evaluator = new JobsEvaluator(core, holding, REPUTATION, arbitrator, 3 days, 3 days, 7 days, 1 days);
         holding.setEvaluator(address(evaluator));

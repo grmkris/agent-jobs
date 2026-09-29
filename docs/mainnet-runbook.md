@@ -110,12 +110,11 @@ Wiring check (read-only):
 
 ```
 cast call <main.holding> "evaluator()(address)" --rpc-url "$MONAD_MAINNET_RPC_URL"
-cast call <core> "allowedPaymentTokens(address)(bool)" 0x754704Bc059F8C67012fEd69BC8A327a5aafb603
 cast call <main.evaluator> "arbitrator()(address)"
 cast call <main.evaluator> "verifiers(address)(bool)" 0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f
 ```
 
-Expected: the evaluator address, `true`, the arbitrator, `true`. Then run `pnpm gen-abi` if the SDK's deployment reader needs regenerating (it reads the config JSON; normally nothing to do), and `heavy pnpm check`.
+Expected: the evaluator address, the arbitrator, `true`. There is no token allowlist to check (ADR-0010). Then run `pnpm gen-abi` if the SDK's deployment reader needs regenerating (it reads the config JSON; normally nothing to do), and `heavy pnpm check`.
 
 ## 4. Cloudflare prod stage (no chain transaction)
 

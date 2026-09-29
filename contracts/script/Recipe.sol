@@ -17,8 +17,8 @@ import {EvidenceReceiver} from "../src/EvidenceReceiver.sol";
 ///         `config/<network>.json`; no address lives in code. Used by `script/Deploy.s.sol` (real broadcasts) and by
 ///         the fork tests, which run it against a fork of each network.
 ///
-///         Deploys: our own proxy of the vendored ERC-8183 core (fees 0, no hooks, only the listed reward tokens
-///         allowlisted, FACTORY never), `FactoryToken` (testnet: open faucet; production: no faucet, one minter),
+///         Deploys: our own proxy of the vendored ERC-8183 core (fees 0, no hooks; any ERC-20 can be a reward,
+///         ADR-0010), `FactoryToken` (testnet: open faucet; production: no faucet, one minter),
 ///         the testnet faucet reward tokens, and one `JobHolding` + `JobsEvaluator` pair per configured window set
 ///         ("main" with the real windows; on testnet also "demo"), each with the attester registered as verifier.
 ///         The CRE `EvidenceReceiver` is a separate step (`deployReceiver`) because it pins the workflow owner.
@@ -41,7 +41,8 @@ library Recipe {
         uint256 minHoldToClaim;
         string[] faucetTokenNames;
         string[] faucetTokenSymbols;
-        address[] allowedTokens;
+        /// Tokens the apps list by default (`deployment.rewardTokens`): a display list, not a gate (ADR-0010).
+        address[] knownTokens;
         string[] stackNames;
         uint256[] reviewWindows;
         uint256[] disputeWindows;
@@ -81,7 +82,7 @@ library Recipe {
         c.minHoldToClaim = vm.parseJsonUint(json, ".holdGates.minHoldToClaim");
         c.faucetTokenNames = vm.parseJsonStringArray(json, ".faucetTokens.names");
         c.faucetTokenSymbols = vm.parseJsonStringArray(json, ".faucetTokens.symbols");
-        c.allowedTokens = vm.parseJsonAddressArray(json, ".allowedTokens");
+        c.knownTokens = vm.parseJsonAddressArray(json, ".knownTokens");
         c.stackNames = vm.parseJsonStringArray(json, ".stacks.names");
         c.reviewWindows = vm.parseJsonUintArray(json, ".stacks.review");
         c.disputeWindows = vm.parseJsonUintArray(json, ".stacks.dispute");
@@ -124,15 +125,12 @@ library Recipe {
         d.core.setPlatformFee(0, c.admin);
         d.core.setEvaluatorFee(0);
 
-        d.rewardTokens = new address[](c.faucetTokenSymbols.length + c.allowedTokens.length);
+        d.rewardTokens = new address[](c.faucetTokenSymbols.length + c.knownTokens.length);
         for (uint256 i; i < c.faucetTokenSymbols.length; ++i) {
             d.rewardTokens[i] = address(new MockPaymentToken(c.faucetTokenNames[i], c.faucetTokenSymbols[i]));
         }
-        for (uint256 i; i < c.allowedTokens.length; ++i) {
-            d.rewardTokens[c.faucetTokenSymbols.length + i] = c.allowedTokens[i];
-        }
-        for (uint256 i; i < d.rewardTokens.length; ++i) {
-            d.core.setPaymentTokenAllowed(d.rewardTokens[i], true);
+        for (uint256 i; i < c.knownTokens.length; ++i) {
+            d.rewardTokens[c.faucetTokenSymbols.length + i] = c.knownTokens[i];
         }
 
         (d.holdings, d.evaluators) = deployStacks(c, d.core, d.factory);

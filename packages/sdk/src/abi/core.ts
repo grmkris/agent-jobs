@@ -223,25 +223,6 @@ export const coreAbi = [
   },
   {
     "type": "function",
-    "name": "allowedPaymentTokens",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "approveClaim",
     "inputs": [
       {
@@ -1398,24 +1379,6 @@ export const coreAbi = [
   },
   {
     "type": "function",
-    "name": "setPaymentTokenAllowed",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "status",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "setPayoutReceiver",
     "inputs": [
       {
@@ -2446,25 +2409,6 @@ export const coreAbi = [
   },
   {
     "type": "event",
-    "name": "PaymentTokenAllowlistUpdated",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "status",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "PayoutReceiverSet",
     "inputs": [
       {
@@ -2863,11 +2807,6 @@ export const coreAbi = [
   {
     "type": "error",
     "name": "PaymentTokenMismatch",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "PaymentTokenNotAllowed",
     "inputs": []
   },
   {

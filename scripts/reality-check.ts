@@ -247,7 +247,7 @@ async function registries(): Promise<Omit<Row, 'name'>> {
   if (parts.length === 0) return { tier: 'failed', evidence: 'no erc8004 addresses in contracts/config/monad-testnet.json', next: 'the config' }
   let usdc = 'USDC (143) not read: MONAD_MAINNET_RPC_URL unset'
   const mainnetUrl = env('MONAD_MAINNET_RPC_URL')
-  const token: string | undefined = mainnet?.allowedTokens?.[0]
+  const token: string | undefined = mainnet?.knownTokens?.[0]
   if (mainnetUrl !== undefined && token !== undefined) {
     const decimals = Number(await rpc(mainnetUrl, 'eth_call', [{ to: token, data: '0x313ce567' }, 'latest']))
     usdc = `USDC ${short(token)} (143) decimals() = ${decimals}`
@@ -423,7 +423,7 @@ async function cre(): Promise<Omit<Row, 'name'>> {
   }
 }
 
-/** B7 preconditions on 143, read-only: role balances, registries, the allowlisted token and the CRE forwarder. */
+/** B7 preconditions on 143, read-only: role balances, registries, the known reward token (USDC) and the CRE forwarder. */
 async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
   const m = missing(['MONAD_MAINNET_RPC_URL'])
   if (m) return m
@@ -439,7 +439,7 @@ async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
   const code: Array<[string, string | undefined]> = [
     ...Object.entries<string>(mainnet.erc8004 ?? {}),
     ['CRE forwarder', mainnet.cre?.forwarder],
-    ...((mainnet.allowedTokens ?? []) as string[]).map((t): [string, string] => [`token ${short(t)}`, t]),
+    ...((mainnet.knownTokens ?? []) as string[]).map((t): [string, string] => [`token ${short(t)}`, t]),
   ]
   for (const [label, address] of code) {
     if (address === undefined) continue
@@ -447,7 +447,7 @@ async function mainnetReadiness(): Promise<Omit<Row, 'name'>> {
     if (c === '0x') gaps.push(`no code at ${label}`)
     else parts.push(`${label} has code`)
   }
-  for (const token of (mainnet.allowedTokens ?? []) as string[]) {
+  for (const token of (mainnet.knownTokens ?? []) as string[]) {
     const decimals = Number(await rpc(url, 'eth_call', [{ to: token, data: '0x313ce567' }, 'latest']))
     parts.push(`${short(token)} decimals ${decimals}`)
   }

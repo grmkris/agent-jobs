@@ -28,7 +28,7 @@
   "factory": { "faucet": false, "minter": "0x675269d710692d4d0d7166da11B76463577aad73" },
   "holdGates": { "minHoldToPublish": 0, "minHoldToClaim": 0 },
   "faucetTokens": { "names": [], "symbols": [] },
-  "allowedTokens": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
+  "knownTokens": ["0x754704Bc059F8C67012fEd69BC8A327a5aafb603"],
   "stacks": {
     "names": ["main"],
     "review": [259200],

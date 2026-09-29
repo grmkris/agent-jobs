@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
 import {ERC8183WithAuthorization} from "./vendor/erc8183/ERC8183WithAuthorization.sol";
 import {IERC8004Identity} from "./vendor/erc8004/IERC8004.sol";
@@ -20,8 +21,8 @@ interface ISettlementWindow {
 }
 
 /// @title JobHolding
-/// @notice The ERC-8183 *client* of every listed job (spec §4). Two assets: the reward in any allowlisted
-///         payment token, escrowed here at publish and moved into the core once the worker accepts; and
+/// @notice The ERC-8183 *client* of every listed job (spec §4). Two assets: the reward in any ERC-20 the creator
+///         names (ADR-0010: no allowlist), escrowed here at publish and moved into the core once the worker accepts; and
 ///         collateral in `$FACTORY`, a creator bond pulled at publish and a worker bond pulled at accept, both
 ///         locked here through settlement. A hold requirement in FACTORY gates publishing and claiming.
 ///
@@ -39,7 +40,14 @@ interface ISettlementWindow {
 ///         both bonds; every refund the
 ///         core makes lands here as custody, not entitlement, and `settle` pays it to whoever the evaluator
 ///         says is owed it, exactly once (R114-03).
-contract JobHolding is EIP712 {
+///
+///         Arbitrary reward tokens (ADR-0010): the reward must arrive in full (a fee-on-transfer token is refused
+///         at publish, as the core refuses one at `fund`); every entry point is non-reentrant, so a token's
+///         transfer hook cannot re-enter; and a reward that cannot be sent at settlement (a blocklist, a paused
+///         token) is owed to its recipient to `withdraw` later, so it never holds the bonds hostage. A token
+///         that rebases down can leave the last listing in that token short; that risk is the creator's and the
+///         worker's to judge from the token they chose.
+contract JobHolding is EIP712, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     /// @notice The creator's pick of one applicant for one listing. `termsHash` must equal the listing's
@@ -144,6 +152,9 @@ contract JobHolding is EIP712 {
     mapping(bytes32 policyHash => bool) public policyListed;
     /// @notice Selection nonces used by `activate` or burned by `cancelSelection`, per creator.
     mapping(address creator => mapping(uint256 nonce => bool)) public selectionNonceUsed;
+    /// @notice Rewards `settle` could not send (the token refused the transfer), per token and recipient, for
+    ///         the recipient to `withdraw` once the token lets it.
+    mapping(IERC20 token => mapping(address to => uint256)) public owed;
 
     event Published(
         uint256 indexed jobId,
@@ -168,6 +179,8 @@ contract JobHolding is EIP712 {
     event Cancelled(uint256 indexed jobId);
     event ContestExpired(uint256 indexed jobId);
     event RewardSettled(uint256 indexed jobId, address indexed to, uint256 amount);
+    event RewardOwed(uint256 indexed jobId, address indexed to, address token, uint256 amount);
+    event OwedWithdrawn(address indexed to, address indexed token, uint256 amount);
     event BondReturned(uint256 indexed jobId, Side side, address indexed to, uint256 amount);
     event BondBurned(uint256 indexed jobId, Side side, uint256 amount);
     event HoldRequirementsSet(uint256 minHoldToPublish, uint256 minHoldToClaim);
@@ -187,6 +200,8 @@ contract JobHolding is EIP712 {
     error WrongMode();
     error InsufficientFactoryHeld(uint256 held, uint256 required);
     error BondTokenFeeOnTransfer(uint256 expected, uint256 received);
+    error RewardTokenShortfall(uint256 expected, uint256 received);
+    error NothingOwed();
     error AlreadyAwarded();
     error NotApprover();
     error SelectionWindowClosed();
@@ -251,7 +266,7 @@ contract JobHolding is EIP712 {
 
     /// @notice Escrows the reward and the creator's FACTORY bond and creates the core job with Holding as
     ///         client and no provider. The listing is the escrow.
-    function publish(PublishParams calldata p) external returns (uint256 jobId) {
+    function publish(PublishParams calldata p) external nonReentrant returns (uint256 jobId) {
         if (evaluator == address(0)) revert EvaluatorNotSet();
         if (p.reward == 0) revert ZeroReward();
         if (p.policyHash == bytes32(0)) revert PolicyHashRequired();
@@ -272,7 +287,10 @@ contract JobHolding is EIP712 {
 
         policyListed[p.policyHash] = true;
         address approver = p.approver == address(0) ? msg.sender : p.approver;
+        uint256 before = p.token.balanceOf(address(this));
         p.token.safeTransferFrom(msg.sender, address(this), p.reward);
+        uint256 received = p.token.balanceOf(address(this)) - before;
+        if (received != p.reward) revert RewardTokenShortfall(p.reward, received);
         if (p.creatorBond > 0) _pullBond(msg.sender, p.creatorBond);
 
         jobId = core.createJob(
@@ -319,7 +337,7 @@ contract JobHolding is EIP712 {
     /// @notice Cancels a hire listing before activation. Nothing was escrowed in the core; `settle` then
     ///         returns reward and creator bond. A published contest cannot be cancelled: entrants work against
     ///         the locked prize, so it ends only through `award` or `expireContest` (R16-02).
-    function cancel(uint256 jobId) external onlyCreator(jobId) {
+    function cancel(uint256 jobId) external nonReentrant onlyCreator(jobId) {
         if (_listings[jobId].mode != Mode.HireFirst) revert WrongMode();
         if (_listings[jobId].worker != address(0) || _listings[jobId].funded) revert AlreadyActivated();
         core.reject(jobId, "cancelled", "");
@@ -336,7 +354,7 @@ contract JobHolding is EIP712 {
     ///         The winner does nothing after entering. Any failure (a revoked, expired or foreign authorisation, a
     ///         changed registry wallet) reverts the whole award and the contest stays open. Allowed at
     ///         `selectionDeadline`, refused after. At most once.
-    function award(uint256 jobId, Candidate calldata c) external {
+    function award(uint256 jobId, Candidate calldata c) external nonReentrant {
         Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert UnknownJob();
         if (l.mode != Mode.Contest) revert WrongMode();
@@ -374,7 +392,7 @@ contract JobHolding is EIP712 {
         Selection calldata sel,
         bytes calldata creatorSig,
         ERC8183WithAuthorization.Authorization calldata budgetAuth
-    ) external {
+    ) external nonReentrant {
         uint256 jobId = sel.jobId;
         Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert UnknownJob();
@@ -419,7 +437,7 @@ contract JobHolding is EIP712 {
     ///         Bonds no evaluator path settled return to their owners, except a worker bond whose penalty is due
     ///         (a missed delivery, an undisputed violation), which burns: a terminal core status alone never
     ///         releases it. Anyone may call: the effect is fixed.
-    function settle(uint256 jobId) external {
+    function settle(uint256 jobId) external nonReentrant {
         Listing storage l = _listings[jobId];
         if (l.creator == address(0)) revert UnknownJob();
         ERC8183.JobStatus status = core.getJob(jobId).status;
@@ -441,11 +459,23 @@ contract JobHolding is EIP712 {
             else _returnBond(jobId, l, Side.Worker);
         }
         if (rewardTo == address(0) && !settled) revert NothingToSettle();
-        if (rewardTo != address(0)) l.token.safeTransfer(rewardTo, l.reward);
+        if (rewardTo != address(0) && !l.token.trySafeTransfer(rewardTo, l.reward)) {
+            owed[l.token][rewardTo] += l.reward;
+            emit RewardOwed(jobId, rewardTo, address(l.token), l.reward);
+        }
+    }
+
+    /// @notice Sends the caller what `settle` could not: every reward in `token` owed to it.
+    function withdraw(IERC20 token) external nonReentrant {
+        uint256 amount = owed[token][msg.sender];
+        if (amount == 0) revert NothingOwed();
+        owed[token][msg.sender] = 0;
+        token.safeTransfer(msg.sender, amount);
+        emit OwedWithdrawn(msg.sender, address(token), amount);
     }
 
     /// @notice A contest nobody was awarded by its selection deadline is over; the prize returns via `settle`.
-    function expireContest(uint256 jobId) external {
+    function expireContest(uint256 jobId) external nonReentrant {
         Listing storage l = _listings[jobId];
         if (l.mode != Mode.Contest) revert WrongMode();
         if (l.worker != address(0)) revert AlreadyAwarded();

@@ -2,6 +2,12 @@
 
 Every externally callable function of the vendored ERC-8183 core (`erc-8183/base-contracts` at
 `142e669c1fd318486a4628395b629f033654dd06`), classified against our guarantees (spec §3–§4).
+
+**Local patch (ADR-0010, 29 Sep 2026).** The payment-token allowlist is retired: `_setBudget` no longer checks it,
+and `setPaymentTokenAllowed`, `allowedPaymentTokens`, `PaymentTokenAllowlistUpdated` and `PaymentTokenNotAllowed` are
+gone. The mapping's storage slot stays, renamed private, so the UUPS layout is unchanged. Every other line is
+upstream. `fund` still refuses a short delivery (`UnexpectedFundedAmount`), and every entry point stays
+non-reentrant.
 "Supported" is a path our SDK, MCP or contracts use. "Unavailable" is one nothing of ours calls, and
 what happens if a participant calls it directly anyway. "Recovery rule" names the test that proves the
 guarantee survives.
@@ -40,13 +46,14 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
-| `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (payment token) and the creator bond (FACTORY: the immutable bond token, any plain ERC-20; a fee-on-transfer token reverts `BondTokenFeeOnTransfer` at the first bond, `BondTokenTest`). Stores the offer's `approver` (zero = the creator). Refuses a zero or already-listed `policyHash` (R114-07) and a contest with `workerBond > 0` (`ApproverTest`). |
+| `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (any ERC-20, ADR-0010; it must arrive in full, else `RewardTokenShortfall`, `ArbitraryTokensTest`) and the creator bond (FACTORY: the immutable bond token, any plain ERC-20; a fee-on-transfer token reverts `BondTokenFeeOnTransfer` at the first bond, `BondTokenTest`). Stores the offer's `approver` (zero = the creator). Refuses a zero or already-listed `policyHash` (R114-07) and a contest with `workerBond > 0` (`ApproverTest`). |
 | `JobHolding.activate(selection, creatorSig, budgetAuth)` | **the selected worker itself** (never relayed, R114-01) | Replaced `assign` + `postWorkerBond` + `fundAfterAccept` for hires. Checks the creator's EIP-712 `Selection` (signature, own nonce space, `activateBy` ≤ now allowed at the deadline, `activateBy` < delivery deadline, `termsHash` = listing's `policyHash`), `agentId` ≠ 0, `identity.getAgentWallet(agentId) == msg.sender` and the hold gate; then setProvider, pulls the worker bond, applies the worker's `SetBudgetAuthorization` for exactly the listed token and reward, funds. All or nothing; at most once per listing (`ActivationTest`, `AdmissionForkTest`). |
 | `JobHolding.cancelSelection(nonce)` | creator | None; burns a selection nonce. |
 | `JobHolding.award(jobId, candidate)` | the listing's approver, until `selectionDeadline` (allowed at it) | Replaced `select` + `postWorkerBond` + `fundAfterAccept`. Checks `getAgentWallet(agentId) == candidate.worker`, then setProvider → `setBudgetWithAuthorization` (exactly the prize) → fund → `submitWithAuthorization` (exactly the named deliverable) → `JobsEvaluator.completeAward`: the entrant is paid and the creator bond returns in one transaction, winner offline. Any failure reverts all; the contest stays open; at most once (`ContestTest`, `AdmissionForkTest`). |
 | `JobHolding.cancel` | creator, **hire only, before activation** | `reject` while Open; nothing was in the core. A live contest cannot be cancelled (R16-02). |
 | `JobHolding.expireContest` | anyone, after `selectionDeadline`, nothing awarded | `reject` while Open; prize and creator bond recoverable once through `settle`. An awarded contest cannot be expired. |
-| `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; an unsettled worker bond **burns if `workerPenaltyDue`** (missed delivery, undisputed violation), else returns; the creator bond returns; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` (R114-03). |
+| `JobHolding.settle` | anyone | After a terminal core status: the reward still in Holding to the worker if `earnedByWorker`, else to the creator; an unsettled worker bond **burns if `workerPenaltyDue`** (missed delivery, undisputed violation), else returns; the creator bond returns; each amount at most once. Replaced `withdraw` / `withdrawWorkerBond` (R114-03). A reward the token refuses to send (a blocklist, a pause) is recorded in `owed` instead of reverting, so the bonds still settle (ADR-0010). |
+| `JobHolding.withdraw(token)` | whoever is `owed` a reward | Sends every reward in `token` that `settle` could not send to the caller (`ArbitraryTokensTest`). |
 | `JobsEvaluator.completeAward` | Holding only, inside `award` | `complete`, bonds back, feedback. |
 | `JobHolding.burnBond` | evaluator only | Burns one side's bond on a final finding (sends it to `BURN_ADDRESS` `0x…dEaD`, so the bond token needs no `burn`): a ruling (`slashLoser`), an undisputed rejection naming a violation, a missed delivery. Holding records each bond's outcome (`creatorBondBurned`, `workerBondBurned`). |
 | `JobHolding.returnBonds` | evaluator only | Returns unsettled bonds to their owners; idempotent. |
@@ -71,15 +78,14 @@ is Chainlink's `ReceiverTemplate`, pinned and ownerless after configuration.
 ## Admin (deployer EOA)
 
 `pause`/`unpause`, `emergencyWithdraw` (only while paused), `setPlatformFee`, `setEvaluatorFee`,
-`setHookWhitelist`, `setPaymentTokenAllowed`, `batchDetachHook`, UUPS upgrade. Deployed by `script/Recipe.sol` from
-`config/<network>.json` with fees 0, only the listed reward tokens allowlisted (testnet `mUSD` and `mEUR`, mainnet
-USDC; FACTORY never: collateral never enters the core), no hook whitelisted. `JobHolding.setHoldRequirements` and `JobsEvaluator.setVerifier` are the two admin
+`setHookWhitelist`, `batchDetachHook`, UUPS upgrade. Deployed by `script/Recipe.sol` from `config/<network>.json`
+with fees 0 and no hook whitelisted; any ERC-20 can be a reward (ADR-0010), so there is no token knob. The testnet
+core was upgraded in place by `script/UpgradeCore.s.sol`. `JobHolding.setHoldRequirements` and `JobsEvaluator.setVerifier` are the two admin
 knobs of ours. The README names the admin and commits to
 no upgrade during an active agreement. Pause blocks every lifecycle call above, including the timeouts,
 so an outage promise made while paused is void; this is stated rather than mitigated.
 
 ## Views
 
-`getJob`, `jobs`, `jobCounter`, `pendingClaimHash`, `submittedClaimHash`, `whitelistedHooks`,
-`allowedPaymentTokens`, fee getters, `DOMAIN_SEPARATOR`, the typehash constants. Read freely; the
+`getJob`, `jobs`, `jobCounter`, `pendingClaimHash`, `submittedClaimHash`, `whitelistedHooks`, fee getters, `DOMAIN_SEPARATOR`, the typehash constants. Read freely; the
 indexer builds Explore from events plus `getJob`.

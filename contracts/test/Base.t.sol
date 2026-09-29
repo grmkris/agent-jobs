@@ -69,7 +69,6 @@ abstract contract Base is Test {
         ERC8183WithAuthorization impl = new ERC8183WithAuthorization();
         bytes memory init = abi.encodeCall(ERC8183WithAuthorization.initialize, (deployer, deployer));
         core = ERC8183WithAuthorization(address(new ERC1967Proxy(address(impl), init)));
-        core.setPaymentTokenAllowed(address(pay), true);
         core.setPlatformFee(0, deployer);
         core.setEvaluatorFee(0);
         identity = new MockIdentity();

@@ -91,11 +91,11 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     uint256 public jobCounter;
     /// @notice Hook address -> whether it is whitelisted for use
     mapping(address => bool) public whitelistedHooks;
-    /// @notice ERC-20 token -> whether it is allowed as a payment token
-    /// @dev    Allowlist enforces that only tokens with vetted ERC-20 semantics
-    ///         (no fee-on-transfer, no rebase, no transfer hooks, no pause/blacklist
-    ///         that would lock escrowed funds) can be used for job budgets.
-    mapping(address => bool) public allowedPaymentTokens;
+    /// @dev    agent-jobs patch (ADR-0010): the payment-token allowlist is retired, so any ERC-20 can be a
+    ///         job's budget. The slot stays so the upgradeable storage layout is unchanged; nothing reads it.
+    ///         `fund` still refuses a token that delivers less than the budget (fee-on-transfer), and every
+    ///         entry point is non-reentrant.
+    mapping(address => bool) private __retiredPaymentTokenAllowlist;
     /// @notice Job ID -> hash binding the pending nonzero-deliverable claim.
     mapping(uint256 => bytes32) public pendingClaimHash;
     /// @notice Job ID -> claim hash -> whether the claim hash has already been submitted.
@@ -232,11 +232,6 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         address indexed hook,
         bool status
     );
-    /// @notice Emitted when a payment token's allowlist status changes
-    event PaymentTokenAllowlistUpdated(
-        address indexed token,
-        bool status
-    );
     /// @notice Emitted when admin detaches a hook from a specific job
     event HookDetached(
         uint256 indexed jobId, 
@@ -288,8 +283,6 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     error ClientCannotBeProvider();
     /// @notice Thrown when a Submitted job is within the post-expiry evaluator grace period
     error GracePeriodActive();
-    /// @notice Thrown when the payment token is not on the allowlist
-    error PaymentTokenNotAllowed();
     /// @notice Thrown when funded amount received differs from expected (fee-on-transfer / rebasing tokens)
     error UnexpectedFundedAmount();
     /// @notice Thrown when a claim does not advance the cumulative amount
@@ -401,22 +394,6 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         if (hook == address(0)) revert ZeroAddress();
         whitelistedHooks[hook] = status;
         emit HookWhitelistUpdated(hook, status);
-    }
-
-    /// @notice Allow or revoke an ERC-20 token as a valid payment token.
-    /// @dev    Tokens with non-standard semantics — fee-on-transfer, rebasing,
-    ///         ERC-777/ERC-1363 transfer hooks, pausable/blacklist behavior — break
-    ///         the escrow accounting in this contract. Only allow tokens you have
-    ///         verified to behave as plain ERC-20 transfers.
-    /// @param token  The ERC-20 token address
-    /// @param status True to allow, false to revoke
-    function setPaymentTokenAllowed(
-        address token,
-        bool status
-    ) external onlyRole(ADMIN_ROLE) {
-        if (token == address(0)) revert ZeroAddress();
-        allowedPaymentTokens[token] = status;
-        emit PaymentTokenAllowlistUpdated(token, status);
     }
 
     /// @notice Detach hooks from specific jobs. Admin emergency tool for
@@ -641,7 +618,6 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
         if (block.timestamp >= job.expiredAt) revert WrongStatus();
         if (actor != job.provider) revert Unauthorized();
         if (token == address(0)) revert ZeroAddress();
-        if (!allowedPaymentTokens[token]) revert PaymentTokenNotAllowed();
         _validatePayoutReceiver(job.payoutReceiver, token);
 
         bytes memory data = abi.encode(actor, token, amount, optParams);

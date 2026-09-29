@@ -14,8 +14,6 @@ contract TwoTokensTest is Base {
     function setUp() public override {
         super.setUp();
         eur = new MockPaymentToken("Mock EUR (testnet)", "mEUR");
-        vm.prank(deployer);
-        core.setPaymentTokenAllowed(address(eur), true);
         eur.mint(creator, 10 * REWARD);
         vm.prank(creator);
         eur.approve(address(holding), type(uint256).max);

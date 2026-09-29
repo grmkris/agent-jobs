@@ -11,6 +11,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC8183WithAuthorization} from "../../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {JobHolding} from "../../src/JobHolding.sol";
 import {JobsEvaluator} from "../../src/JobsEvaluator.sol";
+import {PlainToken} from "../mocks/OddTokens.sol";
 
 /// @dev The deployment recipe against a fork of each network with its committed config (spec S7 item 4). Nothing is
 ///      broadcast. Skipped unless MONAD_TESTNET_RPC_URL / MONAD_MAINNET_RPC_URL are set.
@@ -32,9 +33,8 @@ contract DeployForkTest is Test {
         assertTrue(d.core.hasRole(d.core.ADMIN_ROLE(), c.admin), "admin EOA holds the admin role");
         assertEq(d.core.platformFeeBP(), 0);
         assertEq(d.core.evaluatorFeeBP(), 0);
-        assertFalse(d.core.allowedPaymentTokens(address(d.factory)), "FACTORY never enters the core");
-        for (uint256 i; i < d.rewardTokens.length; ++i) {
-            assertTrue(d.core.allowedPaymentTokens(d.rewardTokens[i]));
+        // The faucet tokens are 6-decimal mocks; known tokens after them are real ERC-20s of any decimals (CHOMP: 18).
+        for (uint256 i; i < c.faucetTokenSymbols.length; ++i) {
             assertEq(IERC20Metadata(d.rewardTokens[i]).decimals(), 6);
         }
         for (uint256 i; i < d.holdings.length; ++i) {
@@ -64,7 +64,7 @@ contract DeployForkTest is Test {
         vm.startBroadcast(c.admin);
         (JobHolding[] memory holdings, JobsEvaluator[] memory evaluators) = Recipe.deployStacks(c, core, factory);
         vm.stopBroadcast();
-        assertEq(holdings.length, 2);
+        assertEq(holdings.length, c.stackNames.length);
         for (uint256 i; i < holdings.length; ++i) {
             assertEq(address(holdings[i].core()), address(core));
             assertEq(address(holdings[i].factory()), address(factory));
@@ -76,12 +76,45 @@ contract DeployForkTest is Test {
         assertEq(oldMain.evaluator(), oldEvaluator, "the recorded pair is untouched");
     }
 
+    /// @dev ADR-0010 on the deployed proxy: the upgrade keeps every job as it was and lifts the allowlist, so a
+    ///      provider can budget a job in a token nobody ever registered.
+    function test_fork_testnetCoreUpgrade() public {
+        if (!_fork("MONAD_TESTNET_RPC_URL")) return vm.skip(true);
+        Recipe.Config memory c = Recipe.load(vm, "monad-testnet");
+        string memory json = vm.readFile(Recipe.path(vm, "monad-testnet"));
+        ERC8183WithAuthorization core = ERC8183WithAuthorization(vm.parseJsonAddress(json, ".deployment.core"));
+        uint256 jobs = core.jobCounter();
+        ERC8183.Job memory last = core.getJob(jobs);
+        address anyEvaluator = vm.parseJsonAddress(json, ".deployment.main.evaluator");
+
+        vm.startPrank(c.admin);
+        core.upgradeToAndCall(address(new ERC8183WithAuthorization()), "");
+        vm.stopPrank();
+
+        assertEq(core.jobCounter(), jobs, "no job lost");
+        ERC8183.Job memory same = core.getJob(jobs);
+        assertEq(same.client, last.client);
+        assertEq(uint8(same.status), uint8(last.status));
+        assertEq(same.paymentToken, last.paymentToken);
+        assertEq(same.budget, last.budget);
+        assertEq(same.provider, last.provider);
+
+        PlainToken token = new PlainToken("NEW");
+        address client = makeAddr("client");
+        address provider = makeAddr("provider");
+        vm.prank(client);
+        uint256 jobId = core.createJob(provider, anyEvaluator, uint48(block.timestamp + 1 days), "any token", address(0), 0);
+        vm.prank(provider);
+        core.setBudget(jobId, address(token), 1e18, "");
+        assertEq(core.getJob(jobId).paymentToken, address(token), "budgeted in a token the core never saw");
+    }
+
     function test_fork_testnetRecipe() public {
         if (!_fork("MONAD_TESTNET_RPC_URL")) return vm.skip(true);
         Recipe.Config memory c = Recipe.load(vm, "monad-testnet");
         Recipe.Deployed memory d = _deploy(c);
         _assertCommon(c, d);
-        assertEq(d.holdings.length, 2, "main and demo stacks");
+        assertEq(d.holdings.length, c.stackNames.length, "one pair per configured stack (main, demo, fast)");
         assertEq(d.evaluators[1].settlementWindow(), 600, "demo windows 2m/2m/5m + 1m");
         assertEq(IERC20Metadata(d.rewardTokens[0]).symbol(), "mUSD");
         assertEq(IERC20Metadata(d.rewardTokens[1]).symbol(), "mEUR");

@@ -43,7 +43,7 @@
       "mEUR"
     ]
   },
-  "allowedTokens": [
+  "knownTokens": [
     "0x130556848511554b181e645309754F265522F3c2"
   ],
   "stacks": {
