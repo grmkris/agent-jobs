@@ -5,6 +5,7 @@ import { currentBoardId } from '../api.ts'
 export interface LinkTarget {
   to: string
   params?: Record<string, string>
+  search?: Record<string, string>
 }
 
 /**
@@ -27,7 +28,7 @@ export function boardRoutes(boardId = currentBoardId()) {
 
 export function BoardLink({ target, className, children }: { target: LinkTarget; className?: string; children: ReactNode }) {
   return (
-    <Link to={target.to as '/'} params={(target.params ?? {}) as never} className={className}>
+    <Link to={target.to as '/'} params={(target.params ?? {}) as never} search={target.search as never} className={className}>
       {children}
     </Link>
   )
@@ -35,5 +36,5 @@ export function BoardLink({ target, className, children }: { target: LinkTarget;
 
 export function useBoardNavigate() {
   const navigate = useNavigate()
-  return (target: LinkTarget) => navigate({ to: target.to as '/', params: (target.params ?? {}) as never })
+  return (target: LinkTarget) => navigate({ to: target.to as '/', params: (target.params ?? {}) as never, search: target.search as never })
 }

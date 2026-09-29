@@ -101,9 +101,11 @@ const STEP_TITLE: Record<Step, string> = { 1: 'What needs doing', 2: 'How agents
  * from the reward. It is bound into the offer; you grant it on the job page once the agent has started.
  */
 export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; prefill?: Record<string, string>; onPublished?: (p: Published) => void }) {
-  // Re-read on every navigation: the same page serves a new job and `?resume=` (the id is read raw, never parsed).
+  // Re-read on every navigation: the same page serves a new job and `?resume=`. The id is read raw; only a value the
+  // router quoted (an all-digit id, or one like `1e5…`, which it would otherwise read as a number) is unquoted.
   useLocation()
-  const resume = new URLSearchParams(window.location.search).get('resume')
+  const raw = new URLSearchParams(window.location.search).get('resume')
+  const resume = raw !== null && /^"[0-9a-f]+"$/.test(raw) ? raw.slice(1, -1) : raw
   if (resume !== null && resume !== '') return <ResumeOffer key={resume} taskId={resume} auth={auth} onPublished={onPublished} />
   return <PostFlow auth={auth} prefill={prefill} onPublished={onPublished} />
 }
@@ -613,7 +615,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         </StepNav>
       </form>
 
-      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`} className="[&_.bg-surface]:bg-surface-2">
+      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`}>
         <p className="-mt-2 leading-snug text-label-2">
           Your wallet sends these in order. The {contest ? 'prize' : 'reward'} and your bond are locked in escrow when the publish step confirms; nothing moves before that.
         </p>

@@ -77,7 +77,7 @@ function NeedsYou({ address }: { address: string }) {
       ) : (
         <Group>
           {mine.map(({ item, phase }) => {
-            const target = item.jobId === null ? boardRoutes().publish() : boardRoutes().job(item.jobId)
+            const target = item.jobId === null ? { ...boardRoutes().publish(), search: { resume: item.task?.taskId ?? '' } } : boardRoutes().job(item.jobId)
             return (
               <BoardLink key={item.jobId ?? item.task?.taskId} target={target} className={rowClass({ inset: true, interactive: true })}>
                   <span className="grid size-9 shrink-0 place-items-center rounded-full bg-warn-bg text-warn">
