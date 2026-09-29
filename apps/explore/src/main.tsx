@@ -17,11 +17,13 @@ import { BoardsPage } from './routes/Boards.tsx'
 import { BoardNewPage } from './routes/BoardNew.tsx'
 import { EmbedPage } from './routes/Embed.tsx'
 import { currentBoardId } from './api.ts'
+import { useTokenRegistry } from './useTokens.ts'
 
 function Layout() {
   const auth = useAuth()
   const paused = usePaused()
   const location = useLocation()
+  useTokenRegistry()
   // The embedded widget (ADR-0008) has no site chrome: the host page is the chrome.
   if (location.pathname.startsWith('/embed/')) return <Outlet />
   const boardId = currentBoardId()

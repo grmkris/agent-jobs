@@ -4,7 +4,7 @@ import { boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Badge, Button, Card } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
-import { TOKENS } from '../format.ts'
+import { rewardTokenList } from '../format.ts'
 import { deployment, isMainnet } from '../wallet.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
@@ -16,7 +16,8 @@ interface Created {
   transactions: TxRequest[]
 }
 
-const rewardTokens = Object.entries(TOKENS).filter(([, t]) => t.symbol !== 'FACTORY')
+/** Read on every render: board tokens (e.g. $CHOMP) are registered once /data/boards answers. */
+const rewardTokens = rewardTokenList
 
 /** nad.fun's launch call on Monad testnet: a call budget for it makes the creator the token's creator (ADR-0005). */
 const NADFUN_TESTNET = {
@@ -53,10 +54,10 @@ export interface Published {
 export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; prefill?: Record<string, string>; onPublished?: (p: Published) => void }) {
   const navigate = useBoardNavigate()
   const [mode, setMode] = useState<'hire' | 'contest' | 'quotes'>(prefill.mode === 'contest' || prefill.mode === 'quotes' ? prefill.mode : 'hire')
-  const [quoteTokens, setQuoteTokens] = useState<string[]>(rewardTokens.map(([a]) => a))
+  const [quoteTokens, setQuoteTokens] = useState<string[]>(rewardTokens().map(([a]) => a))
   const [quoteHours, setQuoteHours] = useState('6')
   const [budgetOn, setBudgetOn] = useState(false)
-  const [budgetToken, setBudgetToken] = useState(rewardTokens[0]?.[0] ?? '')
+  const [budgetToken, setBudgetToken] = useState(rewardTokens()[0]?.[0] ?? '')
   const [budgetCap, setBudgetCap] = useState('2')
   const [budgetKind, setBudgetKind] = useState<'advance' | 'call'>('advance')
   const [callTarget, setCallTarget] = useState(isMainnet ? '' : NADFUN_TESTNET.target)
@@ -65,7 +66,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
   const [title, setTitle] = useState(prefill.title ?? '')
   const [brief, setBrief] = useState(prefill.brief ?? '')
   const [criteria, setCriteria] = useState('A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.')
-  const [token, setToken] = useState(rewardTokens.find(([a, t]) => prefill.token !== undefined && (t.symbol.toLowerCase() === prefill.token.toLowerCase() || a === prefill.token.toLowerCase()))?.[0] ?? rewardTokens[0]?.[0] ?? '')
+  const [token, setToken] = useState(rewardTokens().find(([a, t]) => prefill.token !== undefined && (t.symbol.toLowerCase() === prefill.token.toLowerCase() || a === prefill.token.toLowerCase()))?.[0] ?? rewardTokens()[0]?.[0] ?? '')
   const [reward, setReward] = useState(prefill.reward ?? '10')
   const [creatorBond, setCreatorBond] = useState(isMainnet ? '0' : '2')
   const [workerBond, setWorkerBond] = useState(isMainnet ? '0' : '1')
@@ -200,7 +201,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
           <>
             <Field label="Accepted tokens" hint="Each quote names one of these and an exact amount.">
               <div className="flex gap-3 text-sm">
-                {rewardTokens.map(([address, t]) => (
+                {rewardTokens().map(([address, t]) => (
                   <label key={address} className="flex items-center gap-1">
                     <input
                       type="checkbox"
@@ -218,7 +219,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
           <>
             <Field label="Reward token">
               <select value={token} onChange={(e) => setToken(e.target.value)} className={input}>
-                {rewardTokens.map(([address, t]) => <option key={address} value={address}>{t.symbol}</option>)}
+                {rewardTokens().map(([address, t]) => <option key={address} value={address}>{t.symbol}</option>)}
               </select>
             </Field>
             <Field label="Reward"><input value={reward} onChange={(e) => setReward(e.target.value)} className={input} inputMode="decimal" /></Field>
@@ -302,7 +303,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
                 <Field label="Advance token" hint="Any ERC-20 you hold; the reward tokens are suggested.">
                   <input value={budgetToken} onChange={(e) => setBudgetToken(e.target.value)} className={`${input} font-mono`} list="advance-tokens" />
                   <datalist id="advance-tokens">
-                    {rewardTokens.map(([address, t]) => <option key={address} value={address}>{t.symbol}</option>)}
+                    {rewardTokens().map(([address, t]) => <option key={address} value={address}>{t.symbol}</option>)}
                   </datalist>
                 </Field>
                 <Field label="Cap"><input value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} className={input} inputMode="decimal" /></Field>
