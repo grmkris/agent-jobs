@@ -1254,7 +1254,7 @@ export class Board {
     if (amount <= 0n) throw new BoardError('invalid', 'the amount must be positive')
     let expectedCosts: { token: Address; amount: string; note: string } | undefined
     if (input.expectedCosts !== undefined) {
-      const costToken = await this.#resolveToken(ctx, input.expectedCosts.token)
+      const costToken = await this.#advanceToken(ctx, input.expectedCosts.token)
       const costDecimals = await ctx.publicClient.readContract({ address: costToken, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
       let cost: bigint
       try {

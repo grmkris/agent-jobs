@@ -40,6 +40,10 @@ Tests and live jobs prove each of these (`contracts/SURFACE.md`, `docs/reality-c
   creator's DeleGator account to the activated worker, `salt = termsHash`, its caveats (cap, recipient or function,
   one call, expiry) enforced on-chain. The worker redeems from its own wallet; the board prepares calldata and
   mirrors receipts, and holds no key over anyone's funds. Grant only once the job is `active`.
+- Any ERC-20 is a reward (ADR-0010); no admin allowlist anywhere. The config's `knownTokens` are only listed first.
+  `JobHolding` must stay safe with a hostile token: the reward arrives in full at publish, entry points are
+  non-reentrant, a refused reward payout is `owed` and never blocks the bonds, and escrow is pooled per token. Only a
+  stack marked `openTokens` takes an unknown token through the board.
 
 ## Working here
 

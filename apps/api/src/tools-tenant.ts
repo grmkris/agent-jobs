@@ -37,7 +37,7 @@ const boardProperties = {
   name: str('Display name (1–80 characters).'),
   stacks: strs('Stacks the board offers (main, demo, fast on testnet); default: every deployed stack.'),
   defaultStack: str('The stack a new offer uses when the publisher names none; default: the first of `stacks`.'),
-  rewardTokens: strs('Reward tokens by symbol or address, a subset of the deployment allowlist; default: all of them.'),
+  rewardTokens: strs('Reward tokens the board offers: known symbols or any ERC-20 addresses; default: every known token.'),
   deliverableDefault: { type: 'object', description: 'What a new offer accepts when the publisher does not say (ADR-0006): {accepts: [...], target?}.' },
   defaultApprover: str('Optional: the approver of every new offer unless the publisher names one.'),
   allowedOrigins: strs('Origins (https://host[:port], or http://localhost:*) whose pages may call this board from the browser and sign in with their own domain.'),

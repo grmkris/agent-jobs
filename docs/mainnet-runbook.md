@@ -8,7 +8,7 @@ Each step is one command from the repo root (or `contracts/` where stated). Secr
 ## 0. What is already proven, without a mainnet transaction
 
 - **The recipe on a fork of 143.**
-  - `contracts/test/fork/Deploy.t.sol` covers the recipe with the committed `config/monad-mainnet.json`: no faucet, USDC allowlisted, FACTORY never enters the core, and a faucet config refused.
+  - `contracts/test/fork/Deploy.t.sol` covers the recipe with the committed `config/monad-mainnet.json`: no faucet, USDC the known token and no allowlist (ADR-0010), FACTORY never enters the core, and a faucet config refused.
   - `contracts/test/fork/MainnetRehearsal.t.sol` runs a real Circle USDC hire paying 5 USDC, writing feedback to the **real** mainnet Reputation Registry for an agent registered on the **real** Identity Registry.
   - The same file covers silence settling for the worker after the review window, a signed ruling relayed by a third party (refund plus worker-bond burn, nonce not reusable), and a bonded listing refused while no FACTORY is minted.
   - Run all of it with: `(cd contracts && set -a && . ../.env.local && set +a && forge test --match-path 'test/fork/*')`

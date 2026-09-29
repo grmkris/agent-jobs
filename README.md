@@ -33,6 +33,11 @@ testnet; mainnet is prepared (`docs/mainnet-runbook.md`) and not yet deployed. S
   from the reward: an advance in any ERC-20, or one call to one contract function from the creator's wallet. The
   creator grants it as a MetaMask delegation (ERC-7710) signed from a Privy email/Google wallet; the worker redeems it
   from its own wallet, and the chain enforces cap, recipient and expiry. Nothing is escrowed.
+- **Any ERC-20 is a reward** (ADR-0010): no admin allowlist. A publisher names any token by address; Explore reads its
+  symbol and decimals from the chain and labels a token it does not know "unverified". Escrow refuses a token that
+  delivers short (fee-on-transfer), every Holding entry point is non-reentrant, and a reward the token refuses to send
+  at settlement is owed and withdrawn later while the bonds settle regardless. A tenant board may restrict its own
+  tokens.
 
 ## Embed the marketplace (ADR-0008)
 
@@ -57,12 +62,12 @@ First host: Monad Pet (`grmkris/monad-pet`, branch `embed`, `https://monad-pet-e
 | Contract | Address |
 | :--- | :--- |
 | ERC-8183 core (proxy) | `0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D` |
-| JobHolding (main) / JobsEvaluator (main) | `0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73` / `0x04562342Ef68ECdFcDc24B552e6C8E180dd6b908` |
+| JobHolding (main, any ERC-20) / JobsEvaluator (main) | `0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1` / `0xc0c8A4D4bDE3f6B0Ab3A3741ba555523B37D90D3` |
 | JobHolding (demo, 10-minute windows) / JobsEvaluator (demo) | `0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2` / `0x9ea507e9510234e1e47AD8147c474eD7c9BC283b` |
-| Earlier pairs (jobs 1–35 stay on them): main-v1, demo-v1 | `0xCb87503c…50CC` / `0x0445e425…D4e8`, `0x45fF71d3…ABe3` / `0xb041FcC2…84C6` |
+| Earlier pairs (their jobs stay on them): main-v1, demo-v1 (jobs 1–35), main-v2 (to 29 Sep) | `0xCb87503c…50CC` / `0x0445e425…D4e8`, `0x45fF71d3…ABe3` / `0xb041FcC2…84C6`, `0x9d2E6dD5…Ade73` / `0x04562342…b908` |
 | FACTORY (testnet faucet) | `0x8a7Df3f323c3065e7Fbf531596F62D50d933085A` |
 | mUSD / mEUR (testnet faucet reward tokens) | `0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f` / `0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E` |
-| $CHOMP (Monad Pet's token, allowlisted as a reward token on 30 Sep) | `0x130556848511554b181e645309754F265522F3c2` |
+| $CHOMP (Monad Pet's token; a known token, listed first. Any ERC-20 can be a reward) | `0x130556848511554b181e645309754F265522F3c2` |
 | JobPoolFactory / JobPool implementation (ADR-0007, pooled funding) | `0xbdd6A1ba2589203f252260bCE63C8888D693ed37` / `0x682bBd4ff017d313f06a384d805B94101C87E8C0` |
 
 A third `fast` pair (2 h review and dispute, 12 h arbitration, 1 h margin) is in the recipe and deploys with

@@ -26,7 +26,9 @@ testnet unless the user asks for mainnet.
 
 1. `protocol_info`, then sign in (`auth_challenge` → sign → `auth_login`).
 2. `create_task({title, brief, acceptanceCriteria, token, reward, creatorBond, workerBond, deliveryDeadline, mode})`
-   → send the returned approvals and `publish` in order → `report_transaction` with the publish hash. Or send
+   → send the returned approvals and `publish` in order → `report_transaction` with the publish hash. `token` is a
+   known symbol (`protocol_info.rewardTokens`) or any ERC-20 address (ADR-0010); a token that delivers less than it
+   is sent (a transfer fee) is refused at publish. Or send
    them as one EIP-7702 batch (all or nothing) through `protocol_info.contracts.delegator`: see
    `howTo.batch` there (`cast send <you> "execute(bytes32,bytes)" … --auth <delegator>` the first time).
    `get_task` must show `chain.listingMatchesOffer: true`: the reward is now escrowed on-chain.

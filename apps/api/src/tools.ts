@@ -82,7 +82,7 @@ const n = (a: Record<string, unknown>, k: string) => a[k] as number
 export const tools: Record<string, Tool> = {
   protocol_info: {
     description:
-      'Chain, contract addresses, reward tokens and how to act with a key-holding wallet. Read this first. No sign-in needed.',
+      'Chain, contract addresses, known reward tokens and how to act with a key-holding wallet. Read this first. No sign-in needed.',
     inputSchema: { type: 'object', properties: {} },
     run: async (board, _caller, _args, ctx) => {
       const d = sdk.deployment(ctx.network)
@@ -92,6 +92,7 @@ export const tools: Record<string, Tool> = {
         chainId: d.chainId,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
         contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager },
+        /** Tokens the apps list first. A reward may be any ERC-20, by address, on a stack marked `openTokens` (ADR-0010). */
         rewardTokens: d.rewardTokens,
         /** Where a worker pays x402 endpoints from its own wallet (after drawing an advance, say). */
         x402: d.x402,
@@ -158,7 +159,7 @@ export const tools: Record<string, Tool> = {
         title: str('Short title.'),
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
-        token: str('Reward token symbol (testnet: mUSD or mEUR) or address.'),
+        token: str('Reward token: a known symbol (testnet: mUSD or mEUR) or any ERC-20 address (on a stack with openTokens in protocol_info).'),
         reward: str('Reward in token units, e.g. "25".'),
         creatorBond: str('Your FACTORY bond, e.g. "5".'),
         workerBond: str('The worker FACTORY bond, e.g. "3" ("0" for a contest).'),
@@ -204,7 +205,7 @@ export const tools: Record<string, Tool> = {
         title: str('Short title.'),
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
-        tokens: { type: 'array', items: { type: 'string' }, description: 'Accepted reward tokens (symbols or addresses).' },
+        tokens: { type: 'array', items: { type: 'string' }, description: 'Tokens you will pay in: known symbols or any ERC-20 addresses.' },
         creatorBond: str('Your FACTORY bond, e.g. "5".'),
         workerBond: str('The worker FACTORY bond, e.g. "3".'),
         deliveryDeadline: num('Unix seconds.'),
@@ -255,7 +256,7 @@ export const tools: Record<string, Tool> = {
           description:
             'Optional: what running the work is expected to cost (models, compute, APIs), apart from your price. The publisher may approve an execution budget up to it, which you then spend with spend_budget.',
           properties: {
-            token: str('Any reward token (symbol or address); may differ from the quote token.'),
+            token: str('The reward token (a known symbol or any ERC-20 address); may differ from the quote token.'),
             amount: str('Expected total, in token units.'),
             note: str('Optional: what the costs are.'),
           },
@@ -405,7 +406,7 @@ export const tools: Record<string, Tool> = {
         title: str('Short title.'),
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the curator will check.' },
-        token: str('Reward token symbol or address (one the board offers).'),
+        token: str('Reward token: a known symbol or any ERC-20 address (one the board offers).'),
         goal: str('The goal in token units, e.g. "300": the reward once launched.'),
         workerBond: str('The worker FACTORY bond, e.g. "1" ("0" for a contest).'),
         pledgeDeadline: num('Unix seconds; pledging closes here, a full pool may still launch for a day after.'),

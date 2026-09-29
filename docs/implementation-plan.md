@@ -185,7 +185,7 @@ separate agent, crops, audit skim, independent adversarial review; fixes, then r
 
 ## B7 Mainnet
 
-After B6a and Kris's FACTORY supply/mint decision. Same recipe, real windows, USDC allowlisted, no faucet,
+After B6a and Kris's FACTORY supply/mint decision. Same recipe, real windows, USDC the known token (any ERC-20 is a reward, ADR-0010), no faucet,
 hold gates 0, custom domain, `prod` stage; one real job settled with real USDC. Every transaction waits
 for Kris's explicit go.
 
