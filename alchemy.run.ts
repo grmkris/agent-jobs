@@ -34,7 +34,7 @@ export default Alchemy.Stack(
       env: { API: api },
       assets: {
         notFoundHandling: 'single-page-application',
-        runWorkerFirst: ['/api/*', '/data/*', '/offers/*', '/mcp', '/health'],
+        runWorkerFirst: ['/api/*', '/b/*', '/data/*', '/offers/*', '/mcp', '/health'],
       },
     })
     return {

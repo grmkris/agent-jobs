@@ -2,6 +2,7 @@ import { Board as BoardService, BoardError, fromDurableObjectSql } from '@agent-
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
+import { getAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { type ToolContext, toJson, tools } from './tools.ts'
 
@@ -11,6 +12,8 @@ export interface BoardCall {
   readonly args: Record<string, unknown>
   readonly bearer?: string | undefined
   readonly mcpSession?: string | undefined
+  /** The signed-in wallet, when the Worker already resolved it from the shared session store (ADR-0008). */
+  readonly caller?: string | undefined
   readonly env: {
     readonly network: sdk.Network
     readonly rpcUrl: string
@@ -92,7 +95,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
             if (tool === undefined) return toJson({ ok: false, code: 'not-found', message: `no tool ${req.tool}` })
             try {
               const board = boardFor(req.env)
-              const caller = board.resolveCaller({ bearer: req.bearer, mcpSession: req.mcpSession })
+              const caller = req.caller !== undefined ? { address: getAddress(req.caller) } : board.resolveCaller({ bearer: req.bearer, mcpSession: req.mcpSession })
               const ctx: ToolContext = { network: req.env.network, mcpSession: req.mcpSession }
               const result = await tool.run(board, caller, req.args, ctx)
               return toJson({ ok: true, result } satisfies BoardReply)

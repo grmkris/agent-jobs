@@ -7,7 +7,7 @@ interface Env {
   readonly ASSETS: { fetch(request: Request): Promise<Response> }
 }
 
-const PROXIED = ['/api/', '/data/', '/offers/', '/mcp', '/health']
+const PROXIED = ['/api/', '/b/', '/data/', '/offers/', '/mcp', '/health']
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {

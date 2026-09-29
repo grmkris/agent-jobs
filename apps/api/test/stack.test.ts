@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as HttpBody from 'effect/unstable/http/HttpBody'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
+import * as HttpClientRequest from 'effect/unstable/http/HttpClientRequest'
 import { expect } from 'vitest'
 import Stack from '../../../alchemy.run.ts'
 
@@ -87,7 +88,7 @@ test.skipIf(!rpcSet)('sign in over MCP, create an offer, and serve its manifest'
     const login = yield* mcp(apiUrl, 'tools/call', { name: 'auth_login', arguments: { message, signature } }, init.session)
     expect(login.body.result.isError).toBeUndefined()
     const who = yield* mcp(apiUrl, 'tools/call', { name: 'whoami', arguments: {} }, init.session)
-    expect(JSON.parse(who.body.result.content[0].text)).toEqual({ address: account.address })
+    expect(JSON.parse(who.body.result.content[0].text)).toMatchObject({ address: account.address, boardId: 'public' })
 
     const created = yield* mcp(apiUrl, 'tools/call', {
       name: 'create_task',
@@ -109,4 +110,58 @@ test.skipIf(!rpcSet)('sign in over MCP, create an offer, and serve its manifest'
     const manifest = yield* HttpClient.get(`${apiUrl}/offers/${task.termsHash}.json`)
     expect(manifest.status).toBe(200)
     expect(((yield* manifest.json) as { title: string }).title).toBe('stack test')
+  }))
+
+test('tenant boards: a board route that does not exist, CORS only for allowed origins, the boards listing',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    const missing = yield* postJson(`${apiUrl}/b/nope/api/protocol_info`, {})
+    expect(missing.status).toBe(404)
+    expect(((yield* missing.json) as { code: string }).code).toBe('not-found')
+    const preflight = yield* HttpClient.execute(HttpClientRequest.options(`${apiUrl}/b/public/api/list_tasks`, { headers: { origin: 'https://evil.example' } }))
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers['access-control-allow-origin']).toBeUndefined()
+    const boards = yield* HttpClient.get(`${apiUrl}/data/boards`)
+    const body = (yield* boards.json) as { ok: boolean; boards: Array<{ id: string; public: boolean }> }
+    expect(body.ok).toBe(true)
+    expect(body.boards.find((b) => b.id === 'public')?.public).toBe(true)
+  }))
+
+test.skipIf(!rpcSet)('tenant boards: sign in over REST, create a board, use its route, get CORS on its origin, refused token',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    const account = privateKeyToAccount(generatePrivateKey())
+    const rest = <T>(tool: string, body: unknown, session?: string) =>
+      Effect.gen(function* () {
+        const r = yield* postJson(`${apiUrl}/api/${tool}`, body, session === undefined ? {} : { authorization: `Bearer ${session}` })
+        return (yield* r.json) as { ok: boolean; result: T; code?: string; message?: string }
+      })
+    const { result: challenge } = yield* rest<{ message: string }>('auth_challenge', { address: account.address })
+    const signature = yield* Effect.promise(() => account.signMessage({ message: challenge.message }))
+    const login = yield* rest<{ session: string; boardId: string }>('auth_login', { message: challenge.message, signature })
+    expect(login.ok).toBe(true)
+    expect(login.result.boardId).toBe('public')
+    const slug = `t-${Math.random().toString(36).slice(2, 8)}`
+    const created = yield* rest<{ board: { id: string; owner: string; tokens: Array<{ symbol: string }> } }>(
+      'create_board',
+      { slug, name: 'Stack test board', stacks: ['demo'], rewardTokens: ['mUSD'], allowedOrigins: ['https://host.example'], drip: false },
+      login.result.session,
+    )
+    expect(created.ok).toBe(true)
+    expect(created.result.board.owner).toBe(account.address)
+    expect(created.result.board.tokens.map((t) => t.symbol)).toEqual(['mUSD'])
+    const info = yield* postJson(`${apiUrl}/b/${slug}/api/protocol_info`, {}, { origin: 'https://host.example' })
+    expect(info.status).toBe(200)
+    expect(info.headers['access-control-allow-origin']).toBe('https://host.example')
+    const listed = (yield* (yield* HttpClient.get(`${apiUrl}/data/boards`)).json) as { boards: Array<{ id: string }> }
+    expect(listed.boards.some((b) => b.id === slug)).toBe(true)
+    // The same session works on the new board (one session store), and its token subset is enforced.
+    const refused = yield* postJson(`${apiUrl}/b/${slug}/api/create_task`, {
+      title: 't', brief: 'b', acceptanceCriteria: [], token: 'mEUR', reward: '1', creatorBond: '0', workerBond: '0',
+      deliveryDeadline: Math.floor(Date.now() / 1000) + 3600, mode: 'hire',
+    }, { authorization: `Bearer ${login.result.session}` })
+    expect(refused.status).toBe(400)
+    expect(((yield* refused.json) as { message: string }).message).toMatch(/pays in mUSD/)
+    const who = yield* rest<{ address: string; boardId: string }>('whoami', {}, login.result.session)
+    expect(who.result.address).toBe(account.address)
   }))
