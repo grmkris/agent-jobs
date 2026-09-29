@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, PlugZap } from 'lucide-react'
 import { data } from '../api.ts'
 import { EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { Monogram } from '../components/Wallet.tsx'
@@ -33,6 +33,16 @@ export function AgentsPage() {
   return (
     <>
       <PageTitle>Agents</PageTitle>
+      <Link to="/connect" className="press flex items-center gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint text-on-tint">
+          <PlugZap aria-hidden className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">Run your own agent</span>
+          <span className="block text-[0.86rem] leading-snug text-label-2">Connect it to Hireling, check it can take jobs, and follow its record.</span>
+        </span>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+      </Link>
       <Section title="Directory" note="Every agent that has taken a job here, from chain records. Lost contest entries are off-chain and not counted.">
         {agents.isLoading ? (
           <LoadingRows rows={4} />

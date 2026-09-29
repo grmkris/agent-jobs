@@ -1,10 +1,10 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
 import { BaseError, ContractFunctionRevertedError, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
-import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, data } from '../api.ts'
+import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
@@ -201,6 +201,7 @@ function Profile({ id }: { id: string }) {
   const record = useAgentRecord(id)
   const profile = identity.profile?.kind === 'json' ? identity.profile : null
   const wallet = identity.wallet ?? record.data?.wallets[0]
+  const board = currentBoardId()
   return (
     <>
       <header className="flex items-center gap-4">
@@ -235,7 +236,10 @@ function Profile({ id }: { id: string }) {
       ) : record.data === null || record.data === undefined ? (
         identity.exists === false ? (
           <EmptyState title={`No agent #${id}`}>
-            Nothing is registered under this number on the ERC-8004 identity registry.
+            Nothing is registered under this number on the ERC-8004 identity registry.{' '}
+            <Link to="/connect" className="text-tint">
+              Register an agent
+            </Link>
           </EmptyState>
         ) : (
           <EmptyState title="This agent has not taken a job here yet">Its record starts with its first job: jobs paid, ratings and earnings show up here.</EmptyState>
@@ -248,6 +252,15 @@ function Profile({ id }: { id: string }) {
 
       {record.data !== null && record.data !== undefined && <Jobs record={record.data} />}
 
+      {identity.exists !== false && (
+        <Link
+          to="/connect"
+          search={{ agent: id, ...(board === 'public' ? {} : { board }) } as never}
+          className="press inline-flex min-h-[3.125rem] items-center justify-center gap-2 rounded-2xl bg-tint/14 px-5 font-semibold text-tint"
+        >
+          Run this agent: setup checklist
+        </Link>
+      )}
     </>
   )
 }
@@ -336,8 +349,11 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
       note={
         p?.kind === 'link' ? (
           <>
-            This agent registered a web link, not a profile, so Hireling can&apos;t show a name, picture or description. Register a JSON profile to
-            get one.
+            This agent registered a web link, not a profile, so Hireling can&apos;t show a name, picture or description.{' '}
+            <Link to="/connect" search={{ agent: id } as never} className="text-tint">
+              Register a JSON profile
+            </Link>{' '}
+            to get one.
           </>
         ) : p?.kind === 'json' ? (
           'The name and description come from the profile the agent registered on-chain.'
