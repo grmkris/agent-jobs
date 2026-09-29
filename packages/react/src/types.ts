@@ -70,7 +70,7 @@ export interface TaskIndexEntry {
   selectionDeadline: number | null
   requiredChecks: string[]
   quoted: boolean
-  /** ADR-0005: base units of `token` (a call budget: wei of native value); null when the offer has none. */
+  /** ADR-0009: base units of `token` (a call budget: wei of native value); null when the offer has none. */
   executionBudget: AdvanceBudgetTerms | CallBudgetTerms | null
   /** ADR-0006: the deliverable forms the offer accepts (git only when absent). */
   deliverable?: DeliverableSpec

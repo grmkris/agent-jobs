@@ -140,10 +140,10 @@ await grant(A.taskId)
 let b = await pub.call('get_budget', { taskId: A.taskId })
 check('granted: live, on-chain delegation', b.status === 'live' && b.redeemable === true, `${b.status} ${b.enforcement}`)
 
-const before = [await balance(mEUR, me), await balance(mEUR, workerAccount.address)]
+const [creatorBefore, workerBefore] = [await balance(mEUR, me), await balance(mEUR, workerAccount.address)]
 const d1 = await wrk.call('spend_budget', { taskId: A.taskId, amount: '1', note: 'model calls' })
 await sendReported(wrk, worker, ctx.publicClient, A.taskId, d1.transactions, 'worker')
-check('1 mEUR moved from the creator to the worker', (await balance(mEUR, me)) === before[0] - 1_000_000n && (await balance(mEUR, workerAccount.address)) === before[1] + 1_000_000n)
+check('1 mEUR moved from the creator to the worker', (await balance(mEUR, me)) === creatorBefore - 1_000_000n && (await balance(mEUR, workerAccount.address)) === workerBefore + 1_000_000n)
 const over = await refusal(wrk.call('spend_budget', { taskId: A.taskId, amount: '1.5' }))
 check('1.5 more is refused by the board', over?.includes('over the budget: 1 left of 2') === true, over ?? 'went through')
 
