@@ -76,7 +76,20 @@
   "cre": {
     "forwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
     "workflowOwner": null,
-    "workflowName": "agent-jobs-evidence"
+    "workflowName": "agent-jobs-evidence",
+    "simulation": {
+      "label": "Local CRE simulator only; exact-report gate, not a hosted workflow",
+      "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
+      "chainSelector": "2183018362218727504",
+      "rpcUrl": "https://testnet-rpc.monad.xyz",
+      "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
+      "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3",
+      "gate": "0xf70742f0b6279d5531610177408e5623ccf568e5",
+      "receiver": "0x70608994217617Ad800A3cd2d585dB6eCFB28b30",
+      "reportHash": "0x158c915d12e7c65c413ee583e528e3b07b898c37866e0395b157aa7b9217dfef",
+      "gasLimit": "500000",
+      "jobId": "8"
+    }
   },
   "deployment": {
     "block": 66169332,
