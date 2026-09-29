@@ -93,6 +93,15 @@ export interface CallBudgetTerms {
   expiresAt: number
 }
 
+/** An x402 budget: the worker pays x402 endpoints in the chain's USDC from the creator's wallet, capped per payment. */
+export interface X402BudgetTerms {
+  kind: 'x402'
+  token: `0x${string}`
+  cap: string
+  perCall: string
+  expiresAt: number
+}
+
 export interface TaskIndexEntry {
   taskId: string
   jobId: string | null
@@ -112,7 +121,7 @@ export interface TaskIndexEntry {
   requiredChecks: string[]
   quoted: boolean
   /** ADR-0005: base units of `token` (a call budget: wei of native value); null when the offer has none. */
-  executionBudget: TokenBudgetTerms | CallBudgetTerms | null
+  executionBudget: TokenBudgetTerms | CallBudgetTerms | X402BudgetTerms | null
   /** ADR-0006: the deliverable forms the offer accepts (git only when absent). */
   deliverable?: DeliverableSpec
   termsHash: string
@@ -144,7 +153,9 @@ export interface ChainJob {
 /** `get_budget`: a task's execution budget as the parties see it (amounts in token units). */
 export interface Budget {
   taskId: string
-  kind?: 'token' | 'call'
+  kind?: 'token' | 'call' | 'x402'
+  perCall?: string
+  payer?: `0x${string}`
   token?: `0x${string}`
   target?: `0x${string}`
   function?: string

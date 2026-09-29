@@ -1,5 +1,5 @@
 import { formatUnits } from 'viem'
-import type { CallBudgetTerms, TokenBudgetTerms } from './api.ts'
+import type { CallBudgetTerms, TokenBudgetTerms, X402BudgetTerms } from './api.ts'
 import { deployment, isMainnet } from './wallet.ts'
 
 /** The deployment's reward tokens: Circle USDC on mainnet; the mUSD / mEUR test tokens on testnet. */
@@ -15,7 +15,10 @@ export const TOKENS: Record<string, { symbol: string; decimals: number; usd: num
     }
 
 export function tokenInfo(address: string | null | undefined) {
-  return TOKENS[(address ?? '').toLowerCase()] ?? { symbol: 'token', decimals: 18, usd: null }
+  const a = (address ?? '').toLowerCase()
+  // The chain's x402 USDC (not a reward token on testnet) pays x402 budgets.
+  if (a !== '' && a === deployment.x402?.usdc.toLowerCase()) return { symbol: 'USDC', decimals: 6, usd: 1 }
+  return TOKENS[a] ?? { symbol: 'token', decimals: 18, usd: null }
 }
 
 /** "7 mUSD (≈ $7, test token)" — the USD value next to the amount where one exists. */
@@ -28,7 +31,8 @@ export function amount(value: string | null | undefined, token: string | null | 
 }
 
 /** An execution budget's cap as people read it; a call budget names the function and contract it may call. */
-export function budgetCap(eb: TokenBudgetTerms | CallBudgetTerms): string {
+export function budgetCap(eb: TokenBudgetTerms | CallBudgetTerms | X402BudgetTerms): string {
+  if (eb.kind === 'x402') return `${amount(eb.cap, eb.token)} in x402 payments, at most ${formatUnits(BigInt(eb.perCall), 6)} each`
   if (eb.kind !== 'call') return amount(eb.cap, eb.token)
   const name = /function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'call'
   return `${formatUnits(BigInt(eb.cap), 18)} MON for ${name}() on ${eb.target.slice(0, 8)}…${eb.target.slice(-4)}`

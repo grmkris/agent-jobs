@@ -80,6 +80,11 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
         Running costs the worker may spend from the creator’s wallet, apart from the reward. Not escrowed: spent is spent, the rest never leaves the wallet.
       </p>
       <Row label="Cap">{budgetCap(eb)}</Row>
+      {eb.kind === 'x402' && (
+        <p className="mb-1 text-xs text-neutral-500">
+          An x402 budget: the worker pays x402 endpoints (paid APIs and tools) in USDC from your wallet; each payment is signed by the board only within the caps, and the facilitator pays the gas.
+        </p>
+      )}
       {eb.kind === 'call' && (
         <p className="mb-1 text-xs text-neutral-500">
           A call budget: the worker calls <span className="font-mono">{eb.function}</span> on <Address value={eb.target} /> from your wallet, so you are the sender and own what it makes.
@@ -99,7 +104,7 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
               {b.spends.map((x) => (
                 <div key={x.spendId} className="flex flex-wrap items-center gap-2 text-xs">
                   <Badge tone={x.status === 'confirmed' ? 'green' : x.status === 'failed' ? 'red' : 'amber'}>{x.status}</Badge>
-                  <span>{x.amount} {b.symbol} {x.selector === undefined ? '→' : `call ${x.selector} on`}</span>
+                  <span>{x.amount} {b.symbol} {x.selector !== undefined ? `call ${x.selector} on` : eb.kind === 'x402' ? 'x402 payment to' : '→'}</span>
                   <Address value={x.to} />
                   {x.note !== '' && <span className="text-neutral-500">{x.note}</span>}
                   <TxLink hash={x.txHash} />
@@ -137,7 +142,9 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
             </p>
           )}
           <p className="text-xs text-neutral-500">
-            {eb.kind === 'call'
+            {eb.kind === 'x402'
+              ? 'Privy checks every payment signature against your wallet’s policy (this chain’s USDC, at most the per-payment cap, before the deadline); the board checks the total, that only the activated worker pays, and only while the job is active.'
+              : eb.kind === 'call'
               ? 'Privy checks every call against your wallet’s policy (this contract, this function, at most the cap in value, before the deadline); the board checks the total, that only the activated worker calls, and only while the job is active.'
               : 'Privy checks every transfer against your wallet’s policy (this token, at most the cap, before the deadline); the board checks the total, that only the activated worker spends, and only while the job is active.'}
           </p>
@@ -145,7 +152,9 @@ export function BudgetPanel({ task, roles, signedIn, address }: { task: TaskInde
       )}
       {roles.includes('worker') && b?.status === 'live' && (
         <p className="mt-2 text-xs text-neutral-500">
-          {eb.kind === 'call'
+          {eb.kind === 'x402'
+            ? "Pay x402 endpoints with the board's MCP tool `sign_budget_x402({taskId, typedData, note})` as your x402 signer while the job is active."
+            : eb.kind === 'call'
             ? "Call with the board's MCP tool `spend_budget_call({taskId, data, value, note})` while the job is active."
             : "Spend with the board's MCP tool `spend_budget({taskId, to, amount, note})` while the job is active."}
         </p>

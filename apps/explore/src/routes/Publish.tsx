@@ -5,7 +5,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Badge, Button, Card } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { TOKENS } from '../format.ts'
-import { isMainnet } from '../wallet.ts'
+import { deployment, isMainnet } from '../wallet.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
 interface Created {
@@ -52,7 +52,9 @@ export function PublishPage({ auth }: { auth: Auth }) {
   const [budgetOn, setBudgetOn] = useState(false)
   const [budgetToken, setBudgetToken] = useState(rewardTokens[0]?.[0] ?? '')
   const [budgetCap, setBudgetCap] = useState('2')
-  const [budgetKind, setBudgetKind] = useState<'token' | 'call'>('token')
+  const [budgetKind, setBudgetKind] = useState<'token' | 'call' | 'x402'>('token')
+  const [x402Cap, setX402Cap] = useState('1')
+  const [x402PerCall, setX402PerCall] = useState('0.1')
   const [callTarget, setCallTarget] = useState(isMainnet ? '' : NADFUN_TESTNET.target)
   const [callFunction, setCallFunction] = useState(isMainnet ? '' : NADFUN_TESTNET.function)
   const [callCap, setCallCap] = useState(NADFUN_TESTNET.cap)
@@ -117,7 +119,11 @@ export function PublishPage({ auth }: { auth: Auth }) {
         ...(mode === 'hire' && budgetOn
           ? {
               executionBudget:
-                budgetKind === 'call' ? { kind: 'call', target: callTarget.trim(), function: callFunction.trim(), cap: callCap } : { token: budgetToken, cap: budgetCap },
+                budgetKind === 'call'
+                  ? { kind: 'call', target: callTarget.trim(), function: callFunction.trim(), cap: callCap }
+                  : budgetKind === 'x402'
+                    ? { kind: 'x402', cap: x402Cap, perCall: x402PerCall }
+                    : { token: budgetToken, cap: budgetCap },
             }
           : {}),
         stack,
@@ -263,13 +269,16 @@ export function PublishPage({ auth }: { auth: Auth }) {
                   <Field
                     label="Kind"
                     hint={
-                      budgetKind === 'call'
+                      budgetKind === 'x402'
+                        ? 'The worker pays x402 endpoints (paid APIs, data, tools) in USDC from your wallet; the board signs each payment only within the caps and the facilitator pays the gas.'
+                        : budgetKind === 'call'
                         ? 'The worker calls one contract function from your wallet, so you are the sender and own what it makes (e.g. a nad.fun token). The cap bounds the MON it may send in total; you pay the gas.'
                         : 'The worker pays running costs in a token, to anyone.'
                     }
                   >
-                    <select value={budgetKind} onChange={(e) => setBudgetKind(e.target.value as 'token' | 'call')} className={input}>
+                    <select value={budgetKind} onChange={(e) => setBudgetKind(e.target.value as 'token' | 'call' | 'x402')} className={input}>
                       <option value="token">running costs (token transfers)</option>
+                      {deployment.x402 !== null && <option value="x402">paid APIs and tools (x402, USDC)</option>}
                       <option value="call">{isMainnet ? 'one contract call from my wallet' : 'launch on nad.fun from my wallet (contract call)'}</option>
                     </select>
                   </Field>
@@ -287,6 +296,12 @@ export function PublishPage({ auth }: { auth: Auth }) {
                     <input value={callFunction} onChange={(e) => setCallFunction(e.target.value)} className={`${input} font-mono text-xs`} />
                   </Field>
                 </div>
+              </div>
+            )}
+            {budgetOn && budgetKind === 'x402' && (
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <Field label="Total (USDC)"><input value={x402Cap} onChange={(e) => setX402Cap(e.target.value)} className={input} inputMode="decimal" /></Field>
+                <Field label="Per payment (USDC)" hint="The most one x402 payment may be."><input value={x402PerCall} onChange={(e) => setX402PerCall(e.target.value)} className={input} inputMode="decimal" /></Field>
               </div>
             )}
             {budgetOn && budgetKind === 'token' && (

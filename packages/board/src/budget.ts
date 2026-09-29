@@ -334,7 +334,7 @@ export class BudgetDesk {
       ...(isCallBudget(b)
         ? { kind: 'call' as const, target: b.target, function: b.function }
         : isX402Budget(b)
-          ? { kind: 'x402' as const, token: b.token, perCall: fmt(b.perCall) }
+          ? { kind: 'x402' as const, token: b.token, perCall: fmt(b.perCall), payer: st.terms.creator }
           : { kind: 'token' as const, token: b.token }),
       symbol,
       cap: fmt(b.cap),
