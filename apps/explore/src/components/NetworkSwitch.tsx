@@ -1,9 +1,9 @@
 import { MAINNET_LIVE, NETWORK_ORIGINS, isMainnet } from '../wallet.ts'
 
 const base = 'rounded-full px-2.5 py-0.5 whitespace-nowrap'
-const current = `${base} bg-white font-medium text-neutral-900 shadow-sm`
-const other = `${base} text-neutral-600 hover:text-neutral-900`
-const disabled = `${base} cursor-not-allowed text-neutral-400`
+const current = `${base} bg-surface font-medium text-label shadow-sm`
+const other = `${base} text-label-2 hover:text-label`
+const disabled = `${base} cursor-not-allowed text-label-3`
 
 function Option({ net, label }: { net: keyof typeof NETWORK_ORIGINS; label: string }) {
   if ((net === 'monad-mainnet') === isMainnet) return <span className={current} aria-current="true">{label}</span>
@@ -23,7 +23,7 @@ function Option({ net, label }: { net: keyof typeof NETWORK_ORIGINS; label: stri
  */
 export function NetworkSwitch() {
   return (
-    <span role="group" aria-label="Network" className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-neutral-200 bg-neutral-100 p-0.5 text-xs">
+    <span role="group" aria-label="Network" className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-sep bg-fill p-0.5 text-xs">
       <Option net="monad-testnet" label="Testnet" />
       <Option net="monad-mainnet" label="Mainnet" />
     </span>

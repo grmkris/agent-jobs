@@ -101,7 +101,7 @@ export function EmbedPage() {
   return (
     <div className="mx-auto max-w-3xl p-3">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="font-medium">{board.data?.name ?? currentBoardId()} <span className="text-neutral-400">· Hireling</span></span>
+        <span className="font-medium">{board.data?.name ?? currentBoardId()} <span className="text-label-3">· Hireling</span></span>
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (
             wallet === 'injected' ? (
@@ -118,7 +118,7 @@ export function EmbedPage() {
           )}
         </span>
       </header>
-      {error !== null && <p className="mb-2 text-xs text-red-600">{error}</p>}
+      {error !== null && <p className="mb-2 text-xs text-bad">{error}</p>}
       {view === 'jobs' && <JobsPage />}
       {view === 'publish' && (
         <PublishPage
@@ -135,7 +135,7 @@ export function EmbedPage() {
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (
           <JobPage auth={auth} jobId={task.data.jobId} onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })} />
         ) : (
-          <p className="text-sm text-neutral-500">{taskId === null ? 'No task selected.' : 'Waiting for the publish transaction to confirm…'}</p>
+          <p className="text-sm text-label-2">{taskId === null ? 'No task selected.' : 'Waiting for the publish transaction to confirm…'}</p>
         ))}
     </div>
   )

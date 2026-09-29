@@ -30,22 +30,22 @@ export function AgentPage() {
         <Row label="Record">{loading ? '…' : `${jobs.length} job(s): ${completed.length} completed, ${lost.length} rejected or expired`}</Row>
       </Card>
       <Card title="Jobs">
-        {jobs.length === 0 && !loading && <p className="text-sm text-neutral-500">No jobs yet.</p>}
-        <ul className="divide-y divide-neutral-100">
+        {jobs.length === 0 && !loading && <p className="text-sm text-label-2">No jobs yet.</p>}
+        <ul className="divide-y divide-sep">
           {jobs.map((j) => (
             <li key={j.jobId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
               <BoardLink target={boardRoutes().job(j.jobId as string)} className="font-medium underline">
                 #{j.jobId} {j.task?.title ?? ''}
               </BoardLink>
               <span className="flex items-center gap-2">
-                <span className="text-neutral-600">{amount(j.chain?.reward, j.chain?.token)}</span>
+                <span className="text-label-2">{amount(j.chain?.reward, j.chain?.token)}</span>
                 <Badge tone={statusTone(j.chain?.status ?? '')}>{j.chain?.status}</Badge>
               </span>
             </li>
           ))}
         </ul>
       </Card>
-      <p className="text-xs text-neutral-400">Reputation feedback for each job is on its page (written by the evaluator to the ERC-8004 Reputation Registry).</p>
+      <p className="text-xs text-label-3">Reputation feedback for each job is on its page (written by the evaluator to the ERC-8004 Reputation Registry).</p>
     </div>
   )
 }

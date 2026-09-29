@@ -29,17 +29,17 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
   })
   const [copied, setCopied] = useState(false)
   return (
-    <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg">
+    <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-sep bg-surface p-4 text-sm shadow-lg">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">Your wallet</span>
-        <button type="button" className="text-neutral-400 hover:text-neutral-700" onClick={onClose}>✕</button>
+        <button type="button" className="text-label-3 hover:text-label" onClick={onClose}>✕</button>
       </div>
-      <p className="mb-2 text-xs text-neutral-500">
+      <p className="mb-2 text-xs text-label-2">
         Send {chain.nativeCurrency.symbol} for gas and the tokens you publish or bond with to this address on {chain.name}, from any wallet you
         already have.
       </p>
       <div className="mb-3 flex items-center gap-2">
-        <code className="break-all rounded bg-neutral-100 px-2 py-1 text-xs">{address}</code>
+        <code className="break-all rounded bg-fill px-2 py-1 text-xs">{address}</code>
         <Button variant="outline" onClick={async () => { await navigator.clipboard.writeText(address); setCopied(true) }}>{copied ? 'Copied' : 'Copy'}</Button>
       </div>
       <ul className="mb-3 space-y-1">
@@ -51,12 +51,12 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
         })}
       </ul>
       {!isMainnet && (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-label-2">
           Testnet: MON from <a className="underline" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">faucet.monad.xyz</a>; FACTORY, mUSD and mEUR from
           each token's <code>faucet()</code>.
         </p>
       )}
-      <p className="mt-2 text-xs text-neutral-400">Explorer: <Address value={address} /></p>
+      <p className="mt-2 text-xs text-label-3">Explorer: <Address value={address} /></p>
     </div>
   )
 }

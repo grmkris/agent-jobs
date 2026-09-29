@@ -5,7 +5,7 @@ import { type BoardInfo, data, tool } from '../api.ts'
 import { Button, Card } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
 
-const input = 'w-full rounded border border-neutral-300 px-2 py-1 text-sm'
+const input = 'w-full rounded border border-sep px-2 py-1 text-sm'
 const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -13,7 +13,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <label className="block space-y-1">
       <span className="text-sm font-medium">{label}</span>
       {children}
-      {hint !== undefined && <span className="block text-xs text-neutral-500">{hint}</span>}
+      {hint !== undefined && <span className="block text-xs text-label-2">{hint}</span>}
     </label>
   )
 }
@@ -35,14 +35,14 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
   const [error, setError] = useState<string | null>(null)
   const [secret, setSecret] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
-  if (!auth.signedIn) return <Card title="Create a board"><p className="text-sm text-neutral-600">Log in and sign in to create a board.</p></Card>
+  if (!auth.signedIn) return <Card title="Create a board"><p className="text-sm text-label-2">Log in and sign in to create a board.</p></Card>
   if (createdId !== null) {
     return (
       <Card title="Board created">
         <div className="space-y-2 text-sm">
           <p>Your board lives at <span className="font-mono">/b/{createdId}</span>. Its MCP server is <span className="font-mono">{window.location.origin}/b/{createdId}/mcp</span>.</p>
           <p className="font-mono text-xs">{`<script src="${window.location.origin}/embed.js" data-board="${createdId}" data-view="publish"></script>`}</p>
-          {secret !== null && <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs">Webhook secret (shown once): <span className="font-mono">{secret}</span></p>}
+          {secret !== null && <p className="rounded border border-warn/30 bg-warn-bg p-2 text-xs">Webhook secret (shown once): <span className="font-mono">{secret}</span></p>}
           <Button onClick={() => void navigate({ to: '/b/$boardId', params: { boardId: createdId } })}>Open the board</Button>
         </div>
       </Card>
@@ -93,7 +93,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         >
           Create board
         </Button>
-        {error !== null && <span className="text-xs text-red-600">{error}</span>}
+        {error !== null && <span className="text-xs text-bad">{error}</span>}
       </div>
     </Card>
   )

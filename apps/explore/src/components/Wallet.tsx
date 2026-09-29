@@ -114,7 +114,7 @@ export function WalletBar({ auth }: { auth: ReturnType<typeof useSignedIn> }) {
           Sign in
         </Button>
       )}
-      {error !== null && <span className="text-xs text-red-600">{error}</span>}
+      {error !== null && <span className="text-xs text-bad">{error}</span>}
     </div>
   )
 }

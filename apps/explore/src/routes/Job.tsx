@@ -26,7 +26,7 @@ interface Detail {
 type Auth = ReturnType<typeof useSignedIn>
 
 const httpUrl = (url: string) => (url.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${url.slice('ipfs://'.length)}` : url)
-const ext = 'text-xs text-sky-700 hover:underline'
+const ext = 'text-xs text-tint hover:underline'
 
 /** Where the worker put the deliverable (ADR-0006): any git host, a file, a page or the chain. */
 function DeliverableLink({ d }: { d: Deliverable }) {
@@ -57,7 +57,7 @@ function CheckBadge({ check }: { check: DeliverableCheck }) {
   return (
     <span className="ml-2 inline-flex items-center gap-1" title={check.detail}>
       <Badge tone={check.ok === true ? 'green' : check.ok === false ? 'red' : 'gray'}>{check.ok === true ? '✓ checked' : check.ok === false ? '✗ check failed' : 'unchecked'}</Badge>
-      <span className="text-xs text-neutral-500">{check.detail}</span>
+      <span className="text-xs text-label-2">{check.detail}</span>
     </span>
   )
 }
@@ -85,14 +85,14 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
   return (
     <div className="space-y-4">
-      <BoardLink target={boardRoutes().jobs()} className="text-sm text-neutral-500 hover:underline">← all jobs</BoardLink>
+      <BoardLink target={boardRoutes().jobs()} className="text-sm text-label-2 hover:underline">← all jobs</BoardLink>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold">#{jobId} {task?.title ?? ''}</h1>
         <Badge tone={statusTone(status)}>{status}</Badge>
         <Jev verdict={task?.screening.verdict} />
         {roles.map((r) => <Badge key={r} tone="blue">you: {r}</Badge>)}
       </div>
-      {chain.error !== null && <p className="text-sm text-amber-700">Chain facts: {(chain.error as Error).message}</p>}
+      {chain.error !== null && <p className="text-sm text-warn">Chain facts: {(chain.error as Error).message}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card title="Offer">
@@ -112,17 +112,17 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           {task !== undefined && (
             <Row label="Accepts">
               {(task.deliverable?.accepts ?? ['git']).map((k) => DELIVERABLE_KINDS.find((x) => x.kind === k)?.label ?? k).join(', ')}
-              {task.deliverable?.target !== undefined && <span className="block text-xs text-neutral-500">{task.deliverable.target}</span>}
+              {task.deliverable?.target !== undefined && <span className="block text-xs text-label-2">{task.deliverable.target}</span>}
             </Row>
           )}
           {task !== undefined && <Row label="Required checks">{task.requiredChecks.join(', ') || '—'}</Row>}
-          {task !== undefined && <Row label="Manifest"><a className="text-xs text-sky-700 hover:underline" href={`/offers/${task.termsHash}.json`}>{task.termsHash.slice(0, 12)}…</a></Row>}
+          {task !== undefined && <Row label="Manifest"><a className="text-xs text-tint hover:underline" href={`/offers/${task.termsHash}.json`}>{task.termsHash.slice(0, 12)}…</a></Row>}
           <Row label="Published"><TxLink hash={d?.job.published_tx} /></Row>
           {(d?.job.mode ?? task?.mode) === 'contest' && (
-            <p className="mt-2 text-xs text-amber-700">May close early when a winner is paid. Only the selected entry is paid.</p>
+            <p className="mt-2 text-xs text-warn">May close early when a winner is paid. Only the selected entry is paid.</p>
           )}
           {task !== undefined && task.screening.reasons.length > 0 && (
-            <p className="mt-2 text-xs text-neutral-500">Jev (advisory): {task.screening.reasons.join('; ')}</p>
+            <p className="mt-2 text-xs text-label-2">Jev (advisory): {task.screening.reasons.join('; ')}</p>
           )}
         </Card>
 
@@ -136,18 +136,18 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
               {x.check != null && <CheckBadge check={x.check} />}
             </Row>
           ))}
-          <h3 className="mb-1 mt-3 text-xs font-semibold uppercase text-neutral-500">Evidence</h3>
-          {(d?.evidence ?? []).length === 0 && <p className="text-sm text-neutral-400">none attached</p>}
+          <h3 className="mb-1 mt-3 text-xs font-semibold uppercase text-label-2">Evidence</h3>
+          {(d?.evidence ?? []).length === 0 && <p className="text-sm text-label-3">none attached</p>}
           {d?.evidence.map((e) => {
             const label = e.onchainMatch ? 'matches the awarded on-chain deliverable' : e.expired ? 'expired' : boardLabel(e.submission_hash) ?? 'does not match the on-chain deliverable'
             return (
-              <div key={e.tx_hash} className="mb-2 rounded border border-neutral-100 p-2 text-sm">
+              <div key={e.tx_hash} className="mb-2 rounded border border-sep p-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={e.conclusion === 'success' ? 'green' : 'red'}>{e.conclusion}</Badge>
                   <Badge tone={e.onchainMatch ? 'green' : label === 'matches this submitted candidate' ? 'blue' : 'gray'}>{label}</Badge>
                   <TxLink hash={e.tx_hash} />
                 </div>
-                <div className="mt-1 text-xs text-neutral-500">verifier <Address value={e.verifier} /> · tested {`0x${e.tested_sha.slice(-40, -33)}`}</div>
+                <div className="mt-1 text-xs text-label-2">verifier <Address value={e.verifier} /> · tested {`0x${e.tested_sha.slice(-40, -33)}`}</div>
               </div>
             )
           })}
@@ -165,7 +165,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       {auth.signedIn && task !== undefined && (
         <Actions taskId={task.taskId} status={status} mode={d?.job.mode ?? task.mode} roles={roles} onEvent={onEvent} />
       )}
-      {!auth.signedIn && <p className="text-sm text-neutral-500">Log in and sign in to act on this job (award, approve, reject, dispute, settle).</p>}
+      {!auth.signedIn && <p className="text-sm text-label-2">Log in and sign in to act on this job (award, approve, reject, dispute, settle).</p>}
     </div>
   )
 }
@@ -271,11 +271,11 @@ function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; sta
     const event = lastTool === null ? undefined : EVENT_OF[lastTool]
     if (event !== undefined) onEvent?.(event, { txHash: hashes.at(-1) ?? null })
   }
-  if (paused) return <Card title="Actions"><p className="text-sm text-red-700">Paused: the core refuses every action until the admin unpauses it.</p></Card>
+  if (paused) return <Card title="Actions"><p className="text-sm text-bad">Paused: the core refuses every action until the admin unpauses it.</p></Card>
   if (txs !== null) {
     return (
       <Card title="Send from your wallet">
-        {txs.length === 0 ? <p className="text-sm text-neutral-500">Nothing to send right now.</p> : <TxSteps taskId={taskId} txs={txs} onDone={done} />}
+        {txs.length === 0 ? <p className="text-sm text-label-2">Nothing to send right now.</p> : <TxSteps taskId={taskId} txs={txs} onDone={done} />}
         <Button variant="outline" className="mt-3" onClick={() => setTxs(null)}>Close</Button>
       </Card>
     )
@@ -286,12 +286,12 @@ function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; sta
         {creator && mode === 'hire' && status === 'open' && (
           <div>
             <h3 className="mb-2 text-sm font-medium">Applications (select one: you sign a Selection, no transaction; the worker's own activate binds them)</h3>
-            {(applications.data ?? []).length === 0 && <p className="text-sm text-neutral-400">No applications yet.</p>}
+            {(applications.data ?? []).length === 0 && <p className="text-sm text-label-3">No applications yet.</p>}
             {applications.data?.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center gap-3 py-1 text-sm">
                 <Address value={a.worker} />
                 <BoardLink target={boardRoutes().agent(a.agent_id)} className="underline">agent {a.agent_id}</BoardLink>
-                <span className="text-xs text-neutral-600">{a.note}</span>
+                <span className="text-xs text-label-2">{a.note}</span>
                 {selected === a.id ? <Badge tone="green">selected; waiting for activation</Badge> : <Button busy={busy === `select-${a.id}`} onClick={select(a.id)}>Select</Button>}
               </div>
             ))}
@@ -305,7 +305,7 @@ function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; sta
         {approver && mode === 'contest' && status === 'open' && (
           <div>
             <h3 className="mb-2 text-sm font-medium">Entries (award one early: one transaction pays it and closes the contest)</h3>
-            {(candidates.data ?? []).length === 0 && <p className="text-sm text-neutral-400">No complete entries yet.</p>}
+            {(candidates.data ?? []).length === 0 && <p className="text-sm text-label-3">No complete entries yet.</p>}
             {candidates.data?.map((c) => (
               <div key={c.candidateId} className="flex flex-wrap items-center gap-3 py-1 text-sm">
                 <Address value={c.worker} /> <span>agent {c.agentId}</span>
@@ -320,25 +320,25 @@ function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; sta
           <div className="space-y-2">
             <Button busy={busy === 'approve'} onClick={run('approve', 'approve_work', {})}>Approve and pay</Button>
             <div className="flex flex-wrap items-center gap-2">
-              <select value={violation} onChange={(e) => setViolation(e.target.value)} className="rounded border border-neutral-300 px-2 py-1 text-sm">
+              <select value={violation} onChange={(e) => setViolation(e.target.value)} className="rounded border border-sep px-2 py-1 text-sm">
                 <option>None</option><option>Quality</option><option>Falsified</option>
               </select>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (published; its hash goes on-chain)" className="min-w-64 flex-1 rounded border border-neutral-300 px-2 py-1 text-sm" />
+              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (published; its hash goes on-chain)" className="min-w-64 flex-1 rounded border border-sep px-2 py-1 text-sm" />
               <Button variant="danger" disabled={reason.trim().length < 10} busy={busy === 'reject'} onClick={run('reject', 'reject_work', { violation, reason })}>Reject</Button>
             </div>
-            <p className="text-xs text-neutral-500">A rejection moves nothing; the worker may dispute. Quality or Falsified burns the worker bond only if undisputed or upheld.</p>
+            <p className="text-xs text-label-2">A rejection moves nothing; the worker may dispute. Quality or Falsified burns the worker bond only if undisputed or upheld.</p>
           </div>
         )}
         {worker && status === 'rejected-pending' && (
           <div className="flex flex-wrap items-center gap-2">
-            <input value={statement} onChange={(e) => setStatement(e.target.value)} placeholder="Your case for the arbitrator" className="min-w-64 flex-1 rounded border border-neutral-300 px-2 py-1 text-sm" />
+            <input value={statement} onChange={(e) => setStatement(e.target.value)} placeholder="Your case for the arbitrator" className="min-w-64 flex-1 rounded border border-sep px-2 py-1 text-sm" />
             <Button busy={busy === 'dispute'} onClick={run('dispute', 'dispute', statement.trim() === '' ? {} : { statement })}>Dispute</Button>
           </div>
         )}
         <div>
           <Button variant="outline" busy={busy === 'settle'} onClick={run('settle', 'settlement_actions', {})}>Timeouts and settlement anyone may send</Button>
         </div>
-        {error !== null && <p className="text-sm text-red-600">{error}</p>}
+        {error !== null && <p className="text-sm text-bad">{error}</p>}
       </div>
     </Card>
   )

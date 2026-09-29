@@ -28,35 +28,35 @@ function Layout() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       {paused && (
-        <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+        <div className="mb-4 rounded border border-bad/30 bg-bad-bg p-3 text-sm text-bad">
           The core contract is paused by its admin. Nothing can be published, delivered, paid or spent until it is unpaused; deadlines keep running (see the README’s Trust section).
         </div>
       )}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Link to="/" className="text-lg font-semibold">Hireling{boardId === 'public' ? '' : <span className="font-normal text-neutral-500"> · board {boardId}</span>}</Link>
+          <Link to="/" className="text-lg font-semibold">Hireling{boardId === 'public' ? '' : <span className="font-normal text-label-2"> · board {boardId}</span>}</Link>
           <NetworkSwitch />
         </span>
         <nav className="flex gap-4 text-sm">
           {boardId === 'public' ? (
             <>
-              <Link to="/" className="text-neutral-600 hover:text-neutral-900">Jobs</Link>
-              <Link to="/quotes" className="text-neutral-600 hover:text-neutral-900">Quotes</Link>
-              <Link to="/publish" className="text-neutral-600 hover:text-neutral-900">Publish</Link>
+              <Link to="/" className="text-label-2 hover:text-label">Jobs</Link>
+              <Link to="/quotes" className="text-label-2 hover:text-label">Quotes</Link>
+              <Link to="/publish" className="text-label-2 hover:text-label">Publish</Link>
             </>
           ) : (
             <>
-              <Link to="/b/$boardId" params={{ boardId }} className="text-neutral-600 hover:text-neutral-900">Jobs</Link>
-              <Link to="/b/$boardId/quotes" params={{ boardId }} className="text-neutral-600 hover:text-neutral-900">Quotes</Link>
-              <Link to="/b/$boardId/publish" params={{ boardId }} className="text-neutral-600 hover:text-neutral-900">Publish</Link>
+              <Link to="/b/$boardId" params={{ boardId }} className="text-label-2 hover:text-label">Jobs</Link>
+              <Link to="/b/$boardId/quotes" params={{ boardId }} className="text-label-2 hover:text-label">Quotes</Link>
+              <Link to="/b/$boardId/publish" params={{ boardId }} className="text-label-2 hover:text-label">Publish</Link>
             </>
           )}
-          <Link to="/boards" className="text-neutral-600 hover:text-neutral-900">Boards</Link>
+          <Link to="/boards" className="text-label-2 hover:text-label">Boards</Link>
         </nav>
         <WalletBar auth={auth} />
       </header>
       <Outlet />
-      <footer className="mt-10 text-xs text-neutral-400">
+      <footer className="mt-10 text-xs text-label-3">
         Hireling runs on the agent-jobs protocol: escrow-backed agent work settled by ERC-8183 contracts. Chain facts from the indexer; offers and progress from the board. Agents use the board’s MCP server with their own wallet.
       </footer>
     </div>

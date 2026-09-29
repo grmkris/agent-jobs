@@ -32,7 +32,7 @@ export function useJobs() {
 
 function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm">
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded border border-sep bg-surface px-2 py-1 text-sm">
       {options.map((o) => <option key={o}>{o}</option>)}
     </select>
   )
@@ -41,7 +41,7 @@ function Select({ value, onChange, options }: { value: string; onChange: (v: str
 const VERDICT_TONE = { clean: 'green', caution: 'amber', reject: 'red' } as const
 
 export function Jev({ verdict }: { verdict: string | undefined }) {
-  if (verdict === undefined) return <span className="text-neutral-400">—</span>
+  if (verdict === undefined) return <span className="text-label-3">—</span>
   return <Badge tone={VERDICT_TONE[verdict as keyof typeof VERDICT_TONE] ?? 'gray'}>Jev: {verdict}</Badge>
 }
 
@@ -66,14 +66,14 @@ export function JobsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-neutral-500">Board</span><Select value={stack} onChange={setStack} options={['all', 'main', 'demo', 'fast']} />
-        <span className="text-neutral-500">Mode</span><Select value={mode} onChange={setMode} options={['all', 'hire', 'contest']} />
-        <span className="text-neutral-500">Jev</span><Select value={verdict} onChange={setVerdict} options={['all', 'clean', 'caution', 'reject', 'unscreened']} />
+        <span className="text-label-2">Board</span><Select value={stack} onChange={setStack} options={['all', 'main', 'demo', 'fast']} />
+        <span className="text-label-2">Mode</span><Select value={mode} onChange={setMode} options={['all', 'hire', 'contest']} />
+        <span className="text-label-2">Jev</span><Select value={verdict} onChange={setVerdict} options={['all', 'clean', 'caution', 'reject', 'unscreened']} />
         <label className="flex items-center gap-1"><input type="checkbox" checked={bondOnly} onChange={(e) => setBondOnly(e.target.checked)} /> bond present</label>
-        <span className="ml-auto text-xs text-neutral-400">{index === null ? 'index not built yet' : `indexed to block ${index.next_block - 1}`}</span>
+        <span className="ml-auto text-xs text-label-3">{index === null ? 'index not built yet' : `indexed to block ${index.next_block - 1}`}</span>
       </div>
-      {error !== null && <p className="text-sm text-red-600">{(error as Error).message}</p>}
-      {loading && <p className="text-sm text-neutral-500">Loading…</p>}
+      {error !== null && <p className="text-sm text-bad">{(error as Error).message}</p>}
+      {loading && <p className="text-sm text-label-2">Loading…</p>}
       <div className="grid gap-3">
         {shown.map((i) => {
           const status = i.chain?.status ?? 'awaiting publish'
@@ -86,7 +86,7 @@ export function JobsPage() {
                     <span className="font-medium">{i.task?.title}</span>
                   ) : (
                     <BoardLink target={routes.job(i.jobId)} className="font-medium hover:underline">
-                      #{i.jobId} {i.task?.title ?? <span className="text-neutral-400">(no board record)</span>}
+                      #{i.jobId} {i.task?.title ?? <span className="text-label-3">(no board record)</span>}
                     </BoardLink>
                   )}
                   <div className="mt-1 flex flex-wrap gap-2">
@@ -100,13 +100,13 @@ export function JobsPage() {
                 </div>
                 <div className="text-right text-sm">
                   <div className="font-medium">{amount(i.chain?.reward ?? i.task?.reward, i.chain?.token ?? i.task?.token)}</div>
-                  <div className="text-xs text-neutral-500">bonds {bond(i.chain?.creator_bond ?? i.task?.creatorBond)} / {bond(i.chain?.worker_bond ?? i.task?.workerBond)}</div>
-                  <div className="text-xs text-neutral-500">approver <Address value={i.chain?.approver ?? i.task?.approver} /></div>
-                  <div className="text-xs text-neutral-500">due {when(i.chain?.delivery_deadline ?? i.task?.deliveryDeadline)}</div>
+                  <div className="text-xs text-label-2">bonds {bond(i.chain?.creator_bond ?? i.task?.creatorBond)} / {bond(i.chain?.worker_bond ?? i.task?.workerBond)}</div>
+                  <div className="text-xs text-label-2">approver <Address value={i.chain?.approver ?? i.task?.approver} /></div>
+                  <div className="text-xs text-label-2">due {when(i.chain?.delivery_deadline ?? i.task?.deliveryDeadline)}</div>
                 </div>
               </div>
               {m === 'contest' && status === 'open' && (
-                <p className="mt-2 text-xs text-amber-700">May close early when a winner is paid. Only the selected entry is paid.</p>
+                <p className="mt-2 text-xs text-warn">May close early when a winner is paid. Only the selected entry is paid.</p>
               )}
             </Card>
           )

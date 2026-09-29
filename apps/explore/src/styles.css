@@ -1,6 +1,225 @@
 @import 'tailwindcss';
 
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+/*
+ * Hireling's design tokens: an Apple-native palette (grouped background, surfaces, labels, separators, one tint) in
+ * light and dark, following the system setting. `[data-theme]` on <html> forces one (the widget's `data-theme`).
+ * Every colour in the app comes from here: switching the tint is one line (`--tint: var(--tint-teal)`).
+ */
+:root {
+  --tint-indigo: #5452d4;
+  --tint-teal: #0a7f95;
+  --tint: var(--tint-indigo);
+  --on-tint: #ffffff;
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: #f5f5f8;
+  --fill: rgba(118, 118, 128, 0.12);
+  --fill-strong: rgba(118, 118, 128, 0.2);
+  --label: #111114;
+  --label-2: rgba(60, 60, 67, 0.68);
+  --label-3: rgba(60, 60, 67, 0.42);
+  --sep: rgba(60, 60, 67, 0.16);
+  --bar: rgba(247, 247, 250, 0.82);
+  --side: #ebebf0;
+  --scrim: rgba(0, 0, 0, 0.28);
+  --info: #0066d6;
+  --info-bg: rgba(0, 122, 255, 0.12);
+  --warn: #b35900;
+  --warn-bg: rgba(255, 149, 0, 0.16);
+  --ok: #1d7a36;
+  --ok-bg: rgba(52, 199, 89, 0.16);
+  --bad: #c7161e;
+  --bad-bg: rgba(255, 59, 48, 0.13);
+  --gray: rgba(60, 60, 67, 0.7);
+  --gray-bg: rgba(118, 118, 128, 0.14);
+  --code: #f0f0f4;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --tint-indigo: #7d7bff;
+    --tint-teal: #3cc3dc;
+    --on-tint: #0b0b12;
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --fill: rgba(118, 118, 128, 0.24);
+    --fill-strong: rgba(118, 118, 128, 0.36);
+    --label: #f5f5f7;
+    --label-2: rgba(235, 235, 245, 0.64);
+    --label-3: rgba(235, 235, 245, 0.36);
+    --sep: rgba(84, 84, 88, 0.58);
+    --bar: rgba(18, 18, 20, 0.78);
+    --side: #111113;
+    --scrim: rgba(0, 0, 0, 0.55);
+    --info: #4da3ff;
+    --info-bg: rgba(10, 132, 255, 0.2);
+    --warn: #ffb340;
+    --warn-bg: rgba(255, 159, 10, 0.2);
+    --ok: #4cd96a;
+    --ok-bg: rgba(48, 209, 88, 0.2);
+    --bad: #ff6961;
+    --bad-bg: rgba(255, 69, 58, 0.2);
+    --gray: rgba(235, 235, 245, 0.62);
+    --gray-bg: rgba(118, 118, 128, 0.28);
+    --code: #232326;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --tint-indigo: #7d7bff;
+  --tint-teal: #3cc3dc;
+  --on-tint: #0b0b12;
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --fill: rgba(118, 118, 128, 0.24);
+  --fill-strong: rgba(118, 118, 128, 0.36);
+  --label: #f5f5f7;
+  --label-2: rgba(235, 235, 245, 0.64);
+  --label-3: rgba(235, 235, 245, 0.36);
+  --sep: rgba(84, 84, 88, 0.58);
+  --bar: rgba(18, 18, 20, 0.78);
+  --side: #111113;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --info: #4da3ff;
+  --info-bg: rgba(10, 132, 255, 0.2);
+  --warn: #ffb340;
+  --warn-bg: rgba(255, 159, 10, 0.2);
+  --ok: #4cd96a;
+  --ok-bg: rgba(48, 209, 88, 0.2);
+  --bad: #ff6961;
+  --bad-bg: rgba(255, 69, 58, 0.2);
+  --gray: rgba(235, 235, 245, 0.62);
+  --gray-bg: rgba(118, 118, 128, 0.28);
+  --code: #232326;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  --color-tint: var(--tint);
+  --color-on-tint: var(--on-tint);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-label: var(--label);
+  --color-label-2: var(--label-2);
+  --color-label-3: var(--label-3);
+  --color-sep: var(--sep);
+  --color-bar: var(--bar);
+  --color-side: var(--side);
+  --color-scrim: var(--scrim);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-gray: var(--gray);
+  --color-gray-bg: var(--gray-bg);
+  --color-code: var(--code);
+  --shadow-float: var(--shadow);
+  /* Critically damped spring (no overshoot) for sheets and view changes; Apple's default feel. */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --radius-group: 12px;
+}
+
+@layer base {
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+  html,
+  body {
+    background: var(--bg);
+    color: var(--label);
+  }
+  body {
+    font-family: var(--font-sans);
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+  :where(*) {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  [role='tab'],
+  nav {
+    touch-action: manipulation;
+  }
+  button {
+    cursor: pointer;
+  }
+  img,
+  video {
+    -webkit-touch-callout: none;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--tint) 55%, transparent);
+    outline-offset: 2px;
+  }
+  input,
+  textarea,
+  select {
+    color: var(--label);
+  }
+  ::placeholder {
+    color: var(--label-3);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Translucent chrome: a real background colour first (iOS 26 samples it for the status bar), then the blur. */
+@utility material {
+  background: var(--bar);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+@utility press {
+  transition: transform 100ms ease-out, opacity 150ms;
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .material {
+    background: var(--bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
 }

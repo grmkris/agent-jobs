@@ -66,7 +66,7 @@ function PrivyBridge() {
 
 /** The only way in: Privy's login (email or social). Without a Privy app the site is read-only. */
 export function PrivyLogin() {
-  if (privyAppId === '') return <span className="text-xs text-neutral-400">read-only</span>
+  if (privyAppId === '') return <span className="text-xs text-label-3">read-only</span>
   return <PrivyLoginButton />
 }
 

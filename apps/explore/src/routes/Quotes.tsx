@@ -9,7 +9,7 @@ import type { useSignedIn } from '../components/Wallet.tsx'
 import { TOKENS, when } from '../format.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
-const input = 'w-full rounded border border-neutral-300 px-2 py-1 text-sm'
+const input = 'w-full rounded border border-sep px-2 py-1 text-sm'
 const symbolOf = (address: string) => TOKENS[address.toLowerCase()]?.symbol ?? address.slice(0, 8)
 
 /** Open quote requests: "Accepting quotes — reward not escrowed". Workers quote over the board's MCP server. */
@@ -17,12 +17,12 @@ export function QuotesPage() {
   const requests = useQuery({ queryKey: ['list_quote_requests'], queryFn: () => tool<QuoteRequest[]>('list_quote_requests'), refetchInterval: 20_000 })
   return (
     <Card title="Quote requests">
-      <p className="mb-3 text-xs text-neutral-500">Accepting quotes — reward not escrowed. Agents quote with `submit_quote` over the board’s MCP server.</p>
-      {(requests.data ?? []).length === 0 && <p className="text-sm text-neutral-400">No open requests.</p>}
+      <p className="mb-3 text-xs text-label-2">Accepting quotes — reward not escrowed. Agents quote with `submit_quote` over the board’s MCP server.</p>
+      {(requests.data ?? []).length === 0 && <p className="text-sm text-label-3">No open requests.</p>}
       {requests.data?.map((r) => (
-        <div key={r.requestId} className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 py-2 text-sm last:border-0">
+        <div key={r.requestId} className="flex flex-wrap items-center justify-between gap-2 border-b border-sep py-2 text-sm last:border-0">
           <BoardLink target={boardRoutes().quoteRequest(r.requestId)} className="font-medium hover:underline">{r.title}</BoardLink>
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-label-2">
             {r.tokens.map(symbolOf).join(' / ')} · quotes close {when(r.quoteDeadline)}
           </span>
         </div>
@@ -100,7 +100,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               if (t.jobId !== null) await navigate(boardRoutes().job(t.jobId))
             }}
           />
-          <p className="text-xs text-neutral-500">Next, on the job page: select the bidder (a signature, no transaction); once the worker has activated, grant the execution budget.</p>
+          <p className="text-xs text-label-2">Next, on the job page: select the bidder (a signature, no transaction); once the worker has activated, grant the execution budget.</p>
         </div>
       </Card>
     )
@@ -108,10 +108,10 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
   return (
     <div className="space-y-4">
-      <BoardLink target={boardRoutes().quotes()} className="text-sm text-neutral-500 hover:underline">← quote requests</BoardLink>
+      <BoardLink target={boardRoutes().quotes()} className="text-sm text-label-2 hover:underline">← quote requests</BoardLink>
       <Card title={r?.title ?? 'Quote request'}>
         {r === undefined ? (
-          <p className="text-sm text-neutral-500">Closed or picked (only open requests are listed).</p>
+          <p className="text-sm text-label-2">Closed or picked (only open requests are listed).</p>
         ) : (
           <>
             <p className="mb-2 whitespace-pre-wrap text-sm">{r.brief}</p>
@@ -124,14 +124,14 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           </>
         )}
       </Card>
-      {!auth.signedIn && <p className="text-sm text-neutral-500">Sign in as the requester to see and pick quotes.</p>}
+      {!auth.signedIn && <p className="text-sm text-label-2">Sign in as the requester to see and pick quotes.</p>}
       {auth.signedIn && (
         <Card title="Quotes">
-          {quotes.error !== null && <p className="text-sm text-red-600">{(quotes.error as Error).message}</p>}
+          {quotes.error !== null && <p className="text-sm text-bad">{(quotes.error as Error).message}</p>}
           {quotes.data?.picked != null && <p className="mb-2 text-sm">Picked: task {quotes.data.picked}.</p>}
-          {(quotes.data?.quotes ?? []).length === 0 && <p className="text-sm text-neutral-400">No quotes yet.</p>}
+          {(quotes.data?.quotes ?? []).length === 0 && <p className="text-sm text-label-3">No quotes yet.</p>}
           {quotes.data?.quotes.map((q) => (
-            <div key={q.quoteId} className="border-b border-neutral-100 py-2 text-sm last:border-0">
+            <div key={q.quoteId} className="border-b border-sep py-2 text-sm last:border-0">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-medium">{q.amount} {q.symbol}</span>
                 <Address value={q.worker} />
@@ -150,12 +150,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                   </Button>
                 )}
               </div>
-              {q.note !== '' && <p className="mt-1 text-xs text-neutral-600">{q.note}</p>}
-              {q.expectedCosts !== null && q.expectedCosts.note !== '' && <p className="mt-1 text-xs text-neutral-500">Costs: {q.expectedCosts.note}</p>}
+              {q.note !== '' && <p className="mt-1 text-xs text-label-2">{q.note}</p>}
+              {q.expectedCosts !== null && q.expectedCosts.note !== '' && <p className="mt-1 text-xs text-label-2">Costs: {q.expectedCosts.note}</p>}
             </div>
           ))}
           {picking !== null && (
-            <div className="mt-3 space-y-2 rounded border border-neutral-200 p-3 text-sm">
+            <div className="mt-3 space-y-2 rounded border border-sep p-3 text-sm">
               <p>
                 Pick <span className="font-medium">{picking.amount} {picking.symbol}</span> from agent {picking.agentId}. The reward is escrowed when you publish.
               </p>
@@ -167,21 +167,21 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                   </label>
                   {budgetOn && (
                     <label className="block space-y-1">
-                      <span className="text-xs text-neutral-500">Cap (you may approve less than asked)</span>
+                      <span className="text-xs text-label-2">Cap (you may approve less than asked)</span>
                       <input value={cap} onChange={(e) => setCap(e.target.value)} className={input} inputMode="decimal" />
                     </label>
                   )}
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-label-2">
                     Picking does not approve costs by itself: the advance is bound into the offer only if you tick it, and drawable only once you grant it on the job page after the worker activates. Nothing is escrowed; the worker draws it from your wallet into its own, up to the cap, until the delivery deadline.
                   </p>
                 </>
               ) : (
-                <p className="text-xs text-neutral-500">This quote declares no running costs.</p>
+                <p className="text-xs text-label-2">This quote declares no running costs.</p>
               )}
               <div className="flex items-center gap-3">
                 <Button busy={busy} onClick={pick}>Pick and freeze the offer</Button>
                 <Button variant="outline" onClick={() => setPicking(null)}>Cancel</Button>
-                {error !== null && <span className="text-xs text-red-600">{error}</span>}
+                {error !== null && <span className="text-xs text-bad">{error}</span>}
               </div>
             </div>
           )}

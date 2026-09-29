@@ -34,11 +34,11 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
   if (batch !== null && txs.length > 1 && !oneByOne) {
     return (
       <div className="space-y-2 text-sm">
-        <ol className="space-y-1 text-neutral-600">
+        <ol className="space-y-1 text-label-2">
           {txs.map((tx, i) => <li key={`${tx.to}-${i}`}>{i + 1}. {tx.description}</li>)}
         </ol>
         {batched !== null ? (
-          <p className="flex items-center gap-2 text-emerald-700">✓ all {txs.length} in one transaction <TxLink hash={batched} /></p>
+          <p className="flex items-center gap-2 text-ok">✓ all {txs.length} in one transaction <TxLink hash={batched} /></p>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -62,10 +62,10 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
             >
               Confirm all {txs.length} as one transaction
             </Button>
-            <button type="button" className="text-xs text-neutral-500 underline" onClick={() => setOneByOne(true)}>one at a time</button>
+            <button type="button" className="text-xs text-label-2 underline" onClick={() => setOneByOne(true)}>one at a time</button>
           </div>
         )}
-        {error !== null && <p className="text-xs text-red-600">{error}</p>}
+        {error !== null && <p className="text-xs text-bad">{error}</p>}
       </div>
     )
   }
@@ -74,9 +74,9 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
     <ol className="space-y-2">
       {txs.map((tx, i) => (
         <li key={`${tx.to}-${tx.data.slice(0, 10)}-${i}`} className="flex items-center gap-3 text-sm">
-          <span className="w-5 text-neutral-400">{i + 1}.</span>
+          <span className="w-5 text-label-3">{i + 1}.</span>
           {i < next ? (
-            <span className="flex items-center gap-2 text-emerald-700">✓ {tx.description} <TxLink hash={sent[i]} /></span>
+            <span className="flex items-center gap-2 text-ok">✓ {tx.description} <TxLink hash={sent[i]} /></span>
           ) : (
             <Button
               variant={i === next ? 'primary' : 'outline'}
@@ -104,7 +104,7 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
           )}
         </li>
       ))}
-      {error !== null && <li className="text-xs text-red-600">{error}</li>}
+      {error !== null && <li className="text-xs text-bad">{error}</li>}
     </ol>
   )
 }

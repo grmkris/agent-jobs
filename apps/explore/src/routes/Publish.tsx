@@ -24,14 +24,14 @@ const NADFUN_TESTNET = {
   function: 'function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable',
   cap: '12',
 }
-const input = 'w-full rounded border border-neutral-300 px-2 py-1 text-sm'
+const input = 'w-full rounded border border-sep px-2 py-1 text-sm'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
       <span className="text-sm font-medium">{label}</span>
       {children}
-      {hint !== undefined && <span className="block text-xs text-neutral-500">{hint}</span>}
+      {hint !== undefined && <span className="block text-xs text-label-2">{hint}</span>}
     </label>
   )
 }
@@ -79,7 +79,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<Created | null>(null)
 
-  if (!auth.signedIn) return <Card title="Publish"><p className="text-sm text-neutral-600">Log in and sign in to publish an offer.</p></Card>
+  if (!auth.signedIn) return <Card title="Publish"><p className="text-sm text-label-2">Log in and sign in to publish an offer.</p></Card>
 
   const submit = async () => {
     setBusy(true)
@@ -147,10 +147,10 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
             <a href={created.manifestUrl} className="underline" target="_blank" rel="noreferrer">manifest</a>.
           </p>
           {created.screening !== null && (
-            <div className="rounded border border-neutral-200 p-2">
+            <div className="rounded border border-sep p-2">
               <Badge tone={created.screening.verdict === 'clean' ? 'green' : created.screening.verdict === 'reject' ? 'red' : 'amber'}>Jev: {created.screening.verdict}</Badge>
-              <ul className="mt-1 list-disc pl-5 text-xs text-neutral-600">{created.screening.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-              <p className="mt-1 text-xs text-neutral-400">Advisory only: Jev never blocks a publish.</p>
+              <ul className="mt-1 list-disc pl-5 text-xs text-label-2">{created.screening.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+              <p className="mt-1 text-xs text-label-3">Advisory only: Jev never blocks a publish.</p>
             </div>
           )}
           <TxSteps
@@ -228,9 +228,9 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
         {mode !== 'contest' && <Field label="Worker bond (FACTORY)"><input value={workerBond} onChange={(e) => setWorkerBond(e.target.value)} className={input} inputMode="decimal" /></Field>}
         <Field label="Delivery within (hours)"><input value={deliveryHours} onChange={(e) => setDeliveryHours(e.target.value)} className={input} inputMode="decimal" /></Field>
         {mode === 'contest' && <Field label="Award within (hours)" hint="Must end before the delivery window; unawarded, the prize and your bond come back."><input value={selectionHours} onChange={(e) => setSelectionHours(e.target.value)} className={input} inputMode="decimal" /></Field>}
-        <div className="rounded border border-neutral-200 p-3 sm:col-span-2">
+        <div className="rounded border border-sep p-3 sm:col-span-2">
           <span className="text-sm font-medium">Accepted deliverables</span>
-          <p className="mt-1 text-xs text-neutral-500">
+          <p className="mt-1 text-xs text-label-2">
             Workers host the work themselves (their own fork on any git host, IPFS, a server, the chain); the board only records where it is and checks it once.
           </p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -257,12 +257,12 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
           <Field label="Required GitHub check" hint="Evidence must cover this check on the submitted SHA."><input value={check} onChange={(e) => setCheck(e.target.value)} className={input} /></Field>
         )}
         {mode === 'hire' && (
-          <div className="rounded border border-neutral-200 p-3 sm:col-span-2">
+          <div className="rounded border border-sep p-3 sm:col-span-2">
             <label className="flex items-center gap-2 text-sm font-medium">
               <input type="checkbox" checked={budgetOn} onChange={(e) => setBudgetOn(e.target.checked)} />
               Execution budget for running costs (optional)
             </label>
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1 text-xs text-label-2">
               Apart from the reward, the worker may draw up to this much from your wallet (model calls, compute), until the delivery deadline. Nothing is escrowed: once the worker has activated, you grant it on the job page with an email/Google (Privy) wallet as an on-chain delegation, and can revoke it any time.
             </p>
             {budgetOn && (
@@ -315,7 +315,7 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
         <Button busy={busy} disabled={title.trim() === '' || brief.trim() === '' || (mode === 'quotes' && quoteTokens.length === 0) || accepts.length === 0} onClick={submit}>
           {mode === 'quotes' ? 'Ask for quotes' : 'Freeze offer and screen'}
         </Button>
-        {error !== null && <span className="text-xs text-red-600">{error}</span>}
+        {error !== null && <span className="text-xs text-bad">{error}</span>}
       </div>
     </Card>
   )
