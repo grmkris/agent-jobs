@@ -35,6 +35,8 @@ export interface Deployment {
    * v0.8 `Simple7702Account` (`executeBatch`, ERC-1271 by the account's own key), already deployed on Monad.
    */
   readonly batchDelegate: Address
+  /** The core's admin (deployer EOA): pauses, upgrades, the token allowlist and verifier registration. */
+  readonly admin: Address
   readonly arbitrator: Address
   readonly attester: Address
   readonly relay: Address
@@ -101,6 +103,7 @@ export function deployment(network: Network): Deployment {
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
     batchDelegate: c.eip7702.delegate as Address,
+    admin: c.roles.admin as Address,
     arbitrator: c.roles.arbitrator as Address,
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,

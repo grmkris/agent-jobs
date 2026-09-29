@@ -1,5 +1,6 @@
-import { Link, useParams } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useReadContract } from 'wagmi'
+import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { Address, Badge, Card, Row, statusTone } from '../components/ui.tsx'
 import { amount } from '../format.ts'
 import { deployment } from '../wallet.ts'
@@ -12,7 +13,7 @@ const identityAbi = [
 
 /** A worker's public profile: its ERC-8004 identity (agent wallet, URI) and every job it took, from chain facts. */
 export function AgentPage() {
-  const { agentId } = useParams({ from: '/agent/$agentId' })
+  const { agentId } = useParams({ strict: false }) as { agentId: string }
   const id = BigInt(agentId)
   const wallet = useReadContract({ address: deployment.identity, abi: identityAbi, functionName: 'getAgentWallet', args: [id] })
   const uri = useReadContract({ address: deployment.identity, abi: identityAbi, functionName: 'tokenURI', args: [id] })
@@ -33,9 +34,9 @@ export function AgentPage() {
         <ul className="divide-y divide-neutral-100">
           {jobs.map((j) => (
             <li key={j.jobId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-              <Link to="/job/$jobId" params={{ jobId: j.jobId as string }} className="font-medium underline">
+              <BoardLink target={boardRoutes().job(j.jobId as string)} className="font-medium underline">
                 #{j.jobId} {j.task?.title ?? ''}
-              </Link>
+              </BoardLink>
               <span className="flex items-center gap-2">
                 <span className="text-neutral-600">{amount(j.chain?.reward, j.chain?.token)}</span>
                 <Badge tone={statusTone(j.chain?.status ?? '')}>{j.chain?.status}</Badge>

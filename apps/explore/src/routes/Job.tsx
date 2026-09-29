@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useSignTypedData } from 'wagmi'
 import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TxRequest, data, tool } from '../api.ts'
+import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
@@ -60,8 +61,12 @@ function CheckBadge({ check }: { check: DeliverableCheck }) {
   )
 }
 
-export function JobPage({ auth }: { auth: Auth }) {
-  const { jobId } = useParams({ from: '/job/$jobId' })
+export type JobEvent = 'awarded' | 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
+const EVENT_OF: Record<string, JobEvent> = { award: 'awarded', approve_work: 'approved', reject_work: 'rejected', cancel_task: 'cancelled', dispute: 'disputed', settlement_actions: 'settled' }
+
+export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: string; onEvent?: (type: JobEvent, payload: Record<string, unknown>) => void }) {
+  const params = useParams({ strict: false }) as { jobId?: string }
+  const jobId = given ?? params.jobId ?? ''
   const { items } = useJobs()
   const task = items.find((i) => i.jobId === jobId)?.task
   const chain = useQuery({ queryKey: ['job', jobId], queryFn: () => data<Detail>(`jobs/${jobId}`), refetchInterval: 15_000 })
@@ -79,7 +84,7 @@ export function JobPage({ auth }: { auth: Auth }) {
 
   return (
     <div className="space-y-4">
-      <Link to="/" className="text-sm text-neutral-500 hover:underline">← all jobs</Link>
+      <BoardLink target={boardRoutes().jobs()} className="text-sm text-neutral-500 hover:underline">← all jobs</BoardLink>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold">#{jobId} {task?.title ?? ''}</h1>
         <Badge tone={statusTone(status)}>{status}</Badge>
@@ -122,7 +127,7 @@ export function JobPage({ auth }: { auth: Auth }) {
 
         <Card title="Work">
           <Row label="Worker"><Address value={d?.job.worker} /></Row>
-          <Row label="ERC-8004 agent">{d?.job.agent_id == null ? '—' : <Link to="/agent/$agentId" params={{ agentId: d.job.agent_id }} className="underline">{d.job.agent_id}</Link>}</Row>
+          <Row label="ERC-8004 agent">{d?.job.agent_id == null ? '—' : <BoardLink target={boardRoutes().agent(d.job.agent_id)} className="underline">{d.job.agent_id}</BoardLink>}</Row>
           <Row label="On-chain deliverable"><span className="font-mono text-xs">{d?.submission?.deliverable.slice(0, 14) ?? '—'}</span> <TxLink hash={d?.submission?.tx_hash} /></Row>
           {(board.data?.deliverables as Array<{ repo: string; branch: string; sha: string; deliverable_hash: string; descriptor?: Deliverable; check?: DeliverableCheck | null }> | undefined)?.map((x) => (
             <Row key={x.deliverable_hash} label="Declared">
@@ -157,7 +162,7 @@ export function JobPage({ auth }: { auth: Auth }) {
       )}
 
       {auth.signedIn && task !== undefined && (
-        <Actions taskId={task.taskId} status={status} mode={d?.job.mode ?? task.mode} roles={roles} />
+        <Actions taskId={task.taskId} status={status} mode={d?.job.mode ?? task.mode} roles={roles} onEvent={onEvent} />
       )}
       {!auth.signedIn && <p className="text-sm text-neutral-500">Log in and sign in to act on this job (award, approve, reject, dispute, settle).</p>}
     </div>
@@ -204,10 +209,11 @@ function DisputePanel({ d, taskId, signedIn, roles }: { d: Detail; taskId: strin
   )
 }
 
-function Actions({ taskId, status, mode, roles }: { taskId: string; status: string; mode: string | null; roles: string[] }) {
+function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; status: string; mode: string | null; roles: string[]; onEvent?: ((type: JobEvent, payload: Record<string, unknown>) => void) | undefined }) {
   const paused = usePaused()
   const qc = useQueryClient()
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
+  const [lastTool, setLastTool] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [violation, setViolation] = useState('Quality')
@@ -255,6 +261,7 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
     setError(null)
     try {
       const r = await tool<{ transactions: TxRequest[] }>(name, { taskId, ...args })
+      setLastTool(name)
       setTxs(r.transactions)
     } catch (e) {
       setError((e as Error).message)
@@ -262,9 +269,11 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
       setBusy(null)
     }
   }
-  const done = () => {
+  const done = (hashes: string[] = []) => {
     setTxs(null)
     void qc.invalidateQueries()
+    const event = lastTool === null ? undefined : EVENT_OF[lastTool]
+    if (event !== undefined) onEvent?.(event, { txHash: hashes.at(-1) ?? null })
   }
   if (paused) return <Card title="Actions"><p className="text-sm text-red-700">Paused: the core refuses every action until the admin unpauses it.</p></Card>
   if (txs !== null) {
@@ -285,7 +294,7 @@ function Actions({ taskId, status, mode, roles }: { taskId: string; status: stri
             {applications.data?.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center gap-3 py-1 text-sm">
                 <Address value={a.worker} />
-                <Link to="/agent/$agentId" params={{ agentId: a.agent_id }} className="underline">agent {a.agent_id}</Link>
+                <BoardLink target={boardRoutes().agent(a.agent_id)} className="underline">agent {a.agent_id}</BoardLink>
                 <span className="text-xs text-neutral-600">{a.note}</span>
                 {selected === a.id ? <Badge tone="green">selected; waiting for activation</Badge> : <Button busy={busy === `select-${a.id}`} onClick={select(a.id)}>Select</Button>}
               </div>

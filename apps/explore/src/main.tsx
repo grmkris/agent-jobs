@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
@@ -12,10 +12,18 @@ import { chain, usePaused, wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
 import { PublishPage } from './routes/Publish.tsx'
 import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
+import { BoardsPage } from './routes/Boards.tsx'
+import { BoardNewPage } from './routes/BoardNew.tsx'
+import { EmbedPage } from './routes/Embed.tsx'
+import { currentBoardId } from './api.ts'
 
 function Layout() {
   const auth = useAuth()
   const paused = usePaused()
+  const location = useLocation()
+  // The embedded widget (ADR-0008) has no site chrome: the host page is the chrome.
+  if (location.pathname.startsWith('/embed/')) return <Outlet />
+  const boardId = currentBoardId()
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       {paused && (
@@ -24,11 +32,22 @@ function Layout() {
         </div>
       )}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link to="/" className="text-lg font-semibold">agent-jobs <span className="font-normal text-neutral-500">· Explore · {chain.name}</span></Link>
+        <Link to="/" className="text-lg font-semibold">agent-jobs <span className="font-normal text-neutral-500">· Explore · {chain.name}{boardId === 'public' ? '' : ` · board ${boardId}`}</span></Link>
         <nav className="flex gap-4 text-sm">
-          <Link to="/" className="text-neutral-600 hover:text-neutral-900">Jobs</Link>
-          <Link to="/quotes" className="text-neutral-600 hover:text-neutral-900">Quotes</Link>
-          <Link to="/publish" className="text-neutral-600 hover:text-neutral-900">Publish</Link>
+          {boardId === 'public' ? (
+            <>
+              <Link to="/" className="text-neutral-600 hover:text-neutral-900">Jobs</Link>
+              <Link to="/quotes" className="text-neutral-600 hover:text-neutral-900">Quotes</Link>
+              <Link to="/publish" className="text-neutral-600 hover:text-neutral-900">Publish</Link>
+            </>
+          ) : (
+            <>
+              <Link to="/b/$boardId" params={{ boardId }} className="text-neutral-600 hover:text-neutral-900">Jobs</Link>
+              <Link to="/b/$boardId/quotes" params={{ boardId }} className="text-neutral-600 hover:text-neutral-900">Quotes</Link>
+              <Link to="/b/$boardId/publish" params={{ boardId }} className="text-neutral-600 hover:text-neutral-900">Publish</Link>
+            </>
+          )}
+          <Link to="/boards" className="text-neutral-600 hover:text-neutral-900">Boards</Link>
         </nav>
         <WalletBar auth={auth} />
       </header>
@@ -65,7 +84,47 @@ const quoteRequest = createRoute({
   },
 })
 const agent = createRoute({ getParentRoute: () => root, path: '/agent/$agentId', component: AgentPage })
-const router = createRouter({ routeTree: root.addChildren([jobs, job, publish, quotes, quoteRequest, agent]) })
+// Tenant boards (ADR-0008): the same pages under /b/<slug>, plus the boards directory, creation and the widget.
+const boards = createRoute({ getParentRoute: () => root, path: '/boards', component: BoardsPage })
+const boardNew = createRoute({
+  getParentRoute: () => root,
+  path: '/boards/new',
+  component: function BoardNewRoute() {
+    return <BoardNewPage auth={useAuth()} />
+  },
+})
+const board = createRoute({ getParentRoute: () => root, path: '/b/$boardId', component: Outlet })
+const boardJobs = createRoute({ getParentRoute: () => board, path: '/', component: JobsPage })
+const boardJob = createRoute({
+  getParentRoute: () => board,
+  path: '/job/$jobId',
+  component: function BoardJobRoute() {
+    return <JobPage auth={useAuth()} />
+  },
+})
+const boardPublish = createRoute({
+  getParentRoute: () => board,
+  path: '/publish',
+  component: function BoardPublishRoute() {
+    return <PublishPage auth={useAuth()} />
+  },
+})
+const boardQuotes = createRoute({ getParentRoute: () => board, path: '/quotes', component: QuotesPage })
+const boardQuoteRequest = createRoute({
+  getParentRoute: () => board,
+  path: '/quotes/$requestId',
+  component: function BoardQuoteRequestRoute() {
+    return <QuoteRequestPage auth={useAuth()} />
+  },
+})
+const boardAgent = createRoute({ getParentRoute: () => board, path: '/agent/$agentId', component: AgentPage })
+const embed = createRoute({ getParentRoute: () => root, path: '/embed/$boardId', component: EmbedPage })
+const router = createRouter({
+  routeTree: root.addChildren([
+    jobs, job, publish, quotes, quoteRequest, agent, boards, boardNew, embed,
+    board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardAgent]),
+  ]),
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

@@ -11,7 +11,7 @@ import { Button, TxLink } from './ui.tsx'
  * one confirmation; otherwise (or on request) as separate steps (switch network → approve → execute), each with its
  * own loader. Every confirmed transaction is reported back so the board reconciles from the chain.
  */
-export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxRequest[]; onDone: () => void }) {
+export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void }) {
   const { chainId, address } = useAccount()
   const batch = usePrivyBatch(address)
   const [oneByOne, setOneByOne] = useState(false)
@@ -52,7 +52,7 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
                   if (receipt.status !== 'success') throw new Error(`reverted: ${hash} (none of the steps happened)`)
                   await tool('report_transaction', { taskId, txHash: hash })
                   setBatched(hash)
-                  onDone()
+                  onDone([hash])
                 } catch (e) {
                   setError((e as Error).message.split('\n')[0] ?? 'failed')
                 } finally {
@@ -91,7 +91,7 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
                   if (receipt.status !== 'success') throw new Error(`reverted: ${hash}`)
                   await tool('report_transaction', { taskId, txHash: hash })
                   setSent((s) => [...s, hash])
-                  if (i === txs.length - 1) onDone()
+                  if (i === txs.length - 1) onDone([...sent, hash])
                 } catch (e) {
                   setError((e as Error).message.split('\n')[0] ?? 'failed')
                 } finally {

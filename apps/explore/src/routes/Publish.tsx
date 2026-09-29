@@ -1,6 +1,6 @@
-import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { DELIVERABLE_KINDS, type DeliverableKind, type TxRequest, tool } from '../api.ts'
+import { boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Badge, Button, Card } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
@@ -44,9 +44,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
  * A hire may carry an execution budget (ADR-0005): what the worker may spend from your wallet on running costs,
  * apart from the reward. It is bound into the offer; you grant it on the job page (Privy email/Google wallet).
  */
-export function PublishPage({ auth }: { auth: Auth }) {
-  const navigate = useNavigate()
-  const [mode, setMode] = useState<'hire' | 'contest' | 'quotes'>('hire')
+export interface Published {
+  taskId: string
+  jobId: string | null
+  txHash: string | null
+}
+
+export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; prefill?: Record<string, string>; onPublished?: (p: Published) => void }) {
+  const navigate = useBoardNavigate()
+  const [mode, setMode] = useState<'hire' | 'contest' | 'quotes'>(prefill.mode === 'contest' || prefill.mode === 'quotes' ? prefill.mode : 'hire')
   const [quoteTokens, setQuoteTokens] = useState<string[]>(rewardTokens.map(([a]) => a))
   const [quoteHours, setQuoteHours] = useState('6')
   const [budgetOn, setBudgetOn] = useState(false)
@@ -58,11 +64,11 @@ export function PublishPage({ auth }: { auth: Auth }) {
   const [callTarget, setCallTarget] = useState(isMainnet ? '' : NADFUN_TESTNET.target)
   const [callFunction, setCallFunction] = useState(isMainnet ? '' : NADFUN_TESTNET.function)
   const [callCap, setCallCap] = useState(NADFUN_TESTNET.cap)
-  const [title, setTitle] = useState('')
-  const [brief, setBrief] = useState('')
+  const [title, setTitle] = useState(prefill.title ?? '')
+  const [brief, setBrief] = useState(prefill.brief ?? '')
   const [criteria, setCriteria] = useState('A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.')
-  const [token, setToken] = useState(rewardTokens[0]?.[0] ?? '')
-  const [reward, setReward] = useState('10')
+  const [token, setToken] = useState(rewardTokens.find(([a, t]) => prefill.token !== undefined && (t.symbol.toLowerCase() === prefill.token.toLowerCase() || a === prefill.token.toLowerCase()))?.[0] ?? rewardTokens[0]?.[0] ?? '')
+  const [reward, setReward] = useState(prefill.reward ?? '10')
   const [creatorBond, setCreatorBond] = useState(isMainnet ? '0' : '2')
   const [workerBond, setWorkerBond] = useState(isMainnet ? '0' : '1')
   const [deliveryHours, setDeliveryHours] = useState('48')
@@ -100,7 +106,7 @@ export function PublishPage({ auth }: { auth: Auth }) {
           ...deliverable,
           stack,
         })
-        await navigate({ to: '/quotes/$requestId', params: { requestId: r.requestId } })
+        await navigate(boardRoutes().quoteRequest(r.requestId))
         return
       }
       const c = await tool<Created>('create_task', {
@@ -154,9 +160,10 @@ export function PublishPage({ auth }: { auth: Auth }) {
           <TxSteps
             taskId={created.taskId}
             txs={created.transactions}
-            onDone={async () => {
+            onDone={async (hashes) => {
               const t = await tool<{ jobId: string | null }>('get_task', { taskId: created.taskId })
-              if (t.jobId !== null) await navigate({ to: '/job/$jobId', params: { jobId: t.jobId } })
+              if (onPublished !== undefined) onPublished({ taskId: created.taskId, jobId: t.jobId, txHash: hashes.at(-1) ?? null })
+              else if (t.jobId !== null) await navigate(boardRoutes().job(t.jobId))
             }}
           />
         </div>

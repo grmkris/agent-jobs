@@ -31,11 +31,17 @@ export const setPrivyProvider = (p: EIP1193Provider | undefined) => {
   privyProvider = p
 }
 export const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider: () => privyProvider } })
+/**
+ * A browser wallet (`window.ethereum`) for the embedded widget only (`/embed/<board>?wallet=injected`, ADR-0008):
+ * a host page that already has a wallet passes it through. Explore's own sign-in stays Privy only; nothing here
+ * auto-connects.
+ */
+export const injectedConnector = injected()
 
 export const wagmiConfig = createConfig({
   chains: [chain] as [Chain],
-  // Sign-in is Privy only (email or social login with an embedded wallet); browser wallets are not connected.
-  connectors: privyAppId === '' ? [] : [privyConnector],
+  // Sign-in is Privy only (email or social login with an embedded wallet); the injected connector serves the widget.
+  connectors: privyAppId === '' ? [injectedConnector] : [privyConnector, injectedConnector],
   transports: { [chain.id]: http() },
 })
 

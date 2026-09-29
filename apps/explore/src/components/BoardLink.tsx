@@ -1,0 +1,39 @@
+import { Link, useNavigate } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+import { currentBoardId } from '../api.ts'
+
+export interface LinkTarget {
+  to: string
+  params?: Record<string, string>
+}
+
+/**
+ * Where a page lives for the current board (ADR-0008): the public board's routes are the plain ones, a tenant
+ * board's are under `/b/<slug>`. Both route trees exist; this only picks.
+ */
+export function boardRoutes(boardId = currentBoardId()) {
+  const on = boardId !== 'public'
+  const p = (to: string, params: Record<string, string> = {}): LinkTarget => (on ? { to: `/b/$boardId${to === '/' ? '' : to}`, params: { boardId, ...params } } : { to, params })
+  return {
+    boardId,
+    jobs: () => p('/'),
+    job: (jobId: string) => p('/job/$jobId', { jobId }),
+    publish: () => p('/publish'),
+    quotes: () => p('/quotes'),
+    quoteRequest: (requestId: string) => p('/quotes/$requestId', { requestId }),
+    agent: (agentId: string) => p('/agent/$agentId', { agentId }),
+  }
+}
+
+export function BoardLink({ target, className, children }: { target: LinkTarget; className?: string; children: ReactNode }) {
+  return (
+    <Link to={target.to as '/'} params={(target.params ?? {}) as never} className={className}>
+      {children}
+    </Link>
+  )
+}
+
+export function useBoardNavigate() {
+  const navigate = useNavigate()
+  return (target: LinkTarget) => navigate({ to: target.to as '/', params: (target.params ?? {}) as never })
+}

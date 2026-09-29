@@ -1,8 +1,8 @@
 import { useAuth } from '../components/Wallet.tsx'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import { type ChainJob, type TaskIndexEntry, data, tool } from '../api.ts'
+import { type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, tool } from '../api.ts'
+import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { Address, Badge, Card, statusTone } from '../components/ui.tsx'
 import { amount, bond, when } from '../format.ts'
 
@@ -13,8 +13,9 @@ export interface JobListItem {
 }
 
 export function useJobs() {
-  const tasks = useQuery({ queryKey: ['task_index'], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 20_000 })
-  const chain = useQuery({ queryKey: ['chain-jobs'], queryFn: () => data<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>('jobs'), refetchInterval: 20_000 })
+  const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 20_000 })
+  const boardId = currentBoardId()
+  const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>(), refetchInterval: 20_000 })
   const items = useMemo(() => {
     const byJob = new Map<string, JobListItem>()
     for (const c of chain.data?.jobs ?? []) byJob.set(c.job_id, { jobId: c.job_id, chain: c, task: undefined })
@@ -47,6 +48,7 @@ export function Jev({ verdict }: { verdict: string | undefined }) {
 export function JobsPage() {
   const { items, index, loading, error } = useJobs()
   const { address } = useAuth()
+  const routes = boardRoutes()
   const [stack, setStack] = useState('all')
   const [mode, setMode] = useState('all')
   const [bondOnly, setBondOnly] = useState(false)
@@ -64,7 +66,7 @@ export function JobsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-neutral-500">Board</span><Select value={stack} onChange={setStack} options={['all', 'main', 'demo']} />
+        <span className="text-neutral-500">Board</span><Select value={stack} onChange={setStack} options={['all', 'main', 'demo', 'fast']} />
         <span className="text-neutral-500">Mode</span><Select value={mode} onChange={setMode} options={['all', 'hire', 'contest']} />
         <span className="text-neutral-500">Jev</span><Select value={verdict} onChange={setVerdict} options={['all', 'clean', 'caution', 'reject', 'unscreened']} />
         <label className="flex items-center gap-1"><input type="checkbox" checked={bondOnly} onChange={(e) => setBondOnly(e.target.checked)} /> bond present</label>
@@ -83,14 +85,15 @@ export function JobsPage() {
                   {i.jobId === null ? (
                     <span className="font-medium">{i.task?.title}</span>
                   ) : (
-                    <Link to="/job/$jobId" params={{ jobId: i.jobId }} className="font-medium hover:underline">
+                    <BoardLink target={routes.job(i.jobId)} className="font-medium hover:underline">
                       #{i.jobId} {i.task?.title ?? <span className="text-neutral-400">(no board record)</span>}
-                    </Link>
+                    </BoardLink>
                   )}
                   <div className="mt-1 flex flex-wrap gap-2">
                     <Badge tone={statusTone(status)}>{status}</Badge>
                     {m !== undefined && m !== null && <Badge>{m}</Badge>}
                     <Badge>{i.chain?.stack ?? i.task?.stack}</Badge>
+                    {routes.boardId === 'public' && i.chain?.board_id !== undefined && i.chain.board_id !== null && i.chain.board_id !== 'public' && <Badge tone="blue">board {i.chain.board_id}</Badge>}
                     {i.task?.quoted === true && <Badge tone="blue">quoted</Badge>}
                     <Jev verdict={i.task?.screening.verdict} />
                   </div>

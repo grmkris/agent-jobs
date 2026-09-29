@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import { type Quote, type QuoteRequest, type TxRequest, tool } from '../api.ts'
+import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, Card, Row } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
@@ -20,7 +21,7 @@ export function QuotesPage() {
       {(requests.data ?? []).length === 0 && <p className="text-sm text-neutral-400">No open requests.</p>}
       {requests.data?.map((r) => (
         <div key={r.requestId} className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 py-2 text-sm last:border-0">
-          <Link to="/quotes/$requestId" params={{ requestId: r.requestId }} className="font-medium hover:underline">{r.title}</Link>
+          <BoardLink target={boardRoutes().quoteRequest(r.requestId)} className="font-medium hover:underline">{r.title}</BoardLink>
           <span className="text-xs text-neutral-500">
             {r.tokens.map(symbolOf).join(' / ')} · quotes close {when(r.quoteDeadline)}
           </span>
@@ -43,8 +44,8 @@ interface Picked {
  * the publish transactions escrow the reward; the job page selects the bidder and grants the budget.
  */
 export function QuoteRequestPage({ auth }: { auth: Auth }) {
-  const { requestId } = useParams({ from: '/quotes/$requestId' })
-  const navigate = useNavigate()
+  const { requestId } = useParams({ strict: false }) as { requestId: string }
+  const navigate = useBoardNavigate()
   const request = useQuery({
     queryKey: ['list_quote_requests'],
     queryFn: () => tool<QuoteRequest[]>('list_quote_requests'),
@@ -95,7 +96,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             txs={picked.transactions}
             onDone={async () => {
               const t = await tool<{ jobId: string | null }>('get_task', { taskId: picked.taskId })
-              if (t.jobId !== null) await navigate({ to: '/job/$jobId', params: { jobId: t.jobId } })
+              if (t.jobId !== null) await navigate(boardRoutes().job(t.jobId))
             }}
           />
           <p className="text-xs text-neutral-500">Next, on the job page: select the bidder (a signature, no transaction), then grant the execution budget.</p>
@@ -106,7 +107,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
   return (
     <div className="space-y-4">
-      <Link to="/quotes" className="text-sm text-neutral-500 hover:underline">← quote requests</Link>
+      <BoardLink target={boardRoutes().quotes()} className="text-sm text-neutral-500 hover:underline">← quote requests</BoardLink>
       <Card title={r?.title ?? 'Quote request'}>
         {r === undefined ? (
           <p className="text-sm text-neutral-500">Closed or picked (only open requests are listed).</p>
@@ -133,7 +134,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-medium">{q.amount} {q.symbol}</span>
                 <Address value={q.worker} />
-                <Link to="/agent/$agentId" params={{ agentId: q.agentId }} className="underline">agent {q.agentId}</Link>
+                <BoardLink target={boardRoutes().agent(q.agentId)} className="underline">agent {q.agentId}</BoardLink>
                 {q.expectedCosts !== null && <Badge tone="blue">+ running costs ≈ {q.expectedCosts.amount} {q.expectedCosts.symbol}</Badge>}
                 {mine && quotes.data?.picked == null && (
                   <Button
