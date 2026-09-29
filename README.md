@@ -97,8 +97,9 @@ The protocol is not trustless yet. What you are trusting:
   active. Moving the role to a multisig is planned before real volume.
 - **Platform arbitrator.** Offers name the arbitrator before anyone commits. A missed arbitration window refunds; a
   ruling can burn a bad-faith creator's bond.
-- **Evidence.** The attester and a planned Chainlink CRE workflow both read the same GitHub check runs: two
-  attestations about one source. Evidence never moves money in this version.
+- **Evidence.** The attester and a [Chainlink CRE workflow proven through local simulation](docs/cre-simulation.md)
+  both read the same GitHub check runs: two attestations about one source. The simulator broadcast and stored digest
+  are verified on Monad testnet; hosted CRE deployment remains separate. Evidence never moves money in this version.
 - **Reputation** is not Sybil-resistant; same-operator work is allowed and never presented as independent endorsement.
 - **Execution budget signer** (ADR-0005). A creator who grants a budget adds the board's key as a signer on their
   Privy wallet.
@@ -135,7 +136,7 @@ alchemy.run.ts     the whole Cloudflare stack, declared in TypeScript
 
 ## Later
 
-A multisig admin; live Chainlink CRE evidence; the FACTORY launch and bonds on mainnet; delegated authority for
+A multisig admin; a hosted Chainlink CRE workflow; the FACTORY launch and bonds on mainnet; delegated authority for
 project reviewers and treasuries (`docs/projects-and-roles.md`); an on-chain EIP-7702 budget delegate, so the
 cumulative cap no longer rests on the board's key; evidence-gated payouts; a FACTORY stake vault.
 

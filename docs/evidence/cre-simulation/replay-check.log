@@ -1,0 +1,26 @@
+ WARN  Unsupported engine: wanted: {"node":">=24"} (current: {"node":"v22.23.2","pnpm":"10.13.1"})
+
+> agent-jobs@0.0.0 cre:simulate /home/kristjan/code/agent-jobs-cre
+> pnpm --filter @agent-jobs/ci-evidence run simulate --broadcast
+
+.                                        |  WARN  Unsupported engine: wanted: {"node":">=24"} (current: {"node":"v22.23.2","pnpm":"10.13.1"})
+
+> @agent-jobs/ci-evidence@0.0.0 simulate /home/kristjan/code/agent-jobs-cre/workflows/ci-evidence
+> tsc -p tsconfig.json && tsc -p tsconfig.tools.json && node --experimental-strip-types scripts/simulate.ts --broadcast
+
+{
+  "alreadyRecorded": true,
+  "newBroadcast": false,
+  "digest": "0xbee95e08ac012e11a3e1093725daf5b9ce0f782b5a9500779a1f51650f897507",
+  "receiver": "0x70608994217617Ad800A3cd2d585dB6eCFB28b30",
+  "stored": [
+    "0xbee95e08ac012e11a3e1093725daf5b9ce0f782b5a9500779a1f51650f897507",
+    "0x1d3feabca9c12c371f6a9dcd1becd8f6e827295b4a60b804ebaaedbf4c17abc6",
+    "0x49ed12dadc166e71568c1c93320f7bbd1299723b0cde1e7ba737c48726c676ed",
+    "0x000000000000000000000000c850f7a58015bafe065257f263a2ecc01da56dfe",
+    1790677772,
+    1791132076,
+    1
+  ]
+}
+

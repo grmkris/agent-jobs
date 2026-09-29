@@ -69,11 +69,15 @@ The wrapper accepts only optional `--broadcast`; its project has only `monad-tes
 
 **Historical fixture expiry:** the approved report deliberately preserves the board's original `validUntil=1791132076` (4 October 2026, 16:41:16 UTC), making the two verifier digests identical. After that time, the workflow refuses it. For a new demonstration, explicitly prepare a fresh payload, inspect its new digest, and deploy a new immutable gate; do not silently extend the old attestation or relax the existing gate. A changed live check list also requires a newly approved report. The committed artifacts remain valid historical evidence.
 
-Local operation records and logs live under ignored `workflows/ci-evidence/.local/`. Deployment/admin operations record sender, nonce, calldata hash and transaction hash before submission and reconcile the receipt on rerun. Broadcast attempts are recorded before CRE starts and cannot be retried blindly. If interrupted, inspect the journal, reconcile its transaction/nonce and receiver events, then run cleanup. No automatic payment retry exists.
+Local operation records and logs live under ignored `workflows/ci-evidence/.local/`. Deployment/admin operations record sender, nonce, calldata hash and transaction hash before submission and reconcile the receipt on rerun. Broadcast attempts are recorded before CRE starts and cannot be retried blindly. Before registering or sending, the wrapper also checks the evaluator's `usedDigest`: an already recorded statement returns its existing stored evidence without another CRE broadcast, even in a fresh checkout. If interrupted, inspect the journal, reconcile its transaction/nonce and receiver events, then run cleanup. No automatic payment retry exists.
+
+The workflow runtime and the Node command scripts have separate TypeScript configurations: CRE deliberately forbids Node APIs in workflow code, while the local deployment and verification scripts need them.
 
 The simulator is a manual integration script, **not** a cached task or automatic CI broadcast. `pnpm check` includes the pure digest tests and Solidity gate tests. The opt-in `CRESimulationForkTest` uses real legacy evaluator bytecode on a local testnet fork and demonstrates completed-job eligibility; it sends no transaction.
 
 ## Evidence and limits
+
+**Verified 29 September 2026:** broadcast [`0x0d61561cf31339e4ffaa6691171feb87adad211c64fca63c7324d5e3473db7f5`](https://testnet.monadscan.com/tx/0x0d61561cf31339e4ffaa6691171feb87adad211c64fca63c7324d5e3473db7f5) recorded the exact board digest above. Receiver `0x70608994217617Ad800A3cd2d585dB6eCFB28b30` is now **unregistered**; the existing board attester remains registered. Four transactions (deployment, registration, CRE broadcast, cleanup) cost **0.199506084 testnet MON** in total.
 
 The dated proof and raw receipts are in [`evidence/cre-simulation/`](evidence/cre-simulation/). A successful CLI exit or forwarder receipt alone is insufficient: the broadcast wrapper requires both `ReportReceived` and `EvidenceAttached`, then reads and compares the stored digest, submission hash, policy hash, tested SHA, expiry and conclusion. It also records verifier revocation. Full report bytes retain the fields not stored separately by the evaluator.
 
