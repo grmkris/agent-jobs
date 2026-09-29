@@ -589,7 +589,8 @@ export class BudgetDesk {
     if (validAfter > BigInt(now)) throw bad('validAfter must not be in the future')
     if (validBefore <= BigInt(now) || validBefore > BigInt(latest)) throw bad(`validBefore must be after now and no later than ${latest}`)
     const used = await st.ctx.publicClient.readContract({ address: x.token, abi: EIP3009_ABI, functionName: 'authorizationState', args: [st.terms.creator, nonce as Hex] })
-    if (used || this.#deps.sql.all('SELECT id FROM budget_spends WHERE task_id = ? AND authorization_json LIKE ?', input.taskId, `%${nonce}%`).length > 0) {
+    // An exact match, not LIKE: Durable Object SQLite caps LIKE patterns at 50 bytes, and a nonce alone is 66.
+    if (used || this.#deps.sql.all("SELECT id FROM budget_spends WHERE task_id = ? AND json_extract(authorization_json, '$.nonce') = ?", input.taskId, nonce).length > 0) {
       throw bad('that nonce was used already')
     }
     const block = await st.ctx.publicClient.getBlockNumber()

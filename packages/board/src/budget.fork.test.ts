@@ -236,7 +236,8 @@ fork('execution budget on a testnet fork', () => {
     }
     for (const a of [creator, worker, stranger]) await rpcCall('anvil_setBalance', [a.address, `0x${parseEther('100').toString(16)}`])
     const c = ctx()
-    for (const token of [c.deployment.factory, ...c.deployment.rewardTokens]) await sdk.faucet(c, w(creator), token)
+    // mUSD and mEUR: later reward tokens (e.g. $CHOMP) are real tokens with no faucet
+    for (const token of [c.deployment.factory, ...c.deployment.rewardTokens.slice(0, 2)]) await sdk.faucet(c, w(creator), token)
     await sdk.faucet(c, w(worker), c.deployment.factory)
     agentId = (await sdk.registerAgent(c, w(worker), 'https://example.test/agent.json')).toString()
     await signIn(creator)
