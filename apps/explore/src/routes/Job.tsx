@@ -1,345 +1,436 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@agent-jobs/react'
+import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { useState } from 'react'
-import { useSignTypedData } from 'wagmi'
-import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TxRequest, data, tool } from '../api.ts'
+import { ChevronLeft, ChevronRight, CircleAlert, Clock, Lock, ReceiptText } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TaskIndexEntry, boardApi, currentBoardId, data } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
-import { TxSteps } from '../components/TxSteps.tsx'
-import { Address, Badge, Button, Card, Row, TxLink, statusTone } from '../components/ui.tsx'
-import type { useSignedIn } from '../components/Wallet.tsx'
-import { amount, bond, budgetCap, when } from '../format.ts'
-import { typedDataArgs } from '../typed-data.ts'
-import { usePaused } from '../wallet.ts'
-import { Jev, useJobs } from './Jobs.tsx'
+import { Delivered, type EvidenceRow } from '../components/job/Deliverables.tsx'
+import { type JobEvent, JobActions } from '../components/job/JobActions.tsx'
+import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
+import { PhaseBadge, Sentence } from '../components/Phase.tsx'
+import { useNow } from '../components/Time.tsx'
+import { Address, Badge, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
+import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
+import { amount, bond, budgetCap, span } from '../format.ts'
+import { useJobs } from './Jobs.tsx'
+
+export type { JobEvent }
 
 interface Detail {
-  job: { status: string; mode: string | null; stack: string | null; worker: string | null; agent_id: string | null; deliverable: string | null; violation: string | null; rejection_reason_hash: string | null; creator: string | null; approver: string | null; token: string | null; reward: string | null; creator_bond: string | null; worker_bond: string | null; delivery_deadline: number | null; selection_deadline: number | null; published_tx: string | null }
+  job: {
+    status: string
+    mode: string | null
+    stack: string | null
+    worker: string | null
+    agent_id: string | null
+    deliverable: string | null
+    violation: string | null
+    rejection_reason_hash: string | null
+    creator: string | null
+    approver: string | null
+    token: string | null
+    reward: string | null
+    creator_bond: string | null
+    worker_bond: string | null
+    delivery_deadline: number | null
+    selection_deadline: number | null
+    published_tx: string | null
+  }
   submission: { deliverable: string; provider: string; tx_hash: string } | null
-  evidence: Array<{ verifier: string; submission_hash: string; tested_sha: string; conclusion: string; expired: boolean; onchainMatch: boolean; tx_hash: string }>
+  evidence: EvidenceRow[]
   ruling: { for_worker: number; slash_loser: number; reason_hash: string; tx_hash: string } | null
   rewards: Array<{ kind: string; recipient: string; amount: string; tx_hash: string }>
   bonds: Array<{ side: string; outcome: string; recipient: string | null; amount: string; tx_hash: string }>
   feedback: { agent_id: string; value: string | null; tag: string | null; recorded: number; tx_hash: string } | null
+  timeline?: TimelineEvent[]
+  board: { boardId: string; taskId: string } | null
+}
+
+/** The board's `get_task` answer, as far as this page reads it. */
+interface BoardTask {
+  taskId: string
+  title: string
+  mode: 'hire' | 'contest'
+  stack: string
+  creator: string
+  approver: string
+  deliveryDeadline: number
+  selectionDeadline: number | null
+  workerBond: string
+  termsHash: string
+  screening: { verdict: string; reasons: string[] }
+  chain: {
+    status: string
+    provider: string | null
+    timely: boolean
+    submittedAt: number | null
+    reviewEndsAt: number | null
+    disputeEndsAt: number | null
+    arbitrationEndsAt: number | null
+    violation: string | null
+    listingMatchesOffer: boolean | null
+    paused?: boolean
+  }
+  you: string[] | null
+  terms: { brief?: string; acceptanceCriteria?: string[]; windows?: { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }
+  deliverables?: Array<{ repo: string; branch: string; sha: string; deliverable_hash: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>
+  evidence?: Array<{ submissionHash: string; label: string }>
 }
 
 type Auth = ReturnType<typeof useSignedIn>
 
-const httpUrl = (url: string) => (url.startsWith('ipfs://') ? `https://ipfs.io/ipfs/${url.slice('ipfs://'.length)}` : url)
-const ext = 'text-xs text-tint hover:underline'
+const STACK: Record<string, string> = { main: 'Standard: 3-day review and dispute windows', demo: 'Demo: windows of minutes, for rehearsals', fast: 'Fast: 2-hour review and dispute windows' }
+const VERDICT: Record<string, string> = { clean: 'Looks fine', caution: 'Flagged for a closer look', reject: 'Flagged as risky', unscreened: 'Not screened' }
+const VIOLATION: Record<string, string> = { None: 'no fault named', Quality: 'not good enough', Falsified: 'faked evidence' }
 
-/** Where the worker put the deliverable (ADR-0006): any git host, a file, a page or the chain. */
-function DeliverableLink({ d }: { d: Deliverable }) {
-  switch (d.kind) {
-    case 'git': {
-      const tree = /^https:\/\/(github\.com|gitlab\.com|codeberg\.org|gitea\.com)\//.test(d.url) ? `${d.url.replace(/\.git$/, '')}/tree/${d.sha}` : d.url
-      return <a className={ext} href={tree} target="_blank" rel="noreferrer">{new URL(d.url).hostname} · {d.ref} @ {d.sha.slice(0, 7)}</a>
-    }
-    case 'patch':
-      return <a className={ext} href={httpUrl(d.url)} target="_blank" rel="noreferrer">patch on {d.base.slice(0, 7)} · sha256 {d.sha256.slice(0, 8)}…</a>
-    case 'artifact':
-      return <a className={ext} href={httpUrl(d.url)} target="_blank" rel="noreferrer">{d.name} ({d.mediaType}) · sha256 {d.sha256.slice(0, 8)}…</a>
-    case 'url':
-      return <a className={ext} href={d.url} target="_blank" rel="noreferrer">{d.url}</a>
-    case 'onchain':
-      return (
-        <span className="text-xs">
-          chain {d.chainId}
-          {d.txHash !== undefined && <> · <TxLink hash={d.txHash} /></>}
-          {d.address !== undefined && <> · <Address value={d.address} /></>}
-        </span>
-      )
+/** How a finished job ended, read from its events, so the phase can say "accepted by silence" or "ruled for…". */
+function outcomeOf(d: Detail | undefined) {
+  const tl = d?.timeline ?? []
+  const timeout = tl.find((e) => e.name === 'TimedOut')
+  if (d?.ruling != null) return d.ruling.for_worker === 1 ? ('ruled-worker' as const) : ('ruled-creator' as const)
+  if (timeout !== undefined) {
+    const r = String(timeout.args.reason)
+    if (r.startsWith('0x7265766965772d')) return 'silence' as const // "review-…"
+    if (r.startsWith('0x64656c6976657279')) return 'missed' as const // "delivery…"
+    if (r.startsWith('0x6172626974726174696f6e')) return 'arbitration-timeout' as const // "arbitration…"
+    return 'rejection-final' as const
   }
+  if (tl.some((e) => e.name === 'Awarded')) return 'awarded' as const
+  if (tl.some((e) => e.name === 'Accepted')) return 'accepted' as const
+  return null
 }
-
-/** The board's one-time check at submit; advisory, the approver decides. */
-function CheckBadge({ check }: { check: DeliverableCheck }) {
-  return (
-    <span className="ml-2 inline-flex items-center gap-1" title={check.detail}>
-      <Badge tone={check.ok === true ? 'green' : check.ok === false ? 'red' : 'gray'}>{check.ok === true ? '✓ checked' : check.ok === false ? '✗ check failed' : 'unchecked'}</Badge>
-      <span className="text-xs text-label-2">{check.detail}</span>
-    </span>
-  )
-}
-
-export type JobEvent = 'awarded' | 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
-const EVENT_OF: Record<string, JobEvent> = { award: 'awarded', approve_work: 'approved', reject_work: 'rejected', cancel_task: 'cancelled', dispute: 'disputed', settlement_actions: 'settled' }
 
 export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: string; onEvent?: (type: JobEvent, payload: Record<string, unknown>) => void }) {
   const params = useParams({ strict: false }) as { jobId?: string }
   const jobId = given ?? params.jobId ?? ''
+  const now = useNow()
   const { items } = useJobs()
-  const task = items.find((i) => i.jobId === jobId)?.task
-  const chain = useQuery({ queryKey: ['job', jobId], queryFn: () => data<Detail>(`jobs/${jobId}`), refetchInterval: 15_000 })
+  const listed = items.find((i) => i.jobId === jobId)?.task
+  const chain = useQuery({ queryKey: ['job', jobId], queryFn: () => data<Detail>(`jobs/${jobId}`), refetchInterval: 15_000, enabled: /^\d+$/.test(jobId) })
+  const d = chain.data
+  // The offer lives on the board it was frozen on, which may not be the one this page is on.
+  const boardId = d?.board?.boardId ?? currentBoardId()
+  const taskId = d?.board?.taskId ?? listed?.taskId
   const board = useQuery({
-    queryKey: ['get_task', task?.taskId, auth.signedIn],
-    queryFn: () => tool('get_task', { taskId: task?.taskId }),
-    enabled: task !== undefined,
+    queryKey: ['get_task', boardId, taskId, auth.signedIn],
+    queryFn: () => boardApi(boardId).tool<BoardTask>('get_task', { taskId }),
+    enabled: taskId !== undefined,
     refetchInterval: 15_000,
   })
-  const d = chain.data
-  const status: string = board.data?.chain?.status ?? d?.job.status ?? 'unknown'
-  const roles: string[] = board.data?.you ?? []
-  const boardLabel = (submissionHash: string) =>
-    (board.data?.evidence as Array<{ submissionHash: string; label: string }> | undefined)?.find((e) => e.submissionHash.toLowerCase() === submissionHash.toLowerCase())?.label
+  const t = board.data
+  const mode: 'hire' | 'contest' = (t?.mode ?? d?.job.mode ?? listed?.mode) === 'contest' ? 'contest' : 'hire'
+  const roles = t?.you ?? []
+
+  // Minute resolution is enough for phases (deadlines are minutes apart); the countdowns tick on their own.
+  const minute = Math.floor(now / 60) * 60
+  let phase: Phase | null = null
+  if (t !== undefined) phase = lifecycle({ ...lifecycleFromTask(t), outcome: outcomeOf(d) }, auth.address ?? null, minute)
+  else if (d !== undefined) {
+    const settlePending = ['rejected', 'cancelled', 'expired'].includes(d.job.status) && d.rewards.length === 0
+    phase = lifecycle({ ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }, auth.address ?? null, minute)
+  }
+
+  const title = listed?.title ?? t?.title ?? (/^\d+$/.test(jobId) ? `Job #${jobId}` : 'Job')
+  const brief = listed?.brief ?? t?.terms.brief
+  const criteria = listed?.acceptanceCriteria ?? t?.terms.acceptanceCriteria ?? []
+  const reward = d?.job.reward ?? listed?.reward ?? null
+  const token = d?.job.token ?? listed?.token ?? null
+  const agentId = d?.job.agent_id ?? null
+  const otherBoard = d?.board != null && d.board.boardId !== currentBoardId() && d.board.boardId !== 'public'
+
+  if (chain.isLoading && listed === undefined) return <JobSkeleton />
+  if (chain.data === undefined && listed === undefined && !chain.isLoading) {
+    return (
+      <>
+        <Back />
+        <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
+          <p className="font-semibold">Job #{jobId} is not indexed yet</p>
+          <p className="text-[0.9rem] text-label-2">A newly published job appears about a minute after its block is final.</p>
+        </div>
+      </>
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      <BoardLink target={boardRoutes().jobs()} className="text-sm text-label-2 hover:underline">← all jobs</BoardLink>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">#{jobId} {task?.title ?? ''}</h1>
-        <Badge tone={statusTone(status)}>{status}</Badge>
-        <Jev verdict={task?.screening.verdict} />
-        {roles.map((r) => <Badge key={r} tone="blue">you: {r}</Badge>)}
-      </div>
-      {chain.error !== null && <p className="text-sm text-warn">Chain facts: {(chain.error as Error).message}</p>}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Offer">
-          {task !== undefined && <p className="mb-2 whitespace-pre-wrap text-sm">{task.brief}</p>}
-          {task !== undefined && task.acceptanceCriteria.length > 0 && (
-            <ul className="mb-3 list-disc pl-5 text-sm">{task.acceptanceCriteria.map((c) => <li key={c}>{c}</li>)}</ul>
-          )}
-          <Row label="Mode">{d?.job.mode ?? task?.mode}{task?.quoted === true ? ' (from a picked quote)' : ''}</Row>
-          <Row label="Reward">{amount(d?.job.reward ?? task?.reward, d?.job.token ?? task?.token)}</Row>
-          {task?.executionBudget != null && <Row label="Execution budget">up to {budgetCap(task.executionBudget)}, not escrowed</Row>}
-          <Row label="Creator bond">{bond(d?.job.creator_bond ?? task?.creatorBond)}</Row>
-          <Row label="Worker bond">{bond(d?.job.worker_bond ?? task?.workerBond)}</Row>
-          <Row label="Creator"><Address value={d?.job.creator ?? task?.creator} /></Row>
-          <Row label="Approver"><Address value={d?.job.approver ?? task?.approver} /></Row>
-          <Row label="Delivery deadline">{when(d?.job.delivery_deadline ?? task?.deliveryDeadline)}</Row>
-          {(d?.job.mode ?? task?.mode) === 'contest' && <Row label="Selection deadline">{when(d?.job.selection_deadline ?? task?.selectionDeadline)}</Row>}
-          {task !== undefined && (
-            <Row label="Accepts">
-              {(task.deliverable?.accepts ?? ['git']).map((k) => DELIVERABLE_KINDS.find((x) => x.kind === k)?.label ?? k).join(', ')}
-              {task.deliverable?.target !== undefined && <span className="block text-xs text-label-2">{task.deliverable.target}</span>}
-            </Row>
-          )}
-          {task !== undefined && <Row label="Required checks">{task.requiredChecks.join(', ') || '—'}</Row>}
-          {task !== undefined && <Row label="Manifest"><a className="text-xs text-tint hover:underline" href={`/offers/${task.termsHash}.json`}>{task.termsHash.slice(0, 12)}…</a></Row>}
-          <Row label="Published"><TxLink hash={d?.job.published_tx} /></Row>
-          {(d?.job.mode ?? task?.mode) === 'contest' && (
-            <p className="mt-2 text-xs text-warn">May close early when a winner is paid. Only the selected entry is paid.</p>
-          )}
-          {task !== undefined && task.screening.reasons.length > 0 && (
-            <p className="mt-2 text-xs text-label-2">Jev (advisory): {task.screening.reasons.join('; ')}</p>
-          )}
-        </Card>
-
-        <Card title="Work">
-          <Row label="Worker"><Address value={d?.job.worker} /></Row>
-          <Row label="ERC-8004 agent">{d?.job.agent_id == null ? '—' : <BoardLink target={boardRoutes().agent(d.job.agent_id)} className="underline">{d.job.agent_id}</BoardLink>}</Row>
-          <Row label="On-chain deliverable"><span className="font-mono text-xs">{d?.submission?.deliverable.slice(0, 14) ?? '—'}</span> <TxLink hash={d?.submission?.tx_hash} /></Row>
-          {(board.data?.deliverables as Array<{ repo: string; branch: string; sha: string; deliverable_hash: string; descriptor?: Deliverable; check?: DeliverableCheck | null }> | undefined)?.map((x) => (
-            <Row key={x.deliverable_hash} label="Declared">
-              <DeliverableLink d={x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha }} />
-              {x.check != null && <CheckBadge check={x.check} />}
-            </Row>
+    <>
+      <Back />
+      <header className="grid gap-2">
+        <h1 className="font-display text-[1.75rem] leading-[1.15] font-bold tracking-[-0.02em]">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2 text-[0.88rem] text-label-2">
+          <PhaseBadge phase={phase} />
+          <span>Job #{jobId}</span>
+          <span>· {mode === 'contest' ? 'Contest' : listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
+          {otherBoard && <Badge tone="info">{d?.board?.boardId}</Badge>}
+          {roles.map((r) => (
+            <Badge key={r} tone="info">
+              You: {r}
+            </Badge>
           ))}
-          <h3 className="mb-1 mt-3 text-xs font-semibold uppercase text-label-2">Evidence</h3>
-          {(d?.evidence ?? []).length === 0 && <p className="text-sm text-label-3">none attached</p>}
-          {d?.evidence.map((e) => {
-            const label = e.onchainMatch ? 'matches the awarded on-chain deliverable' : e.expired ? 'expired' : boardLabel(e.submission_hash) ?? 'does not match the on-chain deliverable'
-            return (
-              <div key={e.tx_hash} className="mb-2 rounded border border-sep p-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={e.conclusion === 'success' ? 'green' : 'red'}>{e.conclusion}</Badge>
-                  <Badge tone={e.onchainMatch ? 'green' : label === 'matches this submitted candidate' ? 'blue' : 'gray'}>{label}</Badge>
-                  <TxLink hash={e.tx_hash} />
-                </div>
-                <div className="mt-1 text-xs text-label-2">verifier <Address value={e.verifier} /> · tested {`0x${e.tested_sha.slice(-40, -33)}`}</div>
+        </div>
+      </header>
+
+      {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} />}
+
+      {phase !== null && <NextStep phase={phase} />}
+
+      {phase !== null && t !== undefined && taskId !== undefined && (
+        <JobActions
+          job={{
+            taskId,
+            boardId,
+            mode,
+            reward,
+            token,
+            creatorBond: d?.job.creator_bond ?? listed?.creatorBond ?? null,
+            workerBond: d?.job.worker_bond ?? listed?.workerBond ?? null,
+            agentId,
+            disputeSeconds: t.terms.windows?.disputeSeconds ?? null,
+          }}
+          phase={phase}
+          roles={roles}
+          signedIn={auth.signedIn}
+          onEvent={onEvent}
+        />
+      )}
+
+      {d !== undefined && (d.timeline?.length ?? 0) > 0 && (
+        <Section title="Progress">
+          <Timeline
+            events={d.timeline ?? []}
+            phase={phase}
+            job={{ token, reward, workerBond: d.job.worker_bond, agentId, deliveryDeadline: d.job.delivery_deadline, creator: d.job.creator }}
+          />
+        </Section>
+      )}
+
+      <Delivered
+        deliverables={(t?.deliverables ?? []).map((x) => ({ deliverable_hash: x.deliverable_hash, descriptor: x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha }, check: x.check ?? null }))}
+        evidence={d?.evidence ?? []}
+      />
+
+      {listed !== undefined && listed.executionBudget !== null && boardId === currentBoardId() && (
+        <BudgetPanel task={listed} status={t?.chain.status ?? d?.job.status ?? 'unknown'} roles={roles} signedIn={auth.signedIn} address={auth.address} />
+      )}
+
+      {d !== undefined && (d.job.violation !== null || d.ruling !== null) && <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />}
+
+      {brief !== undefined && (
+        <Section title="The job">
+          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5 leading-relaxed">
+            <p className="whitespace-pre-wrap">{brief}</p>
+            {criteria.length > 0 && (
+              <div>
+                <p className="text-[0.85rem] text-label-2">Accepted when</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {criteria.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
               </div>
-            )
-          })}
-        </Card>
+            )}
+            {mode === 'contest' && <p className="text-[0.85rem] text-warn">Only the winning entry is paid, and the contest may close early when it is awarded.</p>}
+          </div>
+        </Section>
+      )}
+
+      <People d={d} listed={listed} agentId={agentId} viewer={auth.address} />
+
+      <Details d={d} listed={listed} t={t} />
+    </>
+  )
+}
+
+function Back() {
+  return (
+    <BoardLink target={boardRoutes().jobs()} className="-mb-2 inline-flex w-fit items-center gap-0.5 text-tint">
+      <ChevronLeft aria-hidden className="-ml-1.5 size-5" strokeWidth={2.4} />
+      Jobs
+    </BoardLink>
+  )
+}
+
+function JobSkeleton() {
+  return (
+    <>
+      <Back />
+      <div className="grid gap-3">
+        <Skeleton className="h-8 w-4/5" />
+        <Skeleton className="h-4 w-2/5" />
       </div>
+      <Skeleton className="h-20 w-full rounded-2xl" />
+      <Skeleton className="h-40 w-full rounded-xl" />
+    </>
+  )
+}
 
-      {task !== undefined && task.executionBudget !== null && (
-        <BudgetPanel task={task} status={status} roles={roles} signedIn={auth.signedIn} address={auth.address} />
-      )}
-
-      {d !== undefined && (d.job.violation !== null || d.ruling !== null || d.bonds.length > 0 || d.rewards.length > 0) && (
-        <DisputePanel d={d} taskId={task?.taskId} signedIn={auth.signedIn} roles={roles} />
-      )}
-
-      {auth.signedIn && task !== undefined && (
-        <Actions taskId={task.taskId} status={status} mode={d?.job.mode ?? task.mode} roles={roles} onEvent={onEvent} />
-      )}
-      {!auth.signedIn && <p className="text-sm text-label-2">Log in and sign in to act on this job (award, approve, reject, dispute, settle).</p>}
+/** Where the reward is: locked in escrow, paid, or back with the creator. */
+function Money({ phase, reward, token, mode, agentId }: { phase: Phase | null; reward: string; token: string | null; mode: 'hire' | 'contest'; agentId: string | null }) {
+  const terminal = phase?.terminal === true
+  const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
+  const paid = phase?.key === 'completed'
+  const where = draft
+    ? 'Not locked yet: publishing locks it in escrow'
+    : paid
+      ? `Paid to ${agentId !== null ? `Agent #${agentId}` : 'the agent'}`
+      : terminal
+        ? 'Back with the creator'
+        : `Locked in escrow · paid ${mode === 'contest' ? 'to the winning entry' : `to ${agentId !== null ? `Agent #${agentId}` : 'the agent'} when the work is accepted`}`
+  return (
+    <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
+      <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2')}>
+        {!terminal && !draft ? <Lock aria-hidden className="size-5" /> : <ReceiptText aria-hidden className="size-5" />}
+      </span>
+      <span className="min-w-0">
+        <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em]">{amount(reward, token)}</span>
+        <span className="mt-1 block text-[0.88rem] text-label-2">{where}</span>
+      </span>
     </div>
   )
 }
 
-function DisputePanel({ d, taskId, signedIn, roles }: { d: Detail; taskId: string | undefined; signedIn: boolean; roles: string[] }) {
-  const bundle = useQuery({
-    queryKey: ['bundle', taskId],
-    queryFn: () => tool<{ bundle: { rejection: { reasonText: string | null }; statements: Array<{ role: string; text: string }> } }>('get_dispute_bundle', { taskId }),
-    enabled: signedIn && taskId !== undefined && roles.length > 0 && d.job.violation !== null,
-    retry: false,
-  })
+/** What happens next and who acts: addressed to the viewer when it is theirs to do. */
+function NextStep({ phase }: { phase: Phase }) {
+  if (phase.terminal && phase.actions.length === 0) {
+    return <p className="px-1 text-[0.95rem] leading-relaxed text-label-2"><Sentence parts={phase.next} /></p>
+  }
+  const you = phase.youAct && phase.toYou !== null
   return (
-    <Card title={d.job.violation === null && d.ruling === null ? 'Outcome' : 'Rejection, dispute and outcome'}>
-      {d.job.violation !== null && (
-        <>
-          <Row label="Violation named">{d.job.violation}</Row>
-          <Row label="Rejection reason">
-            {bundle.data?.bundle.rejection.reasonText ?? <span className="font-mono text-xs">{d.job.rejection_reason_hash?.slice(0, 14) ?? '—'}</span>}
-          </Row>
-        </>
-      )}
-      {bundle.data?.bundle.statements.map((s, i) => <Row key={i} label={`Statement (${s.role})`}><span className="text-xs">{s.text}</span></Row>)}
-      {d.ruling !== null && <Row label="Ruling">
-        {(
-          <span className="flex items-center gap-2">
-            <Badge tone={d.ruling.for_worker === 1 ? 'green' : 'red'}>{d.ruling.for_worker === 1 ? 'for the worker' : 'for the creator'}</Badge>
-            {d.ruling.slash_loser === 1 && <Badge tone="red">loser slashed</Badge>}
-            <TxLink hash={d.ruling.tx_hash} />
-          </span>
-        )}
-      </Row>}
-      {d.bonds.map((b) => (
-        <Row key={b.tx_hash + b.side} label={`${b.side} bond`}>
-          <span className="flex items-center gap-2"><Badge tone={b.outcome === 'burned' ? 'red' : 'green'}>{b.outcome}</Badge>{bond(b.amount)} <TxLink hash={b.tx_hash} /></span>
-        </Row>
+    <div className="grid gap-2">
+      <div className={cn('flex gap-3 rounded-2xl px-4 py-3.5 leading-relaxed', you ? 'bg-warn-bg' : 'bg-tint/10')}>
+        {you ? <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" /> : <Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-tint" />}
+        <p>
+          {you && <span className="font-semibold">You: </span>}
+          <Sentence parts={you ? (phase.toYou ?? phase.next) : phase.next} />
+        </p>
+      </div>
+      {phase.warnings.map((w) => (
+        <p key={w} role="alert" className="rounded-xl bg-bad-bg px-4 py-2.5 text-[0.9rem] text-bad">
+          {w}
+        </p>
       ))}
-      {d.rewards.map((r) => (
-        <Row key={r.tx_hash + r.kind} label={`reward ${r.kind}`}><span className="flex items-center gap-2"><Address value={r.recipient} /> {amount(r.amount, d.job.token)} <TxLink hash={r.tx_hash} /></span></Row>
-      ))}
-      {d.feedback !== null && <Row label="ERC-8004 feedback">{d.feedback.recorded === 1 ? `${d.feedback.tag} (${d.feedback.value})` : 'failed (payout unaffected)'}</Row>}
-    </Card>
+    </div>
   )
 }
 
-function Actions({ taskId, status, mode, roles, onEvent }: { taskId: string; status: string; mode: string | null; roles: string[]; onEvent?: ((type: JobEvent, payload: Record<string, unknown>) => void) | undefined }) {
-  const paused = usePaused()
-  const qc = useQueryClient()
-  const [txs, setTxs] = useState<TxRequest[] | null>(null)
-  const [lastTool, setLastTool] = useState<string | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [violation, setViolation] = useState('Quality')
-  const [reason, setReason] = useState('')
-  const [statement, setStatement] = useState('')
-  const approver = roles.includes('approver')
-  const worker = roles.includes('worker')
-  const creator = roles.includes('creator')
-  const { signTypedDataAsync } = useSignTypedData()
-  const [selected, setSelected] = useState<string | null>(null)
-  const applications = useQuery({
-    queryKey: ['applications', taskId],
-    queryFn: () => tool<Array<{ id: string; worker: string; agent_id: string; note: string }>>('list_applications', { taskId }),
-    enabled: creator && mode === 'hire' && status === 'open',
-    refetchInterval: 15_000,
+function Dispute({ d, boardId, taskId, signedIn, isParty }: { d: Detail; boardId: string; taskId: string | undefined; signedIn: boolean; isParty: boolean }) {
+  const bundle = useQuery({
+    queryKey: ['bundle', boardId, taskId],
+    queryFn: () => boardApi(boardId).tool<{ bundle: { rejection: { reasonText: string | null }; statements: Array<{ role: string; text: string }> } }>('get_dispute_bundle', { taskId }),
+    enabled: signedIn && isParty && taskId !== undefined && d.job.violation !== null,
+    retry: false,
   })
-  /** The creator's pick is an EIP-712 Selection signed off-chain; nothing is on-chain until the worker activates. */
-  const select = (applicationId: string) => async () => {
-    setBusy(`select-${applicationId}`)
-    setError(null)
-    try {
-      const sel = await tool<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId, applicationId })
-      const signature = await signTypedDataAsync(typedDataArgs(sel.sign.typedData))
-      await tool('submit_selection', { taskId, nonce: sel.nonce, signature })
-      setSelected(applicationId)
-    } catch (e) {
-      setError((e as Error).message.split('\n')[0] ?? 'failed')
-    } finally {
-      setBusy(null)
-    }
-  }
-  const candidates = useQuery({
-    queryKey: ['candidates', taskId],
-    queryFn: () => tool<Array<{ candidateId: string; worker: string; agentId: string; repo: string; branch: string; sha: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>>('list_candidates', { taskId }),
-    enabled: approver && mode === 'contest' && status === 'open',
-    refetchInterval: 15_000,
-  })
-  const run = (key: string, name: string, args: Record<string, unknown>) => async () => {
-    setBusy(key)
-    setError(null)
-    try {
-      const r = await tool<{ transactions: TxRequest[] }>(name, { taskId, ...args })
-      setLastTool(name)
-      setTxs(r.transactions)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(null)
-    }
-  }
-  const done = (hashes: string[] = []) => {
-    setTxs(null)
-    void qc.invalidateQueries()
-    const event = lastTool === null ? undefined : EVENT_OF[lastTool]
-    if (event !== undefined) onEvent?.(event, { txHash: hashes.at(-1) ?? null })
-  }
-  if (paused) return <Card title="Actions"><p className="text-sm text-bad">Paused: the core refuses every action until the admin unpauses it.</p></Card>
-  if (txs !== null) {
-    return (
-      <Card title="Send from your wallet">
-        {txs.length === 0 ? <p className="text-sm text-label-2">Nothing to send right now.</p> : <TxSteps taskId={taskId} txs={txs} onDone={done} />}
-        <Button variant="outline" className="mt-3" onClick={() => setTxs(null)}>Close</Button>
-      </Card>
-    )
-  }
+  const reason = bundle.data?.bundle.rejection.reasonText
   return (
-    <Card title="Actions">
-      <div className="space-y-4">
-        {creator && mode === 'hire' && status === 'open' && (
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Applications (select one: you sign a Selection, no transaction; the worker's own activate binds them)</h3>
-            {(applications.data ?? []).length === 0 && <p className="text-sm text-label-3">No applications yet.</p>}
-            {applications.data?.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center gap-3 py-1 text-sm">
-                <Address value={a.worker} />
-                <BoardLink target={boardRoutes().agent(a.agent_id)} className="underline">agent {a.agent_id}</BoardLink>
-                <span className="text-xs text-label-2">{a.note}</span>
-                {selected === a.id ? <Badge tone="green">selected; waiting for activation</Badge> : <Button busy={busy === `select-${a.id}`} onClick={select(a.id)}>Select</Button>}
-              </div>
-            ))}
-          </div>
+    <Section title="Rejection and dispute" note={reason === undefined || reason === null ? 'The written reason is shown to the creator, the approver and the agent; everyone else sees its fingerprint on-chain.' : undefined}>
+      <Group className="px-4 py-2">
+        {d.job.violation !== null && <Row label="Rejected as">{VIOLATION[d.job.violation] ?? d.job.violation}</Row>}
+        <Row label="Reason">{reason ?? <span className="font-mono text-[0.8rem]">{d.job.rejection_reason_hash?.slice(0, 14) ?? '—'}…</span>}</Row>
+        {bundle.data?.bundle.statements.map((s, i) => (
+          <Row key={i} label={`${s.role[0]?.toUpperCase()}${s.role.slice(1)}'s statement`}>
+            {s.text}
+          </Row>
+        ))}
+        {d.ruling !== null && (
+          <Row label="Ruling">
+            <span className="inline-flex flex-wrap items-center justify-end gap-2">
+              <Badge tone={d.ruling.for_worker === 1 ? 'success' : 'danger'}>{d.ruling.for_worker === 1 ? 'For the agent' : 'For the creator'}</Badge>
+              {d.ruling.slash_loser === 1 && <Badge tone="danger">Loser's bond burned</Badge>}
+              <TxLink hash={d.ruling.tx_hash} />
+            </span>
+          </Row>
         )}
-        {creator && mode === 'hire' && (status === 'open' || status === 'lapsed') && (
-          <div>
-            <Button variant="outline" busy={busy === 'cancel'} onClick={run('cancel', 'cancel_task', {})}>Cancel the offer (reward and bond back)</Button>
-          </div>
+      </Group>
+    </Section>
+  )
+}
+
+function People({ d, listed, agentId, viewer }: { d: Detail | undefined; listed: TaskIndexEntry | undefined; agentId: string | null; viewer: string | undefined }) {
+  const creator = d?.job.creator ?? listed?.creator ?? null
+  const approver = d?.job.approver ?? listed?.approver ?? null
+  const worker = d?.job.worker ?? null
+  const same = creator !== null && approver !== null && creator.toLowerCase() === approver.toLowerCase()
+  const me = (a: string | null) => viewer !== undefined && a !== null && a.toLowerCase() === viewer.toLowerCase()
+  const Person = ({ label, address }: { label: string; address: string | null }): ReactNode => (
+    <ListRow>
+      <span className="flex-1">{label}</span>
+      <Address value={address} you={me(address)} />
+    </ListRow>
+  )
+  return (
+    <Section title="People" note={same ? 'The creator also approves the work.' : undefined}>
+      <Group>
+        <Person label={same ? 'Creator · pays and approves' : 'Creator · pays'} address={creator} />
+        {!same && <Person label="Approver · judges the work" address={approver} />}
+        {agentId !== null && (
+          <BoardLink target={boardRoutes().agent(agentId)} className={rowClass({ inset: true, interactive: true })}>
+            <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">Agent #{agentId}</span>
+              <span className="block truncate font-mono text-[0.8rem] text-label-2">{worker}</span>
+            </span>
+            <ChevronRight aria-hidden className="size-4 text-label-3" />
+          </BoardLink>
         )}
-        {approver && mode === 'contest' && status === 'open' && (
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Entries (award one early: one transaction pays it and closes the contest)</h3>
-            {(candidates.data ?? []).length === 0 && <p className="text-sm text-label-3">No complete entries yet.</p>}
-            {candidates.data?.map((c) => (
-              <div key={c.candidateId} className="flex flex-wrap items-center gap-3 py-1 text-sm">
-                <Address value={c.worker} /> <span>agent {c.agentId}</span>
-                <DeliverableLink d={c.descriptor ?? { kind: 'git', url: c.repo, ref: c.branch, sha: c.sha }} />
-                {c.check != null && <CheckBadge check={c.check} />}
-                <Button busy={busy === `award-${c.candidateId}`} onClick={run(`award-${c.candidateId}`, 'award', { candidateId: c.candidateId })}>Award</Button>
-              </div>
-            ))}
-          </div>
+      </Group>
+    </Section>
+  )
+}
+
+function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEntry | undefined; t: BoardTask | undefined }) {
+  const stack = d?.job.stack ?? listed?.stack ?? t?.stack ?? null
+  const screening = listed?.screening ?? t?.screening
+  const termsHash = listed?.termsHash ?? t?.termsHash
+  const windows = t?.terms.windows
+  return (
+    <details className="group rounded-xl bg-surface">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">
+        Details
+        <ChevronRight aria-hidden className="size-4 text-label-3 transition-transform group-open:rotate-90" />
+      </summary>
+      <div className="border-t-[0.5px] border-sep px-4 py-2">
+        {stack !== null && <Row label="Review speed">{STACK[stack.replace(/-v1$/, '')] ?? stack}</Row>}
+        {windows !== undefined && (
+          <Row label="Windows">
+            review {span(windows.reviewSeconds)} · dispute {span(windows.disputeSeconds)} · arbitration {span(windows.arbitrationSeconds)}
+          </Row>
         )}
-        {approver && status === 'submitted' && (
-          <div className="space-y-2">
-            <Button busy={busy === 'approve'} onClick={run('approve', 'approve_work', {})}>Approve and pay</Button>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={violation} onChange={(e) => setViolation(e.target.value)} className="rounded border border-sep px-2 py-1 text-sm">
-                <option>None</option><option>Quality</option><option>Falsified</option>
-              </select>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (published; its hash goes on-chain)" className="min-w-64 flex-1 rounded border border-sep px-2 py-1 text-sm" />
-              <Button variant="danger" disabled={reason.trim().length < 10} busy={busy === 'reject'} onClick={run('reject', 'reject_work', { violation, reason })}>Reject</Button>
-            </div>
-            <p className="text-xs text-label-2">A rejection moves nothing; the worker may dispute. Quality or Falsified burns the worker bond only if undisputed or upheld.</p>
-          </div>
+        <Row label="Bonds" hint="Returned unless a ruling or a missed deadline burns one">
+          creator {bond(d?.job.creator_bond ?? listed?.creatorBond)} · agent {bond(d?.job.worker_bond ?? listed?.workerBond)}
+        </Row>
+        {listed?.executionBudget != null && <Row label="Running-cost budget">up to {budgetCap(listed.executionBudget)}, not escrowed</Row>}
+        {listed !== undefined && (
+          <Row label="Deliver as">
+            {(listed.deliverable?.accepts ?? ['git']).map((k) => DELIVERABLE_KINDS.find((x) => x.kind === k)?.label ?? k).join(', ')}
+            {listed.deliverable?.target !== undefined && <span className="block text-[0.8rem]">{listed.deliverable.target}</span>}
+          </Row>
         )}
-        {worker && status === 'rejected-pending' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <input value={statement} onChange={(e) => setStatement(e.target.value)} placeholder="Your case for the arbitrator" className="min-w-64 flex-1 rounded border border-sep px-2 py-1 text-sm" />
-            <Button busy={busy === 'dispute'} onClick={run('dispute', 'dispute', statement.trim() === '' ? {} : { statement })}>Dispute</Button>
-          </div>
+        {listed !== undefined && listed.requiredChecks.length > 0 && <Row label="Required GitHub check">{listed.requiredChecks.join(', ')}</Row>}
+        {screening !== undefined && (
+          <Row label="Screening" hint="An AI screener reads every brief; its verdict is advice">
+            {VERDICT[screening.verdict] ?? screening.verdict}
+            {screening.reasons.length > 0 && <span className="block text-[0.8rem]">{screening.reasons.join(' · ')}</span>}
+          </Row>
         )}
-        <div>
-          <Button variant="outline" busy={busy === 'settle'} onClick={run('settle', 'settlement_actions', {})}>Timeouts and settlement anyone may send</Button>
-        </div>
-        {error !== null && <p className="text-sm text-bad">{error}</p>}
+        {termsHash !== undefined && (
+          <Row label="Offer ID">
+            <a className="font-mono text-[0.8rem] text-tint" href={`/offers/${termsHash}.json`} target="_blank" rel="noreferrer">
+              {termsHash.slice(0, 12)}…
+            </a>
+          </Row>
+        )}
+        {d?.job.published_tx != null && (
+          <Row label="Published">
+            <TxLink hash={d.job.published_tx} />
+          </Row>
+        )}
+        {d?.submission != null && (
+          <Row label="On-chain delivery">
+            <span className="font-mono text-[0.8rem]">{d.submission.deliverable.slice(0, 14)}…</span> <TxLink hash={d.submission.tx_hash} />
+          </Row>
+        )}
       </div>
-    </Card>
+    </details>
   )
 }

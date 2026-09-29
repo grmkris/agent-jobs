@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Hex } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { waitForTransactionReceipt } from 'wagmi/actions'
-import { type TxRequest, tool } from '../api.ts'
+import { type TxRequest, boardApi } from '../api.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
 import { usePrivyBatch } from './Privy.tsx'
@@ -66,7 +66,7 @@ const LABEL: Record<Status['at'], string> = {
  * where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in plain words; a failed
  * report is retried without sending again; and a reload picks up a sent transaction instead of offering to resend.
  */
-export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void }) {
+export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined }) {
   const { chainId, address } = useAccount()
   const batch = usePrivyBatch(address)
   const { switchChainAsync } = useSwitchChain()
@@ -107,7 +107,8 @@ export function TxSteps({ taskId, txs, onDone }: { taskId: string; txs: TxReques
   const report = async (i: number, hash: Hex, r: OpRecord) => {
     set(i, { at: 'confirmed', hash })
     try {
-      await tool('report_transaction', { taskId, txHash: hash })
+      // The task's own board records it (a job may be shown on another board's page).
+      await boardApi(boardId).tool('report_transaction', { taskId, txHash: hash })
       const next = { ...r, recorded: Object.assign([...r.recorded], { [i]: true }) }
       commit(next)
       set(i, { at: 'recorded', hash })

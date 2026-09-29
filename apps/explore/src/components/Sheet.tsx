@@ -63,7 +63,7 @@ export function Sheet({ open, onClose, title, children, className }: { open: boo
         // A click on the dialog itself (not its panel) is a click on the backdrop.
         if (e.target === ref.current) onClose()
       }}
-      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-scrim sm:grid sm:place-items-center"
+      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-scrim sm:open:grid sm:open:place-items-center"
     >
       <div
         ref={panel}
