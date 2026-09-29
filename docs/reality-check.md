@@ -462,9 +462,11 @@ capture `~/code/aj-launch-video/raw/embed-commission.webm`).
   capped to 120, launched by B (`0xe3e290ab…d381b`), listing creator = pool, approver = curator. A headless Claude
   worker (agent 1942, `0xEABa…61BB`) on `/b/monad-pet/mcp` applied 30 s after launch; the curator's `select_worker`
   → signed Selection → `submit_selection` was **accepted by the board for a listing whose creator is a contract**
-  (viem's `verifyTypedData` against the pool → `isValidSignature` → the curator). The worker's activation, branch
-  `feature/blocks-since-breakfast-3b91be`, submission, the curator's approval and the refused refund follow in the
-  log `/tmp/monadpet-crowdfund/hire.log`; see the addendum below when it ended.
+  (viem's `verifyTypedData` against the pool → `isValidSignature` → the curator). The worker activated (core
+  `Funded`), pushed `feature/blocks-since-breakfast-3b91be` of `grmkris/monad-pet` (commit `c9d0dec0…aa50`) and
+  submitted five minutes after launch; the curator's `approve_work` completed job 56 and **the worker's CHOMP rose
+  by 300**, the pledgers' money. A `refund` after the paid reward reverted (nothing came back), and `reclaimHold`
+  returned the 1 FACTORY to the curator. Whole hire path: 5 min 49 s from `create_pool` to the refused refund.
 - **Found (gas).** The pledgers and curator started the night with ~0.11–0.19 MON; the cancel path spent most of it,
   and two hire attempts died at the first approval with "Signer had insufficient balance" (two dead pool rows,
   `12bcc3e70fda9a40` and `8fe07300e86aa7f5`; A's 180 CHOMP in the first was pulled back with `unpledge`). Top-ups
