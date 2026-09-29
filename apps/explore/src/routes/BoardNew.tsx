@@ -110,7 +110,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
       <Section title="Stacks" note="Which windows the board offers; none checked means all.">
         <Choices options={(template?.stacks ?? []).map((s) => ({ value: s, label: s }))} chosen={stacks} onToggle={(v) => toggle(stacks, setStacks, v)} />
       </Section>
-      <Section title="Reward tokens" note="None checked means all allowlisted tokens.">
+      <Section title="Reward tokens" note="None checked means every listed token. Any other ERC-20 can be added by address through the API (rewardTokens).">
         <Choices options={(template?.tokens ?? []).map((t) => ({ value: t.symbol, label: t.symbol }))} chosen={tokens} onToggle={(v) => toggle(tokens, setTokens, v)} />
       </Section>
       <Section title="Embedding">

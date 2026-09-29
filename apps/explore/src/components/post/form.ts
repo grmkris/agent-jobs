@@ -3,9 +3,10 @@
  * board's `create_task` and `request_quotes` tools receive, and the draft kept in localStorage per board and address.
  * Pure, so the tool arguments are unit-tested (form.test.ts) and never drift from what the board expects.
  */
-import { parseUnits } from 'viem'
+import { isAddress, parseUnits } from 'viem'
 import type { DeliverableKind, TxRequest } from '../../api.ts'
-import { formatNumber, tokenInfo } from '../../format.ts'
+import { formatNumber, tokenInfo, tokenMeta } from '../../format.ts'
+import { deployment } from '../../wallet.ts'
 
 export type Mode = 'hire' | 'contest' | 'quotes'
 export type StackName = 'main' | 'demo' | 'fast'
@@ -56,11 +57,12 @@ export const NADFUN_TESTNET = {
 
 type TokenList = ReadonlyArray<readonly [string, { symbol: string }]>
 
-/** The prefill's token (a symbol or an address) among the known reward tokens. */
+/** The prefill's token: any ERC-20 address (ADR-0010), or the symbol of a known token. */
 export function prefillToken(prefill: Record<string, string>, tokens: TokenList): string | undefined {
-  const want = prefill.token?.toLowerCase()
-  if (want === undefined) return undefined
-  return tokens.find(([a, t]) => t.symbol.toLowerCase() === want || a === want)?.[0]
+  const want = prefill.token?.trim().toLowerCase()
+  if (want === undefined || want === '') return undefined
+  if (isAddress(want, { strict: false })) return want
+  return tokens.find(([, t]) => t.symbol.toLowerCase() === want)?.[0]
 }
 
 /** A fresh form: the defaults, with whatever the embed widget prefilled (title, brief, reward, token, mode). */
@@ -167,6 +169,11 @@ export function stepProblem(f: PostForm, step: Step): string | null {
     if (Number(f.quoteHours) >= Number(f.deliveryHours)) return 'Quoting must close before the delivery deadline.'
   } else {
     if (f.token === '') return 'Choose a reward token.'
+    if (!isAddress(f.token, { strict: false })) return 'Enter the token’s contract address (0x and 40 hex digits).'
+    const meta = tokenMeta(f.token)
+    // The amount is read in the token's own decimals, so they must be known first.
+    if (meta === undefined) return 'Waiting for the token’s symbol and decimals from the chain.'
+    if (meta.unverified === true && deployment.stacks[f.stack]?.openTokens !== true) return 'This review speed takes only listed tokens for now: choose another under Advanced.'
     if (!positive(f.reward)) return 'Set a reward above zero.'
   }
   if (!positive(f.deliveryHours)) return 'Say how many hours the agent has to deliver.'

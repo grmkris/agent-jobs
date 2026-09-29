@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { isAddress } from 'viem'
 import { type BoardInfo, DELIVERABLE_KINDS, type DeliverableKind, currentBoardId, data, tool } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { Preflight } from '../components/post/Preflight.tsx'
@@ -38,7 +39,8 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, TextArea, cn, rowClass } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { rewardTokenList, tokenInfo } from '../format.ts'
-import { deployment, isMainnet } from '../wallet.ts'
+import { useToken } from '../useTokens.ts'
+import { chain, deployment, isMainnet } from '../wallet.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
 
@@ -67,6 +69,10 @@ const MODES: ReadonlyArray<{ value: Mode; title: string; body: string }> = [
   },
 ]
 const MODE_TITLE: Record<Mode, string> = { hire: 'Hire one agent', quotes: 'Get quotes first', contest: 'Run a contest' }
+
+/** The token control's "Other" choice: any ERC-20, typed as an address (the public board only). */
+const OTHER = 'other'
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
 
 const STACK_LABEL: Record<StackName, string> = { main: 'Standard', demo: 'Demo · minutes', fast: 'Fast' }
 const STACK_NOTE: Record<StackName, string> = {
@@ -116,11 +122,13 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const now = useNow()
   const boardId = currentBoardId()
 
-  // A tenant board allows only its own tokens and stacks (the board refuses others); the public board takes every
-  // known reward token and every deployed stack, as before.
+  // A tenant board allows only its own tokens and stacks (the board refuses others). The public board lists the known
+  // tokens and takes any other ERC-20 by address (ADR-0010), with every deployed stack.
   const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
-  const board = boardId === 'public' ? undefined : boards.data?.boards.find((b) => b.id === boardId)
-  const known = rewardTokenList()
+  const isPublic = boardId === 'public'
+  const board = isPublic ? undefined : boards.data?.boards.find((b) => b.id === boardId)
+  const all = rewardTokenList()
+  const known = isPublic ? all.filter(([, t]) => t.unverified !== true) : all
   const restricted = board === undefined ? known : known.filter(([a]) => board.rewardTokens.some((t) => t.toLowerCase() === a))
   const tokens = restricted.length > 0 ? restricted : known
   const deployed = Object.keys(deployment.stacks) as StackName[]
@@ -197,19 +205,24 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     if (t !== undefined && t !== f.token) fix({ token: t })
   }, [known.length])
 
+  // "Other": a token the public board does not list, typed as an address and read from the chain.
+  const [otherPicked, setOtherPicked] = useState(false)
+  const other = isPublic && (otherPicked || (f.token !== '' && !tokens.some(([a]) => a === f.token)))
+  const lookup = useToken(other ? f.token : null)
+
   const tokenIds = tokens.map(([a]) => a).join()
   useEffect(() => {
     const ids = tokens.map(([a]) => a)
     const first = ids[0]
     if (first === undefined) return
     const patch: Partial<PostForm> = {}
-    if (!ids.includes(f.token)) patch.token = first
+    if (!ids.includes(f.token) && !other) patch.token = first
     if (board !== undefined && f.quoteTokens.some((a) => !ids.includes(a))) {
       const kept = f.quoteTokens.filter((a) => ids.includes(a))
       patch.quoteTokens = kept.length > 0 ? kept : ids
     }
     if (Object.keys(patch).length > 0) fix(patch)
-  }, [tokenIds, f.token, board !== undefined])
+  }, [tokenIds, f.token, board !== undefined, other])
   useEffect(() => {
     if (stacks.length > 0 && !stacks.includes(f.stack)) fix({ stack: board !== undefined && stacks.includes(board.defaultStack as StackName) ? (board.defaultStack as StackName) : (stacks[0] as StackName) })
   }, [stacks.join(), f.stack])
@@ -301,6 +314,22 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const deliverBy = frozen?.deliveryDeadline ?? hours(f.deliveryHours)
   const awardBy = frozen?.selectionDeadline ?? hours(f.selectionHours)
   const symbol = tokenInfo(f.token).symbol
+  const tokenOptions = [...tokens.map(([a, t]) => [a, t.symbol] as const), ...(isPublic ? [[OTHER, 'Other'] as const] : [])]
+  const pickToken = (token: string) => {
+    tokenTouched.current = true
+    setOtherPicked(token === OTHER)
+    set({ token: token === OTHER ? '' : token })
+  }
+  const tokenHint =
+    lookup === 'reading'
+      ? 'Reading the token from the chain…'
+      : typeof lookup === 'object'
+        ? `${lookup.symbol}, ${lookup.decimals} decimals. Unverified: anyone can deploy a token under any name, so check the address.`
+        : f.token === ''
+          ? 'Any ERC-20 on Monad. Its symbol and decimals are read from the chain.'
+          : !isAddress(f.token, { strict: false })
+            ? 'A contract address: 0x and 40 hex digits.'
+            : `Not an ERC-20 on ${chain.name}: it must answer symbol() and decimals().`
   const criteria = criteriaList(f.criteria)
   const kinds = f.accepts.map((k) => KIND_LABEL[k]).join(', ')
 
@@ -399,36 +428,32 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   note={contest ? 'The prize is locked in escrow when you publish and paid to the entry you award.' : 'The reward is locked in escrow when you publish and paid only when the work is accepted.'}
                 >
                   <Group>
-                    <LineRow label="Token" stack={tokens.length > 2}>
-                      {tokens.length <= 4 ? (
-                        <Segmented
-                          label="Reward token"
-                          value={f.token}
-                          options={tokens.map(([a, t]) => [a, t.symbol] as const)}
-                          onChange={(token) => {
-                            tokenTouched.current = true
-                            set({ token })
-                          }}
-                          className="sm:min-w-[14rem]"
-                        />
+                    <LineRow label="Token" stack={tokenOptions.length > 2} note={!other && tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}: check the address` : undefined}>
+                      {tokenOptions.length <= 4 ? (
+                        <Segmented label="Reward token" value={other ? OTHER : f.token} options={tokenOptions} onChange={pickToken} className="sm:min-w-[14rem]" />
                       ) : (
-                        <Select
-                          aria-label="Reward token"
-                          value={f.token}
-                          onChange={(e) => {
-                            tokenTouched.current = true
-                            set({ token: e.target.value })
-                          }}
-                          className="w-auto"
-                        >
-                          {tokens.map(([a, t]) => (
+                        <Select aria-label="Reward token" value={other ? OTHER : f.token} onChange={(e) => pickToken(e.target.value)} className="w-auto">
+                          {tokenOptions.map(([a, label]) => (
                             <option key={a} value={a}>
-                              {t.symbol}
+                              {label}
                             </option>
                           ))}
                         </Select>
                       )}
                     </LineRow>
+                    {other && (
+                      <FieldRow label="Token address" htmlFor="post-token" hint={tokenHint}>
+                        <Input
+                          id="post-token"
+                          value={f.token}
+                          onChange={(e) => set({ token: e.target.value.trim().toLowerCase() })}
+                          placeholder="0x…"
+                          autoComplete="off"
+                          spellCheck={false}
+                          className="font-mono text-[0.85rem]"
+                        />
+                      </FieldRow>
+                    )}
                     <LineRow label={contest ? 'Prize' : 'Amount'} htmlFor="post-reward">
                       <Input id="post-reward" value={f.reward} onChange={(e) => set({ reward: e.target.value })} inputMode="decimal" autoComplete="off" className="tabular w-28 text-right" />
                       <span className="w-12 shrink-0 text-label-2">{symbol}</span>
@@ -484,7 +509,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                       </KV>
                     </>
                   ) : (
-                    <KV label={contest ? 'Prize' : 'Reward'}>
+                    <KV label={contest ? 'Prize' : 'Reward'} note={tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}` : undefined}>
                       <span className="tabular font-semibold text-label">{reward}</span>
                     </KV>
                   )}

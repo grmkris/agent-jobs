@@ -13,7 +13,8 @@ import { PhaseBadge, Sentence } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Address, Badge, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
-import { amount, bond, budgetCap, span } from '../format.ts'
+import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
+import { useToken } from '../useTokens.ts'
 import { useJobs } from './Jobs.tsx'
 
 export type { JobEvent }
@@ -137,6 +138,8 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   const criteria = listed?.acceptanceCriteria ?? t?.terms.acceptanceCriteria ?? []
   const reward = d?.job.reward ?? listed?.reward ?? null
   const token = d?.job.token ?? listed?.token ?? null
+  // A token nobody listed (ADR-0010) is read from the chain once, so every amount on the page has its decimals.
+  useToken(token)
   const agentId = d?.job.agent_id ?? null
   const otherBoard = d?.board != null && d.board.boardId !== currentBoardId() && d.board.boardId !== 'public'
 
@@ -285,6 +288,9 @@ function Money({ phase, reward, token, mode, agentId }: { phase: Phase | null; r
       <span className="min-w-0">
         <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em]">{amount(reward, token)}</span>
         <span className="mt-1 block text-[0.88rem] text-label-2">{where}</span>
+        {token !== null && tokenInfo(token).unverified === true && (
+          <span className="mt-1 block text-[0.8rem] text-label-3 [overflow-wrap:anywhere]">Unverified token {token}: anyone can deploy a token under any name</span>
+        )}
       </span>
     </div>
   )

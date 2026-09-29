@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { registerTokens } from '../../format.ts'
 import { createTaskArgs, fingerprint, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem } from './form.ts'
 
 const MUSD = '0x1111111111111111111111111111111111111111'
@@ -8,6 +9,11 @@ const tokens = [
   [MEUR, { symbol: 'mEUR' }],
 ] as const
 const NOW = 1_790_000_000
+// Tokens are read (and their decimals known) before a reward in them can be checked.
+registerTokens([
+  { address: MUSD, symbol: 'mUSD', decimals: 6 },
+  { address: MEUR, symbol: 'mEUR', decimals: 6 },
+])
 
 describe('the Post form', () => {
   it('takes the embed prefill: title, brief, reward, a token by symbol or address, and the mode', () => {
@@ -15,6 +21,8 @@ describe('the Post form', () => {
     expect(f).toMatchObject({ title: 'T', brief: 'B', reward: '7', token: MEUR, mode: 'contest', creatorBond: '2', workerBond: '1' })
     expect(initialForm({ token: 'CHOMP' }, tokens, false).token).toBe(MUSD)
     expect(initialForm({ token: MEUR }, tokens, false).token).toBe(MEUR)
+    // Any ERC-20 by address, listed or not (ADR-0010).
+    expect(initialForm({ token: '0x00000000000000000000000000000000000C40A1' }, tokens, false).token).toBe('0x00000000000000000000000000000000000c40a1')
     expect(initialForm({ mode: 'nonsense' }, tokens, true)).toMatchObject({ mode: 'hire', creatorBond: '0', workerBond: '0', callTarget: '' })
   })
 
@@ -96,6 +104,10 @@ describe('the Post form', () => {
     expect(stepProblem({ ...f, mode: 'contest', selectionHours: '60' }, 3)).toBe('The award must come before the delivery deadline.')
     expect(stepProblem({ ...f, mode: 'quotes', quoteTokens: [] }, 3)).toBe('Accept at least one token.')
     expect(stepProblem(f, 3)).toBeNull()
+    expect(stepProblem({ ...f, token: 'PET' }, 3)).toMatch(/contract address/)
+    expect(stepProblem({ ...f, token: '0x00000000000000000000000000000000000c40a1' }, 3)).toMatch(/decimals from the chain/)
+    // An unlisted token needs a stack whose Holding takes any ERC-20; testnet's demo pair predates that.
+    expect(stepProblem({ ...f, stack: 'demo' }, 3)).toMatch(/only listed tokens/)
   })
 
   it('reads amounts and spans as people do', () => {

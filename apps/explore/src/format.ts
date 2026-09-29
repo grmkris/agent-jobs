@@ -5,12 +5,18 @@ import { deployment, isMainnet } from './wallet.ts'
 export interface TokenMeta {
   symbol: string
   decimals: number
+  /** Not a token the deployment lists: any ERC-20 can be a reward (ADR-0010), and anyone can name a token anything. */
+  unverified?: boolean
 }
 
+const LISTED = new Set([...deployment.rewardTokens, deployment.factory].map((a) => a.toLowerCase()))
+/** One of the deployment's known tokens (listed first in the apps) or FACTORY; every other ERC-20 is unverified. */
+export const isListedToken = (address: string) => LISTED.has(address.toLowerCase())
+
 /**
- * Reward tokens by address. The deployment's own are known up front (Circle USDC on mainnet; mUSD and mEUR on
- * testnet); every board's allowed tokens (with the symbol and decimals the board read from the chain) are added by
- * `registerTokens` once `/data/boards` answers, so a token like $CHOMP never shows as "token".
+ * Tokens by address. The deployment's own are known up front (Circle USDC on mainnet; mUSD and mEUR on testnet);
+ * every board's tokens (with the symbol and decimals the board read from the chain) are added by `registerTokens` once
+ * `/data/boards` answers, so a token like $CHOMP never shows as "token", and `useToken` adds any other ERC-20 it reads.
  */
 export const TOKENS: Record<string, TokenMeta> = isMainnet
   ? {
@@ -24,10 +30,16 @@ export const TOKENS: Record<string, TokenMeta> = isMainnet
     }
 
 export function registerTokens(tokens: ReadonlyArray<{ address: string; symbol: string; decimals: number }>): void {
-  for (const t of tokens) TOKENS[t.address.toLowerCase()] ??= { symbol: t.symbol, decimals: t.decimals }
+  for (const t of tokens) {
+    const a = t.address.toLowerCase()
+    TOKENS[a] ??= { symbol: t.symbol, decimals: t.decimals, ...(isListedToken(a) ? {} : { unverified: true }) }
+  }
 }
 
-/** The reward tokens a publish may offer: every known token but the bond token. */
+/** A token's symbol and decimals once known; undefined for one not read yet. */
+export const tokenMeta = (address: string): TokenMeta | undefined => TOKENS[address.toLowerCase()]
+
+/** Every token known so far but the bond token: the listed ones, every board's, and any read from the chain. */
 export const rewardTokenList = () => Object.entries(TOKENS).filter(([a]) => a !== deployment.factory.toLowerCase() && a !== '')
 
 export function tokenInfo(address: string | null | undefined): TokenMeta {
