@@ -59,10 +59,11 @@ limits explicit; (2) when projects want on-chain membership anyway (the "on-chai
 Until then, a role label in the board is a permission over off-chain things (documents, task queues,
 repositories), never over money.
 
-**Execution budget (ADR-0005, built on testnet):** the one bounded spending grant pulled out of this topic.
-- It covers one hire, one token, one cap and one expiry.
-- The creator's Privy wallet carries the board's signer under a person-owned policy. Privy enforces token, cap per
-  transfer and expiry; the board enforces the running total and the job's state.
-- It is spending by the *worker* for running costs, not approval authority, and it adds no contract.
-- The trustless form, an EIP-7702 delegate on the creator's account that enforces the cumulative cap on-chain, stays
-  for later.
+**Execution budget (ADR-0009, built on testnet):** the one bounded spending grant pulled out of this topic, and the
+first delegated authority on-chain.
+- It covers one hire: an advance of one ERC-20 up to a cap, paid only to the worker, or one call to one contract
+  function; both expire no later than the delivery deadline.
+- The creator's DeleGator account signs a MetaMask delegation (ERC-7710) to the activated worker; the framework's
+  caveat enforcers check every redeem, so the cap holds on-chain and the board holds no key.
+- It is spending by the *worker* for running costs, not approval authority. The same framework is the natural base
+  for the project-level grants above (sub-delegation, periodic allowances), which are not built.

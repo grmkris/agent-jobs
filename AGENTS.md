@@ -36,10 +36,10 @@ Tests and live jobs prove each of these (`contracts/SURFACE.md`, `docs/reality-c
 - The arbitrator is portable: any harness signs an EIP-712 `Ruling`; `ruleWithSignature` accepts it
   from any relayer under the same cutoff as `rule`.
 - Never put secrets in notes, commits, branch names, logs or artifacts.
-- The execution budget (ADR-0005) is a hire's only non-escrowed money and the board's only key over creator funds:
-  spent from the creator's Privy wallet through the board's signer, each transfer bounded by the creator's
-  person-owned policy, the total by the board's ledger (a row reserved before Privy is called). The board never
-  edits that policy and signs only for the activated worker while the job is active and the grant live.
+- The execution budget (ADR-0009) is a hire's only non-escrowed money: a MetaMask delegation (ERC-7710) from the
+  creator's DeleGator account to the activated worker, `salt = termsHash`, its caveats (cap, recipient or function,
+  one call, expiry) enforced on-chain. The worker redeems from its own wallet; the board prepares calldata and
+  mirrors receipts, and holds no key over anyone's funds. Grant only once the job is `active`.
 
 ## Working here
 

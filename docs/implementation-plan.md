@@ -88,6 +88,15 @@ access), the B6a video, and everything on mainnet.
 - **Testnet redeploy:** the stacks now run main's bytecode (jobs 1–35 stay on the legacy pairs), and job 36 ran on
   the new demo pair.
 
+29 Sep, S9 (ADR-0009, supersedes ADR-0005; decided in note 12 §16):
+- **Budgets are delegations.** An advance in any ERC-20 or one owner-action call, granted as a MetaMask delegation
+  (ERC-7710, v1.3.0) from the creator's DeleGator account once the job is active, redeemed by the worker from its own
+  wallet. The board prepares `redeemDelegations` and `disableDelegation` calldata and mirrors receipts; the Privy
+  signer, the ledger, `sign_budget_x402` and their env vars are deleted, and old-shape budget tasks are dropped.
+- **Batching** moved from Simple7702Account to the same DeleGator (`execute(bytes32,bytes)`, batch mode).
+- **Proven:** fork tests on the real framework (advance lifecycle, direct redeem mirrored, over-cap and wrong-recipient
+  reverts, revoke, expiry, `faucet()` and nad.fun call budgets). **Open:** the live run on staging.
+
 S7 progress: done (27 Sep) — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`,
 violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`, evidence event fields,
 reason-aware feedback, `MockPaymentToken(name, symbol)`, the CRE receiver code and the deploy recipe. Not deployed:

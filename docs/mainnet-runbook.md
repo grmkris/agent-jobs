@@ -82,8 +82,9 @@ Check: `node --experimental-strip-types scripts/reality-check.ts`. The "Mainnet 
 ### Before the mainnet deploy: signature checks for delegated wallets
 
 OZ's `SignatureChecker` consults only ERC-1271 once a signer has code, and a 7702-delegated EOA has code. Our own
-batches use `Simple7702Account`, whose ERC-1271 accepts the account's raw ECDSA signature, so they work (proven,
-testnet job 48). A wallet delegated to an account whose ERC-1271 wraps hashes (ERC-7739 style) would fail the
+batches and every budget grant point accounts at MetaMask's `EIP7702StatelessDeleGatorImpl`, whose ERC-1271 accepts
+the account's raw ECDSA signature over the hash and refuses any other key (checked on a testnet fork, 29 Sep), so they
+work as `Simple7702Account` did (proven, testnet job 48). A wallet delegated to an account whose ERC-1271 wraps hashes (ERC-7739 style) would fail the
 Selection, budget/submit authorizations, rulings and evidence. Before the fresh mainnet deploy, switch those four
 checks (`JobHolding.sol` selection, `ERC8183WithAuthorization.sol` authorizations, `JobsEvaluator.sol` ruling and
 evidence) to ecrecover-first, then ERC-1271 (Solady's order), with 7702 tests (`vm.signDelegation`). It changes the

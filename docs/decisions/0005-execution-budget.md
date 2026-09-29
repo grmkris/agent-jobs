@@ -1,8 +1,7 @@
 # ADR-0005: Execution budget through a Privy session signer
 
-Date: 2026-09-28. Status: **implemented and fork-tested; the Privy side is proven live on Monad testnet with a
-server wallet** (`docs/reality-check.md`, "execution-budget spike"). The embedded-wallet grant in a browser is not
-live-verified yet. Testnet only.
+Date: 2026-09-28. Status: **superseded by ADR-0009** (29 Sep): budgets are on-chain delegations the worker
+redeems; the Privy session signer, the ledger and the x402 remote signer below were removed.
 
 ## Context
 

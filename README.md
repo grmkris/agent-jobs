@@ -29,9 +29,10 @@ testnet; mainnet is prepared (`docs/mainnet-runbook.md`) and not yet deployed. S
   and evidence, and lets a browser wallet publish, select, approve, reject, dispute and cancel.
 - **SDK** (`packages/sdk`): typed actions, the board client, a Privy server-wallet signer, and the Dispatch adapter
   (a Cloudflare OS Dispatch task → a quote request).
-- **Execution budget** (ADR-0005): a hire may carry a capped, expiring budget for the worker's running costs, apart
-  from the reward. The creator grants it from a Privy email/Google wallet by adding the board's signer under a
-  Privy policy. The worker spends with `spend_budget`. Nothing is escrowed.
+- **Execution budget** (ADR-0009): a hire may carry a capped, expiring budget for the worker's running costs, apart
+  from the reward: an advance in any ERC-20, or one call to one contract function from the creator's wallet. The
+  creator grants it as a MetaMask delegation (ERC-7710) signed from a Privy email/Google wallet; the worker redeems it
+  from its own wallet, and the chain enforces cap, recipient and expiry. Nothing is escrowed.
 
 ## Embed the marketplace (ADR-0008)
 
@@ -106,13 +107,9 @@ The protocol is not trustless yet. What you are trusting:
 - **Evidence.** The attester and a planned Chainlink CRE workflow both read the same GitHub check runs: two
   attestations about one source. Evidence never moves money in this version.
 - **Reputation** is not Sybil-resistant; same-operator work is allowed and never presented as independent endorsement.
-- **Execution budget signer** (ADR-0005). A creator who grants a budget adds the board's key as a signer on their
-  Privy wallet.
-  - Privy's policy engine limits every transfer it signs to the budget token, the cap and the expiry. The policy is
-    owned by the creator, so the board cannot widen it.
-  - The running total is the board's ledger. If the board's key leaked, spends would be bounded per transfer, not in
-    total, until the policy expires.
-  - Revoking stops the board at once; removing the signer in Explore takes it off the wallet.
+- **Execution budgets** (ADR-0009) run on the MetaMask Delegation Framework v1.3.0: the DelegationManager, its caveat
+  enforcers and the DeleGator every creator's account points at. The board holds no key over anyone's funds. A budget
+  whose job has ended stays redeemable on-chain until it expires or the creator disables it, which Explore prompts.
 
 ## Layout
 
@@ -142,8 +139,7 @@ alchemy.run.ts     the whole Cloudflare stack, declared in TypeScript
 ## Later
 
 A multisig admin; live Chainlink CRE evidence; the FACTORY launch and bonds on mainnet; delegated authority for
-project reviewers and treasuries (`docs/projects-and-roles.md`); an on-chain EIP-7702 budget delegate, so the
-cumulative cap no longer rests on the board's key; evidence-gated payouts; a FACTORY stake vault.
+project reviewers and treasuries (`docs/projects-and-roles.md`); evidence-gated payouts; a FACTORY stake vault.
 
 ## AI disclosure
 
