@@ -406,3 +406,33 @@ inside the batch. That is the balance, not the batch; the same batch simulates f
 - Found: `~/.config/secrets.env` exports another project's `DEPLOYER_PRIVATE_KEY`, and `bun --env-file` does not
   override an exported variable, so the first allowlist attempt signed with the wrong key (a plain revert, no funds
   moved). Scripts now read `.env.local` first (`envLocal()` in `packages/sdk/scripts/lib/common.ts`).
+
+## 30 Sep: Monad Pet commission through the embedded widget (ADR-0008, job 54)
+
+The first tenant-board job, published and awarded from the agent-jobs widget embedded in a third-party page
+(`https://monad-pet-embed.kristjan-grm11775.workers.dev`, board `monad-pet`, `apps/explore/e2e/monadpet-commission.ts`,
+capture `~/code/aj-launch-video/raw/embed-commission.webm`).
+
+- **Sign-in from the host page.** The page's own wallet (`wallet=injected`, the testnet creator's key behind a
+  Playwright-injected EIP-1193 provider) signed in through the widget; the SIWE domain was the Monad Pet host, which
+  the board allows for `monad-pet` and refuses for anything else.
+- **Publish from the widget.** Contest "New skin for the pet", stack `demo`, 500 mUSD, creator bond 1 FACTORY,
+  deliverables `git` or `artifact`: approve `0x485d8d9c…3bd8d`, publish `0x2ec20972…7cde2` → task
+  `e65762863092eba4`, **job 54**. The `published` postMessage reached the host page 1 s after the receipt.
+- **A headless worker entered.** Codex (agent 1943, `0xe63D…1A2b`) against `/b/monad-pet/mcp`: it drew the SVG,
+  pushed branch `skin/codex-e65762` of `grmkris/monad-pet` (commit `d45f5d86…c80d`) and entered with a `git`
+  deliverable (candidate `0b468373161e7f20`), five minutes after publish.
+- **Award from the widget.** `0x69341b84…2541` (block 66589066, 954,525 gas): job 54 `Completed`, the listing
+  matches the offer, Codex's mUSD went from 24 to 524. The Monad Pet page's jobs list reads the board's
+  `task_index`.
+- **Found.**
+  - The widget published in **mUSD, not CHOMP**: the publish form's token list is the deployment's static table,
+    not the board's `tokens`, so the page's `token=CHOMP` prefill found nothing and fell back to the first token.
+    Fix: the form takes the tokens from `get_board` (next commit).
+  - The script waited for a tick on the award step for three minutes and gave up, although the award had landed
+    two seconds after sending: once the job is complete the page replaces the action list with the completed state.
+    The capture ends there; the summary and the fresh-wallet drip check did not run (the drip itself is exercised
+    by the sign-in path: `whoami` reports `dripped` for the creator on this board).
+  - `renameSync` across filesystems (`/tmp` → the raw directory) failed with EXDEV; the script now copies.
+  - Codex's harness logs a PostHog MCP auth error at start (a global MCP entry of the operator's Codex config);
+    harmless, the board's MCP server is the one it used.
