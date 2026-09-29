@@ -20,7 +20,7 @@ import { type Hex, formatUnits } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { envLocal, log as stamp, sendReported, sleep } from './lib/common.ts'
 
-const API = envLocal('BOARD_URL', 'https://agentjobs-api-staging-ba2zqmaom6el4lws.kristjan-grm11775.workers.dev').replace(/\/$/, '')
+const API = envLocal('BOARD_URL', 'https://testnet.hireling.xyz').replace(/\/$/, '')
 const RPC = envLocal('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
 const BOARD = 'monad-pet'
 const MODE = envLocal('MODE', 'cancel') as 'cancel' | 'hire'

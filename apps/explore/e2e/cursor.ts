@@ -30,7 +30,7 @@ const INIT = `(() => {
     requestAnimationFrame(() => { r.style.transform = 'scale(1.4)'; r.style.opacity = '0' })
     setTimeout(() => r.remove(), 600)
   }
-  const zoom = () => { if (window.top === window && location.hostname.includes('agentjobs-explore')) setTimeout(() => (document.getElementById('root') ?? document.documentElement).style.zoom = '1.5', 0) }
+  const zoom = () => { if (window.top === window && /agentjobs-explore|hireling.xyz$/.test(location.hostname)) setTimeout(() => (document.getElementById('root') ?? document.documentElement).style.zoom = '1.5', 0) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { mk(); zoom() }); else { mk(); zoom() }
 })()`
 

@@ -11,7 +11,7 @@ set -uo pipefail
 harness=$1 name=$2 keyvar=$3 prompt=$4 role=${5:-worker}
 root=$(cd "$(dirname "$0")/../../../.." && pwd)
 runs=${RUNS:-/tmp/agent-jobs-runs}
-mcp=${MCP_URL:-https://agentjobs-api-staging-ba2zqmaom6el4lws.kristjan-grm11775.workers.dev/mcp}
+mcp=${MCP_URL:-https://testnet.hireling.xyz/mcp}
 work=$runs/$name
 mkdir -p "$work"
 key=$(grep "^$keyvar=" "$root/.env.local" | cut -d= -f2-)

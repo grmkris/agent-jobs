@@ -38,8 +38,8 @@ const env = (n: string, fallback?: string) => {
   return v
 }
 const PET = env('PET_URL', 'https://monad-pet-embed.kristjan-grm11775.workers.dev').replace(/\/$/, '')
-const _EXPLORE = env('EXPLORE_URL', 'https://agentjobs-explore-staging-67xgxuclftbgtgxn.kristjan-grm11775.workers.dev').replace(/\/$/, '')
-const API = env('BOARD_URL', 'https://agentjobs-api-staging-ba2zqmaom6el4lws.kristjan-grm11775.workers.dev').replace(/\/$/, '')
+const _EXPLORE = env('EXPLORE_URL', 'https://testnet.hireling.xyz').replace(/\/$/, '')
+const API = env('BOARD_URL', 'https://testnet.hireling.xyz').replace(/\/$/, '')
 const RPC = env('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
 const BOARD = 'monad-pet'
 const RAW = env('RAW_DIR', join(homedir(), 'code/aj-launch-video/raw'))

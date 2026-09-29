@@ -48,7 +48,10 @@ Each step is one command from the repo root (or `contracts/` where stated). Secr
 
    Recommendation: **A** for the first real job, since the hackathon demo's slashing is proven on testnet. Decide B/C/D before announcing bonds. **Kris, 28 Sep: mainnet waits for the FACTORY decision; D (a launched token) is likely.**
 2. **Hold gates** stay 0 on mainnet (`holdGates` in the config); any other value locks out everyone until FACTORY exists.
-3. **Custom domain** for `prod` (optional; workers.dev works).
+3. **Custom domain.** `alchemy.run.ts` puts `prod` (mainnet) on `hireling.xyz` and `staging` on `testnet.hireling.xyz`, and
+   until now staging also answers `hireling.xyz` with a 301. Before the first `pnpm deploy:prod`, redeploy staging with
+   `HIRELING_APEX_REDIRECT=0` to release the apex; then deploy prod, set `MAINNET_LIVE = true` in
+   `apps/explore/src/wallet.ts` (the header switch) and redeploy both. Add `https://hireling.xyz` to Privy's allowed domains.
 4. **Who holds the admin role.** The independent review (28 Sep, Codex) rated this critical. The admin of the vendored core can:
    - `pause`, then `emergencyWithdraw` the whole escrow balance while paused;
    - authorize a UUPS upgrade;
