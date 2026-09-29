@@ -59,7 +59,7 @@ export const txUrl = (h: string) => `https://testnet.monadscan.com/tx/${h}`
 
 /**
  * Sends a board's transactions from `w`, logs each with its explorer link and reports it to the board. Several go
- * out as one EIP-7702 batch through `batchDelegate` (the deployment's `Simple7702Account`) unless BATCH=0.
+ * out as one EIP-7702 batch through the deployment's DeleGator (`delegation.delegator`) unless BATCH=0.
  */
 export async function sendReported(
   board: ReturnType<typeof sdk.boardClient>,
@@ -68,10 +68,10 @@ export async function sendReported(
   taskId: string,
   txs: sdk.TxRequest[],
   who: string,
-  batchDelegate?: `0x${string}`,
+  delegator?: `0x${string}`,
 ): Promise<string[]> {
-  const batch = batchDelegate !== undefined && txs.length > 1 && process.env.BATCH !== '0'
-  const hashes = batch ? [await sdk.sendBatch(w, publicClient, txs, batchDelegate)] : await sdk.sendAll(w, publicClient, txs)
+  const batch = delegator !== undefined && txs.length > 1 && process.env.BATCH !== '0'
+  const hashes = batch ? [await sdk.sendBatch(w, publicClient, txs, delegator)] : await sdk.sendAll(w, publicClient, txs)
   const what = txs.map((t) => t.description)
   for (const [i, h] of hashes.entries()) {
     log(who, `${batch ? `batch of ${txs.length} (${what.join(' + ')})` : what[i]} → ${txUrl(h)}`)

@@ -15,12 +15,29 @@ export interface Stack {
   readonly evaluator: Address
 }
 
+/** The caveat enforcers an execution budget is built from (MetaMask's `…Enforcer` contracts, ADR-0009). */
+export interface DelegationEnforcers {
+  readonly erc20TransferAmount: Address
+  readonly allowedCalldata: Address
+  readonly valueLte: Address
+  readonly allowedTargets: Address
+  readonly allowedMethods: Address
+  readonly limitedCalls: Address
+  readonly timestamp: Address
+}
+
+export interface Delegation {
+  readonly manager: Address
+  readonly delegator: Address
+  readonly enforcers: DelegationEnforcers
+}
+
 export interface Deployment {
   readonly network: Network
   readonly chainId: number
   readonly core: Address
   readonly factory: Address
-  /** Allowlisted reward tokens: the faucet tokens on testnet (`mUSD`, `mEUR`), USDC on mainnet. */
+  /** Allowlisted reward tokens: the faucet tokens and any admin-allowed token on testnet, USDC on mainnet. */
   readonly rewardTokens: readonly Address[]
   readonly stacks: Readonly<Partial<Record<StackName, Stack>>>
   /**
@@ -31,10 +48,12 @@ export interface Deployment {
   readonly identity: Address
   readonly reputation: Address
   /**
-   * The EIP-7702 delegate a wallet points its code at to send a batch as one transaction: the canonical ERC-4337
-   * v0.8 `Simple7702Account` (`executeBatch`, ERC-1271 by the account's own key), already deployed on Monad.
+   * The MetaMask Delegation Framework (ERC-7710, v1.3.0) on this chain: the `DelegationManager` a worker redeems an
+   * execution budget against, the `EIP7702StatelessDeleGatorImpl` every account points its EIP-7702 code at (it
+   * batches through ERC-7579 `execute` and validates the account's own key through ERC-1271), and the caveat
+   * enforcers a budget delegation is built from (ADR-0009).
    */
-  readonly batchDelegate: Address
+  readonly delegation: Delegation
   /** The core's admin (deployer EOA): pauses, upgrades, the token allowlist and verifier registration. */
   readonly admin: Address
   /** `JobPoolFactory` (ADR-0007): pooled funding of one offer. Null where none is deployed. */
@@ -43,8 +62,8 @@ export interface Deployment {
   readonly attester: Address
   readonly relay: Address
   /**
-   * x402 on this chain: the EIP-3009 USDC an x402 execution budget pays in, and Monad's facilitator. Null where
-   * none is recorded.
+   * x402 on this chain: the EIP-3009 USDC and Monad's facilitator, where a worker pays paid APIs and tools from its
+   * own wallet (funded by an advance). Null where none is recorded.
    */
   readonly x402: { readonly usdc: Address; readonly facilitator: string } | null
   /** The block the recipe deployed at: where an indexer starts and a rebuild restarts. */
@@ -56,7 +75,7 @@ interface ConfigFile {
   chainId: number
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
   erc8004: { identity: string; reputation: string }
-  eip7702: { delegate: string; entryPoint: string }
+  delegation: { manager: string; delegator: string; enforcers: Record<keyof DelegationEnforcers, string> }
   x402?: { usdc: string; facilitator: string }
   deployment: {
     block?: number
@@ -107,7 +126,11 @@ export function deployment(network: Network): Deployment {
     ),
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
-    batchDelegate: c.eip7702.delegate as Address,
+    delegation: {
+      manager: c.delegation.manager as Address,
+      delegator: c.delegation.delegator as Address,
+      enforcers: c.delegation.enforcers as DelegationEnforcers,
+    },
     admin: c.roles.admin as Address,
     poolFactory: d.poolFactory === undefined ? null : (d.poolFactory as Address),
     arbitrator: c.roles.arbitrator as Address,

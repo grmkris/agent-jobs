@@ -1,11 +1,11 @@
-import { type Address, type Hex, decodeFunctionData } from 'viem'
+import { type Address, type Hex, decodeAbiParameters, decodeFunctionData } from 'viem'
 import { describe, expect, it } from 'vitest'
 import type { Wallet } from './actions.ts'
-import { batchCalldata, delegationOf, sendBatch, setAuthorizationSigner, simple7702AccountAbi } from './batch.ts'
+import { BATCH_DEFAULT_MODE, batchCalldata, delegationOf, delegatorAbi, sendBatch, setAuthorizationSigner } from './batch.ts'
 import type { TxRequest } from './board-client.ts'
 
 const ME = '0x1111111111111111111111111111111111111111' as Address
-const DELEGATE = '0xe6Cae83BdE06E4c305530e199D7217f42808555B' as Address
+const DELEGATE = '0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B' as Address
 const tx = (to: string, data: Hex, description = 'x'): TxRequest => ({ description, chainId: 10143, to: to as Address, data, value: '0' })
 const TXS = [tx('0x2222222222222222222222222222222222222222', '0xaaaa', 'approve'), tx('0x3333333333333333333333333333333333333333', '0xbbbb', 'publish')]
 
@@ -40,10 +40,15 @@ describe('EIP-7702 batches', () => {
     expect(await delegationOf({ getCode: async () => '0x6080604052' }, ME)).toBeNull()
   })
 
-  it('encodes the board transactions in order as executeBatch calls', () => {
-    const { functionName, args } = decodeFunctionData({ abi: simple7702AccountAbi, data: batchCalldata(TXS) })
-    expect(functionName).toBe('executeBatch')
-    expect(args[0].map((c) => [c.target.toLowerCase(), c.value, c.data])).toEqual([
+  it('encodes the board transactions in order as one ERC-7579 batch execute', () => {
+    const { functionName, args } = decodeFunctionData({ abi: delegatorAbi, data: batchCalldata(TXS) })
+    expect(functionName).toBe('execute')
+    expect(args[0]).toBe(BATCH_DEFAULT_MODE)
+    const [executions] = decodeAbiParameters(
+      [{ type: 'tuple[]', components: [{ name: 'target', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'callData', type: 'bytes' }] }],
+      args[1],
+    )
+    expect(executions.map((c) => [c.target.toLowerCase(), c.value, c.callData])).toEqual([
       ['0x2222222222222222222222222222222222222222', 0n, '0xaaaa'],
       ['0x3333333333333333333333333333333333333333', 0n, '0xbbbb'],
     ])

@@ -130,7 +130,7 @@ function usePrivyBudgetInner(address: string | undefined): PrivyBudget | null {
 
 /**
  * Several transactions as one from the Privy embedded wallet (EIP-7702): the first batch signs an authorization to
- * the deployment's `Simple7702Account` and sends a type-4 transaction calling `executeBatch` on the wallet itself;
+ * the deployment's DeleGator and sends a type-4 transaction calling ERC-7579 `execute` on the wallet itself;
  * later batches are plain calls to self. All or nothing, one confirmation. Null without Privy or for another wallet.
  */
 export type BatchSend = (txs: TxRequest[]) => Promise<Hex>
@@ -153,7 +153,7 @@ function usePrivyBatchInner(address: string | undefined): BatchSend | null {
   return async (txs) => {
     const provider = (await embedded.getEthereumProvider()) as EIP1193Provider
     const data = sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const })))
-    const delegate = deployment.batchDelegate
+    const delegate = deployment.delegation.delegator
     const current = await sdk.delegationOf(reads, me)
     const request: Record<string, unknown> = { from: me, to: me, data, value: '0x0', chainId: toHex(chain.id) }
     if (current === null || current.toLowerCase() !== delegate.toLowerCase()) {

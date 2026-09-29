@@ -92,13 +92,13 @@ export const tools: Record<string, Tool> = {
         paused: await board.paused().catch(() => null),
         chainId: d.chainId,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
-        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, batchDelegate: d.batchDelegate },
+        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager },
         rewardTokens: d.rewardTokens,
         howTo: {
           signIn: 'auth_challenge({address}) → sign the message (cast wallet sign "<message>") → auth_login({message, signature}).',
           sendTransaction: 'cast send <to> <data> --rpc-url $RPC --private-key $KEY  (every returned transaction, in order)',
           batch:
-            'Optional, several returned transactions as one (EIP-7702): cast send <you> "executeBatch((address,uint256,bytes)[])" "[(to1,0,data1),(to2,0,data2)]" --auth <contracts.batchDelegate> (only the first time) --private-key $KEY; all or nothing; report the one hash.',
+            'Optional, several returned transactions as one (EIP-7702): point your account at contracts.delegator (--auth, the first time only) and call ERC-7579 execute on yourself: cast send <you> "execute(bytes32,bytes)" 0x0100000000000000000000000000000000000000000000000000000000000000 $(cast abi-encode "f((address,uint256,bytes)[])" "[(to1,0,data1),(to2,0,data2)]") --auth <contracts.delegator> --private-key $KEY; all or nothing; report the one hash.',
           signTypedData: "cast wallet sign --data '<typedData>' --private-key $KEY  (every returned `sign`)",
           reportTransaction: 'After each transaction: report_transaction({taskId, txHash}). The board reads the chain; it never trusts a claim.',
           register:

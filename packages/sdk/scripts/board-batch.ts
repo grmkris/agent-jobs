@@ -1,6 +1,6 @@
 /**
  * EIP-7702 batches through the hosted board, live on Monad testnet (demo board): every multi-transaction step goes
- * out as one transaction through the canonical `Simple7702Account`, and the board confirms each operation from the
+ * out as one transaction through the MetaMask DeleGator (ERC-7579 `execute`), and the board confirms each operation from the
  * batch's receipt.
  *
  * 1. The testnet creator (cast key) publishes a hire: approve reward + approve FACTORY + publish in one transaction;
@@ -20,7 +20,7 @@ import { check, checks, env, log, sendReported } from './lib/common.ts'
 const BOARD = env('BOARD_URL')
 const RPC = env('MONAD_TESTNET_RPC_URL')
 const ctx = sdk.context('monad-testnet', 'demo', RPC)
-const D = ctx.deployment.batchDelegate
+const D = ctx.deployment.delegation.delegator
 const creatorAccount = privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex)
 // WORKER_KEY_VAR picks another worker key from .env.local (its agent id from the matching *_AGENT_ID).
 const WORKER_KEY_VAR = env('WORKER_KEY_VAR', 'TESTNET_WORKER_PRIVATE_KEY')
@@ -57,7 +57,7 @@ async function publishBatched(who: string, w: sdk.Wallet, board: ReturnType<type
   const t = await board.call('get_task', { taskId: created.taskId })
   check(`${who}: board confirmed the publish from the batch receipt`, t.jobId !== null && t.chain.status === 'open', `job ${t.jobId} ${t.chain.status}`)
   const code = await ctx.publicClient.getCode({ address: w.account.address })
-  check(`${who}: account now delegates to Simple7702Account`, code?.toLowerCase() === `0xef0100${D.slice(2).toLowerCase()}`)
+  check(`${who}: account now delegates to the DeleGator`, code?.toLowerCase() === `0xef0100${D.slice(2).toLowerCase()}`)
   return created.taskId as string
 }
 

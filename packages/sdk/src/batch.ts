@@ -1,21 +1,35 @@
 /**
- * One transaction instead of several (EIP-7702): the wallet points its own code at the canonical `Simple7702Account`
- * (the deployment's `batchDelegate`) and calls `executeBatch` on itself, so an approve, an approve and a publish land
- * together, all or nothing, with one signature. `msg.sender` of every inner call is still the wallet, so nothing on
- * the protocol side changes, and the delegate's ERC-1271 accepts the wallet's own raw EIP-712 signatures.
+ * One transaction instead of several (EIP-7702): the wallet points its own code at the MetaMask
+ * `EIP7702StatelessDeleGatorImpl` (the deployment's `delegation.delegator`) and calls ERC-7579 `execute` on itself
+ * in batch mode, so an approve, an approve and a publish land together, all or nothing, with one signature.
+ * `msg.sender` of every inner call is still the wallet, so nothing on the protocol side changes, and the DeleGator's
+ * ERC-1271 accepts the wallet's own raw EIP-712 signatures. The same code is what lets a creator sign execution
+ * budgets as delegations (ADR-0009), so every account here points at one delegate.
  *
  * The first batch carries a signed authorization (a type-4 transaction); later ones are ordinary calls to self while
  * the code still points at the delegate. Monad: a delegated account's transaction may not lower its balance below
  * 10 MON by more than the gas fee. Board transactions carry no value, so only gas is spent.
  */
-import { type Address, type Hex, encodeFunctionData, parseAbi } from 'viem'
+import { type Address, type Hex, encodeAbiParameters, encodeFunctionData, parseAbi } from 'viem'
 import type { Wallet } from './actions.ts'
 import type { TxRequest } from './board-client.ts'
 
-export const simple7702AccountAbi = parseAbi([
-  'struct Call { address target; uint256 value; bytes data; }',
-  'function executeBatch(Call[] calls)',
-])
+/** ERC-7579 `execute` as the DeleGator exposes it to its own account. */
+export const delegatorAbi = parseAbi(['function execute(bytes32 mode, bytes executionCalldata)'])
+
+/** ERC-7579 mode: batch of calls, revert on the first failure. */
+export const BATCH_DEFAULT_MODE: Hex = '0x0100000000000000000000000000000000000000000000000000000000000000'
+
+const executionsAbi = [
+  {
+    type: 'tuple[]',
+    components: [
+      { name: 'target', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'callData', type: 'bytes' },
+    ],
+  },
+] as const
 
 /** A signed EIP-7702 authorization in viem's shape. */
 export interface SignedAuthorization {
@@ -53,13 +67,10 @@ export async function delegationOf(reads: Pick<Reads, 'getCode'>, account: Addre
   return `0x${code.slice(8)}` as Address
 }
 
-/** The `executeBatch` calldata for the board's transactions, in order. */
+/** The ERC-7579 batch `execute` calldata for the board's transactions, in order. */
 export function batchCalldata(txs: readonly TxRequest[]): Hex {
-  return encodeFunctionData({
-    abi: simple7702AccountAbi,
-    functionName: 'executeBatch',
-    args: [txs.map((t) => ({ target: t.to, value: BigInt(t.value), data: t.data }))],
-  })
+  const executions = encodeAbiParameters(executionsAbi, [txs.map((t) => ({ target: t.to, value: BigInt(t.value), callData: t.data }))])
+  return encodeFunctionData({ abi: delegatorAbi, functionName: 'execute', args: [BATCH_DEFAULT_MODE, executions] })
 }
 
 /**

@@ -63,15 +63,15 @@ type Reads = Parameters<typeof sendBatch>[1]
 
 /**
  * A Dispatch board's connection to agent-jobs: one signed-in board client acting for the OS's wallet. With
- * `batchDelegate` (the deployment's EIP-7702 delegate), each step's transactions go out as one batch.
+ * `delegator` (the deployment's EIP-7702 DeleGator), each step's transactions go out as one batch.
  */
-export async function dispatchPublisher(boardUrl: string, wallet: Wallet, publicClient: Reads, opts: { batchDelegate?: Address } = {}) {
+export async function dispatchPublisher(boardUrl: string, wallet: Wallet, publicClient: Reads, opts: { delegator?: Address } = {}) {
   const board = boardClient(boardUrl)
   await board.signIn(signerOf(wallet) as never)
   const send = async (taskId: string, txs: TxRequest[]) => {
-    const hashes = opts.batchDelegate === undefined || txs.length < 2
+    const hashes = opts.delegator === undefined || txs.length < 2
       ? await sendAll(wallet, publicClient, txs)
-      : [await sendBatch(wallet, publicClient, txs, opts.batchDelegate)]
+      : [await sendBatch(wallet, publicClient, txs, opts.delegator)]
     for (const h of hashes) await board.call('report_transaction', { taskId, txHash: h })
     return hashes
   }

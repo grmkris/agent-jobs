@@ -40,7 +40,7 @@ const arb = sdk.boardClient(BOARD)
 
 
 const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
-  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.batchDelegate)
+  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.delegation.delegator)
 
 await pub.signIn(creatorAccount)
 await wrk.signIn(workerAccount)

@@ -36,7 +36,7 @@ const cw = sdk.boardClient(BOARD)
 
 
 const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
-  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.batchDelegate)
+  sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.delegation.delegator)
 
 // The Privy wallet as an ERC-8004 agent holding FACTORY for its bond and the hold gate.
 const factory = ctx.deployment.factory

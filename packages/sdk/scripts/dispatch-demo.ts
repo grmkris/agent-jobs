@@ -33,7 +33,7 @@ const task: sdk.DispatchTask = {
 }
 const policy: sdk.DispatchPolicy = { tokens: ['mUSD', 'mEUR'], creatorBond: '2', workerBond: '1', deliveryHours: 2.5, quoteHours: 0.5, requiredChecks: ['test'], stack: 'main' }
 
-const pub = await sdk.dispatchPublisher(env('BOARD_URL'), os, ctx.publicClient, process.env.BATCH === '0' ? {} : { batchDelegate: ctx.deployment.batchDelegate })
+const pub = await sdk.dispatchPublisher(env('BOARD_URL'), os, ctx.publicClient, process.env.BATCH === '0' ? {} : { delegator: ctx.deployment.delegation.delegator })
 log(`signed in as the OS wallet ${os.account.address} (Privy)`)
 
 if (env('MODE') === 'publish') {

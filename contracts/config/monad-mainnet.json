@@ -11,7 +11,19 @@
     "identity": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
     "reputation": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
   },
-  "eip7702": { "delegate": "0xe6Cae83BdE06E4c305530e199D7217f42808555B", "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108" },
+  "delegation": {
+    "manager": "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3",
+    "delegator": "0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B",
+    "enforcers": {
+      "erc20TransferAmount": "0xf100b0819427117EcF76Ed94B358B1A5b5C6D2Fc",
+      "allowedCalldata": "0xc2b0d624c1c4319760C96503BA27C347F3260f55",
+      "valueLte": "0x92Bf12322527cAA612fd31a0e810472BBB106A8F",
+      "allowedTargets": "0x7F20f61b1f09b08D970938F6fa563634d65c4EeB",
+      "allowedMethods": "0x2c21fD0Cb9DC8445CB3fb0DC5E7Bb0Aca01842B5",
+      "limitedCalls": "0x04658B29F6b82ed55274221a06Fc97D318E25416",
+      "timestamp": "0x1046bb45C8d673d4ea75321280DB34899413c069"
+    }
+  },
   "x402": { "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603", "facilitator": "https://x402-facilitator.molandak.org" },
   "factory": { "faucet": false, "minter": "0x675269d710692d4d0d7166da11B76463577aad73" },
   "holdGates": { "minHoldToPublish": 0, "minHoldToClaim": 0 },
