@@ -13,6 +13,13 @@ async function main() {
   const gateHash = await rpc.readContract({ address: sim.gate, abi, functionName: 'reportHash' })
   if (gateHash !== built.reportHash) throw new Error('onchain report gate mismatch')
   await verifyDeployment()
+  if (broadcast && await rpc.readContract({ address: sim.evaluator, abi, functionName: 'usedDigest', args: [sim.receiver, built.digest] })) {
+    const stored = await rpc.readContract({ address: sim.evaluator, abi, functionName: 'evidence', args: [BigInt(input.jobId), sim.receiver] })
+    if (stored[0] !== built.digest) throw new Error('digest used but current evidence changed; inspect chain history')
+    await registration(false, 'disable-verifier')
+    console.log(jsonText({ alreadyRecorded: true, newBroadcast: false, digest: built.digest, receiver: sim.receiver, stored }))
+    return
+  }
   const account = loadKey()
   const operationPath = resolve(local, 'broadcast.json')
   const outputPath = resolve(local, broadcast ? 'simulate-broadcast.log' : 'simulate-dry-run.log')

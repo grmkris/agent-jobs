@@ -20,6 +20,7 @@ export const input = requestSchema.parse(JSON.parse(readFileSync(resolve(dir, 'p
 export const rpc = createPublicClient({ chain: monadTestnet, transport: http(sim.rpcUrl, { retryCount: 0 }) })
 export const abi = parseAbi([
   'function admin() view returns(address)', 'function verifiers(address) view returns(bool)',
+  'function usedDigest(address,bytes32) view returns(bool)',
   'function setVerifier(address,bool)', 'function receiver() view returns(address)',
   'function evaluator() view returns(address)', 'function forwarder() view returns(address)',
   'function reportHash() view returns(bytes32)', 'function policyHashOf(uint256) view returns(bytes32)',
