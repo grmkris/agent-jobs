@@ -1,5 +1,5 @@
 import type { Phase } from '@agent-jobs/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -18,10 +18,19 @@ export interface JobListItem {
   chain: ChainJob | undefined
 }
 
+/** Stable, so useQueries keeps the combined array until one of the lists changes. */
+const dataOf = (results: { data?: TaskIndexEntry[] | undefined }[]) => results.map((r) => r.data)
+
 export function useJobs() {
   const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 20_000 })
   const boardId = currentBoardId()
   const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>(), refetchInterval: 20_000 })
+  // The public list also shows jobs published on other boards; their titles and board state come from those boards.
+  const others = useMemo(() => [...new Set((chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])))].toSorted(), [chain.data, boardId])
+  const otherData = useQueries({
+    queries: others.map((id) => ({ queryKey: ['task_index', id], queryFn: () => boardApi(id).tool<TaskIndexEntry[]>('task_index'), refetchInterval: 60_000 })),
+    combine: dataOf,
+  })
   const items = useMemo(() => {
     const byJob = new Map<string, JobListItem>()
     for (const c of chain.data?.jobs ?? []) byJob.set(c.job_id, { jobId: c.job_id, chain: c, task: undefined })
@@ -31,8 +40,14 @@ export function useJobs() {
       // Awaiting publish, or published but not indexed yet (the indexer reads finalized blocks once a minute).
       else out.push({ jobId: t.jobId, task: t, chain: undefined })
     }
+    others.forEach((id, i) => {
+      for (const t of otherData[i] ?? []) {
+        const row = t.jobId === null ? undefined : byJob.get(t.jobId)
+        if (row !== undefined && row.chain?.board_id === id) row.task = t
+      }
+    })
     return [...byJob.values(), ...out].toSorted((a, b) => Number(b.jobId ?? 1e9) - Number(a.jobId ?? 1e9))
-  }, [tasks.data, chain.data])
+  }, [tasks.data, chain.data, others, otherData])
   return { items, index: chain.data?.index ?? null, loading: tasks.isLoading || chain.isLoading, error: tasks.error ?? chain.error }
 }
 
