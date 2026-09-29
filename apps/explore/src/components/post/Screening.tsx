@@ -7,6 +7,9 @@ export interface ScreeningResult {
   reasons: string[]
 }
 
+/** The screener's verdict in plain words: "Looks fine", "Flagged for a closer look", "Flagged as risky", "Not screened". */
+export const verdictText = (verdict: string | undefined) => (verdict === undefined ? 'Not screened' : (VERDICT[verdict]?.text ?? 'Not screened'))
+
 const VERDICT: Record<string, { text: string; tone: 'ok' | 'warn' | 'bad' | 'none' }> = {
   clean: { text: 'Looks fine', tone: 'ok' },
   caution: { text: 'Flagged for a closer look', tone: 'warn' },
