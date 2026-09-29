@@ -1,20 +1,26 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { Check, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { type BoardInfo, data, tool } from '../api.ts'
-import { Button, Card } from '../components/ui.tsx'
+import { PrivyLogin } from '../components/Privy.tsx'
+import { Button, CopyButton, ErrorText, Field, Group, Input, PageTitle, Section, TextArea, rowClass } from '../components/ui.tsx'
 import type { useSignedIn } from '../components/Wallet.tsx'
+import { CopyRow, boardMcpUrl, embedSnippet } from './Boards.tsx'
 
-const input = 'w-full rounded border border-sep px-2 py-1 text-sm'
 const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+/** A multiple choice as Settings draws it: rows with a check on the chosen ones. */
+function Choices({ options, chosen, onToggle }: { options: Array<{ value: string; label: string }>; chosen: string[]; onToggle: (v: string) => void }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
-      {children}
-      {hint !== undefined && <span className="block text-xs text-label-2">{hint}</span>}
-    </label>
+    <Group>
+      {options.map((o) => (
+        <button key={o.value} type="button" role="checkbox" aria-checked={chosen.includes(o.value)} onClick={() => onToggle(o.value)} className={rowClass({ interactive: true })}>
+          <span className="flex-1">{o.label}</span>
+          {chosen.includes(o.value) && <Check aria-hidden className="size-4 text-tint" strokeWidth={3} />}
+        </button>
+      ))}
+    </Group>
   )
 }
 
@@ -35,37 +41,108 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
   const [error, setError] = useState<string | null>(null)
   const [secret, setSecret] = useState<string | null>(null)
   const [createdId, setCreatedId] = useState<string | null>(null)
-  if (!auth.signedIn) return <Card title="Create a board"><p className="text-sm text-label-2">Log in and sign in to create a board.</p></Card>
-  if (createdId !== null) {
+
+  if (!auth.signedIn) {
     return (
-      <Card title="Board created">
-        <div className="space-y-2 text-sm">
-          <p>Your board lives at <span className="font-mono">/b/{createdId}</span>. Its MCP server is <span className="font-mono">{window.location.origin}/b/{createdId}/mcp</span>.</p>
-          <p className="font-mono text-xs">{`<script src="${window.location.origin}/embed.js" data-board="${createdId}" data-view="publish"></script>`}</p>
-          {secret !== null && <p className="rounded border border-warn/30 bg-warn-bg p-2 text-xs">Webhook secret (shown once): <span className="font-mono">{secret}</span></p>}
-          <Button onClick={() => void navigate({ to: '/b/$boardId', params: { boardId: createdId } })}>Open the board</Button>
-        </div>
-      </Card>
+      <>
+        <PageTitle>Create a board</PageTitle>
+        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
+          <h2 className="font-display text-[1.4rem] leading-tight font-bold tracking-[-0.02em]">Sign in to create a board</h2>
+          <p className="leading-relaxed text-label-2">
+            Your wallet becomes the board&apos;s owner.{' '}
+            {auth.address === undefined ? 'Sign in with your email or Google, then sign once to prove it is you.' : 'Sign the sign-in message (Sign in, at the top) to continue.'}
+          </p>
+          {auth.address === undefined && (
+            <div>
+              <PrivyLogin />
+            </div>
+          )}
+        </section>
+      </>
     )
   }
+
+  if (createdId !== null) {
+    return (
+      <>
+        <PageTitle sub={<span className="font-mono">/b/{createdId}</span>}>Board created</PageTitle>
+        {secret !== null && (
+          <div role="status" className="grid gap-3 rounded-2xl bg-warn-bg px-4 py-3.5">
+            <p className="flex items-start gap-3 text-[0.92rem] leading-snug">
+              <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
+              <span>
+                <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event sent to your webhook, and Hireling
+                can&apos;t show it again.
+              </span>
+            </p>
+            <div className="flex items-center gap-2 rounded-xl bg-surface py-2 pr-2 pl-3">
+              <code className="min-w-0 flex-1 font-mono text-[0.8rem] [overflow-wrap:anywhere]">{secret}</code>
+              <CopyButton value={secret} label="Copy the webhook secret" />
+            </div>
+          </div>
+        )}
+        <Section title="Connect" note="Agents work on this board through its MCP server; the embed line puts its publish form on a page in your allowed origins.">
+          <Group>
+            <CopyRow label="MCP server" value={boardMcpUrl({ id: createdId })} />
+            <CopyRow label="Embed" value={embedSnippet(createdId, 'publish')} />
+          </Group>
+        </Section>
+        <Button size="lg" onClick={() => void navigate({ to: '/b/$boardId', params: { boardId: createdId } })}>
+          Open the board
+        </Button>
+      </>
+    )
+  }
+
   return (
-    <Card title="Create a board">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Slug" hint="3–32 characters of a-z, 0-9 and -. The id in every route."><input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} className={input} /></Field>
-        <Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} className={input} /></Field>
-        <Field label="Stacks" hint="Which windows the board offers; none checked means all.">
-          <div className="flex gap-3 text-sm">{(template?.stacks ?? []).map((s) => <label key={s} className="flex items-center gap-1"><input type="checkbox" checked={stacks.includes(s)} onChange={() => toggle(stacks, setStacks, s)} />{s}</label>)}</div>
-        </Field>
-        <Field label="Reward tokens" hint="None checked means all allowlisted tokens.">
-          <div className="flex gap-3 text-sm">{(template?.tokens ?? []).map((t) => <label key={t.address} className="flex items-center gap-1"><input type="checkbox" checked={tokens.includes(t.symbol)} onChange={() => toggle(tokens, setTokens, t.symbol)} />{t.symbol}</label>)}</div>
-        </Field>
-        <div className="sm:col-span-2"><Field label="Allowed origins" hint="One per line: https://host[:port], or http://localhost:* for local development. Pages there may embed the board and sign in with their own domain."><textarea value={origins} onChange={(e) => setOrigins(e.target.value)} rows={3} className={input} /></Field></div>
-        <Field label="Default approver" hint="Optional: judges every offer unless the publisher names one."><input value={approver} onChange={(e) => setApprover(e.target.value)} className={input} /></Field>
-        <Field label="Webhook URL" hint="Optional https URL that receives signed events on task state changes."><input value={webhook} onChange={(e) => setWebhook(e.target.value)} className={input} /></Field>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={drip} onChange={(e) => setDrip(e.target.checked)} /> Testnet MON drip: give each wallet that signs in through this board a little MON, once.</label>
-      </div>
-      <div className="mt-4 flex items-center gap-3">
+    <>
+      <PageTitle sub="Your wallet becomes the owner.">Create a board</PageTitle>
+      <Section title="Board">
+        <Group className="grid gap-4 p-4 sm:grid-cols-2">
+          <Field label="Slug" hint="3–32 characters of a-z, 0-9 and -. The id in every route.">
+            <Input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} placeholder="monad-pet" spellCheck={false} autoComplete="off" />
+          </Field>
+          <Field label="Name">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Monad Pet" />
+          </Field>
+        </Group>
+      </Section>
+      <Section title="Stacks" note="Which windows the board offers; none checked means all.">
+        <Choices options={(template?.stacks ?? []).map((s) => ({ value: s, label: s }))} chosen={stacks} onToggle={(v) => toggle(stacks, setStacks, v)} />
+      </Section>
+      <Section title="Reward tokens" note="None checked means all allowlisted tokens.">
+        <Choices options={(template?.tokens ?? []).map((t) => ({ value: t.symbol, label: t.symbol }))} chosen={tokens} onToggle={(v) => toggle(tokens, setTokens, v)} />
+      </Section>
+      <Section title="Embedding">
+        <Group className="grid gap-4 p-4">
+          <Field
+            label="Allowed origins"
+            hint="One per line: https://host[:port], or http://localhost:* for local development. Pages there may embed the board and sign in with their own domain."
+          >
+            <TextArea value={origins} onChange={(e) => setOrigins(e.target.value)} rows={3} placeholder="https://example.com" spellCheck={false} className="font-mono text-[0.85rem]" />
+          </Field>
+          <label className="flex items-start gap-3 text-[0.95rem]">
+            <input type="checkbox" checked={drip} onChange={(e) => setDrip(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-tint" />
+            <span>
+              Testnet MON drip
+              <span className="block text-[0.82rem] text-label-2">Give each wallet that signs in through this board a little MON, once.</span>
+            </span>
+          </label>
+        </Group>
+      </Section>
+      <Section title="Optional">
+        <Group className="grid gap-4 p-4">
+          <Field label="Default approver" hint="Judges every offer unless the publisher names one.">
+            <Input value={approver} onChange={(e) => setApprover(e.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" className="font-mono text-[0.85rem]" />
+          </Field>
+          <Field label="Webhook URL" hint="An https URL that receives signed events on task state changes.">
+            <Input value={webhook} onChange={(e) => setWebhook(e.target.value)} placeholder="https://" spellCheck={false} autoComplete="off" />
+          </Field>
+        </Group>
+      </Section>
+      <div className="grid gap-2">
         <Button
+          size="lg"
           busy={busy}
           disabled={slug.trim() === '' || name.trim() === ''}
           onClick={async () => {
@@ -77,7 +154,10 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
                 name: name.trim(),
                 ...(stacks.length === 0 ? {} : { stacks }),
                 ...(tokens.length === 0 ? {} : { rewardTokens: tokens }),
-                allowedOrigins: origins.split('\n').map((l) => l.trim()).filter((l) => l !== ''),
+                allowedOrigins: origins
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .filter((l) => l !== ''),
                 drip,
                 ...(approver.trim() === '' ? {} : { defaultApprover: approver.trim() }),
                 ...(webhook.trim() === '' ? {} : { webhookUrl: webhook.trim() }),
@@ -93,8 +173,8 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         >
           Create board
         </Button>
-        {error !== null && <span className="text-xs text-bad">{error}</span>}
+        {error !== null && <ErrorText>{error}</ErrorText>}
       </div>
-    </Card>
+    </>
   )
 }
