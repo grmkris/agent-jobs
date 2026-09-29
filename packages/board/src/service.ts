@@ -695,24 +695,26 @@ export class Board {
     throw new BoardError('invalid', `unknown reward token ${token}`)
   }
 
-  async #approvals(ctx: sdk.Ctx, owner: Address, needs: Array<[Address, bigint, string]>): Promise<TxRequest[]> {
+  /** Approvals a step needs, each for exactly its amount; the spender is JobHolding unless a need names another. */
+  async #approvals(ctx: sdk.Ctx, owner: Address, needs: Array<[Address, bigint, string, spender?: [Address, string]]>): Promise<TxRequest[]> {
     const out: TxRequest[] = []
-    for (const [token, amount, label] of needs) {
+    for (const [token, amount, label, to] of needs) {
       if (amount === 0n) continue
+      const [spender, spenderLabel] = to ?? [ctx.stack.holding, 'JobHolding']
       const allowance = await ctx.publicClient.readContract({
         address: token,
         abi: sdk.factoryTokenAbi,
         functionName: 'allowance',
-        args: [owner, ctx.stack.holding],
+        args: [owner, spender],
       })
       if (allowance >= amount) continue
       out.push(
         this.#tx(
           ctx,
-          `approve ${label} for JobHolding`,
+          `approve ${label} for ${spenderLabel}`,
           token,
           // Exactly the amount this step needs, never an unlimited allowance a mismatched listing could draw on.
-          encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, amount] }),
+          encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'approve', args: [spender, amount] }),
         ),
       )
     }
@@ -979,7 +981,7 @@ export class Board {
     })
     const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'minHoldToPublish' })
     const transactions: TxRequest[] = [
-      ...(await this.#approvals(ctx, me, [[ctx.deployment.factory, hold, 'FACTORY (the publish hold, held by the pool and returned after)']])),
+      ...(await this.#approvals(ctx, me, [[ctx.deployment.factory, hold, 'FACTORY (the publish hold, held by the pool and returned after)', [factory, 'the pool factory']]])),
       this.#tx(ctx, 'create pool: clones the pool at its predicted address and moves the hold in', factory,
         encodeFunctionData({ abi: sdk.jobPoolFactoryAbi, functionName: 'create', args: [salt, params] })),
     ]
@@ -1011,7 +1013,7 @@ export class Board {
     const pool = getAddress(row.pool)
     return {
       transactions: [
-        ...(await this.#approvals(ctx, me, [[token, amount, 'reward token (the pledge)']])),
+        ...(await this.#approvals(ctx, me, [[token, amount, 'reward token (the pledge)', [pool, 'the pool']]])),
         this.#tx(ctx, 'pledge: puts the amount into the pool (capped to what the goal still needs)', pool,
           encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'pledge', args: [amount] })),
       ],
