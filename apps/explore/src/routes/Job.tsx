@@ -160,7 +160,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         <h1 className="font-display text-[1.75rem] leading-[1.15] font-bold tracking-[-0.02em]">{title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-[0.88rem] text-label-2">
           <PhaseBadge phase={phase} />
-          <span>Job #{jobId}</span>
+          {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
           <span>· {mode === 'contest' ? 'Contest' : listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
           {otherBoard && <Badge tone="info">{d?.board?.boardId}</Badge>}
           {roles.map((r) => (
