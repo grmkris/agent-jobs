@@ -2,6 +2,8 @@
 
 The hackathon can show real GitHub checks recorded on Monad testnet through Chainlink's local simulator; Kris needs no paid CRE access, and the result is not a hosted oracle-network deployment.
 
+The public hackathon domain will be `hireling.xyz`. Its Cloudflare zone is active, but the domain is not wired to the app yet; Kris will decide who wires it.
+
 ## What runs
 
 `workflows/ci-evidence/main.ts` is a TypeScript Chainlink Runtime Environment (CRE) workflow. An HTTP trigger supplies an **exact 40-character commit SHA**, public GitHub repository URL, job id, policy and submission hashes, required check names, and expiry. Pull-request-number resolution is outside this slice.
