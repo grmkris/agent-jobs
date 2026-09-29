@@ -26,9 +26,14 @@ export interface TenantConfig {
   readonly owner: Address | null
   readonly stacks: readonly sdk.StackName[]
   readonly defaultStack: sdk.StackName
-  /** The reward tokens an offer on this board may name: a subset of the deployment's allowlist. */
+  /**
+   * The reward tokens the board lists: the ones an offer here may name, unless `anyToken`. Any ERC-20 the owner
+   * chooses (ADR-0010); on the public board, the deployment's known tokens.
+   */
   readonly rewardTokens: readonly Address[]
   readonly tokens: readonly TenantToken[]
+  /** An offer may name any ERC-20, not only `tokens` (the public board; ADR-0010). */
+  readonly anyToken?: boolean
   /** What a new offer accepts when the publisher does not say (ADR-0006); absent → git only. */
   readonly deliverableDefault?: DeliverableSpec
   /** The approver of a new offer when the publisher does not name one; absent → the creator. */
@@ -74,7 +79,7 @@ export class TenantError extends Error {
   }
 }
 
-/** The pre-tenant hosted board as a tenant: every stack, every reward token, no drip, no extra origins. */
+/** The pre-tenant hosted board as a tenant: every stack, any ERC-20 (known tokens listed first), no drip, no extra origins. */
 export function publicTenant(deployment: sdk.Deployment, tokens: readonly TenantToken[]): TenantConfig {
   return {
     id: PUBLIC_BOARD_ID,
@@ -84,6 +89,7 @@ export function publicTenant(deployment: sdk.Deployment, tokens: readonly Tenant
     defaultStack: 'main',
     rewardTokens: deployment.rewardTokens,
     tokens,
+    anyToken: true,
     allowedOrigins: [],
     drip: false,
     sponsor: 'none',
@@ -137,6 +143,7 @@ export function tenantRefusal(tenant: TenantConfig, args: Record<string, unknown
     return `board "${tenant.id}" offers stacks ${tenant.stacks.join(', ')}, not "${stack}"`
   }
   const tokens = typeof args.token === 'string' ? [args.token] : Array.isArray(args.tokens) ? (args.tokens as unknown[]).filter((t): t is string => typeof t === 'string') : []
+  if (tenant.anyToken === true) return undefined
   for (const t of tokens) {
     if (tenantToken(tenant, t) === undefined) {
       return `board "${tenant.id}" pays in ${tenant.tokens.map((x) => x.symbol).join(', ')}, not "${t}"`
@@ -156,7 +163,8 @@ export function tenantDefaults(tenant: TenantConfig, args: Record<string, unknow
 }
 
 /**
- * Checks and normalises what a creator asks for; `resolveToken` reads symbol and decimals for an allowlisted address.
+ * Checks and normalises what a creator asks for; `resolveToken` reads symbol and decimals for an address (any ERC-20,
+ * ADR-0010) and throws when it is not one.
  * Throws `TenantError('invalid', …)` with the first problem.
  */
 export async function validateBoardInput(
@@ -178,14 +186,16 @@ export async function validateBoardInput(
   if (stacks.length === 0) throw new TenantError('invalid', 'a board offers at least one stack')
   const defaultStack = (input.defaultStack ?? stacks[0]) as sdk.StackName
   if (!stacks.includes(defaultStack)) throw new TenantError('invalid', `defaultStack "${defaultStack}" is not one of the board's stacks`)
-  const allowed = deployment.rewardTokens.map((a) => a.toLowerCase())
   const wanted = input.rewardTokens ?? deployment.rewardTokens
   const tokens: TenantToken[] = []
   for (const t of wanted) {
-    const address = isAddress(t) ? getAddress(t) : deployment.rewardTokens.find((a) => a.toLowerCase() === t.toLowerCase())
     let resolved: TenantToken | undefined
-    if (address !== undefined && allowed.includes(address.toLowerCase())) resolved = await resolveToken(address)
-    else {
+    if (isAddress(t)) {
+      resolved = await resolveToken(getAddress(t)).catch(() => {
+        throw new TenantError('invalid', `${t} is not an ERC-20 on this network (it must answer symbol and decimals)`)
+      })
+    } else {
+      // A symbol names one of the deployment's known tokens; any other token goes by its address.
       for (const a of deployment.rewardTokens) {
         const r = await resolveToken(a)
         if (r.symbol.toLowerCase() === t.toLowerCase()) {
@@ -194,7 +204,7 @@ export async function validateBoardInput(
         }
       }
     }
-    if (resolved === undefined) throw new TenantError('invalid', `"${t}" is not an allowlisted reward token on this deployment`)
+    if (resolved === undefined) throw new TenantError('invalid', `"${t}" is not a known token symbol; name the token by its address (any ERC-20)`)
     if (!tokens.some((x) => x.address === resolved.address)) tokens.push(resolved)
   }
   if (tokens.length === 0) throw new TenantError('invalid', 'a board pays in at least one reward token')

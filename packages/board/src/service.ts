@@ -658,17 +658,37 @@ export class Board {
     return { ...x, symbol, amount: formatUnits(BigInt(x.amount), decimals) }
   }
 
+  /**
+   * A reward token by symbol (one of the known tokens) or by address: any ERC-20 that answers `symbol` and `decimals`
+   * (ADR-0010). A token the deployment does not list needs a stack whose Holding is safe with any ERC-20.
+   */
   async #resolveToken(ctx: sdk.Ctx, token: string): Promise<Address> {
-    if (isAddress(token)) {
-      const t = getAddress(token)
-      if (!ctx.deployment.rewardTokens.some((r) => eq(r, t))) throw new BoardError('invalid', `${t} is not an allowlisted reward token`)
-      return t
+    if (!isAddress(token)) {
+      for (const t of ctx.deployment.rewardTokens) {
+        const symbol = await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
+        if (symbol.toLowerCase() === token.toLowerCase()) return t
+      }
+      throw new BoardError('invalid', `"${token}" is not a known token symbol; name the token by its address (any ERC-20)`)
     }
-    for (const t of ctx.deployment.rewardTokens) {
-      const symbol = await ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
-      if (symbol.toLowerCase() === token.toLowerCase()) return t
+    const t = getAddress(token)
+    if (ctx.deployment.rewardTokens.some((r) => eq(r, t))) return t
+    const symbol = await Promise.all([
+      ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
+      ctx.publicClient.readContract({ address: t, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
+    ]).then(
+      ([sym]) => sym,
+      () => {
+        throw new BoardError('invalid', `${t} is not an ERC-20 on ${ctx.deployment.network}: it must answer symbol() and decimals()`)
+      },
+    )
+    if (!ctx.stack.openTokens) {
+      const open = Object.entries(ctx.deployment.stacks).filter(([, st]) => st?.openTokens).map(([name]) => name)
+      throw new BoardError(
+        'invalid',
+        `${symbol} (${t}) is not a known token, and this stack's Holding predates open tokens (ADR-0010): publish it on ${open.length === 0 ? 'a redeployed stack' : `the ${open.join(' or ')} stack`}`,
+      )
     }
-    throw new BoardError('invalid', `unknown reward token ${token}`)
+    return t
   }
 
   /** Approvals a step needs, each for exactly its amount; the spender is JobHolding unless a need names another. */
@@ -1210,7 +1230,7 @@ export class Board {
       token: string
       amount: string
       note?: string
-      /** Optional (ADR-0005): what the work is expected to cost to run, in any allowlisted token; not part of the price. */
+      /** Optional (ADR-0005): what the work is expected to cost to run, in any ERC-20; not part of the price. */
       expectedCosts?: { token: string; amount: string; note?: string }
     },
   ) {

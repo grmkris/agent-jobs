@@ -13,6 +13,11 @@ export type StackName = 'main' | 'demo' | 'fast'
 export interface Stack {
   readonly holding: Address
   readonly evaluator: Address
+  /**
+   * Whether this pair's Holding is safe with any ERC-20 (ADR-0010: the reward must arrive in full, no re-entry, a
+   * refused payout is owed). Pairs deployed before it take only known tokens through the board.
+   */
+  readonly openTokens: boolean
 }
 
 /** The caveat enforcers an execution budget is built from (MetaMask's `…Enforcer` contracts, ADR-0009). */
@@ -37,7 +42,10 @@ export interface Deployment {
   readonly chainId: number
   readonly core: Address
   readonly factory: Address
-  /** Allowlisted reward tokens: the faucet tokens and any admin-allowed token on testnet, USDC on mainnet. */
+  /**
+   * Known reward tokens, which the apps list first: the faucet tokens and the config's `knownTokens` (testnet
+   * `$CHOMP`, mainnet USDC). Not a gate: a reward may be any ERC-20 (ADR-0010).
+   */
   readonly rewardTokens: readonly Address[]
   readonly stacks: Readonly<Partial<Record<StackName, Stack>>>
   /**
@@ -54,7 +62,7 @@ export interface Deployment {
    * enforcers a budget delegation is built from (ADR-0009).
    */
   readonly delegation: Delegation
-  /** The core's admin (deployer EOA): pauses, upgrades, the token allowlist and verifier registration. */
+  /** The core's admin (deployer EOA): pauses, upgrades and verifier registration. */
   readonly admin: Address
   /** `JobPoolFactory` (ADR-0007): pooled funding of one offer. Null where none is deployed. */
   readonly poolFactory: Address | null
@@ -83,12 +91,20 @@ interface ConfigFile {
     factory?: string
     rewardTokens?: string[]
     poolFactory?: string
-    main?: { holding: string; evaluator: string }
-    demo?: { holding: string; evaluator: string }
-    fast?: { holding: string; evaluator: string }
-    legacy?: Record<string, { holding: string; evaluator: string }>
+    main?: StackEntry
+    demo?: StackEntry
+    fast?: StackEntry
+    legacy?: Record<string, StackEntry>
   }
 }
+
+interface StackEntry {
+  holding: string
+  evaluator: string
+  openTokens?: boolean
+}
+
+const stackOf = (s: StackEntry): Stack => ({ holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true })
 
 const files: Record<Network, ConfigFile> = {
   'monad-testnet': testnet as ConfigFile,
@@ -109,11 +125,9 @@ export function deployment(network: Network): Deployment {
   const c = files[network]
   const d = c.deployment
   if (d.core === undefined || d.factory === undefined || d.main === undefined) throw new NotDeployedError(network)
-  const stacks: Partial<Record<StackName, Stack>> = {
-    main: { holding: d.main.holding as Address, evaluator: d.main.evaluator as Address },
-  }
-  if (d.demo !== undefined) stacks.demo = { holding: d.demo.holding as Address, evaluator: d.demo.evaluator as Address }
-  if (d.fast !== undefined) stacks.fast = { holding: d.fast.holding as Address, evaluator: d.fast.evaluator as Address }
+  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main) }
+  if (d.demo !== undefined) stacks.demo = stackOf(d.demo)
+  if (d.fast !== undefined) stacks.fast = stackOf(d.fast)
   return {
     network,
     chainId: c.chainId,
@@ -122,7 +136,7 @@ export function deployment(network: Network): Deployment {
     rewardTokens: (d.rewardTokens ?? []) as Address[],
     stacks,
     legacyStacks: Object.fromEntries(
-      Object.entries(d.legacy ?? {}).map(([name, s]) => [name, { holding: s.holding as Address, evaluator: s.evaluator as Address }]),
+      Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s)]),
     ),
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
