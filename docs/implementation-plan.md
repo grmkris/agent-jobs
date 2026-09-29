@@ -95,7 +95,9 @@ access), the B6a video, and everything on mainnet.
   signer, the ledger, `sign_budget_x402` and their env vars are deleted, and old-shape budget tasks are dropped.
 - **Batching** moved from Simple7702Account to the same DeleGator (`execute(bytes32,bytes)`, batch mode).
 - **Proven:** fork tests on the real framework (advance lifecycle, direct redeem mirrored, over-cap and wrong-recipient
-  reverts, revoke, expiry, `faucet()` and nad.fun call budgets). **Open:** the live run on staging.
+  reverts, revoke, expiry, `faucet()` and nad.fun call budgets), and **live on staging** (jobs 58–59): a Privy wallet
+  grants, the worker draws through the board and with `cast`, revoke and a second call are refused on-chain.
+  **Open:** the grant from an embedded wallet in Explore, which needs Kris's login.
 
 S7 progress: done (27 Sep) — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`,
 violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`, evidence event fields,

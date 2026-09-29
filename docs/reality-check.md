@@ -474,3 +474,35 @@ capture `~/code/aj-launch-video/raw/embed-commission.webm`).
   were included and failed; the same transfers from the relay wallet went through at once. Worth a note in the
   runbook: keep proof wallets at ≥0.3 MON and top up from the relay.
 - No capture: Explore has no pool page yet (cut, see the run log).
+
+## 29 Sep: execution budgets as delegations on staging (ADR-0009, jobs 58–59)
+
+`bun packages/sdk/scripts/board-budget.ts` against `https://testnet.hireling.xyz` after deploying `b0f671f`. Creator:
+the Privy server wallet `0x9D04…B4b1`, topped up with 0.25 MON from the relay (`0x222dbad2`). Worker: agent 1942,
+the Claude campaign wallet `0xEABa…61BB`. Framework: MetaMask Delegation Framework v1.3.0, DelegationManager
+`0xdb9B…47dB3`, DeleGator `0x63c0…E32B`. Before the run the migrated board listed 37 tasks and none with a budget:
+the old-shape budget tasks were dropped.
+
+| Step | Job | Tx | Result |
+| :--- | :--- | :--- | :--- |
+| approve mUSD + publish as one batch; the type-4 authorization, signed by Privy, re-points the wallet from Simple7702Account to the DeleGator | 58 | `0x142515c0` | open; the wallet's code is `0xef0100‖63c0…E32B` |
+| the worker activates against the creator's Selection | 58 | `0xf1d5435b` | active: the delegated creator's signature verified through the DeleGator's ERC-1271 |
+| draw before the grant | 58 | — | refused by the board: not granted yet |
+| grant: `budget_grant_prepare` (no upgrade needed), Privy signs the delegation's typed data, `budget_grant_confirm` | 58 | — | live |
+| `spend_budget` 1 mEUR, sent and reported by the worker | 58 | `0x28974013` | the creator's mEUR −1, the worker's +1 |
+| `spend_budget` 1.5 mEUR more | 58 | — | refused by the board: "over the budget: 1 left of 2" |
+| the worker redeems 0.5 mEUR itself with `cast send` (the worker skill's recipe) and reports it | 58 | `0x05d68642` | mirrored: drawn 1.5, remaining 0.5, "redeemed without the board" |
+| `revoke_budget` → the creator sends `disableDelegation` | 58 | `0xad496ad6` | revoked, `redeemable: false` |
+| a draw after the revoke; a direct redeem | 58 | — | refused by the board; the redeem reverts `CannotUseADisabledDelegation()` |
+| a second hire with a call budget (`function faucet()` on mUSD, cap 0) published in one batch; activated | 59 | `0xed2de505`, `0x8422026a` | active |
+| grant | 59 | — | live, no upgrade needed |
+| `spend_budget_call` with `faucet()`, sent by the worker | 59 | `0x87522ba2` | the creator's mUSD 998 → 1998: the call ran as the creator |
+| a second call through the board; directly | 59 | — | refused: "the one allowed call was already made"; the redeem reverts `LimitedCallsEnforcer:limit-exceeded` |
+
+Gas used: the publish batch with the authorization 559k, a board-prepared draw 283k, the direct redeem 266k, the
+call redeem 310k. The run cost the creator about 0.12 MON and the worker about 0.18 MON. The two revert reasons were
+read by simulating the same redeems (`cast call`); the script now asserts them.
+
+Not live yet: the grant from Kris's Privy email wallet in Explore (the DeleGator upgrade and the typed-data signature
+in a browser), which needs Kris's login code. Explore's code path is typechecked and uses the same Privy
+`useSign7702Authorization` as its batches.

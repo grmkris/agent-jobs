@@ -1,7 +1,8 @@
 # ADR-0009: Execution budgets as on-chain delegations
 
-Date: 2026-09-29. Status: **implemented and fork-tested; the live proof on Monad testnet is pending**. Supersedes
-ADR-0005. Decided in myplan note 12 §16 (R124).
+Date: 2026-09-29. Status: **implemented, fork-tested, and live on Monad testnet staging with a Privy server wallet as
+the creator** (jobs 58–59, `docs/reality-check.md`). The grant from an embedded wallet in Explore is not live-verified
+yet. Supersedes ADR-0005. Decided in myplan note 12 §16 (R124).
 
 ## Context
 
