@@ -20,7 +20,7 @@ export function Button({
   variant = 'primary',
   size = 'md',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean; variant?: ButtonVariant; size?: 'sm' | 'md' | 'lg' }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean | undefined; variant?: ButtonVariant; size?: 'sm' | 'md' | 'lg' }) {
   return (
     <button
       type="button"

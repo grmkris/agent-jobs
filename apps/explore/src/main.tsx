@@ -4,6 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
 import { PrivyRoot } from './components/Privy.tsx'
+import { ToastProvider } from './components/Sheet.tsx'
 import { AuthProvider, WalletBar, useAuth } from './components/Wallet.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
@@ -146,7 +147,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       <QueryClientProvider client={queryClient}>
         <PrivyRoot>
           <AuthProvider>
-            <RouterProvider router={router} />
+            <ToastProvider>
+              <RouterProvider router={router} />
+            </ToastProvider>
           </AuthProvider>
         </PrivyRoot>
       </QueryClientProvider>

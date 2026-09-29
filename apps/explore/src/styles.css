@@ -223,3 +223,36 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* Sheets rise from the bottom edge (and leave the same way); a panel on a wide screen grows in place; toasts drop in. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-150%);
+  }
+}
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+dialog::backdrop {
+  animation: scrim-in 0.3s ease;
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
