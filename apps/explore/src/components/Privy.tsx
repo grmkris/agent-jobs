@@ -75,7 +75,7 @@ function PrivyLoginButton() {
   if (authenticated) return null
   return (
     <Button disabled={!ready} onClick={() => login()}>
-      Log in
+      Sign in
     </Button>
   )
 }

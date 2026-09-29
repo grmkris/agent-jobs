@@ -2,9 +2,9 @@ import * as sdk from '@agent-jobs/sdk'
 import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
-import { tokenInfo } from '../format.ts'
+import { formatNumber, tokenInfo } from '../format.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
-import { Address, Button } from './ui.tsx'
+import { Address, Button, CopyButton, Group, ListRow, Section } from './ui.tsx'
 
 /**
  * The signed-in Privy wallet's balances and how to fund it: people send MON (gas) and the reward/bond tokens to this
@@ -58,5 +58,57 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
       )}
       <p className="mt-2 text-xs text-label-3">Explorer: <Address value={address} /></p>
     </div>
+  )
+}
+
+/** The wallet as a section of Me: the full address to fund, live balances, and where testnet tokens come from. */
+export function WalletCard({ address }: { address: `0x${string}` }) {
+  const mon = useBalance({ address, chainId: chain.id, query: { refetchInterval: 10_000 } })
+  const tokens = [deployment.factory, ...deployment.rewardTokens]
+  const balances = useReadContracts({
+    contracts: tokens.map((t) => ({ address: t, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const),
+    query: { refetchInterval: 10_000 },
+  })
+  const rows: Array<[string, string, string | undefined]> = [
+    [chain.nativeCurrency.symbol, 'Gas', mon.data === undefined ? undefined : formatNumber(mon.data.value, 18)],
+    ...tokens.map((t, i): [string, string, string | undefined] => {
+      const v = balances.data?.[i]?.result as bigint | undefined
+      const info = t === deployment.factory ? { symbol: 'FACTORY', decimals: 18 } : tokenInfo(t)
+      return [info.symbol, t === deployment.factory ? 'For bonds' : 'Reward token', v === undefined ? undefined : formatNumber(v, info.decimals)]
+    }),
+  ]
+  return (
+    <Section
+      title="Wallet"
+      note={
+        isMainnet ? (
+          <>Send {chain.nativeCurrency.symbol} for gas and the tokens you pay or bond with to this address, from any wallet you already have.</>
+        ) : (
+          <>
+            Testnet: MON from{' '}
+            <a className="text-tint" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
+              faucet.monad.xyz
+            </a>
+            ; FACTORY, mUSD and mEUR from each token&apos;s faucet. Test tokens have no value.
+          </>
+        )
+      }
+    >
+      <Group>
+        <ListRow>
+          <span className="min-w-0 flex-1 font-mono text-[0.82rem] break-all text-label-2">{address}</span>
+          <CopyButton value={address} label="Copy address" />
+        </ListRow>
+        {rows.map(([symbol, what, value]) => (
+          <ListRow key={symbol}>
+            <span className="flex-1">
+              {symbol}
+              <span className="block text-[0.78rem] text-label-3">{what}</span>
+            </span>
+            <span className="tabular text-label">{value ?? '…'}</span>
+          </ListRow>
+        ))}
+      </Group>
+    </Section>
   )
 }

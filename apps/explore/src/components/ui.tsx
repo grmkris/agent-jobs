@@ -69,12 +69,19 @@ export function Group({ children, className }: { children: ReactNode; className?
 
 const ROW_SEP = "relative before:absolute before:top-0 before:right-0 before:left-4 before:border-t-[0.5px] before:border-sep first:before:hidden before:content-['']"
 
-/** A row of a Group; `href`/`onClick` rows get a pressed state. */
+/**
+ * The classes of a Group row, for a row that is itself a link (`<Link className={rowClass({ interactive: true })}>`):
+ * links and rows must be siblings in the Group for the hairlines to fall between them. `inset` starts the hairline
+ * after a leading avatar.
+ */
+export const rowClass = ({ inset = false, interactive = false }: { inset?: boolean; interactive?: boolean } = {}) =>
+  cn(ROW_SEP, inset && 'before:left-15', 'flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left', interactive && 'active:bg-fill [@media(hover:hover)]:hover:bg-fill')
+
+/** A row of a Group; an `onClick` row is a button with a pressed state. */
 export function ListRow({ children, className, onClick, inset = false }: { children: ReactNode; className?: string; onClick?: () => void; inset?: boolean }) {
-  const cls = cn(ROW_SEP, inset && 'before:left-15', 'flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left', className)
-  if (onClick === undefined) return <div className={cls}>{children}</div>
+  if (onClick === undefined) return <div className={cn(rowClass({ inset }), className)}>{children}</div>
   return (
-    <button type="button" onClick={onClick} className={cn(cls, 'active:bg-fill [@media(hover:hover)]:hover:bg-fill')}>
+    <button type="button" onClick={onClick} className={cn(rowClass({ inset, interactive: true }), className)}>
       {children}
     </button>
   )

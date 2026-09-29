@@ -1,68 +1,35 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
+import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
 import { PrivyRoot } from './components/Privy.tsx'
 import { ToastProvider } from './components/Sheet.tsx'
-import { AuthProvider, WalletBar, useAuth } from './components/Wallet.tsx'
+import { AuthProvider, useAuth } from './components/Wallet.tsx'
+import { Shell } from './components/Shell.tsx'
+import { AgentsPage } from './routes/Agents.tsx'
+import { MePage } from './routes/Me.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
 import './styles.css'
-import { usePaused, wagmiConfig } from './wallet.ts'
-import { NetworkSwitch } from './components/NetworkSwitch.tsx'
+import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
 import { PublishPage } from './routes/Publish.tsx'
 import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
 import { BoardsPage } from './routes/Boards.tsx'
 import { BoardNewPage } from './routes/BoardNew.tsx'
 import { EmbedPage } from './routes/Embed.tsx'
-import { currentBoardId } from './api.ts'
 import { useTokenRegistry } from './useTokens.ts'
 
 function Layout() {
-  const auth = useAuth()
-  const paused = usePaused()
   const location = useLocation()
   useTokenRegistry()
   // The embedded widget (ADR-0008) has no site chrome: the host page is the chrome.
   if (location.pathname.startsWith('/embed/')) return <Outlet />
-  const boardId = currentBoardId()
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
-      {paused && (
-        <div className="mb-4 rounded border border-bad/30 bg-bad-bg p-3 text-sm text-bad">
-          The core contract is paused by its admin. Nothing can be published, delivered, paid or spent until it is unpaused; deadlines keep running (see the README’s Trust section).
-        </div>
-      )}
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Link to="/" className="text-lg font-semibold">Hireling{boardId === 'public' ? '' : <span className="font-normal text-label-2"> · board {boardId}</span>}</Link>
-          <NetworkSwitch />
-        </span>
-        <nav className="flex gap-4 text-sm">
-          {boardId === 'public' ? (
-            <>
-              <Link to="/" className="text-label-2 hover:text-label">Jobs</Link>
-              <Link to="/quotes" className="text-label-2 hover:text-label">Quotes</Link>
-              <Link to="/publish" className="text-label-2 hover:text-label">Publish</Link>
-            </>
-          ) : (
-            <>
-              <Link to="/b/$boardId" params={{ boardId }} className="text-label-2 hover:text-label">Jobs</Link>
-              <Link to="/b/$boardId/quotes" params={{ boardId }} className="text-label-2 hover:text-label">Quotes</Link>
-              <Link to="/b/$boardId/publish" params={{ boardId }} className="text-label-2 hover:text-label">Publish</Link>
-            </>
-          )}
-          <Link to="/boards" className="text-label-2 hover:text-label">Boards</Link>
-        </nav>
-        <WalletBar auth={auth} />
-      </header>
+    <Shell>
       <Outlet />
-      <footer className="mt-10 text-xs text-label-3">
-        Hireling runs on the agent-jobs protocol: escrow-backed agent work settled by ERC-8183 contracts. Chain facts from the indexer; offers and progress from the board. Agents use the board’s MCP server with their own wallet.
-      </footer>
-    </div>
+    </Shell>
   )
 }
 
@@ -91,6 +58,8 @@ const quoteRequest = createRoute({
   },
 })
 const agent = createRoute({ getParentRoute: () => root, path: '/agent/$agentId', component: AgentPage })
+const agents = createRoute({ getParentRoute: () => root, path: '/agents', component: AgentsPage })
+const me = createRoute({ getParentRoute: () => root, path: '/me', component: MePage })
 // Tenant boards (ADR-0008): the same pages under /b/<slug>, plus the boards directory, creation and the widget.
 const boards = createRoute({ getParentRoute: () => root, path: '/boards', component: BoardsPage })
 const boardNew = createRoute({
@@ -128,7 +97,7 @@ const boardAgent = createRoute({ getParentRoute: () => board, path: '/agent/$age
 const embed = createRoute({ getParentRoute: () => root, path: '/embed/$boardId', component: EmbedPage })
 const router = createRouter({
   routeTree: root.addChildren([
-    jobs, job, publish, quotes, quoteRequest, agent, boards, boardNew, embed,
+    jobs, job, publish, quotes, quoteRequest, agent, agents, me, boards, boardNew, embed,
     board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardAgent]),
   ]),
 })
