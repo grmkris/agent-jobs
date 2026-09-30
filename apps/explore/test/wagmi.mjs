@@ -1,10 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
+import { useSyncExternalStore } from 'react';
 
 export const fixtureAddress = '0x1111111111111111111111111111111111111111';
 export const createConfig = () => ({});
 export const http = () => ({});
 export const WagmiProvider = ({ children }) => children;
-export const useAccount = () => ({ address: window.__wallet.connected === false ? undefined : fixtureAddress, chainId: 10143, isConnected: window.__wallet.connected !== false });
+const subscribeAccount = (notify) => { window.addEventListener('fixture-wallet-change', notify); return () => window.removeEventListener('fixture-wallet-change', notify); };
+export const useAccount = () => {
+  const address = useSyncExternalStore(subscribeAccount, () => window.__wallet.connected === false ? undefined : window.__wallet.address);
+  return { address, chainId: 10143, isConnected: address !== undefined };
+};
 export const useDisconnect = () => ({ disconnect: () => {} });
 export const useConnect = () => ({ connectors: [], connect: () => {} });
 export const useSignMessage = () => ({ signMessageAsync: async () => { throw new Error('No real signing in UX fixtures'); } });
@@ -32,12 +37,14 @@ export function sendFixtureTransaction(transaction) {
       const button = document.createElement('button');
       button.textContent = action;
       button.style.cssText = 'min-width:44px;min-height:44px;margin:8px';
-      button.onclick = () => {
+      button.addEventListener('click', () => {
         panel.remove();
         if (action === 'Decline fixture') return reject(Object.assign(new Error('User rejected the request.'), { code: 4001 }));
         window.__wallet.sends.push(transaction);
+        localStorage.setItem('fixture-wallet-sends', JSON.stringify(window.__wallet.sends, (_key, value) => typeof value === 'bigint' ? value.toString() : value));
+        if (window.__wallet.ambiguous) return reject(new Error('Transport failed after broadcast'));
         resolve(`0x${window.__wallet.sends.length.toString(16).padStart(64, '0')}`);
-      };
+      });
       panel.append(button);
     }
     document.body.append(panel);
