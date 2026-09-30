@@ -12,6 +12,7 @@ import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
 import {
   type Created,
   type Draft,
+  type Frozen,
   type Mode,
   type PostForm,
   type StackName,
@@ -33,7 +34,7 @@ import {
   toBase,
 } from '../components/post/form.ts'
 import { Chip, Choices, Disclosure, FieldRow, KV, LineRow, Mark, Progress, StepNav, Switch } from '../components/post/parts.tsx'
-import { Sheet, useToast } from '../components/Sheet.tsx'
+import { useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, TextArea, cn, rowClass } from '../components/ui.tsx'
@@ -98,7 +99,7 @@ const STEP_TITLE: Record<Step, string> = { 1: 'What needs doing', 2: 'How agents
 /**
  * Post a job: what needs doing, how agents compete, the reward and deadlines, then a review with the advisory
  * screening and a live wallet check before anything is signed. A hire or contest is frozen by the board
- * (`create_task`) on the way to the review and published from a sheet of wallet steps; the reward is escrowed only
+ * (`create_task`) on the way to the review and published from inline wallet steps; the reward is escrowed only
  * when the publish transaction confirms. Asking for quotes (`request_quotes`) locks nothing until a quote is picked.
  * The form is kept as a draft per board and address until it is published. `?resume=<taskId>` reopens an offer that
  * was frozen and never published.
@@ -143,6 +144,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   }
   const [draft, setDraft] = useState<Draft>(() => restore(key) ?? { v: 1, step: 1, form: defaults(), prefill: pk, frozen: null })
   const [saved, setSaved] = useState(false)
+  const [runningOffer, setRunningOffer] = useState<{ frozen: Frozen; owner: string | undefined; reward: string } | null>(null)
   const dirty = useRef(false)
   const finished = useRef(false)
   const loadedKey = useRef(key)
@@ -229,7 +231,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 
   // The frozen offer, while the form still describes it; an edit afterwards means freezing again.
   const fp = fingerprint(f)
-  const matching = draft.frozen !== null && draft.frozen.fp === fp && f.mode !== 'quotes' ? draft.frozen : null
+  const matching = runningOffer?.frozen ?? (draft.frozen !== null && draft.frozen.fp === fp && f.mode !== 'quotes' ? draft.frozen : null)
   // A kept draft whose offer reached the chain after all (the page closed mid-publish) must not be published twice:
   // the board is asked once whether it became a job.
   const frozenTask = draft.frozen?.created.taskId
@@ -265,8 +267,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   }
 
   const [asking, setAsking] = useState(false)
+  const [walletBusy, setWalletBusy] = useState(false)
   const [askError, setAskError] = useState<string | null>(null)
-  const [sheet, setSheet] = useState(false)
   const finish = () => {
     finished.current = true
     clearDraft(key)
@@ -275,6 +277,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     clearDraft(key)
     dirty.current = false
     setSaved(false)
+    setRunningOffer(null)
     setDraft({ v: 1, step: 1, form: defaults(), prefill: pk, frozen: null })
   }
   const reward = rewardText(f)
@@ -300,7 +303,6 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
       () => null,
     )
     finish()
-    setSheet(false)
     toast(`Published · ${reward} locked in escrow`)
     if (onPublished !== undefined) onPublished({ taskId: created.taskId, jobId, txHash: hashes.at(-1) ?? null })
     else await navigate(jobId !== null ? boardRoutes().job(jobId) : boardRoutes().jobs())
@@ -366,6 +368,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
           } else go((step + 1) as Step)
         }}
       >
+        <fieldset disabled={runningOffer !== null} className="contents">
         <div className="grid gap-2">
           <Progress step={step} of={4} />
           <p className="px-1 text-[0.8rem] text-label-2">
@@ -617,7 +620,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         </div>
 
         {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-[0.86rem] text-label-2">{problem}</p>}
-        <StepNav onBack={step === 1 ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
+        <StepNav onBack={step === 1 || walletBusy ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
           {step < 3 ? (
             next((step + 1) as Step)
           ) : step === 3 ? (
@@ -629,24 +632,34 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
               Ask for quotes
             </Button>
           ) : frozen !== null ? (
-            <Button size="lg" onClick={() => setSheet(true)} className="min-w-0">
-              Publish and lock {reward}
-            </Button>
+            <p className="min-w-0 text-center text-[0.9rem] text-label-2">Complete the wallet steps below to publish {reward}.</p>
           ) : (
             <Button size="lg" busy={freezing} disabled={publishedAs !== null} onClick={() => void freeze()}>
               Prepare to publish
             </Button>
           )}
         </StepNav>
+        </fieldset>
       </form>
 
-      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`}>
-        <p className="-mt-2 leading-snug text-label-2">
-          Your wallet sends these in order. The {contest ? 'prize' : 'reward'} and your bond are locked in escrow when the publish step confirms; nothing moves before that.
-        </p>
-        {/* Mounted for the offer the form describes, so a run in progress is never cut off by a later read. */}
-        {matching !== null && <TxSteps key={matching.created.taskId} taskId={matching.created.taskId} txs={matching.created.transactions} onDone={(hashes) => void published(matching.created, hashes)} />}
-      </Sheet>
+      {(step === 4 || runningOffer !== null) && matching !== null && (auth.signedIn || runningOffer !== null) && publishedAs === null && (
+        <Section title="Publish" note={`Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`}>
+          {onChain.isError && <ErrorText>The saved offer could not be checked. Retry before publishing. <Button variant="plain" onClick={() => void onChain.refetch()}>Retry</Button></ErrorText>}
+          {expired && <ErrorText>This offer has expired. Prepare a new offer before confirming any new steps.</ErrorText>}
+          {runningOffer !== null && runningOffer.owner !== auth.address && <ErrorText>Return to the wallet that started this offer before confirming more steps.</ErrorText>}
+          <TxSteps
+            key={matching.created.taskId}
+            taskId={matching.created.taskId}
+            txs={matching.created.transactions}
+            canSend={!expired && onChain.isSuccess && (runningOffer === null || runningOffer.owner === auth.address)}
+            onBusyChange={(busy) => {
+              setWalletBusy(busy)
+              if (busy) setRunningOffer((current) => current ?? { frozen: matching, owner: auth.address, reward })
+            }}
+            onDone={(hashes) => void published(matching.created, hashes)}
+          />
+        </Section>
+      )}
     </>
   )
 }

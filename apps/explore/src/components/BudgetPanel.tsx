@@ -10,7 +10,7 @@ import { typedDataArgs } from '../typed-data.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
 import { useDelegatorUpgrade } from './Privy.tsx'
 import { TxSteps } from './TxSteps.tsx'
-import { ConfirmSheet, Sheet } from './Sheet.tsx'
+import { ConfirmSheet } from './Sheet.tsx'
 import { When } from './Time.tsx'
 import { Address, Badge, Button, ErrorText, Group, ListRow, Section, TxLink } from './ui.tsx'
 
@@ -212,7 +212,7 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
           void revoke()
         }}
       />
-      <Sheet open={txs !== null} onClose={() => setTxs(null)} title="Send from your wallet">
+      {txs !== null && <Section title="Send from your wallet">
         {txs !== null && (
           <TxSteps
             taskId={task.taskId}
@@ -223,7 +223,7 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
             }}
           />
         )}
-      </Sheet>
+      </Section>}
     </Section>
   )
 }

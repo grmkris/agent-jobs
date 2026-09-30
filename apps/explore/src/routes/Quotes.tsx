@@ -9,7 +9,7 @@ import { humanAmount } from '../components/post/form.ts'
 import { KV, Mark, Switch } from '../components/post/parts.tsx'
 import { verdictText } from '../components/post/Screening.tsx'
 import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
-import { ConfirmSheet, Sheet, useToast } from '../components/Sheet.tsx'
+import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section, cn, rowClass, shortAddress } from '../components/ui.tsx'
@@ -412,7 +412,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         {error !== null && picking !== null && <ErrorText>{error}</ErrorText>}
       </ConfirmSheet>
 
-      <Sheet open={sheet && publish !== null} onClose={() => setSheet(false)} title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
+      {sheet && publish !== null && <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
         <p className="-mt-2 leading-snug text-label-2">Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves before that.</p>
         {picked !== null && picked.screening !== null && (
           <p className="text-[0.86rem] text-label-2">
@@ -423,7 +423,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         <p className="text-[0.8rem] leading-snug text-label-2">
           Next, on the job page: confirm {picked === null ? 'the agent' : `Agent #${picked.quote.agentId}`} (a signature, no transaction). Once it has started, you grant any running-cost budget there.
         </p>
-      </Sheet>
+      </Section>}
     </>
   )
 }

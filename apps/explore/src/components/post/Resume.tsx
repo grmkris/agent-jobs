@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { type DeliverableKind, type DeliverableSpec, type TxRequest, currentBoardId, tool } from '../../api.ts'
 import { amount, bond } from '../../format.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../BoardLink.tsx'
-import { Sheet, useToast } from '../Sheet.tsx'
+import { useToast } from '../Sheet.tsx'
 import { When, useNow } from '../Time.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 import { Badge, Button, CopyButton, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, rowClass } from '../ui.tsx'
@@ -50,7 +50,6 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
   const now = useNow()
   const task = useQuery({ queryKey: ['resume-offer', currentBoardId(), taskId, auth.signedIn], queryFn: () => tool<SavedOffer>('get_task', { taskId }) })
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
-  const [sheet, setSheet] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const t = task.data
@@ -102,7 +101,6 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
 
   const prepare = async () => {
     if (txs !== null) {
-      setSheet(true)
       return
     }
     setBusy(true)
@@ -110,7 +108,6 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
     try {
       const r = await tool<{ transactions: TxRequest[] }>('publish_transactions', { taskId })
       setTxs(r.transactions)
-      setSheet(true)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -122,7 +119,6 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
       (x) => x.jobId,
       () => null,
     )
-    setSheet(false)
     toast(`Published · ${reward} locked in escrow`)
     if (onPublished !== undefined) onPublished({ taskId, jobId, txHash: hashes.at(-1) ?? null })
     else await navigate(jobId !== null ? boardRoutes().job(jobId) : boardRoutes().jobs())
@@ -204,9 +200,9 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
             </p>
           )}
           {error !== null && <ErrorText>{error}</ErrorText>}
-          <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>
-            Publish and lock {reward}
-          </Button>
+          <Section title="Publish" note={`Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`}>
+            {txs !== null ? <TxSteps key={taskId} taskId={taskId} txs={txs} canSend={!lapsed} onDone={(hashes) => void published(hashes)} /> : <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>Prepare wallet steps</Button>}
+          </Section>
         </>
       )}
 
@@ -223,10 +219,6 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
         </Group>
       </Section>
 
-      <Sheet open={sheet} onClose={() => setSheet(false)} title={`Publish and lock ${reward}`}>
-        <p className="-mt-2 leading-snug text-label-2">Your wallet sends these in order. The {contest ? 'prize' : 'reward'} and your bond are locked in escrow when the publish step confirms; nothing moves before that.</p>
-        {txs !== null && <TxSteps taskId={taskId} txs={txs} onDone={(hashes) => void published(hashes)} />}
-      </Sheet>
     </>
   )
 }

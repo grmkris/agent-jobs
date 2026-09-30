@@ -13,7 +13,7 @@ import { friendlyError } from '../../txErrors.ts'
 import { typedDataArgs } from '../../typed-data.ts'
 import { earnedLine, useAgents } from '../../routes/Agents.tsx'
 import { BoardLink, boardRoutes } from '../BoardLink.tsx'
-import { ConfirmSheet, Sheet, useToast } from '../Sheet.tsx'
+import { ConfirmSheet, useToast } from '../Sheet.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 import { Badge, Button, EmptyState, ErrorText, Field, Group, ListRow, Section, Segmented, TextArea, cn } from '../ui.tsx'
 import { Monogram } from '../Wallet.tsx'
@@ -103,6 +103,7 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
     setError(null)
     try {
       if (pending.kind === 'select') {
+        setPending(null)
         const sel = await api.tool<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId: job.taskId, applicationId: pending.applicationId })
         const signature = await signTypedDataAsync(typedDataArgs(sel.sign.typedData))
         await api.tool('submit_selection', { taskId: job.taskId, nonce: sel.nonce, signature })
@@ -260,9 +261,8 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
         {error !== null && <ErrorText>{error}</ErrorText>}
       </ConfirmSheet>
 
-      <Sheet open={txs !== null} onClose={() => setTxs(null)} title="Send from your wallet">
-        {txs !== null && <TxSteps taskId={job.taskId} boardId={job.boardId} txs={txs.list} onDone={(h) => done(txs.kind, h)} />}
-      </Sheet>
+      {error !== null && pending === null && <ErrorText>{error}</ErrorText>}
+      {txs !== null && <Section title="Send from your wallet"><TxSteps taskId={job.taskId} boardId={job.boardId} txs={txs.list} onDone={(hashes) => done(txs.kind, hashes)} /></Section>}
     </>
   )
 }
@@ -360,4 +360,3 @@ function Entries({ job, onAward }: { job: ActionJob; onAward: (candidateId: stri
     </Section>
   )
 }
-

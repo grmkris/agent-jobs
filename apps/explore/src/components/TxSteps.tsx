@@ -7,15 +7,10 @@ import { type TxRequest, boardApi } from '../api.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
 import { usePrivyBatch } from './Privy.tsx'
+import { type TxStatus, retryAction } from './txOperation.ts'
 import { Button, ErrorText, Group, ListRow, TxLink, cn } from './ui.tsx'
 
-type Status =
-  | { at: 'idle' }
-  | { at: 'signing' }
-  | { at: 'sent'; hash: Hex }
-  | { at: 'confirmed'; hash: Hex; reportError?: string }
-  | { at: 'recorded'; hash: Hex }
-  | { at: 'failed'; error: string; hash?: Hex }
+type Status = TxStatus
 
 /**
  * What was handed to the wallet, kept before and after each send (AGENTS.md: persist an operation record before a
@@ -52,12 +47,12 @@ function save(key: string, r: OpRecord | null) {
 }
 
 const LABEL: Record<Status['at'], string> = {
-  idle: '',
+  idle: 'Waiting',
   signing: 'Confirm in your wallet…',
   sent: 'Sent · waiting for Monad…',
   confirmed: 'Confirmed · recording…',
-  recorded: 'Done',
-  failed: '',
+  recorded: 'Confirmed',
+  failed: 'Failed · retry below',
 }
 
 /**
@@ -66,7 +61,7 @@ const LABEL: Record<Status['at'], string> = {
  * where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in plain words; a failed
  * report is retried without sending again; and a reload picks up a sent transaction instead of offering to resend.
  */
-export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined }) {
+export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyChange }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void }) {
   const { chainId, address } = useAccount()
   const batch = usePrivyBatch(address)
   const { switchChainAsync } = useSwitchChain()
@@ -95,7 +90,7 @@ export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs:
     try {
       const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       if (receipt.status !== 'success') {
-        set(i, { at: 'failed', hash, error: record.batch ? 'The transaction reverted, so none of the steps happened.' : 'The transaction reverted, so nothing changed.' })
+        set(i, { at: 'failed', hash, reverted: true, error: record.batch ? 'The transaction reverted, so none of the steps happened.' : 'The transaction reverted, so nothing changed.' })
         return
       }
     } catch (e) {
@@ -166,6 +161,11 @@ export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs:
     await settle(i, hash, sent)
   }
 
+  const next = status.findIndex((s) => s.at !== 'recorded')
+  const current = status[next]
+  const busy = current !== undefined && (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
+  useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
+
   if (chainId !== chain.id) {
     return (
       <div className="grid gap-2">
@@ -188,10 +188,7 @@ export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs:
     )
   }
 
-  const next = status.findIndex((s) => s.at !== 'recorded')
-  const current = status[next]
-  const busy = current !== undefined && (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
-  const rows = record.batch ? [{ description: txs.map((t) => t.description).join(', then ') }] : txs
+  const rows = txs
 
   return (
     <div className="grid gap-3">
@@ -205,15 +202,15 @@ export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs:
       )}
       <Group>
         {rows.map((tx, i) => {
-          const s = status[i] ?? { at: 'idle' }
+          const s = status[record.batch ? 0 : i] ?? { at: 'idle' }
           return (
             <ListRow key={`${i}-${tx.description}`} inset>
-              <StepIcon n={record.batch ? txs.length : i + 1} s={s} />
+              <StepIcon n={i + 1} s={s} />
               <span className="min-w-0 flex-1">
                 <span className={cn('block text-[0.95rem] first-letter:uppercase', s.at === 'idle' && i !== next && 'text-label-2')}>{tx.description}</span>
-                {(s.at !== 'idle' || record.batch) && (
+                {(
                   <span className="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-label-2">
-                    {record.batch && s.at === 'idle' ? `${txs.length} steps as one transaction` : LABEL[s.at]}
+                    {record.batch && s.at === 'idle' ? `Waiting · ${txs.length} steps as one transaction` : LABEL[s.at]}
                     {'hash' in s && s.hash !== undefined && <TxLink hash={s.hash} />}
                   </span>
                 )}
@@ -228,9 +225,10 @@ export function TxSteps({ taskId, txs, onDone, boardId }: { taskId: string; txs:
         <Button
           size="lg"
           busy={busy}
-          disabled={record.pending !== null && !acceptPending}
+          disabled={(record.pending !== null && !acceptPending) || (!canSend && retryAction(current) === 'send')}
           onClick={() => {
             if (current.at === 'confirmed' && current.reportError !== undefined) void report(next, current.hash, record)
+            else if (retryAction(current) === 'receipt' && 'hash' in current && current.hash !== undefined) void settle(next, current.hash, record)
             else void run(next)
           }}
         >
