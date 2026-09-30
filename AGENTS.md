@@ -51,6 +51,7 @@ Tests and live jobs prove each of these (`contracts/SURFACE.md`, `docs/reality-c
 - Contracts: read <https://ethskills.com/SKILL.md> and follow it before writing Solidity or
   shipping anything on-chain. Monad docs: <https://docs.monad.xyz/llms.txt>.
 - Deployments, migrations and transactions run deliberately, never as cached task results.
+- Before any existing staging update, follow `docs/staging-release-runbook.md`: prove the selected backend owns the exact existing resources (authoritative local staging state may be valid), preserve domains/bindings/cron, and review the source/migration/rollback manifest. Remote-state selection additionally requires verified account-scoped Secrets Store permission; production remote readiness is separate. `deploy:staging` is a local fail-closed hold with no Alchemy/provider fallback; never bootstrap, transplant state or fall back automatically.
 - Database migrations only through `pnpm db:generate`; never auto-applied.
 - **No mocks in the product:** no stub code paths, no placeholder contracts in any deployment, no
   simulation presented as an integration; an unreachable service shows as unavailable. Test doubles are

@@ -5,6 +5,8 @@ Every step that sends a mainnet transaction is marked **[tx]** and runs only on 
 Each step is one command from the repo root (or `contracts/` where stated). Secrets are read from `.env.local` with
 `bash -c 'set -a; . ./.env.local; set +a; …'` and are never printed.
 
+**Existing staging release hold (30 September 2026):** do not rerun `pnpm deploy:staging` or initialize Alchemy state. Read [the existing-staging release procedure](staging-release-runbook.md) first: prove the selected backend owns the existing IDs, preserve resource/domain/binding/cron ownership, and review exact source/migration/rollback prerequisites. Original staging used local state, which maps the live stack; the observed remote state maps duplicates and is rejected for recovery. Do not force remote readiness or transplant state. Production's remote permission requirement below is distinct. Documentation/preflight drafts do not authorize a deployment.
+
 ## 0. What is already proven, without a mainnet transaction
 
 - **The recipe on a fork of 143.**
@@ -119,7 +121,7 @@ Expected: the evaluator address, the arbitrator, `true`. There is no token allow
 ## 4. Cloudflare prod stage (no chain transaction)
 
 - `pnpm deploy:prod` selects mainnet plus `AGENT_JOBS_STAGE=prod`, and runs the fail-closed check described in `docs/p0-production-preflight.md` before evaluating any resource. Supply the explicitly reviewed `AGENT_JOBS_PROD_ARTIFACT` path first; the proposed artifact intentionally fails today.
-- **Blocker:** remote state needs **Secrets Store: Edit** on the Cloudflare token. Fix that permission before production deployment; local-only production state is no longer an accepted fallback.
+- **Blocker:** remote state needs verified account-scoped **Secrets Store: Edit** permission on the Cloudflare token and must be readable and map the intended resources before evaluation. Token validity/state readability alone is insufficient permission evidence; do not bootstrap state to make a preflight pass. Local-only production state is not an accepted fallback. Existing staging has the additional incident/ownership gates in [its release procedure](staging-release-runbook.md).
 - Deploy only **after** step 3: Explore reads `.deployment` at build time.
 - Checks:
   - `curl <api>/health`;
@@ -142,7 +144,7 @@ MetaMask's services refuse 10143, so its transaction path is proven only here: `
 ## 7. If something goes wrong
 
 - **Contract bug:** the admin can `pause` the core (see `contracts/SURFACE.md`). Pause also blocks timeouts, so a promise made while paused is void; the README states the commitment not to pause during an active agreement. `emergencyWithdraw` works only while paused.
-- **Board or Worker problem:** chain state is authoritative. Rolling back a Worker (`alchemy deploy` of the previous commit) loses nothing; the indexer can rebuild D1 from the deploy block.
+- **Board or Worker problem:** chain state is authoritative. Use a reviewed same-Worker version rollback, not an unguarded whole-stack deploy of an older commit; verify bindings and old-version compatibility first. Code rollback does not undo D1 schema/DO class migrations or namespace state. Preserve storage, domains and aliases; rebuild chain-derived rows only under a separately reviewed recovery procedure. See [the existing-staging procedure](staging-release-runbook.md).
 - **A leaked key:** every role key is separate. A relay or attester key can be replaced by config and redeploy of the Workers; the arbitrator is immutable per evaluator (a new evaluator pair means a new deployment).
 
 ## 8. Not blocking B7

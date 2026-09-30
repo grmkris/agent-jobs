@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "accountId": "bceaeae4788dce3493514fde194b4a7e",
+  "stage": "staging",
+  "network": "monad-testnet",
+  "release": {
+    "commit": "b6c508e06e7df8b70c2a9ad6de2ef65e5062d610",
+    "tree": "9d0774bf19f65bd598ae2769b0aff6fe735751f4",
+    "reviewed": true,
+    "clean": false,
+    "excludedE39Worktree": true,
+    "excludedE39Revision": "5c3cf6fcf67260261b1bf8ff12aa2c185d28083d"
+  },
+  "state": {
+    "backend": "remote",
+    "profile": "default",
+    "accountId": "bceaeae4788dce3493514fde194b4a7e",
+    "stack": "AgentJobs",
+    "stage": "staging",
+    "readable": true,
+    "readStatus": 200,
+    "readMethod": "GET",
+    "observedAt": "2026-09-30T20:29:46.212Z",
+    "bootstrapAttempted": false,
+    "resources": [
+      {
+        "logicalId": "Api",
+        "resourceId": "agentjobs-api-staging-wifchnd47xdh3tvm",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "status": "created"
+      },
+      {
+        "logicalId": "Database",
+        "resourceId": "2118683d-748c-4987-857e-f933ab756c74",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "status": "created"
+      },
+      {
+        "logicalId": "Explore",
+        "resourceId": "agentjobs-explore-staging-lxl2yyrlxhus2wkt",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "status": "creating"
+      },
+      {
+        "logicalId": "Indexer",
+        "resourceId": "agentjobs-indexer-staging-eabkbqksbeuef5qk",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "status": "created"
+      },
+      {
+        "logicalId": "Manifests",
+        "resourceId": "agentjobs-manifests-staging-rrf55jufiu7rf5xf",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "status": "created"
+      }
+    ]
+  },
+  "live": {
+    "observedAt": "2026-09-30T20:37:36.698Z",
+    "workers": [
+      {
+        "logicalId": "Api",
+        "resourceId": "agentjobs-api-staging-ba2zqmaom6el4lws",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "activeVersion": "a3912838-10bc-47f9-a88f-77049307bdf8",
+        "trafficPercent": 100,
+        "bindings": {
+          "Board": "eab5801c233a4d1f952a457050958175",
+          "Database": "1b2ddfdd-650e-4846-8b55-fca07872efec",
+          "Manifests": "agentjobs-manifests-staging-4yyroq65le7dnxbm"
+        }
+      },
+      {
+        "logicalId": "Indexer",
+        "resourceId": "agentjobs-indexer-staging-2unhvhpefxd7n2wb",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "activeVersion": "774b3286-3a99-448f-9264-3cc21efc0f98",
+        "trafficPercent": 100,
+        "cron": "* * * * *",
+        "bindings": {
+          "Database": "1b2ddfdd-650e-4846-8b55-fca07872efec"
+        }
+      },
+      {
+        "logicalId": "Explore",
+        "resourceId": "agentjobs-explore-staging-67xgxuclftbgtgxn",
+        "accountId": "bceaeae4788dce3493514fde194b4a7e",
+        "activeVersion": "1994c18e-a72a-4ccc-83a1-4523d0395bf0",
+        "trafficPercent": 100,
+        "bindings": {
+          "API": "agentjobs-api-staging-ba2zqmaom6el4lws"
+        }
+      }
+    ],
+    "domains": [
+      {
+        "id": "a8c1b7d36f0c133f5cd04b2572bf5c537f9a6732",
+        "hostname": "hireling.xyz",
+        "service": "agentjobs-explore-staging-67xgxuclftbgtgxn",
+        "environment": "production",
+        "zone_id": "d4ad1574270cad47f2e33381dba31f84"
+      },
+      {
+        "id": "0d8967ae2fd7d6db457601cd38272eed0a1ef260",
+        "hostname": "testnet.hireling.xyz",
+        "service": "agentjobs-explore-staging-67xgxuclftbgtgxn",
+        "environment": "production",
+        "zone_id": "d4ad1574270cad47f2e33381dba31f84"
+      }
+    ]
+  },
+  "plan": null,
+  "rollback": {
+    "versions": {
+      "Api": "a3912838-10bc-47f9-a88f-77049307bdf8",
+      "Indexer": "774b3286-3a99-448f-9264-3cc21efc0f98",
+      "Explore": "1994c18e-a72a-4ccc-83a1-4523d0395bf0"
+    },
+    "reviewed": false,
+    "storageCompatible": false
+  },
+  "provenance": "Recorded GET snapshots only; permission, plan, compiled artifacts and storage-compatible rollback not collected. No secret values."
+}

@@ -1,0 +1,59 @@
+{
+  "localState": [
+    {
+      "resources": [
+        {
+          "logicalId": "Api",
+          "identity": {
+            "accountId": "bceaeae4788dce3493514fde194b4a7e",
+            "workerName": "agentjobs-api-staging-ba2zqmaom6el4lws"
+          },
+          "status": "updated",
+          "providerMode": "live",
+          "sha256": "230800e9c033f76b2bbce19ad79ca7f715800970ea5b8a99d157427a9843db66"
+        },
+        {
+          "logicalId": "Database",
+          "identity": {
+            "accountId": "bceaeae4788dce3493514fde194b4a7e",
+            "databaseId": "1b2ddfdd-650e-4846-8b55-fca07872efec",
+            "databaseName": "AgentJobs-Database-staging-yp3pwrct5jlzbjf3"
+          },
+          "status": "created",
+          "providerMode": "live",
+          "sha256": "428fecf819557e89b0c9f12673c5d08f514f323c32b1b60b39a711d8eb2ff0d9"
+        },
+        {
+          "logicalId": "Explore",
+          "identity": {
+            "accountId": "bceaeae4788dce3493514fde194b4a7e",
+            "workerName": "agentjobs-explore-staging-67xgxuclftbgtgxn"
+          },
+          "status": "updated",
+          "providerMode": "live",
+          "sha256": "01c1ac0165bc34cb415b10232db46674c8ff730efd757ab39ad571cb3e81037b"
+        },
+        {
+          "logicalId": "Indexer",
+          "identity": {
+            "accountId": "bceaeae4788dce3493514fde194b4a7e",
+            "workerName": "agentjobs-indexer-staging-2unhvhpefxd7n2wb"
+          },
+          "status": "updated",
+          "providerMode": "live",
+          "sha256": "af06aa044928a8b1f67751b9d462b25e15469ecec66f952d9dd141e919e14bb5"
+        },
+        {
+          "logicalId": "Manifests",
+          "identity": {
+            "accountId": "bceaeae4788dce3493514fde194b4a7e",
+            "bucketName": "agentjobs-manifests-staging-4yyroq65le7dnxbm"
+          },
+          "status": "created",
+          "providerMode": "live",
+          "sha256": "60fe8f5df76bf86e44383ee8bbc66b21476f4b8e83bda10eb20e0804833bde9a"
+        }
+      ]
+    }
+  ]
+}
