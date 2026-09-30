@@ -44,10 +44,13 @@ contract MainnetRehearsalForkTest is Test {
     uint256 internal arbitratorPk;
     uint256 internal agentId;
 
-    function setUp() public {
+    function setUp() public virtual {
         string memory rpc = vm.envOr("MONAD_MAINNET_RPC_URL", string(""));
         if (bytes(rpc).length == 0) return;
-        vm.createSelectFork(rpc);
+        uint256 forkBlock = vm.envOr("MONAD_MAINNET_FORK_BLOCK", uint256(0));
+        if (forkBlock == 0) vm.createSelectFork(rpc);
+        else vm.createSelectFork(rpc, forkBlock);
+        assertEq(block.chainid, 143);
         forked = true;
         c = Recipe.load(vm, "monad-mainnet");
         // The configured arbitrator address has its key only in .env.local; the fork swaps in a test key so the
@@ -121,7 +124,14 @@ contract MainnetRehearsalForkTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 structHash = keccak256(
             abi.encode(
-                core.SET_BUDGET_AUTHORIZATION_TYPEHASH(), worker, jobId, address(usdc), REWARD, keccak256(""), uint72(jobId), deadline
+                core.SET_BUDGET_AUTHORIZATION_TYPEHASH(),
+                worker,
+                jobId,
+                address(usdc),
+                REWARD,
+                keccak256(""),
+                uint72(jobId),
+                deadline
             )
         );
         (v, r, s) = vm.sign(workerPk, keccak256(abi.encodePacked("\x19\x01", core.DOMAIN_SEPARATOR(), structHash)));

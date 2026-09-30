@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {Signatures} from "./Signatures.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
 import {JobHolding} from "./JobHolding.sol";
 import {IERC8004Reputation} from "./vendor/erc8004/IERC8004.sol";
@@ -249,7 +249,7 @@ contract JobsEvaluator is EIP712 {
     function ruleWithSignature(Ruling calldata r, bytes calldata sig) external {
         if (block.timestamp > r.deadline) revert RulingExpired();
         if (rulingNonceUsed[r.nonce]) revert RulingNonceUsed();
-        if (!SignatureChecker.isValidSignatureNow(arbitrator, rulingDigest(r), sig)) revert InvalidSignature();
+        if (!Signatures.isValid(arbitrator, rulingDigest(r), sig)) revert InvalidSignature();
         rulingNonceUsed[r.nonce] = true;
         _rule(r.jobId, r.forWorker, r.slashLoser, r.reasonHash);
     }
@@ -276,13 +276,13 @@ contract JobsEvaluator is EIP712 {
     // ---------------------------------------------------------------------------------------------
 
     /// @notice A registered verifier's signed statement about the named checks of the tested commit. Stored,
-    ///         emitted, never acted on here. `SignatureChecker` accepts EOA and ERC-1271 signers.
+    ///         emitted, never acted on here. Raw ECDSA is checked before ERC-1271, including delegated EOAs.
     function attachEvidence(uint256 jobId, EvidenceAttestation calldata a, address verifier, bytes calldata sig)
         external
     {
         if (!verifiers[verifier]) revert NotVerifier();
         bytes32 digest = _evidenceDigest(a);
-        if (!SignatureChecker.isValidSignatureNow(verifier, digest, sig)) revert InvalidSignature();
+        if (!Signatures.isValid(verifier, digest, sig)) revert InvalidSignature();
         _storeEvidence(jobId, a, verifier, digest);
     }
 

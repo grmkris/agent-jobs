@@ -6,8 +6,14 @@ Every externally callable function of the vendored ERC-8183 core (`erc-8183/base
 **Local patch (ADR-0010, 29 Sep 2026).** The payment-token allowlist is retired: `_setBudget` no longer checks it,
 and `setPaymentTokenAllowed`, `allowedPaymentTokens`, `PaymentTokenAllowlistUpdated` and `PaymentTokenNotAllowed` are
 gone. The mapping's storage slot stays, renamed private, so the UUPS layout is unchanged. Every other line is
-upstream. `fund` still refuses a short delivery (`UnexpectedFundedAmount`), and every entry point stays
+upstream in `ERC8183.sol`. `fund` still refuses a short delivery (`UnexpectedFundedAmount`), and every entry point stays
 non-reentrant.
+
+**Local signature patch (30 Sep 2026).** `ERC8183WithAuthorization._useAuthorization`, Holding selections,
+and evaluator rulings/evidence use `Signatures.isValid`: canonical low-s ECDSA recovery first, then ERC-1271.
+Code on an EIP-7702 delegated EOA does not suppress its own raw signature. Contract wallets still use ERC-1271;
+zero signers, malformed signatures, and wrong keys fail. This changes no storage layout. Unit and mainnet-fork
+rehearsals cover the ordering; a fresh mainnet deploy remains separately authorized.
 "Supported" is a path our SDK, MCP or contracts use. "Unavailable" is one nothing of ours calls, and
 what happens if a participant calls it directly anyway. "Recovery rule" names the test that proves the
 guarantee survives.

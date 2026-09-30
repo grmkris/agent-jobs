@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {Signatures} from "./Signatures.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ERC8183} from "./vendor/erc8183/ERC8183.sol";
 import {ERC8183WithAuthorization} from "./vendor/erc8183/ERC8183WithAuthorization.sol";
@@ -404,7 +404,7 @@ contract JobHolding is EIP712, ReentrancyGuardTransient {
         if (sel.activateBy >= l.deliveryDeadline) revert SelectionInvalid();
         if (sel.termsHash != l.policyHash) revert TermsMismatch();
         if (selectionNonceUsed[l.creator][sel.nonce]) revert SelectionNonceUsed();
-        if (!SignatureChecker.isValidSignatureNow(l.creator, selectionDigest(sel), creatorSig)) {
+        if (!Signatures.isValid(l.creator, selectionDigest(sel), creatorSig)) {
             revert InvalidSignature();
         }
         if (sel.agentId == 0) revert AgentIdRequired();

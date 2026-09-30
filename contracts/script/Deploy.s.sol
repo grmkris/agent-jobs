@@ -40,6 +40,7 @@ contract Deploy is Script {
         for (uint256 i; i < d.holdings.length; ++i) {
             string memory s = c.stackNames[i];
             vm.serializeAddress(s, "holding", address(d.holdings[i]));
+            vm.serializeBool(s, "openTokens", true);
             string memory stack = vm.serializeAddress(s, "evaluator", address(d.evaluators[i]));
             vm.serializeString(o, s, stack);
         }

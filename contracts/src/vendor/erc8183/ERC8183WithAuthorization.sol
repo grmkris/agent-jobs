@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {Signatures} from "../../Signatures.sol";
 import "./ERC8183.sol";
 
 /// @title ERC8183WithAuthorization
@@ -413,7 +413,7 @@ contract ERC8183WithAuthorization is ERC8183 {
         if (authorizationNonceUsed[packedNonce]) revert AuthorizationNonceUsed();
         authorizationNonceUsed[packedNonce] = true;
         bytes32 digest = _hashTypedDataV4(structHash);
-        if (!SignatureChecker.isValidSignatureNowCalldata(signer, digest, sig)) revert InvalidAuthorizationSignature();
+        if (!Signatures.isValid(signer, digest, sig)) revert InvalidAuthorizationSignature();
         emit AuthorizationUsed(signer, packedNonce);
     }
 
