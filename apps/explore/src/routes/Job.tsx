@@ -202,7 +202,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           phase={phase}
           roles={roles}
           signedIn={auth.signedIn}
-          sourceAvailable={!board.isError}
+          sourceAvailable={!board.isError && !chain.isError}
           onEvent={onEvent}
         />
       )}

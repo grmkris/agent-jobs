@@ -175,7 +175,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     if (draft.frozen !== null || runningOffer !== null) return
     loadedKey.current = key
     const target = restore(key)
-    if (target?.frozen !== null) {
+    if (target !== null && target.frozen !== null) {
       dirty.current = false
       setDraft(target)
       setRunningOffer({ frozen: target.frozen, owner: target.frozen.owner, reward: rewardText(target.frozen.form) })
@@ -676,6 +676,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
             onBusyChange={(busy) => {
               setWalletBusy(busy)
               if (busy && matching.owner !== undefined) {
+                dirty.current = true
                 const snapshot = { ...matching, started: true }
                 setRunningOffer((current) => current ?? { frozen: snapshot, owner: matching.owner, reward })
                 setDraft((current) => current.frozen?.started === true ? current : { ...current, frozen: snapshot, form: snapshot.form })
