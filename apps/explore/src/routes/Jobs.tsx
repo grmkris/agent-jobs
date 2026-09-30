@@ -153,7 +153,7 @@ export function JobsPage() {
   return (
     <>
       {address === undefined && routes.boardId === 'public' ? <Welcome /> : <PageTitle>Jobs</PageTitle>}
-      <div className="grid gap-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3">
         <label className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-label-2">
           <Search aria-hidden className="size-4 shrink-0" />
           <input

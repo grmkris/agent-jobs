@@ -109,7 +109,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main key={pathname} className="mx-auto grid w-full max-w-3xl animate-[view-in_0.32s_var(--ease-spring)] gap-6 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-8 lg:pt-10 lg:pb-16">
+        <main key={pathname} className="mx-auto grid min-w-0 w-full max-w-3xl animate-[view-in_0.32s_var(--ease-spring)] gap-6 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-8 lg:pt-10 lg:pb-16">
           {paused && (
             <div role="alert" className="rounded-xl bg-bad-bg px-4 py-3 text-[0.9rem] text-bad">
               The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are unpaused, and deadlines keep running.{' '}

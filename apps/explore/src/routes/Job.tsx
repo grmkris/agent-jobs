@@ -221,14 +221,14 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
       {brief !== undefined && (
         <Section title="The job">
-          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5 leading-relaxed">
-            <p className="whitespace-pre-wrap">{brief}</p>
+          <div className="grid min-w-0 gap-3 rounded-xl bg-surface px-4 py-3.5 leading-relaxed">
+            <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{brief}</p>
             {criteria.length > 0 && (
               <div>
                 <p className="text-[0.85rem] text-label-2">Accepted when</p>
                 <ul className="mt-1 list-disc pl-5">
                   {criteria.map((c) => (
-                    <li key={c}>{c}</li>
+                    <li key={c} className="[overflow-wrap:anywhere]">{c}</li>
                   ))}
                 </ul>
               </div>
@@ -279,14 +279,14 @@ function Money({ phase, reward, token, mode, agentId }: { phase: Phase | null; r
       ? `Paid to ${agentId !== null ? `Agent #${agentId}` : 'the agent'}`
       : terminal
         ? 'Back with the creator'
-        : `Locked in escrow · paid ${mode === 'contest' ? 'to the winning entry' : `to ${agentId !== null ? `Agent #${agentId}` : 'the agent'} when the work is accepted`}`
+        : phase === null ? 'Chain payment status unavailable' : `Locked in escrow · paid ${mode === 'contest' ? 'to the winning entry' : `to ${agentId !== null ? `Agent #${agentId}` : 'the agent'} when the work is accepted`}`
   return (
     <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
       <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2')}>
         {!terminal && !draft ? <Lock aria-hidden className="size-5" /> : <ReceiptText aria-hidden className="size-5" />}
       </span>
       <span className="min-w-0">
-        <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em]">{amount(reward, token)}</span>
+        <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{amount(reward, token)}</span>
         <span className="mt-1 block text-[0.88rem] text-label-2">{where}</span>
         {token !== null && tokenInfo(token).unverified === true && (
           <span className="mt-1 block text-[0.8rem] text-label-3 [overflow-wrap:anywhere]">Unverified token {token}: anyone can deploy a token under any name</span>
@@ -360,7 +360,7 @@ function People({ d, listed, agentId, viewer }: { d: Detail | undefined; listed:
   const me = (a: string | null) => viewer !== undefined && a !== null && a.toLowerCase() === viewer.toLowerCase()
   const Person = ({ label, address }: { label: string; address: string | null }): ReactNode => (
     <ListRow>
-      <span className="flex-1">{label}</span>
+      <span className="min-w-0 flex-1">{label}</span>
       <Address value={address} you={me(address)} />
     </ListRow>
   )

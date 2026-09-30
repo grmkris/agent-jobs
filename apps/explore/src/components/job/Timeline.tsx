@@ -162,10 +162,10 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
   return (
     <ol className="grid rounded-xl bg-surface px-4 pt-3.5 pb-1">
       {steps.map((s, i) => (
-        <li key={`${i}-${s.title}`} className="relative grid grid-cols-[1.375rem_1fr_auto] gap-x-3 pb-4">
+        <li key={`${i}-${s.title}`} className="relative grid min-w-0 grid-cols-[1.375rem_minmax(0,1fr)] gap-x-3 pb-4 sm:grid-cols-[1.375rem_minmax(0,1fr)_auto]">
           {i < steps.length - 1 && <span aria-hidden className={cn('absolute top-6 bottom-0 left-[0.625rem] w-0.5', s.mark === 'done' ? 'bg-tint/45' : 'bg-sep')} />}
           <Dot mark={s.mark} />
-          <span className="min-w-0">
+          <span className="min-w-0 [overflow-wrap:anywhere]">
             <span className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-label-2')}>{s.title}</span>
             {s.sub !== undefined && <span className="block text-[0.82rem] text-label-2">{s.sub}</span>}
             {s.mark === 'now' && phase !== null && phase.next.length > 0 && (
@@ -179,7 +179,7 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
               </span>
             )}
           </span>
-          <span className="text-right text-[0.8rem] whitespace-nowrap text-label-2">{s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}</span>
+          <span className="col-start-2 min-w-0 text-[0.8rem] text-label-2 sm:col-start-auto sm:text-right">{s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}</span>
         </li>
       ))}
     </ol>

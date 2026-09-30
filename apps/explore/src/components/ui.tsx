@@ -168,7 +168,7 @@ export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
 export function Address({ value, you = false }: { value: string | null | undefined; you?: boolean }) {
   if (value === null || value === undefined) return <span className="text-label-3">—</span>
   return (
-    <span className="inline-flex items-center gap-0.5 font-mono text-[0.82rem]">
+    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center justify-end gap-0.5 font-mono text-[0.82rem]">
       <a href={explorer('address', value)} target="_blank" rel="noreferrer" className="text-label-2 hover:text-label">
         {shortAddress(value)}
       </a>
