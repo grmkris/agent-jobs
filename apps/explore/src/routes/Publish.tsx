@@ -174,12 +174,18 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     if (key === before) return
     if (draft.frozen !== null || runningOffer !== null) return
     loadedKey.current = key
+    const target = restore(key)
+    if (target?.frozen !== null) {
+      dirty.current = false
+      setDraft(target)
+      setRunningOffer({ frozen: target.frozen, owner: target.frozen.owner, reward: rewardText(target.frozen.form) })
+      return
+    }
     if (dirty.current) {
       clearDraft(before)
       return
     }
-    const d = restore(key)
-    if (d !== null) setDraft(d)
+    if (target !== null) setDraft(target)
   }, [key])
 
   useEffect(() => {

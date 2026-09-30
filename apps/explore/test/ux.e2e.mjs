@@ -278,10 +278,12 @@ async function testNewPublishOwner() {
   assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).isDisabled(), true);
   assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
   await page.reload();
-  await page.getByText('Return to the wallet that prepared this offer before confirming more steps.').waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).isDisabled(), true);
+  await page.locator('#post-title').waitFor();
+  assert.equal(await page.locator('#post-title').inputValue(), '');
+  assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).count(), 0);
   assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
   await page.evaluate((address) => { window.__wallet.address = address; localStorage.setItem('fixture-wallet-address', address); window.dispatchEvent(new Event('fixture-wallet-change')); }, creator);
+  await page.getByText('Prepared by account A', { exact: true }).first().waitFor();
   await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
   await page.getByRole('button', { name: 'Decline fixture' }).click();
   await page.getByRole('button', { name: 'Try again' }).waitFor();
@@ -393,18 +395,20 @@ async function testStaleBoardDetail() {
 }
 
 async function testChainDetailFailureWithBoardData() {
-  const { context, page, state } = await fixture({ width: 390, height: 844 }, { jobStatus: 'active', boardStatus: 'active' });
+  const { context, page, state } = await fixture({ width: 390, height: 844 }, { jobStatus: 'submitted', boardStatus: 'submitted' });
   await page.goto(`${base}/job/60`);
   await page.getByText(/Locked in escrow/).first().waitFor();
   state.detailError = true;
   await page.getByText('Chain job details are unavailable.', { exact: false }).waitFor({ timeout: 45000 });
   await page.getByText(/Showing last-known indexed facts/).waitFor();
   assert.equal(await page.getByText(/Locked in escrow/).count() > 0, true);
+  assert.equal(await page.getByRole('button', { name: /Approve and pay 5 OPEN/ }).isDisabled(), true);
   state.detailError = false;
   state.jobStatus = 'completed';
+  state.boardStatus = 'completed';
   await page.getByRole('button', { name: 'Retry job details' }).click();
   await page.getByText('Paid to Agent #1', { exact: true }).waitFor();
-  results.push({ name: 'chain-detail-failure-keeps-board-and-recovers-on-retry', passed: true });
+  results.push({ name: 'chain-detail-failure-keeps-board-pauses-actions-and-recovers-on-retry', passed: true });
   await context.close();
 }
 
