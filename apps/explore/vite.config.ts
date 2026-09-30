@@ -76,7 +76,7 @@ export default defineConfig({
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {
     __AGENT_JOBS_NETWORK__: JSON.stringify(network),
-    __PRIVY_APP_ID__: JSON.stringify(process.env.PRIVY_APP_ID ?? ''),
+    __PRIVY_APP_ID__: JSON.stringify((network === 'monad-mainnet' ? process.env.HIRELING_PROD_PRIVY_APP_ID : process.env.PRIVY_APP_ID) ?? ''),
   },
   run: {
     tasks: {

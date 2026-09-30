@@ -5,4 +5,4 @@ import * as Cloudflare from 'alchemy/Cloudflare'
  * reads are the outage promise (spec §3); `forceDestroy` because every stage's contents are
  * disposable until mainnet.
  */
-export const Manifests = Cloudflare.R2.Bucket('Manifests', { forceDestroy: true })
+export const Manifests = Cloudflare.R2.Bucket('Manifests', { forceDestroy: process.env.AGENT_JOBS_NETWORK !== 'monad-mainnet' })

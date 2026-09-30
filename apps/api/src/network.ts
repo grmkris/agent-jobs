@@ -4,5 +4,5 @@
  * can never talk to testnet by accident.
  */
 export function rpcUrlForNetwork(): string | undefined {
-  return process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? process.env.MONAD_MAINNET_RPC_URL : process.env.MONAD_TESTNET_RPC_URL
+  return process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? process.env.HIRELING_PROD_MONAD_RPC_URL : process.env.MONAD_TESTNET_RPC_URL
 }

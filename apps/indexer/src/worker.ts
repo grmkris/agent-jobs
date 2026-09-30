@@ -9,6 +9,7 @@ import * as Redacted from 'effect/Redacted'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { Database } from '../../api/src/database.ts'
 import { rpcUrlForNetwork } from '../../api/src/network.ts'
+import { runtimeSecret } from '../../api/src/prod-config.ts'
 
 const secret = (name: string) =>
   Config.Redacted(name).pipe(Effect.map((v) => (Redacted.value(v) === 'unset' ? '' : Redacted.value(v))))
@@ -28,7 +29,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
       NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
       HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? (process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
-      HYPERSYNC_API_TOKEN: Redacted.make(process.env.HYPERSYNC_API_TOKEN || 'unset'),
+      HYPERSYNC_API_TOKEN: Redacted.make(runtimeSecret('HYPERSYNC_API_TOKEN') || 'unset'),
     },
   },
   Effect.gen(function* () {

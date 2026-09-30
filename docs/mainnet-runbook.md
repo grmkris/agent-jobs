@@ -118,10 +118,8 @@ Expected: the evaluator address, the arbitrator, `true`. There is no token allow
 
 ## 4. Cloudflare prod stage (no chain transaction)
 
-- `pnpm deploy:prod` (= `AGENT_JOBS_NETWORK=monad-mainnet ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage prod --yes`).
-- **Blocker:** remote state needs **Secrets Store: Edit** on the Cloudflare token. Without it, either:
-  - add the permission (preferred: prod state must not live only on netcup), or
-  - deploy with local state: `unset ALCHEMY_REMOTE_STATE; AGENT_JOBS_NETWORK=monad-mainnet pnpm exec alchemy deploy --stage prod --yes`, and back up `.alchemy/`.
+- `pnpm deploy:prod` selects mainnet plus `AGENT_JOBS_STAGE=prod`, and runs the fail-closed check described in `docs/p0-production-preflight.md` before evaluating any resource. Supply the explicitly reviewed `AGENT_JOBS_PROD_ARTIFACT` path first; the proposed artifact intentionally fails today.
+- **Blocker:** remote state needs **Secrets Store: Edit** on the Cloudflare token. Fix that permission before production deployment; local-only production state is no longer an accepted fallback.
 - Deploy only **after** step 3: Explore reads `.deployment` at build time.
 - Checks:
   - `curl <api>/health`;

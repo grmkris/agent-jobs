@@ -6,6 +6,7 @@ import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { DirectoryError, PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
@@ -83,15 +84,16 @@ export default class Api extends Cloudflare.Worker<Api>()(
     env: {
       DIRECTORY_DATABASE: Database,
       NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
+      DEPLOY_STAGE: process.env.AGENT_JOBS_STAGE ?? 'local',
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       SCREENING_BASE_URL: process.env.ARBITER_MODEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
       SCREENING_MODEL: process.env.SCREENING_MODEL || 'anthropic/claude-haiku-4.5',
-      AI_GATEWAY_API_KEY: Redacted.make(process.env.AI_GATEWAY_API_KEY || 'unset'),
-      ATTESTER_PRIVATE_KEY: Redacted.make(process.env.ATTESTER_PRIVATE_KEY || 'unset'),
-      RELAY_PRIVATE_KEY: Redacted.make(process.env.RELAY_PRIVATE_KEY || 'unset'),
+      AI_GATEWAY_API_KEY: Redacted.make(runtimeSecret('AI_GATEWAY_API_KEY') || 'unset'),
+      ATTESTER_PRIVATE_KEY: Redacted.make(runtimeSecret('ATTESTER_PRIVATE_KEY') || 'unset'),
+      RELAY_PRIVATE_KEY: Redacted.make(runtimeSecret('RELAY_PRIVATE_KEY') || 'unset'),
       GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
       GITHUB_APP_INSTALLATION_ID: process.env.GITHUB_APP_INSTALLATION_ID || '',
-      GITHUB_APP_PRIVATE_KEY: Redacted.make(process.env.GITHUB_APP_PRIVATE_KEY || 'unset'),
+      GITHUB_APP_PRIVATE_KEY: Redacted.make(runtimeSecret('GITHUB_APP_PRIVATE_KEY') || 'unset'),
     },
   },
   Effect.gen(function* () {
@@ -106,6 +108,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.originalUrl)
         const network = (yield* Config.String('NETWORK')) as sdk.Network
+        const stage = yield* Config.String('DEPLOY_STAGE')
+        if (network === 'monad-mainnet' && stage !== 'prod') return HttpServerResponse.jsonUnsafe({ ok: false, code: 'unavailable', message: 'production stage mismatch' }, { status: 503 })
         const rpcUrl = yield* secret('MONAD_RPC_URL')
         const relayKey = yield* secret('RELAY_PRIVATE_KEY')
         const deployment = sdk.deployment(network)

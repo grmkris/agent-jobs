@@ -1,11 +1,13 @@
 import { fileURLToPath } from 'node:url'
 import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
+import { Stage } from 'alchemy/Stage'
 import * as Effect from 'effect/Effect'
 import { Database } from './apps/api/src/database.ts'
 import { Manifests } from './apps/api/src/manifests.ts'
 import Api from './apps/api/src/worker.ts'
 import Indexer from './apps/indexer/src/worker.ts'
+import { assertDeployConfig } from './apps/api/src/deploy-preflight.ts'
 
 /**
  * The whole Cloudflare stack. `alchemy dev` runs it in local workerd; `alchemy deploy --stage
@@ -19,6 +21,8 @@ export default Alchemy.Stack(
     state: process.env.ALCHEMY_REMOTE_STATE ? Cloudflare.state() : Alchemy.localState(),
   },
   Effect.gen(function* () {
+    const stage = yield* Stage
+    yield* Effect.promise(() => assertDeployConfig(stage))
     const database = yield* Database
     const manifests = yield* Manifests
     const api = yield* Api
