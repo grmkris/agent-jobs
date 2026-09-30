@@ -7,7 +7,7 @@ import { InstallHint } from '../components/InstallHint.tsx'
 import { Sentence, phaseOf } from '../components/Phase.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Button, EmptyState, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
+import { Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { useAuth, useSignOut } from '../components/Wallet.tsx'
 import { useJobs } from './Jobs.tsx'
 
@@ -56,7 +56,7 @@ export function MePage() {
 }
 
 function NeedsYou({ address }: { address: string }) {
-  const { items, loading } = useJobs()
+  const { items, loading, chainUnavailable, chainError, refetch } = useJobs()
   const now = useNow()
   // Recomputed each minute, not each second: the list only changes when a deadline passes.
   const minute = Math.floor(now / 60)
@@ -69,8 +69,11 @@ function NeedsYou({ address }: { address: string }) {
     [items, address, minute],
   )
   return (
-    <Section title={loading ? 'Needs you' : `Needs you · ${mine.length}`} note="From chain facts; a job's page shows exact review and dispute deadlines.">
-      {loading ? (
+    <Section title={loading || chainUnavailable ? 'Needs you' : `Needs you · ${mine.length}`} note="From chain facts; a job's page shows exact review and dispute deadlines.">
+      {chainError !== null && <ErrorText>Chain data is unavailable. {chainUnavailable ? 'Actions and counts cannot be confirmed.' : 'Showing last-known actions.'} <Button variant="tinted" onClick={() => void refetch()}>Retry</Button></ErrorText>}
+      {chainUnavailable ? (
+        <EmptyState title="Chain status unavailable">Retry before deciding whether a job needs you.</EmptyState>
+      ) : loading ? (
         <LoadingRows rows={2} />
       ) : mine.length === 0 ? (
         <EmptyState title="Nothing needs you right now">Approvals, selections and refunds you can claim show up here.</EmptyState>

@@ -20,7 +20,7 @@ export interface JobListItem {
 }
 
 /** Stable, so useQueries keeps the combined array until one of the lists changes. */
-const dataOf = (results: { data?: TaskIndexEntry[] | undefined }[]) => results.map((r) => r.data)
+const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) => results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
 
 export function useJobs() {
   const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 20_000 })
@@ -42,21 +42,33 @@ export function useJobs() {
       else out.push({ jobId: t.jobId, task: t, chain: undefined })
     }
     others.forEach((id, i) => {
-      for (const t of otherData[i] ?? []) {
+      for (const t of otherData[i]?.data ?? []) {
         const row = t.jobId === null ? undefined : byJob.get(t.jobId)
         if (row !== undefined && row.chain?.board_id === id) row.task = t
       }
     })
     return [...byJob.values(), ...out].toSorted((a, b) => Number(b.jobId ?? 1e9) - Number(a.jobId ?? 1e9))
   }, [tasks.data, chain.data, others, otherData])
-  return { items, index: chain.data?.index ?? null, loading: tasks.isLoading || chain.isLoading, error: tasks.error ?? chain.error }
+  return {
+    items,
+    index: chain.data?.index ?? null,
+    loading: tasks.isLoading || chain.isLoading,
+    error: tasks.error ?? chain.error,
+    chainError: chain.error,
+    boardError: tasks.error ?? otherData.find((result) => result.error !== null)?.error ?? null,
+    chainReady: chain.data !== undefined,
+    chainUpdatedAt: chain.dataUpdatedAt,
+    chainUnavailable: chain.error !== null && chain.data === undefined,
+    refetch: async () => { await Promise.all([tasks.refetch(), chain.refetch(), ...otherData.map((result) => result.refetch())]) },
+  }
 }
 
 type View = 'all' | 'open' | 'progress' | 'done' | 'mine'
 
 /** Which list a phase belongs in: open to agents, under way, or finished. */
-function viewOf(phase: Phase | null): Exclude<View, 'all' | 'mine'> {
-  if (phase === null || phase.terminal) return 'done'
+function viewOf(phase: Phase | null): Exclude<View, 'all' | 'mine'> | null {
+  if (phase === null) return null
+  if (phase.terminal) return 'done'
   if (['draft', 'draft-stale', 'hire-open', 'contest-open'].includes(phase.key)) return 'open'
   return 'progress'
 }
@@ -103,7 +115,7 @@ function readView(): { view: View; q: string } {
 }
 
 export function JobsPage() {
-  const { items, index, loading, error } = useJobs()
+  const { items, index, loading, error, chainError, boardError, chainReady, chainUpdatedAt, chainUnavailable, refetch } = useJobs()
   const { address } = useAuth()
   const routes = boardRoutes()
   const now = useNow()
@@ -133,13 +145,14 @@ export function JobsPage() {
     me !== undefined && [i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some((a) => a?.toLowerCase() === me)
   const counts = { all: rows.length, open: 0, progress: 0, done: 0, mine: 0 }
   for (const r of rows) {
-    counts[viewOf(r.phase)]++
+    const category = viewOf(r.phase)
+    if (category !== null) counts[category]++
     if (mine(r.item)) counts.mine++
   }
   const needle = q.trim().toLowerCase()
   const shown = rows.filter(
     (r) =>
-      (view === 'all' || (view === 'mine' ? mine(r.item) : viewOf(r.phase) === view)) &&
+      (view === 'all' || (r.phase !== null && (view === 'mine' ? mine(r.item) : viewOf(r.phase) === view))) &&
       (needle === '' || (r.item.task?.title ?? '').toLowerCase().includes(needle) || r.item.jobId === needle.replace(/^#/, '')),
   )
   const views: Array<readonly [View, string]> = [
@@ -168,11 +181,24 @@ export function JobsPage() {
           label="Which jobs"
           value={view}
           onChange={(v) => setFilter({ view: v, q })}
-          options={views.map(([v, l]) => [v, <span key={v}>{l} <span className="tabular text-label-3">{counts[v]}</span></span>] as const)}
+          options={views.map(([v, l]) => [v, <span key={v}>{l} <span className="tabular text-label-3">{chainReady ? counts[v] : '—'}</span></span>] as const)}
         />
       </div>
-      {error !== null && <ErrorText>Jobs are unavailable right now: {(error as Error).message}</ErrorText>}
-      {loading ? (
+      {(chainError !== null || boardError !== null) && (
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn">
+          {chainError !== null && <p>Chain data is unavailable.{chainReady ? ` Showing last-known chain facts from ${new Date(chainUpdatedAt).toLocaleString()}; statuses have not been changed.` : ' Payment statuses and counts cannot be confirmed.'}</p>}
+          {boardError !== null && <p>Board details are unavailable. Existing chain facts still determine payment status; some titles or board details may be missing.</p>}
+          <Button variant="tinted" onClick={() => void refetch()}>Retry</Button>
+        </div>
+      )}
+      {chainUnavailable ? (
+        <EmptyState title="Chain jobs are unavailable">
+          The board list is available, but chain status and counts are not. Retry when the chain index is reachable.
+          <Button size="md" variant="tinted" onClick={() => void refetch()}>Retry chain data</Button>
+        </EmptyState>
+      ) : error !== null && items.length === 0 ? (
+        <EmptyState title="Jobs are unavailable"><ErrorText>{(error as Error).message}</ErrorText><Button size="md" variant="tinted" onClick={() => void refetch()}>Retry</Button></EmptyState>
+      ) : loading ? (
         <LoadingRows rows={6} />
       ) : shown.length === 0 ? (
         <EmptyState title={needle !== '' ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}>
@@ -185,12 +211,12 @@ export function JobsPage() {
       ) : (
         <Group>
           {shown.map(({ item, phase }) => (
-            <JobRow key={item.jobId ?? item.task?.taskId} item={item} phase={phase} note={rowNote(phase, now, item.chain?.agent_id)} />
+            <JobRow key={item.jobId ?? item.task?.taskId} item={item} phase={phase} note={phase === null ? 'Status unavailable · retry chain data' : rowNote(phase, now, item.chain?.agent_id)} />
           ))}
         </Group>
       )}
       <p className="px-4 text-[0.75rem] text-label-3">
-        {index === null ? 'The chain index is not built yet.' : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`} Jobs from before titles were
+        {!chainReady ? 'Chain facts are unavailable.' : index === null ? 'The chain index is not built yet.' : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`} Jobs from before titles were
         kept show as “Job #N”.
       </p>
     </>

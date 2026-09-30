@@ -11,7 +11,7 @@ import { Badge } from './ui.tsx'
 /** Lifecycle input for a list item: the chain row when indexed, else the board's frozen offer (a draft). */
 export function lifecycleInput(chain: ChainJob | undefined, task: TaskIndexEntry | undefined): LifecycleInput | null {
   if (chain !== undefined) return lifecycleFromIndexed(chain)
-  if (task === undefined) return null
+  if (task === undefined || task.jobId !== null) return null
   return {
     mode: task.mode,
     status: task.jobId === null ? 'awaiting-publish' : 'unknown',
@@ -28,7 +28,7 @@ export function phaseOf(chain: ChainJob | undefined, task: TaskIndexEntry | unde
 }
 
 export function PhaseBadge({ phase }: { phase: Phase | null }) {
-  if (phase === null) return <Badge>…</Badge>
+  if (phase === null) return <Badge>Status unavailable</Badge>
   return <Badge tone={phase.tone}>{phase.label}</Badge>
 }
 

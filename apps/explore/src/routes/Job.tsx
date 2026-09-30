@@ -11,7 +11,7 @@ import { type JobEvent, JobActions } from '../components/job/JobActions.tsx'
 import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Address, Badge, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
+import { Address, Badge, Button, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
 import { useToken } from '../useTokens.ts'
@@ -127,7 +127,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   // Minute resolution is enough for phases (deadlines are minutes apart); the countdowns tick on their own.
   const minute = Math.floor(now / 60) * 60
   let phase: Phase | null = null
-  if (t !== undefined) phase = lifecycle({ ...lifecycleFromTask(t), outcome: outcomeOf(d) }, auth.address ?? null, minute)
+  if (t !== undefined && !board.isError) phase = lifecycle({ ...lifecycleFromTask(t), outcome: outcomeOf(d) }, auth.address ?? null, minute)
   else if (d !== undefined) {
     const settlePending = ['rejected', 'cancelled', 'expired'].includes(d.job.status) && d.rewards.length === 0
     phase = lifecycle({ ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }, auth.address ?? null, minute)
@@ -149,8 +149,9 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       <>
         <Back />
         <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
-          <p className="font-semibold">Job #{jobId} is not indexed yet</p>
-          <p className="text-[0.9rem] text-label-2">A newly published job appears about a minute after its block is final.</p>
+          <p className="font-semibold">{chain.isError ? 'Chain job details are unavailable' : `Job #${jobId} is not indexed yet`}</p>
+          <p className="text-[0.9rem] text-label-2">{chain.isError ? 'The chain index could not be read. This does not mean the job is still in progress or unpaid.' : 'A newly published job appears about a minute after its block is final.'}</p>
+          <Button variant="tinted" onClick={() => void chain.refetch()}>Retry job details</Button>
         </div>
       </>
     )
@@ -159,8 +160,15 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   return (
     <>
       <Back />
-      <header className="grid gap-2">
-        <h1 className="font-display text-[1.75rem] leading-[1.15] font-bold tracking-[-0.02em]">{title}</h1>
+      {chain.isError && (
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn">
+          <p>Chain job details are unavailable.{d === undefined ? ' Payment history cannot be confirmed from the index.' : ` Showing last-known indexed facts from ${new Date(chain.dataUpdatedAt).toLocaleString()}.`}</p>
+          <Button variant="tinted" onClick={() => void chain.refetch()}>Retry job details</Button>
+        </div>
+      )}
+      {board.isError && <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn"><p>Board details are unavailable. {d !== undefined ? 'Showing indexed chain facts instead; actions are paused until the offer refreshes.' : 'Offer terms and actions cannot be confirmed.'}</p><Button variant="tinted" onClick={() => void board.refetch()}>Retry offer details</Button></div>}
+      <header className="grid min-w-0 gap-2">
+        <h1 className="font-display text-[1.75rem] leading-[1.15] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-[0.88rem] text-label-2">
           <PhaseBadge phase={phase} />
           {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
@@ -194,6 +202,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           phase={phase}
           roles={roles}
           signedIn={auth.signedIn}
+          sourceAvailable={!board.isError}
           onEvent={onEvent}
         />
       )}
