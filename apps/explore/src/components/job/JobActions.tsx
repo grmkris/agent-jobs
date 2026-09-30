@@ -32,6 +32,12 @@ export interface ActionJob {
   agentId: string | null
   /** The offer's windows, from the board's terms. */
   disputeSeconds: number | null
+  selection?: {
+    state: 'signed' | 'expired' | 'invalid' | 'unavailable'
+    applicationId: string
+    agentId: string
+    activateBy: number
+  }[] | null | undefined
 }
 
 type Pending =
@@ -70,7 +76,6 @@ export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true
   const [violation, setViolation] = useState<Violation>('None')
   const [reason, setReason] = useState('')
   const [statement, setStatement] = useState('')
-  const [selected, setSelected] = useState<string | null>(null)
 
   const agent = job.agentId !== null ? `Agent #${job.agentId}` : 'the agent'
   const reward = amount(job.reward, job.token)
@@ -108,7 +113,11 @@ export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true
         const sel = await api.tool<{ nonce: string; sign: { typedData: string } }>('select_worker', { taskId: job.taskId, applicationId: pending.applicationId })
         const signature = await signTypedDataAsync(typedDataArgs(sel.sign.typedData))
         await api.tool('submit_selection', { taskId: job.taskId, nonce: sel.nonce, signature })
-        setSelected(pending.applicationId)
+        const refreshed = await api.tool<{ selection?: ActionJob['selection'] }>('get_task', { taskId: job.taskId })
+        qc.setQueriesData<{ selection?: ActionJob['selection'] }>({
+          predicate: (query) => query.queryKey[0] === 'get_task' && query.queryKey[1] === job.boardId && query.queryKey[2] === job.taskId && query.queryKey[3] === address && query.queryKey[4] === signedIn,
+        }, (current) => current === undefined ? current : { ...current, selection: refreshed.selection ?? null })
+        void qc.invalidateQueries({ queryKey: ['get_task', job.boardId, job.taskId] })
         setPending(null)
         toast(`Selected Agent #${pending.agentId}. The job starts when it activates.`)
         return
@@ -134,7 +143,7 @@ export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true
 
   return (
     <>
-      {txs === null && sourceAvailable && phase.actions.includes('select') && <Applications job={job} selected={selected} onSelect={(applicationId, agentId) => setPending({ kind: 'select', applicationId, agentId })} />}
+      {txs === null && sourceAvailable && signedIn && phase.actions.includes('select') && <Applications job={job} signedIn={signedIn} onSelect={(applicationId, agentId) => setPending({ kind: 'select', applicationId, agentId })} />}
       {txs === null && sourceAvailable && phase.actions.includes('award') && <Entries job={job} onAward={(candidateId, agentId) => setPending({ kind: 'award', candidateId, agentId })} />}
 
       {(bar.length > 0 || canDispute) && (
@@ -297,15 +306,21 @@ function AgentRecord({ agentId }: { agentId: string }) {
   )
 }
 
-function Applications({ job, selected, onSelect }: { job: ActionJob; selected: string | null; onSelect: (applicationId: string, agentId: string) => void }) {
+function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: boolean; onSelect: (applicationId: string, agentId: string) => void }) {
+  const { address } = useAccount()
+  const selected = new Set(job.selection?.filter((selection) => selection.state === 'signed').map((selection) => selection.applicationId) ?? [])
   const apps = useQuery({
-    queryKey: ['applications', job.boardId, job.taskId],
+    queryKey: ['applications', job.boardId, job.taskId, address, signedIn],
     queryFn: () => boardApi(job.boardId).tool<Array<{ id: string; worker: string; agent_id: string; note: string }>>('list_applications', { taskId: job.taskId }),
+    enabled: signedIn && address !== undefined,
     refetchInterval: 15_000,
   })
   const list = apps.data ?? []
   return (
-    <Section title={`Applications${list.length > 0 ? ` · ${list.length}` : ''}`} note="Agents apply over MCP. Select one: you sign, no transaction; it starts when the agent activates.">
+    <Section title={`Applications${list.length > 0 ? ` · ${list.length}` : ''}`} note={selected.size > 0 ? 'Selection is signed, not an activation. Other unexpired selections remain usable until one worker activates.' : 'Agents apply over MCP. Select one: you sign, no transaction; it starts when the agent activates.'}>
+      {selected.size === 0 && job.selection?.some((selection) => selection.state === 'expired') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">The previous selection expired before activation. You can select an applicant again.</p>}
+      {selected.size === 0 && job.selection?.some((selection) => selection.state === 'invalid') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">The previous selection is no longer valid for this offer. No worker activation is confirmed.</p>}
+      {job.selection?.some((selection) => selection.state === 'unavailable') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">Selection verification is unavailable. A stored signature is not proof the worker can still activate.</p>}
       {apps.isLoading ? null : list.length === 0 ? (
         <EmptyState title="No applications yet">Agents that apply show up here with their record.</EmptyState>
       ) : (
@@ -322,7 +337,7 @@ function Applications({ job, selected, onSelect }: { job: ActionJob; selected: s
                 </span>
                 {a.note !== '' && <span className="block text-[0.86rem] text-label-2">“{a.note}”</span>}
               </span>
-              {selected === a.id ? <Badge tone="success">Selected</Badge> : <Button size="sm" variant="tinted" onClick={() => onSelect(a.id, a.agent_id)}>Select</Button>}
+              {selected.has(a.id) ? <Badge tone="success">Selected</Badge> : <Button size="sm" variant="tinted" onClick={() => onSelect(a.id, a.agent_id)}>Select</Button>}
             </ListRow>
           ))}
         </Group>

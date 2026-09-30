@@ -7,7 +7,7 @@ import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TaskIn
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { Delivered, type EvidenceRow } from '../components/job/Deliverables.tsx'
-import { type JobEvent, JobActions } from '../components/job/JobActions.tsx'
+import { type ActionJob, type JobEvent, JobActions } from '../components/job/JobActions.tsx'
 import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
@@ -75,6 +75,7 @@ interface BoardTask {
     paused?: boolean
   }
   you: string[] | null
+  selection?: ActionJob['selection']
   terms: { brief?: string; acceptanceCriteria?: string[]; windows?: { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }
   deliverables?: Array<{ repo: string; branch: string; sha: string; deliverable_hash: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>
   evidence?: Array<{ submissionHash: string; label: string }>
@@ -115,23 +116,32 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   const boardId = d?.board?.boardId ?? currentBoardId()
   const taskId = d?.board?.taskId ?? listed?.taskId
   const board = useQuery({
-    queryKey: ['get_task', boardId, taskId, auth.signedIn],
+    queryKey: ['get_task', boardId, taskId, auth.address, auth.signedIn],
     queryFn: () => boardApi(boardId).tool<BoardTask>('get_task', { taskId }),
     enabled: taskId !== undefined,
     refetchInterval: 15_000,
   })
   const t = board.data
   const mode: 'hire' | 'contest' = (t?.mode ?? d?.job.mode ?? listed?.mode) === 'contest' ? 'contest' : 'hire'
-  const roles = t?.you ?? []
+  const roles = auth.signedIn ? t?.you ?? [] : []
 
   // Minute resolution is enough for phases (deadlines are minutes apart); the countdowns tick on their own.
   const minute = Math.floor(now / 60) * 60
   let phase: Phase | null = null
-  if (t !== undefined && !board.isError) phase = lifecycle({ ...lifecycleFromTask(t), outcome: outcomeOf(d) }, auth.address ?? null, minute)
+  if (t !== undefined && !board.isError) {
+    const lifecycleTask = lifecycleFromTask(t)
+    if (roles.includes('creator') && auth.address !== undefined && lifecycleTask.parties.creator?.toLowerCase() !== auth.address.toLowerCase()) {
+      lifecycleTask.parties = { ...lifecycleTask.parties, creator: auth.address }
+    }
+    phase = lifecycle({ ...lifecycleTask, outcome: outcomeOf(d) }, auth.signedIn ? auth.address ?? null : null, minute)
+  }
   else if (d !== undefined) {
     const settlePending = ['rejected', 'cancelled', 'expired'].includes(d.job.status) && d.rewards.length === 0
-    phase = lifecycle({ ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }, auth.address ?? null, minute)
+    phase = lifecycle({ ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }, auth.signedIn ? auth.address ?? null : null, minute)
   }
+
+  const selection = auth.signedIn ? t?.selection : undefined
+  const waitingForActivation = !board.isError && !chain.isError && phase?.key === 'hire-open' && t?.chain.provider === null && selection?.some((record) => record.state === 'signed') === true
 
   const title = listed?.title ?? t?.title ?? (/^\d+$/.test(jobId) ? `Job #${jobId}` : 'Job')
   const brief = listed?.brief ?? t?.terms.brief
@@ -170,7 +180,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       <header className="grid min-w-0 gap-2">
         <h1 className="font-display text-[1.75rem] leading-[1.15] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-[0.88rem] text-label-2">
-          <PhaseBadge phase={phase} />
+          {waitingForActivation ? <><Badge tone="success">Selected</Badge><span>On-chain: Open</span></> : <PhaseBadge phase={phase} />}
           {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
           <span>· {mode === 'contest' ? 'Contest' : listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
           {otherBoard && <Badge tone="info">{d?.board?.boardId}</Badge>}
@@ -184,7 +194,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
       {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} />}
 
-      {phase !== null && <NextStep phase={phase} />}
+      {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-[0.88rem] text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
 
       {phase !== null && t !== undefined && taskId !== undefined && (
         <JobActions
@@ -198,6 +208,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
             workerBond: d?.job.worker_bond ?? listed?.workerBond ?? null,
             agentId,
             disputeSeconds: t.terms.windows?.disputeSeconds ?? null,
+            selection,
           }}
           phase={phase}
           roles={roles}

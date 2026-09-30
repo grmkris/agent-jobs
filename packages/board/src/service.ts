@@ -34,6 +34,7 @@ import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } fro
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
 import { screenOffer } from './screening.ts'
+import { creatorSelectionProjection } from './selection.ts'
 import { typedDataJson } from './typed-data.ts'
 import {
   type ApplicationRow,
@@ -2258,6 +2259,42 @@ export class Board {
     const task = this.#task(input.taskId)
     const summary = await this.#summary(task, caller)
     const me = caller.address
+    const creatorSelection = me === undefined || !this.#actsForCreator(task, me)
+      ? undefined
+      : await creatorSelectionProjection(
+          this.#sql.all<SelectionRow & { application_worker: string | null; application_agent_id: string | null }>(
+            `SELECT s.*, a.worker AS application_worker, a.agent_id AS application_agent_id
+             FROM selections AS s LEFT JOIN applications AS a ON a.id = s.application_id AND a.task_id = s.task_id
+             WHERE s.task_id = ? ORDER BY s.created_at DESC`,
+            task.id,
+          ),
+          summary.chain,
+          this.#now(),
+          summary.deliveryDeadline,
+          async (selection) => {
+            const ctx = this.#taskCtx(task)
+            const [used, wallet, valid] = await Promise.all([
+              ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'selectionNonceUsed', args: [getAddress(task.creator), BigInt(selection.nonce)] }),
+              sdk.agentWallet(ctx, BigInt(selection.agent_id)),
+              ctx.publicClient.verifyTypedData({
+                address: getAddress(task.creator),
+                domain: sdk.holdingDomain(ctx.deployment.chainId, ctx.stack.holding),
+                types: sdk.selectionTypes,
+                primaryType: 'Selection',
+                message: {
+                  jobId: BigInt(task.job_id as string),
+                  worker: getAddress(selection.worker),
+                  agentId: BigInt(selection.agent_id),
+                  termsHash: task.terms_hash as Hex,
+                  activateBy: selection.activate_by,
+                  nonce: BigInt(selection.nonce),
+                },
+                signature: selection.signature as Hex,
+              }),
+            ])
+            return !used && eq(wallet, selection.worker) && valid
+          },
+        )
     const mine =
       me === undefined
         ? undefined
@@ -2274,7 +2311,7 @@ export class Board {
       )
       .map(deliverableView)
     const onchain = this.#sql.all<{ deliverable_hash: string; tx_hash: string }>('SELECT deliverable_hash, tx_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0] ?? null
-    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, deliverables, onchainSubmission: onchain, evidence: this.#evidence(task), operations }
+    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, ...(creatorSelection === undefined ? {} : { selection: creatorSelection }), deliverables, onchainSubmission: onchain, evidence: this.#evidence(task), operations }
   }
 
   async #summary(task: TaskRow, caller: Caller) {
@@ -2319,7 +2356,13 @@ export class Board {
       jobId: task.job_id,
       screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),
       chain: { ...view, paused: await this.paused(task.stack as sdk.StackName) },
-      you: caller.address === undefined ? null : this.#roles(terms, view, caller.address),
+      you: caller.address === undefined
+        ? null
+        : (() => {
+            const roles = this.#roles(terms, view, caller.address)
+            if (this.#actsForCreator(task, caller.address) && !roles.includes('creator')) roles.push('creator')
+            return roles
+          })(),
     }
   }
 
