@@ -148,3 +148,23 @@ MetaMask's services refuse 10143, so its transaction path is proven only here: `
 ## 8. Not blocking B7
 
 The CRE receiver (`Recipe.deployReceiver`) waits for Chainlink CRE deploy access; the board's attester covers evidence until then.
+
+## 9. P0 no-mutation drills and owner alerts
+
+Run `pnpm p0:drills` locally before treating fresh production state as recoverable. The drill creates
+disposable SQLite files under `/tmp`, installs the real D1/indexer/registry/session schemas, preserves hosted rows,
+backs up/restores the database, and runs the real indexer reset/rebuild against bounded recorded chain logs.
+`bun scripts/p0-drills.ts --live-testnet` instead rebuilds from a bounded read-only Monad testnet RPC log range
+(at most 8000 blocks, 100-block pages). It never connects to remote D1, Cloudflare, HyperSync, Telegram, or any production resource.
+`apps/api/test/recovery.test.ts` additionally restores/rebuilds rows in two disposable local D1 databases under
+real workerd and checks the runtime identity. Both tests retain a hosted sentinel; the Node adapter also installs
+the actual hosted registry/session schemas. Neither proves restoration of a production session or Durable Object.
+The local SQLite/local D1 row restore proof is not a remote Cloudflare D1 infrastructure restore proof. A backup is evidence of recoverability, not a source of truth for
+balances or settlement.
+
+The ops alert adapter emits owner-only records for uptime, indexer lag, failed publishes, stuck/owed escrows, and
+unexpected admin events. Its transport is injected; tests use a fake sender and deduplicate by alert id. The real
+myagent bot (`@mymanbot_bot`) is a prepared, not live-enabled, transport target: no bot token, `getUpdates`, webhook, or live message
+is used by this preparation track. Expected refusal is a metric, not an incident, and direct chain rights remain
+permissionless even while hosted admission is drained.
+See `docs/p0-admission.md` and `docs/p0-owner-alerts.md` for the production boundary, tests, and remaining live gates.

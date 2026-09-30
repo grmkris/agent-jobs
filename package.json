@@ -18,6 +18,7 @@
     "alchemy": "alchemy",
     "testnet:flows": "bun packages/sdk/scripts/flows.ts",
     "reality-check": "bun scripts/reality-check.ts",
+    "p0:drills": "bun scripts/p0-drills.ts",
     "cre:simulate": "pnpm --filter @agent-jobs/ci-evidence run simulate",
     "cre:setup": "pnpm --filter @agent-jobs/ci-evidence run setup",
     "cre:cleanup": "pnpm --filter @agent-jobs/ci-evidence run cleanup"
