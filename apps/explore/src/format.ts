@@ -29,11 +29,24 @@ export const TOKENS: Record<string, TokenMeta> = isMainnet
       [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18 },
     }
 
+let registryVersion = 0
+const tokenListeners = new Set<() => void>()
+export const tokenRegistryVersion = () => registryVersion
+export const subscribeTokens = (listener: () => void) => {
+  tokenListeners.add(listener)
+  return () => tokenListeners.delete(listener)
+}
+
 export function registerTokens(tokens: ReadonlyArray<{ address: string; symbol: string; decimals: number }>): void {
+  let changed = false
   for (const t of tokens) {
     const a = t.address.toLowerCase()
-    TOKENS[a] ??= { symbol: t.symbol, decimals: t.decimals, ...(isListedToken(a) ? {} : { unverified: true }) }
+    if (TOKENS[a] === undefined) {
+      TOKENS[a] = { symbol: t.symbol, decimals: t.decimals, ...(isListedToken(a) ? {} : { unverified: true }) }
+      changed = true
+    }
   }
+  if (changed) { registryVersion++; tokenListeners.forEach((listener) => listener()) }
 }
 
 /** A token's symbol and decimals once known; undefined for one not read yet. */
@@ -52,13 +65,15 @@ export function formatNumber(value: bigint, decimals: number): string {
   const [whole = '0', frac = ''] = formatUnits(value, decimals).split('.')
   const grouped = BigInt(whole).toLocaleString('en-US')
   const f = frac.slice(0, 4).replace(/0+$/, '')
+  if (value > 0n && BigInt(whole) === 0n && f === '') return '<0.0001'
   return f === '' ? grouped : `${grouped}.${f}`
 }
 
 /** "7 mUSD". Testnet's "test tokens, no real value" is said once, on the network pill, not after every amount. */
 export function amount(value: string | null | undefined, token: string | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  const t = tokenInfo(token)
+  const t = tokenMeta((token ?? '').toLowerCase())
+  if (t === undefined) return '— tokens'
   return `${formatNumber(BigInt(value), t.decimals)} ${t.symbol}`
 }
 

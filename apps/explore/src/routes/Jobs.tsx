@@ -10,7 +10,8 @@ import { Sheet } from '../components/Sheet.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Segmented, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
-import { amount, relative, tokenInfo } from '../format.ts'
+import { amount, relative, tokenMeta } from '../format.ts'
+import { useToken, useTokenList } from '../useTokens.ts'
 
 export interface JobListItem {
   jobId: string | null
@@ -202,6 +203,8 @@ function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase | null;
   const agentId = item.chain?.agent_id
   const reward = item.chain?.reward ?? item.task?.reward
   const token = item.chain?.token ?? item.task?.token
+  const meta = useToken(token)
+  const rewardText = meta === 'reading' ? 'Reading token…' : meta === 'none' ? 'Token unavailable' : amount(reward, token)
   const other = routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public' ? item.chain.board_id : null
   const target =
     item.jobId === null
@@ -232,8 +235,8 @@ function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase | null;
           <span className="truncate">{note}</span>
         </span>
       </span>
-      <span className="shrink-0 text-right">
-        <span className="tabular block font-semibold">{amount(reward, token)}</span>
+      <span className="min-w-0 max-w-[38%] shrink text-right">
+        <span className="tabular block whitespace-normal font-semibold [overflow-wrap:anywhere]">{rewardText}</span>
         <span className="block text-[0.75rem] text-label-3">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
       </span>
       <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
@@ -254,9 +257,10 @@ function Welcome() {
   const stats = useQuery({ queryKey: ['data-stats'], queryFn: () => data<Stats>('stats'), refetchInterval: 60_000 })
   const [how, setHow] = useState(false)
   const s = stats.data
+  useTokenList(Object.keys(s?.paidOut ?? {}))
   // Largest first in whole tokens (an 18-decimal token's base units would always win).
   const paid = Object.entries(s?.paidOut ?? {})
-    .map(([t, v]) => ({ t, v: BigInt(v), n: Number(BigInt(v)) / 10 ** tokenInfo(t).decimals }))
+    .map(([t, v]) => ({ t, v: BigInt(v), n: tokenMeta(t) === undefined ? -1 : Number(BigInt(v)) / 10 ** (tokenMeta(t)?.decimals ?? 0) }))
     .toSorted((a, b) => b.n - a.n)
   return (
     <section className="grid gap-4 rounded-[1.25rem] bg-surface p-5 shadow-float sm:p-6">

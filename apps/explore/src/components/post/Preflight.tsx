@@ -2,6 +2,7 @@ import * as sdk from '@agent-jobs/sdk'
 import { zeroAddress } from 'viem'
 import { useBalance, useReadContract } from 'wagmi'
 import { amount, formatNumber, tokenInfo } from '../../format.ts'
+import { useToken } from '../../useTokens.ts'
 import { chain, deployment, isMainnet } from '../../wallet.ts'
 import { Group, ListRow, Section } from '../ui.tsx'
 import { Mark } from './parts.tsx'
@@ -30,6 +31,7 @@ export function Preflight({
   later?: boolean
 }) {
   const on = address !== undefined
+  const metadata = useToken(token)
   const who = address ?? zeroAddress
   const holding = deployment.stacks[stack as sdk.StackName]?.holding
   const q = { refetchInterval: 15_000 }
@@ -88,7 +90,7 @@ export function Preflight({
                 <span className="block text-[0.8rem] text-warn">You need {amount((reward - tokenHeld).toString(), token)} more.</span>
               )}
             </span>
-            <span className="tabular text-right text-label-2">{tokenHeld === undefined ? '…' : `You hold ${formatNumber(tokenHeld, tokenInfo(token).decimals)}`}</span>
+            <span className="tabular text-right text-label-2">{tokenHeld === undefined || typeof metadata === 'string' ? 'Token amount unavailable' : `You hold ${formatNumber(tokenHeld, metadata.decimals)} ${metadata.symbol}`}</span>
           </ListRow>
         )}
         <ListRow inset>

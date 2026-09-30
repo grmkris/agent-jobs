@@ -11,6 +11,7 @@ import { useNow } from '../components/Time.tsx'
 import { Address, Amount, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, Skeleton, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
+import { useTokenList } from '../useTokens.ts'
 import { chain, deployment } from '../wallet.ts'
 import type { AgentSummary } from './Agents.tsx'
 
@@ -271,6 +272,7 @@ function Record({ record }: { record: AgentRecord }) {
   const now = useNow()
   const minute = Math.floor(now / 60) * 60
   const a = record.agent
+  useTokenList(Object.keys(a.earned))
   // Open and past the delivery deadline: nothing was submitted, so anyone can close it (refund, and any bond burns).
   const overdue = useMemo(() => record.jobs.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < minute), [record.jobs, minute])
   const bondAtStake = overdue.some((j) => j.worker_bond !== null && j.worker_bond !== '0')

@@ -3,6 +3,7 @@ import { Lock } from 'lucide-react'
 import { useState } from 'react'
 import { type DeliverableKind, type DeliverableSpec, type TxRequest, currentBoardId, tool } from '../../api.ts'
 import { amount, bond } from '../../format.ts'
+import { useToken } from '../../useTokens.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../BoardLink.tsx'
 import { useToast } from '../Sheet.tsx'
 import { When, useNow } from '../Time.tsx'
@@ -53,6 +54,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const t = task.data
+  useToken(t?.token)
   const mine = t !== undefined && auth.address !== undefined && t.creator.toLowerCase() === auth.address.toLowerCase()
 
   const header = (
@@ -201,7 +203,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
           )}
           {error !== null && <ErrorText>{error}</ErrorText>}
           <Section title="Publish" note={`Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`}>
-            {txs !== null ? <TxSteps key={taskId} taskId={taskId} txs={txs} canSend={!lapsed} onDone={(hashes) => void published(hashes)} /> : <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>Prepare wallet steps</Button>}
+            {txs !== null ? <TxSteps key={taskId} taskId={taskId} txs={txs} owner={t.creator} canSend={!lapsed && mine} onDone={(hashes) => void published(hashes)} /> : <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>Prepare wallet steps</Button>}
           </Section>
         </>
       )}

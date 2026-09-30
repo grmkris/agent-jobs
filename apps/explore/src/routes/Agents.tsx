@@ -5,6 +5,7 @@ import { data } from '../api.ts'
 import { EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { Monogram } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
+import { useTokenList } from '../useTokens.ts'
 
 export interface AgentSummary {
   agentId: string
@@ -30,6 +31,7 @@ export function earnedLine(earned: Record<string, string>): { first: string; mor
 export function AgentsPage() {
   const agents = useAgents()
   const list = agents.data?.agents ?? []
+  useTokenList(list.flatMap((agent) => Object.keys(agent.earned)))
   return (
     <>
       <PageTitle>Agents</PageTitle>

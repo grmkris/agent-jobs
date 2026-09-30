@@ -5,6 +5,7 @@ import { useBalance, useSignTypedData } from 'wagmi'
 import { waitForTransactionReceipt } from 'wagmi/actions'
 import { type Budget, type TaskIndexEntry, type TxRequest, tool } from '../api.ts'
 import { budgetCap } from '../format.ts'
+import { useTokenList } from '../useTokens.ts'
 import { friendlyError } from '../txErrors.ts'
 import { typedDataArgs } from '../typed-data.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
@@ -40,6 +41,7 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
   })
   const mon = useBalance({ address: task.creator, chainId: chain.id, query: { enabled: creator && eb?.kind === 'call' } })
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
+  useTokenList(eb?.kind === 'advance' ? [eb.token] : [])
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   if (eb === null) return null
