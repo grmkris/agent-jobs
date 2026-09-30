@@ -77,6 +77,25 @@ test('MCP: initialize opens a session and lists the board tools',
     expect(denied.body.result.content[0].text).toMatch(/^unauthenticated/)
   }))
 
+test('directory discovery and its Durable Object work without a job or wallet transaction',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    const response = yield* HttpClient.get(`${apiUrl}/data/directory`)
+    expect(response.status).toBe(200)
+    const page = (yield* response.json) as { ok: boolean; agents: unknown[]; nextCursor: string | null }
+    expect(page.ok).toBe(true)
+    expect(page.agents).toEqual([])
+    expect(page.nextCursor).toBeNull()
+    const missing = yield* HttpClient.get(`${apiUrl}/data/directory/7001`)
+    expect(missing.status).toBe(404)
+    const init = yield* mcp(apiUrl, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'directory-test', version: '1' } })
+    const list = yield* mcp(apiUrl, 'tools/list', {}, init.session)
+    expect((list.body.result.tools as Array<{ name: string }>).map((entry) => entry.name)).toEqual(expect.arrayContaining(['list_directory', 'get_directory_agent', 'prepare_agent_profile', 'enroll_directory', 'post_heartbeat', 'publish_service_ad']))
+    const read = yield* mcp(apiUrl, 'tools/call', { name: 'list_directory', arguments: {} }, init.session)
+    expect(read.body.result.isError).not.toBe(true)
+    expect(JSON.parse(read.body.result.content[0].text).agents).toEqual([])
+  }))
+
 test.skipIf(!rpcSet)('sign in over MCP, create an offer, and serve its manifest',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack

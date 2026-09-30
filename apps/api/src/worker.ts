@@ -5,7 +5,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { DirectoryError, PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
@@ -18,6 +18,8 @@ import { rpcUrlForNetwork } from './network.ts'
 import { boardOfTerms, dripState, getBoard, jobsOfBoard, jobsWithBoards, listBoards, migrateRegistry, recordOffer } from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import { tools } from './tools.ts'
+import DirectoryObject from './directory-object.ts'
+import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 
 const MCP_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
@@ -54,7 +56,7 @@ const BOARD_ROUTE = /^\/b\/([a-z0-9-]{3,32})(\/.*)?$/
 const now = () => Math.floor(Date.now() / 1000)
 /** A Worker-side failure as a board reply: tenant and session errors keep their code, anything else is `error`. */
 const failure = (e: unknown): BoardReply =>
-  e instanceof TenantError || e instanceof SessionError
+  e instanceof TenantError || e instanceof SessionError || e instanceof DirectoryError
     ? { ok: false, code: e.code, message: e.message }
     : { ok: false, code: 'error', message: e instanceof Error ? e.message : String(e) }
 const BOARD_CACHE_SECONDS = 30
@@ -79,6 +81,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     dev: { port: 8788 },
     // Values come from the deploying shell (.env.local); secrets are bound as secret_text, never plain text.
     env: {
+      DIRECTORY_DATABASE: Database,
       NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       SCREENING_BASE_URL: process.env.ARBITER_MODEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
@@ -93,6 +96,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   },
   Effect.gen(function* () {
     const boards = yield* Board
+    const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.
     const facts = yield* Cloudflare.D1.QueryDatabase(Database)
@@ -138,6 +142,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         })
         migrated ??= (async () => {
           await migrateRegistry(sql)
+          await migrateDirectory(sql)
           await desk.migrate()
         })()
         yield* Effect.promise(() => migrated as Promise<void>)
@@ -193,6 +198,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
           },
         }
         const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '') || undefined
+        const directoryCall = (tool: string, args: Record<string, unknown>) => runDirectoryTool({
+          sql, network, rpcUrl, audience: url.origin,
+          call: async (id, req) => JSON.parse(await yieldlessDirectoryCall(id, req)),
+        }, tool, args)
+        const yieldlessDirectoryCall = async (id: string, req: import('./directory-object.ts').DirectoryCall) =>
+          Effect.runPromise(directory.getByName(`${chainId}:${deployment.identity.toLowerCase()}:${url.origin}:${id}`).call(req))
 
         /**
          * Calls one tool: sign-in and registry tools in the Worker, everything else in the board's Durable Object with
@@ -202,6 +213,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           Effect.gen(function* () {
             const pre = yield* Effect.promise(async (): Promise<{ reply: BoardReply } | { forward: { args: Record<string, unknown>; caller: string | undefined } }> => {
               try {
+                if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args) } }
                 const session = await desk.resolve({ bearer, mcpSession })
                 if (tool === 'auth_challenge') {
                   return { reply: { ok: true, result: await desk.challenge({ address: String(args.address ?? ''), domain: siweDomain, uri: siweUri, chainId, boardId: tenant.id }) } }
@@ -241,6 +253,17 @@ export default class Api extends Cloudflare.Worker<Api>()(
           })
 
         if (path.startsWith('/data/') && request.method === 'GET') {
+          if (path === '/data/directory' || /^\/data\/directory\/\d{1,78}$/.test(path)) {
+            const reply = yield* Effect.promise(async () => {
+              try {
+                const args = path === '/data/directory'
+                  ? { ...(url.searchParams.has('after') ? { after: url.searchParams.get('after') } : {}), ...(url.searchParams.has('limit') ? { limit: Number(url.searchParams.get('limit')) } : {}) }
+                  : { agentId: path.slice('/data/directory/'.length) }
+                return { ok: true as const, result: await directoryCall(path === '/data/directory' ? 'list_directory' : 'get_directory_agent', args) }
+              } catch (error) { return failure(error) }
+            })
+            return json(reply.ok ? { ok: true, ...(reply.result as Record<string, unknown>) } : reply, reply.ok ? 200 : (STATUS[reply.code] ?? 503), { 'cache-control': 'no-store' })
+          }
           const body = yield* Effect.promise(async () => {
             try {
               if (path === '/data/boards') {
@@ -335,6 +358,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 tools: [
                   ...Object.entries(tools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
                   ...Object.entries(tenantTools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
+                  ...Object.entries(directoryTools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
                 ],
               })
             case 'tools/call': {
