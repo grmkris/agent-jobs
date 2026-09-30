@@ -6,6 +6,7 @@
  * belongs to is kept beside it (`Wallet.tsx`), so another wallet never inherits it.
  */
 import { type BoardApi, PUBLIC_BOARD_ID, createBoardApi } from '@agent-jobs/react'
+import type { DirectoryAgent } from '@agent-jobs/sdk'
 
 export {
   ApiError,
@@ -77,3 +78,16 @@ export const session = (): string | null => boardApi().session()
 export const setSession = (token: string | null): void => boardApi().setSession(token)
 export const tool = <T = any>(name: string, args: Record<string, unknown> = {}): Promise<T> => boardApi().tool<T>(name, args)
 export const data = <T = any>(path: string): Promise<T> => boardApi().data<T>(path)
+
+export interface DirectoryPage {
+  agents: DirectoryAgent[]
+  nextCursor: string | null
+  observedAt: number
+  chainId: number
+  identityRegistry: string
+  scope: string
+}
+
+export const fetchDirectory = (after?: string) => data<DirectoryPage>(`directory${after === undefined ? '' : `?after=${encodeURIComponent(after)}`}`)
+
+export const fetchDirectoryAgent = (agentId: string) => data<{ agent: DirectoryAgent }>(`directory/${encodeURIComponent(agentId)}`)

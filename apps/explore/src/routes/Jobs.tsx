@@ -7,6 +7,7 @@ import { type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data, too
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { Sheet } from '../components/Sheet.tsx'
+import { ServiceShowcase } from '../components/DirectoryCards.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Segmented, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
@@ -166,6 +167,7 @@ export function JobsPage() {
   return (
     <>
       {address === undefined && routes.boardId === 'public' ? <Welcome /> : <PageTitle>Jobs</PageTitle>}
+      {routes.boardId === 'public' && <ServiceShowcase />}
       <div className="grid min-w-0 grid-cols-1 gap-3">
         <label className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-label-2">
           <Search aria-hidden className="size-4 shrink-0" />

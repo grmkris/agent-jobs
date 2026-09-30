@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, PlugZap } from 'lucide-react'
-import { data } from '../api.ts'
-import { EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
+import { ChevronRight, PlugZap, Radio } from 'lucide-react'
+import { data, type DirectoryPage } from '../api.ts'
+import { DirectoryOnboarding } from '../components/DirectoryOnboarding.tsx'
+import { presenceLabel } from '../components/DirectoryCards.tsx'
+import { Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { Monogram } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
 import { useTokenList } from '../useTokens.ts'
+import { useDirectory } from '../directory-query.ts'
 
 export interface AgentSummary {
   agentId: string
@@ -21,6 +24,7 @@ export interface AgentSummary {
 export const useAgents = () =>
   useQuery({ queryKey: ['data-agents'], queryFn: () => data<{ agents: AgentSummary[] }>('agents'), refetchInterval: 30_000 })
 
+
 /** Earnings as "45 mUSD" plus how many other tokens. */
 export function earnedLine(earned: Record<string, string>): { first: string; more: number } {
   const all = Object.entries(earned).map(([token, v]) => amount(v, token))
@@ -30,11 +34,14 @@ export function earnedLine(earned: Record<string, string>): { first: string; mor
 /** Every agent that has taken a job here, from chain facts: jobs, paid, lost, earnings. */
 export function AgentsPage() {
   const agents = useAgents()
+  const directory = useDirectory()
   const list = agents.data?.agents ?? []
+  const enrolled = directory.data?.agents ?? []
   useTokenList(list.flatMap((agent) => Object.keys(agent.earned)))
   return (
     <>
       <PageTitle>Agents</PageTitle>
+      <DirectoryOnboarding />
       <Link to="/connect" className="press flex items-center gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint text-on-tint">
           <PlugZap aria-hidden className="size-5" />
@@ -45,11 +52,11 @@ export function AgentsPage() {
         </span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
       </Link>
-      <Section title="Directory" note="Every agent that has taken a job here, from chain records. Lost contest entries are off-chain and not counted.">
+      <Section title="Job history" note="Every agent that has taken a job here, from chain records. Lost contest entries are off-chain and not counted. This is separate from directory enrollment.">
         {agents.isLoading ? (
           <LoadingRows rows={4} />
         ) : agents.error !== null ? (
-          <ErrorText>The agent directory is unavailable right now.</ErrorText>
+          <ErrorText>The job-history index is unavailable right now.</ErrorText>
         ) : list.length === 0 ? (
           <EmptyState title="No agents yet">The first agent to take a job appears here.</EmptyState>
         ) : (
@@ -77,6 +84,21 @@ export function AgentsPage() {
           </Group>
         )}
       </Section>
+      <Section title="Worker directory" note="Every opted-in worker, including zero-job identities. Presence and ads are discovery only; job admission, funding, settlement and feedback stay on-chain.">
+        {directory.isLoading ? <LoadingRows rows={3} /> : directory.error !== null ? <ErrorText>The service directory is unavailable right now.</ErrorText> : enrolled.length === 0 ? <EmptyState title="No opted-in workers yet">Workers can publish an ad without taking a job first.</EmptyState> : <Group>{enrolled.map((agent) => <DirectoryRow key={`${agent.identityRegistry}:${agent.agentId}`} agent={agent} />)}</Group>}
+        {directory.hasNextPage && <Button variant="gray" busy={directory.isFetchingNextPage} onClick={() => void directory.fetchNextPage()}>Load more workers</Button>}
+      </Section>
     </>
   )
+}
+
+
+function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
+  const presence = presenceLabel(agent)
+  const ad = agent.ads[0]
+  return <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className={rowClass({ inset: true, interactive: true })}>
+    <Monogram seed={`agent-${agent.agentId}`} label={agent.agentId.slice(-2)} size="md" />
+    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{agent.profile.name || `Agent #${agent.agentId}`}</span><span className="block truncate text-[0.84rem] text-label-2">{presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}</span></span>
+    <span className="grid shrink-0 place-items-center text-tint"><Radio aria-hidden className="size-4" /><span className="sr-only">{presence}</span></span><ChevronRight aria-hidden className="size-4 text-label-3" />
+  </Link>
 }

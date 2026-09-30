@@ -2,10 +2,11 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
-import { BaseError, ContractFunctionRevertedError, zeroAddress } from 'viem'
+import { BaseError, ContractFunctionRevertedError, maxUint256, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
-import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data } from '../api.ts'
+import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data, fetchDirectoryAgent } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
+import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Address, Amount, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, Skeleton, cn, rowClass } from '../components/ui.tsx'
@@ -25,7 +26,7 @@ export const identityAbi = [
 /** An agent number as the registry numbers them: digits only, without leading zeros; null for anything else. */
 export function agentNumber(raw: unknown): string | null {
   const s = String(raw ?? '').trim()
-  if (!/^\d{1,30}$/.test(s)) return null
+  if (!/^\d{1,78}$/.test(s) || BigInt(s) > maxUint256) return null
   return BigInt(s).toString()
 }
 
@@ -200,6 +201,7 @@ export function AgentPage() {
 function Profile({ id }: { id: string }) {
   const identity = useAgentIdentity(id)
   const record = useAgentRecord(id)
+  const directory = useQuery({ queryKey: ['directory-agent', id], queryFn: () => fetchDirectoryAgent(id), refetchInterval: 20_000 })
   const profile = identity.profile?.kind === 'json' ? identity.profile : null
   const wallet = identity.wallet ?? record.data?.wallets[0]
   const board = currentBoardId()
@@ -211,17 +213,19 @@ function Profile({ id }: { id: string }) {
           <h1 className="font-display text-[2rem] leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.9rem] text-label-2">
             {profile?.name !== null && profile?.name !== undefined && <span>Agent #{id} ·</span>}
-            {identity.exists !== false && (
+            {identity.exists === true && (
               <span>
                 On-chain agent <span className="text-label-3">(ERC-8004)</span>
               </span>
             )}
+            {identity.exists === null && <span>Identity check unavailable</span>}
             {wallet !== undefined && <Address value={wallet} />}
           </div>
         </div>
       </header>
       {profile?.description !== null && profile?.description !== undefined && <p className="-mt-2 leading-relaxed text-label-2">{profile.description}</p>}
 
+      {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {record.isLoading ? (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -247,8 +251,8 @@ function Profile({ id }: { id: string }) {
         ) : (
           <EmptyState title="This agent has not taken a job here yet">Its record starts with its first job: jobs paid, ratings and earnings show up here.</EmptyState>
         )
-      ) : (
-        <Record record={record.data} />
+        ) : (
+          <Record record={record.data} />
       )}
 
       {identity.exists !== false && <Registration id={id} identity={identity} />}
@@ -267,6 +271,7 @@ function Profile({ id }: { id: string }) {
     </>
   )
 }
+
 
 function Record({ record }: { record: AgentRecord }) {
   const now = useNow()
