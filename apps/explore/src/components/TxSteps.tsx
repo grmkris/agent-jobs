@@ -7,8 +7,8 @@ import { type TxRequest, boardApi } from '../api.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
 import { usePrivyBatch } from './Privy.tsx'
-import { type TxStatus, retryAction } from './txOperation.ts'
-import { Button, ErrorText, Group, ListRow, TxLink, cn } from './ui.tsx'
+import { type TxStatus, retryAction, walletRefused } from './txOperation.ts'
+import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
 
 type Status = TxStatus
 
@@ -49,6 +49,7 @@ function save(key: string, r: OpRecord | null) {
 const LABEL: Record<Status['at'], string> = {
   idle: 'Waiting',
   signing: 'Confirm in your wallet…',
+  uncertain: 'Submission outcome unknown',
   sent: 'Sent · waiting for Monad…',
   confirmed: 'Confirmed · recording…',
   recorded: 'Confirmed',
@@ -61,7 +62,7 @@ const LABEL: Record<Status['at'], string> = {
  * where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in plain words; a failed
  * report is retried without sending again; and a reload picks up a sent transaction instead of offering to resend.
  */
-export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyChange }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void }) {
+export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void }) {
   const { chainId, address } = useAccount()
   const batch = usePrivyBatch(address)
   const { switchChainAsync } = useSwitchChain()
@@ -71,12 +72,13 @@ export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyCh
   const [status, setStatus] = useState<Status[]>(() =>
     (record.batch ? [txs[0] as TxRequest] : txs).map((_, i): Status => {
       const h = record.hashes[i]
-      if (h === null || h === undefined) return { at: 'idle' }
+      if (h === null || h === undefined) return record.pending === i ? { at: 'uncertain', error: 'The wallet outcome is unknown. Reconcile its transaction hash before continuing.' } : { at: 'idle' }
       return record.recorded[i] === true ? { at: 'recorded', hash: h } : { at: 'sent', hash: h }
     }),
   )
   const [switching, setSwitching] = useState<string | null>(null)
-  const [acceptPending, setAcceptPending] = useState(false)
+  const [pendingHash, setPendingHash] = useState('')
+  const sending = useRef(false)
   const done = useRef(false)
 
   const commit = (r: OpRecord) => {
@@ -138,6 +140,12 @@ export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyCh
   }, [allDone])
 
   const run = async (i: number) => {
+    if (sending.current || !canSend || (owner !== undefined && owner.toLowerCase() !== address?.toLowerCase()) || record.pending !== null || retryAction(status[i] ?? { at: 'signing' }) !== 'send') return
+    if (record.batch && batch === null) {
+      set(i, { at: 'failed', error: 'This wallet cannot send a batch; send them one at a time.' })
+      return
+    }
+    sending.current = true
     const withPending = { ...record, pending: i }
     commit(withPending)
     set(i, { at: 'signing' })
@@ -151,20 +159,28 @@ export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyCh
         hash = await sendTransactionAsync({ to: tx.to, data: tx.data, value: 0n, chainId: chain.id })
       }
     } catch (e) {
-      commit({ ...record, pending: null })
-      set(i, { at: 'failed', error: friendlyError(e) })
+      if (walletRefused(e)) {
+        commit({ ...record, pending: null })
+        set(i, { at: 'failed', error: friendlyError(e) })
+      } else {
+        set(i, { at: 'uncertain', error: 'The wallet did not return a transaction hash. It may already have sent this step. Check wallet activity and reconcile the hash; do not send it again.' })
+      }
+      sending.current = false
       return
     }
     const sent = { ...withPending, pending: null, hashes: Object.assign([...record.hashes], { [i]: hash }) }
     commit(sent)
     set(i, { at: 'sent', hash })
     await settle(i, hash, sent)
+    sending.current = false
   }
 
   const next = status.findIndex((s) => s.at !== 'recorded')
   const current = status[next]
   const busy = current !== undefined && (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
+  const safeToRestart = record.pending === null && status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
+  useEffect(() => { onSafeToRestartChange?.(safeToRestart) }, [safeToRestart, onSafeToRestartChange])
 
   if (chainId !== chain.id) {
     return (
@@ -192,12 +208,18 @@ export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyCh
 
   return (
     <div className="grid gap-3">
-      {record.pending !== null && !acceptPending && (
+      {record.pending !== null && current?.at === 'uncertain' && (
         <div className="rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] text-warn">
-          An earlier attempt was handed to your wallet and the page closed before it answered, so it may already have been sent. Check your wallet’s activity first.{' '}
-          <button type="button" className="font-semibold underline" onClick={() => setAcceptPending(true)}>
-            It was not sent
-          </button>
+          <p>{current.error}</p>
+          <Input aria-label="Transaction hash from wallet activity" value={pendingHash} onChange={(event) => setPendingHash(event.target.value)} placeholder="0x… transaction hash" />
+          <Button variant="tinted" disabled={!/^0x[0-9a-fA-F]{64}$/.test(pendingHash)} onClick={() => {
+            const index = record.pending
+            if (index === null) return
+            const hash = pendingHash as Hex
+            const known = { ...record, pending: null, hashes: Object.assign([...record.hashes], { [index]: hash }) }
+            commit(known)
+            void settle(index, hash, known)
+          }}>Check existing transaction</Button>
         </div>
       )}
       <Group>
@@ -221,11 +243,11 @@ export function TxSteps({ taskId, txs, onDone, boardId, canSend = true, onBusyCh
       </Group>
       {current?.at === 'failed' && <ErrorText>{current.error}</ErrorText>}
       {current?.at === 'confirmed' && current.reportError !== undefined && <ErrorText>{current.reportError}</ErrorText>}
-      {!allDone && current !== undefined && (
+      {!allDone && current !== undefined && current.at !== 'uncertain' && (
         <Button
           size="lg"
           busy={busy}
-          disabled={(record.pending !== null && !acceptPending) || (!canSend && retryAction(current) === 'send')}
+          disabled={(!canSend || (owner !== undefined && owner.toLowerCase() !== address?.toLowerCase())) && retryAction(current) === 'send'}
           onClick={() => {
             if (current.at === 'confirmed' && current.reportError !== undefined) void report(next, current.hash, record)
             else if (retryAction(current) === 'receipt' && 'hash' in current && current.hash !== undefined) void settle(next, current.hash, record)

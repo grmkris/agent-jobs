@@ -6,7 +6,7 @@
 import type { JobAction, Phase } from '@agent-jobs/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
-import { useSignTypedData } from 'wagmi'
+import { useAccount, useSignTypedData } from 'wagmi'
 import { type Deliverable, type DeliverableCheck, type TxRequest, boardApi } from '../../api.ts'
 import { amount, bond, span } from '../../format.ts'
 import { friendlyError } from '../../txErrors.ts'
@@ -57,13 +57,14 @@ const VIOLATIONS = [
 ] as const
 type Violation = (typeof VIOLATIONS)[number][0]
 
-export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: ActionJob; phase: Phase; roles: string[]; signedIn: boolean; onEvent?: ((type: JobEvent, payload: Record<string, unknown>) => void) | undefined }) {
+export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true, onEvent }: { job: ActionJob; phase: Phase; roles: string[]; signedIn: boolean; sourceAvailable?: boolean; onEvent?: ((type: JobEvent, payload: Record<string, unknown>) => void) | undefined }) {
   const qc = useQueryClient()
   const toast = useToast()
   const api = boardApi(job.boardId)
   const { signTypedDataAsync } = useSignTypedData()
+  const { address } = useAccount()
   const [pending, setPending] = useState<Pending | null>(null)
-  const [txs, setTxs] = useState<{ list: TxRequest[]; kind: string } | null>(null)
+  const [txs, setTxs] = useState<{ list: TxRequest[]; kind: string; owner: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [violation, setViolation] = useState<Violation>('None')
@@ -98,7 +99,7 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
   }
 
   const go = async () => {
-    if (pending === null) return
+    if (pending === null || txs !== null || !sourceAvailable || address === undefined) return
     setBusy(true)
     setError(null)
     try {
@@ -120,7 +121,7 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
       const kind = pending.kind
       setPending(null)
       if (r.transactions.length === 0) toast('Nothing to send right now: the chain has already moved on. Reload to see where it stands.', 'error')
-      else setTxs({ list: r.transactions, kind })
+      else setTxs({ list: r.transactions, kind, owner: address })
     } catch (e) {
       setError(friendlyError(e))
     } finally {
@@ -133,8 +134,8 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
 
   return (
     <>
-      {phase.actions.includes('select') && <Applications job={job} selected={selected} onSelect={(applicationId, agentId) => setPending({ kind: 'select', applicationId, agentId })} />}
-      {phase.actions.includes('award') && <Entries job={job} onAward={(candidateId, agentId) => setPending({ kind: 'award', candidateId, agentId })} />}
+      {txs === null && sourceAvailable && phase.actions.includes('select') && <Applications job={job} selected={selected} onSelect={(applicationId, agentId) => setPending({ kind: 'select', applicationId, agentId })} />}
+      {txs === null && sourceAvailable && phase.actions.includes('award') && <Entries job={job} onAward={(candidateId, agentId) => setPending({ kind: 'award', candidateId, agentId })} />}
 
       {(bar.length > 0 || canDispute) && (
         <div className="material sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 flex flex-wrap gap-2.5 rounded-2xl p-2.5 shadow-float lg:bottom-4">
@@ -144,13 +145,14 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
               size="lg"
               variant={a === 'approve' ? 'primary' : a === 'settle' ? 'tinted' : 'danger'}
               className={cn('flex-1', a === 'approve' && 'basis-full sm:basis-0')}
-              onClick={() => setPending({ kind: a as 'approve' | 'reject' | 'cancel' | 'settle' })}
+              disabled={txs !== null || !sourceAvailable}
+              onClick={() => { if (txs === null) setPending({ kind: a as 'approve' | 'reject' | 'cancel' | 'settle' }) }}
             >
               {label(a)}
             </Button>
           ))}
           {canDispute && (
-            <Button size="lg" className="flex-1" onClick={() => setPending({ kind: 'dispute' })}>
+            <Button size="lg" className="flex-1" disabled={txs !== null || !sourceAvailable} onClick={() => { if (txs === null) setPending({ kind: 'dispute' }) }}>
               Dispute the rejection
             </Button>
           )}
@@ -262,7 +264,7 @@ export function JobActions({ job, phase, roles, signedIn, onEvent }: { job: Acti
       </ConfirmSheet>
 
       {error !== null && pending === null && <ErrorText>{error}</ErrorText>}
-      {txs !== null && <Section title="Send from your wallet"><TxSteps taskId={job.taskId} boardId={job.boardId} txs={txs.list} onDone={(hashes) => done(txs.kind, hashes)} /></Section>}
+      {txs !== null && <Section title="Send from your wallet"><TxSteps key={`${job.boardId}:${job.taskId}:${txs.kind}`} taskId={job.taskId} boardId={job.boardId} txs={txs.list} owner={txs.owner} canSend={sourceAvailable} onDone={(hashes) => done(txs.kind, hashes)} /></Section>}
     </>
   )
 }

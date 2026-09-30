@@ -229,6 +229,9 @@ export function hoursText(hours: string): string {
 
 /** A frozen offer kept with the draft, so a reload after freezing (or mid-publish) picks up the same offer. */
 export interface Frozen {
+  owner: string
+  form: PostForm
+  started?: boolean
   fp: string
   at: number
   deliveryDeadline: number
@@ -256,7 +259,8 @@ export function loadDraft(key: string, defaults: PostForm): Draft | null {
     const raw = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<Draft> | null
     if (raw === null || raw.v !== 1 || typeof raw.form !== 'object' || raw.form === null) return null
     const step = raw.step === 2 || raw.step === 3 || raw.step === 4 ? raw.step : 1
-    return { v: 1, step, form: { ...defaults, ...raw.form }, prefill: typeof raw.prefill === 'string' ? raw.prefill : '{}', frozen: raw.frozen ?? null }
+    const frozen = raw.frozen !== null && typeof raw.frozen === 'object' && typeof raw.frozen.owner === 'string' && typeof raw.frozen.form === 'object' && raw.frozen.form !== null ? raw.frozen as Frozen : null
+    return { v: 1, step, form: { ...defaults, ...raw.form }, prefill: typeof raw.prefill === 'string' ? raw.prefill : '{}', frozen }
   } catch {
     return null
   }

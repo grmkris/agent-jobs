@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { retryAction } from './txOperation.ts'
+import { retryAction, walletRefused } from './txOperation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
 
@@ -20,5 +20,12 @@ describe('wallet step retry reconciliation', () => {
     expect(retryAction({ at: 'sent', hash })).toBe('wait')
     expect(retryAction({ at: 'confirmed', hash })).toBe('wait')
     expect(retryAction({ at: 'recorded', hash })).toBe('wait')
+    expect(retryAction({ at: 'uncertain', error: 'Transport failed after broadcast' })).toBe('wait')
+  })
+  it('only clears uncertainty after a definitive wallet refusal', () => {
+    expect(walletRefused({ cause: { code: 4001 } })).toBe(true)
+    expect(walletRefused({ code: 'ACTION_REJECTED' })).toBe(true)
+    expect(walletRefused(new Error('Transport failed after broadcast'))).toBe(false)
+    expect(walletRefused(new Error('Request cancelled after submission'))).toBe(false)
   })
 })

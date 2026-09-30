@@ -140,18 +140,19 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const defaults = () => initialForm(prefill, rewardTokenList(), isMainnet)
   const restore = (k: string): Draft | null => {
     const d = loadDraft(k, defaults())
-    return d !== null && d.prefill === pk ? d : null
+    return d !== null && (d.prefill === pk || d.frozen?.started === true) ? d : null
   }
   const [draft, setDraft] = useState<Draft>(() => restore(key) ?? { v: 1, step: 1, form: defaults(), prefill: pk, frozen: null })
   const [saved, setSaved] = useState(false)
-  const [runningOffer, setRunningOffer] = useState<{ frozen: Frozen; owner: string | undefined; reward: string } | null>(null)
+  const [runningOffer, setRunningOffer] = useState<{ frozen: Frozen; owner: string; reward: string } | null>(() => draft.frozen !== null ? { frozen: draft.frozen, owner: draft.frozen.owner, reward: rewardText(draft.frozen.form) } : null)
+  const [safeToRestart, setSafeToRestart] = useState(false)
   const dirty = useRef(false)
   const finished = useRef(false)
   const loadedKey = useRef(key)
   const lastPrefill = useRef(pk)
   const tokenTouched = useRef(false)
 
-  const f = draft.form
+  const f = runningOffer?.frozen.form ?? draft.form
   const step = draft.step
   /** A field the person changed. */
   const set = (patch: Partial<PostForm>) => {
@@ -171,6 +172,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   useEffect(() => {
     const before = loadedKey.current
     if (key === before) return
+    if (draft.frozen !== null || runningOffer !== null) return
     loadedKey.current = key
     if (dirty.current) {
       clearDraft(before)
@@ -182,11 +184,12 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 
   useEffect(() => {
     if (!dirty.current || finished.current) return
-    setSaved(saveDraft(key, draft))
+    setSaved(saveDraft(loadedKey.current, draft))
   }, [draft, key])
 
   // The embed's host may send a prefill after the widget loaded (postMessage): it sets the fields it names.
   useEffect(() => {
+    if (runningOffer !== null || draft.frozen !== null) return
     if (pk === lastPrefill.current) return
     lastPrefill.current = pk
     const p = defaults()
@@ -202,6 +205,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 
   // A board token (e.g. $CHOMP) the prefill named is known only once /data/boards answers.
   useEffect(() => {
+    if (runningOffer !== null || draft.frozen !== null) return
     if (tokenTouched.current) return
     const t = prefillToken(prefill, rewardTokenList())
     if (t !== undefined && t !== f.token) fix({ token: t })
@@ -214,6 +218,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 
   const tokenIds = tokens.map(([a]) => a).join()
   useEffect(() => {
+    if (runningOffer !== null || draft.frozen !== null) return
     const ids = tokens.map(([a]) => a)
     const first = ids[0]
     if (first === undefined) return
@@ -226,6 +231,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     if (Object.keys(patch).length > 0) fix(patch)
   }, [tokenIds, f.token, board !== undefined, other])
   useEffect(() => {
+    if (runningOffer !== null || draft.frozen !== null) return
     if (stacks.length > 0 && !stacks.includes(f.stack)) fix({ stack: board !== undefined && stacks.includes(board.defaultStack as StackName) ? (board.defaultStack as StackName) : (stacks[0] as StackName) })
   }, [stacks.join(), f.stack])
 
@@ -236,8 +242,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   // the board is asked once whether it became a job.
   const frozenTask = draft.frozen?.created.taskId
   const onChain = useQuery({
-    queryKey: ['post-frozen', boardId, frozenTask],
-    queryFn: () => tool<{ jobId: string | null }>('get_task', { taskId: frozenTask }),
+    queryKey: ['post-frozen', boardId, frozenTask, auth.address, auth.signedIn],
+    queryFn: () => tool<{ jobId: string | null; creator: string }>('get_task', { taskId: frozenTask }),
     enabled: frozenTask !== undefined,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -249,7 +255,9 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const [freezing, setFreezing] = useState(false)
   const [freezeError, setFreezeError] = useState<string | null>(null)
   const freeze = async () => {
-    const form = draft.form
+    const owner = auth.address
+    if (owner === undefined || runningOffer !== null) return
+    const form = structuredClone(draft.form)
     const at = Math.floor(Date.now() / 1000)
     const args = createTaskArgs(form, at)
     setFreezing(true)
@@ -257,8 +265,11 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     try {
       const created = await tool<Created>('create_task', args)
       dirty.current = true
+      loadedKey.current = draftKey(boardId, owner)
       const selection = (args as { selectionDeadline?: number }).selectionDeadline ?? null
-      setDraft((d) => ({ ...d, frozen: { fp: fingerprint(form), at, deliveryDeadline: args.deliveryDeadline, selectionDeadline: selection, created } }))
+      const prepared = { owner, form, fp: fingerprint(form), at, deliveryDeadline: args.deliveryDeadline, selectionDeadline: selection, created }
+      setDraft((d) => ({ ...d, frozen: prepared }))
+      setRunningOffer({ frozen: prepared, owner, reward: rewardText(form) })
     } catch (e) {
       setFreezeError((e as Error).message)
     } finally {
@@ -271,13 +282,14 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const [askError, setAskError] = useState<string | null>(null)
   const finish = () => {
     finished.current = true
-    clearDraft(key)
+    clearDraft(loadedKey.current)
   }
   const startOver = () => {
-    clearDraft(key)
+    clearDraft(loadedKey.current)
     dirty.current = false
     setSaved(false)
     setRunningOffer(null)
+    loadedKey.current = key
     setDraft({ v: 1, step: 1, form: defaults(), prefill: pk, frozen: null })
   }
   const reward = rewardText(f)
@@ -642,19 +654,26 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         </fieldset>
       </form>
 
-      {(step === 4 || runningOffer !== null) && matching !== null && (auth.signedIn || runningOffer !== null) && publishedAs === null && (
+      {(step === 4 || runningOffer !== null) && matching !== null && (auth.signedIn || runningOffer !== null || matching.owner !== undefined) && publishedAs === null && (
         <Section title="Publish" note={`Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`}>
           {onChain.isError && <ErrorText>The saved offer could not be checked. Retry before publishing. <Button variant="plain" onClick={() => void onChain.refetch()}>Retry</Button></ErrorText>}
           {expired && <ErrorText>This offer has expired. Prepare a new offer before confirming any new steps.</ErrorText>}
-          {runningOffer !== null && runningOffer.owner !== auth.address && <ErrorText>Return to the wallet that started this offer before confirming more steps.</ErrorText>}
+          {matching.owner?.toLowerCase() !== auth.address?.toLowerCase() && <ErrorText>Return to the wallet that prepared this offer before confirming more steps.</ErrorText>}
+          {expired && safeToRestart && <Button variant="tinted" onClick={startOver}>Start a new offer</Button>}
           <TxSteps
             key={matching.created.taskId}
             taskId={matching.created.taskId}
             txs={matching.created.transactions}
-            canSend={!expired && onChain.isSuccess && (runningOffer === null || runningOffer.owner === auth.address)}
+            owner={matching.owner ?? onChain.data?.creator}
+            canSend={!expired && onChain.isSuccess && matching.owner?.toLowerCase() === auth.address?.toLowerCase() && onChain.data?.creator.toLowerCase() === matching.owner.toLowerCase()}
+            onSafeToRestartChange={setSafeToRestart}
             onBusyChange={(busy) => {
               setWalletBusy(busy)
-              if (busy) setRunningOffer((current) => current ?? { frozen: matching, owner: auth.address, reward })
+              if (busy && matching.owner !== undefined) {
+                const snapshot = { ...matching, started: true }
+                setRunningOffer((current) => current ?? { frozen: snapshot, owner: matching.owner, reward })
+                setDraft((current) => current.frozen?.started === true ? current : { ...current, frozen: snapshot, form: snapshot.form })
+              }
             }}
             onDone={(hashes) => void published(matching.created, hashes)}
           />
