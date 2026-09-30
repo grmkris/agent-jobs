@@ -1,4 +1,5 @@
-import { Board as BoardService, BoardError, fromDurableObjectSql } from '@agent-jobs/board'
+import { admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk } from '@agent-jobs/board'
+import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
@@ -16,6 +17,7 @@ export interface BoardCall {
   readonly caller?: string | undefined
   readonly env: {
     readonly network: sdk.Network
+    readonly boardId: string
     readonly rpcUrl: string
     readonly domain: string
     readonly uri: string
@@ -44,6 +46,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
   'Board',
   Effect.gen(function* () {
     const state = yield* Cloudflare.DurableObjectState
+    const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     let service: { key: string; board: BoardService } | undefined
 
     const boardFor = (env: BoardCall['env']): BoardService => {
@@ -83,8 +86,33 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
             const tool = tools[req.tool]
             if (tool === undefined) return toJson({ ok: false, code: 'not-found', message: `no tool ${req.tool}` })
             try {
+              const bindings = runtimeEnv as Record<string, unknown>
+              const network = bindings.NETWORK as sdk.Network
+              const stage = bindings.DEPLOY_STAGE
+              const admission = parseHostedAdmission(
+                typeof bindings.PROD_APPROVED_WALLETS === 'string' ? bindings.PROD_APPROVED_WALLETS : '',
+                typeof bindings.PROD_APPROVED_BOARDS === 'string' ? bindings.PROD_APPROVED_BOARDS : '',
+                typeof bindings.PROD_ADMISSION_DRAIN === 'string' ? bindings.PROD_ADMISSION_DRAIN : '1',
+                typeof bindings.PROD_APPROVED_ACTIONS === 'string' ? bindings.PROD_APPROVED_ACTIONS : '',
+              )
+              if (req.env.network !== network || network === 'monad-mainnet' && stage !== 'prod') {
+                return toJson({ ok: false, code: 'forbidden', message: 'Durable Object runtime network/stage mismatch' })
+              }
+              let directCaller = req.caller !== undefined ? { address: getAddress(req.caller) } : undefined
+              if (network === 'monad-mainnet') {
+                const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName: (name: string) => { toString: () => string } } | undefined
+                if (namespace === undefined || namespace.idFromName(req.env.boardId).toString() !== state.id.toString()) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
+                const desk = new SessionDesk({ sql: fromD1((runtimeEnv as Record<string, unknown>).Database as never), now: () => Math.floor(Date.now() / 1000), verify: async () => false })
+                const session = await desk.resolve({ bearer: req.bearer, mcpSession: req.mcpSession })
+                if (req.caller !== undefined && session?.address.toLowerCase() !== req.caller.toLowerCase()) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object caller is not the authenticated session wallet' })
+                directCaller = session === undefined ? undefined : { address: session.address }
+                const directDenied = admissionFailure(admission, network, req.env.boardId, req.tool, directCaller?.address)
+                if (directDenied !== undefined) return toJson({ ok: false, code: 'forbidden', message: directDenied })
+              }
               const board = boardFor(req.env)
-              const caller = req.caller !== undefined ? { address: getAddress(req.caller) } : board.resolveCaller({ bearer: req.bearer, mcpSession: req.mcpSession })
+              const caller = directCaller ?? board.resolveCaller({ bearer: req.bearer, mcpSession: req.mcpSession })
+              const denied = admissionFailure(admission, network, req.env.boardId, req.tool, caller?.address)
+              if (denied !== undefined) return toJson({ ok: false, code: 'forbidden', message: denied })
               const ctx: ToolContext = { network: req.env.network, mcpSession: req.mcpSession }
               const result = await tool.run(board, caller, req.args, ctx)
               return toJson({ ok: true, result } satisfies BoardReply)

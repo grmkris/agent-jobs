@@ -5,7 +5,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { DirectoryError, PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
@@ -21,6 +21,7 @@ import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import { tools } from './tools.ts'
 import DirectoryObject from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
+import { hostedCallFailure } from './hosted-admission.ts'
 
 const MCP_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
@@ -94,6 +95,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
       GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
       GITHUB_APP_INSTALLATION_ID: process.env.GITHUB_APP_INSTALLATION_ID || '',
       GITHUB_APP_PRIVATE_KEY: Redacted.make(runtimeSecret('GITHUB_APP_PRIVATE_KEY') || 'unset'),
+      PROD_APPROVED_WALLETS: process.env.PROD_APPROVED_WALLETS || '',
+      PROD_APPROVED_BOARDS: process.env.PROD_APPROVED_BOARDS || '',
+      PROD_ADMISSION_DRAIN: process.env.PROD_ADMISSION_DRAIN || '0',
+      PROD_APPROVED_ACTIONS: process.env.PROD_APPROVED_ACTIONS || '',
     },
   },
   Effect.gen(function* () {
@@ -182,8 +187,15 @@ export default class Api extends Cloudflare.Worker<Api>()(
             }
           })
 
+        const admission = parseHostedAdmission(
+          yield* Config.String('PROD_APPROVED_WALLETS'),
+          yield* Config.String('PROD_APPROVED_BOARDS'),
+          yield* Config.String('PROD_ADMISSION_DRAIN'),
+          yield* Config.String('PROD_APPROVED_ACTIONS'),
+        )
         const env: BoardCall['env'] = {
           network,
+          boardId: tenant.id,
           rpcUrl,
           domain: url.host,
           uri: url.origin,
@@ -217,7 +229,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
           Effect.gen(function* () {
             const pre = yield* Effect.promise(async (): Promise<{ reply: BoardReply } | { forward: { args: Record<string, unknown>; caller: string | undefined } }> => {
               try {
-                if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args) } }
                 const session = await desk.resolve({ bearer, mcpSession })
                 if (tool === 'auth_challenge') {
                   return { reply: { ok: true, result: await desk.challenge({ address: String(args.address ?? ''), domain: siweDomain, uri: siweUri, chainId, boardId: tenant.id }) } }
@@ -225,13 +236,16 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 if (tool === 'auth_login') {
                   const r = await desk.login({ message: String(args.message ?? ''), signature: String(args.signature ?? ''), boardId: tenant.id, domainAllowed })
                   if (mcpSession !== undefined) await desk.bindMcp(mcpSession, r.session)
-                  const drip = tenant.drip ? await dripOnce({ sql, network, rpcUrl, relayKey, now }, { boardId: tenant.id, address: r.address }) : undefined
+                  const drip = network === 'monad-testnet' && tenant.drip ? await dripOnce({ sql, network, rpcUrl, relayKey, now }, { boardId: tenant.id, address: r.address }) : undefined
                   return { reply: { ok: true, result: { ...r, boardId: tenant.id, ...(drip === undefined ? {} : { drip }) } } }
                 }
                 if (tool === 'whoami' && session !== undefined) {
                   const drip = await dripState(sql, tenant.id, session.address)
                   return { reply: { ok: true, result: { address: session.address, boardId: tenant.id, origin: session.origin, dripped: drip?.status ?? null } } }
                 }
+                const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address)
+                if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
+                if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args) } }
                 const registry = tenantTools[tool]
                 if (registry !== undefined) {
                   return { reply: { ok: true, result: await registry.run({ sql, deployment, resolveToken: tokenInfo, now }, session?.address, tenant, args) } }
