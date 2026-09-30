@@ -4,17 +4,18 @@
  * a wider screen. Decisions that move money go through `ConfirmSheet`, which says what will happen before it does.
  */
 import { X } from 'lucide-react'
-import { type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 import { Button, cn } from './ui.tsx'
 
 /** Apple's momentum projection: where a flick released at `velocity` px/s comes to rest. */
 const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 1000) * decelerationRate) / (1 - decelerationRate)
 
-export function Sheet({ open, onClose, title, children, className }: { open: boolean; onClose: () => void; title?: ReactNode; children: ReactNode; className?: string }) {
+export function Sheet({ open, onClose, title, children, className }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const drag = useRef<{ start: number; y: number; t: number; v: number } | null>(null)
   const [dy, setDy] = useState(0)
+  const titleId = useId()
 
   useEffect(() => {
     const d = ref.current
@@ -54,6 +55,7 @@ export function Sheet({ open, onClose, title, children, className }: { open: boo
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       onClose={onClose}
       onCancel={(e) => {
         e.preventDefault()
@@ -80,14 +82,12 @@ export function Sheet({ open, onClose, title, children, className }: { open: boo
         <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} className="-mx-5 cursor-grab touch-none px-5 pt-1 pb-1 sm:hidden">
           <div className="mx-auto h-1.5 w-9 rounded-full bg-fill-strong" />
         </div>
-        {title !== undefined && (
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-display text-[1.3rem] leading-tight font-bold tracking-[-0.015em]">{title}</h2>
-            <button type="button" aria-label="Close" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2">
-              <X className="size-4" />
-            </button>
-          </div>
-        )}
+        <div className="flex items-start justify-between gap-3">
+          <h2 id={titleId} className="font-display text-[1.3rem] leading-tight font-bold tracking-[-0.015em]">{title}</h2>
+          <button type="button" aria-label="Close" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2">
+            <X className="size-4" />
+          </button>
+        </div>
         {children}
       </div>
     </dialog>

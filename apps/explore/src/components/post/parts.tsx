@@ -5,6 +5,7 @@
  */
 import { Check, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { selectRadio } from '../radio.ts'
 import { cn, rowClass } from '../ui.tsx'
 
 export function Choices<T extends string>({
@@ -28,7 +29,9 @@ export function Choices<T extends string>({
             type="button"
             role="radio"
             aria-checked={on}
+            tabIndex={on ? 0 : -1}
             onClick={() => onChange(o.value)}
+            onKeyDown={(event) => selectRadio(event, options.findIndex((option) => option.value === o.value), options.length, (index) => onChange(options[index]!.value))}
             className={cn(rowClass({ interactive: true }), 'items-start py-3.5 before:left-[3.125rem]')}
           >
             <span

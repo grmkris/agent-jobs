@@ -8,6 +8,7 @@ import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, ty
 import { twMerge } from 'tailwind-merge'
 import { amount as formatAmount } from '../format.ts'
 import { explorer } from '../wallet.ts'
+import { selectRadio } from './radio.ts'
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
@@ -231,7 +232,9 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
           type="button"
           role="radio"
           aria-checked={value === v}
+          tabIndex={value === v ? 0 : -1}
           onClick={() => onChange(v)}
+          onKeyDown={(event) => selectRadio(event, options.findIndex(([option]) => option === v), options.length, (index) => onChange(options[index]![0]))}
           className={cn('min-h-11 min-w-11 flex-1 rounded-lg px-2 py-1.5 text-[0.85rem] font-medium [overflow-wrap:anywhere] transition-colors', value === v ? 'bg-surface font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-label')}
         >
           {text}
