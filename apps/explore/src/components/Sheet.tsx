@@ -83,7 +83,7 @@ export function Sheet({ open, onClose, title, children, className }: { open: boo
         {title !== undefined && (
           <div className="flex items-start justify-between gap-3">
             <h2 className="font-display text-[1.3rem] leading-tight font-bold tracking-[-0.015em]">{title}</h2>
-            <button type="button" aria-label="Close" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-full bg-fill text-label-2">
+            <button type="button" aria-label="Close" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2">
               <X className="size-4" />
             </button>
           </div>

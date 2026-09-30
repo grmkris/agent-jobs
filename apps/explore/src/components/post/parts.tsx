@@ -60,12 +60,11 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={cn('relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200', checked ? 'bg-ok' : 'bg-fill-strong')}
+      className="grid h-11 w-[51px] shrink-0 place-items-center"
     >
-      <span
-        aria-hidden
-        className={cn('absolute top-[2px] left-[2px] size-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-(--ease-spring)', checked && 'translate-x-5')}
-      />
+      <span aria-hidden className={cn('relative h-[31px] w-[51px] rounded-full transition-colors duration-200', checked ? 'bg-ok' : 'bg-fill-strong')}>
+        <span className={cn('absolute top-[2px] left-[2px] size-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-(--ease-spring)', checked && 'translate-x-5')} />
+      </span>
     </button>
   )
 }
@@ -77,7 +76,7 @@ export function Chip({ on, onClick, children }: { on: boolean; onClick: () => vo
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className={cn('press inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[0.88rem] font-medium', on ? 'bg-tint/14 text-tint' : 'bg-fill text-label-2')}
+      className={cn('press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[0.88rem] font-medium', on ? 'bg-tint/14 text-tint' : 'bg-fill text-label-2')}
     >
       {on && <Check aria-hidden className="size-3.5" strokeWidth={3} />}
       {children}

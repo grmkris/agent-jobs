@@ -28,7 +28,7 @@ export function Button({
       disabled={busy === true || props.disabled}
       className={cn(
         'press inline-flex items-center justify-center gap-2 font-semibold select-none disabled:pointer-events-none disabled:opacity-40',
-        size === 'sm' && 'min-h-8 rounded-lg px-3 text-sm',
+        size === 'sm' && 'min-h-11 rounded-lg px-3 text-sm',
         size === 'md' && 'min-h-11 rounded-xl px-4 text-[0.95rem] sm:min-h-10',
         size === 'lg' && 'min-h-[3.125rem] rounded-2xl px-5 text-base',
         variant === 'primary' && 'bg-tint text-on-tint',
@@ -155,7 +155,7 @@ export function CopyButton({ value, label = 'Copy', className }: { value: string
           () => undefined,
         )
       }}
-      className={cn('inline-grid size-7 shrink-0 place-items-center rounded-lg text-label-3 active:bg-fill [@media(hover:hover)]:hover:text-label', done && 'text-ok', className)}
+      className={cn('inline-grid size-11 shrink-0 place-items-center rounded-lg text-label-3 active:bg-fill [@media(hover:hover)]:hover:text-label', done && 'text-ok', className)}
     >
       {done ? <Check className="size-3.5" strokeWidth={3} /> : <Copy className="size-3.5" />}
     </button>
@@ -224,7 +224,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 /** The iOS segmented control. */
 export function Segmented<T extends string>({ value, options, onChange, className, label }: { value: T; options: ReadonlyArray<readonly [T, ReactNode]>; onChange: (v: T) => void; className?: string; label?: string }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn('grid auto-cols-fr grid-flow-col gap-0.5 rounded-[10px] bg-fill p-0.5', className)}>
+    <div role="radiogroup" aria-label={label} className={cn('flex min-w-0 flex-wrap gap-0.5 rounded-[10px] bg-fill p-0.5', className)}>
       {options.map(([v, text]) => (
         <button
           key={v}
@@ -232,7 +232,7 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
           role="radio"
           aria-checked={value === v}
           onClick={() => onChange(v)}
-          className={cn('rounded-lg px-2 py-1.5 text-[0.85rem] font-medium whitespace-nowrap transition-colors', value === v ? 'bg-surface font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-label')}
+          className={cn('min-h-11 min-w-11 flex-1 rounded-lg px-2 py-1.5 text-[0.85rem] font-medium [overflow-wrap:anywhere] transition-colors', value === v ? 'bg-surface font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-label')}
         >
           {text}
         </button>
