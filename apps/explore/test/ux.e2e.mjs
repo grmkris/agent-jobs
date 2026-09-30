@@ -29,7 +29,7 @@ async function fixture(viewport, options = {}) {
     if (!localStorage.getItem('agent-jobs.session')) localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     if (!localStorage.getItem('agent-jobs.session-owner')) localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { owner: creator, batch: options.batch ?? false, connected: options.connected ?? true });
-  const state = { chainError: options.chainError ?? false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false };
+  const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -62,7 +62,7 @@ async function fixture(viewport, options = {}) {
       : reply({ ok: true, jobs: [{ job_id: '60', status: 'completed', mode: 'hire', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0' }], index: { next_block: 100, updated_at: now } });
     if (url.pathname === '/data/boards') return reply({ ok: true, boards: [] });
     if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 1, completed: 1, agents: 1, paidOut: { [token]: '5000000' }, inEscrow: {} });
-    if (url.pathname.startsWith('/data/jobs/')) return state.chainError
+    if (url.pathname.startsWith('/data/jobs/')) return (state.chainError || state.detailError)
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
       : reply({ ok: true, job: { job_id: '60', status: state.jobStatus, mode: 'hire', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', violation: null }, rewards: [{ amount: '5000000', to_worker: 1 }], evidence: [], timeline: [], ruling: null, board: null });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [] });
@@ -277,6 +277,10 @@ async function testNewPublishOwner() {
   await page.getByText('Return to the wallet that prepared this offer before confirming more steps.').waitFor();
   assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).isDisabled(), true);
   assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+  await page.reload();
+  await page.getByText('Return to the wallet that prepared this offer before confirming more steps.').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).isDisabled(), true);
+  assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
   await page.evaluate((address) => { window.__wallet.address = address; localStorage.setItem('fixture-wallet-address', address); window.dispatchEvent(new Event('fixture-wallet-change')); }, creator);
   await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
   await page.getByRole('button', { name: 'Decline fixture' }).click();
@@ -388,6 +392,22 @@ async function testStaleBoardDetail() {
   await context.close();
 }
 
+async function testChainDetailFailureWithBoardData() {
+  const { context, page, state } = await fixture({ width: 390, height: 844 }, { jobStatus: 'active', boardStatus: 'active' });
+  await page.goto(`${base}/job/60`);
+  await page.getByText(/Locked in escrow/).first().waitFor();
+  state.detailError = true;
+  await page.getByText('Chain job details are unavailable.', { exact: false }).waitFor({ timeout: 45000 });
+  await page.getByText(/Showing last-known indexed facts/).waitFor();
+  assert.equal(await page.getByText(/Locked in escrow/).count() > 0, true);
+  state.detailError = false;
+  state.jobStatus = 'completed';
+  await page.getByRole('button', { name: 'Retry job details' }).click();
+  await page.getByText('Paid to Agent #1', { exact: true }).waitFor();
+  results.push({ name: 'chain-detail-failure-keeps-board-and-recovers-on-retry', passed: true });
+  await context.close();
+}
+
 async function testLongToken() {
   const { context, page } = await fixture({ width: 390, height: 844 }, { tokenSymbol: 'LONG'.repeat(30), tokenDecimals: 0 });
   await page.goto(base);
@@ -419,6 +439,7 @@ try {
     await testFrozenRecovery();
     await testFrozenPrefill();
     await testStaleBoardDetail();
+    await testChainDetailFailureWithBoardData();
     await testLongToken();
   }
   assert.deepEqual(failures, []);
