@@ -34,7 +34,7 @@ test('real SQLite enforces the pinned directory composite primary key', () => {
   const result = runOldNewOldFixture()
   try {
     const database = result.databases.d1
-    const primaryKeys = database.prepare('PRAGMA table_info(directory_agents)').all().filter((column) => column.pk).sort((left, right) => left.pk - right.pk).map((column) => column.name)
+    const primaryKeys = database.prepare('PRAGMA table_info(directory_agents)').all().filter((column) => column.pk).toSorted((left, right) => left.pk - right.pk).map((column) => column.name)
     assert.deepEqual(primaryKeys, ['chain_id', 'registry', 'audience', 'agent_key'])
     assert.throws(() => database.exec('INSERT INTO directory_agents SELECT * FROM directory_agents'), /UNIQUE constraint failed/)
     for (const [column, value] of [['chain_id', '1'], ['registry', "'0xother'"], ['audience', "'private'"], ['agent_key', "'other-agent'"]]) {

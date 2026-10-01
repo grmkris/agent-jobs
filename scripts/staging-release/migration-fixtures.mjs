@@ -57,10 +57,11 @@ export function loadPinnedDirectorySchema(repoRoot = pinnedSourceRoot) {
   return { d1, state, journal, applyAuthorized: false }
 }
 
+const isPlainRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+  && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+
 export function validateMigrationFixtureManifest(manifest = migrationManifest) {
   const blockers = []
-  const isPlainRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
-    && [Object.prototype, null].includes(Object.getPrototypeOf(value))
   if (!isPlainRecord(manifest)) return { ok: false, blockers: ['invalid-migration-manifest'], applyAuthorized: false }
   if (manifest.kind !== 'additive-directory-v1') blockers.push('migration-kind-mismatch')
   if (manifest.className !== 'DirectoryObject' || manifest.sourceExport !== 'default' || manifest.compiledExportRequired !== 'DirectoryObject') blockers.push('directory-class-export-mismatch')
@@ -79,7 +80,7 @@ export function validateMigrationFixtureManifest(manifest = migrationManifest) {
 export function applyAdditiveDirectoryFixture(databases, schema, manifest = migrationManifest) {
   if (!validateMigrationFixtureManifest(manifest).ok) throw new Error('migration-fixture-refused')
   const pinned = loadPinnedDirectorySchema()
-  if (!schema || Object.keys(schema).sort().join(',') !== Object.keys(pinned).sort().join(',') || Object.keys(pinned).some((key) => schema[key] !== pinned[key])) throw new Error('pinned-schema-drift')
+  if (!schema || Object.keys(schema).toSorted().join(',') !== Object.keys(pinned).toSorted().join(',') || Object.keys(pinned).some((key) => schema[key] !== pinned[key])) throw new Error('pinned-schema-drift')
   databases.d1.exec(schema.d1)
   databases.directory.exec(schema.state)
   databases.directory.exec(schema.journal)

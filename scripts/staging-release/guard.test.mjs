@@ -83,8 +83,9 @@ for (const [name, mutate, blocker] of [
   })
 }
 
+const reorder = (value) => Array.isArray(value) ? value.map(reorder) : value !== null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).toReversed().map(([key, child]) => [key, reorder(child)])) : value
+
 test('canonical review digest ignores object key order but binds reviewed inputs', () => {
-  const reorder = (value) => Array.isArray(value) ? value.map(reorder) : value !== null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).reverse().map(([key, child]) => [key, reorder(child)])) : value
   const bundle = fixture()
   const original = evaluateExistingStackRelease(bundle, now)
   assert.equal(original.reviewDigest, evaluateExistingStackRelease(reorder(bundle), now).reviewDigest)

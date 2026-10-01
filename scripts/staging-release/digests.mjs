@@ -11,6 +11,8 @@ const targetOrder = ['Api', 'Indexer', 'Explore']
 const allowedExtensions = /\.(?:html|css|js|json|webmanifest|png|jpg|jpeg|gif|webp|svg|ico|woff|woff2|ttf|txt|md)$/i
 const unavailable = ['compiled-worker-provenance-unverified', 'compiled-directory-class-export-unverified', 'directory-namespace-tag-and-binding-unapproved', 'workerd-provider-rollback-unverified']
 
+const byPath = (left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+
 function fields(value, names) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     && [Object.prototype, null].includes(Object.getPrototypeOf(value))
@@ -47,9 +49,8 @@ export function createDigestManifest(input) {
         if (totalBytes > packetByteLimit) throw new Error('size')
         return { path: inside, kind, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }
       }
-      const byPath = (left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0
-      const modules = target.modules.map((module) => hashFile(module, 'module')).sort(byPath)
-      const assets = target.assets.map((asset) => hashFile(asset, 'asset')).sort(byPath)
+      const modules = target.modules.map((module) => hashFile(module, 'module')).toSorted(byPath)
+      const assets = target.assets.map((asset) => hashFile(asset, 'asset')).toSorted(byPath)
       if (typeof target.mainModule !== 'string' || modules.filter((module) => module.path === target.mainModule).length !== 1) throw new Error('main')
       targets.push({ logicalId, resourceId: expected.resources[logicalId], mainModule: target.mainModule, modules, assets })
     }

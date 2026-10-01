@@ -20,6 +20,13 @@ export const expected = {
   localStateRoot: '/home/kristjan/code/agent-jobs/.alchemy/state/AgentJobs/staging',
 }
 
+const sameBindings = (planned, observed) => {
+  if (!planned || !observed || typeof planned !== 'object' || typeof observed !== 'object' || Array.isArray(planned) || Array.isArray(observed)) return false
+  const plannedKeys = Object.keys(planned).toSorted()
+  const observedKeys = Object.keys(observed).toSorted()
+  return plannedKeys.length === observedKeys.length && plannedKeys.every((key, index) => key === observedKeys[index] && typeof planned[key] === 'string' && planned[key] === observed[key])
+}
+
 export function validateStagingEvidence(bundle, now = Date.now()) {
   const blockers = new Set()
   const requireGate = (condition, code) => { if (!condition) blockers.add(code) }
@@ -33,12 +40,6 @@ export function validateStagingEvidence(bundle, now = Date.now()) {
   const domains = Array.isArray(bundle?.live?.domains) ? bundle.live.domains : []
   const resources = Array.isArray(snapshot?.resources) ? snapshot.resources : []
   const operations = Array.isArray(bundle?.plan?.operations) ? bundle.plan.operations : []
-  const sameBindings = (planned, observed) => {
-    if (!planned || !observed || typeof planned !== 'object' || typeof observed !== 'object' || Array.isArray(planned) || Array.isArray(observed)) return false
-    const plannedKeys = Object.keys(planned).sort()
-    const observedKeys = Object.keys(observed).sort()
-    return plannedKeys.length === observedKeys.length && plannedKeys.every((key, index) => key === observedKeys[index] && typeof planned[key] === 'string' && planned[key] === observed[key])
-  }
 
   requireGate(bundle?.schemaVersion === 1, 'schema-version')
   requireGate(bundle?.accountId === expected.accountId, 'account-mismatch')
