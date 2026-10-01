@@ -26,8 +26,8 @@ function canonical(value) {
   return JSON.stringify(value)
 }
 
-function git(...args) {
-  return execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim()
+function git(...gitArgs) {
+  return execFileSync('git', gitArgs, { cwd: repo, encoding: 'utf8' }).trim()
 }
 
 function preflight() {
