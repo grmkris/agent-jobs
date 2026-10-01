@@ -48,7 +48,7 @@ function preflight() {
   process.env.AGENT_JOBS_WITHOUT_EXPLORE = '0'
   process.env.NODE_ENV = 'production'
   process.env.CLOUDFLARE_ACCOUNT_ID = state.accountId
-  for (const name of ['CLOUDFLARE_API_TOKEN', 'MONAD_RPC_URL', 'AI_GATEWAY_API_KEY', 'ATTESTER_PRIVATE_KEY', 'RELAY_PRIVATE_KEY', 'GITHUB_APP_PRIVATE_KEY', 'HYPERSYNC_API_TOKEN']) {
+  for (const name of ['CLOUDFLARE_API_TOKEN', 'MONAD_TESTNET_RPC_URL', 'AI_GATEWAY_API_KEY', 'ATTESTER_PRIVATE_KEY', 'RELAY_PRIVATE_KEY', 'GITHUB_APP_PRIVATE_KEY', 'HYPERSYNC_API_TOKEN']) {
     if (!process.env[name] || process.env[name] === 'unset') fail(`missing credential: ${name}`)
   }
   execFileSync(process.execPath, ['scripts/db-generate.mjs', '--check'], { cwd: repo, stdio: 'pipe' })
