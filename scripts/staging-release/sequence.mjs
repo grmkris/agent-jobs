@@ -1,0 +1,33 @@
+import * as Deferred from 'effect/Deferred'
+import * as Effect from 'effect/Effect'
+
+/** Keep Alchemy's complete graph and lifecycle, gating each Worker reconcile on
+ * its predecessor's successful readback. A failed step interrupts the graph. */
+export const sequenceWorkers = (snapshot, verify, record) => Effect.gen(function* () {
+  const ready = {}
+  for (const id of ['Api', 'Indexer', 'Explore']) ready[id] = yield* Deferred.make()
+  for (const [id, predecessor] of [['Api', undefined], ['Indexer', 'Api'], ['Explore', 'Indexer']]) {
+    const node = snapshot.native.resources[id]
+    if (node.action === 'noop') {
+      yield* Effect.promise(() => verify(id))
+      yield* Deferred.succeed(ready[id], undefined)
+      continue
+    }
+    const reconcile = node.provider.reconcile
+    node.provider = { ...node.provider, reconcile: (input) => Effect.gen(function* () {
+      if (predecessor) yield* Deferred.await(ready[predecessor])
+      record({ id, status: 'uploading' })
+      const output = yield* reconcile(input)
+      let verified = false
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const check = yield* Effect.promise(() => verify(id).then(() => true, () => false))
+        if (check) { verified = true; break }
+        yield* Effect.sleep('5 seconds')
+      }
+      if (!verified) return yield* Effect.fail(new Error(`Post-upload verification failed: ${id}`))
+      record({ id, status: 'verified', hash: output.hash, at: new Date().toISOString() })
+      yield* Deferred.succeed(ready[id], undefined)
+      return output
+    }) }
+  }
+})

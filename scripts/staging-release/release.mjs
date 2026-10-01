@@ -96,6 +96,7 @@ async function run() {
   await import(resolve(repo, 'node_modules/alchemy/bin/register-oxc.js'))
   const Alchemist = await import('alchemy/Alchemist')
   const Effect = await import('effect/Effect')
+  const { sequenceWorkers } = await import('./sequence.mjs')
   const root = resolve(repo, '.alchemy/recovery')
   mkdirSync(root, { recursive: true, mode: 0o700 })
   const lock = resolve(root, 'release.lock')
@@ -122,8 +123,12 @@ async function run() {
       const runRoot = resolve(root, `release-${Date.now()}`)
       mkdirSync(runRoot, { mode: 0o700 })
       cpSync(state.stateRoot, resolve(runRoot, 'state'), { recursive: true })
-      const journal = { ...packet, startedAt: new Date().toISOString(), status: 'applying' }
+      const journal = { ...packet, startedAt: new Date().toISOString(), status: 'applying', workers: [] }
       writeFileSync(resolve(runRoot, 'journal.json'), JSON.stringify(journal, null, 2), { mode: 0o600 })
+      yield* sequenceWorkers(snapshot, verifyWorker, (event) => {
+        journal.workers.push(event)
+        writeFileSync(resolve(runRoot, 'journal.json'), JSON.stringify(journal, null, 2), { mode: 0o600 })
+      })
       yield* Alchemist.Stack.apply(snapshot)
       for (const id of ['Api', 'Indexer', 'Explore']) {
         let verified = false

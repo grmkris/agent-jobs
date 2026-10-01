@@ -38,6 +38,13 @@ export default Alchemy.Stack(
     const database = yield* Database
     const manifests = yield* Manifests
     const api = yield* Api
+    if (stage === 'staging') {
+      // Preserve legacy secrets without reading their values back from Cloudflare.
+      yield* api.bind('LegacySecrets', { bindings: [
+        { type: 'inherit', name: 'BUDGET_SIGNER_PRIVATE_KEY' },
+        { type: 'inherit', name: 'PRIVY_APP_SECRET' },
+      ] })
+    }
     const indexer = yield* Indexer
     // Explore (spec §6): the SPA's assets, with the board API proxied same-origin through a service binding.
     // The local stack test leaves it out (AGENT_JOBS_WITHOUT_EXPLORE): its Vite child needs a remote session.
