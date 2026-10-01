@@ -548,3 +548,14 @@ Explore, in headless Chromium against staging (not signed in, so nothing was fro
 
 Not done: `demo` still runs the pre-ADR-0010 Holding, so the board accepts only known tokens there. Redeploying it
 costs about 0.74 MON, and the deployer does not have it.
+
+## Testnet directory recovery (1 Oct 2026)
+
+The guarded Alchemy v2 release from main revision `d6ccc5b` applied the additive
+`DirectoryObject`/`DIRECTORY_DATABASE` update to the original staging resources.
+The live API now returns `/data/directory` 200 with chain ID 10143 and an empty
+agent list; MCP lists all 11 directory tools. The Indexer checkpoint advanced in
+two successful observations and Explore retains both domain owners. Full IDs,
+versions, plan digest, rollback rehearsal and cleanup evidence are in
+`docs/staging-release-2026-10-01.md`. This is testnet evidence only; no mainnet or
+wallet action was performed.
