@@ -40,3 +40,13 @@ were removed. The CRE worktree was privately archived before removal.
 No mainnet transaction, wallet signature, directory enrollment, paid job, real
 alert or production-admission action was performed. Credential rotation remains
 outstanding after the documented state-output exposure.
+
+Final cleanup readback at **15:01:56 UTC** found exactly the three original
+Workers, the original D1/R2, and the original Board plus new DirectoryObject
+namespaces. The Indexer checkpoint was **67287414**, finalized head **67287757**
+(343 blocks behind), with a successful cron observation 24 seconds earlier.
+Only `main` remains locally/remotely, with one checkout. Retired branches and the
+CRE worktree have private backups under `.alchemy/recovery/`; pre-existing local
+media and SDK scripts were preserved. Final `pnpm check` passed; the focused
+staging suites passed **96/96**. Contract tests reported **188 passed / 29 skipped**;
+the skipped live/fork cases are not new on-chain evidence.

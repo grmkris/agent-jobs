@@ -154,8 +154,10 @@ alchemy.run.ts     the whole Cloudflare stack, declared in TypeScript
 - pnpm workspaces, Vite+ (`vp run`) for tasks, TypeScript 7 (tsgo), Effect 4, alchemy.run v2, Foundry.
 - `pnpm check` runs every package's typecheck and tests, `forge test` (unit, fuzz, invariants) and the linter.
   Fork tests run against Monad testnet and mainnet when their RPC URLs are set.
-- `pnpm dev` runs the stack in local workerd; `pnpm deploy:staging` deploys the testnet stack; `pnpm deploy:prod`
-  the mainnet one (see the runbook).
+- Use Node 24+. `pnpm dev` runs local workerd. Testnet releases use
+  `pnpm deploy:staging plan`, then `pnpm deploy:staging apply <digest>` from the
+  canonical checkout on `main`; see the [staging runbook](docs/staging-release-runbook.md).
+  `pnpm deploy:prod` remains subject to the mainnet runbook and explicit authorization.
 
 ## Later
 
