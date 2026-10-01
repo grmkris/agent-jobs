@@ -10,7 +10,7 @@ import { syntheticEvidence } from './fixtures/synthetic-evidence.mjs'
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repository = join(scriptDir, '../..')
 
-const packageManifest = { scripts: { 'deploy:staging': 'node scripts/staging-release/entrypoint.mjs', 'staging:review': 'node scripts/staging-release/guard.mjs', 'staging:digests': 'node scripts/staging-release/digests.mjs' } }
+const packageManifest = { scripts: { 'deploy:staging': 'node scripts/staging-release/release.mjs', 'staging:review': 'node scripts/staging-release/guard.mjs', 'staging:digests': 'node scripts/staging-release/digests.mjs' } }
 
 test('package boundary points staging directly at the local guard with no lifecycle fallback', () => {
   assert.equal(validatePackageBoundary(packageManifest), true)

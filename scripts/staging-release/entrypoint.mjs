@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { evaluateExistingStackRelease, readBoundedFile } from './guard.mjs'
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const stagingScript = 'node scripts/staging-release/entrypoint.mjs'
+const stagingScript = 'node scripts/staging-release/release.mjs'
 const offlineScripts = { 'staging:review': 'node scripts/staging-release/guard.mjs', 'staging:digests': 'node scripts/staging-release/digests.mjs' }
 const missingApprovals = ['live-directory-namespace-and-binding', 'approved-migration-tag-transition', 'compiled-class-and-provider-artifact-proof', 'workerd-and-provider-rollback-compatibility']
 
