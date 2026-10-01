@@ -27,14 +27,16 @@ function preflight() {
   if (git('branch', '--show-current') !== 'main') fail('checkout must be main')
   if (git('diff', '--name-only').length > 0 || git('diff', '--cached', '--name-only').length > 0) fail('tracked checkout changes must be committed')
   state.inspectStagingState()
+  const localEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
+  // This checkout's deployment credentials are authoritative; a login shell can
+  // carry unrelated credentials for another product.
+  Object.assign(process.env, localEnv)
   process.env.ALCHEMY_STATE_MODE = 'local'
   process.env.ALCHEMY_REMOTE_STATE = '0'
   process.env.AGENT_JOBS_STAGE = 'staging'
   process.env.AGENT_JOBS_NETWORK = 'monad-testnet'
   process.env.AGENT_JOBS_APPLY_MIGRATIONS = '1'
   process.env.AGENT_JOBS_WITHOUT_EXPLORE = '0'
-  const localEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
-  for (const [key, value] of Object.entries(localEnv)) if (process.env[key] === undefined) process.env[key] = value
 }
 
 function sameSecretAfterNewlineNormalization(name) {
