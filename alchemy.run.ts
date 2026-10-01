@@ -8,20 +8,32 @@ import { Manifests } from './apps/api/src/manifests.ts'
 import Api from './apps/api/src/worker.ts'
 import Indexer from './apps/indexer/src/worker.ts'
 import { assertDeployConfig } from './apps/api/src/deploy-preflight.ts'
+import { inspectStagingState, stateMode } from './scripts/staging-release/state.ts'
+
+const selectedState = stateMode(process.env)
 
 /**
  * The whole Cloudflare stack. `alchemy dev` runs it in local workerd; `alchemy deploy --stage
- * staging` provisions it. State is local (`.alchemy/`) unless `ALCHEMY_REMOTE_STATE` is set, which
- * the staging/prod deploy scripts do; dev and the test harness stay credential-less.
+ * staging` provisions it. Staging deliberately uses the checked-in checkout's local state because
+ * that state owns the existing testnet resources. Production must opt into the remote state store
+ * explicitly; dev and the test harness stay credential-less.
  */
 export default Alchemy.Stack(
   'AgentJobs',
   {
     providers: Cloudflare.providers(),
-    state: process.env.ALCHEMY_REMOTE_STATE ? Cloudflare.state() : Alchemy.localState(),
+    // Staging recovery is deliberately explicit. A stray remote-state variable must
+    // never redirect an update to the duplicate/unknown backend.
+    state: selectedState === 'remote'
+      ? Cloudflare.state()
+      : Alchemy.localState(),
   },
   Effect.gen(function* () {
     const stage = yield* Stage
+    if (stage === 'staging') {
+      if (process.env.ALCHEMY_STATE_MODE !== 'local' || process.env.AGENT_JOBS_STAGE !== 'staging' || process.env.AGENT_JOBS_NETWORK !== 'monad-testnet' || process.env.AGENT_JOBS_WITHOUT_EXPLORE === '1') throw new Error('Use the guarded staging release command with the complete stack')
+      inspectStagingState()
+    }
     yield* Effect.promise(() => assertDeployConfig(stage))
     const database = yield* Database
     const manifests = yield* Manifests
