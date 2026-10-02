@@ -41,5 +41,19 @@
     "workflowOwner": null,
     "workflowName": "agent-jobs-evidence"
   },
+  "liquidity": {
+    "uniswapV4": {
+      "poolManager": "0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e",
+      "positionManager": "0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016",
+      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "stateView": "0x77395F3b2E73aE90843717371294fa97cC419D64"
+    },
+    "quote": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "factoryAmount": 3000000,
+    "quoteAmount": 300,
+    "positionOwner": "0x0000000000000000000000000000000000000000"
+  },
   "deployment": {}
 }
