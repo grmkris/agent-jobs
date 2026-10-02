@@ -393,15 +393,18 @@ RPC's chain id and the config). It signs from an encrypted Foundry keystore per 
 fallback: `--private-keys`, read from env vars by name (`DEPLOYER_PRIVATE_KEY`, `SAFE_BACKUP_TESTNET_PRIVATE_KEY`). The
 RPC comes from `MONAD_TESTNET_RPC_URL`. No value is printed, and output and logs are redacted.
 
-1. Checks: the chain, no v1 deployment recorded yet, the deployer is `roles.admin`, the Safe is v1.4.1 with threshold 1
-   and the Safe-owner key is an owner, an `oddTokens` block exists, and both senders hold the gas limits at twice the
-   current gas price.
+1. Checks: the chain, no v1 deployment recorded yet, the deployer is `roles.admin` and can grant the reused core's
+   `ADMIN_ROLE`, the Safe is v1.4.1 with threshold 1 and the Safe-owner key is an owner, an `oddTokens` block exists,
+   and both senders hold the gas limits at twice the current gas price.
 2. `DeployHireling` dry run, then `--broadcast --slow`.
 3. `PromoteHireling`.
 4. `SafeAccept`, then its `check()`.
-5. `owner() == Safe` and `pendingOwner() == 0` on the six.
-6. The SDK loads the promoted deployment.
-7. `DeployOddTokens`.
+5. `pauser`: the deployer grants the Safe the reused core's `ADMIN_ROLE`, which `pause()`/`unpause()` require, so
+   /admin's pause works. `ADMIN_ROLE` only, not the upgrade role; the deployer keeps its roles. Skipped if the Safe holds
+   it. Mainnet needs no such step: the Recipe deploys that core and hands the Safe both roles in `stepHandover`.
+6. `owner() == Safe` and `pendingOwner() == 0` on the six, and the Safe holds the core's `ADMIN_ROLE`.
+7. The SDK loads the promoted deployment.
+8. `DeployOddTokens`.
 
 Optional flags:
 - `--fee-proposal`: the Safe calls `FeeSchedule.propose` through `execTransaction`. Anyone can execute it 3 days later,
@@ -413,13 +416,37 @@ Optional flags:
 Every transaction hash is printed and listed again at the end.
 
 `rehearse-launch-testnet.sh` runs it unchanged on an anvil fork of testnet, signing from throwaway keystores of dev
-keys, with a fresh 1-of-2 Safe. It also checks that a missing signer, a loose password file, a chain-143 RPC and a
-second launch are refused, that a re-read passes, and that the proposal can be
-executed after 3 days and the probe accepted after 8. Passed 2 Oct. Gas limits from that run:
+keys, with a fresh 1-of-2 Safe; dev0 stands in for `roles.admin` as the core's admin (granted by an impersonated
+`roles.admin`). It also checks that a missing signer, a loose password file, a chain-143 RPC and a second launch are
+refused, that a re-run from `pauser` sends nothing, and that the proposal can be executed after 3 days and the probe
+accepted after 8. Passed 2 Oct. Gas limits from that run:
 
 | step | txs | gas limit | MON @ 102 gwei | paid by |
 | --- | ---: | ---: | ---: | --- |
 | DeployHireling, reused core | 18 | 17,940,929 | 1.830 | deployer |
+| pauser: `core.grantRole(ADMIN_ROLE, Safe)` | 1 | 88,395 | 0.009 | deployer |
 | DeployOddTokens (2 tokens, 2 wallets) | 6 | 2,189,372 | 0.223 | deployer |
 | SafeAccept (6 × execTransaction) | 6 | 797,152 | 0.081 | Safe owner |
 | fee proposal + Holding probe | 2 | 340,098 | 0.035 | Safe owner |
+
+### G1-DRY: backend's B11 runner on that deploy (`script/rehearse-flows-testnet.sh`)
+
+On an anvil fork of testnet: the launch above (fresh keys for every role, a fresh Safe, fee proposal, Holding probe),
+promoted into `config/monad-testnet.json`, which is backed up first and restored on exit. Then each case of
+`packages/sdk/scripts/v1-flows.ts` runs as its own `bun --no-env-file` process under `env -i`, with only the fresh
+keys and the loopback RPC, so no `.env.local` value or real key can reach it. The runner's chain-time waits are warped.
+It prints pass/fail per case and the gas limits per wallet, for the launch and for the flows. Every runner case that
+needs no board passed on 2 Oct (21/21), all but `legacy-dispute`, which signs with the real legacy arbitrator's key.
+Fork-only stand-ins: an impersonated `roles.admin` makes the fresh deployer the core's admin, and `anvil_dealERC20`
+gives mUSD and FACTORY v1. The anvil dev keys are not used, because on Monad testnet every one carries an EIP-7702
+sweeper delegation.
+
+| wallet | txs | gas limit | MON @ 102 gwei |
+| --- | ---: | ---: | ---: |
+| deployer: launch, incl. `pauser` | 25 | 20,218,727 | 2.062 |
+| Safe owner: launch | 8 | 1,137,278 | 0.116 |
+| creator: flows | 96 | 30,291,973 | 3.090 |
+| relay: flows | 25 | 26,173,008 | 2.670 |
+| worker: flows | 83 | 16,401,996 | 1.673 |
+| Safe owner: flows | 3 | 605,595 | 0.062 |
+| odd-token owner (deployer): flows | 4 | 245,389 | 0.025 |
