@@ -1,172 +1,307 @@
-# Mainnet runbook (B7)
+# Mainnet runbook (Hireling v1)
 
-Every step that sends a mainnet transaction is marked **[tx]** and runs only on Kris's explicit go.
+The launch sequence for Hireling v1 on Monad mainnet (chain 143), in the order `contracts/script/rehearse-launch.sh`
+(R7) runs it on a fork. Every step that sends a mainnet transaction is marked **[tx]** and runs only on Kris's explicit
+go. Commands run from the repo root unless the step says `contracts/`. Secrets come from `.env.local` with
+`bash -c 'set -a; . ./.env.local; set +a; …'` (or `../.env.local` from `contracts/`) and are never printed.
 
-Each step is one command from the repo root (or `contracts/` where stated). Secrets are read from `.env.local` with
-`bash -c 'set -a; . ./.env.local; set +a; …'` and are never printed.
-
-**Existing staging release hold (30 September 2026):** do not rerun `pnpm deploy:staging` or initialize Alchemy state. Read [the existing-staging release procedure](staging-release-runbook.md) first: prove the selected backend owns the existing IDs, preserve resource/domain/binding/cron ownership, and review exact source/migration/rollback prerequisites. Original staging used local state, which maps the live stack; the observed remote state maps duplicates and is rejected for recovery. Do not force remote readiness or transplant state. Production's remote permission requirement below is distinct. Documentation/preflight drafts do not authorize a deployment.
+The existing **staging** stack has its own guarded release procedure ([staging-release-runbook.md](staging-release-runbook.md));
+nothing here touches it except the apex handoff in §1.4, which goes through that procedure.
 
 ## 0. What is already proven, without a mainnet transaction
 
-- **The recipe on a fork of 143.**
-  - `contracts/test/fork/Deploy.t.sol` covers the recipe with the committed `config/monad-mainnet.json`: no faucet, USDC the known token and no allowlist (ADR-0010), FACTORY never enters the core, and a faucet config refused.
-  - `contracts/test/fork/MainnetRehearsal.t.sol` runs a real Circle USDC hire paying 5 USDC, writing feedback to the **real** mainnet Reputation Registry for an agent registered on the **real** Identity Registry.
-  - The same file covers silence settling for the worker after the review window, a signed ruling relayed by a third party (refund plus worker-bond burn, nonce not reusable), and a bonded listing refused while no FACTORY is minted.
-  - Run all of it with: `(cd contracts && set -a && . ../.env.local && set +a && forge test --match-path 'test/fork/*')`
-- **The deploy script simulated against a local anvil fork of 143** (27 Sep, block ~108.58M):
-  - 16.78M gas in total;
-  - at 202 gwei max fee, forge estimates **≈ 3.39 MON** for the whole deployment;
-  - Monad charges the gas *limit*, so budget above the estimate.
-- **Read-only 143 checks** (`node --experimental-strip-types scripts/reality-check.ts`, row "Mainnet readiness"):
-  - the ERC-8004 identity and reputation registries, the CRE KeystoneForwarder and USDC `0x7547…b603` (6 decimals) all have code;
-  - every role wallet is at **0 MON, nonce 0**.
-- **The whole Cloudflare stack is network-agnostic.**
-  - `AGENT_JOBS_NETWORK=monad-mainnet` makes the API, the indexer and Explore use `MONAD_MAINNET_RPC_URL`, `https://monad.hypersync.xyz` (verified) and chain 143.
-  - The `prod` stage gets its own D1, R2 and Durable Object.
+- **The whole launch on a fork of 143 (R7).** `RPC=https://rpc.monad.xyz bash contracts/script/rehearse-launch.sh`
+  runs §3.1–§3.7 and a first hire and mining epoch against the live chain's state, with Monad gas pricing and anvil
+  dev keys. It passed on main c6fd84e (2 Oct). The D16 launch gate refused while the six handovers were pending and
+  passed after `SafeAccept`, and `SeedPool`'s receipt verification ran against forge's real run log. The budget in §2
+  comes from that run.
+- **Fork tests** (`(cd contracts && set -a && . ../.env.local && set +a && forge test --match-path 'test/fork/*')`):
+  - `HirelingRehearsal.t.sol`: the recipe step by step on a mainnet fork, with third-party calls between the steps; a
+    fresh core whose admin roles move to the Safe; the Safe accepts every handover; one hire end to end against the
+    real ERC-8004 registries.
+  - `SeedPoolRehearsal.t.sol`: the seed on the live Uniswap v4 contracts. It covers junk-priced and dusted pools,
+    the repair cap, the fallback key, an unrelated mint racing the seed, the run-log verification and the owner checks.
+  - `SafeAcceptRehearsal.t.sol`: the six acceptances through a real Safe (testnet's).
+- **Delegated (EIP-7702) wallets.** Every v1 signature check goes through `contracts/src/Signatures.sol`: ecrecover
+  first, then ERC-1271. A 7702-delegated EOA's own ECDSA signature works whatever its delegation's ERC-1271 does.
+- **The Cloudflare stack is network-agnostic.** `AGENT_JOBS_NETWORK=monad-mainnet` points the API, the indexer and
+  Explore at chain 143, the mainnet RPC and `https://monad.hypersync.xyz`. The `prod` stage has its own D1, R2 and
+  Durable Objects.
+- **Testnet first (G1).** `contracts/script/launch-testnet.sh` runs the same deploy, promote, accept and readback on
+  testnet (core reused) and prints every transaction hash; record them in `docs/reality-check.md`.
 
-## 1. Decisions needed first
+## 1. Inputs, before anything is sent
 
-1. **FACTORY supply.** The recipe deploys `FactoryToken` with **no faucet** and **`minter` = admin** (`config.factory`). Until something is minted:
-   - every mainnet listing must have `creatorBond = workerBond = 0` (the fork test proves a bonded publish reverts);
-   - there are no slashing stakes on day one; rulings still decide who is paid.
+1. **The Safe (R2).** A Safe v1.4.1 on 143. The canonical contracts have code there:
+   - SafeProxyFactory `0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67`;
+   - SafeL2 `0x29fcB43b46531BcA003ddC8FCB67FFE91900C762`;
+   - fallback handler `0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99`;
+   - MultiSendCallOnly `0x9641d764fc13c8B624c04430C7356C1C7C8102e2`.
 
-   Options:
+   After the deploy it owns every v1 contract and holds both core admin roles; the deployer keeps nothing (§3.6
+   enforces this). `SafeAccept.s.sol` needs a **threshold-1** Safe. With a higher threshold, do §3.5 in Safe{Wallet}.
+2. **`contracts/config/monad-mainnet.json`** (the coordinator commits it):
+   - `hireling.safe` = the Safe.
+   - `hireling.defaultArbitrator`: per-offer arbitrators override it.
+   - `hireling.margin`.
+   - `hireling.schedule`: fee thresholds and bps, treasury = the Safe.
+   - `hireling.allocation`: treasury, ecosystem, and `liquidity`, the account that seeds the pool.
+   - `hireling.vesting`: team beneficiary, start offset, duration, cliff.
+   - `hireling.mining.genesis`: 0 means the deploy time.
+   - `liquidity.positionOwner` = the Safe; `maxRepairCost` = 5.
+   - Hold gates stay 0 and there is no faucet.
 
-   | Option | Recipe change | Effect |
-   | :--- | :--- | :--- |
-   | A. Keep minter, mint later | none | Ship bondless; mint when bonds are wanted (`FactoryToken.mint(to, amount)` from the admin) **[tx]** |
-   | B. Fixed supply now, minter kept | none; after deploy, one `mint(treasury, supply)` **[tx]** | Bonds possible from day one; supply can still grow |
-   | C. Fixed supply, no further minting | `minter` is immutable and there is no renounce, so either a contract change (`renounceMinter`, a re-audit of `FactoryToken`) or mint the full supply to a treasury and freeze admin minting by public commitment | Hard cap only with the contract change |
+   FACTORY is fixed-supply. The deploy mints exactly 1e9 once, split 50% mining reserve, 20% treasury, 15% team
+   vesting, 10% ecosystem and 5% liquidity; nothing can mint again.
+3. **The reviewed production artifact** (`docs/p0-prod-artifact.json`, filled after §3.3). It records:
+   - the deployment addresses, including `deployment.hireling.safe`;
+   - the Privy app id and approval;
+   - the RPC and HyperSync providers;
+   - `admission.drain` (§3.8, §3.10).
 
-   | D. A token launched elsewhere (e.g. nad.fun) | `"factory": { "faucet": false, "minter": "<unused>", "address": "0x…" }` in `config/monad-mainnet.json`; the recipe then deploys no `FactoryToken` and Holding bonds in that token | Supply, price and liquidity come from the launcher; Holding needs no mint or burn rights (a slash sends the bond to `0x…dEaD`) |
+   `bun scripts/preflight-prod.ts <artifact>` checks its structure.
+4. **Domain.** `prod` serves `hireling.xyz`. Staging still answers the apex with a 301. Before the first prod deploy,
+   release the apex with a guarded staging release that carries `HIRELING_APEX_REDIRECT=0`; it is the approved
+   `domainChanges` entry in `scripts/staging-release/approved-changes.json`. Add `https://hireling.xyz` to Privy's
+   allowed domains.
 
-   **Option D checks before deploy** (Holding's bond token is immutable; a wrong token means a new Holding pair):
-   - A plain ERC-20 with 18 decimals. **No fee or tax on transfer**: Holding compares balances around every bond pull and reverts `BondTokenFeeOnTransfer` (`BondTokenTest`), so a taxed token makes every bonded listing fail. Pons v2 offers an optional creator tax and runs on Robinhood Chain rather than Monad; nad.fun is the Monad-native launcher (1% trading fee on the curve, not on transfers; confirm on the verified token source).
-   - Transfers to and from a contract work before the token graduates to a DEX (some launchers limit transfers while on the bonding curve).
-   - No blacklist or pause the launcher controls, since either could freeze bonds held by Holding.
-   - Verified with a fork test: `MainnetRehearsal.t.sol::test_fork_mainnet_launchedFactoryTokenBondsAndSlashes` with the real token address in place of `LaunchedFactory`.
-   - Testnet keeps the old bytecode (FACTORY via `FactoryToken.burn`); the generalized Holding deploys first on mainnet.
+## 2. Budget and funding [tx, by Kris from his own wallet]
 
-   Recommendation: **A** for the first real job, since the hackathon demo's slashing is proven on testnet. Decide B/C/D before announcing bonds. **Kris, 28 Sep: mainnet waits for the FACTORY decision; D (a launched token) is likely.**
-2. **Hold gates** stay 0 on mainnet (`holdGates` in the config); any other value locks out everyone until FACTORY exists.
-3. **Custom domain.** `alchemy.run.ts` puts `prod` (mainnet) on `hireling.xyz` and `staging` on `testnet.hireling.xyz`, and
-   until now staging also answers `hireling.xyz` with a 301. Before the first `pnpm deploy:prod`, redeploy staging with
-   `HIRELING_APEX_REDIRECT=0` to release the apex; then deploy prod, set `MAINNET_LIVE = true` in
-   `apps/explore/src/wallet.ts` (the header switch) and redeploy both. Add `https://hireling.xyz` to Privy's allowed domains.
-4. **Who holds the admin role.** The independent review (28 Sep, Codex) rated this critical. The admin of the vendored core can:
-   - `pause`, then `emergencyWithdraw` the whole escrow balance while paused;
-   - authorize a UUPS upgrade;
-   - raise the platform and evaluator fees, which `_complete` reads at payout time, so a change after funding applies to live jobs.
+From R7. Monad charges the **gas limit**, and checks a sender's balance against limit × max fee. So hold the "on hand"
+column, which covers forge's 203 gwei max fee, not just the charged one.
 
-   The recipe gives all of this to one EOA (`0x6752…ad73`). Nothing in code changes that before B7. The options:
-   - **(a) Keep the EOA** and state the trust assumption and the commitment in the README (fees stay 0, no pause or upgrade during an active agreement). This is the smallest change for the hackathon.
-   - **(b) Move the admin roles to a Safe** right after the deploy. This takes one `grantRole`/`renounceRole` pair per role **[tx]**.
-   - **(c) Renounce the upgrade and fee roles** after the deploy. This cannot be undone.
+| step | txs | gas limit | charged @ 102 gwei | on hand @ 203 gwei | paid by |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Safe (if created by script) | 1 | 319,209 | 0.033 MON | 0.065 MON | deployer |
+| DeployHireling, fresh core | 26 | 26,300,231 | 2.683 MON | 5.339 MON | deployer |
+| PromoteHireling | 0 | 0 | 0 | 0 | — |
+| SafeAccept, 6 × execTransaction | 6 | 797,168 | 0.081 MON | 0.162 MON | a Safe owner |
+| SeedPool: helper, 2 approvals, seed | 4 | 3,888,439 | 0.397 MON | 0.789 MON | liquidity holder |
+| Mining epoch 0: fund, setRoot, a claim | 3 | 732,804 | 0.075 MON | 0.149 MON | a Safe owner; claimer |
+| **launch total** | **40** | **32,037,851** | **3.27 MON** | **6.50 MON** | |
 
-   Recommendation: (a) for tomorrow, plus a README "Trust" section; (b) before real volume.
+Keep the role wallets separate; each has its own key in `.env.local`.
 
-## 2. Funding [tx, by Kris from his own wallet]
-
-Keep the role wallets separate (they are separate keys in `.env.local`).
-
-| Role | Address | Send | Why |
+| role | address | send | why |
 | :--- | :--- | :--- | :--- |
-| admin (deployer) | `0x675269d710692d4d0d7166da11B76463577aad73` | 6 MON | deploy ≈ 3.4 MON at 202 gwei, plus verify retries, the CRE receiver later and a FACTORY mint |
-| relay | `0xac7282b6a519665dcb71563317C71d1F357f9e7e` | 2 MON | relays awards, signed rulings and timeouts (value-0 calls) |
+| admin (deployer) | `0x675269d710692d4d0d7166da11B76463577aad73` | 6.5 MON | deploy + Safe, 5.4 on hand at the max fee, plus a retry |
+| liquidity holder (`hireling.allocation.liquidity`) | from the config | 1 MON + 305 USDC | the seed (3M FACTORY and $300 at $0.0001), plus the 5 USDC repair cap, which comes back unless spent |
+| Safe owner that sends | from the Safe | 0.5 MON | SafeAccept, and each epoch's fund + setRoot |
+| relay | `0xac7282b6a519665dcb71563317C71d1F357f9e7e` | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it |
 | attester | `0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f` | 1 MON | attaches evidence |
 | arbitrator | `0xc657F023F938BB89de590Ed96f79B775c7dDd632` | 0 | only signs; the relay sends |
 
-The first real job also needs a creator wallet with USDC (reward) and a little MON, and a worker wallet with a little MON. Space out transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).
+If the deployer is also the liquidity holder, send it both rows and use `DEPLOYER_PRIVATE_KEY` in §3.7. Besides the
+role keys in `.env.example`, the commands below read `SAFE_OWNER_PRIVATE_KEY` (the Safe owner that sends) and
+`LIQUIDITY_PRIVATE_KEY`. Space out transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).
+Check balances with `bun scripts/reality-check.ts`, row "Mainnet readiness (B7)".
 
-Check: `node --experimental-strip-types scripts/reality-check.ts`. The "Mainnet readiness" row must list non-zero balances.
+## 3. Launch sequence
 
-### Before the mainnet deploy: signature checks for delegated wallets
+### 3.1 The Safe [tx]
 
-OZ's `SignatureChecker` consults only ERC-1271 once a signer has code, and a 7702-delegated EOA has code. Our own
-batches and every budget grant point accounts at MetaMask's `EIP7702StatelessDeleGatorImpl`, whose ERC-1271 accepts
-the account's raw ECDSA signature over the hash and refuses any other key (checked on a testnet fork, 29 Sep), so they
-work as `Simple7702Account` did (proven, testnet job 48). A wallet delegated to an account whose ERC-1271 wraps hashes (ERC-7739 style) would fail the
-Selection, budget/submit authorizations, rulings and evidence. Before the fresh mainnet deploy, switch those four
-checks (`JobHolding.sol` selection, `ERC8183WithAuthorization.sol` authorizations, `JobsEvaluator.sol` ruling and
-evidence) to ecrecover-first, then ERC-1271 (Solady's order), with 7702 tests (`vm.signDelegation`). It changes the
-vendored core, so record the patch next to the vendor pin in `contracts/SURFACE.md`.
+Create it in Safe{Wallet}, or from the factory as R7 does. Then check it:
 
-## 3. Deploy and verify [tx]
+```
+cast call <safe> "VERSION()(string)" --rpc-url "$MONAD_MAINNET_RPC_URL"   # "1.4.1"
+cast call <safe> "getOwners()(address[])"; cast call <safe> "getThreshold()(uint256)"
+```
 
-From `contracts/`:
+### 3.2 DeployHireling [tx]
+
+From `contracts/`. First run it without `--broadcast` as a dry run, then send:
 
 ```
 bash -c 'set -a; . ../.env.local; set +a; \
-  NETWORK=monad-mainnet MAINNET_GO=yes forge script script/Deploy.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --broadcast --slow --verify \
-  --etherscan-api-key "$MONADSCAN_API_KEY"'
+  NETWORK=monad-mainnet MAINNET_GO=yes forge script script/DeployHireling.s.sol \
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --broadcast --slow \
+  --verify --etherscan-api-key "$MONADSCAN_API_KEY"'
 ```
 
-- The script refuses mainnet without `MAINNET_GO=yes` and refuses a broadcaster that isn't the configured admin.
-- It writes `.deployment` (block, core, factory, rewardTokens, `main.holding`, `main.evaluator`) into `config/monad-mainnet.json`.
-- Commit that file: `git add contracts/config/monad-mainnet.json`.
-- If `--verify` fails on some contracts, re-run `forge verify-contract` per address; Sourcify also works.
+- It deploys a fresh core (ERC-1967 proxy), FACTORY, and the v1 contracts: TeamVesting, FeeSchedule, StakeVault,
+  HirelingHolding, HirelingEvaluator, EpochDistributor and MiningReserve.
+- It wires them, moves both core admin roles to the Safe, and proposes each contract's ownership to the Safe
+  (Ownable2Step).
+- The script refuses chain 143 without `MAINNET_GO=yes`, an RPC whose chain id isn't the config's, and a broadcaster
+  that isn't `roles.admin`.
+- It writes nothing to config. It only writes `broadcast/hireling/monad-mainnet.candidate.json`, and only with
+  `--broadcast`.
+- If it is cut off part way, re-run the same command with `--resume`.
+- If `--verify` fails for a contract, run `forge verify-contract` for that address afterwards; Sourcify also works.
 
-Wiring check (read-only):
+### 3.3 PromoteHireling (no transaction)
 
 ```
-cast call <main.holding> "evaluator()(address)" --rpc-url "$MONAD_MAINNET_RPC_URL"
-cast call <main.evaluator> "arbitrator()(address)"
-cast call <main.evaluator> "verifiers(address)(bool)" 0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f
+NETWORK=monad-mainnet forge script script/PromoteHireling.s.sol --rpc-url "$MONAD_MAINNET_RPC_URL"
 ```
 
-Expected: the evaluator address, the arbitrator, `true`. There is no token allowlist to check (ADR-0010). Then run `pnpm gen-abi` if the SDK's deployment reader needs regenerating (it reads the config JSON; normally nothing to do), and `heavy pnpm check`.
+It verifies the candidate against forge's receipts and live state, then writes the deployment record (with the Safe
+and the receipt blocks) into `config/monad-mainnet.json`. It refuses an incomplete or failed broadcast. Running it
+again changes nothing. Commit the config, fill the artifact (§1.3), and run `heavy pnpm check`.
 
-## 4. Cloudflare prod stage (no chain transaction)
+### 3.4 The launch gate must refuse
 
-- `pnpm deploy:prod` selects mainnet plus `AGENT_JOBS_STAGE=prod`, and runs the fail-closed check described in `docs/p0-production-preflight.md` before evaluating any resource. Supply the explicitly reviewed `AGENT_JOBS_PROD_ARTIFACT` path first; the proposed artifact intentionally fails today.
-- **Blocker:** remote state needs verified account-scoped **Secrets Store: Edit** permission on the Cloudflare token and must be readable and map the intended resources before evaluation. Token validity/state readability alone is insufficient permission evidence; do not bootstrap state to make a preflight pass. Local-only production state is not an accepted fallback. Existing staging has the additional incident/ownership gates in [its release procedure](staging-release-runbook.md).
-- Deploy only **after** step 3: Explore reads `.deployment` at build time.
-- Checks:
-  - `curl <api>/health`;
-  - `protocol_info` over MCP shows chain 143 and the mainnet addresses;
-  - the indexer's `GET /` shows `next_block` ≥ the deploy block within a few minutes;
-  - Explore shows chain 143 and Monadscan links.
+```
+bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live
+```
 
-## 5. First real USDC job [tx]
+Expected: `production launch gate refused`, listing exactly the six `launch:owner:<name> is not the Safe` (vault,
+feeSchedule, holding, evaluator, distributor, miningReserve). At this point the handovers are only pending. Anything
+else in the list is a real problem; stop. The one exception is `launch:relay at or below RELAY_FLOOR_MAINNET`: fund the
+relay (§2) and run it again.
 
-Bondless (see §1), fixed-price hire on the `main` stack.
-- Reviews use the real windows: review 3 days, dispute 3 days, arbitration 7 days. The approver should accept explicitly rather than wait out the window.
-- The creator is Kris's own wallet: publish from Explore's Publish screen on the prod site, or ask an agent through the board's MCP `create_task` and sign the returned steps in the browser. (`packages/sdk/scripts/board-hire.ts` is testnet-only: it reads the testnet creator key.)
-- The worker is a headless Claude Code session with `skill/worker` and a fresh mainnet key holding a little MON; it registers on the mainnet Identity Registry the first time.
-- Record every hash in `docs/reality-check.md` under a "B7 mainnet" section.
+### 3.5 The Safe accepts the six [tx]
 
-## 6. MetaMask agent wallet on 143 [tx]
+With a threshold-1 Safe, sent by one owner, from `contracts/`:
 
-MetaMask's services refuse 10143, so its transaction path is proven only here: `packages/sdk/scripts/board-mm-contest.ts` (or a hire) with `NETWORK=monad-mainnet` against the prod API.
+```
+bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SafeAccept.s.sol \
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$SAFE_OWNER_PRIVATE_KEY" --broadcast --slow'
+NETWORK=monad-mainnet forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$MONAD_MAINNET_RPC_URL"
+```
 
-## 7. If something goes wrong
+With a higher threshold, propose one batch in Safe{Wallet}'s transaction builder: `acceptOwnership()` on the vault, fee
+schedule, Holding, Evaluator, distributor and mining reserve, through MultiSendCallOnly. Then run the same `check()`.
 
-- **Contract bug:** the admin can `pause` the core (see `contracts/SURFACE.md`). Pause also blocks timeouts, so a promise made while paused is void; the README states the commitment not to pause during an active agreement. `emergencyWithdraw` works only while paused.
-- **Board or Worker problem:** chain state is authoritative. Use a reviewed same-Worker version rollback, not an unguarded whole-stack deploy of an older commit; verify bindings and old-version compatibility first. Code rollback does not undo D1 schema/DO class migrations or namespace state. Preserve storage, domains and aliases; rebuild chain-derived rows only under a separately reviewed recovery procedure. See [the existing-staging procedure](staging-release-runbook.md).
-- **A leaked key:** every role key is separate. A relay or attester key can be replaced by config and redeploy of the Workers; the arbitrator is immutable per evaluator (a new evaluator pair means a new deployment).
+### 3.6 The launch gate passes
 
-## 8. Not blocking B7
+```
+bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live
+```
 
-The CRE receiver (`Recipe.deployReceiver`) waits for Chainlink CRE deploy access; the board's attester covers evidence until then.
+It must print `Hireling v1 production launch gate passed`. It runs after the structural check, reads live state through
+the artifact's public RPC (chain 143 only), and refuses on any failed read. It requires:
+- the Safe set, with code, matching the artifact;
+- `owner() == Safe` on all six;
+- the core's `DEFAULT_ADMIN_ROLE` and `ADMIN_ROLE` held by the Safe, and by the deployer for neither;
+- the attester a verifier on the Evaluator;
+- the relay above `RELAY_FLOOR_MAINNET`.
 
-## 9. P0 no-mutation drills and owner alerts
+### 3.7 Seed the pool [tx]
 
-Run `pnpm p0:drills` locally before treating fresh production state as recoverable. The drill creates
-disposable SQLite files under `/tmp`, installs the real D1/indexer/registry/session schemas, preserves hosted rows,
-backs up/restores the database, and runs the real indexer reset/rebuild against bounded recorded chain logs.
-`bun scripts/p0-drills.ts --live-testnet` instead rebuilds from a bounded read-only Monad testnet RPC log range
-(at most 8000 blocks, 100-block pages). It never connects to remote D1, Cloudflare, HyperSync, Telegram, or any production resource.
-`apps/api/test/recovery.test.ts` additionally restores/rebuilds rows in two disposable local D1 databases under
-real workerd and checks the runtime identity. Both tests retain a hosted sentinel; the Node adapter also installs
-the actual hosted registry/session schemas. Neither proves restoration of a production session or Durable Object.
-The local SQLite/local D1 row restore proof is not a remote Cloudflare D1 infrastructure restore proof. A backup is evidence of recoverability, not a source of truth for
-balances or settlement.
+From `contracts/`, sent by the liquidity holder:
 
-The ops alert adapter emits owner-only records for uptime, indexer lag, failed publishes, stuck/owed escrows, and
-unexpected admin events. Its transport is injected; tests use a fake sender and deduplicate by alert id. The real
-myagent bot (`@mymanbot_bot`) is a prepared, not live-enabled, transport target: no bot token, `getUpdates`, webhook, or live message
-is used by this preparation track. Expected refusal is a metric, not an incident, and direct chain rights remain
-permissionless even while hosted admission is drained.
-See `docs/p0-admission.md` and `docs/p0-owner-alerts.md` for the production boundary, tests, and remaining live gates.
+```
+bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol \
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$LIQUIDITY_PRIVATE_KEY" --broadcast --slow'
+NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url "$MONAD_MAINNET_RPC_URL"
+```
+
+It sends four transactions: deploy a one-shot `SeedHelper`, approve it for both tokens, and seed. The seed is **one**
+transaction that creates a full-range FACTORY/USDC position at $0.0001 (3M FACTORY + $300) owned by the Safe. If someone
+initialized the pool at another price first, the same transaction swaps it back, trading through whatever is in the
+way, up to `maxRepairCost` (5 USDC, or that value in FACTORY at the target price); above the cap it refuses.
+
+`verify()` is the authoritative check. It takes the token id from the seed receipt, then reads back the owner,
+liquidity, pool key and ticks, and checks that no allowance is left.
+
+**Fallback pool key.** If the seed reverts with `PriceNotSet` (dust beyond the cap), set `"fee": 10000,
+"tickSpacing": 200` in `liquidity`, revoke the old helper's allowances (`approve(helper, 0)` on both tokens, [tx]), and
+re-run both commands. A second run of a pool that was already seeded is refused (`AlreadySeeded`).
+
+### 3.8 A drained production deploy (no chain transaction)
+
+```
+AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm deploy:prod
+```
+
+- With `admission.drain: true` in the artifact, the deploy is drained: reads and authenticated recovery work, and new
+  hosted writes are refused.
+- A missing or empty `PROD_ADMISSION_DRAIN` also drains, and the artifact's mode must match the runtime value.
+- `assertDeployConfig` runs before any resource: structure, provider and Privy mapping, dedicated secret sources,
+  the signing keys against the configured relay and attester, and the RPC's chain id.
+- A drained deploy skips the D16 gate, so an emergency redeploy is never blocked by it.
+- **Blocker:** remote state needs verified, account-scoped **Secrets Store: Edit** permission on the Cloudflare token,
+  and must be readable and map the intended resources before evaluation. Do not bootstrap state to make the preflight
+  pass. Local-only production state is not an accepted fallback.
+
+### 3.9 Post-deploy probes
+
+- `curl <api>/health`: `ok: true`, `network: "monad-mainnet"`.
+- MCP `protocol_info` shows chain 143 and the v1 addresses from the config.
+- The indexer's `GET /` shows `next_block` at or past `deployment.hireling.block` within a few minutes.
+- Explore shows chain 143 and Monadscan links, and the board refuses new hosted writes (drained). Direct chain calls
+  stay permissionless; draining is a hosted-admission control only.
+
+### 3.10 Explicit opening
+
+1. Review and commit the artifact with `admission.drain: false`. Flip Explore's `MAINNET_LIVE` (`apps/explore/src/wallet.ts`)
+   in the same release. Today it only controls the testnet page's link to mainnet; PROD-GATE-006 (open) will pin it in
+   the artifact and build check.
+2. Run `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live` again; it must pass.
+3. Deploy with `AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 pnpm deploy:prod`. An
+   opening deploy runs the D16 gate inside `assertDeployConfig` before any resource, and refuses on any failure.
+4. Repeat §3.9; write paths are now live.
+
+### 3.11 The first real USDC job [tx]
+
+A fixed-price hire on the main pair, published from Explore by Kris's own wallet. The worker is a headless Claude Code
+session with `skill/worker` and a fresh mainnet key holding a little MON; it registers on the ERC-8004 Identity
+Registry the first time. Record every hash in `docs/reality-check.md` under "v1 mainnet".
+
+## 4. Mining epochs
+
+Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch ends:
+1. `pnpm mining:epoch <n>` (the backend's B8 tool) produces the root, total and data hash.
+2. The Safe sends `MiningReserve.fund(n, total)` and `EpochDistributor.setRoot(n, root, total, dataHash)`. R7 sends them
+   as two `execTransaction`s; `/admin`'s mining panel builds them for Safe{Wallet}.
+3. Each claim stakes the reward into the vault for the claimant.
+
+`fund` works only for an ended epoch and only up to the cumulative schedule (500M in all). A root can be replaced until
+its first claim; `resizeRoot` corrects a total.
+
+## 5. If something goes wrong
+
+- **Contract bug.** The Safe pauses the core and notes the pause on the Evaluator as **one** transaction: a
+  MultiSendCallOnly batch of core `pause` + evaluator `notePause` (D13), which `/admin` builds. `/admin`
+  refuses a lone `pause` or `unpause`. While paused, rulings and acceptances still land, and a payout or refund the core
+  refuses is deferred (`PayoutDeferred` / `RefundDeferred`) rather than reverted. `rejectAfterDeliveryDeadline` waits
+  for the unpause, and a delivery deadline inside a recorded pause refunds the creator without burning the worker's
+  bond. The core's `emergencyWithdraw` works only while paused and only for the Safe. Unpause is the same atomic pair;
+  an unrecorded end counts as still paused.
+- **A payout or refund deferred** (`PayoutDeferred` / `RefundDeferred`): anyone calls `retryDeferred(jobId)`, then
+  `settle(jobId)`.
+- **The seed refuses:** use the fallback key (§3.7).
+- **A deploy cut off part way:** `--resume`. Promotion refuses an incomplete run, and config stays untouched.
+- **Board or Worker problem.** Chain state is authoritative. Use a reviewed same-Worker version rollback, not an
+  unguarded whole-stack deploy of an older commit; verify bindings and old-version compatibility first. Code rollback
+  does not undo D1 schema or DO class migrations or namespace state. Preserve storage, domains and aliases; rebuild
+  chain-derived rows only under a separately reviewed recovery procedure.
+- **A leaked key.** Every role key is separate.
+  - Relay: a new key in `roles.relay`, the artifact and the secret source, funded above the floor, then redeploy.
+  - Attester: the Safe calls `setVerifier(new, true)` and `setVerifier(old, false)` on the Evaluator; update
+    `roles.attester`, the artifact and the secret source, then redeploy.
+  - Arbitrator: arbitrators are per offer, so new offers name a new one.
+  - Deployer: it holds no role after §3.5; the launch gate proves that.
+
+## 6. Not blocking the launch
+
+The CRE receiver waits for Chainlink CRE deploy access; the board's attester covers evidence until then.
+
+## 7. P0 no-mutation drills and owner alerts
+
+Run `pnpm p0:drills` locally before treating fresh production state as recoverable. The drill:
+- creates disposable SQLite files under `/tmp`;
+- installs the real D1, indexer, registry and session schemas, and preserves hosted rows;
+- backs up and restores the database;
+- runs the real indexer reset and rebuild against bounded recorded chain logs.
+
+`bun scripts/p0-drills.ts --live-testnet` instead rebuilds from a bounded, read-only Monad testnet RPC log range (at
+most 8000 blocks, 100-block pages). It never connects to remote D1, Cloudflare, HyperSync, Telegram or any production
+resource.
+
+`apps/api/test/recovery.test.ts` additionally restores and rebuilds rows in two disposable local D1 databases under
+real workerd, and checks the runtime identity. Both tests retain a hosted sentinel; the Node adapter also installs the
+actual hosted registry and session schemas.
+
+Neither proves restoration of a production session or Durable Object. A local SQLite or local D1 row restore is not a
+remote Cloudflare D1 restore. A backup is evidence of recoverability, not a source of truth for balances or
+settlement.
+
+The ops alert adapter emits owner-only records for uptime, indexer lag, failed publishes, stuck or owed escrows, and
+unexpected admin events. Its transport is injected; tests use a fake sender and deduplicate by alert id.
+
+The real myagent bot (`@mymanbot_bot`) is a prepared transport target, not live-enabled. This preparation track uses
+no bot token, `getUpdates`, webhook or live message. An expected refusal is a metric, not an incident, and direct chain
+rights stay permissionless even while hosted admission is drained. See `docs/p0-admission.md` and
+`docs/p0-owner-alerts.md` for the production boundary, tests and remaining live gates.

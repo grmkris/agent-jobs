@@ -4,7 +4,15 @@ test = "test"
 out = "out"
 libs = ["lib"]
 # The deploy writes a candidate under broadcast/; the promotion reads it and the receipts, then writes config/.
-fs_permissions = [{ access = "read-write", path = "./config" }, { access = "read-write", path = "./broadcast" }]
+fs_permissions = [
+    { access = "read-write", path = "./config" },
+    { access = "read-write", path = "./broadcast" },
+    # MainnetRunbook.t.sol (PROD-GATE-007) checks the runbook against R7 and the scripts it names.
+    { access = "read", path = "./script" },
+    { access = "read", path = "../docs/mainnet-runbook.md" },
+    { access = "read", path = "../scripts/preflight-prod.ts" },
+    { access = "read", path = "../package.json" },
+]
 solc_version = "0.8.28"
 evm_version = "cancun"
 # Monad network mode (Foundry >= 1.8): required to fork Monad in the fork tests.
