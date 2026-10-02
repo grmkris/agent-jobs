@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, encodeFunctionData } from 'viem'
-import { type AdminContext, bpsOf, readAdminOp, readAdminTx, resizeProblem, rootProblem, scheduleProposal } from './admin.ts'
+import { type AdminContext, bpsOf, readAdminOp, readAdminTx, readEpochFile, resizeProblem, scheduleProposal } from './admin.ts'
 import { MULTI_SEND_CALL_ONLY, atomically, calldata, execTransaction, multiSend, preValidated, safeAbi } from './safe.ts'
 
 const treasury = '0x9999999999999999999999999999999999999999'
@@ -24,13 +24,32 @@ describe('a fee schedule proposal', () => {
   })
 })
 
-describe('an epoch root', () => {
-  it('needs an epoch, a root, a total and a data hash', () => {
-    const h = `0x${'ab'.repeat(32)}`
-    expect(rootProblem({ epoch: '0', root: h, total: '1000', dataHash: h })).toBeNull()
-    expect(rootProblem({ epoch: '', root: h, total: '1000', dataHash: h })).toMatch(/epoch/)
-    expect(rootProblem({ epoch: '0', root: '0x12', total: '1000', dataHash: h })).toMatch(/root/)
-    expect(rootProblem({ epoch: '0', root: h, total: '0', dataHash: h })).toMatch(/total/)
+const fileProblem = (r: ReturnType<typeof readEpochFile>) => (r.ok ? null : r.problem)
+
+describe('an epoch file', () => {
+  const h = `0x${'ab'.repeat(32)}`
+  const d = `0x${'cd'.repeat(32)}`
+  const total = (5000n * W).toString()
+  // The fields mining:epoch writes (D17); only chainId, epoch, root, total and dataHash are read.
+  const file = { chainId: 10143, epoch: 1, window: { start: 1, end: 2 }, priceList: {}, budget: (10_000n * W).toString(), emission: total, total, root: h, dataHash: d, inputs: {}, tree: { values: [{}, {}, {}] } }
+  const read = (patch: Record<string, unknown>) => readEpochFile(JSON.stringify({ ...file, ...patch }), 10143)
+
+  it('gives setRoot and fund their arguments, with the extras it has', () => {
+    expect(read({})).toEqual({ ok: true, file: { epoch: 1n, root: h, total: 5000n * W, dataHash: d, emission: 5000n * W, budget: 10_000n * W, leaves: 3 } })
+    // Loose until the contracts track pins it: no chainId, no extras, the epoch as a string.
+    expect(readEpochFile(JSON.stringify({ epoch: '2', root: h, total, dataHash: d }), 10143)).toEqual({ ok: true, file: { epoch: 2n, root: h, total: 5000n * W, dataHash: d, emission: null, budget: null, leaves: null } })
+  })
+
+  it('refuses a file for another chain, or without a usable root, total or data hash', () => {
+    expect(fileProblem(readEpochFile('not json', 10143))).toMatch(/not JSON/)
+    expect(fileProblem(readEpochFile('[]', 10143))).toMatch(/not an epoch file/)
+    expect(fileProblem(read({ chainId: 143 }))).toMatch(/chain 143, not this network/)
+    expect(fileProblem(read({ epoch: -1 }))).toMatch(/epoch number/)
+    expect(fileProblem(read({ root: '0x12' }))).toMatch(/root/)
+    expect(fileProblem(read({ total: '0' }))).toMatch(/total/)
+    expect(fileProblem(read({ total: '5000.5' }))).toMatch(/total/)
+    expect(fileProblem(read({ dataHash: undefined }))).toMatch(/data hash/)
+    expect(fileProblem(read({ emission: (4000n * W).toString() }))).toMatch(/more than its emission/)
   })
 })
 

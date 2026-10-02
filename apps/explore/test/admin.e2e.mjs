@@ -193,22 +193,33 @@ try {
     await holdings.getByText('Not authorized', { exact: true }).waitFor();
     await capture(page, `${device}-holdings`);
 
-    // Mining: the root for the last ended epoch, then its funding.
+    // Mining: the root for the last ended epoch, then its funding, both from the epoch file mining:epoch wrote (D17),
+    // never typed by hand. A file for another chain is refused; the shape is read loosely until contracts pins it.
     const mining = section(page, 'Mining');
     assert.equal(await mining.getByRole('textbox', { name: 'Epoch', exact: true }).inputValue(), '1');
     const root = `0x${'ab'.repeat(32)}`;
-    await mining.getByRole('textbox', { name: 'Merkle root' }).fill(root);
-    await mining.getByRole('textbox', { name: 'Epoch total' }).fill('5000');
-    await mining.getByRole('textbox', { name: 'Data hash' }).fill(`0x${'cd'.repeat(32)}`);
+    const dataHash = `0x${'cd'.repeat(32)}`;
+    const total = (5000n * 10n ** 18n).toString();
+    const epochFile = (body) => ({ name: 'epoch-1.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(body)) });
+    const file = { chainId: 10143, epoch: 1, window: { start: 0, end: 1 }, priceList: {}, budget: total, emission: total, total, root, dataHash, inputs: {}, tree: { values: [{}, {}] } };
+    assert.equal(await mining.getByRole('textbox', { name: 'Merkle root' }).count(), 0);
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile({ ...file, chainId: 143 }));
+    await mining.getByText('epoch-1.json: It is for chain 143, not this network (10143).', { exact: true }).waitFor();
+    assert.equal(await mining.getByRole('button', { name: 'Review the root' }).count(), 0);
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile(file));
+    await mining.getByText('epoch-1.json', { exact: true }).waitFor();
+    await mining.getByText(dataHash, { exact: true }).waitFor();
+    await capture(page, `${device}-mining-file`);
     await mining.getByRole('button', { name: 'Review the root' }).click();
     await page.getByText('setRoot(epoch, root, total, dataHash)', { exact: true }).waitFor();
+    await page.getByText(total, { exact: true }).first().waitFor();
     await send(page, 'Post the root of epoch 1');
-    await mining.getByText(root, { exact: true }).waitFor();
-    await mining.getByRole('textbox', { name: 'Amount to fund' }).fill('5000');
-    await mining.getByRole('button', { name: 'Review funding' }).click();
+    await mining.getByRole('button', { name: 'Review the root' }).waitFor({ state: 'hidden' });
+    await mining.getByText(root, { exact: true }).nth(1).waitFor();
+    await mining.getByRole('button', { name: 'Review funding · 5,000 FACTORY' }).click();
+    await page.getByText('fund(epoch, amount)', { exact: true }).waitFor();
     await send(page, 'Fund epoch 1');
     await mining.getByText(/^Spare in the distributor\s*5,000 FACTORY$/).waitFor();
-    assert.equal(await mining.getByRole('textbox', { name: 'Merkle root' }).count(), 0);
     // The posted total overstated the leaves: shrink it to their sum, never above the posted total.
     await mining.getByRole('textbox', { name: 'New epoch total' }).fill('6000');
     await mining.getByText('The new total must be below the posted one.', { exact: true }).waitFor();
@@ -221,7 +232,7 @@ try {
       'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund', 'safe:resizeRoot',
     ]);
     await capture(page, `${device}-mining`);
-    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'setRoot', 'fund', 'decoded review before every send'], passed: true });
+    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'epoch file from another chain refused', 'setRoot and fund from the epoch file, no typed fields', 'decoded review before every send'], passed: true });
     await context.close();
   }
 

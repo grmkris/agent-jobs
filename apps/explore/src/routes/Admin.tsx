@@ -12,7 +12,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
-import { type AdminContext, type AdminTx, readAdminOp, resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
+import { type AdminContext, type AdminTx, type EpochFile, readAdminOp, readEpochFile, resizeProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
 import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execTransaction, safeAbi } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
@@ -754,9 +754,17 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
   const cumulative = result<bigint>(detail.data, 1)
   const end = result<bigint>(detail.data, 2)
   const root = result<EpochRoot>(detail.data, 3)
-  const [form, setForm] = useState({ root: '', total: '', dataHash: '', fund: '', resize: '' })
-  const problem = epoch === null ? 'Enter the epoch number.' : rootProblem({ epoch: epochText, ...form })
-  const fundAmount = factoryAmount(form.fund)
+  const [form, setForm] = useState({ resize: '' })
+  // The epoch's mining output (D17): setRoot and fund take their arguments from it, never from typed fields.
+  const [upload, setUpload] = useState<{ name: string; file: EpochFile } | { name: string; problem: string } | null>(null)
+  const loaded = upload !== null && 'file' in upload ? upload.file : null
+  const forThisEpoch = loaded !== null && epoch !== null && loaded.epoch === epoch
+  const choose = async (chosen: File | undefined) => {
+    if (chosen === undefined) return
+    const read = readEpochFile(await chosen.text(), chain.id)
+    setUpload(read.ok ? { name: chosen.name, file: read.file } : { name: chosen.name, problem: read.problem })
+    if (read.ok) setPicked(String(read.file.epoch))
+  }
   const ended = end !== undefined && Number(end) <= now
   const hasRoot = root !== undefined && root.root !== `0x${'0'.repeat(64)}`
 
@@ -818,41 +826,56 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
                 </Button>
               </div>
             )}
-            {!hasRoot && (
+            <div className="grid gap-2 rounded-lg bg-fill px-3 py-2.5">
+              <p className="text-[0.85rem] font-semibold">Epoch file</p>
+              <p className="text-[0.82rem] text-label-2">
+                The root, total and data hash come from <code className="font-mono">pnpm mining:epoch</code>: choose the <code className="font-mono">epoch-&lt;n&gt;.json</code> it wrote. Nothing is typed by hand.
+              </p>
+              <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-tint/14 px-4 text-[0.95rem] font-semibold text-tint focus-within:ring-2 focus-within:ring-tint/40">
+                {upload === null ? 'Choose epoch file' : 'Choose another file'}
+                <input type="file" accept="application/json,.json" aria-label="Epoch file" className="sr-only" onChange={(e) => void choose(e.target.files?.[0])} />
+              </label>
+              {upload !== null && 'problem' in upload && <ErrorText>{upload.name}: {upload.problem}</ErrorText>}
+            </div>
+            {loaded !== null && (
+              <Group className="bg-bg">
+                <KV k="File">{upload?.name}</KV>
+                <KV k="Epoch">{String(loaded.epoch)}</KV>
+                <KV k="Total">{fmt(loaded.total)}</KV>
+                {loaded.emission !== null && <KV k="Emission">{fmt(loaded.emission)}</KV>}
+                {loaded.leaves !== null && <KV k="Accounts">{String(loaded.leaves)}</KV>}
+                <KV k="Root" stack>
+                  <code className="font-mono text-[0.78rem] break-all">{loaded.root}</code>
+                </KV>
+                <KV k="Data hash" stack>
+                  <code className="font-mono text-[0.78rem] break-all">{loaded.dataHash}</code>
+                </KV>
+              </Group>
+            )}
+            {loaded !== null && !forThisEpoch && <p className="text-[0.85rem] text-label-2">The file is for epoch {String(loaded.epoch)}; choose that epoch above to use it.</p>}
+            {loaded !== null && forThisEpoch && (
               <>
-                <p className="rounded-lg bg-fill px-3 py-2 text-[0.85rem] text-label-2">
-                  The epoch's price list, root, total and data hash come from the mining tool (<code className="font-mono">pnpm mining:epoch</code>), which is not wired into this page yet. Paste its output here.
-                </p>
-                <Input aria-label="Merkle root" value={form.root} placeholder="0x… root" className="font-mono text-[0.85rem]" onChange={(e) => setForm({ ...form, root: e.target.value })} />
-                <Input aria-label="Epoch total" value={form.total} placeholder="Total, FACTORY" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, total: e.target.value })} />
-                <Input aria-label="Data hash" value={form.dataHash} placeholder="0x… data hash" className="font-mono text-[0.85rem]" onChange={(e) => setForm({ ...form, dataHash: e.target.value })} />
-                {form.root !== '' && problem !== null && <ErrorText>{problem}</ErrorText>}
-                {!ended && epoch !== null && end !== undefined && <p className="text-[0.85rem] text-label-2">This epoch has not ended: the distributor refuses its root until it does.</p>}
+                {hasRoot && root.root.toLowerCase() !== loaded.root.toLowerCase() && (
+                  <p role="alert" className="rounded-lg bg-warn-bg px-3 py-2 text-[0.85rem] text-warn">A different root is already posted for this epoch. The file is not the one on chain.</p>
+                )}
+                {!ended && end !== undefined && <p className="text-[0.85rem] text-label-2">This epoch has not ended: the distributor refuses its root until it does.</p>}
+                {!hasRoot && (
+                  <Button
+                    disabled={busy}
+                    onClick={() => act(`Post the root of epoch ${loaded.epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [loaded.epoch, loaded.root, loaded.total, loaded.dataHash] }, 'safe')}
+                  >
+                    Review the root
+                  </Button>
+                )}
                 <Button
-                  disabled={busy || problem !== null || epoch === null}
-                  onClick={() => {
-                    const total = factoryAmount(form.total)
-                    if (epoch === null || total === null || problem !== null) return
-                    act(`Post the root of epoch ${epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [epoch, form.root.trim(), total, form.dataHash.trim()] }, 'safe')
-                  }}
+                  variant="tinted"
+                  disabled={busy}
+                  onClick={() => act(`Fund epoch ${loaded.epoch}`, { contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'fund', args: [loaded.epoch, loaded.total] }, 'safe')}
                 >
-                  Review the root
+                  Review funding · {fmt(loaded.total)}
                 </Button>
               </>
             )}
-            <div className="flex gap-2">
-              <Input aria-label="Amount to fund" value={form.fund} placeholder="Fund, FACTORY" inputMode="decimal" className="tabular flex-1" onChange={(e) => setForm({ ...form, fund: e.target.value })} />
-              <Button
-                variant="tinted"
-                disabled={busy || epoch === null || fundAmount === null}
-                onClick={() => {
-                  if (epoch === null || fundAmount === null) return
-                  act(`Fund epoch ${epoch}`, { contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'fund', args: [epoch, fundAmount] }, 'safe')
-                }}
-              >
-                Review funding
-              </Button>
-            </div>
           </div>
         </div>
       )}

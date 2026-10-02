@@ -1,6 +1,6 @@
 /**
  * The admin page's checks, before anything is signed: a fee schedule proposal against the rules `FeeSchedule.propose`
- * enforces (so the Safe never sends one that reverts), and the Merkle root inputs `EpochDistributor.setRoot` takes.
+ * enforces (so the Safe never sends one that reverts), and the epoch file whose root `EpochDistributor.setRoot` posts.
  * Pure, so they are unit-tested (admin.test.ts).
  */
 import { type Abi, type Address, type Hex, decodeFunctionData, getAddress, isAddress, isHex, zeroAddress } from 'viem'
@@ -46,13 +46,49 @@ export function scheduleProposal(d: ScheduleDraft, maxBps: number): { thresholds
 
 const BYTES32 = /^0x[0-9a-fA-F]{64}$/
 
-/** `setRoot`'s inputs, or why they are not usable. */
-export function rootProblem(input: { epoch: string; root: string; total: string; dataHash: string }): string | null {
-  if (!/^\d+$/.test(input.epoch.trim())) return 'Enter the epoch number.'
-  if (!BYTES32.test(input.root.trim())) return 'The root is 0x and 64 hex digits.'
-  if (factoryAmount(input.total) === null) return 'Enter the epoch total in FACTORY.'
-  if (!BYTES32.test(input.dataHash.trim())) return 'The data hash is 0x and 64 hex digits.'
-  return null
+/** What the admin page takes from `pnpm mining:epoch`'s `epoch-<n>.json` (D17) for `setRoot` and `fund`. */
+export interface EpochFile {
+  epoch: bigint
+  root: Hex
+  /** Base units: the sum of the tree's leaves, what `setRoot` posts and `fund` moves. */
+  total: bigint
+  dataHash: Hex
+  /** Shown when the file has them; not used for any call. */
+  emission: bigint | null
+  budget: bigint | null
+  leaves: number | null
+}
+
+const whole = (x: unknown): bigint | null =>
+  (typeof x === 'string' && /^\d+$/.test(x)) || (typeof x === 'number' && Number.isSafeInteger(x) && x >= 0) ? BigInt(x as string | number) : null
+
+/**
+ * Reads an epoch file loosely, until the contracts track pins its full shape with B8: only `chainId`, `epoch`, `root`,
+ * `total` and `dataHash` are used, and refused unless they are this chain (when the file names one), a whole epoch
+ * number, two bytes32 values and a positive total in base units, no more than the file's emission when it has one.
+ * Everything else in the file (window, price list, inputs, tree) is ignored here.
+ */
+export function readEpochFile(text: string, chainId: number): { ok: true; file: EpochFile } | { ok: false; problem: string } {
+  let j: unknown
+  try {
+    j = JSON.parse(text)
+  } catch {
+    return no('The file is not JSON.')
+  }
+  if (j === null || typeof j !== 'object' || Array.isArray(j)) return no('The file is not an epoch file.')
+  const f = j as Record<string, unknown>
+  if (f.chainId !== undefined && Number(f.chainId) !== chainId) return no(`It is for chain ${String(f.chainId)}, not this network (${chainId}).`)
+  const epoch = whole(f.epoch)
+  if (epoch === null) return no('It has no epoch number.')
+  if (typeof f.root !== 'string' || !BYTES32.test(f.root)) return no('Its root is not 0x and 64 hex digits.')
+  const total = whole(f.total)
+  if (total === null || total === 0n) return no('Its total is not a positive whole number of base units.')
+  if (typeof f.dataHash !== 'string' || !BYTES32.test(f.dataHash)) return no('Its data hash is not 0x and 64 hex digits.')
+  const emission = whole(f.emission)
+  if (emission !== null && total > emission) return no('Its total is more than its emission.')
+  const tree = f.tree as { values?: unknown } | undefined
+  const leaves = Array.isArray(tree?.values) ? tree.values.length : null
+  return { ok: true, file: { epoch, root: f.root as Hex, total, dataHash: f.dataHash as Hex, emission, budget: whole(f.budget), leaves } }
 }
 
 /**
