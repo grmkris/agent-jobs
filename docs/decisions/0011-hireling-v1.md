@@ -106,7 +106,9 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   W = 500M / 52). Unspent budget rolls over. The α = 0.5 cap on emissions against fee value is applied off-chain.
   The schedule sums to more than the reserve: `cumulativeBudget` converges to W · 3/7 + 26 · W · (1 + 1/2 + …) =
   500M + W · 3/7, so after about seven halving eras (about 3.5 years) it promises more than the 500M the reserve holds.
-  The tail is simply truncated by the reserve's balance: `fund` reverts once the balance is spent.
+  `cumulativeBudget` is therefore capped at 500M, so past that point `fund` reverts `ExceedsBudget` cleanly instead of
+  failing a transfer (review C6-002). Both mining contracts take one explicit, nonzero `genesis` (the recipe's `t0`);
+  there is no implicit "now", so they can never disagree on an epoch boundary (review C6-001).
 - `EpochDistributor`: the Safe posts `setRoot(epoch, root, total, dataHash)` after the epoch ends, backed by funds
   already in the distributor and not promised to an earlier root. `claim` is permissionless and stakes straight into
   the vault with `stakeFor`. Leaves are OZ double-hashed `(epoch, account, amount)`. A root can be replaced only while

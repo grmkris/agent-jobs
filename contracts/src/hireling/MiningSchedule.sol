@@ -33,7 +33,8 @@ library MiningSchedule {
         return era >= 256 ? 0 : W >> era;
     }
 
-    /// @dev Closed form per halving era; the loop ends once the budget has halved to zero (about 84 eras).
+    /// @dev Closed form per halving era, capped at the reserve: the uncapped series converges to 500M + W · 3/7 and
+    ///      passes 500M after about seven eras, so the tail is what the reserve still holds.
     function cumulativeBudget(uint256 epoch) internal pure returns (uint256 total) {
         total = W * 3 / 7;
         if (epoch == 0) return total;
@@ -41,9 +42,10 @@ library MiningSchedule {
         uint256 rest = epoch % HALVING;
         for (uint256 j; j < eras; ++j) {
             uint256 weekly = W >> j;
-            if (weekly == 0) return total;
+            if (weekly == 0 || total >= HirelingConstants.MINING_RESERVE) break;
             total += HALVING * weekly;
         }
         if (eras < 256) total += rest * (W >> eras);
+        if (total > HirelingConstants.MINING_RESERVE) total = HirelingConstants.MINING_RESERVE;
     }
 }

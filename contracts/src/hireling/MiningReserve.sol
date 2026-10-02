@@ -25,12 +25,14 @@ contract MiningReserve is IMiningReserve, Ownable2Step {
     uint48 public immutable genesis;
     uint256 public totalFunded;
 
-    /// @param genesis_ When epoch 0 starts; zero means now.
+    /// @param genesis_ When epoch 0 starts: explicit, and the distributor's own `genesis` (the recipe passes one value
+    ///        to both), so the two contracts can never disagree on an epoch boundary.
     constructor(IFactory factory_, address distributor_, uint48 genesis_) Ownable(msg.sender) {
         if (address(factory_) == address(0) || distributor_ == address(0)) revert ZeroAddress();
+        if (genesis_ == 0) revert ZeroGenesis();
         factory = factory_;
         distributor = distributor_;
-        genesis = genesis_ == 0 ? uint48(block.timestamp) : genesis_;
+        genesis = genesis_;
     }
 
     function fund(uint256 epoch, uint256 amount) external onlyOwner {

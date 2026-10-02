@@ -32,6 +32,8 @@ interface IEpochDistributor {
     event Claimed(uint256 indexed epoch, address indexed account, uint256 amount);
 
     error ZeroAddress();
+    /// @dev Genesis must be given explicitly and be the same for the reserve and the distributor.
+    error ZeroGenesis();
     error ZeroRoot();
     error BeforeGenesis();
     error EpochNotEnded(uint256 epoch, uint256 endsAt);

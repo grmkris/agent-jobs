@@ -19,6 +19,8 @@ interface IMiningReserve {
 
     error ZeroAmount();
     error ZeroAddress();
+    /// @dev Genesis must be given explicitly and be the same for the reserve and the distributor.
+    error ZeroGenesis();
     error BeforeGenesis();
     error EpochNotEnded(uint256 epoch, uint256 endsAt);
     error ExceedsBudget(uint256 requested, uint256 available);
@@ -45,7 +47,8 @@ interface IMiningReserve {
     /// @notice The budget of one epoch: W · 3/7 for epoch 0, `W >> ((epoch - 1) / 26)` after.
     function budget(uint256 epoch) external view returns (uint256);
 
-    /// @notice The sum of `budget(0..epoch)`.
+    /// @notice The sum of `budget(0..epoch)`, capped at the 500M the reserve holds (the uncapped series reaches
+    ///         500M + W · 3/7 after about seven halving eras).
     function cumulativeBudget(uint256 epoch) external view returns (uint256);
 
     /// @notice W = 500M / 52 FACTORY.

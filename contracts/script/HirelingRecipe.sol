@@ -241,8 +241,10 @@ library HirelingRecipe {
         d.distributor = new EpochDistributor(d.factory, d.vault, d.t0);
     }
 
+    /// @dev Both mining contracts get the one `t0` fixed in `stepCore` (review C6-001).
     function stepReserve(Deployed memory d) internal {
         d.reserve = new MiningReserve(d.factory, address(d.distributor), d.t0);
+        if (d.reserve.genesis() != d.distributor.genesis()) revert BadConfig("mining genesis mismatch");
     }
 
     function stepFundReserve(Deployed memory d) internal {

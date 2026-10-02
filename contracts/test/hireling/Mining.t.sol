@@ -81,19 +81,48 @@ contract MiningTest is Test {
         later.currentEpoch();
     }
 
-    function testFuzz_schedule_cumulativeEqualsSum(uint16 e) public view {
+    function testFuzz_schedule_cumulativeEqualsSumCappedAtReserve(uint16 e) public view {
         uint256 epoch = bound(uint256(e), 0, 400);
         uint256 sum;
         for (uint256 i; i <= epoch; ++i) {
             sum += reserve.budget(i);
         }
-        assertEq(reserve.cumulativeBudget(epoch), sum);
+        assertEq(reserve.cumulativeBudget(epoch), sum < 500_000_000e18 ? sum : 500_000_000e18);
     }
 
-    function test_schedule_cumulativeIsBoundedForHugeEpochs() public view {
-        uint256 total = reserve.cumulativeBudget(type(uint256).max);
-        assertLe(total, W * 3 / 7 + 52 * W);
-        assertGt(total, 52 * W - 52 * 84);
+    /// @dev Review C6-002: the series passes the 500M after about seven halving eras; the cap makes the tail a clean
+    ///      ExceedsBudget instead of a failed transfer.
+    function test_schedule_cappedAtTheReserve() public {
+        assertEq(reserve.cumulativeBudget(type(uint256).max), 500_000_000e18);
+        uint256 sum;
+        uint256 crossing;
+        for (uint256 i; i < 400; ++i) {
+            sum += reserve.budget(i);
+            if (sum > 500_000_000e18) {
+                crossing = i;
+                break;
+            }
+        }
+        assertGt(crossing, 26 * 6, "past six eras");
+        assertLt(crossing, 26 * 8, "before eight");
+        assertEq(reserve.cumulativeBudget(crossing), 500_000_000e18);
+
+        vm.warp(reserve.epochEnd(crossing));
+        vm.prank(safe);
+        reserve.fund(crossing, 500_000_000e18);
+        assertEq(token.balanceOf(address(reserve)), 0);
+        vm.warp(reserve.epochEnd(crossing + 1));
+        vm.prank(safe);
+        vm.expectRevert(abi.encodeWithSelector(IMiningReserve.ExceedsBudget.selector, 1, 0));
+        reserve.fund(crossing + 1, 1);
+    }
+
+    /// @dev Review C6-001: no implicit "now", so two contracts deployed in different blocks cannot disagree.
+    function test_genesis_mustBeExplicit() public {
+        vm.expectRevert(IMiningReserve.ZeroGenesis.selector);
+        new MiningReserve(token, address(distributor), 0);
+        vm.expectRevert(IEpochDistributor.ZeroGenesis.selector);
+        new EpochDistributor(token, vault, 0);
     }
 
     // ------------------------------------------------------------------------------------------

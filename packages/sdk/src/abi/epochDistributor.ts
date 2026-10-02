@@ -516,6 +516,11 @@ export const epochDistributorAbi = [
   },
   {
     "type": "error",
+    "name": "ZeroGenesis",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ZeroRoot",
     "inputs": []
   }

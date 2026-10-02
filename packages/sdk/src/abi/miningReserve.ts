@@ -427,5 +427,10 @@ export const miningReserveAbi = [
     "type": "error",
     "name": "ZeroAmount",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroGenesis",
+    "inputs": []
   }
 ] as const

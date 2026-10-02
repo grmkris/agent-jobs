@@ -23,12 +23,13 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
     mapping(uint256 epoch => EpochRoot) internal _roots;
     mapping(uint256 epoch => mapping(address account => bool)) public isClaimed;
 
-    /// @param genesis_ Must equal the reserve's genesis (the recipe passes the same value); zero means now.
+    /// @param genesis_ Explicit, and equal to the reserve's (the recipe passes one value to both).
     constructor(IFactory factory_, IStakeVault vault_, uint48 genesis_) Ownable(msg.sender) {
         if (address(factory_) == address(0) || address(vault_) == address(0)) revert ZeroAddress();
+        if (genesis_ == 0) revert ZeroGenesis();
         factory = factory_;
         vault = vault_;
-        genesis = genesis_ == 0 ? uint48(block.timestamp) : genesis_;
+        genesis = genesis_;
         // The vault is immutable and pulls only inside `stakeFor`, which only `claim` calls.
         factory_.approve(address(vault_), type(uint256).max);
     }
