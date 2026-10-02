@@ -1,7 +1,7 @@
 import { type Address, type Hex, zeroAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { hirelingEvaluatorAbi, hirelingHoldingAbi, jobHoldingAbi } from './abi/index.ts'
-import { accept, activate, cancel, claimTopUpRefund, hashText, publish, settleDeferred, type ActivationTerms, type Ctx, type Wallet, V1_GAS } from './actions.ts'
+import { accept, activate, cancel, claimTopUpRefund, createPool, hashText, publish, settleDeferred, type ActivationTerms, type Ctx, type Wallet, V1_GAS } from './actions.ts'
 import { deployment } from './deployment.ts'
 import type { Selection } from './typed-data.ts'
 
@@ -122,4 +122,12 @@ describe('v1 payout limits and recovery ordering', () => {
     expect(f.events).toEqual(['simulate:retryDeferred', 'send:retryDeferred', 'receipt', 'simulate:settle', 'send:settle', 'receipt'])
     expect(f.sent.map(r => r.gas)).toEqual([300_000n, 1_000_000n])
   })
+})
+
+it('refuses a v1 pool before any legacy read or approval', async () => {
+  const f = fixture()
+  await expect(createPool(f.ctx, f.wallet, { salt: policyHash, goal: 101n, pledgeDeadline: 1_900_000_000, curator: creator,
+    publish: { mode: 'hire', token: oldFactory, workerBond: 0n, deliveryDeadline: terms.deliveryDeadline, manifestHash: policyHash, termsHash: policyHash } })).rejects.toThrow('not supported')
+  expect(f.reads).toEqual([])
+  expect(f.sent).toEqual([])
 })

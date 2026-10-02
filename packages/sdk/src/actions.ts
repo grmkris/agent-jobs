@@ -675,6 +675,7 @@ export interface PoolInput {
 }
 
 function poolFactoryOf(ctx: Ctx): Address {
+  if (isV1(ctx)) throw new Error('Pools are not supported on Hireling v1')
   const f = ctx.deployment.poolFactory
   if (f === null) throw new Error(`no JobPoolFactory on ${ctx.deployment.network}`)
   return f
@@ -687,6 +688,7 @@ export function predictPool(ctx: Ctx, creator: Address, salt: Hex) {
 
 /** The `JobPool.Params` tuple `create` takes, as the SDK builds it. */
 export async function poolParams(ctx: Ctx, p: PoolInput) {
+  if (isV1(ctx)) throw new Error('Pools are not supported on Hireling v1')
   const pub = p.publish
   return {
     token: pub.token,
@@ -716,7 +718,7 @@ export async function poolParams(ctx: Ctx, p: PoolInput) {
 export async function createPool(ctx: Ctx, creator: Wallet, p: PoolInput) {
   const factory = poolFactoryOf(ctx)
   const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: jobHoldingAbi, functionName: 'minHoldToPublish' })
-  if (hold > 0n) await ensureAllowance(ctx, creator, ctx.deployment.factory, factory, hold)
+  if (hold > 0n) await ensureAllowance(ctx, creator, ctx.stack.factory, factory, hold)
   const receipt = await write(ctx, creator, factory, jobPoolFactoryAbi, 'create', [p.salt, await poolParams(ctx, p)])
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== factory.toLowerCase()) continue

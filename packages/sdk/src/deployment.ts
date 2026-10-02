@@ -122,8 +122,8 @@ export interface DeploymentConfig {
     rewardTokens?: string[]
     poolFactory?: string
     main?: StackEntry
-    demo?: StackEntry
-    fast?: StackEntry
+    demo?: StackEntry | null
+    fast?: StackEntry | null
     legacy?: Record<string, StackEntry>
   }
 }
@@ -138,11 +138,12 @@ interface StackEntry {
 
 const validAddress = (value: unknown): value is Address => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 
-const stackOf = (s: StackEntry, fallbackFactory: string): Stack => {
+const stackOf = (s: StackEntry, fallbackFactory: string, mixed: boolean): Stack => {
+  if (mixed && s.kind === undefined) throw new Error('Hireling deployment requires an explicit kind on every pair')
   const kind = s.kind === undefined ? 'legacy' : s.kind
   if (kind !== 'legacy' && kind !== 'hireling-v1') throw new Error('Unknown deployment stack kind')
   // Only pre-v1 legacy configurations may omit the per-pair FACTORY.
-  const factory = s.factory === undefined && kind === 'legacy' ? fallbackFactory : s.factory
+  const factory = !mixed && s.factory === undefined && kind === 'legacy' ? fallbackFactory : s.factory
   if (!validAddress(factory)) throw new Error('Deployment stack requires a FACTORY address')
   return { kind, factory, holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true }
 }
@@ -171,10 +172,12 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   if (c.network !== network) throw new Error('Deployment config network mismatch')
   const d = c.deployment
   if (d.core === undefined || d.factory === undefined || d.main === undefined) throw new NotDeployedError(network)
-  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main, d.factory) }
-  if (d.demo !== undefined) stacks.demo = stackOf(d.demo, d.factory)
-  if (d.fast !== undefined) stacks.fast = stackOf(d.fast, d.factory)
-  const legacyStacks = Object.fromEntries(Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s, d.factory!)]))
+  const mixed = d.hireling !== undefined
+  if (mixed && d.main.kind !== 'hireling-v1') throw new Error('Hireling deployment requires a hireling-v1 main pair')
+  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main, d.factory, mixed) }
+  if (d.demo != null) stacks.demo = stackOf(d.demo, d.factory, mixed)
+  if (d.fast != null) stacks.fast = stackOf(d.fast, d.factory, mixed)
+  const legacyStacks = Object.fromEntries(Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s, d.factory!, mixed)]))
   let hireling: HirelingDeployment | null = null
   if (d.hireling !== undefined) {
     const h = d.hireling

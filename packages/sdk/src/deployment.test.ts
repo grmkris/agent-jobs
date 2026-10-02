@@ -8,6 +8,7 @@ const v1Config = () => {
   const config = currentConfig()
   const d = config.deployment
   d.legacy = { ...d.legacy, 'main-v3': { ...d.main!, kind: 'legacy', factory: d.factory! }, 'demo-v2': { ...d.demo!, kind: 'legacy', factory: d.factory! } }
+  for (const pair of Object.values(d.legacy)) { pair.kind = 'legacy'; pair.factory = d.factory! }
   delete d.demo
   delete d.fast
   d.factory = address(1)
@@ -39,8 +40,7 @@ describe('deployment config compatibility', () => {
     expect(old?.[0]).toBe('main-v3')
     expect(old?.[1]).toMatchObject({ kind: 'legacy', factory: testnet.deployment.factory, openTokens: true })
     expect(d.legacyStacks['demo-v2']?.factory).toBe(testnet.deployment.factory)
-    // This pre-v1 pair omitted its factory, so D1's loader fallback still applies.
-    expect(d.legacyStacks['main-v1']?.factory).toBe(address(1))
+    expect(d.legacyStacks['main-v1']?.factory).toBe(testnet.deployment.factory)
   })
 
   it('an explicit old FACTORY survives migration to a new top-level FACTORY', () => {
@@ -67,7 +67,25 @@ describe('deployment config compatibility', () => {
     }
   })
 
+  it('parses the shipped testnet record and reports the shipped mainnet record as undeployed', () => {
+    expect(Object.keys(deployment('monad-testnet').stacks)).toContain('main')
+    expect(() => deployment('monad-mainnet')).toThrow(NotDeployedError)
+  })
+
+  it('treats null optional stacks as absent', () => {
+    const c = v1Config()
+    c.deployment.demo = null
+    c.deployment.fast = null
+    expect(Object.keys(deploymentFromConfig('monad-testnet', c).stacks)).toEqual(['main'])
+  })
+
   it.each([
+    (c: DeploymentConfig) => { delete c.deployment.main!.kind },
+    (c: DeploymentConfig) => { c.deployment.main!.kind = 'legacy' },
+    (c: DeploymentConfig) => { delete c.deployment.legacy!['main-v1']!.kind },
+    (c: DeploymentConfig) => { delete c.deployment.legacy!['main-v1']!.factory },
+    (c: DeploymentConfig) => { c.deployment.demo = { ...c.deployment.legacy!['demo-v2']! }; delete c.deployment.demo.kind },
+    (c: DeploymentConfig) => { c.deployment.fast = { ...c.deployment.legacy!['demo-v2']! }; delete c.deployment.fast.factory },
     (c: DeploymentConfig) => { delete c.deployment.main!.factory },
     (c: DeploymentConfig) => { delete c.deployment.hireling },
     (c: DeploymentConfig) => { c.deployment.main!.factory = address(99) },
