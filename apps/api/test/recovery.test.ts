@@ -16,10 +16,11 @@ const stack = beforeAll(deploy(Stack))
 test('disposable local workerd D1 restores and rebuilds real indexed chain facts without deleting hosted rows', Effect.gen(function* () {
   const { url } = yield* stack
   const response = yield* HttpClient.get(url as string)
-  const result = (yield* response.json) as { ok: boolean; runtime: string; events: number; jobs: number; restored: boolean; rebuilt: boolean; hostedRowsRetained: boolean }
+  const result = (yield* response.json) as { ok: boolean; runtime: string; events: number; protocolEvents: number; jobs: number; restored: boolean; rebuilt: boolean; hostedRowsRetained: boolean }
   expect(result.runtime).toBe('Cloudflare-Workers')
   expect(result.ok).toBe(true)
   expect(result.events).toBe(185)
+  expect(result.protocolEvents).toBe(23)
   expect(result.jobs).toBe(14)
   expect(result.restored && result.rebuilt && result.hostedRowsRetained).toBe(true)
 }))

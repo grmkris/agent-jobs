@@ -25,6 +25,23 @@ export interface JobRow {
   deliverable: string | null
   violation: string | null
   rejection_reason_hash: string | null
+  kind: 'legacy' | 'hireling-v1' | null
+  arbitrator: string | null
+  expired_at: number | null
+  review_window: number | null
+  dispute_window: number | null
+  arbitration_window: number | null
+  fee_bps: number | null
+  fee: string | null
+  net: string | null
+  bonus: string | null
+  outcome: string | null
+  settlement_outcome: string | null
+  charged_fee: string | null
+  bonus_fee: string | null
+  payout_deferred: number | null
+  refund_deferred: number | null
+  refunded_to_holding: number | null
   published_block: number | null
   published_tx: string | null
   updated_block: number
@@ -56,6 +73,10 @@ export async function jobDetail(sql: AsyncSql, chainId: number, jobId: string, n
     ruling: ruling ?? null,
     rewards: await sql.all('SELECT kind, recipient, amount, block, tx_hash FROM reward_outcomes WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
     bonds: await sql.all('SELECT side, outcome, recipient, amount, block, tx_hash FROM bond_outcomes WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
+    topUps: await sql.all('SELECT contributor, amount, refunded, block, tx_hash FROM top_ups WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
+    fees: await sql.all('SELECT token, worker, creator, amount, bonus_part, block, tx_hash FROM fee_charges WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
+    // Historical failed pushes. Current withdrawable balances are pooled by token/account and read on-chain.
+    payoutsOwed: await sql.all('SELECT recipient, token, amount, block, tx_hash FROM payout_owed WHERE chain_id = ? AND job_id = ? ORDER BY block, log_index', chainId, jobId),
     feedback: (await sql.all('SELECT agent_id, value, tag, recorded, tx_hash FROM feedback WHERE chain_id = ? AND job_id = ?', chainId, jobId))[0] ?? null,
     timeline: await jobTimeline(sql, chainId, jobId),
   }
@@ -94,6 +115,19 @@ export async function jobTimeline(sql: AsyncSql, chainId: number, jobId: string)
   return rows.map((r) => ({ name: r.name, block: r.block, logIndex: r.log_index, txHash: r.tx_hash, args: JSON.parse(r.args_json) as Record<string, unknown>, at: r.timestamp }))
 }
 
+/** Job-less chain facts, such as stake reservations, epoch roots and claims, in chain order. */
+export async function protocolEvents(sql: AsyncSql, chainId: number, opts: { contract?: string; fromBlock?: number; toBlock?: number; limit?: number } = {}): Promise<TimelineEvent[]> {
+  const rows = await sql.all<{ name: string; block: number; log_index: number; tx_hash: string; args_json: string; timestamp: number | null }>(
+    `SELECT e.name, e.block, e.log_index, e.tx_hash, e.args_json, b.timestamp FROM protocol_events e
+     LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
+     WHERE e.chain_id = ? AND e.block >= ? AND e.block < ? ${opts.contract === undefined ? '' : 'AND e.contract = ?'}
+     ORDER BY e.block, e.log_index LIMIT ?`,
+    chainId, opts.fromBlock ?? 0, opts.toBlock ?? Number.MAX_SAFE_INTEGER,
+    ...(opts.contract === undefined ? [] : [opts.contract.toLowerCase()]), Math.max(1, Math.min(opts.limit ?? 200, 10_000)),
+  )
+  return rows.map((r) => ({ name: r.name, block: r.block, logIndex: r.log_index, txHash: r.tx_hash, args: JSON.parse(r.args_json) as Record<string, unknown>, at: r.timestamp }))
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Agents: what any operator or creator can read about an ERC-8004 agent's work here, from chain facts only.
 // Amounts are base-unit strings summed with BigInt (SQLite integers overflow above 9.2e18). Lost contest entries
@@ -101,6 +135,8 @@ export async function jobTimeline(sql: AsyncSql, chainId: number, jobId: string)
 // ---------------------------------------------------------------------------------------------------------------
 
 const IN_PROGRESS = ['active', 'awarded', 'submitted', 'rejected-pending', 'disputed']
+// A deferred payout may leave the core Rejected while the evaluator's paid-work decision still stands (M2).
+const WORKER_OUTCOMES = "('Accepted', 'Silence', 'RuledForWorker')"
 
 export interface AgentSummary {
   agentId: string
@@ -132,9 +168,9 @@ async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly stri
   const ids = agentIds ?? []
   const counts = await sql.all<{ agent_id: string; jobs: number; completed: number; in_progress: number; lost: number; last_block: number }>(
     `SELECT agent_id, COUNT(*) AS jobs,
-       SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
-       SUM(CASE WHEN status IN (${IN_PROGRESS.map(() => '?').join(', ')}) THEN 1 ELSE 0 END) AS in_progress,
-       SUM(CASE WHEN status IN ('rejected', 'expired') THEN 1 ELSE 0 END) AS lost,
+       SUM(CASE WHEN status = 'completed' OR outcome IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS completed,
+       SUM(CASE WHEN status IN (${IN_PROGRESS.map(() => '?').join(', ')}) AND COALESCE(outcome, 'None') = 'None' THEN 1 ELSE 0 END) AS in_progress,
+       SUM(CASE WHEN status IN ('rejected', 'expired') AND COALESCE(outcome, 'None') NOT IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS lost,
        MAX(updated_block) AS last_block
      FROM jobs WHERE chain_id = ? AND agent_id IS NOT NULL AND agent_id <> '0' ${only}
      GROUP BY agent_id ORDER BY completed DESC, last_block DESC LIMIT ?`,
@@ -210,7 +246,7 @@ export async function agentDetail(sql: AsyncSql, chainId: number, agentId: strin
 /** The network's headline numbers for a first visit: jobs, paid jobs, agents, what is paid out and what is held now. */
 export async function networkStats(sql: AsyncSql, chainId: number) {
   const [counts] = await sql.all<{ jobs: number; completed: number; agents: number }>(
-    `SELECT COUNT(*) AS jobs, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+    `SELECT COUNT(*) AS jobs, SUM(CASE WHEN status = 'completed' OR outcome IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS completed,
        COUNT(DISTINCT CASE WHEN agent_id IS NOT NULL AND agent_id <> '0' THEN agent_id END) AS agents
      FROM jobs WHERE chain_id = ?`,
     chainId,

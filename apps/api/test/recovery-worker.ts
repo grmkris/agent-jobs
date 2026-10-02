@@ -34,7 +34,7 @@ export default class RecoveryDrill extends Cloudflare.Worker<RecoveryDrill>()('E
         }
         await resetIndex(source, config)
         const indexed = await runOnce(source, config)
-        const tables = ['events', ...DERIVED_TABLES, 'checkpoint', 'block_times']
+        const tables = ['events', 'protocol_events', ...DERIVED_TABLES, 'checkpoint', 'block_times']
         await resetIndex(restore, config)
         for (const table of tables) {
           const rows = await source.all<Record<string, string | number | null>>(`SELECT * FROM ${table} ORDER BY rowid`)
@@ -50,13 +50,13 @@ export default class RecoveryDrill extends Cloudflare.Worker<RecoveryDrill>()('E
         }
         await resetIndex(restore, config)
         const rebuilt = await runOnce(restore, config)
-        for (const table of ['events', ...DERIVED_TABLES]) {
+        for (const table of ['events', 'protocol_events', ...DERIVED_TABLES]) {
           const before = await source.all(`SELECT * FROM ${table} ORDER BY rowid`)
           const after = await restore.all(`SELECT * FROM ${table} ORDER BY rowid`)
           if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error(`D1 rebuild differs: ${table}`)
         }
         const hosted = await restore.all<{ body: string }>("SELECT body FROM e38_hosted_fixture WHERE id = 'retain'")
-        return { ok: indexed.events > 0 && rebuilt.events === indexed.events && hosted[0]?.body === 'hosted-only', runtime: navigator.userAgent, events: indexed.events, jobs: indexed.jobs, restored: true, rebuilt: true, hostedRowsRetained: hosted[0]?.body === 'hosted-only' }
+        return { ok: indexed.events > 0 && rebuilt.events === indexed.events && rebuilt.protocolEvents === indexed.protocolEvents && hosted[0]?.body === 'hosted-only', runtime: navigator.userAgent, events: indexed.events, protocolEvents: indexed.protocolEvents, jobs: indexed.jobs, restored: true, rebuilt: true, hostedRowsRetained: hosted[0]?.body === 'hosted-only' }
       })
       return HttpServerResponse.jsonUnsafe(result)
     }).pipe(Effect.orDie),

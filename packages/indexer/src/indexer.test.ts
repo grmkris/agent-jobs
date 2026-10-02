@@ -78,7 +78,7 @@ async function runToEnd(sql: AsyncSql, cfg: IndexerConfig) {
 
 async function snapshot(sql: AsyncSql) {
   const out: Record<string, unknown[]> = {}
-  for (const t of ['events', 'jobs', 'submissions', 'evidence', 'rulings', 'reward_outcomes', 'bond_outcomes', 'feedback']) {
+  for (const t of ['events', 'protocol_events', 'jobs', 'submissions', 'evidence', 'rulings', 'reward_outcomes', 'bond_outcomes', 'feedback']) {
     out[t] = await sql.all(`SELECT * FROM ${t} ORDER BY 1, 2, 3, 4`)
   }
   return out
@@ -180,7 +180,7 @@ describe('block times for job timelines', () => {
   it('backfills blocks indexed without times, a bounded number per run, newest first', async () => {
     const sql = await freshDb()
     await runToEnd(sql, config())
-    const [{ n: blocks } = { n: 0 }] = await sql.all<{ n: number }>('SELECT count(DISTINCT block) AS n FROM events')
+    const [{ n: blocks } = { n: 0 }] = await sql.all<{ n: number }>('SELECT count(*) AS n FROM (SELECT block FROM events UNION SELECT block FROM protocol_events)')
     expect(blocks).toBeGreaterThan(10)
     const lookups: number[] = []
     const timed: ChainHead = { ...head(), blockTimestamp: async (b) => (lookups.push(b), timeOf(b)) }

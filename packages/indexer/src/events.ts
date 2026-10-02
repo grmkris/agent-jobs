@@ -1,6 +1,6 @@
 /**
- * Decoding: a raw log from one of our contracts becomes a job-scoped event with JSON-safe arguments. Only events
- * that name a `jobId` are kept; everything the indexer shows is folded from these.
+ * Decoding: a raw log becomes a job or protocol event with JSON-safe arguments. Each pair keeps its own ABI;
+ * job-less events (including stake and epoch claims) follow the same atomic checkpoint as job events.
  */
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, type Address, type Hex, decodeEventLog } from 'viem'
@@ -23,35 +23,62 @@ export interface IndexedEvent {
   readonly block: number
   readonly logIndex: number
   readonly txHash: string
-  readonly jobId: string
+  /** Null for protocol events emitted by the vault, fee schedule, reserve or distributor. */
+  readonly jobId: string | null
   readonly name: string
-  readonly args: Record<string, string | number | boolean>
+  readonly args: Record<string, JsonValue>
 }
 
-export type Role = 'core' | 'holding' | 'evaluator'
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+
+export type Role = 'core' | 'holding' | 'evaluator' | 'vault' | 'feeSchedule' | 'miningReserve' | 'distributor'
 
 /** Which ABI decodes which address, and which stack a Holding or evaluator belongs to. */
 export interface Contracts {
   readonly chainId: number
-  readonly roles: ReadonlyMap<string, { role: Role; stack: string | null }>
+  readonly roles: ReadonlyMap<string, { role: Role; stack: string | null; kind: sdk.StackKind | null }>
 }
 
 export function contractsOf(network: sdk.Network): Contracts {
-  const d = sdk.deployment(network)
-  const roles = new Map<string, { role: Role; stack: string | null }>([[d.core.toLowerCase(), { role: 'core', stack: null }]])
-  // Legacy pairs too: jobs published before a stacks-only redeploy keep emitting there (same events and ABI).
+  return contractsFromDeployment(sdk.deployment(network))
+}
+
+/** Use an archived deployment when replaying historical logs offline. */
+export function contractsFromDeployment(d: sdk.Deployment): Contracts {
+  const roles = new Map<string, { role: Role; stack: string | null; kind: sdk.StackKind | null }>([[d.core.toLowerCase(), { role: 'core', stack: null, kind: null }]])
+  // Legacy pairs too: jobs published before a redeploy keep emitting there with the legacy ABI.
   for (const [name, s] of sdk.allStacks(d)) {
-    roles.set(s.holding.toLowerCase(), { role: 'holding', stack: name })
-    roles.set(s.evaluator.toLowerCase(), { role: 'evaluator', stack: name })
+    roles.set(s.holding.toLowerCase(), { role: 'holding', stack: name, kind: s.kind })
+    roles.set(s.evaluator.toLowerCase(), { role: 'evaluator', stack: name, kind: s.kind })
+  }
+  if (d.hireling !== null) {
+    roles.set(d.hireling.vault.toLowerCase(), { role: 'vault', stack: null, kind: 'hireling-v1' })
+    roles.set(d.hireling.feeSchedule.toLowerCase(), { role: 'feeSchedule', stack: null, kind: 'hireling-v1' })
+    roles.set(d.hireling.miningReserve.toLowerCase(), { role: 'miningReserve', stack: null, kind: 'hireling-v1' })
+    roles.set(d.hireling.distributor.toLowerCase(), { role: 'distributor', stack: null, kind: 'hireling-v1' })
   }
   return { chainId: d.chainId, roles }
 }
 
-const ABIS: Record<Role, Abi> = { core: sdk.coreAbi as Abi, holding: sdk.jobHoldingAbi as Abi, evaluator: sdk.jobsEvaluatorAbi as Abi }
+const legacyAbis: Partial<Record<Role, Abi>> = { core: sdk.coreAbi as Abi, holding: sdk.jobHoldingAbi as Abi, evaluator: sdk.jobsEvaluatorAbi as Abi }
+const v1Abis: Partial<Record<Role, Abi>> = {
+  core: sdk.coreAbi as Abi,
+  holding: sdk.hirelingHoldingAbi as Abi,
+  evaluator: sdk.hirelingEvaluatorAbi as Abi,
+  vault: sdk.stakeVaultAbi as Abi,
+  feeSchedule: sdk.feeScheduleAbi as Abi,
+  miningReserve: sdk.miningReserveAbi as Abi,
+  distributor: sdk.epochDistributorAbi as Abi,
+}
 
-const jsonSafe = (v: unknown): string | number | boolean => (typeof v === 'bigint' ? v.toString() : typeof v === 'number' || typeof v === 'boolean' ? v : String(v))
+const jsonSafe = (v: unknown): JsonValue => {
+  if (v === null || typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') return v
+  if (Array.isArray(v)) return v.map(jsonSafe)
+  if (typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, value]) => [k, jsonSafe(value)]))
+  return String(v)
+}
 
-/** A decoded job event, or undefined for an unknown contract, an undecodable log or an event without a job. */
+/** A decoded job or protocol event, or undefined for an unknown contract or undecodable log. */
 export function decode(contracts: Contracts, log: RawLog): IndexedEvent | undefined {
   const who = contracts.roles.get(log.address.toLowerCase())
   if (who === undefined) return undefined
@@ -59,13 +86,14 @@ export function decode(contracts: Contracts, log: RawLog): IndexedEvent | undefi
   if (topics.length === 0) return undefined
   let decoded: { eventName: string; args: unknown }
   try {
-    decoded = decodeEventLog({ abi: ABIS[who.role], data: log.data, topics: topics as [Hex, ...Hex[]] }) as typeof decoded
+    const abi = who.kind === 'hireling-v1' ? v1Abis[who.role] : legacyAbis[who.role]
+    if (abi === undefined) return undefined
+    decoded = decodeEventLog({ abi, data: log.data, topics: topics as [Hex, ...Hex[]] }) as typeof decoded
   } catch {
     return undefined
   }
   const raw = (decoded.args ?? {}) as Record<string, unknown>
-  if (raw.jobId === undefined) return undefined
-  const args: Record<string, string | number | boolean> = {}
+  const args: Record<string, JsonValue> = {}
   for (const [k, v] of Object.entries(raw)) args[k] = jsonSafe(v)
   return {
     chainId: contracts.chainId,
@@ -73,7 +101,7 @@ export function decode(contracts: Contracts, log: RawLog): IndexedEvent | undefi
     block: log.block_number,
     logIndex: log.log_index,
     txHash: log.transaction_hash,
-    jobId: String(raw.jobId),
+    jobId: raw.jobId === undefined ? null : String(raw.jobId),
     name: decoded.eventName,
     args,
   }

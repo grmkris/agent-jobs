@@ -32,6 +32,7 @@ export interface RunResult {
   readonly lease: boolean
   readonly pages: number
   readonly events: number
+  readonly protocolEvents: number
   readonly jobs: number
   readonly nextBlock: number | null
   readonly rewound: boolean
@@ -44,7 +45,7 @@ interface EventRow {
   block: number
   log_index: number
   tx_hash: string
-  job_id: string
+  job_id: string | null
   name: string
   args_json: string
 }
@@ -106,6 +107,7 @@ async function rewindTo(sql: AsyncSql, cfg: IndexerConfig, block: number, now: n
   }
   await sql.batch([
     deleteLater,
+    stmt('DELETE FROM protocol_events WHERE chain_id = ? AND block >= ?', chainId, block),
     ...statements,
     stmt('INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, NULL, ?)', chainId, block, now),
   ])
@@ -114,7 +116,7 @@ async function rewindTo(sql: AsyncSql, cfg: IndexerConfig, block: number, now: n
 export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunResult> {
   const now = (cfg.now ?? (() => Math.floor(Date.now() / 1000)))()
   const chainId = cfg.contracts.chainId
-  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, jobs: 0, nextBlock: null, rewound: false, backfilled: 0 }
+  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, protocolEvents: 0, jobs: 0, nextBlock: null, rewound: false, backfilled: 0 }
   const addresses = [...cfg.contracts.roles.keys()]
   let [cp] = await sql.all<{ next_block: number; block_hash: string | null }>('SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?', chainId)
   let rewound = false
@@ -130,17 +132,20 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
   const finalized = await cfg.head.finalizedBlock()
   let pages = 0
   let events = 0
+  let protocolEvents = 0
   const jobs = new Set<string>()
   while (pages < (cfg.maxPages ?? 5) && next <= finalized) {
     const page = await cfg.source.logs({ fromBlock: next, toBlock: finalized + 1, addresses })
     const fresh = page.logs.map((l) => decode(cfg.contracts, l)).filter((e): e is IndexedEvent => e !== undefined)
-    const pageJobs = new Set(fresh.map((e) => e.jobId))
+    const pageJobs = new Set(fresh.flatMap((e) => e.jobId === null ? [] : [e.jobId]))
     const upTo = Math.min(Math.max(page.nextBlock, next), finalized + 1)
     const hash = await cfg.head.blockHash(upTo - 1)
     const eventBlocks = new Set(fresh.map((e) => e.block))
     await sql.batch([
-      ...fresh.map((e) =>
-        stmt('INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ...fresh.map((e) => e.jobId === null
+        ? stmt('INSERT OR IGNORE INTO protocol_events (chain_id, contract, block, log_index, tx_hash, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          chainId, e.contract, e.block, e.logIndex, e.txHash, e.name, JSON.stringify(e.args))
+        : stmt('INSERT OR IGNORE INTO events (chain_id, contract, block, log_index, tx_hash, job_id, name, args_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           chainId, e.contract, e.block, e.logIndex, e.txHash, e.jobId, e.name, JSON.stringify(e.args))),
       ...(page.blockTimes ?? [])
         .filter((b) => eventBlocks.has(b.block))
@@ -149,13 +154,15 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
       stmt('INSERT OR REPLACE INTO checkpoint (chain_id, next_block, block_hash, updated_at) VALUES (?, ?, ?, ?)', chainId, upTo, hash, now),
     ])
     pages++
-    events += fresh.length
+    const jobEvents = fresh.filter((e) => e.jobId !== null).length
+    events += jobEvents
+    protocolEvents += fresh.length - jobEvents
     for (const j of pageJobs) jobs.add(j)
     if (upTo === next) break // no progress possible now
     next = upTo
   }
   const backfilled = await backfillBlockTimes(sql, cfg)
-  return { lease: true, pages, events, jobs: jobs.size, nextBlock: next, rewound, backfilled }
+  return { lease: true, pages, events, protocolEvents, jobs: jobs.size, nextBlock: next, rewound, backfilled }
 }
 
 /** Looks up the times of a few event blocks that have none (indexed before block times were stored), newest first. */
@@ -164,7 +171,9 @@ async function backfillBlockTimes(sql: AsyncSql, cfg: IndexerConfig): Promise<nu
   if (lookup === undefined) return 0
   const chainId = cfg.contracts.chainId
   const missing = await sql.all<{ block: number }>(
-    `SELECT DISTINCT e.block FROM events e WHERE e.chain_id = ?
+    `SELECT DISTINCT e.block FROM (
+       SELECT chain_id, block FROM events UNION ALL SELECT chain_id, block FROM protocol_events
+     ) e WHERE e.chain_id = ?
      AND NOT EXISTS (SELECT 1 FROM block_times b WHERE b.chain_id = e.chain_id AND b.block = e.block)
      ORDER BY e.block DESC LIMIT ?`,
     chainId, cfg.backfillBlocks ?? 40,
@@ -180,6 +189,7 @@ export async function resetIndex(sql: AsyncSql, cfg: IndexerConfig): Promise<voi
   await sql.batch([
     ...DERIVED_TABLES.map((t) => stmt(`DELETE FROM ${t} WHERE chain_id = ?`, cfg.contracts.chainId)),
     stmt('DELETE FROM events WHERE chain_id = ?', cfg.contracts.chainId),
+    stmt('DELETE FROM protocol_events WHERE chain_id = ?', cfg.contracts.chainId),
     stmt('DELETE FROM checkpoint WHERE chain_id = ?', cfg.contracts.chainId),
   ])
 }

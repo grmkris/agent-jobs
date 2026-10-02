@@ -54,7 +54,7 @@ export function fromNodeSqlite(db: {
   }
 }
 
-/** The schema, also shipped as `apps/indexer/migrations/0001_init.sql` for D1. */
+/** Runtime schema. v1 changes are additive; the release guard permits no D1 migration files. */
 export const SCHEMA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS checkpoint (
     chain_id INTEGER PRIMARY KEY,
@@ -79,6 +79,17 @@ export const SCHEMA: readonly string[] = [
     PRIMARY KEY (chain_id, contract, block, log_index)
   )`,
   'CREATE INDEX IF NOT EXISTS events_job ON events (chain_id, job_id, block, log_index)',
+  `CREATE TABLE IF NOT EXISTS protocol_events (
+    chain_id INTEGER NOT NULL,
+    contract TEXT NOT NULL,
+    block INTEGER NOT NULL,
+    log_index INTEGER NOT NULL,
+    tx_hash TEXT NOT NULL,
+    name TEXT NOT NULL,
+    args_json TEXT NOT NULL,
+    PRIMARY KEY (chain_id, contract, block, log_index)
+  )`,
+  'CREATE INDEX IF NOT EXISTS protocol_events_block ON protocol_events (chain_id, block, log_index)',
   `CREATE TABLE IF NOT EXISTS jobs (
     chain_id INTEGER NOT NULL,
     job_id TEXT NOT NULL,
@@ -99,6 +110,23 @@ export const SCHEMA: readonly string[] = [
     deliverable TEXT,
     violation TEXT,
     rejection_reason_hash TEXT,
+    kind TEXT,
+    arbitrator TEXT,
+    expired_at INTEGER,
+    review_window INTEGER,
+    dispute_window INTEGER,
+    arbitration_window INTEGER,
+    fee_bps INTEGER,
+    fee TEXT,
+    net TEXT,
+    bonus TEXT,
+    outcome TEXT,
+    settlement_outcome TEXT,
+    charged_fee TEXT,
+    bonus_fee TEXT,
+    payout_deferred INTEGER,
+    refund_deferred INTEGER,
+    refunded_to_holding INTEGER,
     published_block INTEGER,
     published_tx TEXT,
     updated_block INTEGER NOT NULL,
@@ -173,6 +201,41 @@ export const SCHEMA: readonly string[] = [
     tx_hash TEXT NOT NULL,
     PRIMARY KEY (chain_id, job_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS top_ups (
+    chain_id INTEGER NOT NULL,
+    job_id TEXT NOT NULL,
+    block INTEGER NOT NULL,
+    log_index INTEGER NOT NULL,
+    contributor TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    refunded INTEGER NOT NULL,
+    tx_hash TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id, block, log_index)
+  )`,
+  `CREATE TABLE IF NOT EXISTS fee_charges (
+    chain_id INTEGER NOT NULL,
+    job_id TEXT NOT NULL,
+    block INTEGER NOT NULL,
+    log_index INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    worker TEXT NOT NULL,
+    creator TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    bonus_part TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id, block, log_index)
+  )`,
+  `CREATE TABLE IF NOT EXISTS payout_owed (
+    chain_id INTEGER NOT NULL,
+    job_id TEXT NOT NULL,
+    block INTEGER NOT NULL,
+    log_index INTEGER NOT NULL,
+    recipient TEXT NOT NULL,
+    token TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    PRIMARY KEY (chain_id, job_id, block, log_index)
+  )`,
   // Agent pages look jobs up by agent and by worker wallet (viem checksums addresses; lookups compare lowercased).
   'CREATE INDEX IF NOT EXISTS jobs_agent ON jobs (chain_id, agent_id)',
   'CREATE INDEX IF NOT EXISTS jobs_worker ON jobs (chain_id, lower(worker))',
@@ -187,8 +250,27 @@ export const SCHEMA: readonly string[] = [
 ]
 
 /** Tables folded from events: a job's rows here are always replaced together from its events. */
-export const DERIVED_TABLES = ['jobs', 'submissions', 'evidence', 'rulings', 'reward_outcomes', 'bond_outcomes', 'feedback'] as const
+export const DERIVED_TABLES = ['jobs', 'submissions', 'evidence', 'rulings', 'reward_outcomes', 'bond_outcomes', 'feedback', 'top_ups', 'fee_charges', 'payout_owed'] as const
 
 export async function migrate(sql: AsyncSql): Promise<void> {
   await sql.batch(SCHEMA.map((q) => stmt(q)))
+  // D1 has no migration runner in v1. Existing installations receive only additive columns at runtime;
+  // no data is rewritten and no destructive migration is possible through this path.
+  const columns: readonly [string, string][] = [
+    ['arbitrator', 'TEXT'], ['expired_at', 'INTEGER'], ['review_window', 'INTEGER'], ['dispute_window', 'INTEGER'],
+    ['arbitration_window', 'INTEGER'], ['kind', 'TEXT'], ['fee_bps', 'INTEGER'], ['fee', 'TEXT'], ['net', 'TEXT'],
+    ['bonus', 'TEXT'], ['outcome', 'TEXT'], ['settlement_outcome', 'TEXT'], ['charged_fee', 'TEXT'], ['bonus_fee', 'TEXT'],
+    ['payout_deferred', 'INTEGER'], ['refund_deferred', 'INTEGER'], ['refunded_to_holding', 'INTEGER'],
+  ]
+  const present = new Set((await sql.all<{ name: string }>('PRAGMA table_info(jobs)')).map((c) => c.name))
+  const missing = columns.filter(([name]) => !present.has(name))
+  if (missing.length > 0) {
+    try {
+      await sql.batch(missing.map(([name, type]) => stmt(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`)))
+    } catch (error) {
+      // API and cron can initialize together. A competing successful initializer is the only ignored failure.
+      const after = new Set((await sql.all<{ name: string }>('PRAGMA table_info(jobs)')).map((c) => c.name))
+      if (missing.some(([name]) => !after.has(name))) throw error
+    }
+  }
 }

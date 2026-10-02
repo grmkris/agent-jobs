@@ -4,9 +4,15 @@
  */
 import { type Contracts, type IndexedEvent } from './events.ts'
 import { type Statement, DERIVED_TABLES, stmt } from './store.ts'
+import { hexToString, type Hex } from 'viem'
 
 const SIDES = ['creator', 'worker'] as const
 const VIOLATIONS = ['None', 'Quality', 'Falsified'] as const
+const SETTLEMENT_OUTCOMES = ['None', 'Paid', 'Refunded'] as const
+const TIMEOUT_OUTCOMES: Record<string, string> = {
+  'review-window': 'Silence', 'dispute-window': 'RejectionFinal',
+  'arbitration-window': 'ArbitrationTimeout', 'delivery-deadline': 'DeliveryMissed',
+}
 
 export function byChainOrder(a: IndexedEvent, b: IndexedEvent): number {
   return a.block - b.block || a.logIndex - b.logIndex
@@ -21,23 +27,35 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
     stack: null, mode: null, creator: null, approver: null, token: null, reward: null, creator_bond: null, worker_bond: null,
     policy_hash: null, delivery_deadline: null, selection_deadline: null, worker: null, agent_id: null, status: 'unknown',
     deliverable: null, violation: null, rejection_reason_hash: null, published_block: null, published_tx: null,
+    kind: null, arbitrator: null, expired_at: null, review_window: null, dispute_window: null, arbitration_window: null,
+    fee_bps: null, fee: null, net: null, bonus: null, outcome: null, settlement_outcome: null,
+    charged_fee: null, bonus_fee: null, payout_deferred: null, refund_deferred: null, refunded_to_holding: null,
   }
   const evidence: IndexedEvent[] = []
   for (const e of ordered) {
     const a = e.args
     switch (e.name) {
       case 'Published':
+        const kind = contracts.roles.get(e.contract)?.kind ?? 'legacy'
         Object.assign(job, {
           stack: contracts.roles.get(e.contract)?.stack ?? null,
-          mode: Number(a.mode) === 0 ? 'hire' : 'contest',
+          kind,
+          mode: kind === 'hireling-v1' || Number(a.mode) === 0 ? 'hire' : 'contest',
           creator: a.creator, approver: a.approver, token: a.token, reward: a.reward,
           creator_bond: a.creatorBond, worker_bond: a.workerBond, policy_hash: a.policyHash,
-          delivery_deadline: Number(a.deliveryDeadline), selection_deadline: Number(a.selectionDeadline),
+          delivery_deadline: Number(a.deliveryDeadline), selection_deadline: a.selectionDeadline === undefined ? null : Number(a.selectionDeadline),
+          expired_at: Number(a.expiredAt),
           status: 'open', published_block: e.block, published_tx: e.txHash,
+        })
+        if (kind === 'hireling-v1') Object.assign(job, {
+          arbitrator: a.arbitrator, review_window: Number(a.reviewWindow), dispute_window: Number(a.disputeWindow),
+          arbitration_window: Number(a.arbitrationWindow), bonus: '0', outcome: 'None', settlement_outcome: 'None',
+          charged_fee: '0', bonus_fee: '0', payout_deferred: 0, refund_deferred: 0,
         })
         break
       case 'Activated':
         Object.assign(job, { worker: a.worker, agent_id: a.agentId, status: 'active' })
+        if (a.feeBps !== undefined) Object.assign(job, { fee_bps: Number(a.feeBps), fee: a.fee, net: a.net })
         break
       case 'Awarded':
         Object.assign(job, { worker: a.worker, agent_id: a.agentId, status: 'awarded' })
@@ -54,9 +72,41 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
       case 'Disputed':
         job.status = 'disputed'
         break
+      case 'Accepted':
+        if (job.kind === 'hireling-v1') job.outcome = 'Accepted'
+        break
+      case 'TimedOut':
+        if (job.kind === 'hireling-v1') job.outcome = TIMEOUT_OUTCOMES[hexToString(a.reason as Hex, { size: 32 })] ?? null
+        break
       case 'Ruled':
+        if (job.kind === 'hireling-v1') job.outcome = a.forWorker ? 'RuledForWorker' : 'RuledForCreator'
         out.push(stmt('INSERT INTO rulings (chain_id, job_id, for_worker, slash_loser, reason_hash, block, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?)',
           chainId, jobId, a.forWorker ? 1 : 0, a.slashLoser ? 1 : 0, a.reasonHash as string, e.block, e.txHash))
+        break
+      case 'PayoutDeferred':
+        Object.assign(job, { payout_deferred: 1, refunded_to_holding: a.refundedToHolding ? 1 : 0 })
+        break
+      case 'RefundDeferred':
+        job.refund_deferred = 1
+        break
+      case 'ToppedUp':
+        job.bonus = a.bonus as string
+        out.push(stmt('INSERT INTO top_ups (chain_id, job_id, block, log_index, contributor, amount, refunded, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          chainId, jobId, e.block, e.logIndex, a.contributor as string, a.amount as string, 0, e.txHash))
+        break
+      case 'TopUpRefunded':
+        out.push(stmt('INSERT INTO top_ups (chain_id, job_id, block, log_index, contributor, amount, refunded, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          chainId, jobId, e.block, e.logIndex, a.contributor as string, a.amount as string, 1, e.txHash))
+        break
+      case 'FeeCharged':
+        Object.assign(job, { charged_fee: a.amount, bonus_fee: a.bonusPart })
+        out.push(stmt('INSERT INTO fee_charges (chain_id, job_id, block, log_index, token, worker, creator, amount, bonus_part, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          chainId, jobId, e.block, e.logIndex, a.token as string, a.worker as string, a.creator as string, a.amount as string, a.bonusPart as string, e.txHash))
+        break
+      case 'PayoutOwed':
+      case 'RewardOwed':
+        out.push(stmt('INSERT INTO payout_owed (chain_id, job_id, block, log_index, recipient, token, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          chainId, jobId, e.block, e.logIndex, a.to as string, a.token as string, a.amount as string, e.txHash))
         break
       case 'JobCompleted':
         job.status = 'completed'
@@ -79,14 +129,20 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
           chainId, jobId, e.block, e.logIndex, 'paid', a.recipient as string, a.amount as string, e.txHash))
         break
       case 'RewardSettled':
+        if (a.outcome !== undefined) job.settlement_outcome = SETTLEMENT_OUTCOMES[Number(a.outcome)] ?? null
+        const owed = ordered.some((other) => other.txHash === e.txHash && (other.name === 'PayoutOwed' || other.name === 'RewardOwed')
+          && String(other.args.to).toLowerCase() === String(a.to).toLowerCase())
         out.push(stmt('INSERT INTO reward_outcomes (chain_id, job_id, block, log_index, kind, recipient, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          chainId, jobId, e.block, e.logIndex, 'settled', a.to as string, a.amount as string, e.txHash))
+          chainId, jobId, e.block, e.logIndex, owed ? 'owed' : a.outcome === undefined ? 'settled' : Number(a.outcome) === 1 ? 'paid' : 'refunded',
+          a.to as string, a.amount as string, e.txHash))
         break
       case 'BondBurned':
       case 'BondReturned':
+      case 'BondReleased':
+      case 'BondSlashed':
         out.push(stmt('INSERT INTO bond_outcomes (chain_id, job_id, block, log_index, side, outcome, recipient, amount, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          chainId, jobId, e.block, e.logIndex, SIDES[Number(a.side)] ?? String(a.side), e.name === 'BondBurned' ? 'burned' : 'returned',
-          e.name === 'BondReturned' ? (a.to as string) : null, a.amount as string, e.txHash))
+          chainId, jobId, e.block, e.logIndex, SIDES[Number(a.side)] ?? String(a.side), e.name === 'BondBurned' || e.name === 'BondSlashed' ? 'burned' : 'returned',
+          a.account as string ?? (e.name === 'BondReturned' ? a.to as string : null), a.amount as string, e.txHash))
         break
       case 'FeedbackRecorded':
       case 'FeedbackFailed':
@@ -113,6 +169,8 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
   const columns = [
     'stack', 'mode', 'creator', 'approver', 'token', 'reward', 'creator_bond', 'worker_bond', 'policy_hash', 'delivery_deadline',
     'selection_deadline', 'worker', 'agent_id', 'status', 'deliverable', 'violation', 'rejection_reason_hash', 'published_block', 'published_tx',
+    'kind', 'arbitrator', 'expired_at', 'review_window', 'dispute_window', 'arbitration_window', 'fee_bps', 'fee', 'net', 'bonus',
+    'outcome', 'settlement_outcome', 'charged_fee', 'bonus_fee', 'payout_deferred', 'refund_deferred', 'refunded_to_holding',
   ] as const
   out.push(stmt(
     `INSERT INTO jobs (chain_id, job_id, ${columns.join(', ')}, updated_block) VALUES (${['?', '?', ...columns.map(() => '?'), '?'].join(', ')})`,
