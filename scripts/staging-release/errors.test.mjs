@@ -17,9 +17,16 @@ test('release catch reports a real census code and hides an arbitrary provider e
 
 test('only allowlisted codes in our error type may be rendered', () => {
   assert.throws(() => new StagingReleaseError('private-value'), /Invalid staging release error code/)
+  assert.throws(() => new StagingReleaseError('guard-artifact-store-missing', 'private-value'), /Invalid staging logical id/)
   const lines = []
   reportReleaseFailure({ code: 'census-page-short', message: 'provider value' }, line => lines.push(line))
   assert.deepEqual(lines, ['Staging release stopped. Read back Cloudflare versions and the private release journal before retrying.'])
+})
+
+test('artifact diagnostics render only the fixed worker logical ids', () => {
+  const lines = []
+  for (const id of ['Api', 'Indexer', 'Explore']) reportReleaseFailure(new StagingReleaseError('guard-artifact-build-missing', id), line => lines.push(line))
+  assert.deepEqual(lines, ['Api', 'Indexer', 'Explore'].map(id => `Staging release stopped: guard-artifact-build-missing(${id})`))
 })
 
 test('Effect preserves allowlisted guard/census codes through both failure and defect wrappers', async () => {

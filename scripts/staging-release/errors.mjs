@@ -17,7 +17,8 @@ const codes = new Set([
   'guard-checkout-not-main', 'guard-tracked-changes', 'guard-untracked-source', 'guard-credential-missing',
   'guard-plan-protection-failed', 'guard-resource-action-refused', 'guard-directory-binding-drift',
   'guard-resource-census-invalid', 'guard-native-resource-missing', 'guard-state-mode-drift',
-  'guard-manifests-update-refused', 'guard-binding-deletion-refused', 'guard-artifact-not-built',
+  'guard-manifests-update-refused', 'guard-binding-deletion-refused', 'guard-artifact-store-missing',
+  'guard-artifact-build-missing', 'guard-artifact-source-unsupported',
   'guard-apply-digest-mismatch', 'guard-checkout-changed', 'guard-approved-changes-changed', 'guard-live-state-changed',
   'guard-artifact-missing', 'guard-upload-payload-changed', 'guard-do-transition-changed',
   'guard-uploaded-bundle-mismatch', 'guard-post-upload-verification-failed',
@@ -25,13 +26,17 @@ const codes = new Set([
 
 export class StagingReleaseError extends Error {
   #code
-  constructor(code) {
+  #logicalId
+  constructor(code, logicalId) {
     if (!codes.has(code)) throw new Error('Invalid staging release error code')
+    if (logicalId !== undefined && !['Api', 'Indexer', 'Explore'].includes(logicalId)) throw new Error('Invalid staging logical id')
     super(code)
     this.name = 'StagingReleaseError'
     this.#code = code
+    this.#logicalId = logicalId
   }
   get code() { return this.#code }
+  get logicalId() { return this.#logicalId }
 }
 
 /** Preserve our diagnostic across Effect's failure/defect wrapper without printing or traversing provider data. */
@@ -47,7 +52,7 @@ export async function runStagingEffect(effect) {
 
 export function reportReleaseFailure(error, print = console.error) {
   if (error instanceof StagingReleaseError) {
-    print(`Staging release stopped: ${error.code}`)
+    print(`Staging release stopped: ${error.code}${error.logicalId === undefined ? '' : `(${error.logicalId})`}`)
     return
   }
   print('Staging release stopped. Read back Cloudflare versions and the private release journal before retrying.')

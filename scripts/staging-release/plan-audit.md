@@ -134,3 +134,39 @@ value-free code allowlist. The release catch renders only those codes; arbitrary
 errors, including provider failures, remain generic. Effect failures preserve our
 own codes without printing raw causes. Contextual plan blocker labels keep their
 existing field/name/action sanitizers and all prior refusals remain enforced.
+
+## G2-PLAN-5: provider artifact cache and guard diagnostics
+
+The coordinator's rerun reached `prepareArtifacts` after census and plan
+protections. The previous guard treated every missing `build` entry as one
+condition, so it could not distinguish a missing resource bag from a provider
+cache that had not been populated. The guard now reports only
+`guard-artifact-store-missing(Api|Indexer|Explore)` or
+`guard-artifact-build-missing(Api|Indexer|Explore)`, using the fixed worker
+logical-id allowlist; it never includes an FQN, path, digest or provider value.
+
+The pinned Alchemy source (`node_modules/alchemy`, 2.0.0-beta.79) puts the
+default Worker bundle in the resource-scoped `Artifacts.cached("build")` bag in
+`WorkerProvider.prepareBundle`. Both `Plan.providePlanScope` and
+`Apply.provideLifecycleScope` create that bag from the resource FQN, and the
+Alchemy session supplies one root `ArtifactStore` to both phases. The builder's
+options are `id`, `main`, `getCompatibility(props)`, an external or Effect
+entry, the AgentJobs stack/stage, and `props.build`.
+
+`WorkerProvider.diff` can return before `hasChanged` or bundle preparation for
+metadata, domains, routes, crons, or legacy-id changes. That means a forced diff
+is not a reliable way to make the cache. `prepareArtifacts` now invokes the
+same pinned Rolldown `WorkerBundle.build` with the same options and the exact
+native resource FQN scope whenever Api or Indexer has no cached build. It then
+reads that FQN's `build` value, resolves the provider's in-flight Effect when
+needed, and hashes the exact file bytes that Apply will upload. Unsupported
+source/script/prebuilt/Python arms refuse closed rather than bypassing the
+digest pin. Explore remains on its accepted Vite source-tree/build-env/env-file
+pin path because the provider's Vite build is produced during reconcile and is
+not stored under `build`; the pre-upload reread remains mandatory.
+
+Tests use the provider-shaped FQN bag and `cached("build")`, prove an uncached
+default bundle is reused after the source changes, resolve an in-flight cached
+Effect, exercise both diagnostic labels, refuse unreadable bytes and unsupported
+source arms, and retain the Explore Vite pin. No staging plan or apply ran in
+backend.
