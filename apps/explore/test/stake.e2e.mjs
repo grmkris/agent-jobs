@@ -125,10 +125,10 @@ try {
     await text(page, '9,000 FACTORY');
     await text(page, '30 %');
     await capture(page, `${device}-unstaking`);
-    await page.getByRole('button', { name: 'Cancel unstaking' }).click();
+    await page.getByRole('button', { name: 'Keep it staked' }).click();
     await confirm(page, 'Unstaking cancelled. It is staked again.');
     await text(page, '11,000 FACTORY');
-    assert.equal(await page.getByRole('button', { name: 'Cancel unstaking' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Keep it staked' }).count(), 0);
 
     // After the cooldown, withdraw pays it out to the wallet.
     await page.getByRole('radio', { name: 'Unstake' }).click();
@@ -154,7 +154,8 @@ try {
     await page.goto(`${base}/stake`);
     const section = page.locator('section').filter({ has: page.getByRole('heading', { name: 'A new Holding is proposed', exact: true }) });
     await section.getByText(/^in 1 d 23 h/).waitFor();
-    await section.getByText('Lapses if not accepted by', { exact: true }).waitFor();
+    await section.getByText('Expires', { exact: true }).waitFor();
+    await section.getByText('unless accepted by then', { exact: true }).waitFor();
     await capture(page, `${device}-holding-proposed`);
     await section.getByRole('button', { name: /let it reserve my stake/ }).click();
     await confirm(page, 'Refused. That Holding can never reserve your stake.');

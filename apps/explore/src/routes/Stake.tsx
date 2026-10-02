@@ -273,6 +273,26 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
         </Group>
       </section>
 
+      {proposal !== null && (
+        <ProposedHolding proposal={proposal} grace={grace} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
+      )}
+      {refusedInUse === true && (
+        <Section title="You refused the Holding in use">
+          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+            <Group className="bg-bg">
+              <ListRow>
+                <span className="flex-1">Holding in use</span>
+                <AddressText value={c.holding} />
+              </ListRow>
+            </Group>
+            <p className="text-[0.92rem] leading-relaxed">It cannot reserve your stake, so you cannot publish or take a job that needs a bond from you.</p>
+            <Button variant="tinted" disabled={op !== null} onClick={() => refuse(c.holding, false)}>
+              Allow it again
+            </Button>
+          </div>
+        </Section>
+      )}
+
       {facts !== null && tiers !== null && (
         <Section title="Your fee as a worker" note="Taken from what a job pays you, at the rate in force when you activate it. A bigger stake pays less.">
           <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
@@ -336,29 +356,9 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
                 disabled={op !== null || stale}
                 onClick={() => setOp({ kind: 'cancel', txs: [tx(`Stake ${fmt(facts.unstaking)} again`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelUnstake' }))] })}
               >
-                Cancel unstaking
+                Keep it staked
               </Button>
             </div>
-          </div>
-        </Section>
-      )}
-
-      {proposal !== null && (
-        <ProposedHolding proposal={proposal} grace={grace} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
-      )}
-      {refusedInUse === true && (
-        <Section title="You refused the Holding in use">
-          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
-            <Group className="bg-bg">
-              <ListRow>
-                <span className="flex-1">Holding in use</span>
-                <AddressText value={c.holding} />
-              </ListRow>
-            </Group>
-            <p className="text-[0.92rem] leading-relaxed">It cannot reserve your stake, so you cannot publish or take a job that needs a bond from you.</p>
-            <Button variant="tinted" disabled={op !== null} onClick={() => refuse(c.holding, false)}>
-              Allow it again
-            </Button>
           </div>
         </Section>
       )}
@@ -463,11 +463,19 @@ function ProposedHolding({ proposal, grace, refused, now, disabled, onRefuse }: 
           <ListRow>
             <span className="shrink-0">Can go live</span>
             <span className="min-w-0 flex-1 text-right text-label-2">
-              {state === 'waiting' ? <>in <Countdown to={proposal.eta} /> · <When at={proposal.eta} show="time" /></> : state === 'open' ? 'Now, once anyone accepts it' : 'No longer: the proposal lapsed'}
+              {state === 'waiting' ? (
+                <>
+                  <span className="block"><When at={proposal.eta} show="time" /></span>
+                  <span className="block text-[0.82rem] text-label-3">in <Countdown to={proposal.eta} /></span>
+                </>
+              ) : state === 'open' ? 'Now, once anyone accepts it' : 'No longer'}
             </span>
           </ListRow>
           <ListRow>
-            <span className="shrink-0">{state === 'expired' ? 'Lapsed' : 'Lapses if not accepted by'}</span>
+            <span className="shrink-0">
+              <span className="block">{state === 'expired' ? 'Expired' : 'Expires'}</span>
+              {state !== 'expired' && <span className="block text-[0.78rem] text-label-3">unless accepted by then</span>}
+            </span>
             <span className="min-w-0 flex-1 text-right text-label-2">{lapses === null ? '—' : <When at={lapses} show="time" />}</span>
           </ListRow>
         </Group>
