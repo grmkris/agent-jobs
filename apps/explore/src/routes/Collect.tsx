@@ -22,8 +22,9 @@ const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) =>
 const keyOf = (a: CollectAction) => `${a.kind}:${a.jobId ?? ''}:${a.epoch ?? ''}:${a.token ?? ''}:${a.transactions.map((t) => t.data).join()}`
 
 /**
- * Collect (U3): everything the signed-in wallet can close or claim, one tap each (the tap opens the wallet). Read from
- * the board's `collect_actions`; when the board cannot answer, the page says so rather than guessing an empty list.
+ * Collect (U3): everything the signed-in wallet can close or claim, one tap each (the tap opens the wallet, or sends it
+ * through Hireling's relay when the wallet's gas sponsorship covers it). Read from the board's `collect_actions`; when
+ * the board cannot answer, the page says so rather than guessing an empty list.
  */
 export function CollectPage() {
   const auth = useAuth()
@@ -46,7 +47,7 @@ export function CollectPage() {
   const list = actions.data ?? []
   return (
     <>
-      <PageTitle sub="Payments, refunds and stake you can claim. One tap each; your wallet confirms.">Collect</PageTitle>
+      <PageTitle sub="Payments, refunds and stake you can claim, one tap each.">Collect</PageTitle>
       {actions.isLoading ? (
         <LoadingRows rows={3} />
       ) : actions.isError ? (

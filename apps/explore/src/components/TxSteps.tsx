@@ -7,9 +7,11 @@ import { getBlock, getBlockNumber, getTransactionCount, waitForTransactionReceip
 import { type TxRequest, boardApi } from '../api.ts'
 import { batchGasLimit, gasLimit } from '../gas.ts'
 import { hireling } from '../hireling.ts'
+import { type SponsorOperation, sponsorApi, sponsorCalls, sponsorKey, sponsorable, submitFailure, useLiveSponsorship } from '../sponsor.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
 import { usePrivyBatch } from './Privy.tsx'
+import { useAuth } from './Wallet.tsx'
 import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
 import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
 
@@ -28,6 +30,13 @@ interface OpRecord {
   pending: number | null
   snapshot?: SendSnapshot | null
   from?: Hex | null
+  /** Sent through Hireling's relay (B6): no wallet prompt, and one relay transaction carries every step. */
+  sponsored?: boolean
+  /**
+   * A sponsored send asked for: its caller key, and its operation once the board answered. Kept before the request,
+   * so a lost answer is reconciled with the same key (the board returns the same send) and never sent anew.
+   */
+  sponsor?: { key: string; operationId: Hex | null } | null
 }
 
 const chainReads = (address: Hex): ChainReads => ({
@@ -39,6 +48,12 @@ const chainReads = (address: Hex): ChainReads => ({
 /** Waits between chain checks after an ambiguous wallet error: a broadcast step is mined within seconds on Monad. */
 const RECHECK_MS = [1000, 2000, 3000, 4000, 5000]
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const SPONSORED = {
+  lost: 'Hireling’s relay did not answer, so whether it sent these steps is unknown. Check again: the relay never sends the same steps twice.',
+  checking: 'Hireling’s relay did not answer. Checking whether it sent these steps…',
+  slow: 'Hireling’s relay sent it and Monad has not mined it yet. Check again in a moment.',
+}
 
 const UNCERTAIN = {
   legacy: 'The wallet outcome is unknown. Reconcile its transaction hash before continuing.',
@@ -69,6 +84,12 @@ function save(key: string, r: OpRecord | null) {
   }
 }
 
+const SPONSORED_LABEL: Partial<Record<Status['at'], string>> = {
+  idle: 'Waiting · Hireling pays the gas',
+  signing: 'Sending through Hireling…',
+  sent: 'Sent by Hireling · waiting for Monad…',
+}
+
 const LABEL: Record<Status['at'], string> = {
   idle: 'Waiting',
   signing: 'Confirm in your wallet…',
@@ -80,23 +101,29 @@ const LABEL: Record<Status['at'], string> = {
 }
 
 /**
- * The transactions a board tool returned (or the app built, `reportToBoard={false}`), from the wallet to the chain and
- * back to the board. From the Privy wallet
- * several go out as one transaction (EIP-7702 batch) with one confirmation; otherwise one at a time. Each step shows
- * where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in plain words; a failed
- * report is retried without sending again; and a reload picks up a sent transaction instead of offering to resend.
+ * The transactions a board tool returned (or the app built, `reportToBoard={false}`), from the wallet to the chain
+ * and back to the board. When the signed-in wallet's gas sponsorship covers every step (U7b), Hireling's relay sends
+ * them as one transaction with no wallet prompt, and anything it refuses goes from the wallet with the reason. From
+ * the Privy wallet several go out as one transaction (EIP-7702 batch) with one confirmation; otherwise one at a
+ * time. Each step shows where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in
+ * plain words; a failed report is retried without sending again; and a reload picks up a sent transaction instead of
+ * offering to resend.
  */
 export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange, reportToBoard = true, autoStart = false }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void; reportToBoard?: boolean; autoStart?: boolean }) {
   const { chainId, address } = useAccount()
+  const auth = useAuth()
   const batch = usePrivyBatch(address)
+  const sponsorship = useLiveSponsorship(address, auth.signedIn && auth.address?.toLowerCase() === address?.toLowerCase())
+  const canSponsor = sponsorship.live !== null && sponsorable(txs, sponsorship.live, chain.id)
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const key = keyOf(taskId, txs)
   const [record, setRecord] = useState<OpRecord>(() => load(key) ?? { batch: batch !== null && txs.length > 1, hashes: [], recorded: [], pending: null })
   const [status, setStatus] = useState<Status[]>(() =>
-    (record.batch ? [txs[0] as TxRequest] : txs).map((_, i): Status => {
+    (record.batch || record.sponsored === true ? [txs[0] as TxRequest] : txs).map((_, i): Status => {
       const h = record.hashes[i]
       if (h === null || h === undefined) {
+        if (record.sponsored === true && record.sponsor != null) return { at: 'uncertain', error: SPONSORED.lost }
         if (record.pending !== i) return { at: 'idle' }
         return record.snapshot != null ? { at: 'uncertain', checking: true, error: UNCERTAIN.checking } : { at: 'uncertain', error: UNCERTAIN.legacy }
       }
@@ -105,6 +132,9 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   )
   const [switching, setSwitching] = useState<string | null>(null)
   const [pendingHash, setPendingHash] = useState('')
+  // Why the steps went from the wallet after Hireling was going to pay; once set, the relay is not offered again.
+  const [notice, setNotice] = useState<{ text: string; hash?: Hex } | null>(null)
+  const [sponsorOff, setSponsorOff] = useState(false)
   const sending = useRef(false)
   const checking = useRef(false)
   const done = useRef(false)
@@ -117,6 +147,10 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
 
   /** Waits for a sent hash, then has the board record it; used after a send and after a reload. */
   const settle = async (i: number, hash: Hex, r: OpRecord) => {
+    if (r.sponsored === true) {
+      await settleSponsored(hash, r)
+      return
+    }
     try {
       const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       if (receipt.status !== 'success') {
@@ -128,6 +162,96 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       return
     }
     await report(i, hash, r)
+  }
+
+  /** Steps that will not go through the relay after all: from the wallet, as one batch where it can, with why. */
+  const toWallet = (text: string | null, hash?: Hex) => {
+    const next: OpRecord = { batch: batch !== null && txs.length > 1, hashes: [], recorded: [], pending: null }
+    setSponsorOff(true)
+    commit(next)
+    setStatus((next.batch ? [txs[0] as TxRequest] : txs).map((): Status => ({ at: 'idle' })))
+    setNotice(text === null ? null : hash === undefined ? { text } : { text, hash })
+  }
+
+  /**
+   * The relay's transaction, from the chain: confirmed, it is recorded like any step; reverted, nothing happened and
+   * the steps are offered from the wallet (under this delegation the same calls would only return the same failure).
+   * Not mined within a minute, it waits on a check that submits the same key again: the board answers with the same
+   * operation and rebroadcasts its identical signed bytes.
+   */
+  const settleSponsored = async (hash: Hex, r: OpRecord) => {
+    try {
+      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id, timeout: 60_000 })
+      if (receipt.status !== 'success') {
+        toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
+        return
+      }
+    } catch {
+      set(0, { at: 'uncertain', error: SPONSORED.slow })
+      return
+    }
+    await report(0, hash, r)
+  }
+
+  /** Follows the operation the board answered with to the chain. */
+  const follow = async (op: SponsorOperation, r: OpRecord) => {
+    // Reverted: nothing happened, and a retry with this key would only answer the same.
+    if (op.status === 'reverted') {
+      toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', op.txHash)
+      return
+    }
+    const known: OpRecord = { ...r, sponsor: { key: r.sponsor?.key ?? '', operationId: op.operationId }, hashes: [op.txHash] }
+    commit(known)
+    set(0, { at: 'sent', hash: op.txHash })
+    await settleSponsored(op.txHash, known)
+  }
+
+  /**
+   * The relay sends the steps (sponsor_submit). The request is recorded first; a refusal sends them from the wallet
+   * instead (or says why not, for a failing simulation); no answer is reconciled by asking again with the identical
+   * calls, which returns the same operation if the first request reached the relay.
+   */
+  const runSponsored = async () => {
+    const at = status[0]?.at
+    if (sending.current || !canSend || address === undefined || (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) || at === 'signing' || at === 'sent' || at === 'confirmed' || at === 'recorded') return
+    sending.current = true
+    set(0, { at: 'signing' })
+    let r = record
+    if (r.sponsor == null) {
+      r = { ...r, sponsor: { key: sponsorKey(), operationId: null } }
+      commit(r)
+    }
+    const callerKey = r.sponsor?.key ?? ''
+    const fresh = r.sponsor?.operationId == null
+    for (const wait of [0, ...RECHECK_MS]) {
+      if (wait > 0) {
+        await sleep(wait)
+        set(0, { at: 'uncertain', checking: true, error: SPONSORED.checking })
+      }
+      let op: SponsorOperation
+      try {
+        op = await sponsorApi.submit(address, callerKey, sponsorCalls(txs))
+      } catch (e) {
+        const failure = submitFailure(e)
+        if (failure.kind === 'lost') continue
+        sending.current = false
+        if (!fresh) {
+          // The operation exists; a refusal now (a revoked delegation, say) does not undo it. Ask the chain.
+          set(0, { at: 'uncertain', error: SPONSORED.lost })
+          return
+        }
+        const cleared = { ...r, sponsor: null }
+        commit(cleared)
+        if (failure.kind === 'wallet') toWallet(`${failure.why[0]?.toUpperCase()}${failure.why.slice(1)}, so these go from your wallet; you pay the gas.`)
+        else set(0, { at: 'failed', error: failure.message })
+        return
+      }
+      sending.current = false
+      await follow(op, r)
+      return
+    }
+    sending.current = false
+    set(0, { at: 'uncertain', error: SPONSORED.lost })
   }
   const report = async (i: number, hash: Hex, r: OpRecord) => {
     set(i, { at: 'confirmed', hash })
@@ -185,11 +309,19 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   // Privy's wallet may become ready after the first render: offer the batch as long as nothing has started.
   const started = status.some((x) => x.at !== 'idle')
   useEffect(() => {
-    if (batch !== null && txs.length > 1 && !record.batch && !started && load(key) === null) {
+    if (batch !== null && txs.length > 1 && !record.batch && record.sponsored !== true && !started && load(key) === null) {
       setRecord({ ...record, batch: true })
       setStatus([{ at: 'idle' }])
     }
   }, [batch !== null])
+
+  // The signed-in wallet's sponsorship is read after the first render: offer the relay as long as nothing has started.
+  useEffect(() => {
+    if (canSponsor && record.sponsored !== true && !sponsorOff && !started && load(key) === null) {
+      setRecord({ ...record, sponsored: true, batch: false })
+      setStatus([{ at: 'idle' }])
+    }
+  }, [canSponsor])
 
   // After a reload: follow any sent transaction to the end, and settle an uncertain one against the chain, instead of
   // offering to send either again.
@@ -200,7 +332,7 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     })
   }, [])
 
-  const steps = record.batch ? 1 : txs.length
+  const steps = record.batch || record.sponsored === true ? 1 : txs.length
   const allDone = status.length === steps && status.every((s) => s.at === 'recorded')
   useEffect(() => {
     if (!allDone || done.current) return
@@ -210,6 +342,10 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   }, [allDone])
 
   const run = async (i: number) => {
+    if (record.sponsored === true) {
+      await runSponsored()
+      return
+    }
     if (sending.current || !canSend || address === undefined || (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) || record.pending !== null || retryAction(status[i] ?? { at: 'signing' }) !== 'send') return
     if (record.batch && batch === null) {
       set(i, { at: 'failed', error: 'This wallet cannot send a batch; send them one at a time.' })
@@ -262,15 +398,21 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   const current = status[next]
   // `autoStart`: the tap that showed these steps was the decision, so the wallet opens at once for a fresh operation
   // (never for one restored from a reload, which reconciles instead).
+  // It waits for the sponsorship status, so a step Hireling pays for never opens the wallet first.
+  const autoStarted = useRef(false)
   useEffect(() => {
-    if (autoStart && chainId === chain.id && !started && load(key) === null) void run(0)
-  }, [])
+    if (!autoStart || autoStarted.current || !sponsorship.settled || started || load(key) !== null) return
+    if (canSponsor && record.sponsored !== true && !sponsorOff) return
+    if (record.sponsored !== true && chainId !== chain.id) return
+    autoStarted.current = true
+    void run(0)
+  }, [sponsorship.settled, record.sponsored])
   const busy = current !== undefined && (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
   const safeToRestart = record.pending === null && status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
   useEffect(() => { onSafeToRestartChange?.(safeToRestart) }, [safeToRestart, onSafeToRestartChange])
 
-  if (chainId !== chain.id) {
+  if (chainId !== chain.id && record.sponsored !== true) {
     return (
       <div className="grid gap-2">
         <Button
@@ -319,9 +461,25 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
           )}
         </div>
       )}
+      {notice !== null && (
+        <p role="status" className="flex flex-wrap items-center gap-x-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] leading-snug text-warn">
+          {notice.text}
+          {notice.hash !== undefined && <TxLink hash={notice.hash} />}
+        </p>
+      )}
+      {record.sponsored === true && current?.at === 'uncertain' && (
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] text-warn">
+          <p>{current.error}</p>
+          {current.checking !== true && (
+            <Button variant="tinted" onClick={() => void runSponsored()}>
+              Check again
+            </Button>
+          )}
+        </div>
+      )}
       <Group>
         {rows.map((tx, i) => {
-          const s = status[record.batch ? 0 : i] ?? { at: 'idle' }
+          const s = status[record.batch || record.sponsored === true ? 0 : i] ?? { at: 'idle' }
           return (
             <ListRow key={`${i}-${tx.description}`} inset>
               <StepIcon n={i + 1} s={s} />
@@ -329,7 +487,13 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
                 <span className={cn('block text-[0.95rem] first-letter:uppercase', s.at === 'idle' && i !== next && 'text-label-2')}>{tx.description}</span>
                 {(
                   <span className="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-label-2">
-                    {record.batch && s.at === 'idle' ? `Waiting · ${txs.length} steps as one transaction` : s.at === 'uncertain' && s.checking === true ? 'Checking the chain…' : LABEL[s.at]}
+                    {record.sponsored === true && SPONSORED_LABEL[s.at] !== undefined
+                      ? SPONSORED_LABEL[s.at]
+                      : record.batch && s.at === 'idle'
+                        ? `Waiting · ${txs.length} steps as one transaction`
+                        : s.at === 'uncertain' && s.checking === true
+                          ? record.sponsored === true ? 'Checking with Hireling…' : 'Checking the chain…'
+                          : LABEL[s.at]}
                     {'hash' in s && s.hash !== undefined && <TxLink hash={s.hash} />}
                   </span>
                 )}
@@ -355,11 +519,23 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
             ? 'Record it again'
             : current.at === 'failed'
               ? 'Try again'
-              : record.batch
+              : record.sponsored === true
+                ? txs.length > 1 ? `Send all ${txs.length} · Hireling pays the gas` : 'Send · Hireling pays the gas'
+                : record.batch
                 ? `Confirm ${txs.length > 1 ? `all ${txs.length} as one transaction` : ''}`.trim()
                 : txs.length > 1
                   ? `Confirm step ${next + 1} of ${txs.length}`
                   : 'Confirm in your wallet'}
+        </Button>
+      )}
+      {record.sponsored === true && (!started || (current?.at === 'failed' && record.sponsor == null)) && (
+        <Button
+          variant="plain"
+          size="sm"
+          onClick={() => toWallet(null)}
+          className="justify-self-center"
+        >
+          Pay the gas yourself instead
         </Button>
       )}
       {record.batch && !started && (
