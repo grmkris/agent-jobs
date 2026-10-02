@@ -18,13 +18,13 @@ const me = '0x1111111111111111111111111111111111111111';
 const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'));
 const d = config.deployment;
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
-const abi = parseAbi(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)', 'function withdraw()', 'function claim(uint256 epoch, uint256 amount, bytes32[] proof)']);
+const abi = parseAbi(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)', 'function withdraw()', 'function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']);
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const ACTIONS = [
   { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi, functionName: 'settle', args: [72n] }))] },
   { kind: 'claimTopUpRefund', jobId: '71', token: d.rewardTokens[0], amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [tx('Claim your top-up back', contracts.holding, encodeFunctionData({ abi, functionName: 'claimTopUpRefund', args: [71n, me] }))] },
   { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked FACTORY', contracts.vault, encodeFunctionData({ abi, functionName: 'withdraw' }))] },
-  { kind: 'miningClaim', epoch: '0', token: d.factory, amount: (1234n * 10n ** 18n).toString(), description: 'Your share of epoch 0.', transactions: [tx('Claim epoch 0', contracts.distributor, encodeFunctionData({ abi, functionName: 'claim', args: [0n, 1234n * 10n ** 18n, []] }))] },
+  { kind: 'miningClaim', epoch: '0', token: d.factory, amount: (1234n * 10n ** 18n).toString(), description: 'Your share of epoch 0.', transactions: [tx('Claim epoch 0', contracts.distributor, encodeFunctionData({ abi, functionName: 'claim', args: [0n, me, 1234n * 10n ** 18n, []] }))] },
 ];
 
 // The wallet's signed delegation to the relay, as sponsor_status returns it: Hireling's four contracts, the three

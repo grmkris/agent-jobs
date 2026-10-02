@@ -50,6 +50,7 @@ function routes(api = {}, jobs = {}) {
 }
 
 const settle = encodeFunctionData({ abi: parseAbi(['function settle(uint256 jobId)']), functionName: 'settle', args: [72n] });
+const miningClaim = encodeFunctionData({ abi: parseAbi(['function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']), functionName: 'claim', args: [0n, me, 1234n * K, []] });
 const PAGES = [
   {
     name: 'stake', wagmi: 'stake-wagmi.mjs', path: '/stake',
@@ -60,7 +61,7 @@ const PAGES = [
     api: { collect_actions: () => [
       { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [{ description: 'Settle job #72', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
       { kind: 'claimTopUpRefund', jobId: '71', token, amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
-      { kind: 'miningClaim', epoch: '0', token: config.deployment.factory, amount: (1234n * K).toString(), description: 'Your share of epoch 0, from the fees your jobs paid.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.distributor, data: '0x01', value: '0' }] },
+      { kind: 'miningClaim', epoch: '0', token: config.deployment.factory, amount: (1234n * K).toString(), description: 'Claim work mining into your FACTORY stake.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.distributor, data: miningClaim, value: '0', gas: '500000' }] },
     ] },
   },
   {

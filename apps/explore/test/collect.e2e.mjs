@@ -6,8 +6,8 @@ import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
 // The Collect tab (U3): five tabs with a count, the wallet's collect actions from the board, one tap per action
-// (the tap opens the wallet), v1 payout calls with their gas limits, empty, unavailable and signed-out states.
-// Mocked Chromium only: no live board, signing or sends.
+// (the tap opens the wallet), v1 payout calls with their gas limits, a mining claim read back from its calldata
+// (U-MINE, B8b), empty, unavailable and signed-out states. Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-collect-evidence';
 const base = 'http://127.0.0.1:5198';
@@ -17,6 +17,12 @@ const usd = config.deployment.rewardTokens[0].toLowerCase();
 const factory = config.deployment.factory.toLowerCase();
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const holdingAbi = parseAbi(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)']);
+const claimAbi = parseAbi(['function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']);
+/** Epoch 0's mining claim for `account`, as the board's collect_actions builds it (B8b): EpochDistributor.claim, 500k gas. */
+const miningClaim = (account) => ({
+  kind: 'miningClaim', epoch: '0', token: factory, amount: (1234n * 10n ** 18n).toString(), description: 'Claim work mining into your FACTORY stake.',
+  transactions: [{ ...tx('Claim work mining into your FACTORY stake', contracts.distributor, encodeFunctionData({ abi: claimAbi, functionName: 'claim', args: [0n, account, 1234n * 10n ** 18n, [`0x${'aa'.repeat(32)}`]] })), gas: '500000' }],
+});
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const ACTIONS = [
   { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
@@ -130,6 +136,30 @@ try {
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 3);
     results.push({ device, checks: ['five tabs at least 44 px', 'count badge', 'list from collect_actions', 'one tap opens the wallet', 'settle 1M gas', 'top-up refund 450k gas', 'decline then retry', 'empty after collecting'], passed: true });
     await context.close();
+  }
+
+  // A mining reward (U-MINE): the claim reads back as the distributor's, for this wallet, epoch and amount, and says
+  // the reward is staked. One tap sends it from the wallet (the distributor is outside the D15 sponsorship allowlist).
+  // A claim whose calldata names another wallet is shown but not offered.
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [miningClaim(me), { ...miningClaim('0x2222222222222222222222222222222222222222'), epoch: '1', transactions: miningClaim('0x2222222222222222222222222222222222222222').transactions.map((t) => ({ ...t, data: encodeFunctionData({ abi: claimAbi, functionName: 'claim', args: [1n, '0x2222222222222222222222222222222222222222', 1234n * 10n ** 18n, []] }) })) }] });
+    await page.goto(`${base}/collect`);
+    await page.getByText('Mining reward, epoch 0 · 1,234 FACTORY, staked when collected', { exact: true }).waitFor();
+    await page.getByText('Mining reward, epoch 1', { exact: true }).waitFor();
+    await page.getByRole('alert').filter({ hasText: 'Not offered: It would stake the reward for another wallet.' }).waitFor();
+    // Rows in the board's order: epoch 0 (this wallet's) first, then the refused one.
+    const collect = page.getByRole('button', { name: 'Collect', exact: true });
+    assert.equal(await collect.nth(1).isDisabled(), true);
+    await capture(page, 'collect-mining');
+    state.collecting = 'miningClaim';
+    await collect.first().click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('status').filter({ hasText: 'Claimed into your stake' }).waitFor();
+    assert.deepEqual(await lastSend(page), { to: contracts.distributor, gas: '500000' });
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    await page.getByText('Nothing to collect', { exact: true }).waitFor();
+    await context.close();
+    results.push({ checks: ['mining claim row: "Mining reward, epoch 0 · 1,234 FACTORY, staked when collected"', 'claim read back from calldata: distributor, epoch, amount, this wallet', 'claim naming another wallet shown, not offered', 'one tap: wallet sends EpochDistributor.claim with 500k gas'], passed: true });
   }
 
   {
