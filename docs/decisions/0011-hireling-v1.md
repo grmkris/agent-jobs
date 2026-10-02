@@ -1,6 +1,6 @@
 # ADR-0011: Hireling v1 contracts
 
-Date: 2026-10-02. Status: **planned; interfaces drafted (C1)**. Implementation, tests and the audit pass follow in
+Date: 2026-10-02. Status: **implemented and unit-tested (C1–C7); not deployed**. The recipe, the fork rehearsal and the audit pass follow in
 C2–C9 (`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
 v1 build plan. Supersedes the contest parts of ADR-0004 and ADR-0007 for new jobs; the legacy pairs keep them.
 
@@ -76,8 +76,10 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   bonus pays the worker with the reward at the same rate (`bonusFee = bonus · feeBps / 10 000` to the treasury), or is
   refundable per contributor with `claimTopUpRefund` (pull-based; anyone may trigger it, the money goes to the
   contributor). The worker agreed to "at least the reward"; the bonus sits outside the signed terms.
-- Every outflow (worker, treasury, creator, contributor) uses `trySafeTransfer` and falls back to
-  `owed[token][account]`, withdrawn with `withdraw(token)`. A refusing token never blocks bonds or other payees.
+- Every outflow (worker, treasury, creator, contributor) is a push with a fixed gas budget (`TRANSFER_GAS` = 300k,
+  reading at most 32 bytes back) and falls back to `owed[token][account]`, withdrawn with `withdraw(token)` (no gas
+  cap). A refusing, reverting or gas-burning token never blocks bonds or other payees. The caller must leave room for
+  the full budget (`TransferGasTooLow` otherwise), so starving the call cannot push an honest payee into `owed`.
 - Accepted griefing vector: anyone can `stakeFor` a worker just before its activation and move it to a cheaper tier;
   the worker's budget authorization then names the wrong `net` and activation reverts until it re-quotes. It costs the
   griefer the gifted stake and harms no funds.
@@ -102,6 +104,9 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
 - `MiningReserve` holds the 500M and funds the distributor for epochs that have ended, capped so the total ever funded
   stays within the cumulative schedule (epoch 0: 72 h and W · 3/7; epoch k ≥ 1: a week and `W >> ((k − 1) / 26)`,
   W = 500M / 52). Unspent budget rolls over. The α = 0.5 cap on emissions against fee value is applied off-chain.
+  The schedule sums to more than the reserve: `cumulativeBudget` converges to W · 3/7 + 26 · W · (1 + 1/2 + …) =
+  500M + W · 3/7, so after about seven halving eras (about 3.5 years) it promises more than the 500M the reserve holds.
+  The tail is simply truncated by the reserve's balance: `fund` reverts once the balance is spent.
 - `EpochDistributor`: the Safe posts `setRoot(epoch, root, total, dataHash)` after the epoch ends, backed by funds
   already in the distributor and not promised to an earlier root. `claim` is permissionless and stakes straight into
   the vault with `stakeFor`. Leaves are OZ double-hashed `(epoch, account, amount)`. A root can be replaced only while
@@ -113,6 +118,25 @@ Every owner is the Safe (`Ownable2Step`; the deployer hands over at the end of t
 schedule (3-day timelock), Holding authorization on the vault (8-day timelock, instant revoke), mining funding and
 roots, the evaluator's verifier set, the default arbitrator for new listings, and the core's pause. None of them can
 move escrowed rewards or reserved stake.
+
+### Gas (Monad charges the gas limit)
+
+Floors measured by `test/hireling/GasFloors.t.sol` (binary search for the smallest execution gas that succeeds, EVM
+pricing, excluding the 21k intrinsic). They are dominated by the fixed reserves the contracts require: 315k per payout
+push and 416k for the ERC-8004 feedback call. Monad prices cold state access above the EVM, so a client sets its limit
+above the floor; the limits below are what the SDK and the relay should use (decisions D4, adjusted).
+
+| Call | Floor (EVM) | Limit to send |
+| --- | --- | --- |
+| `HirelingHolding.settle`, worst case (2 bond releases, worker and treasury pushes) | 587k | 1,000,000 |
+| `HirelingHolding.settle` after an accept (bonus and fee pushes) | 446k | 1,000,000 |
+| `HirelingHolding.claimTopUpRefund` | 337k | 450,000 |
+| `HirelingEvaluator.accept` / `completeAfterSilence` | 708k | 1,100,000 |
+| `HirelingEvaluator.rule` (with a slash) | 732k | 1,100,000 |
+| `HirelingEvaluator.ruleWithSignature` (with a slash) | 747k | 1,100,000 |
+
+The evaluator limits are above D4's 900k because the 416k feedback reserve and the work before it leave little
+headroom once Monad's cold-access pricing is applied; the C8 Monad fork rehearsal re-measures them.
 
 ## Consequences
 

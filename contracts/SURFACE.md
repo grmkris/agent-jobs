@@ -99,8 +99,7 @@ indexer builds Explore from events plus `getJob`.
 # Hireling v1 (ADR-0011) — draft, frozen at F0 (3 Oct 20:00)
 
 New contracts in `src/hireling/`, against the interfaces in `src/hireling/interfaces/`. The legacy pairs above are
-unchanged and keep their jobs. Status: **interfaces only (C1)**; every row below is planned until its test names are
-filled in (C2–C7). Every owner is the Safe (`Ownable2Step`); the deployer hands over at the end of the recipe.
+unchanged and keep their jobs. Status: **implemented and unit-tested (C2–C7, `test/hireling/*`)**; not deployed. Testnet deploy is G1 (5 Oct). Every owner is the Safe (`Ownable2Step`); the deployer hands over at the end of the recipe.
 
 ## The core under v1
 
@@ -131,6 +130,10 @@ Same vendored core, same rows as above, with these differences:
 | `burnBond(jobId, side)` / `returnBonds(jobId)` | evaluator only, non-reentrant | `vault.slash` (burns) / `vault.release`. |
 | `setEvaluator` (once), `setDefaultArbitrator` | owner | None; the default applies to listings published afterwards. |
 
+Gas floors (EVM, `GasFloors.t.sol`; send the ADR-0011 limits, not viem's bare estimate): `settle` 587k worst case
+→ send 1,000,000; `claimTopUpRefund` 337k → 450,000. Each payout push reserves `TRANSFER_GAS` (300k) and reverts
+`TransferGasTooLow` rather than silently falling back to `owed`.
+
 ## HirelingEvaluator
 
 Same functions as `JobsEvaluator` minus `completeAward` and `settlementWindow`, with per-listing windows, approver and
@@ -144,6 +147,7 @@ arbitrator from `holding.termsOf`.
 | `ruleWithSignature` | Signed by the listing's arbitrator; nonces per arbitrator (`rulingNonceUsed[arbitrator][nonce]`). |
 | Views for `settle` | `earnedByWorker` (deferred payout, an `Accepted`/`Silence`/`RuledForWorker` outcome, or the R114-03 silence right), `workerPenaltyDue`, `creatorPenaltyDue`. |
 | Admin | `setVerifier` (owner). |
+| Gas | Floors (EVM): `accept`/`completeAfterSilence` 708k, `rule` 732k, `ruleWithSignature` 747k, driven by the 416k feedback reserve; send 1,100,000. |
 
 ## StakeVault
 
