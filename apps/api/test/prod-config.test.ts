@@ -118,8 +118,8 @@ test('LAUNCH-AUDIT-004: the promoted reward list must hold USDC, and the artifac
 })
 
 test('LAUNCH-AUDIT-008: the denylist is the shipped config\'s relay, attester and arbitrator; none may be a mainnet role', () => {
-  expect([...RETIRED_ROLE_ADDRESSES].map(a => a.toLowerCase()).sort()).toEqual(
-    [mainnet.roles.relay, mainnet.roles.attester, mainnet.roles.arbitrator].map(a => a.toLowerCase()).sort())
+  expect([...RETIRED_ROLE_ADDRESSES].map(a => a.toLowerCase()).toSorted()).toEqual(
+    [mainnet.roles.relay, mainnet.roles.attester, mainnet.roles.arbitrator].map(a => a.toLowerCase()).toSorted())
   expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining([
     'role:relay is a retired 1 Oct key', 'role:attester is a retired 1 Oct key', 'role:arbitrator is a retired 1 Oct key']))
   for (const role of ['relay', 'attester', 'arbitrator'] as const) {
