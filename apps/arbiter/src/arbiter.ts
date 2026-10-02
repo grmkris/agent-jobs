@@ -1,8 +1,8 @@
 /**
  * One arbiter pass (plan B2.4): hold the lease, then for every open dispute on the board without a decision, read
  * the bundle, let the model propose, and sign only what the deterministic gate allows. The board records the
- * decision per dispute and relays the signed ruling; the harness never sends a transaction and never signs a
- * message it did not rebuild itself: the Ruling it signs uses the evaluator domain from the SDK deployment, the
+ * decision per dispute and relays the signed ruling; the harness sends a locally rebuilt cancellation on a v1 retry
+ * from the arbitrator wallet, and never signs a message it did not rebuild itself: the Ruling it signs uses the evaluator domain from the SDK deployment, the
  * job from the bundle and exactly the validated proposal.
  */
 import { type DisputeBundle, checkRulingRequest, validateProposal } from '@agent-jobs/board'

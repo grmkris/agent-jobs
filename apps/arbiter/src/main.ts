@@ -6,15 +6,15 @@
  *
  * Env: ARBITRATOR_PRIVATE_KEY (legacy), V1_ARBITRATOR_PRIVATE_KEY (v1), ARBITER_MODEL_BASE_URL,
  * ARBITER_MODEL, ARBITER_MODEL_API_KEY, NETWORK (default monad-testnet), ARBITER_RUNNER
- * (default arbiter@<host>), ARBITER_INTERVAL_SECONDS (default 60). Each key signs in separately;
- * the board returns only disputes whose named arbitrator matches that session.
+ * (default arbiter@<host>), ARBITER_INTERVAL_SECONDS (default 60). Only keys for the network's deployed pair kinds
+ * are required. Each signs in separately; the board returns disputes whose named arbitrator matches that session.
+ * V1 retry cancellation is sent by its arbitrator and requires a funded MON gas reserve.
  */
 import { hostname } from 'node:os'
 import { ARBITER_PROMPT_VERSION, proposeRuling } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
-import type { Hex } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrateOnce } from './arbiter.ts'
+import { arbiterAccounts, cancellationSender } from './runtime.ts'
 
 const env = (name: string, fallback?: string): string => {
   const v = process.env[name] ?? fallback
@@ -22,11 +22,9 @@ const env = (name: string, fallback?: string): string => {
   return v
 }
 
-const accounts = [
-  privateKeyToAccount(env('ARBITRATOR_PRIVATE_KEY') as Hex),
-  privateKeyToAccount(env('V1_ARBITRATOR_PRIVATE_KEY') as Hex),
-]
 const network = env('NETWORK', 'monad-testnet') as sdk.Network
+if (network !== 'monad-mainnet' && network !== 'monad-testnet') throw new Error('NETWORK is not supported')
+const accounts = arbiterAccounts(sdk.deployment(network), process.env)
 const endpoint = { baseUrl: env('ARBITER_MODEL_BASE_URL'), model: env('ARBITER_MODEL'), apiKey: env('ARBITER_MODEL_API_KEY') }
 const runner = env('ARBITER_RUNNER', `arbiter@${hostname()}`)
 const interval = Number(env('ARBITER_INTERVAL_SECONDS', '60'))
@@ -47,7 +45,7 @@ async function pass({ account, board }: (typeof clients)[number]) {
     promptVersion: ARBITER_PROMPT_VERSION,
     sendCancellation: async (transaction: sdk.TxRequest) => {
       const rpcUrl = env(network === 'monad-mainnet' ? 'HIRELING_PROD_MONAD_RPC_URL' : 'MONAD_TESTNET_RPC_URL')
-      await sdk.sendAll(sdk.wallet(network, account, rpcUrl), sdk.context(network, 'main', rpcUrl).publicClient, [transaction])
+      await cancellationSender(network, account, rpcUrl)(transaction)
     },
   })
 }
