@@ -8,7 +8,8 @@
 #   5. SeedPool (helper, approvals, seed) and its receipt-based verify();
 #   6. one direct hire through the v1 pair (register, stake, publish, activate, submit, accept, settle);
 #   7. mining: warp past epoch 0; a Safe owner signs the price list (a throwaway keystore), scripts/mining computes the
-#      epoch from the fork's logs, the Safe sends the tool's fund + setRoot, and the worker's and creator's claims stake.
+#      epoch from the fork's logs, the Safe sends the tool's fund (an ECDSA SafeTx at the nonce read with totalFunded, as
+#      /admin does, D18; the same signature again reverts) + setRoot, and the worker's and creator's claims stake.
 # Every step's gas (the limits actually sent, which Monad charges, and gasUsed) is printed as the launch budget.
 # Sends nothing to a real chain: anvil's public dev keys sign everything, against a local fork. Writes a scratch
 # config/rehearsal-mainnet.json and chain-143 broadcast logs, and removes both on exit; refuses to start if any
@@ -210,7 +211,8 @@ EPOCH="$MINING/epoch-0.json"
 [[ "$(jq '[.inputs.fees[] | select(.status == "counted")] | length' "$EPOCH")" -ge 1 ]] || fail "the tool counted no fee from the hire"
 claim() { jq -r --arg a "$(addr "$1" | tr 'A-F' 'a-f')" ".claims[\$a].$2 | if type == \"array\" then join(\",\") else . end" "$EPOCH"; }
 log /tmp/r7-mine.log env MAINNET_GO=yes SAFE_OWNER_KEY=$K_OWNER1 WORKER_KEY=$K_WORKER CREATOR_KEY=$K_CREATOR \
-  FUND_DATA="$(jq -r .calls.fund.data "$EPOCH")" SETROOT_DATA="$(jq -r .calls.setRoot.data "$EPOCH")" \
+  FUND_DATA="$(jq -r .calls.fund.data "$EPOCH")" FUND_EXPECT_TOTAL="$(jq -r .calls.fund.expect.totalFunded "$EPOCH")" \
+  SETROOT_DATA="$(jq -r .calls.setRoot.data "$EPOCH")" \
   WORKER_AMOUNT="$(claim $K_WORKER amount)" WORKER_PROOF="$(claim $K_WORKER proof)" \
   CREATOR_AMOUNT="$(claim $K_CREATOR amount)" CREATOR_PROOF="$(claim $K_CREATOR proof)" \
   forge script script/RehearseHireAndMine.s.sol --tc RehearseMining --rpc-url "$LOCAL" --broadcast --slow || fail "mining"
