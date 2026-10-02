@@ -831,6 +831,42 @@ export const tools: Record<string, Tool> = {
     inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.'), operationId: str('The operationId from sponsor_submit.') }, required: ['wallet', 'operationId'] },
     run: (board, caller, a) => board.sponsorOperation(caller, { wallet: s(a, 'wallet'), operationId: s(a, 'operationId') }),
   },
+
+  top_up: {
+    description: 'Add to an active, undecided v1 job reward. Returns the exact token approval and top-up transaction for your wallet.',
+    inputSchema: { type: 'object', properties: { ...taskId, amount: str('Amount in reward-token units, e.g. "2.5".') }, required: ['taskId', 'amount'] },
+    run: (board, caller, a) => board.topUp(caller, { taskId: s(a, 'taskId'), amount: s(a, 'amount') }),
+  },
+  stake: {
+    description: 'Stake FACTORY for worker fees and bonds. Returns the exact approval and stake transaction; only your wallet sends them.',
+    inputSchema: { type: 'object', properties: { amount: str('Amount in FACTORY units, e.g. "10000".') }, required: ['amount'] },
+    run: (board, caller, a) => board.stake(caller, { amount: s(a, 'amount') }),
+  },
+  request_unstake: {
+    description: 'Start the seven-day unstaking cooldown for unreserved FACTORY. Adding more restarts the entire pending cooldown.',
+    inputSchema: { type: 'object', properties: { amount: str('Amount in FACTORY units.') }, required: ['amount'] },
+    run: (board, caller, a) => board.requestUnstake(caller, { amount: s(a, 'amount') }),
+  },
+  withdraw_stake: {
+    description: 'Withdraw unstaked FACTORY after its cooldown. Returns the transaction for your wallet.',
+    inputSchema: { type: 'object', properties: {} },
+    run: (board, caller) => board.withdrawStake(caller),
+  },
+  get_stake: {
+    description: 'Read canonical staked, reserved, available and unstaking FACTORY (base units), plus unlockAt in Unix seconds.',
+    inputSchema: { type: 'object', properties: { wallet: str('Wallet address.') }, required: ['wallet'] },
+    run: (board, caller, a) => board.getStake(caller, { wallet: s(a, 'wallet') }),
+  },
+  fee_quote: {
+    description: 'Read quoteActivation for a worker and v1 job: feeBps, fee and net in reward-token base units. Re-quote before signing activation.',
+    inputSchema: { type: 'object', properties: { ...taskId, worker: str('Worker wallet address.') }, required: ['taskId', 'worker'] },
+    run: (board, caller, a) => board.feeQuote(caller, { taskId: s(a, 'taskId'), worker: s(a, 'worker') }),
+  },
+  collect_actions: {
+    description: 'Read what this wallet can settle or claim across every board and legacy/v1 pair. Returns CollectAction[] with unsigned transactions and canonical amounts; an unavailable or stale index errors.',
+    inputSchema: { type: 'object', properties: { wallet: str('Wallet address.') }, required: ['wallet'] },
+    run: (board, caller, a) => board.collectActions(caller, { wallet: s(a, 'wallet') }),
+  },
 }
 
 /** JSON with bigints as decimal strings. */

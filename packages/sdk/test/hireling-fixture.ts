@@ -12,8 +12,8 @@ import { deployment } from '../src/deployment.ts'
 export const hasAnvil = (() => { try { execFileSync('anvil', ['--version'], { stdio: 'ignore' }); return true } catch { return false } })()
 export const forkEnabled = !!process.env.MONAD_TESTNET_RPC_URL && hasAnvil
 
-function artifact(name: string) {
-  return JSON.parse(readFileSync(new URL(`../../../contracts/out/${name}.sol/${name}.json`, import.meta.url), 'utf8')) as { abi: Abi; bytecode: { object: Hex } }
+function artifact(name: string, source = name) {
+  return JSON.parse(readFileSync(new URL(`../../../contracts/out/${source}.sol/${name}.json`, import.meta.url), 'utf8')) as { abi: Abi; bytecode: { object: Hex } }
 }
 
 export async function startHirelingFork() {
@@ -47,8 +47,8 @@ export async function startHirelingFork() {
     const wallet = () => createWalletClient({ account: privateKeyToAccount(generatePrivateKey()), chain: monadTestnet, transport: http(url) })
     const admin = wallet(), creator = wallet(), worker = wallet(), contributor = wallet(), arbitrator = wallet()
     for (const account of [admin, creator, worker, contributor, arbitrator]) await rpc('anvil_setBalance', [account.account.address, `0x${parseEther('1000').toString(16)}`])
-    async function deploy(name: string, args: unknown[] = []) {
-      const a = artifact(name)
+    async function deploy(name: string, args: unknown[] = [], source = name) {
+      const a = artifact(name, source)
       const hash = await admin.deployContract({ abi: a.abi, bytecode: a.bytecode.object, args })
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
       if (receipt.status !== 'success' || !receipt.contractAddress) throw new Error(`Local ${name} deployment failed`)

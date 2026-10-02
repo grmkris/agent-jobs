@@ -30,6 +30,7 @@ export async function confirmedOperationIds(ctx: sdk.Ctx, jobId: bigint, receipt
     if (a.jobId !== jobId) continue
     switch (event.eventName) {
       case 'Activated': mark('activate', a.worker, ['selectionNonce', a.selectionNonce]); break
+      case 'ToppedUp': mark('top-up', a.contributor, ['amount', a.amount]); break
       case 'JobSubmitted': mark('submit', a.provider, ['deliverableHash', a.deliverable]); break
       case 'Accepted': mark('accept', a.approver); break
       case 'Rejected': mark('reject', a.approver, ['reasonHash', a.reasonHash]); break

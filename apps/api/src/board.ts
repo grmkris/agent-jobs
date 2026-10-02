@@ -7,6 +7,7 @@ import { getAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { type ToolContext, toJson, tools } from './tools.ts'
 import { admissionIdentity, admissionIpHash, enforceHostedRate, needsWriteRate, type AdmissionCall, type AdmissionNamespace, type AdmissionReply } from './admission-rate.ts'
+import { collectSnapshot } from './collect-index.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
 export interface BoardCall {
@@ -67,6 +68,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         domain: env.domain,
         uri: env.uri,
         manifestBaseUrl: env.manifestBaseUrl,
+        collectSnapshot: wallet => collectSnapshot(fromD1((runtimeEnv as Record<string, unknown>).Database as never), contexts.main!, wallet, Math.floor(Date.now() / 1000)),
         ...(env.screening.apiKey === '' ? {} : { screening: env.screening }),
         ...(key32(env.relayKey) ? { relay: { account: privateKeyToAccount(env.relayKey as `0x${string}`), rpcUrl: env.rpcUrl } } : {}),
         ...(key32(env.attesterKey) && key32(env.relayKey)

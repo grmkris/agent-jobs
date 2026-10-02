@@ -32,6 +32,8 @@ import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type SponsorCall, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
 import { confirmedOperationIds } from './receipts.ts'
+import { collectActions, type CollectSnapshot } from './collect.ts'
+import * as v1Tools from './v1-tools.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
@@ -103,6 +105,8 @@ export interface BoardConfig {
   /** Where manifests are publicly readable: `${manifestBaseUrl}/${termsHash}.json`. */
   readonly manifestBaseUrl: string
   readonly now?: () => number
+  /** Checked, read-only discovery across every hosted board and pair; absent means Collect is unavailable. */
+  readonly collectSnapshot?: (wallet: Address) => Promise<CollectSnapshot>
   /** Used for the one-time submission check of a deliverable (ADR-0006); defaults to the global fetch. */
   readonly fetch?: typeof fetch
   /**
@@ -247,6 +251,50 @@ export class Board {
   sponsorRevoke(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).revoke(input.wallet) }
   sponsorSubmit(caller: Caller, input: { wallet: string; calls: readonly SponsorCall[]; key: string }) { return this.#sponsorDesk(caller, input.wallet).submit(input.wallet, input.calls, input.key) }
   sponsorOperation(caller: Caller, input: { wallet: string; operationId: string }) { return this.#sponsorDesk(caller, input.wallet).operation(input.wallet, input.operationId) }
+
+  async topUp(caller: Caller, input: { taskId: string; amount: string }) {
+    const me = this.#requireCaller(caller), task = this.#task(input.taskId)
+    const prepared = await v1Tools.prepareTopUp(this.#taskCtx(task), me, this.#jobId(task), input.amount, (code, message) => new BoardError(code, message))
+    const operationId = this.#operation(task.id, 'top-up', me, { amount: prepared.amount })
+    return { operationId, ...prepared }
+  }
+  async stake(caller: Caller, input: { amount: string }) {
+    const me = this.#requireCaller(caller)
+    const prepared = await v1Tools.prepareStake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'stake', me, { amount: prepared.amount })
+    return { operationId, ...prepared }
+  }
+  async requestUnstake(caller: Caller, input: { amount: string }) {
+    const me = this.#requireCaller(caller)
+    const prepared = await v1Tools.prepareUnstake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'request-unstake', me, { amount: prepared.amount })
+    return { operationId, ...prepared }
+  }
+  async withdrawStake(caller: Caller) {
+    const me = this.#requireCaller(caller)
+    const prepared = await v1Tools.prepareStakeWithdrawal(this.#ctx('main'), me, (code, message) => new BoardError(code, message))
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'withdraw-stake', me, { amount: prepared.amount })
+    return { operationId, ...prepared }
+  }
+  async getStake(_caller: Caller, input: { wallet: string }) {
+    if (typeof input.wallet !== 'string' || !isAddress(input.wallet)) throw new BoardError('invalid', 'wallet must be an address')
+    const ctx = this.#ctx('main'), h = v1Tools.requireV1(ctx, (code, message) => new BoardError(code, message))
+    const state = await sdk.getStake(ctx, getAddress(input.wallet))
+    return { token: h.factory, vault: h.vault, ...state, staked: state.staked.toString(), reserved: state.reserved.toString(), available: state.available.toString(), unstaking: state.unstaking.toString() }
+  }
+  async feeQuote(_caller: Caller, input: { taskId: string; worker: string }) {
+    if (typeof input.worker !== 'string' || !isAddress(input.worker)) throw new BoardError('invalid', 'worker must be an address')
+    const task = this.#task(input.taskId), ctx = this.#taskCtx(task)
+    v1Tools.requireV1(ctx, (code, message) => new BoardError(code, message))
+    const [feeBps, fee, net] = await sdk.quoteActivation(ctx, this.#jobId(task), getAddress(input.worker))
+    return { feeBps, fee: fee.toString(), net: net.toString() }
+  }
+  async collectActions(_caller: Caller, input: { wallet: string }) {
+    if (typeof input.wallet !== 'string' || !isAddress(input.wallet)) throw new BoardError('invalid', 'wallet must be an address')
+    if (this.#config.collectSnapshot === undefined) throw new BoardError('chain', 'the collect index is unavailable')
+    const wallet = getAddress(input.wallet)
+    return collectActions(this.#ctx('main'), wallet, await this.#config.collectSnapshot(wallet))
+  }
 
   /**
    * The descriptor a worker submits (ADR-0006): `deliverable`, or the legacy `{repo, branch, sha}` as git. Refused
