@@ -2,9 +2,10 @@
 
 The launch sequence for Hireling v1 on Monad mainnet (chain 143), in the order `contracts/script/rehearse-launch.sh`
 (R7) runs it on a fork. Every step that sends a mainnet transaction is marked **[tx]** and runs only on Kris's explicit
-go. Commands run from the repo root unless the step says `contracts/`. The RPC URL and API keys come from `.env.local`
-with `bash -c 'set -a; . ./.env.local; set +a; …'` (or `../.env.local` from `contracts/`) and are never printed. Signing
-keys never come from there: every mainnet transaction signs from an encrypted Foundry keystore (§2).
+go. Commands run in one bash session at the repo root (§2). A contracts step runs in an explicit
+`(cd contracts && set -a && . ../.env.local && set +a && …)` subshell, and a root read sources `./.env.local` in its own
+subshell. Every read names its `--rpc-url`, and RPC URLs and API keys are never printed. Signing keys never come from
+`.env.local`: every mainnet transaction signs from an encrypted Foundry keystore (§2).
 
 The existing **staging** stack has its own guarded release procedure ([staging-release-runbook.md](staging-release-runbook.md));
 nothing here touches it except the apex handoff in §1.4, which goes through that procedure.
@@ -107,6 +108,12 @@ testnet fallback only. Each key that sends here lives in an encrypted Foundry ke
 you own with mode 600. Import each one once, on the box that sends: the deployer as `hireling-deployer`, the Safe owner
 as `hireling-safe-owner`, the liquidity holder as `hireling-liquidity`.
 
+Everything from here on runs in one interactive **bash** session at the repo root. Start it with `bash`: zsh, this box's
+default shell, reads `read -rsp` differently, and `pwcheck` below is bash. Contract commands run in an explicit
+`(cd contracts && …)` subshell that sources `../.env.local` itself; root commands that read the chain source
+`./.env.local` in their own subshell. Every read names its `--rpc-url`. `.env.local` holds the RPC URLs and API keys,
+never a mainnet key.
+
 ```
 mkdir -p ~/.config/hireling && chmod 700 ~/.config/hireling   # also tightens a directory that already exists
 cast wallet import hireling-deployer --interactive   # prompts for the key and a password; nothing reaches the shell
@@ -117,8 +124,8 @@ cast wallet address --account hireling-deployer --password-file ~/.config/hireli
 ```
 
 Before every command that signs, check the password file the way `launch-testnet.sh` does. The directory must be yours
-with mode 700, the file yours with mode 600 (or 400), and neither a symlink. Define this once per shell; each signing
-command below starts with it:
+with mode 700, the file yours with mode 600 (or 400), and neither a symlink. Define this once in the bash session; each
+signing command below starts with it:
 
 ```
 pwcheck() {
@@ -158,20 +165,22 @@ Check balances with `bun scripts/reality-check.ts`, row "Mainnet readiness (B7)"
 Create it in Safe{Wallet}, or from the factory as R7 does. Then check it:
 
 ```
-cast call <safe> "VERSION()(string)" --rpc-url "$MONAD_MAINNET_RPC_URL"   # "1.4.1"
-cast call <safe> "getOwners()(address[])"; cast call <safe> "getThreshold()(uint256)"
+(set -a && . ./.env.local && set +a && S=<safe> && R="$MONAD_MAINNET_RPC_URL" && \
+  cast call --rpc-url "$R" "$S" "VERSION()(string)" && cast call --rpc-url "$R" "$S" "getOwners()(address[])" && \
+  cast call --rpc-url "$R" "$S" "getThreshold()(uint256)")   # "1.4.1", the owners, the threshold
 ```
 
 ### 3.2 DeployHireling [tx]
 
-From `contracts/`. First run it without `--broadcast` as a dry run, then send:
+In a `contracts/` subshell. First run it without `--broadcast` as a dry run, then send:
 
 ```
-pwcheck ~/.config/hireling/deployer.password && bash -c 'set -a; . ../.env.local; set +a; \
+pwcheck ~/.config/hireling/deployer.password && \
+(cd contracts && set -a && . ../.env.local && set +a && \
   NETWORK=monad-mainnet MAINNET_GO=yes forge script script/DeployHireling.s.sol \
   --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-deployer --password-file ~/.config/hireling/deployer.password \
   --broadcast --slow \
-  --verify --etherscan-api-key "$MONADSCAN_API_KEY"'
+  --verify --etherscan-api-key "$MONADSCAN_API_KEY")
 ```
 
 - It deploys a fresh core (ERC-1967 proxy), FACTORY, and the v1 contracts: TeamVesting, FeeSchedule, StakeVault,
@@ -188,7 +197,8 @@ pwcheck ~/.config/hireling/deployer.password && bash -c 'set -a; . ../.env.local
 ### 3.3 PromoteHireling (no transaction)
 
 ```
-NETWORK=monad-mainnet forge script script/PromoteHireling.s.sol --rpc-url "$MONAD_MAINNET_RPC_URL"
+(cd contracts && set -a && . ../.env.local && set +a && \
+  NETWORK=monad-mainnet forge script script/PromoteHireling.s.sol --rpc-url "$MONAD_MAINNET_RPC_URL")
 ```
 
 It verifies the candidate against forge's receipts and live state, then writes the deployment record (with the Safe
@@ -198,7 +208,7 @@ again changes nothing. Commit the config, fill the artifact (§1.3), and run `he
 ### 3.4 The launch gate must refuse
 
 ```
-bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live
+bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live   # repo root; reads through the artifact's RPC
 ```
 
 Expected: `production launch gate refused`, listing exactly the six `launch:owner:<name> is not the Safe` (vault,
@@ -213,23 +223,25 @@ First, the Safe must have no module and no guard. §4's funding is guarded by th
 executes. Stop if either line prints STOP, and never add a module or a guard later while §4 funds through this Safe:
 
 ```
-SAFE=<safe>
-[ "$(cast call --rpc-url "$MONAD_MAINNET_RPC_URL" "$SAFE" 'getModulesPaginated(address,uint256)(address[],address)' \
+(set -a && . ./.env.local && set +a && SAFE=<safe> && R="$MONAD_MAINNET_RPC_URL"
+[ "$(cast call --rpc-url "$R" "$SAFE" 'getModulesPaginated(address,uint256)(address[],address)' \
   0x0000000000000000000000000000000000000001 10 | head -1)" = "[]" ] || echo "STOP: the Safe has a module"
-[ "$(cast storage --rpc-url "$MONAD_MAINNET_RPC_URL" "$SAFE" \
+[ "$(cast storage --rpc-url "$R" "$SAFE" \
   0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8)" = "0x$(printf '%064d' 0)" ] \
-  || echo "STOP: the Safe has a guard"
+  || echo "STOP: the Safe has a guard")
 ```
 
 `launch-testnet.sh` refuses the same way, before it sends anything and again at readback. Then, with a threshold-1
-Safe, sent by one owner, from `contracts/`:
+Safe, sent by one owner, in a `contracts/` subshell:
 
 ```
 pwcheck ~/.config/hireling/safe-owner.password && \
-bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SafeAccept.s.sol \
+(cd contracts && set -a && . ../.env.local && set +a && \
+  NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SafeAccept.s.sol \
   --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-safe-owner \
-  --password-file ~/.config/hireling/safe-owner.password --broadcast --slow'
-NETWORK=monad-mainnet forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$MONAD_MAINNET_RPC_URL"
+  --password-file ~/.config/hireling/safe-owner.password --broadcast --slow)
+(cd contracts && set -a && . ../.env.local && set +a && \
+  NETWORK=monad-mainnet forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$MONAD_MAINNET_RPC_URL")
 ```
 
 With a higher threshold, propose one batch in Safe{Wallet}'s transaction builder: `acceptOwnership()` on the vault, fee
@@ -238,7 +250,7 @@ schedule, Holding, Evaluator, distributor and mining reserve, through MultiSendC
 ### 3.6 The launch gate passes
 
 ```
-bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live
+bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live   # repo root; reads through the artifact's RPC
 ```
 
 It must print `Hireling v1 production launch gate passed`. It runs after the structural check, reads live state through
@@ -254,14 +266,16 @@ the artifact's public RPC (chain 143 only), and refuses on any failed read. It r
 
 ### 3.7 Seed the pool [tx]
 
-From `contracts/`, sent by the liquidity holder:
+In a `contracts/` subshell, sent by the liquidity holder:
 
 ```
 pwcheck ~/.config/hireling/liquidity.password && \
-bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol \
+(cd contracts && set -a && . ../.env.local && set +a && \
+  NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol \
   --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-liquidity \
-  --password-file ~/.config/hireling/liquidity.password --broadcast --slow'
-NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url "$MONAD_MAINNET_RPC_URL"
+  --password-file ~/.config/hireling/liquidity.password --broadcast --slow)
+(cd contracts && set -a && . ../.env.local && set +a && \
+  NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url "$MONAD_MAINNET_RPC_URL")
 ```
 
 It sends four transactions: deploy a one-shot `SeedHelper`, approve it for both tokens, and seed. The seed is **one**
@@ -279,7 +293,7 @@ keystore, [tx]), and re-run both commands. A second run of a pool that was alrea
 ### 3.8 A drained production deploy (no chain transaction)
 
 ```
-AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm deploy:prod
+AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm deploy:prod   # repo root, deploy env
 ```
 
 - With `admission.drain: true` in the artifact, the deploy is drained: reads and authenticated recovery work, and new
@@ -328,8 +342,9 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
    token, the FACTORY reference price):
    `pwcheck ~/.config/hireling/safe-owner.password && bun scripts/mining/sign-prices.ts <list> --network monad-mainnet
    --out <signed> --account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password`. The helper
-   checks the password file the same way before it signs. Then run `pnpm mining:epoch <n> --network monad-mainnet
-   --prices <signed> --out <dir>`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
+   checks the password file the same way before it signs. Then, from the repo root, run
+   `(set -a && . ./.env.local && set +a && pnpm mining:epoch <n> --network monad-mainnet --rpc "$MONAD_MAINNET_RPC_URL"
+   --prices <signed> --out <dir>)`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
    Safe's two calls.
 2. The Safe sends the file's calls. `/admin`'s mining panel is the route to use: it builds both and checks them.
    - **`calls.fund`**, when present: `MiningReserve.fund(n, amount)` for the remainder the epoch still needs, not the
@@ -342,10 +357,11 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
      A second funding signed for that nonce then reverts (GS026), as R7 shows.
    - **`calls.setRoot`**: `EpochDistributor.setRoot(n, root, total, dataHash)`, an ordinary `execTransaction`.
 
-   From a terminal instead, with `MONAD_MAINNET_RPC_URL` exported. The script stops at the first failure:
+   From a terminal instead, at the repo root. The script sources `.env.local` itself and stops at the first failure:
    ```
    pwcheck ~/.config/hireling/safe-owner.password && \
    E=<dir>/epoch-<n>.json SAFE=<safe> bash -euo pipefail <<'FUND'
+   set -a; . ./.env.local; set +a
    R="$MONAD_MAINNET_RPC_URL" Z=0x0000000000000000000000000000000000000000 TO=$(jq -r .calls.fund.to "$E")
    KEY=(--account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password)
    B=$(cast block-number --rpc-url "$R")

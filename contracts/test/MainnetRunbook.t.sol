@@ -190,6 +190,50 @@ contract MainnetRunbookTest is Test {
         return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
+    /// LAUNCH-AUDIT-006: every command in the runbook's code blocks says where it runs and which RPC it reads. A
+    /// `forge script` runs inside an explicit contracts subshell that sources ../.env.local itself; every forge script and
+    /// chain-reading cast names --rpc-url; the session is declared bash (read -rsp, pwcheck).
+    function test_commandsNameTheirCwdEnvAndRpc() public view {
+        assertTrue(
+            vm.contains(doc, "interactive **bash** session at the repo root. Start it with `bash`"),
+            "no bash declaration"
+        );
+        string[] memory lines = vm.split(doc, "\n");
+        bool inBlock;
+        bool subshell;
+        string memory command = "";
+        uint256 checked;
+        for (uint256 i; i < lines.length; ++i) {
+            string memory line = vm.trim(lines[i]);
+            if (vm.indexOf(line, "```") == 0) {
+                inBlock = !inBlock;
+                command = "";
+                subshell = false;
+                continue;
+            }
+            if (!inBlock) continue;
+            if (vm.contains(line, "(cd contracts && set -a && . ../.env.local && set +a")) subshell = true;
+            if (vm.contains(line, "forge script")) {
+                assertTrue(subshell, string.concat("runbook: forge script outside the contracts subshell: ", line));
+            }
+            command = string.concat(command, " ", line);
+            bytes memory b = bytes(line);
+            if (b.length > 0 && b[b.length - 1] == "\\") continue; // a continued command
+            bool reads = vm.contains(command, "forge script") || vm.contains(command, "cast call")
+                || vm.contains(command, "cast storage") || vm.contains(command, "cast send")
+                || vm.contains(command, "cast block-number");
+            if (reads) {
+                ++checked;
+                assertTrue(
+                    vm.contains(command, "--rpc-url"), string.concat("runbook: a read without --rpc-url: ", command)
+                );
+            }
+            command = "";
+            subshell = false;
+        }
+        assertGt(checked, 10, "runbook: expected the launch commands");
+    }
+
     /// LAUNCH-AUDIT-009: R7's post-seed tail in order: hire, mining:epoch, ECDSA fund, setRoot, the two claims; and
     /// runbook §4's epoch steps in order, with the R2 publication (mining:publish, backend's) before the claims.
     function test_postSeedOrderAndEpochPublication() public view {
@@ -281,7 +325,7 @@ contract MainnetRunbookTest is Test {
             "chmod 700 ~/.config/hireling",
             "rm -f ~/.config/hireling/deployer.password",
             "chmod 600 ~/.config/hireling/deployer.password",
-            "pwcheck ~/.config/hireling/deployer.password && bash -c",
+            "pwcheck ~/.config/hireling/deployer.password && \\",
             "pwcheck ~/.config/hireling/safe-owner.password && \\",
             "pwcheck ~/.config/hireling/liquidity.password && \\",
             // KEYSTORE-SEC-003: the mining price list is signed behind the same check.
