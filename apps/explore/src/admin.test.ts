@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bpsOf, rootProblem, scheduleProposal } from './admin.ts'
+import { bpsOf, resizeProblem, rootProblem, scheduleProposal } from './admin.ts'
 
 const treasury = '0x9999999999999999999999999999999999999999'
 const ok = { thresholds: ['0', '10000', '100000', '1000000'], rates: ['30', '10', '3', '1'], treasury }
@@ -28,5 +28,19 @@ describe('an epoch root', () => {
     expect(rootProblem({ epoch: '', root: h, total: '1000', dataHash: h })).toMatch(/epoch/)
     expect(rootProblem({ epoch: '0', root: '0x12', total: '1000', dataHash: h })).toMatch(/root/)
     expect(rootProblem({ epoch: '0', root: h, total: '0', dataHash: h })).toMatch(/total/)
+  })
+})
+
+describe('resizing a posted root', () => {
+  const root = { total: 5000n * 10n ** 18n, claimed: 1000n * 10n ** 18n }
+  it('shrinks to the leaf sum, never below what is claimed', () => {
+    expect(resizeProblem('4200', root)).toBeNull()
+    expect(resizeProblem('1000', root)).toBeNull()
+    expect(resizeProblem('999.9', root)).toMatch(/already been claimed/)
+    expect(resizeProblem('5000', root)).toMatch(/below the posted/)
+    expect(resizeProblem('6000', root)).toMatch(/below the posted/)
+    expect(resizeProblem('', root)).toMatch(/Enter the new total/)
+    expect(resizeProblem('x', root)).toMatch(/Enter the new total/)
+    expect(resizeProblem('0', { total: root.total, claimed: 0n })).toBeNull()
   })
 })

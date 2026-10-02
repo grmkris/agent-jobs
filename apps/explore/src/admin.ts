@@ -53,3 +53,15 @@ export function rootProblem(input: { epoch: string; root: string; total: string;
   if (!BYTES32.test(input.dataHash.trim())) return 'The data hash is 0x and 64 hex digits.'
   return null
 }
+
+/**
+ * A new total for a posted root (`resizeRoot`), or why not. Only shrinking is offered here, to the leaf sum when the
+ * posted total overstated it; the contract never lets a total drop below what is already claimed.
+ */
+export function resizeProblem(text: string, root: { total: bigint; claimed: bigint }): string | null {
+  const total = /^0*\.?0*$/.test(text.trim()) && text.trim() !== '' && text.trim() !== '.' ? 0n : factoryAmount(text)
+  if (total === null) return 'Enter the new total in FACTORY: the sum of the root’s leaves.'
+  if (total >= root.total) return 'The new total must be below the posted one.'
+  if (total < root.claimed) return 'The total cannot drop below what has already been claimed.'
+  return null
+}

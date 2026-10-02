@@ -153,7 +153,7 @@ try {
     await fees.getByRole('button', { name: 'Review the proposal' }).click();
     await send(page, 'Propose a new fee schedule');
     await page.evaluate(() => { window.__admin.pending.eta = Math.floor(Date.now() / 1000) - 1; window.dispatchEvent(new Event('visibilitychange')); });
-    await fees.getByText('Executable now, by anyone.', { exact: true }).waitFor();
+    await fees.getByText(/^Executable now, by anyone, until/).waitFor();
     await fees.getByRole('button', { name: 'Execute', exact: true }).click();
     await page.getByText('Anyone may send this call; it goes straight from your wallet, not through the Safe.', { exact: true }).waitFor();
     await send(page, 'Execute the proposed fee schedule');
@@ -166,6 +166,11 @@ try {
     await holdings.getByRole('button', { name: 'Review the proposal' }).click();
     await send(page, 'Propose a Holding');
     await holdings.getByText(/Acceptable in 7 d 23 h/).waitFor();
+    await holdings.getByText(/Expires at/).waitFor();
+    assert.equal(await holdings.getByRole('button', { name: 'Accept', exact: true }).isDisabled(), true);
+    // Past its grace window (7 days after the eta) the vault refuses it: shown as expired, not acceptable.
+    await page.evaluate(() => { window.__admin.pendingHolding.eta = Math.floor(Date.now() / 1000) - 8 * 86400; window.dispatchEvent(new Event('visibilitychange')); });
+    await holdings.getByText(/^Expired at .*Cancel it, or propose again\.$/).waitFor();
     assert.equal(await holdings.getByRole('button', { name: 'Accept', exact: true }).isDisabled(), true);
     await holdings.getByRole('button', { name: 'Review the revocation' }).click();
     await page.getByText('revokeHolding(holding)', { exact: true }).waitFor();
@@ -188,8 +193,16 @@ try {
     await mining.getByRole('button', { name: 'Review funding' }).click();
     await send(page, 'Fund epoch 1');
     await mining.getByText(/5,000 FACTORY available/).waitFor();
+    // The posted total overstated the leaves: shrink it to their sum, never above the posted total.
+    await mining.getByRole('textbox', { name: 'New epoch total' }).fill('6000');
+    await mining.getByText('The new total must be below the posted one.', { exact: true }).waitFor();
+    await mining.getByRole('textbox', { name: 'New epoch total' }).fill('4200');
+    await mining.getByRole('button', { name: 'Review the new total' }).click();
+    await page.getByText('resizeRoot(epoch, newTotal)', { exact: true }).waitFor();
+    await send(page, 'Shrink the total of epoch 1');
+    await mining.getByText('0 FACTORY of 4,200 FACTORY', { exact: true }).waitFor();
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), [
-      'safe:acceptOwnership', 'safe:pause', 'safe:notePause', 'safe:unpause', 'safe:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund',
+      'safe:acceptOwnership', 'safe:pause', 'safe:notePause', 'safe:unpause', 'safe:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund', 'safe:resizeRoot',
     ]);
     await capture(page, `${device}-mining`);
     results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each with Evaluator notePause in order', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'setRoot', 'fund', 'decoded review before every send'], passed: true });

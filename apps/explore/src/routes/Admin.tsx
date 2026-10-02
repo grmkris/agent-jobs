@@ -11,10 +11,10 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
-import { rootProblem, scheduleProposal } from '../admin.ts'
+import { resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
 import { type Call, calldata, describe, execTransaction, safeAbi } from '../safe.ts'
-import { factoryAmount, percent } from '../stake.ts'
+import { PROPOSAL_GRACE, factoryAmount, percent, proposalState } from '../stake.ts'
 import { chain, deployment } from '../wallet.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
@@ -466,11 +466,9 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
           {pending !== null && (
             <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
               <ScheduleTable title="Proposed" schedule={pending} />
-              <p className="text-[0.88rem] text-label-2">
-                {pending.eta > now ? <>Executable in <Countdown to={pending.eta} /> · <When at={pending.eta} show="time" /></> : 'Executable now, by anyone.'}
-              </p>
+              <Expiry eta={pending.eta} now={now} verb="Executable" />
               <div className="flex flex-wrap gap-2">
-                <Button className="flex-1" disabled={busy || pending.eta > now} onClick={() => act('Execute the proposed fee schedule', fee({ functionName: 'execute' }), 'direct')}>
+                <Button className="flex-1" disabled={busy || proposalState(pending.eta, now) !== 'open'} onClick={() => act('Execute the proposed fee schedule', fee({ functionName: 'execute' }), 'direct')}>
                   Execute
                 </Button>
                 <Button variant="danger" className="flex-1" disabled={busy} onClick={() => act('Cancel the proposed fee schedule', fee({ functionName: 'cancel' }), 'safe')}>
@@ -514,6 +512,23 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
         </div>
       )}
     </Section>
+  )
+}
+
+/** When a timelocked proposal can be executed, and when it lapses (`PROPOSAL_GRACE` after its eta). */
+function Expiry({ eta, now, verb }: { eta: number; now: number; verb: string }) {
+  const state = proposalState(eta, now)
+  const lapses = eta + PROPOSAL_GRACE
+  return (
+    <p className="text-[0.88rem] text-label-2">
+      {state === 'waiting' ? (
+        <>{verb} in <Countdown to={eta} /> · <When at={eta} show="time" />. Expires at <When at={lapses} show="time" />.</>
+      ) : state === 'open' ? (
+        <>{verb} now, by anyone, until <When at={lapses} show="time" /> (<Countdown to={lapses} /> left).</>
+      ) : (
+        <span className="text-warn">Expired at <When at={lapses} show="time" />: the contract refuses it now. Cancel it, or propose again.</span>
+      )}
+    </p>
   )
 }
 
@@ -565,7 +580,7 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
   const valid = (a: string) => isAddress(a.trim(), { strict: false }) && !same(a.trim(), zeroAddress)
 
   return (
-    <Section title="Stake vault Holdings" note={`Only an authorized Holding can reserve bonds from stake. A proposed Holding can be accepted ${days} after it is proposed, longer than the unstaking cooldown, so every staker can leave first.`}>
+    <Section title="Stake vault Holdings" note={`Only an authorized Holding can reserve bonds from stake. A proposed Holding can be accepted ${days} after it is proposed, longer than the unstaking cooldown, so every staker can leave or refuse it first.`}>
       {reads.isError ? (
         <Unavailable retry={() => void reads.refetch()} />
       ) : bootstrapped === undefined ? (
@@ -588,11 +603,9 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
           {pending !== null && (
             <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
               <p className="text-[0.92rem]">Proposed Holding <AddressText value={pending.holding} /></p>
-              <p className="text-[0.88rem] text-label-2">
-                {pending.eta > now ? <>Acceptable in <Countdown to={pending.eta} /> · <When at={pending.eta} show="time" /></> : 'Acceptable now, by anyone.'}
-              </p>
+              <Expiry eta={pending.eta} now={now} verb="Acceptable" />
               <div className="flex flex-wrap gap-2">
-                <Button className="flex-1" disabled={busy || pending.eta > now} onClick={() => act('Accept the proposed Holding', vault({ functionName: 'acceptHolding' }), 'direct')}>
+                <Button className="flex-1" disabled={busy || proposalState(pending.eta, now) !== 'open'} onClick={() => act('Accept the proposed Holding', vault({ functionName: 'acceptHolding' }), 'direct')}>
                   Accept
                 </Button>
                 <Button variant="danger" className="flex-1" disabled={busy} onClick={() => act('Cancel the Holding proposal', vault({ functionName: 'cancelHoldingProposal' }), 'safe')}>
@@ -669,7 +682,7 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
   const cumulative = result<bigint>(detail.data, 1)
   const end = result<bigint>(detail.data, 2)
   const root = result<EpochRoot>(detail.data, 3)
-  const [form, setForm] = useState({ root: '', total: '', dataHash: '', fund: '' })
+  const [form, setForm] = useState({ root: '', total: '', dataHash: '', fund: '', resize: '' })
   const problem = epoch === null ? 'Enter the epoch number.' : rootProblem({ epoch: epochText, ...form })
   const fundAmount = factoryAmount(form.fund)
   const ended = end !== undefined && Number(end) <= now
@@ -701,6 +714,27 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
                 <KV k="Root">{root === undefined ? '—' : hasRoot ? <code className="font-mono text-[0.8rem] break-all">{root.root}</code> : 'Not posted'}</KV>
                 {hasRoot && <KV k="Claimed">{`${fmt(root.claimed)} of ${fmt(root.total)}`}</KV>}
               </Group>
+            )}
+            {epoch !== null && hasRoot && (
+              <div className="grid gap-2 rounded-lg bg-fill px-3 py-2.5">
+                <p className="text-[0.85rem] font-semibold">Correct the total</p>
+                <p className="text-[0.82rem] text-label-2">
+                  If the posted total is more than the root’s leaves add up to, the difference stays locked. Shrink it to the leaf sum from the epoch’s data; it can never go below what is already claimed.
+                </p>
+                <Input aria-label="New epoch total" value={form.resize} placeholder="Leaf sum, FACTORY" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, resize: e.target.value })} />
+                {form.resize !== '' && resizeProblem(form.resize, root) !== null && <ErrorText>{resizeProblem(form.resize, root)}</ErrorText>}
+                <Button
+                  variant="tinted"
+                  disabled={busy || resizeProblem(form.resize, root) !== null}
+                  onClick={() => {
+                    const total = factoryAmount(form.resize) ?? 0n
+                    if (resizeProblem(form.resize, root) !== null) return
+                    act(`Shrink the total of epoch ${epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'resizeRoot', args: [epoch, total] }, 'safe')
+                  }}
+                >
+                  Review the new total
+                </Button>
+              </div>
             )}
             <p className="rounded-lg bg-fill px-3 py-2 text-[0.85rem] text-label-2">
               The epoch's price list, root, total and data hash come from the mining tool (<code className="font-mono">pnpm mining:epoch</code>), which is not wired into this page yet. Paste its output here.

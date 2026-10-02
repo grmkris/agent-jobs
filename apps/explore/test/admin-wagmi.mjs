@@ -80,6 +80,7 @@ function apply({ to, data }) {
   if (functionName === 'revokeHolding') s.holdings = s.holdings.filter((h) => !eq(h, args[0]));
   if (functionName === 'setRoot') s.roots[String(args[0])] = { root: args[1], total: args[2], claimed: 0n, dataHash: args[3] };
   if (functionName === 'fund') { s.totalFunded += args[1]; s.available += args[1]; }
+  if (functionName === 'resizeRoot') s.roots[String(args[0])] = { ...s.roots[String(args[0])], total: args[1] };
 }
 export const useSendTransaction = () => ({ sendTransactionAsync: async (transaction) => {
   const hash = await sendFixtureTransaction(transaction);
