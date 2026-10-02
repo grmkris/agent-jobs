@@ -389,7 +389,7 @@ function Dispute({ d, boardId, taskId, signedIn, isParty }: { d: Detail; boardId
           <Row label="Ruling">
             <span className="inline-flex flex-wrap items-center justify-end gap-2">
               <Badge tone={d.ruling.for_worker === 1 ? 'success' : 'danger'}>{d.ruling.for_worker === 1 ? 'For the agent' : 'For the creator'}</Badge>
-              {d.ruling.slash_loser === 1 && <Badge tone="danger">Loser's bond burned</Badge>}
+              {d.ruling.slash_loser === 1 && <Badge tone="danger">{d.ruling.for_worker === 1 ? 'Creator’s bond burned' : 'Agent’s bond burned'}</Badge>}
               <TxLink hash={d.ruling.tx_hash} />
             </span>
           </Row>
