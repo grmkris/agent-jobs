@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # The G1 rehearsal: script/launch-testnet.sh, unchanged, against a throwaway anvil fork of Monad testnet (chain 10143,
 # Monad gas pricing), signing from throwaway encrypted keystores of anvil's public dev keys (as mainnet signs), with a
-# fresh 1-of-2 Safe in a scratch config. Then, on the fork:
+# fresh 1-of-2 Safe in a scratch config; dev0 stands in for roles.admin as the reused core's admin, so the launch's
+# pauser step grants the Safe ADMIN_ROLE. Then, on the fork:
 #   - no signer, or a password file others can read, refuses; a chain-143 RPC refuses before anything is sent (with
 #     the --private-keys fallback); a second launch refuses;
-#   - --from readback --to sdk re-reads cleanly;
+#   - --from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE: nothing sent);
 #   - 3 days later anyone executes the proposed fee schedule; 8 days later anyone accepts the probed Holding.
 # Prints the gas limits each sender is charged. Writes config/rehearsal-testnet.json and chain-10143 broadcast logs
 # and removes both on exit; refuses to start if any already exist (a real testnet run's). Needs anvil, forge, cast,
@@ -89,6 +90,21 @@ SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_FACTORY "createProx
 cast send --rpc-url "$LOCAL" --private-key "$REHEARSAL_DEPLOYER_KEY" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
 ok "Safe $SAFE (1.4.1, owners $OWNER1 $OWNER2, threshold 1)"
 
+# On testnet the deployer is roles.admin, the reused core's DEFAULT_ADMIN_ROLE, which launch-testnet.sh's pauser step
+# needs to grant the Safe ADMIN_ROLE. Here the deployer is dev0, so roles.admin (impersonated, on the fork only) first
+# makes it the core's admin too; the grant to the Safe is then launch-testnet.sh's own transaction.
+CORE=$(jq -r .deployment.core config/monad-testnet.json)
+REAL_ADMIN=$(jq -r .roles.admin config/monad-testnet.json)
+DEFAULT_ADMIN_ROLE=0x0000000000000000000000000000000000000000000000000000000000000000
+[[ "$(cast call --rpc-url "$LOCAL" "$CORE" "hasRole(bytes32,address)(bool)" $DEFAULT_ADMIN_ROLE "$REAL_ADMIN" 2>/dev/null)" == true ]] \
+  || fail "roles.admin $REAL_ADMIN is not the core's DEFAULT_ADMIN_ROLE on testnet"
+cast rpc --rpc-url "$LOCAL" anvil_impersonateAccount "$REAL_ADMIN" >/dev/null 2>&1
+cast rpc --rpc-url "$LOCAL" anvil_setBalance "$REAL_ADMIN" 0x3635c9adc5dea00000 >/dev/null 2>&1
+cast send --rpc-url "$LOCAL" --unlocked --from "$REAL_ADMIN" "$CORE" "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE "$DEPLOYER" \
+  >/dev/null 2>&1 || fail "could not make the fork deployer the core's admin"
+cast rpc --rpc-url "$LOCAL" anvil_stopImpersonatingAccount "$REAL_ADMIN" >/dev/null 2>&1
+ok "dev0 stands in for roles.admin as the core's admin (DEFAULT_ADMIN_ROLE, granted by an impersonated roles.admin)"
+
 # The scratch config: testnet's, with the fork's deployer, the fresh Safe and odd-token wallets.
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg a "$WALLET_A" --arg b "$WALLET_B" '
   .roles.admin = $admin
@@ -119,8 +135,9 @@ ok "launch-testnet.sh ran end to end"
 
 refused "already records a v1 deployment" "${LAUNCH[@]}" --yes || fail "a second launch was not refused: $OUT"
 ok "a second launch refuses before sending"
-"${LAUNCH[@]}" --from readback --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from readback"; }
-ok "--from readback --to sdk re-reads cleanly"
+"${LAUNCH[@]}" --from pauser --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from pauser"; }
+grep -q "already holds the core's ADMIN_ROLE" "$LAUNCH_LOGS/readback.out" || fail "--from pauser granted ADMIN_ROLE again"
+ok "--from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE; nothing sent)"
 
 # The timelocks, on the fork: 3 days for the fee schedule, 8 for the Holding; anyone executes.
 FEES=$(jq -r .deployment.hireling.feeSchedule "$CONFIG")
@@ -148,12 +165,13 @@ while IFS=$'\t' read -r label hash; do
     DeployHireling*) k="DeployHireling (deployer)" ;;
     SafeAccept*) k="SafeAccept (Safe owner)" ;;
     DeployOddTokens*) k="DeployOddTokens (deployer)" ;;
+    pauser*) k="core ADMIN_ROLE (deployer)" ;;
     *) k="proposals (Safe owner)" ;;
   esac
   LIMIT[$k]=$(( ${LIMIT[$k]:-0} + $(cast tx --rpc-url "$LOCAL" "$hash" gas 2>/dev/null) ))
   COUNT[$k]=$(( ${COUNT[$k]:-0} + 1 ))
 done <"$LAUNCH_LOGS/launch-hashes.tsv"
-for k in "DeployHireling (deployer)" "DeployOddTokens (deployer)" "SafeAccept (Safe owner)" "proposals (Safe owner)"; do
+for k in "DeployHireling (deployer)" "core ADMIN_ROLE (deployer)" "DeployOddTokens (deployer)" "SafeAccept (Safe owner)" "proposals (Safe owner)"; do
   printf '  %-28s %3s txs %12s gas  %s MON at 102 gwei\n' "$k" "${COUNT[$k]:-0}" "${LIMIT[$k]:-0}" \
     "$(bc <<<"scale=4; ${LIMIT[$k]:-0} * 102 / 1000000000")"
 done
