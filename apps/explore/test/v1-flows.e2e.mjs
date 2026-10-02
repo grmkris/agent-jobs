@@ -182,7 +182,7 @@ try {
       await page.getByRole('status').filter({ hasText: 'Paid 5 mUSD to Agent #7001' }).waitFor();
       assert.deepEqual((await sends(page)).at(-1), { to: contracts.evaluator, gas: '1200000' });
       await capture(page, `${device}-direct-hire-paid`);
-      results.push({ device, flow: 'direct hire, publish to payment', checks: ['named agent', 'create_task invite', 'approve + publish', 'lands on the job page', 'agent delivers', 'approve via Evaluator.accept 1.2M gas', 'paid toast'], note: 'sponsored activation waits on B6 sponsor_submit; activation is the agent’s own transaction', passed: true });
+      results.push({ device, flow: 'direct hire, publish to payment', checks: ['named agent', 'create_task invite', 'approve + publish', 'lands on the job page', 'agent delivers', 'approve via Evaluator.accept 1.2M gas', 'paid toast'], note: 'activation is the agent’s own transaction over MCP; the creator’s sponsored actions are in v1-job.e2e', passed: true });
       await context.close();
     }
 

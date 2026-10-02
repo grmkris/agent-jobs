@@ -141,7 +141,18 @@ try {
     await confirm(page, 'Withdrawn to your wallet.');
     await text(page, '45,000 FACTORY');
     assert.deepEqual(await page.evaluate(() => window.__stake.calls), ['stakeWithPermit', 'requestUnstake', 'cancelUnstake', 'requestUnstake', 'withdraw']);
-    results.push({ device, checks: ['amounts and tiers from reads', 'next tier and amount needed', 'over-balance refused', 'declined permit sends nothing', 'permit for exact amount and vault', 'reserved cannot be unstaked', 'cooldown countdown', 'cancel restakes', 'withdraw after cooldown'], passed: true });
+
+    // A ruling burns the reserved bond: the vault takes it from the stake, so the page shows the stake and the
+    // reservation both down by it, and the whole remaining stake can be unstaked.
+    await text(page, '9,000 FACTORY');
+    await page.evaluate(() => { window.__stake.staked -= 1500n * 10n ** 18n; window.__stake.reserved = 0n; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.getByText('9,000 FACTORY', { exact: true }).waitFor({ state: 'detached' });
+    await page.getByText('1,500 FACTORY', { exact: true }).waitFor({ state: 'detached' });
+    await text(page, '7,500 FACTORY');
+    await page.getByRole('radio', { name: 'Unstake' }).click();
+    await amount(page).fill('7500');
+    assert.equal(await page.getByRole('button', { name: 'Unstake 7,500 FACTORY' }).isDisabled(), false);
+    results.push({ device, checks: ['amounts and tiers from reads', 'next tier and amount needed', 'over-balance refused', 'declined permit sends nothing', 'permit for exact amount and vault', 'reserved cannot be unstaked', 'cooldown countdown', 'cancel restakes', 'withdraw after cooldown', 'a burned bond leaves stake and reservation both down'], passed: true });
     await context.close();
   }
 

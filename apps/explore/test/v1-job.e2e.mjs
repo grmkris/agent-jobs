@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { encodeFunctionData, keccak256, parseAbi, toHex } from 'viem';
+import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, keccak256, parseAbi, toFunctionSelector, toHex } from 'viem';
 import { createServer } from 'vite';
 
 // The v1 job page's own calls (flow matrix E column): cancel before activation, approve, reject, then the worker's
 // dispute. Each goes to the v1 Holding or Evaluator; cancel and accept carry their ADR-0011 gas limits, reject and
-// dispute (unfloored) go with the wallet's estimate. Mocked Chromium only: no live board, signing or sends.
+// dispute (unfloored) go with the wallet's estimate. With gas sponsorship on, the creator's cancel and approval go
+// through Hireling's relay (D15 methods) with no wallet prompt, and the relay's hash is reported to the board.
+// Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-v1-job-evidence';
 const base = 'http://127.0.0.1:5200';
@@ -22,6 +24,23 @@ const evaluatorAbi = parseAbi(['function accept(uint256 jobId)', 'function rejec
 const jobs = { 80: 'open', 81: 'submitted', 82: 'submitted', 83: 'rejected-pending' };
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+// A live sponsorship delegation from the creator to the relay (D15: Holding.cancel and Evaluator.accept are in it).
+const uint = (x) => encodeAbiParameters([{ type: 'uint256' }], [x]);
+const enforcers = config.delegation.enforcers;
+const delegation = JSON.stringify({
+  primaryType: 'Delegation',
+  domain: { name: 'DelegationManager', version: '1', chainId: 10143, verifyingContract: config.delegation.manager },
+  message: {
+    delegate: config.roles.relay, delegator: creator, authority: `0x${'f'.repeat(64)}`, salt: '1',
+    caveats: [
+      { enforcer: enforcers.allowedTargets, terms: concat([contracts.holding, contracts.evaluator, contracts.vault, config.deployment.core]), args: '0x' },
+      { enforcer: enforcers.allowedMethods, terms: concat(['function cancel(uint256)', 'function accept(uint256)'].map((f) => toFunctionSelector(f))), args: '0x' },
+      { enforcer: enforcers.limitedCalls, terms: uint(100n), args: '0x' },
+      { enforcer: enforcers.timestamp, terms: encodePacked(['uint128', 'uint128'], [0n, BigInt(now + 86400)]), args: '0x' },
+      { enforcer: enforcers.valueLte, terms: uint(0n), args: '0x' },
+    ],
+  },
+});
 const results = [];
 const errors = [];
 
@@ -38,7 +57,7 @@ await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
 mkdirSync(output, { recursive: true });
 
-async function fixture(viewport, account) {
+async function fixture(viewport, account, sponsored = false) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
   await context.addInitScript(({ viewer, hireling }) => {
     window.__hireling = hireling;
@@ -47,7 +66,7 @@ async function fixture(viewport, account) {
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { viewer: account, hireling: contracts });
-  const state = { calls: [] };
+  const state = { calls: [], submits: [], reports: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -75,6 +94,13 @@ async function fixture(viewport, account) {
     if (name === 'approve_work') return reply({ ok: true, result: { transactions: [tx('Approve and pay', contracts.evaluator, encodeFunctionData({ abi: evaluatorAbi, functionName: 'accept', args: [jobId] }))] } });
     if (name === 'reject_work') return reply({ ok: true, result: { transactions: [tx('Reject', contracts.evaluator, encodeFunctionData({ abi: evaluatorAbi, functionName: 'reject', args: [jobId, 1, keccak256(toHex(body().reason))] }))] } });
     if (name === 'dispute') return reply({ ok: true, result: { transactions: [tx('Dispute the rejection', contracts.evaluator, encodeFunctionData({ abi: evaluatorAbi, functionName: 'dispute', args: [jobId] }))] } });
+    if (sponsored && name === 'sponsor_status') return reply({ ok: true, result: { status: 'live', typedData: delegation, callsUsed: state.submits.length } });
+    if (sponsored && name === 'sponsor_submit') {
+      state.submits.push(body());
+      const n = state.submits.length;
+      return reply({ ok: true, result: { operationId: `0x${n.toString(16).padStart(64, 'a')}`, status: 'pending', txHash: `0x${n.toString(16).padStart(64, 'b')}`, callsUsed: n } });
+    }
+    if (name === 'report_transaction') state.reports.push(body());
     if (name === 'report_transaction' || name === 'report_event') return reply({ ok: true, result: {} });
     return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
   });
@@ -143,6 +169,33 @@ try {
       await context.close();
     }
     results.push({ device, checks: ['cancel before activation: Holding.cancel 700k gas', 'approve: Evaluator.accept 1.2M gas', 'reject with violation and reason, wallet estimate', 'worker dispute with statement, wallet estimate'], passed: true });
+  }
+
+  // Sponsored: the same cancel and approval with gas sponsorship on go through the relay (sponsor_submit, a caller
+  // key each), with no wallet prompt, and the relay's transaction is what the board is told about.
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 }, creator, true);
+    await page.goto(`${base}/job/80`);
+    await page.getByRole('button', { name: 'Cancel the job', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Cancel this job?' }).getByRole('button', { name: 'Cancel the job', exact: true }).click();
+    await page.getByRole('button', { name: 'Send · Hireling pays the gas', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Cancelled.' }).waitFor();
+    await page.goto(`${base}/job/81`);
+    await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
+    await page.getByRole('dialog', { name: 'Approve and pay?' }).getByRole('button', { name: 'Approve and pay', exact: true }).click();
+    await page.getByText('Waiting · Hireling pays the gas', { exact: true }).waitFor();
+    await capture(page, 'v1-approve-sponsored');
+    await page.getByRole('button', { name: 'Send · Hireling pays the gas', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Paid 5 mUSD' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    assert.deepEqual(state.submits.map((x) => x.calls), [
+      [{ to: contracts.holding, data: encodeFunctionData({ abi: holdingAbi, functionName: 'cancel', args: [80n] }), value: '0' }],
+      [{ to: contracts.evaluator, data: encodeFunctionData({ abi: evaluatorAbi, functionName: 'accept', args: [81n] }), value: '0' }],
+    ]);
+    assert.notEqual(state.submits[0].key, state.submits[1].key);
+    assert.deepEqual(state.reports.map((r) => r.txHash), [`0x${'1'.padStart(64, 'b')}`, `0x${'2'.padStart(64, 'b')}`]);
+    results.push({ checks: ['sponsored cancel: Holding.cancel through the relay, no wallet prompt', 'sponsored approval: Evaluator.accept through the relay', 'a caller key per action', 'the relay hash reported to the board'], passed: true });
+    await context.close();
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live board, signing or sends', results, errors }, null, 2));
