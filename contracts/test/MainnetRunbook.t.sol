@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {HirelingRecipe} from "../script/HirelingRecipe.sol";
 
 /// @notice PROD-GATE-007: `docs/mainnet-runbook.md` is the v1 launch, in the order R7 (`script/rehearse-launch.sh`)
 ///         runs it, with the custody readback and the drained-then-open deploy gates, and no legacy deploy path. Each
@@ -122,6 +123,71 @@ contract MainnetRunbookTest is Test {
             "R7 does not show a wrong owner pin refusing"
         );
         assertTrue(vm.contains(r7, "launch:safe has a guard set"), "R7 does not show a guard refusing");
+    }
+
+    /// LAUNCH-AUDIT-001: runbook §1.2's `hireling` table is a complete recipe input. A fixture built only from its rows
+    /// (path and type), spliced into the shipped mainnet config, loads through HirelingRecipe.load; a missing row would
+    /// make load revert on the absent key. On 143 the documented reuseCore is false.
+    function test_documentedHirelingInputLoads() public {
+        string[] memory lines = vm.split(doc, "\n");
+        string memory json = "{";
+        string memory group = "";
+        bool first = true;
+        bool firstInGroup;
+        uint256 rows;
+        for (uint256 i; i < lines.length; ++i) {
+            string memory line = vm.trim(lines[i]);
+            if (vm.indexOf(line, "| `hireling.") != 0) continue;
+            string[] memory cells = vm.split(line, "|");
+            string memory path = vm.replace(vm.replace(vm.trim(cells[1]), "`", ""), "hireling.", "");
+            string memory kind = vm.trim(cells[2]);
+            string memory value = _fixtureValue(kind, ++rows);
+            if (_eq(path, "reuseCore")) {
+                assertTrue(vm.contains(cells[3], "`false`"), "runbook: reuseCore must be false on 143");
+            }
+            string[] memory parts = vm.split(path, ".");
+            if (parts.length == 1) {
+                if (bytes(group).length > 0) json = string.concat(json, "}");
+                group = "";
+                json = string.concat(json, first ? "" : ",", '"', parts[0], '":', value);
+            } else {
+                assertEq(parts.length, 2, string.concat("runbook: unexpected hireling field ", path));
+                if (!_eq(group, parts[0])) {
+                    if (bytes(group).length > 0) json = string.concat(json, "}");
+                    json = string.concat(json, first ? "" : ",", '"', parts[0], '":{');
+                    group = parts[0];
+                    firstInGroup = true;
+                }
+                json = string.concat(json, firstInGroup ? "" : ",", '"', parts[1], '":', value);
+                firstInGroup = false;
+            }
+            first = false;
+        }
+        json = string.concat(json, bytes(group).length > 0 ? "}}" : "}");
+        assertEq(rows, 15, "runbook: the hireling table lists the 15 fields load reads");
+
+        string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
+        assertFalse(vm.keyExistsJson(real, ".hireling"), "the shipped config gained a hireling block; extend this test");
+        string memory path_ = string.concat(vm.projectRoot(), "/config/.test-schema.json");
+        vm.writeFile(path_, string.concat('{"hireling":', json, ",", string(_tail(bytes(real), 1))));
+        HirelingRecipe.Config memory c = HirelingRecipe.load(vm, ".test-schema");
+        vm.removeFile(path_);
+        assertEq(c.chainId, 143);
+        assertFalse(c.reuseCore);
+        assertEq(c.safe, address(uint160(0xa000 + 2)));
+        assertEq(c.genesis, 1);
+    }
+
+    function _fixtureValue(string memory kind, uint256 row) internal pure returns (string memory) {
+        if (_eq(kind, "bool")) return "false";
+        if (_eq(kind, "address")) return string.concat('"', vm.toString(address(uint160(0xa000 + row))), '"');
+        if (_eq(kind, "uint")) return "1";
+        if (_eq(kind, "uint[4]")) return "[0,1,2,3]";
+        revert(string.concat("runbook: unknown hireling field type ", kind));
+    }
+
+    function _eq(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
     function test_runbookCarriesBudgetFundingAndFallbackKey() public view {

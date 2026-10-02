@@ -211,14 +211,17 @@ from the receipts (`hireling.block` = the run's first block, `block` = the fresh
 after success changes nothing; a different recorded deployment refuses. `script/rehearse-hireling-pipeline.sh` runs the
 whole sequence (dry run, cut-off broadcast, resume, promote twice) against an anvil fork of Monad testnet.
 
-Input: the `hireling` block of `config/<network>.json` (values are the coordinator's):
+Input: the `hireling` block of `config/<network>.json` (values are the coordinator's). `load` reads every field, so a
+missing one refuses; runbook §1.2 has the same list as a checklist, which `MainnetRunbook.t.sol` builds a fixture from
+and loads (LAUNCH-AUDIT-001):
 
 ```jsonc
 "hireling": {
-  "reuseCore": true,                       // testnet: reuse deployment.core (must charge 0 fees); mainnet: false
+  "reuseCore": false,                      // chain 143: false, a fresh core (true is refused); testnet: true, reuse
+                                           // deployment.core (which must charge 0 fees)
   "safe": "0x…",                           // owner of every v1 contract; mainnet core admin
   "defaultArbitrator": "0x…",              // the new arbiter key; not the deployer
-  "margin": 86400,                         // seconds added to the windows when checking expiredAt
+  "margin": 3600,                          // seconds added to the windows when checking expiredAt (reviewed default)
   "schedule": { "thresholds": [0, 10000, 100000, 1000000],   // whole FACTORY
                 "bps": [3000, 1000, 300, 100], "treasury": "0x…" },
   "allocation": { "treasury": "0x…",      // 200M (the Safe)

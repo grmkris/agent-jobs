@@ -41,14 +41,29 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
 
    After the deploy it owns every v1 contract and holds both core admin roles; the deployer keeps nothing (§3.6
    enforces this). `SafeAccept.s.sol` needs a **threshold-1** Safe. With a higher threshold, do §3.5 in Safe{Wallet}.
-2. **`contracts/config/monad-mainnet.json`** (the coordinator commits it):
-   - `hireling.safe` = the Safe.
-   - `hireling.defaultArbitrator`: per-offer arbitrators override it.
-   - `hireling.margin`.
-   - `hireling.schedule`: fee thresholds and bps, treasury = the Safe.
-   - `hireling.allocation`: treasury, ecosystem, and `liquidity`, the account that seeds the pool.
-   - `hireling.vesting`: team beneficiary, start offset, duration, cliff.
-   - `hireling.mining.genesis`: 0 means the deploy time.
+2. **`contracts/config/monad-mainnet.json`** (the coordinator commits it). The complete `hireling` object:
+   `HirelingRecipe.load` reads every row below, so DeployHireling refuses if any is missing. Numbers are whole FACTORY or
+   seconds. Leave the generated `deployment` fields absent: PromoteHireling writes them from the receipts.
+
+   | field | type | on chain 143 |
+   | --- | --- | --- |
+   | `hireling.reuseCore` | bool | `false`: mainnet deploys its own core (`true` is refused on 143) |
+   | `hireling.safe` | address | the Safe |
+   | `hireling.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator`; per-offer arbitrators override it |
+   | `hireling.margin` | uint | seconds added to the windows when checking `expiredAt`; the reviewed default is 3600 |
+   | `hireling.schedule.thresholds` | uint[4] | fee tiers in whole FACTORY: `[0, 10000, 100000, 1000000]` |
+   | `hireling.schedule.bps` | uint[4] | fee per tier: `[3000, 1000, 300, 100]` |
+   | `hireling.schedule.treasury` | address | the Safe |
+   | `hireling.allocation.treasury` | address | the Safe (200M FACTORY) |
+   | `hireling.allocation.ecosystem` | address | the ecosystem holder (100M) |
+   | `hireling.allocation.liquidity` | address | the account that seeds the pool (50M) |
+   | `hireling.vesting.beneficiary` | address | the team (150M, vested) |
+   | `hireling.vesting.startOffset` | uint | seconds after T0 before vesting starts, e.g. 31536000 (one year) |
+   | `hireling.vesting.duration` | uint | vesting length in seconds, e.g. 94608000 (three years) |
+   | `hireling.vesting.cliff` | uint | seconds, e.g. 0 |
+   | `hireling.mining.genesis` | uint | epoch 0 start in unix seconds; 0 means the deploy time |
+
+   Then, outside `hireling`:
    - `liquidity.positionOwner` = the Safe; `maxRepairCost` = 5.
    - `knownTokens` = [USDC] (= `x402.usdc`). Leave `deployment.rewardTokens` absent: PromoteHireling derives [USDC] from
      it, and refuses a mainnet reward list without USDC. The artifact's `deployment.rewardTokens` pins the same list.
