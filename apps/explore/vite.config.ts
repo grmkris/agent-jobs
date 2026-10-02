@@ -5,8 +5,19 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
 import { MAINNET_LIVE } from './src/release.ts'
+import { NotDeployedError, deployment } from '../../packages/sdk/src/deployment.ts'
 
 const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'
+/** Whether the network's config has its contracts: false on mainnet until launch day promotes them (as `wallet.ts` reads it). */
+const deployed = (() => {
+  try {
+    deployment(network as 'monad-testnet' | 'monad-mainnet')
+    return true
+  } catch (error) {
+    if (error instanceof NotDeployedError) return false
+    throw error
+  }
+})()
 
 /**
  * The installable app's manifest (iPhone home screen, Mac Dock, Android), emitted per network so a testnet install
@@ -50,9 +61,9 @@ function manifest() {
  * What this build lets visitors do (D16, PROD-GATE-006), at `/release.json`: the network and `MAINNET_LIVE` from
  * `src/release.ts`, the same value the app is built with. The production artifact pins it and the release checks the
  * built file; post-deploy probes can read it from the live origin. Writes are open on testnet, and on mainnet only
- * once `MAINNET_LIVE` is true.
+ * once `MAINNET_LIVE` is true and the contracts are in the config, as in the app (`writesOpen` in wallet.ts).
  */
-const releaseInfo = () => `${JSON.stringify({ network, mainnetLive: MAINNET_LIVE, writesOpen: network !== 'monad-mainnet' || MAINNET_LIVE }, null, 2)}\n`
+const releaseInfo = () => `${JSON.stringify({ network, mainnetLive: MAINNET_LIVE, writesOpen: (network !== 'monad-mainnet' || MAINNET_LIVE) && deployed }, null, 2)}\n`
 function release() {
   return {
     name: 'hireling-release',

@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 export const fixtureAddress = '0x1111111111111111111111111111111111111111';
 export const createConfig = () => ({});
 export const http = () => ({});
+export const custom = () => ({});
 export const WagmiProvider = ({ children }) => children;
 const subscribeAccount = (notify) => { window.addEventListener('fixture-wallet-change', notify); return () => window.removeEventListener('fixture-wallet-change', notify); };
 export const useAccount = () => {
