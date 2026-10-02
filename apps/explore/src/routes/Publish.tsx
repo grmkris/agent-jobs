@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
+import * as sdk from '@agent-jobs/sdk'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { isAddress } from 'viem'
+import { type Address, isAddress, zeroAddress } from 'viem'
+import { useReadContracts } from 'wagmi'
 import { type BoardInfo, DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, boardApi, currentBoardId, data, tool } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
 import { PAID } from '../components/job/HireAgain.tsx'
@@ -18,6 +20,8 @@ import {
   type PostForm,
   type StackName,
   type Step,
+  type WindowBounds,
+  type WindowPreset,
   clearDraft,
   createTaskArgs,
   criteriaList,
@@ -35,6 +39,8 @@ import {
   saveDraft,
   stepProblem,
   toBase,
+  v1TermsProblem,
+  windowsOf,
 } from '../components/post/form.ts'
 import { Chip, Choices, Disclosure, FieldRow, KV, LineRow, Mark, Progress, StepNav, Switch } from '../components/post/parts.tsx'
 import { useToast } from '../components/Sheet.tsx'
@@ -43,6 +49,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, Skeleton, TextArea, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { rewardTokenList, tokenInfo } from '../format.ts'
+import { hireling } from '../hireling.ts'
 import { useToken } from '../useTokens.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
 
@@ -401,7 +408,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     else await navigate(jobId !== null ? boardRoutes().job(jobId) : boardRoutes().jobs())
   }
 
-  const problem = stepProblem(f, step)
+  const v1 = useV1Terms()
+  const problem = stepProblem(f, step) ?? (V1 && step === 3 && f.mode === 'hire' ? v1TermsProblem(f, v1.bounds, auth.address) : null)
   const status = saved && dirty.current ? 'Draft saved' : ''
   const contest = f.mode === 'contest'
   const quotes = f.mode === 'quotes'
@@ -588,6 +596,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   </Group>
                 </Section>
               )}
+              {V1 && f.mode === 'hire' && <V1Terms f={f} set={set} defaultArbitrator={v1.defaultArbitrator} />}
               <Advanced f={f} set={set} stacks={stacks} />
             </>
           )}
@@ -642,7 +651,15 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                       <code className="font-mono text-[0.85rem]">{f.check.trim()}</code>
                     </KV>
                   )}
-                  <KV label="Bonds">{contest ? `${f.creatorBond} FACTORY from you` : `${f.creatorBond} FACTORY from you · ${f.workerBond} from the agent`}</KV>
+                  {V1 && f.mode === 'hire' ? (
+                    <>
+                      <KV label="Windows">{windowsText(f)}</KV>
+                      <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Hireling's arbiter" : <span className="font-mono text-[0.82rem] [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
+                      <KV label="Bonds">{`${f.creatorBond} FACTORY reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
+                    </>
+                  ) : (
+                    <KV label="Bonds">{contest ? `${f.creatorBond} FACTORY from you` : `${f.creatorBond} FACTORY from you · ${f.workerBond} from the agent`}</KV>
+                  )}
                   {f.mode === 'hire' && f.budgetOn && (
                     <KV label="Running-cost budget">{f.budgetKind === 'call' ? `Up to ${f.callCap} MON for one contract call` : `Up to ${f.budgetCap} ${tokenInfo(f.budgetToken).symbol}`}</KV>
                   )}
@@ -695,6 +712,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                 reward={quotes ? undefined : toBase(f.reward, f.token)}
                 bond={toBase(f.creatorBond, deployment.factory)}
                 later={quotes}
+                vault={V1 ? hireling?.vault : undefined}
               />
 
               {!quotes && (
@@ -755,7 +773,14 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
       </form>
 
       {(step === 4 || runningOffer !== null) && matching !== null && (auth.signedIn || runningOffer !== null || matching.owner !== undefined) && publishedAs === null && (
-        <Section title="Publish" note={`Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`}>
+        <Section
+          title="Publish"
+          note={
+            V1 && !contest
+              ? 'Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay.'
+              : `Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`
+          }
+        >
           {onChain.isError && <ErrorText>The saved offer could not be checked. Retry before publishing. <Button variant="plain" onClick={() => void onChain.refetch()}>Retry</Button></ErrorText>}
           {expired && <ErrorText>This offer has expired. Prepare a new offer before confirming any new steps.</ErrorText>}
           {matching.owner?.toLowerCase() !== auth.address?.toLowerCase() && <ErrorText>Return to the wallet that prepared this offer before confirming more steps.</ErrorText>}
@@ -780,6 +805,107 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
           />
         </Section>
       )}
+    </>
+  )
+}
+
+/** The Holding's window bounds and its default arbitrator (Hireling's arbiter), read once from the chain. */
+function useV1Terms(): { bounds: WindowBounds | null; defaultArbitrator: Address | null } {
+  const holding = hireling?.holding ?? zeroAddress
+  const reads = useReadContracts({
+    contracts: (['MIN_REVIEW_WINDOW', 'MAX_REVIEW_WINDOW', 'MIN_DISPUTE_WINDOW', 'MAX_DISPUTE_WINDOW', 'MIN_ARBITRATION_WINDOW', 'MAX_ARBITRATION_WINDOW', 'defaultArbitrator'] as const).map(
+      (functionName) => ({ address: holding, abi: sdk.hirelingHoldingAbi, functionName, chainId: chain.id }) as const,
+    ),
+    query: { enabled: hireling !== null, staleTime: 300_000 },
+  })
+  const r = reads.data
+  if (r === undefined || r.some((x) => x.status !== 'success')) return { bounds: null, defaultArbitrator: null }
+  const n = (i: number) => Number(r[i]?.result)
+  return { bounds: { review: [n(0), n(1)], dispute: [n(2), n(3)], arbitration: [n(4), n(5)] }, defaultArbitrator: r[6]?.result as Address }
+}
+
+const WINDOW_LABEL: Record<WindowPreset, string> = { fast: 'Fast', standard: 'Standard', long: 'Long', custom: 'Custom' }
+const hoursLabel = (h: number) => (h % 24 === 0 ? `${h / 24} d` : `${h} h`)
+const windowsText = (f: PostForm) => {
+  const w = windowsOf(f)
+  return `review ${hoursLabel(w.reviewSeconds / 3600)} · dispute ${hoursLabel(w.disputeSeconds / 3600)} · arbitration ${hoursLabel(w.arbitrationSeconds / 3600)}`
+}
+
+/**
+ * Hireling v1's terms for a hire (ADR-0011): how long the approver has to review, the agent to dispute and the
+ * arbitrator to rule; who arbitrates (Hireling's arbiter by default, by name); and the bonds, reserved from stake.
+ */
+function V1Terms({ f, set, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; defaultArbitrator: Address | null }) {
+  const [customArbiter, setCustomArbiter] = useState(f.arbitrator !== '')
+  return (
+    <>
+      <Section title="Windows" note="Silence when the review window closes counts as acceptance. A rejection can be disputed within the dispute window; the arbitrator then has the arbitration window to rule.">
+        <Group>
+          <LineRow label="Preset" note={windowsText(f)} stack>
+            <Segmented
+              label="Windows"
+              value={f.windowPreset}
+              options={(['fast', 'standard', 'long', 'custom'] as const).map((p) => [p, WINDOW_LABEL[p]] as const)}
+              onChange={(windowPreset) => set({ windowPreset })}
+              className="sm:min-w-[19rem]"
+            />
+          </LineRow>
+          {f.windowPreset === 'custom' && (
+            <>
+              {([['reviewHours', 'Review', '1 h to 14 days'], ['disputeHours', 'Dispute', '1 h to 14 days'], ['arbitrationHours', 'Arbitration', '12 h to 14 days']] as const).map(([field, label, bounds]) => (
+                <LineRow key={field} label={label} note={bounds} htmlFor={`post-${field}`}>
+                  <Input id={`post-${field}`} value={f[field]} onChange={(e) => set({ [field]: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+                  <span className="w-12 shrink-0 text-label-2">hours</span>
+                </LineRow>
+              ))}
+            </>
+          )}
+        </Group>
+      </Section>
+
+      <Section title="Arbitrator">
+        <Group>
+          <LineRow label="Who rules on a dispute" stack>
+            <Segmented
+              label="Arbitrator"
+              value={customArbiter ? 'custom' : 'hireling'}
+              options={[['hireling', "Hireling's arbiter"], ['custom', 'Someone else']] as const}
+              onChange={(v) => {
+                setCustomArbiter(v === 'custom')
+                if (v === 'hireling') set({ arbitrator: '' })
+              }}
+              className="sm:min-w-[19rem]"
+            />
+          </LineRow>
+          {customArbiter ? (
+            <FieldRow label="Arbitrator's address" htmlFor="post-arbitrator">
+              <Input id="post-arbitrator" value={f.arbitrator} onChange={(e) => set({ arbitrator: e.target.value.trim() })} placeholder="0x…" autoComplete="off" spellCheck={false} className="font-mono text-[0.85rem]" />
+            </FieldRow>
+          ) : (
+            <KV label="Hireling's arbiter">
+              {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-[0.82rem] [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
+            </KV>
+          )}
+        </Group>
+        {customArbiter && (
+          <p role="alert" className="mx-1 mt-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.88rem] leading-snug text-warn">
+            A custom arbitrator rules on disputes instead of Hireling's arbiter: their ruling decides who is paid and can burn a bond. Choose someone you and the agent both trust. It cannot be you.
+          </p>
+        )}
+      </Section>
+
+      <Section title="Bonds" note="Bonds are reserved from stake, not sent: yours when you publish, the agent's when it activates. A reserved bond is returned unless a ruling, or a missed deadline, burns it.">
+        <Group>
+          <LineRow label="Your bond" note="Reserved from your stake when you publish." htmlFor="post-creator-bond">
+            <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+          </LineRow>
+          <LineRow label="Agent's bond, at least" note="The agent must have this much stake free to activate the job." htmlFor="post-worker-bond">
+            <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+          </LineRow>
+        </Group>
+      </Section>
     </>
   )
 }
@@ -813,20 +939,22 @@ function HoursPicker({ id, value, presets, onChange }: { id: string; value: stri
 
 function Advanced({ f, set, stacks }: { f: PostForm; set: (p: Partial<PostForm>) => void; stacks: StackName[] }) {
   const hire = f.mode === 'hire'
-  const summary: ReactNode = `${f.stack === 'main' ? '' : `${STACK_LABEL[f.stack]} · `}Bonds, delivery${hire && f.budgetOn ? ', budget' : ''}`
+  const summary: ReactNode = V1 && hire ? `Delivery${f.budgetOn ? ', budget' : ''}` : `${f.stack === 'main' ? '' : `${STACK_LABEL[f.stack]} · `}Bonds, delivery${hire && f.budgetOn ? ', budget' : ''}`
   return (
-    <Section note="Bonds are in FACTORY. Both are held by the contracts, never by Hireling.">
+    <Section note={V1 && hire ? undefined : 'Bonds are in FACTORY. Both are held by the contracts, never by Hireling.'}>
       <Disclosure title="Advanced" summary={summary}>
-        {stacks.length > 1 && (
+        {!V1 && stacks.length > 1 && (
           <LineRow label="Review speed" note={STACK_NOTE[f.stack]} stack>
             <Segmented label="Review speed" value={f.stack} options={stacks.map((s) => [s, STACK_LABEL[s]] as const)} onChange={(stack) => set({ stack })} className="sm:min-w-[19rem]" />
           </LineRow>
         )}
-        <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
-          <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-          <span className="w-16 shrink-0 text-label-2">FACTORY</span>
-        </LineRow>
-        {f.mode === 'contest' ? (
+        {!(V1 && hire) && (
+          <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
+            <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+          </LineRow>
+        )}
+        {V1 && hire ? null : f.mode === 'contest' ? (
           <KV label="Agent's bond" note="Contest entrants post no bond: they risk only their work.">
             None
           </KV>

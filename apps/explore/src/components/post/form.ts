@@ -19,6 +19,21 @@ export const V1 = hireling !== null
 export type Mode = 'hire' | 'contest' | 'quotes'
 export type StackName = 'main' | 'demo' | 'fast'
 export type Step = 1 | 2 | 3 | 4
+export type WindowPreset = 'fast' | 'standard' | 'long' | 'custom'
+
+/** v1 window presets, in hours: review, dispute, arbitration (each within the Holding's bounds). */
+export const WINDOW_PRESETS: Record<Exclude<WindowPreset, 'custom'>, readonly [number, number, number]> = {
+  fast: [1, 1, 12],
+  standard: [24, 24, 48],
+  long: [72, 72, 168],
+}
+
+/** The Holding's window bounds, in seconds (`MIN_REVIEW_WINDOW` … `MAX_ARBITRATION_WINDOW`), read from the chain. */
+export interface WindowBounds {
+  review: readonly [number, number]
+  dispute: readonly [number, number]
+  arbitration: readonly [number, number]
+}
 
 export interface PostForm {
   mode: Mode
@@ -40,6 +55,13 @@ export interface PostForm {
   accepts: DeliverableKind[]
   target: string
   stack: StackName
+  /** v1: the offer's windows, a preset or custom hours. */
+  windowPreset: WindowPreset
+  reviewHours: string
+  disputeHours: string
+  arbitrationHours: string
+  /** v1: a custom arbitrator's address; empty for Hireling's arbiter (the Holding's default). */
+  arbitrator: string
   budgetOn: boolean
   budgetKind: 'advance' | 'call'
   budgetToken: string
@@ -105,6 +127,11 @@ export function initialForm(prefill: Record<string, string>, tokens: TokenList, 
     accepts: accepts.length > 0 ? accepts : ['git'],
     target: prefill.target ?? '',
     stack: STACKS.find((x) => x === prefill.stack) ?? 'main',
+    windowPreset: 'standard',
+    reviewHours: '24',
+    disputeHours: '24',
+    arbitrationHours: '48',
+    arbitrator: '',
     budgetOn: budget !== null,
     budgetKind: budget ?? 'advance',
     budgetToken: budget === 'advance' && prefill.budgetToken !== undefined ? prefill.budgetToken : first,
@@ -186,8 +213,40 @@ export function createTaskArgs(f: PostForm, now: number, v1: boolean = V1) {
         }
       : {}),
     ...(v1 && mode === 'hire' && f.invite.trim() !== '' ? { invite: { agentId: f.invite.trim() } } : {}),
+    ...(v1 ? { windows: windowsOf(f), ...(f.arbitrator.trim() === '' ? {} : { arbitrator: f.arbitrator.trim() }) } : {}),
     stack: f.stack,
   }
+}
+
+/** The offer's windows in seconds: the preset's, or the custom hours. */
+export function windowsOf(f: Pick<PostForm, 'windowPreset' | 'reviewHours' | 'disputeHours' | 'arbitrationHours'>) {
+  const [review, dispute, arbitration] = f.windowPreset === 'custom' ? [Number(f.reviewHours), Number(f.disputeHours), Number(f.arbitrationHours)] : WINDOW_PRESETS[f.windowPreset]
+  return { reviewSeconds: Math.round(review * 3600), disputeSeconds: Math.round(dispute * 3600), arbitrationSeconds: Math.round(arbitration * 3600) }
+}
+
+const spanText = (seconds: number) => (seconds % 86_400 === 0 ? `${seconds / 86_400} day${seconds === 86_400 ? '' : 's'}` : `${seconds / 3600} hour${seconds === 3600 ? '' : 's'}`)
+
+/**
+ * Why a v1 offer's windows or arbitrator would be refused at publish, in words; null when they are fine. `bounds` are
+ * the Holding's (null while they are read); `me` is the creator, who approves its own offers.
+ */
+export function v1TermsProblem(f: PostForm, bounds: WindowBounds | null, me: string | undefined): string | null {
+  if (bounds === null) return 'Reading the window limits from the chain…'
+  const w = windowsOf(f)
+  const checks: Array<[string, number, readonly [number, number]]> = [
+    ['review', w.reviewSeconds, bounds.review],
+    ['dispute', w.disputeSeconds, bounds.dispute],
+    ['arbitration', w.arbitrationSeconds, bounds.arbitration],
+  ]
+  for (const [name, value, [min, max]] of checks) {
+    if (!Number.isFinite(value) || value < min || value > max) return `The ${name} window must be between ${spanText(min)} and ${spanText(max)}.`
+  }
+  const a = f.arbitrator.trim()
+  if (a !== '') {
+    if (!isAddress(a, { strict: false }) || /^0x0{40}$/i.test(a)) return 'Enter the arbitrator’s address (0x and 40 hex digits).'
+    if (me !== undefined && a.toLowerCase() === me.toLowerCase()) return 'You cannot arbitrate your own job: you are its creator and approver.'
+  }
+  return null
 }
 
 /** `request_quotes`' arguments: accepted tokens instead of a price, and when quoting closes. */

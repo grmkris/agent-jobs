@@ -1,4 +1,5 @@
 import * as sdk from '@agent-jobs/sdk'
+import { Link } from '@tanstack/react-router'
 import { zeroAddress } from 'viem'
 import { useBalance, useReadContract } from 'wagmi'
 import { amount, formatNumber, tokenInfo } from '../../format.ts'
@@ -13,7 +14,8 @@ type Hex = `0x${string}`
  * "Ready to publish", read live from the wallet: MON for gas, the reward (a hire or contest escrows it at publish),
  * and FACTORY for the creator bond, which Holding also requires the creator to hold (`minHoldToPublish`) before it
  * takes the bond. A quote request locks nothing yet, so its bond is what picking a quote will need. Advisory: a
- * shortfall is shown, not enforced, since the transaction says the same if it happens.
+ * shortfall is shown, not enforced, since the transaction says the same if it happens. On Hireling v1 (`vault`) a bond is
+ * a reservation of stake, so the check is the stake still free in the vault, with the way to stake more.
  */
 export function Preflight({
   address,
@@ -22,6 +24,7 @@ export function Preflight({
   reward,
   bond,
   later = false,
+  vault,
 }: {
   address: Hex | undefined
   stack: string
@@ -29,6 +32,7 @@ export function Preflight({
   reward?: bigint | null | undefined
   bond: bigint | null
   later?: boolean
+  vault?: Hex | undefined
 }) {
   const on = address !== undefined
   const metadata = useToken(token)
@@ -37,7 +41,8 @@ export function Preflight({
   const q = { refetchInterval: 15_000 }
   const mon = useBalance({ address: who, chainId: chain.id, query: { ...q, enabled: on } })
   const factory = useReadContract({ address: deployment.factory, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [who], chainId: chain.id, query: { ...q, enabled: on } })
-  const hold = useReadContract({ address: holding ?? zeroAddress, abi: sdk.jobHoldingAbi, functionName: 'minHoldToPublish', chainId: chain.id, query: { enabled: holding !== undefined, staleTime: 300_000 } })
+  const hold = useReadContract({ address: holding ?? zeroAddress, abi: sdk.jobHoldingAbi, functionName: 'minHoldToPublish', chainId: chain.id, query: { enabled: holding !== undefined && vault === undefined, staleTime: 300_000 } })
+  const free = useReadContract({ address: vault ?? zeroAddress, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [who], chainId: chain.id, query: { ...q, enabled: on && vault !== undefined } })
   const held = useReadContract({
     address: (token ?? zeroAddress) as Hex,
     abi: sdk.factoryTokenAbi,
@@ -93,6 +98,9 @@ export function Preflight({
             <span className="tabular text-right text-label-2">{tokenHeld === undefined || typeof metadata === 'string' ? 'Token amount unavailable' : `You hold ${formatNumber(tokenHeld, metadata.decimals)} ${metadata.symbol}`}</span>
           </ListRow>
         )}
+        {vault !== undefined ? (
+          <StakeRow prefix={prefix} need={bondNeed} free={free.data as bigint | undefined} unavailable={free.isError} />
+        ) : (
         <ListRow inset>
           <Mark tone={factoryHeld === undefined || hold.isLoading ? 'wait' : factoryHeld >= factoryNeed ? 'ok' : 'warn'} />
           <span className="min-w-0 flex-1">
@@ -105,7 +113,33 @@ export function Preflight({
           </span>
           <span className="tabular text-right text-label-2">{factoryHeld === undefined ? '…' : `You hold ${formatNumber(factoryHeld, 18)}`}</span>
         </ListRow>
+        )}
       </Group>
     </Section>
+  )
+}
+
+/** v1: the bond is reserved from stake, so what counts is the stake still free (not reserved, not unstaking). */
+function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: bigint; free: bigint | undefined; unavailable: boolean }) {
+  return (
+    <ListRow inset>
+      <Mark tone={free === undefined ? (unavailable ? 'bad' : 'wait') : free >= need ? 'ok' : 'warn'} />
+      <span className="min-w-0 flex-1">
+        <span className="block">
+          {prefix}
+          {need > 0n ? `Your bond · ${formatNumber(need, 18)} FACTORY from stake` : 'No bond from you'}
+        </span>
+        {free !== undefined && free < need && (
+          <span className="block text-[0.8rem] text-warn">
+            Stake {formatNumber(need - free, 18)} FACTORY more.{' '}
+            <Link to="/stake" className="font-semibold text-tint">
+              Stake
+            </Link>
+          </span>
+        )}
+        {unavailable && <span className="block text-[0.8rem] text-warn">Your stake cannot be read right now.</span>}
+      </span>
+      <span className="tabular text-right text-label-2">{free === undefined ? '…' : `${formatNumber(free, 18)} free`}</span>
+    </ListRow>
   )
 }

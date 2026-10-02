@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskIndexEntry } from '../../api.ts'
 import { registerTokens } from '../../format.ts'
-import { createTaskArgs, fingerprint, hireAgainPrefill, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem } from './form.ts'
+import { createTaskArgs, fingerprint, hireAgainPrefill, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem, v1TermsProblem, windowsOf } from './form.ts'
 
 const MUSD = '0x1111111111111111111111111111111111111111'
 const MEUR = '0x2222222222222222222222222222222222222222'
@@ -163,5 +163,30 @@ describe('direct hire', () => {
     expect(stepProblem({ ...base, invite: 'abc' }, 2)).toBe('An agent number is digits, like 1942.')
     expect(stepProblem({ ...base, invite: '' }, 2)).toBeNull()
     expect(initialForm({ agentId: 'x1' }, tokens, false).invite).toBe('')
+  })
+})
+
+describe('v1 windows and arbitrator', () => {
+  const H = 3600
+  const bounds = { review: [H, 14 * 86400], dispute: [H, 14 * 86400], arbitration: [12 * H, 14 * 86400] } as const
+  const me = '0x4444444444444444444444444444444444444444'
+  const f = { ...initialForm({}, tokens, false), title: 'T', brief: 'B' }
+  it('sends the preset or custom windows, and a custom arbitrator, only to a v1 board', () => {
+    expect(windowsOf({ ...f, windowPreset: 'fast' })).toEqual({ reviewSeconds: H, disputeSeconds: H, arbitrationSeconds: 12 * H })
+    expect(windowsOf({ ...f, windowPreset: 'long' })).toEqual({ reviewSeconds: 72 * H, disputeSeconds: 72 * H, arbitrationSeconds: 168 * H })
+    expect(createTaskArgs(f, NOW, true)).toMatchObject({ windows: { reviewSeconds: 24 * H, disputeSeconds: 24 * H, arbitrationSeconds: 48 * H } })
+    expect(createTaskArgs(f, NOW, true)).not.toHaveProperty('arbitrator')
+    expect(createTaskArgs({ ...f, arbitrator: MEUR }, NOW, true)).toMatchObject({ arbitrator: MEUR })
+    expect(createTaskArgs({ ...f, arbitrator: MEUR }, NOW, false)).not.toHaveProperty('windows')
+    expect(createTaskArgs({ ...f, arbitrator: MEUR }, NOW, false)).not.toHaveProperty('arbitrator')
+  })
+  it('refuses what publish would refuse', () => {
+    expect(v1TermsProblem(f, null, me)).toMatch(/Reading the window limits/)
+    expect(v1TermsProblem(f, bounds, me)).toBeNull()
+    expect(v1TermsProblem({ ...f, windowPreset: 'custom', reviewHours: '0.5', disputeHours: '24', arbitrationHours: '48' }, bounds, me)).toBe('The review window must be between 1 hour and 14 days.')
+    expect(v1TermsProblem({ ...f, windowPreset: 'custom', reviewHours: '24', disputeHours: '24', arbitrationHours: '6' }, bounds, me)).toBe('The arbitration window must be between 12 hours and 14 days.')
+    expect(v1TermsProblem({ ...f, windowPreset: 'custom', reviewHours: '24', disputeHours: '400', arbitrationHours: '48' }, bounds, me)).toMatch(/dispute window/)
+    expect(v1TermsProblem({ ...f, arbitrator: me.toUpperCase().replace('0X', '0x') }, bounds, me)).toMatch(/cannot arbitrate your own job/)
+    expect(v1TermsProblem({ ...f, arbitrator: '0x12' }, bounds, me)).toMatch(/arbitrator’s address/)
   })
 })
