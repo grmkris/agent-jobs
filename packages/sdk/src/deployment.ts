@@ -1,7 +1,7 @@
 /**
  * Addresses come from `contracts/config/<network>.json`, the file the deployment recipe writes; never from code
- * (AGENTS.md). One network, one core, and one Holding + evaluator pair per window set ("main", and on testnet
- * "demo" with minute-long windows).
+ * (AGENTS.md). One network, one core and the current Hireling pair. Readers also retain every legacy pair and
+ * its own FACTORY token; legacy jobs never switch contracts when a new pair deploys.
  */
 import type { Address } from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
@@ -9,8 +9,11 @@ import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 
 
 export type Network = 'monad-testnet' | 'monad-mainnet'
 export type StackName = 'main' | 'demo' | 'fast'
+export type StackKind = 'legacy' | 'hireling-v1'
 
 export interface Stack {
+  readonly kind: StackKind
+  readonly factory: Address
   readonly holding: Address
   readonly evaluator: Address
   /**
@@ -18,6 +21,18 @@ export interface Stack {
    * refused payout is owed). Pairs deployed before it take only known tokens through the board.
    */
   readonly openTokens: boolean
+}
+
+export interface HirelingDeployment {
+  readonly block: bigint
+  readonly factory: Address
+  readonly vault: Address
+  readonly feeSchedule: Address
+  readonly distributor: Address
+  readonly miningReserve: Address
+  readonly teamVesting: Address
+  /** Launch time, in Unix seconds, used for the mining epochs. */
+  readonly t0: number
 }
 
 /** The caveat enforcers an execution budget is built from (MetaMask's `…Enforcer` contracts, ADR-0009). */
@@ -42,6 +57,8 @@ export interface Deployment {
   readonly chainId: number
   readonly core: Address
   readonly factory: Address
+  /** The v1 protocol contracts, or null before the v1 recipe has deployed. */
+  readonly hireling: HirelingDeployment | null
   /**
    * Known reward tokens, which the apps list first: the faucet tokens and the config's `knownTokens` (testnet
    * `$CHOMP`, mainnet USDC). Not a gate: a reward may be any ERC-20 (ADR-0010).
@@ -78,7 +95,7 @@ export interface Deployment {
   readonly deployBlock: bigint
 }
 
-interface ConfigFile {
+export interface DeploymentConfig {
   network: string
   chainId: number
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
@@ -89,6 +106,16 @@ interface ConfigFile {
     block?: number
     core?: string
     factory?: string
+    hireling?: {
+      block: number
+      factory: string
+      vault: string
+      feeSchedule: string
+      distributor: string
+      miningReserve: string
+      teamVesting: string
+      t0: number
+    }
     rewardTokens?: string[]
     poolFactory?: string
     main?: StackEntry
@@ -99,16 +126,27 @@ interface ConfigFile {
 }
 
 interface StackEntry {
+  kind?: StackKind
+  factory?: string
   holding: string
   evaluator: string
   openTokens?: boolean
 }
 
-const stackOf = (s: StackEntry): Stack => ({ holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true })
+const validAddress = (value: unknown): value is Address => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 
-const files: Record<Network, ConfigFile> = {
-  'monad-testnet': testnet as ConfigFile,
-  'monad-mainnet': mainnet as ConfigFile,
+const stackOf = (s: StackEntry, fallbackFactory: string): Stack => {
+  const kind = s.kind === undefined ? 'legacy' : s.kind
+  if (kind !== 'legacy' && kind !== 'hireling-v1') throw new Error('Unknown deployment stack kind')
+  // Only pre-v1 legacy configurations may omit the per-pair FACTORY.
+  const factory = s.factory === undefined && kind === 'legacy' ? fallbackFactory : s.factory
+  if (!validAddress(factory)) throw new Error('Deployment stack requires a FACTORY address')
+  return { kind, factory, holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true }
+}
+
+const files: Record<Network, DeploymentConfig> = {
+  'monad-testnet': testnet as DeploymentConfig,
+  'monad-mainnet': mainnet as DeploymentConfig,
 }
 
 export class NotDeployedError extends Error {
@@ -122,22 +160,41 @@ export class NotDeployedError extends Error {
  * @throws NotDeployedError when the recipe has not been run there.
  */
 export function deployment(network: Network): Deployment {
-  const c = files[network]
+  return deploymentFromConfig(network, files[network])
+}
+
+/** Parse a recorded network config. This also lets offline readers use an archived config without changing it. */
+export function deploymentFromConfig(network: Network, c: DeploymentConfig): Deployment {
+  if (c.network !== network) throw new Error('Deployment config network mismatch')
   const d = c.deployment
   if (d.core === undefined || d.factory === undefined || d.main === undefined) throw new NotDeployedError(network)
-  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main) }
-  if (d.demo !== undefined) stacks.demo = stackOf(d.demo)
-  if (d.fast !== undefined) stacks.fast = stackOf(d.fast)
+  const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main, d.factory) }
+  if (d.demo !== undefined) stacks.demo = stackOf(d.demo, d.factory)
+  if (d.fast !== undefined) stacks.fast = stackOf(d.fast, d.factory)
+  const legacyStacks = Object.fromEntries(Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s, d.factory!)]))
+  let hireling: HirelingDeployment | null = null
+  if (d.hireling !== undefined) {
+    const h = d.hireling
+    for (const name of ['factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
+      if (!validAddress(h[name])) throw new Error(`Hireling deployment requires ${name}`)
+    }
+    if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0) throw new Error('Hireling deployment requires block and launch time')
+    hireling = { block: BigInt(h.block), factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
+      distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0 }
+  }
+  for (const s of [...Object.values(stacks), ...Object.values(legacyStacks)]) {
+    if (s?.kind === 'hireling-v1' && (hireling === null || s.factory.toLowerCase() !== hireling.factory.toLowerCase())) throw new Error('Hireling stack requires its matching v1 deployment')
+  }
+  if (stacks.main?.kind === 'hireling-v1' && stacks.main.factory.toLowerCase() !== d.factory.toLowerCase()) throw new Error('Current Hireling FACTORY does not match deployment FACTORY')
   return {
     network,
     chainId: c.chainId,
     core: d.core as Address,
     factory: d.factory as Address,
+    hireling,
     rewardTokens: (d.rewardTokens ?? []) as Address[],
     stacks,
-    legacyStacks: Object.fromEntries(
-      Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s)]),
-    ),
+    legacyStacks,
     identity: c.erc8004.identity as Address,
     reputation: c.erc8004.reputation as Address,
     delegation: {
