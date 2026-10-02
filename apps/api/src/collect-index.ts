@@ -24,7 +24,11 @@ export async function collectSnapshot(sql: AsyncSql, ctx: sdk.Ctx, wallet: Addre
     `SELECT DISTINCT e.contract AS holding, p.token FROM payout_owed p JOIN events e
      ON e.chain_id=p.chain_id AND e.job_id=p.job_id AND e.block=p.block AND e.log_index=p.log_index
      WHERE p.chain_id=? AND lower(p.recipient)=lower(?)`, ctx.deployment.chainId, wallet)
+  const roots = ctx.deployment.hireling === null ? [] : await sql.all<{ args_json: string }>(
+    "SELECT args_json FROM protocol_events WHERE chain_id=? AND lower(contract)=lower(?) AND name='RootSet' ORDER BY block,log_index",
+    ctx.deployment.chainId, ctx.deployment.hireling.distributor)
+  const epochs = [...new Set(roots.map(r => String((JSON.parse(r.args_json) as { epoch: string }).epoch)))]
   const after = await indexStatus(sql, ctx.deployment.chainId)
   if (after === null || after.next_block !== cp.next_block || after.updated_at !== cp.updated_at) throw new BoardError('chain', 'the collect index changed during discovery; retry shortly')
-  return { jobs, tokens }
+  return { jobs, tokens, ...(ctx.deployment.hireling === null ? {} : { epochs }) }
 }

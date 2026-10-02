@@ -2,10 +2,12 @@
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, encodeFunctionData, zeroAddress } from 'viem'
 import { holdingAbi, settleHireling, transaction } from './hireling.ts'
+import { miningProof, type MiningSource } from './mining.ts'
 
 export interface CollectSnapshot {
   jobs: Array<{ jobId: string; holding: string }>
   tokens: Array<{ holding: string; token: string }>
+  epochs?: string[]
 }
 export interface CollectAction {
   kind: 'settle' | 'claimTopUpRefund' | 'withdraw' | 'claimRefund' | 'stakeWithdraw' | 'miningClaim'
@@ -43,7 +45,7 @@ async function legacySettlement(ctx: sdk.Ctx, jobId: bigint, now: number): Promi
   return fn === undefined ? [] : [transaction(ctx, 'Finalize the elapsed legacy window', ctx.stack.evaluator, encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: fn, args: [jobId] })), ...(fn === 'completeAfterSilence' ? [] : [settle])]
 }
 
-export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: CollectSnapshot): Promise<CollectAction[]> {
+export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: CollectSnapshot, mining?: MiningSource): Promise<CollectAction[]> {
   const now = Number((await base.publicClient.getBlock()).timestamp)
   const out: CollectAction[] = [], tokens = new Map<string, { ctx: sdk.Ctx; token: Address }>()
   const pair = (holding: string): sdk.Ctx => {
@@ -91,6 +93,12 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
   if (base.deployment.hireling !== null) {
     const h = base.deployment.hireling, state = await sdk.getStake(base, wallet)
     if (state.unstaking > 0n && now >= state.unlockAt) out.push({ kind: 'stakeWithdraw', token: h.factory, amount: state.unstaking.toString(), description: 'Withdraw FACTORY whose unstaking cooldown has ended.', transactions: [transaction(base, 'Withdraw unstaked FACTORY', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw' }))] })
+    for (const epoch of new Set(snapshot.epochs ?? [])) {
+      if (mining === undefined) throw new Error('mining artifacts are unavailable for Collect')
+      const claim = await miningProof(base, wallet, epoch, mining)
+      if (claim.transactions.length > 0) out.push({ kind: 'miningClaim', epoch, token: claim.token, amount: claim.amount,
+        description: 'Claim work mining into your FACTORY stake.', transactions: claim.transactions })
+    }
   }
   return out
 }

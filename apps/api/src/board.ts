@@ -8,6 +8,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { type ToolContext, toJson, tools } from './tools.ts'
 import { admissionIdentity, admissionIpHash, enforceHostedRate, needsWriteRate, type AdmissionCall, type AdmissionNamespace, type AdmissionReply } from './admission-rate.ts'
 import { collectSnapshot } from './collect-index.ts'
+import { r2MiningSource, type EpochBucket } from './mining.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
 export interface BoardCall {
@@ -69,6 +70,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         uri: env.uri,
         manifestBaseUrl: env.manifestBaseUrl,
         collectSnapshot: wallet => collectSnapshot(fromD1((runtimeEnv as Record<string, unknown>).Database as never), contexts.main!, wallet, Math.floor(Date.now() / 1000)),
+        miningSource: r2MiningSource((runtimeEnv as Record<string, unknown>).Manifests as EpochBucket | undefined),
         ...(env.screening.apiKey === '' ? {} : { screening: env.screening }),
         ...(key32(env.relayKey) ? { relay: { account: privateKeyToAccount(env.relayKey as `0x${string}`), rpcUrl: env.rpcUrl } } : {}),
         relaySend: async request => {

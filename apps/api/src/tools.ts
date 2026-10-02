@@ -873,6 +873,11 @@ export const tools: Record<string, Tool> = {
     inputSchema: { type: 'object', properties: { operationId: str('The wallet operation id.'), txHash: str('Optional transaction hash to report.') }, required: ['operationId'] },
     run: (board, caller, a) => board.reportOperation(caller, { operationId: s(a, 'operationId'), ...(a.txHash === undefined ? {} : { txHash: s(a, 'txHash') }) }),
   },
+  mining_proof: {
+    description: 'Read a work-mining epoch proof from the published artifact, checked against the current distributor root and claim state. Unclaimed rewards return a transaction that stakes FACTORY for the named wallet.',
+    inputSchema: { type: 'object', properties: { wallet: str('Reward account address.'), epoch: str('Canonical decimal epoch number, e.g. "0".') }, required: ['wallet', 'epoch'] },
+    run: (board, caller, a) => board.miningProof(caller, { wallet: s(a, 'wallet'), epoch: s(a, 'epoch') }),
+  },
 }
 
 /** JSON with bigints as decimal strings. */

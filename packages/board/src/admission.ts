@@ -5,7 +5,7 @@ export const readOnlyHostedTools = new Set([
   'list_directory', 'get_directory_agent',
   'telegram_status',
   'sponsor_status', 'sponsor_operation',
-  'get_stake', 'fee_quote', 'collect_actions',
+  'get_stake', 'fee_quote', 'collect_actions', 'mining_proof',
 ])
 
 export const drainHostedTools = new Set([
