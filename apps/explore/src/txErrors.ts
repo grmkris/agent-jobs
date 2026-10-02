@@ -5,7 +5,11 @@
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, type Hex, decodeErrorResult } from 'viem'
 
-const ABIS = [sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, sdk.factoryTokenAbi] as unknown as Abi[]
+const ABIS = [
+  sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, sdk.factoryTokenAbi,
+  // Hireling v1 (ADR-0011).
+  sdk.hirelingHoldingAbi, sdk.hirelingEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi,
+] as unknown as Abi[]
 
 const PLAIN: Record<string, string> = {
   InsufficientFactoryHeld: 'Your wallet must hold more FACTORY to do this. Get some from the FACTORY faucet (Me → Wallet).',
@@ -23,6 +27,14 @@ const PLAIN: Record<string, string> = {
   AlreadyRejected: 'This work has already been rejected.',
   PolicyHashUsed: 'This offer is already published.',
   EnforcedPause: 'The contracts are paused by their admin.',
+  NotBootstrapped: 'Staking opens at launch, when the first Hireling contract is authorized. Nothing was staked.',
+  InsufficientAvailable: 'Not enough unreserved stake: bonds on live jobs stay staked until those jobs settle.',
+  UnstakeLocked: 'The unstaking cooldown has not ended yet.',
+  NothingUnstaking: 'Nothing is unstaking right now.',
+  ERC2612ExpiredSignature: 'The staking signature expired. Stake again to sign a fresh one.',
+  ERC2612InvalidSigner: 'The staking signature does not match this wallet. Stake again to sign a fresh one.',
+  ERC20InsufficientBalance: 'Your wallet does not hold that many tokens.',
+  TransferGasTooLow: 'The transaction ran with too little gas to pay out safely, so nothing changed. Try again.',
 }
 
 /** The first `0x…` error payload anywhere in a viem error's cause chain. */

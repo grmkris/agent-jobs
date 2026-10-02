@@ -20,4 +20,10 @@ describe('friendly transaction errors', () => {
     const data = encodeErrorResult({ abi: sdk.jobsEvaluatorAbi, errorName: 'NotProvider' })
     expect(friendlyError(Object.assign(new Error('x'), { data }))).toBe('The contract refused it (NotProvider).')
   })
+  it('decodes the v1 stake vault: closed before launch, reserved stake', () => {
+    const closed = encodeErrorResult({ abi: sdk.stakeVaultAbi, errorName: 'NotBootstrapped' })
+    expect(friendlyError(Object.assign(new Error('x'), { data: closed }))).toMatch(/Staking opens at launch/)
+    const reserved = encodeErrorResult({ abi: sdk.stakeVaultAbi, errorName: 'InsufficientAvailable', args: [1n, 2n] })
+    expect(friendlyError(Object.assign(new Error('x'), { data: reserved }))).toMatch(/bonds on live jobs stay staked/)
+  })
 })
