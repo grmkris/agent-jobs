@@ -279,7 +279,7 @@ contract SeedPoolRehearsalForkTest is Test {
 
         vm.createDir(string.concat(vm.projectRoot(), "/broadcast/hireling"), true);
         string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test-seedpool-run.json");
-        vm.writeFile(path, _runJson(logs));
+        vm.writeFile(path, _runJson("0x1", logs));
         VmSafe.Log[] memory parsed = SeedPoolRecipe.runLogs(vm, path, true);
         (uint256 fromRun, address helper) = SeedPoolRecipe.fromLogs(c, p, parsed);
         assertEq(fromRun, tokenId);
@@ -293,6 +293,43 @@ contract SeedPoolRehearsalForkTest is Test {
         vm.prank(seeder, seeder);
         vm.expectRevert(SeedHelper.AlreadySeeded.selector);
         h.seed();
+    }
+
+    /// @dev A run cut off before `seed()`, or one whose seed failed on chain, is neither verified as a seed nor
+    ///      allowed to block a re-run; the re-run then seeds normally.
+    function test_fork_mainnet_partialOrFailedRunsAreNotTakenAsASeed() public {
+        (bool forked, SeedPoolRecipe.Config memory c) = _setUp("partial");
+        if (!forked) return vm.skip(true);
+        SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
+        SeedHelper h = _helper(c, p);
+        vm.createDir(string.concat(vm.projectRoot(), "/broadcast/hireling"), true);
+        string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test-seedpool-partial.json");
+
+        vm.writeFile(path, _runJson("0x1", new VmSafe.Log[](0)));
+        this.refusePriorSeedExt(c, p, path);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SeedPoolRecipe.BadRun.selector, "expected exactly one PositionManager mint to the Safe"
+            )
+        );
+        this.fromRunExt(c, p, path);
+
+        vm.writeFile(path, _runJson("0x0", new VmSafe.Log[](0)));
+        vm.expectRevert(abi.encodeWithSelector(SeedPoolRecipe.BadRun.selector, "failed receipt"));
+        this.fromRunExt(c, p, path);
+        this.refusePriorSeedExt(c, p, path);
+        vm.removeFile(path);
+
+        (, VmSafe.Log[] memory logs) = _seed(h);
+        _verify(c, p, logs, h);
+    }
+
+    function fromRunExt(SeedPoolRecipe.Config memory c, SeedPoolRecipe.Plan memory p, string memory path)
+        external
+        view
+        returns (uint256 tokenId)
+    {
+        (tokenId,) = SeedPoolRecipe.fromLogs(c, p, SeedPoolRecipe.runLogs(vm, path, true));
     }
 
     function refusePriorSeedExt(SeedPoolRecipe.Config memory c, SeedPoolRecipe.Plan memory p, string memory path)
@@ -424,7 +461,7 @@ contract SeedPoolRehearsalForkTest is Test {
     }
 
     /// @dev A broadcast log in forge's shape, holding one successful receipt with `logs`.
-    function _runJson(VmSafe.Log[] memory logs) internal pure returns (string memory) {
+    function _runJson(string memory status, VmSafe.Log[] memory logs) internal pure returns (string memory) {
         string memory items;
         for (uint256 i; i < logs.length; ++i) {
             string memory topics;
@@ -443,6 +480,9 @@ contract SeedPoolRehearsalForkTest is Test {
                 '"}'
             );
         }
-        return string.concat('{"transactions":[],"receipts":[{"status":"0x1","logs":[', items, ']}],"pending":[]}');
+        return
+            string.concat(
+                '{"transactions":[],"receipts":[{"status":"', status, '","logs":[', items, ']}],"pending":[]}'
+            );
     }
 }
