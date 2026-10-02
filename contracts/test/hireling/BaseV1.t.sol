@@ -300,7 +300,9 @@ abstract contract BaseV1 is Test {
 
     /// @dev The fee and net the worker's stake buys on `reward` under the default schedule.
     function feeOf(uint256 reward, uint256 stake) internal view returns (uint256 fee, uint256 net) {
-        fee = reward * fees.feeBps(stake) / 10_000;
+        // Rounded up, never the whole reward (C9 MATH-1).
+        fee = (reward * fees.feeBps(stake) + 9_999) / 10_000;
+        if (fee >= reward) fee = reward - 1;
         net = reward - fee;
     }
 }

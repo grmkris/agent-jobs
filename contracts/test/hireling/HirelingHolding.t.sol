@@ -10,7 +10,7 @@ import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluat
 import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
 import {IFeeSchedule} from "../../src/hireling/interfaces/IFeeSchedule.sol";
 import {BlocklistToken, FeeOnTransferToken} from "../mocks/OddTokens.sol";
-import {GasHungryToken} from "./mocks/V1Tokens.sol";
+import {GasHungryToken, LyingToken} from "./mocks/V1Tokens.sol";
 import {BaseV1} from "./BaseV1.t.sol";
 
 contract HirelingHoldingTest is BaseV1 {
@@ -655,5 +655,108 @@ contract HirelingHoldingTest is BaseV1 {
         (, uint256 net) = feeOf(REWARD, WORKER_STAKE);
         assertEq(t.funded, net);
         assertEq(t.reviewWindow, REVIEW);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9-002: a token that moves the balance and then reports failure is paid or owed, never both
+    // ------------------------------------------------------------------------------------------
+
+    function _liar() internal returns (LyingToken lie) {
+        lie = new LyingToken();
+        lie.mint(creator, 2 * REWARD);
+        lie.mint(contributor, REWARD);
+        vm.prank(creator);
+        lie.approve(address(holding), 2 * REWARD);
+        vm.prank(contributor);
+        lie.approve(address(holding), REWARD);
+    }
+
+    function _liarCancel(uint8 mode) internal {
+        LyingToken lie = _liar();
+        IERC20 t = IERC20(address(lie));
+        uint256 a = publishWith(params(t, REWARD, 0, 0));
+        uint256 b = publishWith(params(t, REWARD, 0, 0));
+        lie.setMode(creator, mode);
+        vm.prank(creator);
+        holding.cancel(a);
+        assertEq(lie.balanceOf(creator), 0, "the failed push was rolled back");
+        assertEq(holding.owed(t, creator), REWARD, "and recorded once");
+        assertEq(lie.balanceOf(address(holding)), 2 * REWARD, "the other listing stays backed");
+        lie.setMode(creator, 0);
+        vm.prank(creator);
+        holding.withdraw(t);
+        vm.prank(creator);
+        holding.cancel(b);
+        assertEq(lie.balanceOf(creator), 2 * REWARD);
+        assertEq(lie.balanceOf(address(holding)), 0);
+        assertEq(holding.owed(t, creator), 0);
+    }
+
+    function test_C9002_falseAfterTransfer_cancel() public {
+        _liarCancel(1);
+    }
+
+    function test_C9002_shortReturnAfterTransfer_cancel() public {
+        _liarCancel(2);
+    }
+
+    function test_C9002_workerBonusAndTreasuryFeePushes() public {
+        LyingToken lie = _liar();
+        IERC20 t = IERC20(address(lie));
+        uint256 jobId = publishWith(params(t, REWARD, 0, 0));
+        activate(jobId);
+        vm.prank(contributor);
+        holding.topUp(jobId, 10e6);
+        submit(jobId);
+        vm.prank(creator);
+        evaluator.accept(jobId);
+        lie.setMode(worker, 1);
+        lie.setMode(treasury, 2);
+        uint256 workerBefore = lie.balanceOf(worker);
+        holding.settle(jobId);
+        assertEq(lie.balanceOf(worker), workerBefore, "bonus push rolled back");
+        assertEq(lie.balanceOf(treasury), 0, "fee push rolled back");
+        uint256 owedTotal = holding.owed(t, worker) + holding.owed(t, treasury);
+        assertEq(lie.balanceOf(address(holding)), owedTotal, "every liability backed exactly once");
+        assertEq(owedTotal, 10e6 + listing(jobId).fee);
+    }
+
+    function test_C9002_claimTopUpRefund() public {
+        LyingToken lie = _liar();
+        IERC20 t = IERC20(address(lie));
+        uint256 jobId = publishWith(params(t, REWARD, 0, 0));
+        activate(jobId);
+        vm.prank(contributor);
+        holding.topUp(jobId, 10e6);
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        holding.settle(jobId);
+        lie.setMode(contributor, 1);
+        holding.claimTopUpRefund(jobId, contributor);
+        assertEq(lie.balanceOf(contributor), REWARD - 10e6);
+        assertEq(holding.owed(t, contributor), 10e6);
+        assertEq(lie.balanceOf(address(holding)), 10e6);
+    }
+
+    function test_pushPayment_onlySelf() public {
+        vm.prank(stranger);
+        vm.expectRevert(IHirelingHolding.OnlySelf.selector);
+        holding.pushPayment(IERC20(address(pay)), stranger, 1);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9 MATH-1: the fee rounds up, never the whole reward
+    // ------------------------------------------------------------------------------------------
+
+    function test_fee_roundsUp_neverTakesTheWholeReward() public {
+        uint256 three = publishWith(params(IERC20(address(pay)), 3, 0, 0));
+        uint256 one = publishWith(params(IERC20(address(pay)), 1, 0, 0));
+        (uint16 bps, uint256 fee, uint256 net) = holding.quoteActivation(three, stranger);
+        assertEq(bps, 3000);
+        assertEq(fee, 1, "ceil(0.9)");
+        assertEq(net, 2);
+        (, fee, net) = holding.quoteActivation(one, stranger);
+        assertEq(fee, 0, "capped: net stays nonzero");
+        assertEq(net, 1);
     }
 }

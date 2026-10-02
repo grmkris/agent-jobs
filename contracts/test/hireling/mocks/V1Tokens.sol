@@ -57,3 +57,32 @@ contract GasHungryToken is ERC20 {
         super._update(from, to, value);
     }
 }
+
+/// @dev Moves the balance on `transfer`, then reports failure for a flagged recipient: `false` (mode 1) or a 1-byte
+///      return (mode 2). The C9-002 case: the move must not stick while Holding also records `owed`.
+contract LyingToken is ERC20 {
+    mapping(address => uint8) public mode;
+
+    constructor() ERC20("Liar", "LIE") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setMode(address who, uint8 m) external {
+        mode[who] = m;
+    }
+
+    function transfer(address to, uint256 value) public override returns (bool) {
+        _transfer(msg.sender, to, value);
+        uint8 m = mode[to];
+        if (m == 1) return false;
+        if (m == 2) {
+            assembly ("memory-safe") {
+                mstore(0, shl(248, 1))
+                return(0, 1)
+            }
+        }
+        return true;
+    }
+}

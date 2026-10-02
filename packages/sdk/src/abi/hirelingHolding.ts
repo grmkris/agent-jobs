@@ -720,6 +720,29 @@ export const hirelingHoldingAbi = [
   },
   {
     "type": "function",
+    "name": "pushPayment",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "contract IERC20"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "quoteActivation",
     "inputs": [
       {
@@ -1557,6 +1580,11 @@ export const hirelingHoldingAbi = [
   },
   {
     "type": "error",
+    "name": "CoreChargesFees",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "DeadlineInPast",
     "inputs": []
   },
@@ -1639,6 +1667,11 @@ export const hirelingHoldingAbi = [
   {
     "type": "error",
     "name": "NothingToSettle",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OnlySelf",
     "inputs": []
   },
   {
@@ -1760,6 +1793,11 @@ export const hirelingHoldingAbi = [
   {
     "type": "error",
     "name": "TopUpNotRefundable",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TopUpTooLarge",
     "inputs": []
   },
   {

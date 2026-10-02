@@ -43,6 +43,9 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
     /// @notice The gas each payout push may use before it falls back to `owed`. Monad charges the gas limit, so this
     ///         is also a cost cap; a token needing more is paid through `withdraw`, which has no cap.
     uint256 public constant TRANSFER_GAS = 300_000;
+    /// @dev Gas for the whole `pushPayment` frame: the token's own budget under the 63/64 rule, plus the frame's
+    ///      checks, the cold token access (10,100 on Monad) and the revert.
+    uint256 private constant PUSH_FRAME_GAS = TRANSFER_GAS * 64 / 63 + 25_000;
 
     ERC8183WithAuthorization public immutable core;
     IStakeVault public immutable vault;
@@ -207,6 +210,8 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
         if (!Signatures.isValid(creator, selectionDigest(sel), creatorSig)) revert InvalidSignature();
         if (sel.agentId == 0) revert AgentIdRequired();
         if (identity.getAgentWallet(sel.agentId) != msg.sender) revert NotAgentWallet();
+        // Holding keeps the fee and funds `net`; a core that charges on top would cut the worker twice (C9 ACL-5).
+        if (core.platformFeeBP() != 0 || core.evaluatorFeeBP() != 0) revert CoreChargesFees();
 
         (uint16 feeBps, uint256 fee, uint256 net) = _quote(l.reward, msg.sender);
         selectionNonceUsed[creator][sel.nonce] = true;
@@ -236,12 +241,16 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
         if (!l.funded) revert NotActive();
         ERC8183.JobStatus status = core.getJob(jobId).status;
         if (status != ERC8183.JobStatus.Funded && status != ERC8183.JobStatus.Submitted) revert NotActive();
+        // A decided job whose core call is deferred still reads Funded/Submitted; it takes no more money (C9-003).
+        if (IHirelingEvaluator(evaluator).outcome(jobId) != IHirelingEvaluator.Outcome.None) revert NotActive();
         IERC20 token = l.token;
         uint256 before = token.balanceOf(address(this));
         token.safeTransferFrom(msg.sender, address(this), amount);
         uint256 received = token.balanceOf(address(this)) - before;
         if (received != amount) revert RewardTokenShortfall(amount, received);
         uint256 bonus = l.bonus + amount;
+        // `settle` adds reward and bonus; refuse here a total that could not be paid out (a token lying about balances).
+        if (bonus > type(uint256).max - l.reward) revert TopUpTooLarge();
         l.bonus = bonus;
         topUpOf[jobId][msg.sender] += amount;
         emit ToppedUp(jobId, msg.sender, amount, bonus);
@@ -338,7 +347,9 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
 
     function _quote(uint256 reward, address worker) private view returns (uint16 feeBps, uint256 fee, uint256 net) {
         feeBps = feeSchedule.feeBps(vault.stakeOf(worker));
-        fee = Math.mulDiv(reward, feeBps, HirelingConstants.BPS);
+        // Rounded in the treasury's favour (C9 MATH-1), but never the whole reward: `net == 0` reads as never activated.
+        fee = Math.mulDiv(reward, feeBps, HirelingConstants.BPS, Math.Rounding.Ceil);
+        if (fee >= reward) fee = reward - 1;
         net = reward - fee;
     }
 
@@ -364,7 +375,7 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
         bool paid = status == ERC8183.JobStatus.Completed || (l.funded && ev.earnedByWorker(jobId));
         if (paid) {
             l.outcome = Outcome.Paid;
-            uint256 bonusFee = Math.mulDiv(l.bonus, l.feeBps, HirelingConstants.BPS);
+            uint256 bonusFee = Math.mulDiv(l.bonus, l.feeBps, HirelingConstants.BPS, Math.Rounding.Ceil);
             uint256 toWorker = l.bonus - bonusFee;
             if (status != ERC8183.JobStatus.Completed) toWorker += l.reward - l.fee;
             uint256 toTreasury = l.fee + bonusFee;
@@ -404,13 +415,26 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
         else emit BondReleased(jobId, side, account, vault.release(account, amount));
     }
 
-    /// @dev Pushes `amount` to `to` with at most `TRANSFER_GAS`, reading at most 32 bytes back; anything short of a
-    ///      clean success (a revert, `false`, no code, out of gas) is recorded in `owed` instead. The caller must leave
-    ///      room for the full budget, so an honest token cannot be pushed into the fallback by starving the call.
+    /// @dev Pushes `amount` to `to` through `pushPayment`; anything short of a clean success (a revert, `false`, short
+    ///      return data, no code, out of gas) is recorded in `owed` instead. The push runs in its own frame, so a token
+    ///      that moves the balance and then reports failure is rolled back before `owed` records it (C9-002): each
+    ///      liability is paid or owed, never both. The caller must leave room for the full budget, so an honest token
+    ///      cannot be pushed into the fallback by starving the call.
     function _pay(uint256 jobId, IERC20 token, address to, uint256 amount) private {
         if (amount == 0) return;
-        uint256 needed = TRANSFER_GAS * 64 / 63 + 10_000;
+        uint256 needed = PUSH_FRAME_GAS * 64 / 63 + 10_000;
         if (gasleft() < needed) revert TransferGasTooLow(gasleft(), needed);
+        try this.pushPayment{gas: PUSH_FRAME_GAS}(token, to, amount) {
+            return;
+        } catch {}
+        owed[token][to] += amount;
+        emit PayoutOwed(jobId, to, address(token), amount);
+    }
+
+    /// @notice Internal to `_pay`; only this contract may call it. Transfers with at most `TRANSFER_GAS`, reads at
+    ///         most 32 bytes back, and reverts (undoing whatever the token did) unless the transfer clearly succeeded.
+    function pushPayment(IERC20 token, address to, uint256 amount) external {
+        if (msg.sender != address(this)) revert OnlySelf();
         bytes memory data = abi.encodeCall(IERC20.transfer, (to, amount));
         uint256 gasBudget = TRANSFER_GAS;
         bool ok;
@@ -419,10 +443,8 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
             switch returndatasize()
             case 0 { ok := and(ok, gt(extcodesize(token), 0)) }
             default { ok := and(ok, and(gt(returndatasize(), 31), eq(mload(0), 1))) }
+            if iszero(ok) { revert(0, 0) }
         }
-        if (ok) return;
-        owed[token][to] += amount;
-        emit PayoutOwed(jobId, to, address(token), amount);
     }
 
     /// @dev Rejected or Expired means the core either never held the reward or has refunded it to Holding.

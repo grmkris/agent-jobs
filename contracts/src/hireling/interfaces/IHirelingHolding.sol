@@ -237,6 +237,12 @@ interface IHirelingHolding {
     error NothingOwed();
     /// @dev A payout push needs `TRANSFER_GAS` left; send the call with more gas.
     error TransferGasTooLow(uint256 left, uint256 needed);
+    /// @dev `pushPayment` is `_pay`'s own frame.
+    error OnlySelf();
+    /// @dev The core charges a platform or evaluator fee; Holding already took its fee.
+    error CoreChargesFees();
+    /// @dev Reward plus top-ups would overflow.
+    error TopUpTooLarge();
 
     // ---------------------------------------------------------------------------------------------
     // Creator
@@ -357,6 +363,9 @@ interface IHirelingHolding {
 
     /// @notice The gas budget of each payout push; a push that fails within it is recorded in `owed`.
     function TRANSFER_GAS() external view returns (uint256);
+
+    /// @notice Internal to the payout path (C9-002): callable only by this contract.
+    function pushPayment(IERC20 token, address to, uint256 amount) external;
 
     function SELECTION_TYPEHASH() external view returns (bytes32);
     function MIN_REVIEW_WINDOW() external view returns (uint32);
