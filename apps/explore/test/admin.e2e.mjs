@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
 // The Safe console (U5) against a fixture Safe and Hireling v1 (admin-wagmi.mjs): owner-only gating, accepting
@@ -15,6 +16,9 @@ const owner = '0x1111111111111111111111111111111111111111';
 const stranger = '0x5555555555555555555555555555555555555555';
 const deployer = '0x7777777777777777777777777777777777777777';
 const c = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
+const multiSendCallOnly = '0x9641d764fc13c8b624c04430c7356c1c7c8102e2';
+const safeExec = parseAbi(['function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool)']);
+const preValidatedBy = (account) => `0x${account.slice(2).padStart(64, '0')}${'0'.repeat(64)}01`;
 const results = [];
 const errors = [];
 
@@ -33,9 +37,14 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, contracts, owners, previousOwner }) => {
+  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft }) => {
     const K = 10n ** 21n;
     window.__hireling = contracts;
+    window.__bytecode = bytecode;
+    if (draft !== null && sessionStorage.getItem('fixture-draft-set') === null) {
+      localStorage.setItem(`hireling.admin-op:${account.toLowerCase()}`, JSON.stringify(draft));
+      sessionStorage.setItem('fixture-draft-set', '1');
+    }
     window.__wallet = { address: account, connected: true, signatures: [], sends: [] };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
@@ -50,7 +59,7 @@ async function fixture(viewport, options = {}) {
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
       currentEpoch: 2n, totalFunded: 0n, available: 0n, genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
     };
-  }, { account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: [owner, '0x2222222222222222222222222222222222222222'], previousOwner: deployer });
+  }, { account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: [owner, '0x2222222222222222222222222222222222222222'], previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -79,13 +88,6 @@ const send = async (page, done) => {
   await page.getByRole('button', { name: 'Confirm fixture' }).click();
   await page.getByRole('status').filter({ hasText: `${done}: done` }).waitFor();
 };
-const sendSteps = async (page, n, done) => {
-  for (let step = 1; step <= n; step++) {
-    await page.getByRole('button', { name: `Confirm step ${step} of ${n}` }).click();
-    await page.getByRole('button', { name: 'Confirm fixture' }).click();
-  }
-  await page.getByRole('status').filter({ hasText: `${done}: done` }).waitFor();
-};
 const last = (page) => page.evaluate(() => { const call = window.__admin.calls.at(-1); return { via: call.via, to: call.to.toLowerCase(), functionName: call.functionName, signatures: call.signatures }; });
 const preValidated = `0x${owner.slice(2).padStart(64, '0')}${'0'.repeat(64)}01`;
 
@@ -109,20 +111,26 @@ try {
     assert.deepEqual(await last(page), { via: 'safe', to: c.feeSchedule, functionName: 'acceptOwnership', signatures: preValidated });
     await ownership.getByText('Safe owns it', { exact: true }).nth(5).waitFor();
 
-    // Core: pause and unpause each send two Safe calls in order, the core's and the Evaluator's notePause (D4b), so a
-    // delivery deadline inside the pause is never slashed.
+    // Core: pause and unpause each go as ONE Safe execTransaction, a delegatecall to MultiSendCallOnly that makes the
+    // core's call and the Evaluator's notePause together (D13): from this external wallet (no batching), still one
+    // transaction, so the pause is noted at the moment it starts.
     const core = section(page, 'Core');
+    const before = await page.evaluate(() => window.__wallet.sends.length);
     await core.getByRole('button', { name: 'Pause the core' }).click();
     await page.getByText('pause()', { exact: true }).waitFor();
     await page.getByText('notePause()', { exact: true }).waitFor();
-    await page.getByText('2 calls, sent together in this order.', { exact: true }).waitFor();
+    await page.getByText(/which makes these 2 calls in order\. Both happen, or neither\./).waitFor();
+    await page.getByText('1 (delegatecall)', { exact: true }).waitFor();
     await capture(page, `${device}-review-pause`);
-    await sendSteps(page, 2, 'Pause the core');
+    await send(page, 'Pause the core');
     await core.getByText('Paused', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), before + 1);
+    assert.deepEqual(await page.evaluate(() => window.__admin.calls.slice(-2).map((x) => `${x.via}:${x.functionName}`)), ['atomic:pause', 'atomic:notePause']);
     assert.ok(await page.evaluate(() => window.__admin.pauses.length === 1 && window.__admin.pauses[0].end === 0));
     await core.getByRole('button', { name: 'Unpause the core' }).click();
-    await sendSteps(page, 2, 'Unpause the core');
+    await send(page, 'Unpause the core');
     await core.getByRole('button', { name: 'Pause the core' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), before + 2);
     assert.ok(await page.evaluate(() => window.__admin.pauses.length === 1 && window.__admin.pauses[0].end > 0));
     // A pause sent from elsewhere, without the note: the console says so and anyone may send the note alone.
     await page.evaluate(() => { window.__admin.paused = true; window.dispatchEvent(new Event('visibilitychange')); });
@@ -202,11 +210,40 @@ try {
     await send(page, 'Shrink the total of epoch 1');
     await mining.getByText('0 FACTORY of 4,200 FACTORY', { exact: true }).waitFor();
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), [
-      'safe:acceptOwnership', 'safe:pause', 'safe:notePause', 'safe:unpause', 'safe:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund', 'safe:resizeRoot',
+      'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund', 'safe:resizeRoot',
     ]);
     await capture(page, `${device}-mining`);
-    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each with Evaluator notePause in order', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'setRoot', 'fund', 'decoded review before every send'], passed: true });
+    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'setRoot', 'fund', 'decoded review before every send'], passed: true });
     await context.close();
+  }
+
+  // A restored draft is read again from its calldata: one that calls outside the deployment, or is signed for another
+  // owner, is refused and never offered to the wallet, whatever its stored description says.
+  {
+    const foreign = encodeFunctionData({ abi: parseAbi(['function transfer(address to, uint256 amount)']), functionName: 'transfer', args: [stranger, 10n ** 24n] });
+    const tampered = (to, data, signer) => ({ txs: [{ description: 'FeeSchedule.acceptOwnership as the Safe', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, 0, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(signer)] }) }] });
+    for (const [draft, problem] of [
+      [tampered(c.factory, foreign, owner), /which is not a Hireling contract in this deployment/],
+      [tampered(c.feeSchedule, '0x79ba5097', stranger), /It is not signed as you, the signed-in Safe owner\./],
+    ]) {
+      const { context, page } = await fixture({ width: 390, height: 844 }, { draft });
+      await page.goto(`${base}/admin`);
+      await page.getByRole('alert').filter({ hasText: problem }).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).count(), 0);
+      assert.equal(await page.getByText('Review and send', { exact: true }).count(), 0);
+      await capture(page, 'tampered-draft');
+      await page.getByRole('button', { name: 'Discard it' }).click();
+      await page.getByRole('alert').waitFor({ state: 'hidden' });
+      assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+      await context.close();
+    }
+    // Without MultiSendCallOnly on the network, the pause pair is not offered at all.
+    const { context, page } = await fixture({ width: 390, height: 844 }, { noMultiSend: true });
+    await page.goto(`${base}/admin`);
+    await section(page, 'Core').getByText(/Pausing waits for MultiSendCallOnly/).waitFor();
+    assert.equal(await section(page, 'Core').getByRole('button', { name: 'Pause the core' }).isDisabled(), true);
+    await context.close();
+    results.push({ checks: ['restored draft calling outside the deployment refused, not sent', 'restored draft signed for another owner refused', 'no MultiSendCallOnly code: pause not offered'], passed: true });
   }
 
   {

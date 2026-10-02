@@ -1,7 +1,7 @@
 import * as sdk from '@agent-jobs/sdk'
 import { decodeFunctionData, slice } from 'viem'
 import { describe as group, expect, it } from 'vitest'
-import { calldata, describe, execTransaction, preValidated, safeAbi } from './safe.ts'
+import { MULTI_SEND_CALL_ONLY, atomically, calldata, describe, execTransaction, multiSend, preValidated, safeAbi, unpackMultiSend } from './safe.ts'
 
 const owner = '0x1111111111111111111111111111111111111111'
 const vault = '0x2222222222222222222222222222222222222222'
@@ -24,5 +24,25 @@ group('acting as the Safe', () => {
     const data = calldata({ contract: 'FeeSchedule', to: vault, abi: sdk.feeScheduleAbi, functionName: 'propose', args: [{ thresholds: [0n, 1n, 2n, 3n], bps: [3000, 1000, 300, 100], treasury: owner }] })
     expect(describe(sdk.feeScheduleAbi, data)).toEqual({ functionName: 'propose', args: [['s', `{ thresholds: [0, 1, 2, 3], bps: [3000, 1000, 300, 100], treasury: ${owner} }`]] })
     expect(describe(sdk.miningReserveAbi, calldata({ contract: 'MiningReserve', to: vault, abi: sdk.miningReserveAbi, functionName: 'fund', args: [0n, 5n] }))).toEqual({ functionName: 'fund', args: [['epoch', '0'], ['amount', '5']] })
+  })
+})
+
+group('one atomic Safe transaction (D13)', () => {
+  const core = '0x4444444444444444444444444444444444444444'
+  const evaluator = '0x5555555555555555555555555555555555555555'
+  const pause = calldata({ contract: 'Core', to: core, abi: sdk.coreAbi, functionName: 'pause' })
+  const note = calldata({ contract: 'HirelingEvaluator', to: evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'notePause' })
+  it('packs plain calls for MultiSendCallOnly and reads them back', () => {
+    expect(unpackMultiSend(multiSend([{ to: core, data: pause }, { to: evaluator, data: note }]))).toEqual([
+      { operation: 0, to: core, value: 0n, data: pause },
+      { operation: 0, to: evaluator, data: note, value: 0n },
+    ])
+    expect(unpackMultiSend('0x12345678')).toBeNull()
+  })
+  it('sends them as one execTransaction that delegatecalls MultiSendCallOnly', () => {
+    const { args } = decodeFunctionData({ abi: safeAbi, data: atomically(owner, [{ to: core, data: pause }, { to: evaluator, data: note }]) })
+    expect(args[0]).toBe(MULTI_SEND_CALL_ONLY)
+    expect(args[3]).toBe(1)
+    expect(args[9]).toBe(preValidated(owner))
   })
 })

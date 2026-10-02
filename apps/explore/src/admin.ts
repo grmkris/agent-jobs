@@ -3,7 +3,8 @@
  * enforces (so the Safe never sends one that reverts), and the Merkle root inputs `EpochDistributor.setRoot` takes.
  * Pure, so they are unit-tested (admin.test.ts).
  */
-import { type Address, isAddress, zeroAddress } from 'viem'
+import { type Abi, type Address, type Hex, decodeFunctionData, getAddress, isAddress, isHex, zeroAddress } from 'viem'
+import { MULTI_SEND_CALL_ONLY, describe, preValidated, safeAbi, unpackMultiSend } from './safe.ts'
 import { factoryAmount } from './stake.ts'
 
 export interface ScheduleDraft {
@@ -65,3 +66,112 @@ export function resizeProblem(text: string, root: { total: bigint; claimed: bigi
   if (total < root.claimed) return 'The total cannot drop below what has already been claimed.'
   return null
 }
+
+/** A contract the console may call, with the functions it may call on it as the Safe, and directly (anyone may). */
+export interface AdminTarget {
+  name: string
+  abi: Abi
+  safe: readonly string[]
+  direct: readonly string[]
+}
+
+/** What an admin transaction is checked against: the chain, the Safe, the signed-in owner and the config's contracts. */
+export interface AdminContext {
+  chainId: number
+  safe: Address
+  owner: Address
+  /** By lowercase address. */
+  targets: Readonly<Record<string, AdminTarget>>
+}
+
+/** One contract call inside an admin transaction, decoded from its calldata. */
+export interface InnerCall {
+  contract: string
+  to: Address
+  functionName: string
+  args: Array<[string, string]>
+  data: Hex
+}
+
+export type AdminTx =
+  | { ok: true; via: 'safe' | 'atomic' | 'direct'; calls: InnerCall[]; outer: Array<[string, string]> | null }
+  | { ok: false; problem: string }
+
+const no = (problem: string) => ({ ok: false as const, problem })
+
+/** The pause pairs D13 sends atomically: the core's pause or unpause, then the Evaluator's notePause. */
+const ATOMIC = [['Core', ['pause', 'unpause']], ['HirelingEvaluator', ['notePause']]] as const
+
+/**
+ * Reads an admin transaction back from its calldata alone, and refuses it unless it is one this console builds for
+ * this chain, Safe and owner: `execTransaction` signed as this owner with no value, refund or gas price, around an
+ * allowed call on a configured contract (operation 0), or around MultiSendCallOnly with exactly a pause pair
+ * (operation 1); or an allowed permissionless call made directly. Nothing stored beside the calldata is trusted.
+ */
+export function readAdminTx(tx: { chainId: number; to: string; data: string; value?: string | undefined }, ctx: AdminContext): AdminTx {
+  if (tx.chainId !== ctx.chainId) return no('It is for another network.')
+  if ((tx.value ?? '0') !== '0') return no('It sends value.')
+  if (!isHex(tx.data)) return no('Its calldata is not hex.')
+  const call = (to: string, data: Hex, via: 'safe' | 'direct'): InnerCall | string => {
+    const target = ctx.targets[to.toLowerCase()]
+    if (target === undefined) return `It calls ${to}, which is not a Hireling contract in this deployment.`
+    let read: ReturnType<typeof describe>
+    try {
+      read = describe(target.abi, data)
+    } catch {
+      return `Its call to ${target.name} does not decode.`
+    }
+    const allowed = via === 'safe' ? target.safe : target.direct
+    if (!allowed.includes(read.functionName)) return `${target.name}.${read.functionName} is not something this console sends ${via === 'safe' ? 'as the Safe' : 'directly'}.`
+    return { contract: target.name, to: getAddress(to), functionName: read.functionName, args: read.args, data }
+  }
+
+  if (!same(tx.to, ctx.safe)) {
+    const inner = call(tx.to, tx.data, 'direct')
+    return typeof inner === 'string' ? no(inner) : { ok: true, via: 'direct', calls: [inner], outer: null }
+  }
+  let args: readonly unknown[]
+  try {
+    const decoded = decodeFunctionData({ abi: safeAbi, data: tx.data })
+    if (decoded.functionName !== 'execTransaction') return no('It is not a Safe execTransaction.')
+    args = decoded.args
+  } catch {
+    return no('It does not decode as a Safe execTransaction.')
+  }
+  const [to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures] = args as [Address, bigint, Hex, number, bigint, bigint, bigint, Address, Address, Hex]
+  if (value !== 0n || safeTxGas !== 0n || baseGas !== 0n || gasPrice !== 0n || !same(gasToken, zeroAddress) || !same(refundReceiver, zeroAddress)) {
+    return no('It moves value or pays a refund from the Safe.')
+  }
+  if (signatures.toLowerCase() !== preValidated(ctx.owner).toLowerCase()) return no('It is not signed as you, the signed-in Safe owner.')
+  const outer: Array<[string, string]> = [
+    ['to', to],
+    ['value', '0'],
+    ['operation', operation === 1 ? '1 (delegatecall)' : '0 (call)'],
+    ['safeTxGas', '0'],
+    ['baseGas', '0'],
+    ['gasPrice', '0'],
+    ['gasToken', zeroAddress],
+    ['refundReceiver', zeroAddress],
+    ['signatures', signatures],
+  ]
+  if (operation === 0) {
+    const inner = call(to, data, 'safe')
+    return typeof inner === 'string' ? no(inner) : { ok: true, via: 'safe', calls: [inner], outer }
+  }
+  if (operation !== 1) return no('It uses an unknown Safe operation.')
+  if (!same(to, MULTI_SEND_CALL_ONLY)) return no('Its delegatecall is not to MultiSendCallOnly.')
+  const packed = unpackMultiSend(data)
+  if (packed === null) return no('Its MultiSend batch does not decode.')
+  if (packed.length !== ATOMIC.length || packed.some((p) => p.operation !== 0 || p.value !== 0n)) return no('Its MultiSend batch is not a pause pair.')
+  const calls: InnerCall[] = []
+  for (const [i, p] of packed.entries()) {
+    const inner = call(p.to, p.data, 'safe')
+    if (typeof inner === 'string') return no(inner)
+    const [contract, functions] = ATOMIC[i] as (typeof ATOMIC)[number]
+    if (inner.contract !== contract || !(functions as readonly string[]).includes(inner.functionName)) return no('Its MultiSend batch is not a pause pair.')
+    calls.push(inner)
+  }
+  return { ok: true, via: 'atomic', calls, outer }
+}
+
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()

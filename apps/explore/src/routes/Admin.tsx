@@ -1,8 +1,9 @@
 import * as sdk from '@agent-jobs/sdk'
-import { useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { type ReactNode, useMemo, useState } from 'react'
 import { type Abi, type Address, type Hex, isAddress, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
+import { getBytecode } from 'wagmi/actions'
 import type { TxRequest } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useToast } from '../components/Sheet.tsx'
@@ -11,11 +12,11 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
-import { resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
+import { type AdminContext, type AdminTx, readAdminTx, resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
-import { type Call, calldata, describe, execTransaction, safeAbi } from '../safe.ts'
+import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execTransaction, safeAbi } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
-import { chain, deployment } from '../wallet.ts'
+import { chain, deployment, wagmiConfig } from '../wallet.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
 const same = (a: string | undefined, b: string | undefined) => a !== undefined && b !== undefined && a.toLowerCase() === b.toLowerCase()
@@ -37,43 +38,64 @@ export function useSafeOwner(address: string | undefined): boolean | null {
 }
 
 type Via = 'safe' | 'direct'
-/** One call, built and decoded before the wallet opens. */
-interface Step {
-  contract: string
-  to: Address
-  functionName: string
-  args: Array<[string, string]>
-  via: Via
-  tx: TxRequest
-}
-/** What the page will send, kept until it is done: one call, or calls that go together in order. */
+/**
+ * What the page will send: its transactions, kept until they are done. Only the transactions are stored; every call
+ * shown or sent is decoded from their calldata and checked again (`readAdminTx`), so a stored draft is never trusted.
+ */
 interface Op {
   title: string
-  steps: Step[]
+  txs: TxRequest[]
 }
 const opKey = (me: string) => `hireling.admin-op:${me.toLowerCase()}`
-function loadOp(me: string): Op | null {
+function loadTxs(me: string): TxRequest[] | null {
   try {
-    const op = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as Op | null
-    return op !== null && Array.isArray(op.steps) ? op : null
+    const saved = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as { txs?: unknown } | null
+    return saved !== null && Array.isArray(saved.txs) ? (saved.txs as TxRequest[]) : null
   } catch {
     return null
   }
 }
-function saveOp(me: string, op: Op | null) {
+function saveTxs(me: string, txs: TxRequest[] | null) {
   try {
-    if (op === null) localStorage.removeItem(opKey(me))
-    else localStorage.setItem(opKey(me), JSON.stringify(op))
+    if (txs === null) localStorage.removeItem(opKey(me))
+    else localStorage.setItem(opKey(me), JSON.stringify({ txs }))
   } catch {
     // storage blocked: the operation lasts as long as the page
   }
 }
 
 /**
- * `act(title, call, via, ...then)`: show a call for review, with any calls that must follow it in the same send (one
- * wallet transaction when the wallet batches, else in order); `busy` while one is under review or being sent.
+ * The contracts this console calls, from the deployment config, with what it sends to each as the Safe and what it
+ * sends directly (permissionless). Every transaction is held to this before it is shown or sent.
  */
-type Act = (title: string, call: Call, via: Via, ...then: ReadonlyArray<readonly [Call, Via]>) => void
+const target = (name: string, abi: unknown, asSafe: string[], direct: string[] = []) => ({ name, abi: abi as Abi, safe: ['acceptOwnership', ...asSafe], direct })
+function adminContext(c: HirelingContracts, safe: Address, me: Address): AdminContext {
+  return {
+    chainId: chain.id,
+    safe,
+    owner: me,
+    targets: {
+      [c.feeSchedule.toLowerCase()]: target('FeeSchedule', sdk.feeScheduleAbi, ['propose', 'cancel'], ['execute']),
+      [c.vault.toLowerCase()]: target('StakeVault', sdk.stakeVaultAbi, ['proposeHolding', 'cancelHoldingProposal', 'revokeHolding'], ['acceptHolding']),
+      [c.holding.toLowerCase()]: target('HirelingHolding', sdk.hirelingHoldingAbi, []),
+      [c.evaluator.toLowerCase()]: target('HirelingEvaluator', sdk.hirelingEvaluatorAbi, ['notePause'], ['notePause']),
+      [c.miningReserve.toLowerCase()]: target('MiningReserve', sdk.miningReserveAbi, ['fund']),
+      [c.distributor.toLowerCase()]: target('EpochDistributor', sdk.epochDistributorAbi, ['setRoot', 'resizeRoot']),
+      [deployment.core.toLowerCase()]: { name: 'Core', abi: sdk.coreAbi as unknown as Abi, safe: ['pause', 'unpause'], direct: [] },
+    },
+  }
+}
+
+/** A title read from the calls themselves, for a draft restored from storage. */
+const titleOf = (reads: AdminTx[]) =>
+  reads.flatMap((r) => (r.ok ? r.calls.map((x) => `${x.contract}.${x.functionName}`) : [])).join(' + ') + (reads.some((r) => r.ok && r.via !== 'direct') ? ' as the Safe' : '')
+
+/**
+ * `act(title, call, via)`: show a call for review; `busy` while one is under review or being sent. Several calls
+ * (`[pause, notePause]`) go as the Safe in ONE `execTransaction` through MultiSendCallOnly: both happen or neither
+ * (D13), whatever the wallet; there is no sequential fallback.
+ */
+type Act = (title: string, call: Call | readonly Call[], via: Via) => void
 
 /**
  * The Safe's console (ADR-0011). Shown only to an owner of the Safe that owns Hireling v1; the Safe's threshold is 1,
@@ -160,37 +182,65 @@ function Gate({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addres
 function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Address }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const [op, setOpState] = useState<Op | null>(() => loadOp(me))
+  const ctx = useMemo(() => adminContext(c, safe, me), [c, safe, me])
+  const [op, setOpState] = useState<Op | null>(() => {
+    const txs = loadTxs(me)
+    return txs === null ? null : { title: titleOf(txs.map((tx) => readAdminTx(tx, ctx))), txs }
+  })
   const [dismissable, setDismissable] = useState(true)
   const setOp = (next: Op | null) => {
-    saveOp(me, next)
+    saveTxs(me, next === null ? null : next.txs)
     setOpState(next)
   }
-  const step = (call: Call, via: Via): Step => {
-    const data = calldata(call)
-    const { functionName, args } = describe(call.abi, data)
-    const tx: TxRequest = via === 'safe'
-      ? { description: `${call.contract}.${functionName} as the Safe`, chainId: chain.id, to: safe, data: execTransaction(me, { to: call.to, data }), value: '0' }
-      : { description: `${call.contract}.${functionName}`, chainId: chain.id, to: call.to, data, value: '0' }
-    return { contract: call.contract, to: call.to, functionName, args, via, tx }
-  }
-  const act: Act = (title, call, via, ...then) => {
-    setOp({ title, steps: [step(call, via), ...then.map(([next, nextVia]) => step(next, nextVia))] })
+  // MultiSendCallOnly must have code here before a pause pair is sent through it (D13).
+  const multiSendCode = useQuery({
+    queryKey: ['bytecode', chain.id, MULTI_SEND_CALL_ONLY],
+    queryFn: async () => (await getBytecode(wagmiConfig, { address: MULTI_SEND_CALL_ONLY, chainId: chain.id })) ?? '0x',
+    staleTime: 300_000,
+    retry: false,
+  })
+  const atomicReady = multiSendCode.data !== undefined && multiSendCode.data !== '0x'
+  const act: Act = (title, call, via) => {
+    const tx: TxRequest = Array.isArray(call)
+      ? { description: `${call.map((x) => `${x.contract}.${x.functionName}`).join(' + ')} as the Safe, in one transaction`, chainId: chain.id, to: safe, data: atomically(me, call.map((x) => ({ to: x.to, data: calldata(x) }))), value: '0' }
+      : (() => {
+          const one = call as Call
+          const data = calldata(one)
+          return via === 'safe'
+            ? { description: `${one.contract}.${one.functionName} as the Safe`, chainId: chain.id, to: safe, data: execTransaction(me, { to: one.to, data }), value: '0' }
+            : { description: `${one.contract}.${one.functionName}`, chainId: chain.id, to: one.to, data, value: '0' }
+        })()
+    setOp({ title, txs: [tx] })
     window.scrollTo({ top: 0 })
   }
+  // What is shown and sent is read back from the calldata on every render, the same for a fresh and a restored op.
+  const reads = op === null ? [] : op.txs.map((tx) => readAdminTx(tx, ctx))
+  const refused = reads.find((r) => !r.ok)
+  const atomic = reads.some((r) => r.ok && r.via === 'atomic')
+  const blocked = refused !== undefined ? null : atomic && !atomicReady ? (multiSendCode.isLoading ? 'Checking MultiSendCallOnly on this network…' : `MultiSendCallOnly has no code at ${MULTI_SEND_CALL_ONLY} on this network, so these calls cannot go as one transaction. Nothing is sent.`) : null
   const busy = op !== null
   return (
     <>
       <PageTitle sub={<>Acting as the Safe <AddressText value={safe} /> · threshold 1</>}>Admin</PageTitle>
-      {op !== null && (
+      {op !== null && refused !== undefined && !refused.ok && (
+        <Section title="Saved operation refused">
+          <div role="alert" className="grid gap-2 rounded-xl bg-bad-bg p-4 text-[0.9rem] text-bad">
+            <p>A saved admin operation does not read as one this console sends for this Safe and wallet: {refused.problem} It was not sent.</p>
+            <Button variant="danger" onClick={() => setOp(null)}>Discard it</Button>
+          </div>
+        </Section>
+      )}
+      {op !== null && refused === undefined && (
         <Section title="Review and send" note="This is exactly what your wallet will send, decoded from its calldata.">
-          <Review op={op} safe={safe} />
+          <Review title={op.title} reads={reads} safe={safe} />
+          {blocked !== null && <ErrorText>{blocked}</ErrorText>}
           <div className="mt-3">
             <TxSteps
-              key={op.steps.map((x) => x.tx.data).join()}
+              key={op.txs.map((x) => x.data).join()}
               taskId={`admin:${me.toLowerCase()}`}
-              txs={op.steps.map((x) => x.tx)}
+              txs={op.txs}
               owner={me}
+              canSend={blocked === null}
               reportToBoard={false}
               onSafeToRestartChange={setDismissable}
               onDone={() => {
@@ -209,7 +259,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
         </Section>
       )}
       <Ownership c={c} safe={safe} act={act} busy={busy} />
-      <Core c={c} safe={safe} act={act} busy={busy} />
+      <Core c={c} safe={safe} act={act} busy={busy} atomicReady={atomicReady} />
       <Fees c={c} act={act} busy={busy} />
       <Holdings c={c} act={act} busy={busy} />
       <Mining c={c} act={act} busy={busy} />
@@ -217,45 +267,53 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
   )
 }
 
-function Review({ op, safe }: { op: Op; safe: Address }) {
+function Review({ title, reads, safe }: { title: string; reads: AdminTx[]; safe: Address }) {
   return (
     <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
-      <p className="font-semibold">{op.title}</p>
-      {op.steps.length > 1 && <p className="text-[0.88rem] text-label-2">{op.steps.length} calls, sent together in this order.</p>}
-      {op.steps.map((step, i) => (
-        <StepReview key={step.tx.data} step={step} safe={safe} n={op.steps.length > 1 ? i + 1 : null} />
-      ))}
+      <p className="font-semibold">{title}</p>
+      {reads.map((r, i) => (r.ok ? <TxReview key={i} read={r} safe={safe} /> : null))}
     </div>
   )
 }
 
-function StepReview({ step, safe, n }: { step: Step; safe: Address; n: number | null }) {
-  const outer = step.via === 'safe' ? describe(safeAbi as unknown as Abi, step.tx.data as Hex).args.filter(([name]) => name !== 'data') : null
+function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: Address }) {
   return (
     <div className="grid gap-3">
-      {n !== null && <p className="text-[0.8rem] font-semibold tracking-wide text-label-2 uppercase">Call {n}</p>}
-      <Group className="bg-bg">
-        <KV k="Contract" stack>
-          {step.contract} <code className="font-mono text-[0.82rem] break-all">{step.to}</code>
-        </KV>
-        <KV k="Function" stack>
-          <code className="font-mono text-[0.85rem]">{step.functionName}({step.args.map(([name]) => name).join(', ')})</code>
-        </KV>
-        {step.args.map(([name, value]) => (
-          <KV key={name} k={name} stack>
-            <code className="font-mono text-[0.82rem] break-all">{value}</code>
-          </KV>
-        ))}
-      </Group>
-      {outer !== null ? (
+      {read.via === 'atomic' && (
+        <p className="text-[0.88rem] text-label-2">
+          One Safe transaction: the Safe delegatecalls MultiSendCallOnly v1.4.1 <code className="font-mono break-all">{MULTI_SEND_CALL_ONLY}</code>, which makes these {read.calls.length} calls in order. Both happen, or neither.
+        </p>
+      )}
+      {read.calls.map((call, i) => (
+        <div key={i} className="grid gap-2">
+          {read.calls.length > 1 && <p className="text-[0.8rem] font-semibold tracking-wide text-label-2 uppercase">Call {i + 1}</p>}
+          <Group className="bg-bg">
+            <KV k="Contract" stack>
+              {call.contract} <code className="font-mono text-[0.82rem] break-all">{call.to}</code>
+            </KV>
+            <KV k="Function" stack>
+              <code className="font-mono text-[0.85rem]">{call.functionName}({call.args.map(([name]) => name).join(', ')})</code>
+            </KV>
+            {call.args.map(([name, value]) => (
+              <KV key={name} k={name} stack>
+                <code className="font-mono text-[0.82rem] break-all">{value}</code>
+              </KV>
+            ))}
+            <KV k="Calldata" stack>
+              <code className="font-mono text-[0.78rem] break-all text-label-2">{call.data}</code>
+            </KV>
+          </Group>
+        </div>
+      ))}
+      {read.outer !== null ? (
         <>
           <p className="text-[0.88rem] text-label-2">
             Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with your owner signature (r = you, s = 0, v = 1).
           </p>
           <Group className="bg-bg">
-            {outer.map(([name, value]) => (
+            {read.outer.map(([name, value]) => (
               <KV key={name} k={name} stack>
-                <code className="font-mono text-[0.82rem] break-all">{name === 'operation' && value === '0' ? '0 (call)' : value}</code>
+                <code className="font-mono text-[0.82rem] break-all">{value}</code>
               </KV>
             ))}
           </Group>
@@ -359,7 +417,7 @@ function Ownership({ c, safe, act, busy }: { c: HirelingContracts; safe: Address
 // Core: pause and unpause (ADMIN_ROLE). On testnet the core is reused and its admin may not be the Safe.
 // ---------------------------------------------------------------------------------------------------------------
 
-function Core({ c, safe, act, busy }: { c: HirelingContracts; safe: Address; act: Act; busy: boolean }) {
+function Core({ c, safe, act, busy, atomicReady }: { c: HirelingContracts; safe: Address; act: Act; busy: boolean; atomicReady: boolean }) {
   const core = deployment.core
   const base = useReadContracts({
     contracts: [
@@ -411,13 +469,16 @@ function Core({ c, safe, act, busy }: { c: HirelingContracts; safe: Address; act
               </Button>
             </div>
           )}
+          {!atomicReady && safeIsAdmin !== false && (
+            <p className="text-[0.88rem] text-label-2">Pausing waits for MultiSendCallOnly to be confirmed on this network: the pause and its note go as one transaction or not at all.</p>
+          )}
           {safeIsAdmin === false ? (
             <p className="text-[0.88rem] text-label-2">The Safe is not the core's admin on this network, so it cannot pause it from here.</p>
           ) : (
             <Button
               variant={paused === true ? 'primary' : 'danger'}
-              disabled={busy || paused === undefined || safeIsAdmin !== true}
-              onClick={() => act(paused === true ? 'Unpause the core' : 'Pause the core', call(paused === true ? 'unpause' : 'pause'), 'safe', [note, 'safe'])}
+              disabled={busy || paused === undefined || safeIsAdmin !== true || !atomicReady}
+              onClick={() => act(paused === true ? 'Unpause the core' : 'Pause the core', [call(paused === true ? 'unpause' : 'pause'), note], 'safe')}
             >
               {paused === true ? 'Unpause the core' : 'Pause the core'}
             </Button>

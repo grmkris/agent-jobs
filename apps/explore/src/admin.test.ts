@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { bpsOf, resizeProblem, rootProblem, scheduleProposal } from './admin.ts'
+import * as sdk from '@agent-jobs/sdk'
+import { type Abi, encodeFunctionData } from 'viem'
+import { type AdminContext, bpsOf, readAdminTx, resizeProblem, rootProblem, scheduleProposal } from './admin.ts'
+import { MULTI_SEND_CALL_ONLY, atomically, calldata, execTransaction, multiSend, preValidated, safeAbi } from './safe.ts'
 
 const treasury = '0x9999999999999999999999999999999999999999'
 const ok = { thresholds: ['0', '10000', '100000', '1000000'], rates: ['30', '10', '3', '1'], treasury }
@@ -42,5 +45,61 @@ describe('resizing a posted root', () => {
     expect(resizeProblem('', root)).toMatch(/Enter the new total/)
     expect(resizeProblem('x', root)).toMatch(/Enter the new total/)
     expect(resizeProblem('0', { total: root.total, claimed: 0n })).toBeNull()
+  })
+})
+
+const fn = (to: `0x${string}`, abi: Abi, functionName: string, contract = 'x') => calldata({ contract, to, abi, functionName })
+const tx = (to: string, data: `0x${string}`, more: object = {}) => ({ chainId: 10143, to, data, value: '0', ...more })
+
+describe('reading an admin transaction back from its calldata', () => {
+  const owner = '0x1111111111111111111111111111111111111111'
+  const other = '0x2222222222222222222222222222222222222222'
+  const safe = '0x3333333333333333333333333333333333333333'
+  const fees = '0x4444444444444444444444444444444444444444'
+  const core = '0x5555555555555555555555555555555555555555'
+  const evaluator = '0x6666666666666666666666666666666666666666'
+  const token = '0x7777777777777777777777777777777777777777'
+  const ctx: AdminContext = {
+    chainId: 10143,
+    safe,
+    owner,
+    targets: {
+      [fees]: { name: 'FeeSchedule', abi: sdk.feeScheduleAbi as Abi, safe: ['acceptOwnership', 'cancel'], direct: ['execute'] },
+      [core]: { name: 'Core', abi: sdk.coreAbi as unknown as Abi, safe: ['pause', 'unpause'], direct: [] },
+      [evaluator]: { name: 'HirelingEvaluator', abi: sdk.hirelingEvaluatorAbi as Abi, safe: ['acceptOwnership', 'notePause'], direct: ['notePause'] },
+    },
+  }
+  const pause = fn(core, sdk.coreAbi as unknown as Abi, 'pause')
+  const note = fn(evaluator, sdk.hirelingEvaluatorAbi as Abi, 'notePause')
+  const raw = (to: string, data: `0x${string}`, operation: number, signer = owner, refund = '0x0000000000000000000000000000000000000000') =>
+    encodeFunctionData({ abi: safeAbi, functionName: 'execTransaction', args: [to as `0x${string}`, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', refund as `0x${string}`, preValidated(signer as `0x${string}`)] })
+
+  it('reads what the console builds', () => {
+    const one = readAdminTx(tx(safe, execTransaction(owner, { to: fees, data: fn(fees, sdk.feeScheduleAbi as Abi, 'acceptOwnership') })), ctx)
+    expect(one).toMatchObject({ ok: true, via: 'safe', calls: [{ contract: 'FeeSchedule', functionName: 'acceptOwnership' }] })
+    const pair = readAdminTx(tx(safe, atomically(owner, [{ to: core, data: pause }, { to: evaluator, data: note }])), ctx)
+    expect(pair).toMatchObject({ ok: true, via: 'atomic', calls: [{ contract: 'Core', functionName: 'pause' }, { contract: 'HirelingEvaluator', functionName: 'notePause' }] })
+    expect(readAdminTx(tx(fees, fn(fees, sdk.feeScheduleAbi as Abi, 'execute')), ctx)).toMatchObject({ ok: true, via: 'direct' })
+  })
+
+  it('refuses anything else', () => {
+    const problem = (t: ReturnType<typeof tx>) => {
+      const r = readAdminTx(t, ctx)
+      return r.ok ? null : r.problem
+    }
+    const accept = fn(fees, sdk.feeScheduleAbi as Abi, 'acceptOwnership')
+    expect(problem(tx(safe, execTransaction(owner, { to: fees, data: accept }), { chainId: 143 }))).toMatch(/another network/)
+    expect(problem(tx(safe, execTransaction(owner, { to: fees, data: accept }), { value: '1' }))).toMatch(/sends value/)
+    expect(problem(tx(safe, raw(fees, accept, 0, other)))).toMatch(/not signed as you/)
+    expect(problem(tx(safe, raw(fees, accept, 0, owner, other)))).toMatch(/refund/)
+    expect(problem(tx(safe, execTransaction(owner, { to: token, data: '0xa9059cbb' })))).toMatch(/not a Hireling contract/)
+    expect(problem(tx(safe, execTransaction(owner, { to: fees, data: fn(fees, sdk.feeScheduleAbi as Abi, 'execute') })))).toMatch(/not something this console sends as the Safe/)
+    expect(problem(tx(fees, accept))).toMatch(/not something this console sends directly/)
+    expect(problem(tx(safe, raw(fees, accept, 1)))).toMatch(/not to MultiSendCallOnly/)
+    expect(problem(tx(safe, raw(MULTI_SEND_CALL_ONLY, multiSend([{ to: core, data: pause }]), 1)))).toMatch(/not a pause pair/)
+    expect(problem(tx(safe, raw(MULTI_SEND_CALL_ONLY, multiSend([{ to: evaluator, data: note }, { to: core, data: pause }]), 1)))).toMatch(/not a pause pair/)
+    expect(problem(tx(safe, raw(MULTI_SEND_CALL_ONLY, multiSend([{ to: core, data: pause }, { to: fees, data: accept }]), 1)))).toMatch(/not a pause pair|not something/)
+    expect(problem(tx(safe, raw(fees, accept, 2)))).toMatch(/unknown Safe operation/)
+    expect(problem(tx(safe, '0x1234'))).toMatch(/does not decode/)
   })
 })

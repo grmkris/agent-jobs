@@ -1,7 +1,7 @@
 import { coreAbi, epochDistributorAbi, feeScheduleAbi, miningReserveAbi, stakeVaultAbi, hirelingHoldingAbi, hirelingEvaluatorAbi } from '@agent-jobs/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { decodeFunctionData } from 'viem';
-import { safeAbi } from '../src/safe.ts';
+import { MULTI_SEND_CALL_ONLY, safeAbi, unpackMultiSend } from '../src/safe.ts';
 import { sendFixtureTransaction } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
@@ -63,10 +63,19 @@ function decode(data) {
 }
 function apply({ to, data }) {
   const s = window.__admin;
-  const viaSafe = eq(to, s.safe);
-  const inner = viaSafe ? (() => { const { args } = decodeFunctionData({ abi: safeAbi, data }); return { to: args[0], data: args[2], signatures: args[9] }; })() : { to, data };
+  if (!eq(to, s.safe)) return applyCall('direct', to, data, null);
+  const { args } = decodeFunctionData({ abi: safeAbi, data });
+  const [innerTo, , innerData, operation, , , , , , signatures] = args;
+  if (operation === 0) return applyCall('safe', innerTo, innerData, signatures);
+  // operation 1: the Safe delegatecalls MultiSendCallOnly, which makes each packed call in order, all in this one send.
+  if (!eq(innerTo, MULTI_SEND_CALL_ONLY)) throw new Error('Fixture Safe: delegatecall to an unknown contract');
+  for (const call of unpackMultiSend(innerData)) applyCall('atomic', call.to, call.data, signatures);
+}
+function applyCall(via, to, data, signatures) {
+  const s = window.__admin;
+  const inner = { to, data, signatures };
   const { functionName, args = [] } = decode(inner.data);
-  s.calls.push({ via: viaSafe ? 'safe' : 'direct', to: inner.to, functionName, signatures: inner.signatures ?? null });
+  s.calls.push({ via, to: inner.to, functionName, signatures: inner.signatures ?? null });
   const now = Math.floor(Date.now() / 1000);
   if (functionName === 'acceptOwnership') { s.owner[key(inner.to)] = s.safe; s.pendingOwner[key(inner.to)] = ZERO; }
   if (functionName === 'pause') s.paused = true;

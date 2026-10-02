@@ -29,3 +29,8 @@ export async function getBlock(_config, { blockNumber }) {
   const call = Array.isArray(sent) ? { to: from, input: batchCalldata(sent.map((tx) => ({ ...tx, value: '0' }))) } : { to: sent.to, input: sent.data };
   return { number: blockNumber, transactions: [{ hash: `0x${(index + 1).toString(16).padStart(64, '0')}`, from, nonce: index, ...call }] };
 }
+// Contract code by address from `window.__bytecode`; undefined (no code) for any other address, as the RPC answers.
+export async function getBytecode(_config, { address }) {
+  chainReady();
+  return window.__bytecode?.[address.toLowerCase()];
+}
