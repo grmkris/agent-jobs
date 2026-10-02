@@ -94,4 +94,11 @@ describe('sponsorship delegation', () => {
     expect(problem(swap(enforcers.limitedCalls, encodeAbiParameters([{ type: 'uint256' }], [0n])))).toMatch(/no call count/)
     expect(problem(swap(enforcers.timestamp, encodePacked(['uint128', 'uint128'], [0n, 0n])))).toMatch(/no end time/)
   })
+
+  // The AllowedTargetsEnforcer reads its terms 20 bytes at a time. `encodePacked(['address[]'], …)` pads each address
+  // to 32 bytes, which the enforcer refuses on every redemption; so does this check, before anything is signed.
+  it('refuses targets packed as a padded address array', () => {
+    expect(problem(swap(enforcers.allowedTargets, encodePacked(['address[]'], [[holding, vault]])))).toMatch(/malformed|not a Hireling contract/)
+    expect(problem(swap(enforcers.allowedTargets, encodePacked(['address[]'], [[holding, vault, holding, vault]])))).toMatch(/malformed|not a Hireling contract/)
+  })
 })
