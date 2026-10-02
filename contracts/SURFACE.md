@@ -266,20 +266,61 @@ output and the deploy receipt (the script writes no config). Command:
 
 ## Liquidity seed (C12): `script/SeedPool.s.sol`
 
-One full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, created in a single PositionManager `multicall`
-(`initializePool` at the configured price, then `MINT_POSITION` + `SETTLE_PAIR` paid through Permit2), so nobody can
-initialize the pool at another price in between. The price is `quoteAmount / factoryAmount` ($300 / 3M FACTORY =
-$0.0001, $100k FDV). Liquidity is computed from 99.99% of each amount with the full amounts as caps, so the mint
-refuses a pool whose price is off by more than that. Anyone can initialize this pool at a junk price before the seed:
-if it holds no liquidity, the script first deploys `V4PriceSetter`, which moves the empty pool's price to the target
-with a 1-unit swap limited at that price (nothing is exchanged; a nonzero delta reverts, so it can never trade), then
-mints; a junk-priced pool that already holds liquidity is refused (`PoolNotEmpty`). If someone moves the empty pool
-again between those two transactions, the mint caps refuse it and a re-run recovers. Run from the account holding the liquidity allocation and the USDC, with `MAINNET_GO=yes`:
-`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --private-key … --broadcast`.
-`test/fork/SeedPoolRehearsal.t.sol` seeds on a mainnet fork against the live contracts.
+One full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, owned by the protocol Safe. It is created in **one
+transaction** by a one-shot `SeedHelper` (`src/hireling/SeedHelper.sol`; review C12-002). The price is
+`quoteAmount / factoryAmount` ($300 / 3M FACTORY = $0.0001, $100k FDV). The script sends three transactions from the
+seeder (the account holding the liquidity allocation and the USDC):
+
+1. Deploy the helper with the plan.
+2. Approve it, for each token, the seed amount plus the repair cap: 3M FACTORY + 50,000 and $300 + $5.
+3. Call `seed()`. In that one call the helper:
+   1. pulls both approvals;
+   2. sets the price: it initializes the pool, or, if someone already initialized it at another price, swaps it to the
+      target (exact input, limited at the target), trading through anything in the way, in range or out of range, up
+      to `maxRepairCost`. An empty pool moves for free. Every repair trade buys below the target or sells above it,
+      so blocking the seed costs the attacker real capital;
+   3. mints the full-range position to the Safe through the PositionManager and Permit2;
+   4. clears every allowance it gave and returns everything it still holds to the seeder.
+
+   Liquidity is computed from 99.99% of each amount with the full amounts as caps. Only the seeder can call `seed()`,
+   and only once.
+
+Commands, with `MAINNET_GO=yes`:
+`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --private-key … --broadcast --slow`.
+The dry run (without `--broadcast`) simulates the seed; a `Repaired` event in its trace shows what a repair would cost.
+
+**After the broadcast, check it** (review C12-001; the simulation's readback proves nothing):
+`NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url …`. It reads
+`broadcast/SeedPool.s.sol/143/run-latest.json`, requires every receipt to be successful, and takes the token id from
+the PositionManager's `Transfer(0 → Safe)` in the seed receipt, matched by the helper's `Seeded` event for that id
+(planned pool, price after the seed, liquidity). It then reads back live state:
+- `ownerOf` is the Safe;
+- the position's liquidity, pool key and ±ticks match the plan;
+- the helper holds no tokens;
+- no allowance is left, from the seeder to the helper, from the helper to Permit2, or Permit2's to the PositionManager.
+
+**A second `run` is refused** (`AlreadySeeded`) while that run log holds a seed of this pool for the Safe.
+
+**Refusals and the fallback key.** The checks run before anything is approved:
+- `positionOwner` must equal `deployment.hireling.safe`, be nonzero, and the Safe must have code (review C12-003).
+- If the repair cap runs out before the target (`PriceNotSet`), `seed()` reverts and nothing moves.
+
+The coordinator then switches the config to the **fallback key, `"fee": 10000, "tickSpacing": 200`** (1%, ticks
+±887200; same currencies, no hooks), and re-runs: deploy, approve, seed. Revoke the old helper's allowances first with
+`approve(helper, 0)` on both tokens; only the seeder can drive it anyway.
+
+`test/fork/SeedPoolRehearsal.t.sol` (mainnet fork, live Uniswap contracts) covers:
+- the seed;
+- empty junk pools above and below the target;
+- out-of-range one-sided dust (`getLiquidity() == 0`) and in-range dust, traded through within the cap;
+- dust over the cap: refused, then the fallback key seeds;
+- an unrelated mint just before the seed, with the receipt id correct;
+- the run-log round trip, the retry refusal and the helper's guards;
+- the owner checks.
 
 Config (coordinator commits it in `config/monad-mainnet.json`; the protocol addresses were checked with `cast code`,
-and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY comes from `deployment.hireling.factory`:
+and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY and the Safe come from
+`deployment.hireling.factory` / `.safe`:
 
 ```jsonc
 "liquidity": {
@@ -292,6 +333,7 @@ and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY
   "quote": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",   // USDC (6 decimals)
   "fee": 3000, "tickSpacing": 60,                           // 0.3 %, ticks ±887220
   "factoryAmount": 3000000, "quoteAmount": 300,             // whole tokens
-  "positionOwner": "0x…"                                    // the mainnet Safe (R2); zero refuses (fails closed)
+  "maxRepairCost": 5,                                       // whole quote units; optional, default 5 (USDC)
+  "positionOwner": "0x…"                                    // = deployment.hireling.safe (R2); anything else refuses
 }
 ```
