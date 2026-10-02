@@ -1,7 +1,7 @@
 # ADR-0011: Hireling v1 contracts
 
-Date: 2026-10-02. Status: **implemented and unit-tested (C1–C7); not deployed**. The recipe, the fork rehearsal and the audit pass follow in
-C2–C9 (`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
+Date: 2026-10-02. Status: **implemented, unit-tested and fork-rehearsed on Monad testnet and mainnet (C1–C8); not
+deployed**. The audit pass is C9 (`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
 v1 build plan. Supersedes the contest parts of ADR-0004 and ADR-0007 for new jobs; the legacy pairs keep them.
 
 ## Context
@@ -114,10 +114,12 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
 
 ### Admin
 
-Every owner is the Safe (`Ownable2Step`; the deployer hands over at the end of the recipe). The Safe's powers: the fee
-schedule (3-day timelock), Holding authorization on the vault (8-day timelock, instant revoke), mining funding and
-roots, the evaluator's verifier set, the default arbitrator for new listings, and the core's pause. None of them can
-move escrowed rewards or reserved stake.
+Every owner is the Safe (`Ownable2Step`; the deployer hands over at the end of the recipe and the Safe accepts). The
+Safe's powers: the fee schedule (3-day timelock), Holding authorization on the vault (8-day timelock, instant revoke),
+mining funding and roots, the evaluator's verifier set, and the default arbitrator for new listings; none of these can
+move escrowed rewards or reserved stake. On mainnet the Safe also holds the core's admin roles, which are broader:
+pause, `emergencyWithdraw` while paused, the fee setters, the hook whitelist and the UUPS upgrade. Those can move escrow
+and are disclosed as such; the README commits to no upgrade during an active agreement.
 
 ### Gas (Monad charges the gas limit)
 
@@ -136,7 +138,18 @@ above the floor; the limits below are what the SDK and the relay should use (dec
 | `HirelingEvaluator.ruleWithSignature` (with a slash) | 747k | 1,100,000 |
 
 The evaluator limits are above D4's 900k because the 416k feedback reserve and the work before it leave little
-headroom once Monad's cold-access pricing is applied; the C8 Monad fork rehearsal re-measures them.
+headroom once Monad's cold-access pricing is applied. The C8 fork rehearsals run a disputed hire on Monad testnet and
+mainnet forks under exactly these limits, but forge prices the EVM schedule even on a fork, so the live
+`eth_estimateGas` in B11 is the authoritative check.
+
+### Deploy
+
+`script/HirelingRecipe.sol` runs in the plan's order as separate steps (core; vesting, Factory, FeeSchedule, vault,
+Holding, evaluator; wiring; `bootstrapHolding`; distributor, reserve, the 500M; handover), every parameter from the
+`hireling` config block and no predicted address: the deployer receives the mining allocation at genesis and forwards
+it once the reserve exists. Staking stays closed until the bootstrap (C3-001), so nobody can force the launch onto the
+8-day path. A reused core must charge zero fees, since Holding keeps the fee itself. `DeployHireling.s.sol` writes
+`.deployment` in the D1/D5 shape and refuses a config it cannot rewrite faithfully.
 
 ## Consequences
 

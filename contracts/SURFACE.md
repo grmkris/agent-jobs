@@ -169,3 +169,44 @@ arbitrator from `holding.termsOf`.
 | `Factory` | ERC-20 + permit + burn, 18 decimals, 1e9 minted once to the genesis allocation, no owner. |
 | `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52). |
 | `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.stakeFor`. |
+
+## Deploy (C8): `script/HirelingRecipe.sol`, `script/DeployHireling.s.sol`
+
+Run by the coordinator only: `NETWORK=<network> forge script script/DeployHireling.s.sol --rpc-url … --broadcast`;
+chain 143 also needs `MAINNET_GO=yes`. Input: the `hireling` block of `config/<network>.json` (values are the
+coordinator's):
+
+```jsonc
+"hireling": {
+  "reuseCore": true,                       // testnet: reuse deployment.core (must charge 0 fees); mainnet: false
+  "safe": "0x…",                           // owner of every v1 contract; mainnet core admin
+  "defaultArbitrator": "0x…",              // the new arbiter key; not the deployer
+  "margin": 86400,                         // seconds added to the windows when checking expiredAt
+  "schedule": { "thresholds": [0, 10000, 100000, 1000000],   // whole FACTORY
+                "bps": [3000, 1000, 300, 100], "treasury": "0x…" },
+  "allocation": { "treasury": "0x…",      // 200M (the Safe)
+                  "ecosystem": "0x…",     // 100M (the Safe; the deployer on testnet)
+                  "liquidity": "0x…" },   // 50M (the deployer, then the pool seed)
+  "vesting": { "beneficiary": "0x…", "startOffset": 31536000, "duration": 94608000, "cliff": 0 },  // 150M
+  "mining": { "genesis": 0 }               // epoch 0 start; 0 = deploy time (T0)
+}
+```
+
+Steps, one broadcast transaction or a few each: core (reuse, or a proxy initialised inside its CREATE, fees 0 to the
+Safe) → TeamVesting → Factory (mining 500M to the deployer, forwarded below) → FeeSchedule → StakeVault →
+HirelingHolding → HirelingEvaluator → `setEvaluator` + attester verifier → `bootstrapHolding` (staking opens) →
+EpochDistributor → MiningReserve → 500M to the reserve → `transferOwnership(safe)` on all six owned contracts, and on a
+fresh core both admin roles granted to the Safe and renounced by the deployer. No address is predicted. Between steps a
+third party can do nothing useful: staking is closed until the bootstrap, `publish` reverts `EvaluatorNotSet` and then
+`NotHolding` until the bootstrap, and every setup call is owner-only (`test/hireling/Recipe.t.sol`,
+`test/fork/HirelingRehearsal.t.sol`). Handover is complete only when the Safe has called `acceptOwnership` on each
+contract; until then `owner()` is still the deployer.
+
+Output (`.deployment`, decisions D1 + D5): `factory` = FACTORY v2; `hireling = { block, safe, factory, vault,
+feeSchedule, distributor, miningReserve, teamVesting, t0 }`; `main = { kind: "hireling-v1", factory, holding,
+evaluator, openTokens: true }`; the previous `main`/`demo` move to the next free `legacy.main-vN`/`legacy.demo-vN` and
+every legacy pair gets an explicit `kind: "legacy"` and `factory`; `core`, `block`, `poolFactory`, `rewardTokens`,
+`stacksBlock` are kept. An unknown key or an existing `hireling` record refuses before anything is broadcast.
+
+Core admin on a fresh (mainnet) core, held by the Safe: `pause`/`unpause`, `emergencyWithdraw` while paused, the fee
+setters, the hook whitelist and the UUPS upgrade. On testnet the reused core keeps its existing admin.
