@@ -32,6 +32,7 @@ import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type SponsorCall, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
 import { confirmedOperationIds } from './receipts.ts'
+import { RelaySender, type RelayRequest } from './relay.ts'
 import { collectActions, type CollectSnapshot } from './collect.ts'
 import * as v1Tools from './v1-tools.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
@@ -121,6 +122,8 @@ export interface BoardConfig {
    * arbitrator's signature. Absent: `submit_ruling` returns the transaction for anyone to send.
    */
   readonly relay?: { readonly account: import('viem').LocalAccount; readonly rpcUrl: string }
+  /** Hosted tenants route every relay send to the shared sponsorship object's durable nonce ledger. */
+  readonly relaySend?: (request: RelayRequest) => Promise<Hex>
   readonly evidence?: {
     readonly attester: import('viem').LocalAccount
     readonly relay: import('viem').LocalAccount
@@ -193,6 +196,7 @@ export class Board {
 
   readonly #budget: BudgetDesk
   #sponsor: SponsorDesk | undefined
+  #relaySender: RelaySender | undefined
 
   constructor(sql: Sql, config: BoardConfig) {
     this.#sql = sql
@@ -251,6 +255,17 @@ export class Board {
   sponsorRevoke(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).revoke(input.wallet) }
   sponsorSubmit(caller: Caller, input: { wallet: string; calls: readonly SponsorCall[]; key: string }) { return this.#sponsorDesk(caller, input.wallet).submit(input.wallet, input.calls, input.key) }
   sponsorOperation(caller: Caller, input: { wallet: string; operationId: string }) { return this.#sponsorDesk(caller, input.wallet).operation(input.wallet, input.operationId) }
+
+  /** Internal binding RPC only; never included in the public tool registry. */
+  async relayTransaction(request: RelayRequest): Promise<Hex> {
+    const relay = this.#config.relay
+    if (relay === undefined) throw new BoardError('conflict', 'the relay is unavailable')
+    this.#relaySender ??= new RelaySender(this.#sql, this.#ctx('main'), relay.account, relay.rpcUrl)
+    return (await this.#relaySender.submit(request)).transactionHash
+  }
+  #sendRelay(request: RelayRequest): Promise<Hex> {
+    return this.#config.relaySend === undefined ? this.relayTransaction(request) : this.#config.relaySend(request)
+  }
 
   async topUp(caller: Caller, input: { taskId: string; amount: string }) {
     const me = this.#requireCaller(caller), task = this.#task(input.taskId)
@@ -1808,7 +1823,7 @@ export class Board {
     const c = this.#candidate(task.id, input.candidateId)
     if (c.budget_sig === null || c.submit_sig === null) throw new BoardError('conflict', 'the entry is not complete')
     const ctx = this.#taskCtx(task)
-    this.#operation(task.id, 'award', me, { candidateId: c.id })
+    this.#operation(task.id, 'award', me, { candidateId: c.id, worker: c.worker, agentId: c.agent_id, deliverableHash: c.deliverable_hash })
     const auth = (nonce: string, sig: string) => ({ signer: getAddress(c.worker), nonce: BigInt(nonce), deadline: BigInt(c.deadline), sig: sig as Hex })
     return {
       transactions: [
@@ -1893,8 +1908,9 @@ export class Board {
       primaryType: 'EvidenceAttestation',
       message: attestation,
     })
-    const relay = sdk.wallet(this.#config.network, cfg.relay, cfg.rpcUrl)
-    const receipt = await sdk.attachEvidence(ctx, relay, attestation, cfg.attester.address, signature)
+    const hash = await this.#sendRelay({ key: `evidence:${ctx.stack.evaluator}:${sdk.hashText(canonicalJson(attestation))}:${signature}`, to: ctx.stack.evaluator,
+      data: encodeFunctionData({ abi: hireling.evaluatorAbi(ctx), functionName: 'attachEvidence', args: [attestation.jobId, attestation, cfg.attester.address, signature] }) })
+    const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash })
     this.#sql.run(
       'INSERT INTO evidence (id, task_id, submission_hash, verifier, conclusion, tested_sha, checks_json, tx_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       randomId(8), task.id, target.deliverable_hash, cfg.attester.address, attestation.conclusion, target.sha,
@@ -2245,7 +2261,7 @@ export class Board {
     if (!eq(await recoverAuthorizationAddress({ authorization }), me)) throw new BoardError('forbidden', 'the authorization is not signed by your account')
     const nonce = await ctx.publicClient.getTransactionCount({ address: me, blockTag: 'pending' })
     if (authorization.nonce !== nonce) throw new BoardError('conflict', `the authorization's nonce is ${authorization.nonce} but your account's is ${nonce}: sign it again`)
-    const hash = await sdk.wallet(this.#config.network, relay.account, relay.rpcUrl).sendTransaction({ to: me, data: '0x', authorizationList: [authorization] })
+    const hash = await this.#sendRelay({ key: `upgrade:${me}:${nonce}:${authorization.r}:${authorization.s}`, to: me, data: '0x', authorizationList: [authorization] })
     const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash })
     if (receipt.status !== 'success' || !eq(await sdk.delegationOf(ctx.publicClient, me), delegator)) {
       throw new BoardError('chain', `the upgrade ${hash} did not point your account at the DeleGator`)
@@ -2286,7 +2302,9 @@ export class Board {
     if (spent && hireling.isHireling(ctx) && (await sdk.caseOf(ctx, this.#jobId(task))).outcome === 0) throw new BoardError('conflict', 'the ruling nonce was cancelled; prepare_ruling returns a new nonce for the recorded decision')
     if (spent) return { relayed: true, txHash: null, note: 'this ruling is already on-chain (its nonce is spent)', task: await this.getTask(caller, { taskId: task.id }) }
     if (relay === undefined) return { relayed: false, transactions: [tx], next: 'Anyone may send it; then report_transaction.' }
-    const receipt = await sdk.ruleWithSignature(ctx, sdk.wallet(this.#config.network, relay.account, relay.rpcUrl), ruling, input.signature as Hex)
+    const hash = await this.#sendRelay({ key: `ruling:${ctx.stack.evaluator}:${ruling.nonce}:${input.signature}`, to: tx.to, data: tx.data,
+      ...(tx.gas === undefined ? {} : { gas: tx.gas }) })
+    const receipt = await ctx.publicClient.waitForTransactionReceipt({ hash })
     this.#sql.run('UPDATE rulings SET tx_hash = ? WHERE task_id = ? AND disputed_at = ?', receipt.transactionHash, task.id, disputedAt)
     this.#sql.run(
       "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE task_id = ? AND kind = 'rule' AND status = 'prepared'",

@@ -10,6 +10,7 @@ import {
   delegationTypedData, disableCalldata, isDisabled, parseDelegation, redeemCallsCalldata,
 } from './delegation.ts'
 import type { Sql } from './store.ts'
+import { RelaySender, withRelayNonce } from './relay.ts'
 
 /** One object in the existing Board namespace, shared by every tenant and both transports. */
 export const SPONSOR_OBJECT_NAME = '__hosted_sponsor_v1__'
@@ -43,7 +44,7 @@ interface Operation {
 interface Target { address: Address; abi: Abi; methods: readonly string[] }
 type NormalCall = { target: Address; callData: Hex; value: bigint; floor: bigint }
 export type SponsorStatus = { status: 'none' | 'live' | 'expired' | 'used' | 'revoked'; typedData: string | null; callsUsed: number }
-export type SponsorResult = { operationId: string; txHash: Hex; status: 'pending' | 'confirmed' | 'reverted'; callsUsed: number }
+export type SponsorResult = { operationId: string; txHash: Hex; status: 'pending' | 'confirmed' | 'reverted' | 'dropped'; callsUsed: number }
 const eq = (a: string | null | undefined, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
 const uint = (n: bigint) => encodeAbiParameters([{ type: 'uint256' }], [n])
 const caveat = (enforcer: Address, terms: Hex): Caveat => ({ enforcer, terms: terms.toLowerCase() as Hex, args: '0x' })
@@ -186,9 +187,16 @@ export class SponsorDesk {
   }
   async #resume(op: Operation, broadcast = true): Promise<SponsorResult> {
     const ctx = this.#ctx()
+    if (op.status !== 'pending') return { operationId: op.id, txHash: op.tx_hash as Hex, status: op.status as SponsorResult['status'], callsUsed: Number(await callsMade(ctx, op.delegation_hash as Hex)) }
     let receipt = await this.#receipt(op.tx_hash as Hex)
     if (receipt === undefined) {
       const [used, nonce] = await Promise.all([callsMade(ctx, op.delegation_hash as Hex), ctx.publicClient.getTransactionCount({ address: getAddress(op.relay), blockTag: 'latest' })])
+      // The relay nonce was consumed by another sender, and this exact transaction has no receipt. It can
+      // never become valid later; release the global blocker while preserving the failed operation for polling.
+      if (nonce > op.nonce) {
+        this.#d.sql.run("UPDATE sponsor_operations SET status='dropped' WHERE id=? AND status='pending'", op.id)
+        return { operationId: op.id, txHash: op.tx_hash as Hex, status: 'dropped', callsUsed: Number(used) }
+      }
       const row = this.#row(op.wallet)
       // Revocation stops new broadcasts immediately. An already broadcast transaction can still mine until disabled.
       if (broadcast && used === BigInt(op.baseline_calls) && nonce <= op.nonce && row?.status === 'live' && row.delegation_hash === op.delegation_hash && (await this.#status(this.#wallet(op.wallet))).status === 'live') {
@@ -202,7 +210,8 @@ export class SponsorDesk {
       this.#d.sql.run('UPDATE sponsor_operations SET status=?, cost=?, charged_day=? WHERE id=?', receipt.status === 'success' ? 'confirmed' : 'reverted',
         (receipt.gasUsed * receipt.effectiveGasPrice).toString(), Math.floor(Number(block.timestamp) / 86400) * 86400, op.id)
     }
-    const status = receipt === undefined ? 'pending' : receipt.status === 'success' ? 'confirmed' : 'reverted'
+    const row = this.#d.sql.all<{ status: string }>('SELECT status FROM sponsor_operations WHERE id=?', op.id)[0]
+    const status = row?.status === 'dropped' ? 'dropped' : receipt === undefined ? 'pending' : receipt.status === 'success' ? 'confirmed' : 'reverted'
     return { operationId: op.id, txHash: op.tx_hash as Hex, status, callsUsed: Number(await callsMade(ctx, op.delegation_hash as Hex)) }
   }
   submit(walletText: string, calls: readonly SponsorCall[], key: string) { return this.#serial(async (): Promise<SponsorResult> => {
@@ -211,7 +220,7 @@ export class SponsorDesk {
     const prior = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]
     // An existing key always names the original send. A fresh-key refusal means nothing was sent; a retry must
     // therefore reconcile that send before checking the current grant, policy, keys, caps or replacement calls.
-    if (prior !== undefined) return this.#resume(prior)
+    if (prior !== undefined) return withRelayNonce(getAddress(prior.relay), () => this.#resume(prior))
     const ctx = this.#ctx(), relay = this.#relay()
     const parsed = this.#validate(calls)
     if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw this.#d.fail('invalid', 'key must be 1-128 letters, digits, underscores or hyphens; reuse it only for retries of one action')
@@ -243,14 +252,17 @@ export class SponsorDesk {
     const recent = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE wallet=? AND created_at > ?', wallet.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
     if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the wallet’s sponsorship rate limit is exhausted')
     if (await ctx.publicClient.getBalance({ address: relay.account.address }) < SPONSOR_LIMITS.relayFloorWei + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
-    const nonce = await ctx.publicClient.getTransactionCount({ address: relay.account.address, blockTag: 'pending' })
-    const raw = await relay.account.signTransaction({ type: 'eip1559', chainId: ctx.deployment.chainId, nonce,
-      to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas: gasPrice })
-    const hash = keccak256(raw)
-    // A single synchronous reservation persists the operation and the exact signed bytes before any money moves.
-    this.#d.sql.run("INSERT INTO sponsor_operations (id,wallet,delegation_hash,status,raw_tx,tx_hash,relay,nonce,reserved_cost,calls,baseline_calls,created_at,action_key,payload_hash) VALUES (?,?,?,'pending',?,?,?,?,?,?,?,?,?,?)",
-      id, wallet.toLowerCase(), row.delegation_hash, raw, hash, relay.account.address, nonce, cost.toString(), parsed.length, current.callsUsed, this.#d.now(), key, payloadHash)
-    return this.#resume(this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]!)
+    return withRelayNonce(relay.account.address, async () => {
+      await new RelaySender(this.#d.sql, ctx, relay.account, relay.rpcUrl).checkPending()
+      const nonce = await ctx.publicClient.getTransactionCount({ address: relay.account.address, blockTag: 'pending' })
+      const raw = await relay.account.signTransaction({ type: 'eip1559', chainId: ctx.deployment.chainId, nonce,
+        to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas: gasPrice })
+      const hash = keccak256(raw)
+      // A single synchronous reservation persists the operation and the exact signed bytes before any money moves.
+      this.#d.sql.run("INSERT INTO sponsor_operations (id,wallet,delegation_hash,status,raw_tx,tx_hash,relay,nonce,reserved_cost,calls,baseline_calls,created_at,action_key,payload_hash) VALUES (?,?,?,'pending',?,?,?,?,?,?,?,?,?,?)",
+        id, wallet.toLowerCase(), row.delegation_hash, raw, hash, relay.account.address, nonce, cost.toString(), parsed.length, current.callsUsed, this.#d.now(), key, payloadHash)
+      return this.#resume(this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]!)
+    })
   }) }
 
   operation(walletText: string, operationId: string) { return this.#serial(async () => {

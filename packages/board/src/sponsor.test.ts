@@ -35,7 +35,7 @@ function fixture() {
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => functionName === 'callCounts' ? used : disabled),
     getTransactionReceipt: vi.fn(receipt), waitForTransactionReceipt: vi.fn(receipt),
     getBlock: vi.fn(async () => ({ timestamp: BigInt(now) })),
-    getTransactionCount: vi.fn(async () => nonce), getBalance: vi.fn(async () => balance),
+    getTransactionCount: vi.fn(async ({ blockTag }: { blockTag: string }) => !visible && blockTag === 'latest' ? Math.max(0, nonce - 1) : nonce), getBalance: vi.fn(async () => balance),
     estimateGas: vi.fn(async () => 100_000n), call: vi.fn(async () => ({ data: '0x' })), getGasPrice: vi.fn(async () => 1_000_000_000n),
     sendRawTransaction: vi.fn(async ({ serializedTransaction }: { serializedTransaction: Hex }) => {
       const hash = keccak256(serializedTransaction)
@@ -189,6 +189,41 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     const sends = f.client.sendRawTransaction.mock.calls.length
     expect((await f.desk.operation(f.owner.address, unresolved.operationId)).status).toBe('pending')
     expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends)
+  })
+  it('a consumed stranded nonce becomes dropped, stays terminal on retry, and releases the shared blocker', async () => {
+    const f = fixture(); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('crash before broadcast'))
+    const first = await f.desk.submit(f.owner.address, [f.cancel()], 'stranded')
+    expect(first.status).toBe('pending')
+    f.client.getTransactionCount.mockResolvedValue(1)
+    const dropped = await f.boot().operation(f.owner.address, first.operationId)
+    expect(dropped.status).toBe('dropped')
+    expect(f.sql.all<{ status: string }>('SELECT status FROM sponsor_operations WHERE id=?', first.operationId)[0]!.status).toBe('dropped')
+    const sends = f.client.sendRawTransaction.mock.calls.length
+    expect((await f.boot().submit(f.owner.address, [f.cancel()], 'stranded')).status).toBe('dropped')
+    expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends)
+    f.client.sendRawTransaction.mockImplementationOnce(async ({ serializedTransaction }) => {
+      const hash = keccak256(serializedTransaction)
+      f.client.getTransactionReceipt.mockResolvedValueOnce({ transactionHash: hash, status: 'success', blockNumber: 5n, gasUsed: 100_000n, effectiveGasPrice: 1n })
+      return hash
+    })
+    const other = await f.desk.prepare(f.relay.address)
+    await f.desk.confirm(f.relay.address, await f.sign(other.sign.typedData, f.relay))
+    await expect(f.boot().submit(f.relay.address, [f.cancel(2n)], 'fresh')).resolves.toMatchObject({ status: 'pending' })
+    expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends + 1)
+  })
+  it('a stranded operation is never rebroadcast after grant revocation or expiry', async () => {
+    for (const revoked of [true, false]) {
+      const f = fixture(); await f.live()
+      f.client.sendRawTransaction.mockRejectedValueOnce(new Error('not accepted'))
+      const op = await f.desk.submit(f.owner.address, [f.cancel()], 'not-broadcast')
+      if (revoked) await f.desk.revoke(f.owner.address)
+      else f.advance(SPONSOR_LIMITS.validity)
+      const sends = f.client.sendRawTransaction.mock.calls.length
+      expect((await f.boot().submit(f.owner.address, [f.cancel()], 'not-broadcast')).status).toBe('pending')
+      expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends)
+      expect((await f.boot().operation(f.owner.address, op.operationId)).status).toBe('pending')
+    }
   })
   it('chain count/expiry/revocation determine status and revocation remains available during drain', async () => {
     const f = fixture(); await f.live()

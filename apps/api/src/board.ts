@@ -1,9 +1,9 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
-import { getAddress } from 'viem'
+import { type Hex, getAddress, decodeFunctionData, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { type ToolContext, toJson, tools } from './tools.ts'
 import { admissionIdentity, admissionIpHash, enforceHostedRate, needsWriteRate, type AdmissionCall, type AdmissionNamespace, type AdmissionReply } from './admission-rate.ts'
@@ -71,6 +71,14 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         collectSnapshot: wallet => collectSnapshot(fromD1((runtimeEnv as Record<string, unknown>).Database as never), contexts.main!, wallet, Math.floor(Date.now() / 1000)),
         ...(env.screening.apiKey === '' ? {} : { screening: env.screening }),
         ...(key32(env.relayKey) ? { relay: { account: privateKeyToAccount(env.relayKey as `0x${string}`), rpcUrl: env.rpcUrl } } : {}),
+        relaySend: async request => {
+          const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName(name: string): { toString(): string }; get(id: unknown): { relay(req: { env: BoardCall['env']; request: RelayRequest }): Promise<string> } }
+          const id = namespace.idFromName(SPONSOR_OBJECT_NAME)
+          if (id.toString() === state.id.toString()) return board.relayTransaction(request)
+          const reply = JSON.parse(await namespace.get(id).relay({ env, request })) as BoardReply
+          if (!reply.ok) throw new BoardError('chain', reply.message)
+          return reply.result as Hex
+        },
         ...(key32(env.attesterKey) && key32(env.relayKey)
           ? {
               evidence: {
@@ -87,6 +95,31 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     }
 
     return Effect.succeed({
+        /** Internal relay RPC shares the reserved object's queue and durable nonce ledger with sponsorship. */
+        relay: (req: { env: BoardCall['env']; request: RelayRequest }) => Effect.promise(() => {
+          const result = callQueue.then(async (): Promise<string> => {
+            try {
+              const bindings = runtimeEnv as Record<string, unknown>
+              const namespace = bindings.Board as { idFromName(name: string): { toString(): string } } | undefined
+              if (namespace?.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString() || req.env.network !== bindings.NETWORK)
+                throw new BoardError('forbidden', 'relay object identity or network mismatch')
+              const request = req.request, deployment = sdk.deployment(req.env.network)
+              // No public generic relay: the three internal send paths still carry verifiable signed authority.
+              if (request.authorizationList !== undefined) {
+                if (!isAddress(request.to) || request.data !== '0x' || request.authorizationList.length !== 1 || request.authorizationList[0]!.address.toLowerCase() !== deployment.delegation.delegator.toLowerCase())
+                  throw new BoardError('forbidden', 'invalid account-upgrade relay request')
+              } else {
+                const pair = [...Object.values(deployment.stacks), ...Object.values(deployment.legacyStacks)].find(s => s?.evaluator.toLowerCase() === request.to.toLowerCase())
+                if (pair === undefined) throw new BoardError('forbidden', 'relay target is not a configured evaluator')
+                const decoded = decodeFunctionData({ abi: pair.kind === 'hireling-v1' ? sdk.hirelingEvaluatorAbi : sdk.jobsEvaluatorAbi, data: request.data })
+                if (!['attachEvidence', 'ruleWithSignature'].includes(decoded.functionName)) throw new BoardError('forbidden', 'invalid evaluator relay method')
+              }
+              return toJson({ ok: true, result: await boardFor(req.env).relayTransaction(request) })
+            } catch (e) { return toJson({ ok: false, code: e instanceof BoardError ? e.code : 'chain', message: e instanceof Error ? e.message : String(e) }) }
+          })
+          callQueue = result.catch(() => undefined)
+          return result
+        }),
         /** Private RPC, reachable only through the existing Board binding's reserved object. */
         admit: (req: AdmissionCall) => Effect.promise(async (): Promise<string> => {
           const bindings = runtimeEnv as Record<string, unknown>

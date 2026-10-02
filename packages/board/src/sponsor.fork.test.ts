@@ -98,6 +98,24 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     expect(reported.chain.status).toBe('cancelled')
   }, 120_000)
 
+  it('coordinates a relayed EIP-7702 upgrade and a sponsored action without colliding nonces', async () => {
+    const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })
+    const authorization = await f.contributor.signAuthorization({ account: f.contributor.account, contractAddress: f.ctx.deployment.delegation.delegator, executor: f.admin.account.address })
+    const calls: sdk.TxRequest[] = [{ description: 'Invalidate an unused selection', chainId: 10143, to: f.ctx.stack.holding, value: '0',
+      data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [987654n] }) }]
+    const [upgrade, sponsored] = await Promise.all([
+      board.upgradeAccount(caller(f.contributor), { authorization: { ...authorization } }), submit(f.worker, 'concurrent-upgrade', calls),
+    ])
+    expect(upgrade.upgraded).toBe(true); expect(sponsored.status).toBe('confirmed')
+    const rows = db.prepare('SELECT nonce,raw_tx FROM relay_operations').all() as { nonce: number; raw_tx: Hex }[]
+    const op = db.prepare('SELECT nonce FROM sponsor_operations WHERE id=?').get(sponsored.operationId) as { nonce: number }
+    expect(rows.some(r => r.nonce === nonce || r.nonce === nonce + 1)).toBe(true)
+    expect(rows.every(r => r.nonce !== op.nonce)).toBe(true)
+    expect(await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })).toBe(nonce + 2)
+    const raw = rows.at(-1)!.raw_tx
+    expect(parseTransaction(raw).type).toBe('eip7702')
+  }, 120_000)
+
   it('the chain enforcers refuse unsafe D15 methods, an outside target, native value, and a non-relay redeemer', async () => {
     const row = db.prepare('SELECT delegation_json, signature FROM sponsor_grants WHERE wallet=?').get(f.worker.account.address.toLowerCase()) as { delegation_json: string; signature: Hex }
     const signed: Delegation = { ...parseDelegation(row.delegation_json), signature: row.signature }
@@ -110,7 +128,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     }
     await expect(f.ctx.publicClient.call({ account: f.contributor.account, to: f.ctx.deployment.delegation.manager, data: redeemCallsCalldata(signed, [call]) })).rejects.toThrow()
     const creatorNonce = await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })
-    expect((await board.sponsorStatus(caller(f.worker), { wallet: f.worker.account.address })).callsUsed).toBe(2)
+    expect((await board.sponsorStatus(caller(f.worker), { wallet: f.worker.account.address })).callsUsed).toBe(3)
     expect(await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })).toBe(creatorNonce)
   }, 60_000)
 
