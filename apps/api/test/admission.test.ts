@@ -5,7 +5,7 @@ import { tools } from '../src/tools.ts'
 import { tenantTools } from '../src/tools-tenant.ts'
 import { directoryTools } from '../src/directory.ts'
 import { telegramTools } from '../src/tools-telegram.ts'
-import { admissionIpHash, enforceHostedRate } from '../src/admission-rate.ts'
+import { admissionIpHash, enforceHostedRate, type AdmissionCall } from '../src/admission-rate.ts'
 
 const wallet = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const stranger = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -51,4 +51,16 @@ test('IP counters normalize IPv6 and reject missing or spoofed forwarded chains'
 test('writes fail closed when the shared counter namespace is unavailable', async () => {
   expect(await enforceHostedRate({}, { network: 'monad-mainnet', tool: 'create_task', boardId: 'public' })).toMatchObject({ ok: false, code: 'unavailable' })
   expect(await enforceHostedRate({}, { network: 'monad-mainnet', tool: 'list_tasks', boardId: 'public' })).toEqual({ ok: true })
+})
+
+test('mainnet directory mutations use the same shared wallet/IP limiter as other writes', async () => {
+  const calls: AdmissionCall[] = []
+  const bindings = {
+    Board: {
+      idFromName: () => ({ toString: () => 'admission' }),
+      get: () => ({ admit: async (input: AdmissionCall) => { calls.push(input); return JSON.stringify({ ok: true }) } }),
+    },
+  }
+  expect(await enforceHostedRate(bindings, { network: 'monad-mainnet', tool: 'prepare_directory_enrollment', boardId: 'public', caller: wallet, ip: '192.0.2.10' })).toEqual({ ok: true })
+  expect(calls[0]).toMatchObject({ tool: 'prepare_directory_enrollment', caller: wallet, ip: '192.0.2.10' })
 })

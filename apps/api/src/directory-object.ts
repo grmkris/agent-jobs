@@ -1,4 +1,4 @@
-import { DirectoryError, DirectoryService, fromDurableObjectSql } from '@agent-jobs/board'
+import { DirectoryError, DirectoryService, directoryAgentId, fromDurableObjectSql } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -6,6 +6,8 @@ import * as Effect from 'effect/Effect'
 import { parseAbi } from 'viem'
 import { DirectoryProjectionJournal } from './directory-projection.ts'
 import { toJson } from './tools.ts'
+import type { AdmissionCall } from './admission-rate.ts'
+import { directoryAdmission } from './directory-admission.ts'
 
 export interface DirectoryCall {
   network: sdk.Network
@@ -18,9 +20,14 @@ export interface DirectoryCall {
   expiresAt?: number
   record?: unknown
   signature?: unknown
+  /** Host-only session and edge metadata; never sourced from directory tool arguments. */
+  admission?: Omit<AdmissionCall, 'network' | 'tool'>
 }
 
 const URI_ABI = parseAbi(['function tokenURI(uint256 agentId) view returns (string)'])
+
+export const directoryObjectName = (chainId: number, registry: string, audience: string, agentId: string) =>
+  `${chainId}:${registry.toLowerCase()}:${audience}:${directoryAgentId(agentId)}`
 
 export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryObject>()(
   'DirectoryObject',
@@ -68,7 +75,13 @@ export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryO
           let service: DirectoryService | undefined
           let flush = true
           try {
-            if (request.network === 'monad-mainnet' && request.action !== 'read') throw new DirectoryError('forbidden', 'directory writes are testnet-only until production admission is integrated')
+            const bindings = environment as Record<string, unknown>
+            const denied = await directoryAdmission(bindings, request)
+            if (denied !== undefined) return toJson(denied)
+            const config = sdk.deployment(request.network)
+            const namespace = bindings.DirectoryObject as { idFromName(name: string): { toString(): string } } | undefined
+            if (namespace?.idFromName(directoryObjectName(config.chainId, config.identity, request.audience, request.agentId)).toString() !== state.id.toString())
+              throw new DirectoryError('forbidden', 'directory object identity mismatch')
             journal.prepare({ network: request.network, audience: request.audience, agentId: request.agentId })
             await state.raw.storage.setAlarm(Date.now() + 60_000)
             service = serviceFor(request)

@@ -65,20 +65,24 @@ export const directoryTools = {
 const PREPARE: Record<string, DirectoryKind> = { prepare_directory_enrollment: 'Enrollment', prepare_heartbeat: 'Heartbeat', prepare_service_ad: 'ServiceAd', prepare_revoke_service_ad: 'RevokeAd' }
 const SUBMIT: Record<string, DirectoryKind> = { enroll_directory: 'Enrollment', post_heartbeat: 'Heartbeat', publish_service_ad: 'ServiceAd', revoke_service_ad: 'RevokeAd' }
 
+/** Preserve the admission reply across the directory RPC boundary. */
+export class DirectoryCallError extends Error {
+  constructor(readonly code: string, message: string, readonly retryAfter?: number) { super(message) }
+}
+
 export interface DirectoryApiDeps {
   sql: AsyncSql
   network: Network
   rpcUrl: string
   audience: string
-  call: (agentId: string, request: DirectoryCall) => Promise<{ ok: true; result: unknown } | { ok: false; code: string; message: string }>
+  call: (agentId: string, request: DirectoryCall) => Promise<{ ok: true; result: unknown } | { ok: false; code: string; message: string; retryAfter?: number }>
 }
 
 export async function runDirectoryTool(deps: DirectoryApiDeps, tool: string, args: Record<string, unknown>): Promise<unknown> {
-  if (deps.network === 'monad-mainnet' && tool !== 'list_directory' && tool !== 'get_directory_agent' && tool !== 'prepare_agent_profile') throw new DirectoryError('forbidden', 'directory writes are testnet-only until production admission is integrated')
   if (tool === 'prepare_agent_profile') return { ...prepareDirectoryIdentity(deployment(deps.network).identity, validateDirectoryProfile(args.profile)), chainId: deployment(deps.network).chainId }
   const call = async (id: string, action: DirectoryCall['action'], more: Partial<DirectoryCall> = {}) => {
     const reply = await deps.call(id, { network: deps.network, rpcUrl: deps.rpcUrl, audience: deps.audience, agentId: id, action, ...more })
-    if (!reply.ok) throw new DirectoryError(reply.code as DirectoryError['code'], reply.message)
+    if (!reply.ok) throw new DirectoryCallError(reply.code, reply.message, reply.retryAfter)
     return reply.result
   }
   if (tool === 'list_directory') {

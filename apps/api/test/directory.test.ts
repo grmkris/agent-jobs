@@ -76,11 +76,22 @@ it('durably retries failed enrollment and opt-out projections after owner recrea
   expect(() => journal.prepare({ ...scope, audience: 'https://evil.example' })).toThrow(/scope cannot change/)
 })
 
-it.each(['prepare_directory_enrollment', 'enroll_directory', 'prepare_service_ad', 'publish_service_ad', 'prepare_heartbeat', 'post_heartbeat', 'prepare_revoke_service_ad', 'revoke_service_ad'])('blocks %s before dispatch on mainnet', async (name) => {
+it.each([
+  ['prepare_directory_enrollment', { agentId: '1', payload: {} }],
+  ['enroll_directory', { record: { kind: 'Enrollment', agentId: '1' }, signature: '0x' }],
+  ['prepare_service_ad', { agentId: '1', payload: {} }],
+  ['publish_service_ad', { record: { kind: 'ServiceAd', agentId: '1' }, signature: '0x' }],
+  ['prepare_heartbeat', { agentId: '1', payload: {} }],
+  ['post_heartbeat', { record: { kind: 'Heartbeat', agentId: '1' }, signature: '0x' }],
+  ['prepare_revoke_service_ad', { agentId: '1', payload: {} }],
+  ['revoke_service_ad', { record: { kind: 'RevokeAd', agentId: '1' }, signature: '0x' }],
+] as const)('dispatches %s on mainnet through directory RPC for object admission', async (name, args) => {
   const context = fixture()
   let called = false
-  await expect(runDirectoryTool({ sql: context.sql, network: 'monad-mainnet', audience: 'https://hireling.xyz', rpcUrl: '', call: async () => { called = true; throw new Error('must not dispatch') } }, name, {})).rejects.toThrow(/testnet-only/)
-  expect(called).toBe(false)
+  const result = await runDirectoryTool({ sql: context.sql, network: 'monad-mainnet', audience: 'https://hireling.xyz', rpcUrl: '', call: async () => { called = true; return { ok: true, result: name.startsWith('prepare_') ? {} : { agent: context.agent('1'), projection: null, idempotent: false } } } }, name, args)
+  if (name.startsWith('prepare_')) expect(result).toEqual({})
+  else expect(result).toMatchObject({ scope: 'directory only; no job or money authority' })
+  expect(called).toBe(true)
 })
 
 it('binds discovery to the complete deployment and audience and bounds pagination inputs', async () => {
@@ -90,4 +101,11 @@ it('binds discovery to the complete deployment and audience and bounds paginatio
   expect((await directoryPage(context.sql, { network: 'monad-testnet', audience: 'https://other.example' })).agents).toEqual([])
   await expect(directoryPage(context.sql, { network: 'monad-testnet', audience: 'https://testnet.example', limit: 101 })).rejects.toThrow(/limit/)
   await expect(directoryPage(context.sql, { network: 'monad-testnet', audience: 'https://testnet.example', after: '01' })).rejects.toThrow(/agentId/)
+})
+
+it('preserves rate-limit retry metadata from the directory owner for REST and MCP', async () => {
+  const { sql } = fixture()
+  await expect(runDirectoryTool({ sql, network: 'monad-mainnet', audience: 'https://hireling.xyz', rpcUrl: '',
+    call: async () => ({ ok: false, code: 'rate-limited', message: 'wallet write limit reached', retryAfter: 42 }),
+  }, 'prepare_directory_enrollment', { agentId: '1', payload: {} })).rejects.toMatchObject({ code: 'rate-limited', retryAfter: 42 })
 })

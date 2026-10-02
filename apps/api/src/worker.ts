@@ -19,8 +19,8 @@ import { rpcUrlForNetwork } from './network.ts'
 import { boardOfTerms, dripState, getBoard, jobsOfBoard, jobsWithBoards, listBoards, migrateRegistry, recordOffer } from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import { tools } from './tools.ts'
-import DirectoryObject from './directory-object.ts'
-import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
+import DirectoryObject, { directoryObjectName } from './directory-object.ts'
+import { DirectoryCallError, directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
 import { TelegramError, enqueuePublicRequest, enqueueWalletNotification, handleTelegramWebhook, migrateTelegram, telegramPublicChannel } from './telegram.ts'
@@ -63,8 +63,8 @@ const BOARD_ROUTE = /^\/b\/([a-z0-9-]{3,32})(\/.*)?$/
 const now = () => Math.floor(Date.now() / 1000)
 /** A Worker-side failure as a board reply: tenant and session errors keep their code, anything else is `error`. */
 const failure = (e: unknown): BoardReply =>
-  e instanceof TenantError || e instanceof SessionError || e instanceof DirectoryError || e instanceof TelegramError
-    ? { ok: false, code: e.code, message: e.message }
+  e instanceof TenantError || e instanceof SessionError || e instanceof DirectoryError || e instanceof DirectoryCallError || e instanceof TelegramError
+    ? { ok: false, code: e.code, message: e.message, ...(e instanceof DirectoryCallError && e.retryAfter !== undefined ? { retryAfter: e.retryAfter } : {}) }
     : { ok: false, code: 'error', message: e instanceof Error ? e.message : String(e) }
 const BOARD_CACHE_SECONDS = 30
 
@@ -236,12 +236,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }
         const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '') || undefined
         const ip = request.headers['cf-connecting-ip']
-        const directoryCall = (tool: string, args: Record<string, unknown>) => runDirectoryTool({
+        const directoryCall = (tool: string, args: Record<string, unknown>, mcpSession?: string, caller?: string) => runDirectoryTool({
           sql, network, rpcUrl, audience: url.origin,
-          call: async (id, req) => JSON.parse(await yieldlessDirectoryCall(id, req)),
+          call: async (id, req) => JSON.parse(await yieldlessDirectoryCall(id, { ...req, admission: { boardId: tenant.id, bearer, mcpSession, caller, ip } })),
         }, tool, args)
         const yieldlessDirectoryCall = async (id: string, req: import('./directory-object.ts').DirectoryCall) =>
-          Effect.runPromise(directory.getByName(`${chainId}:${deployment.identity.toLowerCase()}:${url.origin}:${id}`).call(req))
+          Effect.runPromise(directory.getByName(directoryObjectName(chainId, deployment.identity, url.origin, id)).call(req))
 
         /**
          * Calls one tool: sign-in and registry tools in the Worker, everything else in the board's Durable Object with
@@ -254,7 +254,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 const session = await desk.resolve({ bearer, mcpSession })
                 // Board tools are limited inside the DO, so direct RPC cannot bypass the counters.
                 // Worker-local tools, including sign-in, use exactly the same reserved object.
-                if (tool === 'auth_challenge' || tool === 'auth_login' || Object.hasOwn(directoryTools, tool) || Object.hasOwn(tenantTools, tool) || Object.hasOwn(telegramTools, tool)) {
+                if (tool === 'auth_challenge' || tool === 'auth_login' || tool === 'prepare_agent_profile' || Object.hasOwn(tenantTools, tool) || Object.hasOwn(telegramTools, tool)) {
                   const rate = await enforceHostedRate(runtimeEnv as Record<string, unknown>, { network, tool, boardId: tenant.id, bearer, mcpSession, caller: session?.address, ip })
                   if (!rate.ok) return { reply: rate }
                 }
@@ -273,7 +273,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 }
                 const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address)
                 if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
-                if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args) } }
+                if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args, mcpSession, session?.address) } }
                 const telegram = telegramTools[tool]
                 if (telegram !== undefined) return { reply: { ok: true, result: await telegram.run({ sql, network, now,
                   configured: telegramSecret !== '' && telegramToken !== '', verify: async (input) => reads === undefined ? false : reads.verifyMessage(input),

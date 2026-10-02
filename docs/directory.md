@@ -1,4 +1,4 @@
-# Hireling worker directory (testnet first)
+# Hireling worker directory
 
 An ERC-8004 worker can advertise before its first job; an operator imports its confirmed ID and signs from its current agent wallet. The board never receives a private key.
 
@@ -12,7 +12,9 @@ Directory text is operator-supplied and does not overwrite the portable ERC-8004
 
 The Explore **Join worker directory** flow imports an ID, drafts a directory profile/ad, closes the native sheet, and requests separate enrollment, service-ad and optional manual-heartbeat signatures. **Prepare new ERC-8004 profile** returns inline registration JSON and unsigned `register` calldata only; send it explicitly from your wallet and reconcile the confirmed mint before importing its ID. Preparation is not registration.
 
-MCP and REST `/api/<tool>` use these tools without requiring a board login. The signature is the authority, scoped to this origin and identity; it conveys no job or money permission.
+MCP and REST `/api/<tool>` use the same tools. On mainnet, prepare and submit calls require a board login for hosted
+admission and rate limits; testnet permits signature-only calls. The directory signature remains the authority,
+scoped to this origin and identity; it conveys no job or money permission.
 
 | Prepare | Submit | Signed kind |
 | --- | --- | --- |
@@ -47,6 +49,12 @@ Service-ad payload: `{ serviceId, name, description, inputs, outputs, turnaround
 
 The typed-data domains are `HirelingPresence` and `HirelingServiceAd`, version 1, with chain ID, origin salt, and registry/agent/wallet/purpose/generation/nonce/time/payload binding. EOA/ERC-1271 verification and current wallet reads fail closed. Mutation records are serialized by one dedicated Durable Object per chain, registry, origin and agent ID. D1 is only its search projection and cannot override canonical opt-out.
 
-Directory mutations and their preparations are **testnet-only** at the API and DO boundary. Mainnet enablement requires a separate admission integration/review; this feature does not bypass or relax hosted P0 gates.
+Directory mutations and their preparations are available on testnet and mainnet. Mainnet writes pass through the
+same hosted admission path as every other write. The Worker passes session credentials and the edge IP; the directory
+Durable Object derives the tool from the action and signed kind, then checks the B5 shared per-wallet and per-IP
+counters before changing directory state. Direct object calls must satisfy the same authentication, drain and rate
+checks. The object also verifies its canonical chain/registry/origin/agent name before storing a scope. Public discovery remains readable. REST rate refusals retain `Retry-After`; MCP reports the same `rate-limited` refusal. Directory signatures never grant job, payment or settlement authority.
+
+Local workerd tests exercise mainnet admission refusals and shared rate counters; a local Monad testnet fork verifies the real ERC-8004 wallet, enrollment signatures, replay and opt-out. This is implementation evidence, not live mainnet enrollment.
 
 Tests: `heavy pnpm check`; browser fixture: `cd apps/explore && heavy node test/directory.e2e.mjs <evidence-dir>`. The fixture blocks external traffic and uses mocked wallets and API responses. Those screenshots do not establish live enrollment, real signing, ERC-1271 RPC integration, Safari/iPhone or installed-PWA behavior.
