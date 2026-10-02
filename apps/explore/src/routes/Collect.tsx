@@ -71,6 +71,7 @@ export function CollectPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{k?.title(a) ?? a.kind}</span>
+                    {a.amount != null && a.token != null && <span className="tabular block font-semibold">{amount(a.amount, a.token)}</span>}
                     <span className="block text-[0.85rem] leading-snug text-label-2">{a.description}</span>
                     {a.jobId != null && (
                       <BoardLink target={boardRoutes().job(a.jobId)} className="text-[0.85rem] text-tint">
@@ -78,14 +79,11 @@ export function CollectPage() {
                       </BoardLink>
                     )}
                   </span>
-                  <span className="grid shrink-0 justify-items-end gap-1.5">
-                    {a.amount != null && a.token != null && <span className="tabular font-semibold">{amount(a.amount, a.token)}</span>}
-                    {open !== key && (
-                      <Button size="sm" disabled={open !== null || a.transactions.length === 0} onClick={() => setOpen(key)}>
-                        Collect
-                      </Button>
-                    )}
-                  </span>
+                  {open !== key && (
+                    <Button size="sm" className="shrink-0" disabled={open !== null || a.transactions.length === 0} onClick={() => setOpen(key)}>
+                      Collect
+                    </Button>
+                  )}
                 </ListRow>
                 {open === key && (
                   <div className="px-4 pb-3">
@@ -108,7 +106,7 @@ export function CollectPage() {
           })}
         </Group>
       )}
-      {list.length > 0 && <p className="px-4 text-[0.8rem] leading-snug text-label-2">Collecting pays out to whoever the contracts say: you send the step, and only what is yours comes to you.</p>}
+      {list.length > 0 && <p className="px-4 text-[0.8rem] leading-snug text-label-2">The contracts decide who is paid: settling a job pays out as its outcome says and releases both bonds. What is yours comes to your wallet.</p>}
     </>
   )
 }
