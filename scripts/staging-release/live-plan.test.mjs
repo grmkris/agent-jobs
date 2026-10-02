@@ -10,7 +10,15 @@ const binding = (sid, data, action = 'noop') => ({ sid, action, data })
 
 function fixture() {
   const workers = {
-    Api: { name: 'api', bindings: [{ name: 'RELAY_PRIVATE_KEY', type: 'secret_text' }, { name: 'Legacy', type: 'secret_text' }], crons: [] },
+    Api: {
+      name: 'api', crons: [],
+      tags: ['alchemy:stack:AgentJobs', 'alchemy:stage:staging', 'alchemy:dos:DirectoryObject', 'alchemy:migration-tag:alchemy:v2'],
+      bindings: [
+        { name: 'RELAY_PRIVATE_KEY', type: 'secret_text' }, { name: 'Legacy', type: 'secret_text' },
+        { name: 'DirectoryObject', type: 'durable_object_namespace', class_name: 'DirectoryObject', namespace_id: 'ns-directory' },
+        { name: 'DIRECTORY_DATABASE', type: 'd1', id: 'directory-db' },
+      ],
+    },
     Indexer: { name: 'indexer', bindings: [], crons: ['* * * * *'] },
     Explore: { name: 'explore', bindings: [{ name: 'ASSETS', type: 'assets' }], crons: [] },
   }
@@ -21,10 +29,15 @@ function fixture() {
     const bindings = id === 'Api' ? [
       binding('RELAY_PRIVATE_KEY', { bindings: [{ name: 'RELAY_PRIVATE_KEY', type: 'secret_text', text: 'test-only-marker' }] }),
       binding('LegacySecrets', { bindings: [{ name: 'Legacy', type: 'inherit' }] }),
+      binding('DirectoryObject', { bindings: [{ name: 'DirectoryObject', type: 'durable_object_namespace', className: 'DirectoryObject' }] }),
+      binding('DIRECTORY_DATABASE', { bindings: [{ name: 'DIRECTORY_DATABASE', type: 'd1', databaseId: 'directory-db' }] }),
     ] : id === 'Indexer' ? [binding('Cron(* * * * *)', { crons: ['* * * * *'] })] : []
     native.resources[`AgentJobs/${id}`] = { resource: { LogicalId: id, FQN: `AgentJobs/${id}`, Type: 'test' }, action: id === 'Database' || id === 'Manifests' ? 'noop' : 'update', props, state: { props }, bindings }
   }
-  const live = { workers, domains: ['hireling.xyz', 'testnet.hireling.xyz'].map(hostname => ({ hostname, service: 'explore' })) }
+  const live = {
+    workers, domains: ['hireling.xyz', 'testnet.hireling.xyz'].map(hostname => ({ hostname, service: 'explore' })),
+    namespaces: [{ id: 'ns-directory', className: 'DirectoryObject', script: 'api' }],
+  }
   const snapshot = { native, ...describePlan(native), summary: { create: 0, delete: 0, replace: 0, orphaned: 0, adopted: 0 } }
   return { snapshot, live }
 }
@@ -105,5 +118,66 @@ test('the exact apex release requires its setting and preserves the testnet doma
   } finally {
     if (prior === undefined) delete process.env.HIRELING_APEX_REDIRECT
     else process.env.HIRELING_APEX_REDIRECT = prior
+  }
+})
+
+// ---- review B12-002 ----
+
+const liveBinding = (input, name) => input.live.workers.Api.bindings.find(item => item.name === name)
+
+test('B12-002: the reviewed transition is pinned: a tag bump with no class migration passes', () => {
+  const result = review(fixture())
+  assert.equal(result.ok, true, result.blockers.join(','))
+  assert.deepEqual(result.transitions.Api, {
+    oldTag: 'alchemy:v2', newTag: 'alchemy:v3', durableObjectTags: ['alchemy:dos:DirectoryObject'],
+    newSqliteClasses: [], renamedClasses: [], deletedClasses: [], transferredClasses: [],
+  })
+  assert.deepEqual(result.changes.migrations, [])
+})
+
+test('B12-002: a noop directory binding whose live class, namespace or database drifted is refused', () => {
+  for (const drift of [
+    input => { liveBinding(input, 'DirectoryObject').class_name = 'OldDirectory' },
+    input => { liveBinding(input, 'DirectoryObject').namespace_id = 'ns-elsewhere' },
+    input => { input.live.namespaces = [{ id: 'ns-directory', className: 'DirectoryObject', script: 'other-script' }] },
+    input => { liveBinding(input, 'DirectoryObject').script_name = 'other-script' },
+    input => { liveBinding(input, 'DIRECTORY_DATABASE').id = 'another-db' },
+    input => { liveBinding(input, 'DIRECTORY_DATABASE').type = 'plain_text' },
+  ]) {
+    const input = fixture()
+    assert.equal(nativeResource(input.snapshot, 'Api').bindings.find(entry => entry.sid === 'DirectoryObject').action, 'noop')
+    drift(input)
+    const result = review(input)
+    assert.equal(result.ok, false)
+    assert.ok(result.blockers.some(blocker => ['binding-identity-drift', 'binding-type-change-refused'].includes(blocker)), result.blockers.join(','))
+  }
+})
+
+test('B12-002: a class migration the provider would derive from live tags is refused with empty engine actions', () => {
+  const cases = [
+    // live tags map the logical id to another class: the upload would rename OldDirectory → DirectoryObject
+    [input => { input.live.workers.Api.tags[2] = 'alchemy:dos:DirectoryObject=OldDirectory' }, 'renamedClasses'],
+    // live tags list a hosted class the plan no longer binds: the upload would delete it
+    [input => {
+      input.live.workers.Api.tags[2] = 'alchemy:dos:DirectoryObject;Retired'
+      input.live.namespaces.push({ id: 'ns-retired', className: 'Retired', script: 'api' })
+    }, 'deletedClasses'],
+    // a planned class the live script has never hosted: the upload would create it
+    [input => {
+      nativeResource(input.snapshot, 'Api').bindings.find(entry => entry.sid === 'DirectoryObject').data.bindings[0].className = 'DirectoryObjectV2'
+      liveBinding(input, 'DirectoryObject').class_name = 'DirectoryObjectV2'
+      input.live.workers.Api.tags[2] = 'alchemy:dos:Unrelated=Other'
+      liveBinding(input, 'DirectoryObject').name = 'DirectoryObjectLegacyName'
+    }, 'newSqliteClasses'],
+  ]
+  for (const [mutate, field] of cases) {
+    const input = fixture()
+    mutate(input)
+    assert.equal(input.snapshot.actions?.length ?? 0, 0)
+    const result = review(input)
+    assert.equal(result.ok, false)
+    assert.ok(result.blockers.includes('durable-object-migration-refused'), result.blockers.join(','))
+    assert.ok(result.transitions.Api[field].length > 0, field)
+    assert.deepEqual(result.changes.migrations, ['durable-object:Api'])
   }
 })

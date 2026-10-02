@@ -11,21 +11,35 @@ export async function cloudflare(path, options = {}) {
   return body.result
 }
 
-const bindingFields = ['type', 'name', 'namespace_id', 'class_name', 'id', 'bucket_name', 'service', 'environment']
+const bindingFields = ['type', 'name', 'namespace_id', 'class_name', 'script_name', 'id', 'database_id', 'bucket_name', 'jurisdiction', 'service', 'environment', 'entrypoint']
+const scripts = () => [targets.Api, targets.Indexer, targets.Explore]
+
+/** One Worker's live tags and binding identities (no values), as the census records them. */
+export async function liveWorker(id) {
+  const name = targets[id]
+  const settings = await cloudflare(`/workers/scripts/${name}/settings`)
+  return {
+    name, tags: settings.tags ?? [],
+    bindings: (settings.bindings ?? []).map((binding) => Object.fromEntries(bindingFields.filter((key) => key in binding).map((key) => [key, binding[key]]))),
+  }
+}
+
+/** The account's Durable Object namespaces hosted by the three staging scripts. */
+export async function liveNamespaces() {
+  return (await cloudflare('/workers/durable_objects/namespaces')).filter((namespace) => scripts().includes(namespace.script))
+    .map(({ id, class: className, script }) => ({ id, className, script }))
+}
 
 export async function census(options = {}) {
   const workers = {}
   for (const id of ['Api', 'Indexer', 'Explore']) {
-    const name = targets[id]
-    const settings = await cloudflare(`/workers/scripts/${name}/settings`)
+    const { name, tags, bindings } = await liveWorker(id)
     const deployments = await cloudflare(`/workers/scripts/${name}/deployments`)
     const schedules = await cloudflare(`/workers/scripts/${name}/schedules`)
     const active = deployments.deployments?.[0]?.versions
     if (active?.length !== 1 || active[0].percentage !== 100) throw new Error(`Expected one fully deployed version: ${id}`)
     workers[id] = {
-      name, version: active[0].version_id,
-      tags: settings.tags ?? [],
-      bindings: (settings.bindings ?? []).map((binding) => Object.fromEntries(bindingFields.filter((key) => key in binding).map((key) => [key, binding[key]]))),
+      name, version: active[0].version_id, tags, bindings,
       crons: (schedules.schedules ?? []).map((schedule) => schedule.cron).toSorted(),
     }
   }
@@ -34,8 +48,7 @@ export async function census(options = {}) {
   const database = await cloudflare(`/d1/database/${targets.Database}`)
   const bucket = (await cloudflare('/r2/buckets')).buckets?.find((item) => item.name === targets.Manifests)
   if (bucket === undefined) throw new Error('Live manifests bucket missing')
-  const namespaces = (await cloudflare('/workers/durable_objects/namespaces')).filter((namespace) => namespace.script === targets.Api)
-    .map(({ id, class: className, script }) => ({ id, className, script }))
+  const namespaces = await liveNamespaces()
   const result = { workers, domains, databaseId: database.uuid, bucketName: bucket.name, namespaces }
   validateCensus(result, options)
   return result

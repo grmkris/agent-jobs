@@ -1,18 +1,35 @@
 import { canonicalChange, plannedDomains, validatePlanChanges } from './approved-changes.mjs'
+import { durableObjectTransition, migratesClasses, wireBindings } from './payload.mjs'
 
-const wireBindings = node => (node?.bindings ?? []).flatMap(binding => binding.data?.bindings ?? [])
+const stack = { name: 'AgentJobs', stage: 'staging' }
+const accountId = 'bceaeae4788dce3493514fde194b4a7e'
 const domainNames = value => value === undefined || value === null ? [] : typeof value === 'string'
   ? [value] : [value.name, ...(value.aliases ?? []), ...(value.redirects ?? [])]
 const same = (left, right) => canonicalChange(left) === canonicalChange(right)
-const providerBindingNames = ['ALCHEMY_PHASE', 'ALCHEMY_WORKER_NAME', 'ALCHEMY_STACK_NAME', 'ALCHEMY_STAGE', 'ALCHEMY_CLOUDFLARE_ACCOUNT_ID']
+const blank = value => value === undefined || value === null || value === ''
+const sameValue = (a, b) => (blank(a) && blank(b)) || a === b
+const jurisdiction = value => (value === 'default' ? undefined : value)
 
-// These bindings are appended during upload by the pinned Worker provider,
-// rather than appearing as BindingNodes in the engine plan.
-const uploadBindings = (node, props) => {
-  const wires = wireBindings(node)
-  for (const name of providerBindingNames) wires.push({ type: 'plain_text', name })
-  if (props.assets) wires.push({ type: 'assets', name: 'ASSETS' })
-  return wires
+/**
+ * Review B12-002: a planned wire binding against the live one of the same name (census, snake_case fields). Resource
+ * identities must match exactly, for noop bindings too; a local Durable Object binding must point at the live namespace
+ * this script hosts for that class. Text/JSON values are pinned by the payload digest instead (B12-001).
+ */
+export function sameIdentity(wire, old, workerName, namespaces) {
+  switch (wire.type) {
+    case 'd1': return sameValue(wire.databaseId ?? wire.id, old.id ?? old.database_id)
+    case 'r2_bucket': return sameValue(wire.bucketName, old.bucket_name) && sameValue(jurisdiction(wire.jurisdiction), jurisdiction(old.jurisdiction))
+    case 'service': return sameValue(wire.service, old.service) && sameValue(wire.environment, old.environment) && sameValue(wire.entrypoint, old.entrypoint)
+    case 'kv_namespace': return sameValue(wire.namespaceId ?? wire.namespace_id, old.namespace_id)
+    case 'durable_object_namespace': {
+      const host = script => (blank(script) ? workerName : script)
+      if (!sameValue(wire.className, old.class_name) || host(wire.scriptName) !== host(old.script_name) || !sameValue(wire.environment, old.environment)) return false
+      if (!blank(wire.namespaceId) && wire.namespaceId !== old.namespace_id) return false
+      if (host(wire.scriptName) !== workerName) return true
+      return namespaces.some(ns => ns.id === old.namespace_id && ns.script === workerName && ns.className === wire.className)
+    }
+    default: return true
+  }
 }
 
 // Alchemy keys native plan resources by FQN. The serializable plan exposes
@@ -25,6 +42,7 @@ export const nativeResource = (snapshot, logicalId) => snapshot?.native?.resourc
 export function reviewLivePlan(snapshot, live, reference, sameSecret) {
   const blockers = new Set()
   const changes = { migrations: [], secretChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
+  const transitions = {}
   const operations = snapshot.resources.map(resource => ({
     fqn: resource.fqn, logicalId: resource.logicalId, type: resource.resourceType, action: resource.action,
     bindings: resource.bindings.map(binding => ({ sid: binding.sid, action: binding.action })),
@@ -37,8 +55,8 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
     const node = nativeResource(snapshot, row.logicalId)
     if (node === undefined) { blockers.add('native-plan-missing'); continue }
     const props = node.props ?? node.state?.props ?? {}
-    const wires = uploadBindings(node, props)
     const observed = live.workers[row.logicalId]
+    const wires = wireBindings(node, { workerName: observed?.name ?? row.logicalId, stack, accountId })
     for (const binding of row.bindings) {
       if (binding.action === 'delete') blockers.add('binding-deletion-refused')
       if (binding.action === 'noop') continue
@@ -65,6 +83,20 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
       changes.secretChanges.push({ logicalId: row.logicalId, name, action: exists ? 'rotate' : 'add' })
     }
     if (observed !== undefined) {
+      // Every planned binding, noop ones included, against the live wire identity.
+      for (const wire of wires) {
+        const old = observed.bindings.find(item => item.name === wire.name)
+        if (old === undefined || wire.type === 'inherit') continue
+        if (wire.type !== old.type) blockers.add('binding-type-change-refused')
+        else if (!sameIdentity(wire, old, observed.name, live.namespaces ?? [])) blockers.add('binding-identity-drift')
+      }
+      // The class migration the provider derives during upload from the live tags; engine actions never show it.
+      const transition = durableObjectTransition(node, observed, live.namespaces ?? [])
+      transitions[row.logicalId] = transition
+      if (migratesClasses(transition)) {
+        blockers.add('durable-object-migration-refused')
+        changes.migrations.push(`durable-object:${row.logicalId}`)
+      }
       const oldNames = observed.bindings.map(binding => binding.name)
       const newNames = wires.map(binding => binding.name)
       if (new Set(newNames).size !== newNames.length || oldNames.some(name => !newNames.includes(name))) blockers.add('binding-deletion-refused')
@@ -83,6 +115,6 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
   }
   const validation = validatePlanChanges(changes, reference)
   for (const blocker of validation.blockers) blockers.add(blocker)
-  return { ok: blockers.size === 0, blockers: [...blockers], operations, changes, approvedChanges: reference,
+  return { ok: blockers.size === 0, blockers: [...blockers], operations, changes, transitions, approvedChanges: reference,
     expectedDomains: plannedDomains(changes, reference, live.domains.map(domain => domain.hostname)).toSorted() }
 }

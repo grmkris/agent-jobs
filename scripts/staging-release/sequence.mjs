@@ -3,8 +3,10 @@ import * as Effect from 'effect/Effect'
 import { nativeResource } from './live-plan.mjs'
 
 /** Keep Alchemy's complete graph and lifecycle, gating each Worker reconcile on
- * its predecessor's successful readback. A failed step interrupts the graph. */
-export const sequenceWorkers = (snapshot, verify, record) => Effect.gen(function* () {
+ * its predecessor's successful readback. A failed step interrupts the graph.
+ * `checks.before(id, input)` runs inside the reconcile, immediately before the
+ * provider uploads; `checks.after(id, output)` right after it. */
+export const sequenceWorkers = (snapshot, verify, record, checks = {}) => Effect.gen(function* () {
   const ready = {}
   for (const id of ['Api', 'Indexer', 'Explore']) ready[id] = yield* Deferred.make()
   for (const [id, predecessor] of [['Api', undefined], ['Indexer', 'Api'], ['Explore', 'Indexer']]) {
@@ -18,8 +20,10 @@ export const sequenceWorkers = (snapshot, verify, record) => Effect.gen(function
     const reconcile = node.provider.reconcile
     node.provider = { ...node.provider, reconcile: (input) => Effect.gen(function* () {
       if (predecessor) yield* Deferred.await(ready[predecessor])
+      if (checks.before) yield* checks.before(id, input)
       record({ id, status: 'uploading' })
       const output = yield* reconcile(input)
+      if (checks.after) yield* checks.after(id, output)
       let verified = false
       for (let attempt = 0; attempt < 12; attempt++) {
         const check = yield* Effect.promise(() => verify(id).then(() => true, () => false))
