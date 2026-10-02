@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto'
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, writeSync } from 'node:fs'
+import { join } from 'node:path'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import { encodeDurableObjectTags, getDurableObjectTagMap } from 'alchemy/Cloudflare/Workers'
@@ -189,6 +190,32 @@ export function viteArtifact(key, logicalId, env, envFiles = {}) {
     envFiles: Object.fromEntries(Object.keys(envFiles).toSorted().map(name => [name, commit(key, [logicalId, 'envFile', name], envFiles[name])])),
   }
 }
+
+/** The files Vite reads from Explore's root in production mode. */
+export const viteEnvFileNames = ['.env', '.env.local', '.env.production', '.env.production.local']
+
+/** Explore's Vite env files as they are now (absent ones skipped, a symlinked one refused). */
+export function readViteEnvFiles(dir) {
+  const files = {}
+  for (const name of viteEnvFileNames) {
+    const path = join(dir, name)
+    let stat
+    try {
+      stat = lstatSync(path)
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue
+      throw error
+    }
+    if (stat.isSymbolicLink()) throw new Error(`Explore ${name} must not be a symlink`)
+    files[name] = readFileSync(path, 'utf8')
+  }
+  return files
+}
+
+/** Review B12-SEC-004: a Vite Worker's pin rebuilt immediately before its upload, from the build environment and the
+ *  env files as they are then. The pre-upload check puts it in the payload it compares with the reviewed one, so a
+ *  file or variable changed after the plan refuses the upload. */
+export const viteArtifactNow = (key, logicalId, env, dir) => viteArtifact(key, logicalId, env, readViteEnvFiles(dir))
 
 // ---- review B12-002: the Durable Object migration the provider would derive ----
 

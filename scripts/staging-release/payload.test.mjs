@@ -6,7 +6,9 @@ import test from 'node:test'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import { canonicalChange } from './approved-changes.mjs'
-import { artifactOf, commit, commitmentKey, digestOf, keyId, viteArtifact, viteBuildEnv, wireBindings, workerPayload } from './payload.mjs'
+import { nativeResource } from './live-plan.mjs'
+import { artifactOf, commit, commitmentKey, digestOf, keyId, readViteEnvFiles, viteArtifact, viteArtifactNow, viteBuildEnv, wireBindings, workerPayload } from './payload.mjs'
+import { sequenceWorkers } from './sequence.mjs'
 
 const key = Buffer.alloc(32, 7)
 const stack = { name: 'AgentJobs', stage: 'staging' }
@@ -156,4 +158,70 @@ test('B12-003: no Explore build source reads an environment variable that the Vi
   }
   assert.ok(reads.has('PRIVY_APP_ID') && reads.has('HIRELING_PROD_PRIVY_APP_ID') && reads.has('AGENT_JOBS_NETWORK'), 'the scan sees the known reads')
   for (const name of reads) assert.ok(viteBuildEnv.includes(name) || name.startsWith('VITE_'), `${name} is read by the Explore build but not pinned`)
+})
+
+// ---- review B12-SEC-004: Explore's build inputs are read again immediately before its upload ----
+
+const exploreNode = { resource: { LogicalId: 'Explore', FQN: 'Explore', Type: 'Cloudflare.Worker' }, action: 'update', props: { vite: {}, compatibility: { date: '2026-09-01', flags: [] } }, bindings: [] }
+const explorePayload = (artifact) => workerPayload({ key, logicalId: 'Explore', workerName: 'agentjobs-explore', stack, accountId, node: exploreNode, artifact })
+
+/** The three Worker reconciles with release.mjs's Explore pre-upload check: the payload rebuilt from the env files and
+ *  build environment as they are at upload time must still be the planned one. */
+async function applyExplore(dir, envAtUpload, planned) {
+  const events = []
+  const snapshot = { native: { resources: Object.fromEntries(['Api', 'Indexer', 'Explore'].map((id) => [`AgentJobs/${id}`, {
+    resource: { LogicalId: id }, action: 'update',
+    provider: { reconcile: () => Effect.sync(() => { events.push(`upload:${id}`); return { hash: { bundle: id } } }) },
+  }])) } }
+  const checks = {
+    before: (id) => Effect.gen(function* () {
+      if (id !== 'Explore') return
+      const again = explorePayload(viteArtifactNow(key, id, envAtUpload, dir))
+      if (canonicalChange(again) !== canonicalChange(planned)) return yield* Effect.fail(new Error(`upload payload changed before upload: ${id}`))
+    }),
+  }
+  const run = Effect.gen(function* () {
+    yield* sequenceWorkers(snapshot, async () => {}, () => {}, checks)
+    yield* Effect.all(['Api', 'Indexer', 'Explore'].map((id) => nativeResource(snapshot, id).provider.reconcile({})), { concurrency: 'unbounded' })
+  })
+  try {
+    await Effect.runPromise(run)
+    return { events, error: undefined }
+  } catch (error) {
+    return { events, error }
+  }
+}
+
+test('B12-SEC-004: an Explore env file or build variable changed after the plan refuses before the Explore upload', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'explore-'))
+  try {
+    writeFileSync(join(dir, '.env.production'), 'VITE_X=1\n')
+    const planned = explorePayload(viteArtifact(key, 'Explore', exploreEnv, readViteEnvFiles(dir)))
+
+    const unchanged = await applyExplore(dir, exploreEnv, planned)
+    assert.equal(unchanged.error, undefined)
+    assert.deepEqual(unchanged.events, ['upload:Api', 'upload:Indexer', 'upload:Explore'])
+
+    const refused = async (label, env = exploreEnv) => {
+      const { events, error } = await applyExplore(dir, env, planned)
+      assert.match(String(error?.message ?? error), /upload payload changed before upload: Explore/, label)
+      assert.deepEqual(events, ['upload:Api', 'upload:Indexer'], `${label}: Explore was not uploaded`)
+    }
+    writeFileSync(join(dir, '.env.production'), 'VITE_X=2\n')
+    await refused('.env.production changed after the plan')
+    writeFileSync(join(dir, '.env.production'), 'VITE_X=1\n')
+    writeFileSync(join(dir, '.env.local'), 'VITE_Y=1\n')
+    await refused('a new .env.local')
+    rmSync(join(dir, '.env.local'))
+    await refused('a new VITE_* variable', { ...exploreEnv, VITE_NEW: 'x' })
+    await refused('PRIVY_APP_ID unset at plan, empty at upload', { ...exploreEnv, HIRELING_PROD_PRIVY_APP_ID: '' })
+    assert.equal((await applyExplore(dir, exploreEnv, planned)).error, undefined, 'back to the planned inputs')
+
+    rmSync(join(dir, '.env.production'))
+    writeFileSync(join(dir, 'elsewhere'), 'VITE_X=1\n')
+    symlinkSync(join(dir, 'elsewhere'), join(dir, '.env.production'))
+    assert.throws(() => readViteEnvFiles(dir), /must not be a symlink/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
