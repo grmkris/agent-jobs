@@ -294,7 +294,7 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
       </ConfirmSheet>
 
       {error !== null && pending === null && <ErrorText>{error}</ErrorText>}
-      {txs !== null && <Section title="Send from your wallet"><TxSteps key={`${job.boardId}:${job.taskId}:${txs.kind}`} taskId={job.taskId} boardId={job.boardId} txs={txs.list} owner={txs.owner} canSend={sourceAvailable} onDone={(hashes) => done(txs.kind, hashes)} /></Section>}
+      {txs !== null && <Section title="Send"><TxSteps key={`${job.boardId}:${job.taskId}:${txs.kind}`} taskId={job.taskId} boardId={job.boardId} txs={txs.list} owner={txs.owner} canSend={sourceAvailable} onDone={(hashes) => done(txs.kind, hashes)} /></Section>}
     </>
   )
 }

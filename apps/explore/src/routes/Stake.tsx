@@ -371,7 +371,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
           </p>
         </div>
       ) : op !== null ? (
-        <Section title="Send from your wallet">
+        <Section title="Send">
           <TxSteps
             key={op.txs.map((t) => t.data).join()}
             taskId={`stake:${address.toLowerCase()}`}
