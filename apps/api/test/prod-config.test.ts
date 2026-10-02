@@ -13,6 +13,8 @@ const configured = () => {
     hireling: { block: 123, safe: fixtureAddress, factory: fixtureAddress, vault: fixtureAddress, feeSchedule: fixtureAddress, distributor: fixtureAddress, miningReserve: fixtureAddress, teamVesting: fixtureAddress, t0: 1_791_500_000 },
   }
   artifact.deployment = structuredClone({ main: config.deployment.main!, hireling: config.deployment.hireling! })
+  artifact.deployment.hireling.safeOwners = ['0x5555555555555555555555555555555555555555', '0x6666666666666666666666666666666666666666']
+  artifact.deployment.hireling.safeThreshold = 1
   for (const [name, value] of Object.entries(config.roles)) artifact.addresses[name] = value
   for (const name of ['core', 'factory', 'holding', 'evaluator']) artifact.addresses[name] = fixtureAddress
   artifact.rpc.chainId = 143
@@ -71,4 +73,25 @@ test('D16 / PROD-GATE-001: the Safe must be recorded and match between config an
   const other = configured()
   other.artifact.deployment.hireling.safe = '0x2222222222222222222222222222222222222222'
   expect(validateProdConfig(other.config, other.artifact)).toContain('hireling:safe')
+})
+
+test.each([
+  ['unpinned owners', (h: ProdArtifact['deployment']['hireling']) => { delete h.safeOwners }],
+  ['an empty owner set', (h: ProdArtifact['deployment']['hireling']) => { h.safeOwners = [] }],
+  ['a duplicated owner', (h: ProdArtifact['deployment']['hireling']) => { h.safeOwners = ['0x5555555555555555555555555555555555555555', '0x5555555555555555555555555555555555555555'] }],
+  ['a non-address owner', (h: ProdArtifact['deployment']['hireling']) => { h.safeOwners = ['0x5555555555555555555555555555555555555555', 'kris'] }],
+  ['the zero address as owner', (h: ProdArtifact['deployment']['hireling']) => { h.safeOwners = ['0x0000000000000000000000000000000000000000'] }],
+  ['an unpinned threshold', (h: ProdArtifact['deployment']['hireling']) => { h.safeThreshold = null }],
+  ['threshold 0', (h: ProdArtifact['deployment']['hireling']) => { h.safeThreshold = 0 }],
+  ['a threshold above the owner count', (h: ProdArtifact['deployment']['hireling']) => { h.safeThreshold = 3 }],
+  ['a fractional threshold', (h: ProdArtifact['deployment']['hireling']) => { h.safeThreshold = 1.5 }],
+] as const)('LAUNCH-AUDIT-003: the artifact must pin the Safe owners and threshold D16 reads back (%s refuses)', (_, mutate) => {
+  const { config, artifact } = configured()
+  mutate(artifact.deployment.hireling)
+  expect(validateProdConfig(config, artifact)).toEqual(['hireling:safeOwners/safeThreshold'])
+})
+
+test('LAUNCH-AUDIT-003: the shipped artifact has the Safe policy fields, still unpinned', () => {
+  expect(proposed.deployment.hireling).toMatchObject({ safeOwners: [], safeThreshold: null })
+  expect(validateProdConfig(mainnet, proposed)).toContain('hireling:safeOwners/safeThreshold')
 })

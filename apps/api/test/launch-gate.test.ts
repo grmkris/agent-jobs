@@ -1,8 +1,8 @@
-import { decodeFunctionData, encodeFunctionResult, keccak256, parseAbi, parseEther, toHex, type Hex } from 'viem'
+import { decodeFunctionData, encodeFunctionResult, getAddress, keccak256, parseAbi, parseEther, toHex, type Hex } from 'viem'
 import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import { assertLaunchGate } from '../src/deploy-preflight.ts'
-import { launchOwnedContracts, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, type ChainConfig, type LaunchReader } from '../src/prod-config.ts'
+import { launchOwnedContracts, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, SAFE_GUARD_SLOT, SAFE_SINGLETON, type ChainConfig, type LaunchReader, type SafePolicy } from '../src/prod-config.ts'
 import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { parseHostedAdmission } from '@agent-jobs/board'
 
@@ -12,6 +12,10 @@ const abi = parseAbi([
   'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
   'function hasRole(bytes32 role, address account) view returns (bool)',
   'function verifiers(address account) view returns (bool)',
+  'function VERSION() view returns (string)',
+  'function getOwners() view returns (address[])',
+  'function getThreshold() view returns (uint256)',
+  'function getModulesPaginated(address start, uint256 pageSize) view returns (address[] array, address next)',
 ])
 const a = (n: number) => `0x${n.toString(16).padStart(40, '0')}` as const
 const SAFE = a(0x5afe)
@@ -20,6 +24,11 @@ const DEFAULT_ADMIN = toHex(0, { size: 32 })
 const ADMIN = keccak256(toHex('ADMIN_ROLE'))
 const FLOOR = RELAY_FLOOR_MAINNET
 const lower = (value: string) => value.toLowerCase()
+const OWNERS = [a(0x0a1), a(0x0a2)]
+/** The artifact's pinned Safe policy (deployment.hireling.safeOwners / safeThreshold). */
+const POLICY: SafePolicy = { owners: OWNERS, threshold: 1 }
+const SLOT_0 = toHex(0, { size: 32 })
+const word = (address: string) => `0x${'0'.repeat(24)}${address.slice(2).toLowerCase()}` as Hex
 
 /** A promoted mainnet config: the six owned by the Safe and the core's roles with it. */
 function promoted(): ChainConfig {
@@ -38,7 +47,11 @@ interface LiveState {
   roles: Record<string, Set<string>>
   verifiers: Set<string>
   balances: Record<string, bigint>
-  /** reads that fail, as `method:address` (`call:<to>:<function>` for calls) */
+  /** storage words, as `<address>:<slot>` */
+  storage: Record<string, Hex>
+  /** the Safe's own reads */
+  safe: { version: string; owners: string[]; threshold: bigint; modules: string[] }
+  /** reads that fail, as `method:address` (`call:<to>:<function>` for calls, `storage:<address>:<slot>` for storage) */
   failing: Set<string>
 }
 
@@ -50,6 +63,8 @@ function live(config: ChainConfig): LiveState {
     roles: { [DEFAULT_ADMIN]: new Set([lower(SAFE)]), [ADMIN]: new Set([lower(SAFE)]) },
     verifiers: new Set([lower(config.roles.attester!)]),
     balances: { [lower(config.roles.relay!)]: FLOOR + 1n },
+    storage: { [`${lower(SAFE)}:${SLOT_0}`]: word(SAFE_SINGLETON) },
+    safe: { version: '1.4.1', owners: [...OWNERS], threshold: 1n, modules: [] },
     failing: new Set(),
   }
 }
@@ -69,6 +84,12 @@ function reader(state: LiveState): LaunchReader & { reads: string[] } {
       if (state.failing.has(`balance:${lower(address)}`)) throw new Error('rpc down')
       return state.balances[lower(address)] ?? 0n
     },
+    async storage(address, slot) {
+      const key = `${lower(address)}:${lower(slot)}`
+      reads.push(`storage:${key}`)
+      if (state.failing.has(`storage:${key}`)) throw new Error('rpc down')
+      return state.storage[key] ?? toHex(0, { size: 32 })
+    },
     async call(to, data) {
       const { functionName, args } = decodeFunctionData({ abi, data })
       reads.push(`call:${lower(to)}:${functionName}`)
@@ -84,17 +105,24 @@ function reader(state: LiveState): LaunchReader & { reads: string[] } {
         case 'DEFAULT_ADMIN_ROLE': return encode(DEFAULT_ADMIN)
         case 'hasRole': return encode(state.roles[args![0] as string]?.has(lower(args![1] as string)) ?? false)
         case 'verifiers': return encode(lower(to) === lower(addresses.evaluator) && state.verifiers.has(lower(args![0] as string)))
+        case 'VERSION': return encode(state.safe.version)
+        case 'getOwners': return encode(state.safe.owners)
+        case 'getThreshold': return encode(state.safe.threshold)
+        case 'getModulesPaginated': return encode([state.safe.modules, a(1)])
       }
       throw new Error('unexpected call')
     },
   }
 }
 
-const gate = async (mutate: (state: LiveState, config: ChainConfig) => void = () => {}, options: { floor: bigint | undefined } = { floor: FLOOR }) => {
+const gate = async (
+  mutate: (state: LiveState, config: ChainConfig) => void = () => {},
+  options: { floor?: bigint | undefined; policy?: SafePolicy | undefined } = {},
+) => {
   const config = promoted()
   const state = live(config)
   mutate(state, config)
-  return liveLaunchGate(config, reader(state), options.floor)
+  return liveLaunchGate(config, reader(state), 'floor' in options ? options.floor : FLOOR, 'policy' in options ? options.policy : POLICY)
 }
 
 test('D16: a promoted deployment with the Safe in custody, a verifier attester and a funded relay passes', async () => {
@@ -118,6 +146,44 @@ test.each(launchOwnedContracts)('PROD-GATE-001: %s still owned by the deployer (
 test.each(launchOwnedContracts)('PROD-GATE-001: an unreadable owner() on %s refuses', async name => {
   expect(await gate(state => { state.failing.add(`call:${lower(addresses[name])}:owner`) })).toEqual([`launch:owner:${name} unreadable`])
   expect(await gate(state => { delete state.owners[lower(addresses[name])] })).toEqual([`launch:owner:${name} unreadable`])
+})
+
+// ---- LAUNCH-AUDIT-003: the Safe is the reviewed one: canonical, pinned owners and threshold, no module, no guard ----
+
+test.each([
+  ['one enabled module', (s: LiveState) => { s.safe.modules = [a(0xbeef)] }, 'launch:safe has a module enabled'],
+  ['a nonzero guard', (s: LiveState) => { s.storage[`${lower(SAFE)}:${SAFE_GUARD_SLOT}`] = word(a(0x9a2d)) }, 'launch:safe has a guard set'],
+  ['a wrong owner set (one owner swapped)', (s: LiveState) => { s.safe.owners = [OWNERS[0]!, a(0xbad)] }, 'launch:safe owners differ from the pinned set'],
+  ['an extra owner', (s: LiveState) => { s.safe.owners = [...OWNERS, a(0xbad)] }, 'launch:safe owners differ from the pinned set'],
+  ['a missing owner', (s: LiveState) => { s.safe.owners = [OWNERS[0]!] }, 'launch:safe owners differ from the pinned set'],
+  ['a wrong threshold', (s: LiveState) => { s.safe.threshold = 2n }, 'launch:safe threshold differs from the pinned one'],
+  ['a non-canonical singleton', (s: LiveState) => { s.storage[`${lower(SAFE)}:${SLOT_0}`] = word(a(0x5a1e)) }, 'launch:safe singleton is not the canonical SafeL2 v1.4.1'],
+  ['another VERSION', (s: LiveState) => { s.safe.version = '1.3.0' }, 'launch:safe VERSION is not 1.4.1'],
+] as const)('LAUNCH-AUDIT-003: a Safe with %s refuses', async (_, mutate, expected) => {
+  expect(await gate(mutate)).toEqual([expected])
+})
+
+test('LAUNCH-AUDIT-003: owner order and case do not matter; an unpinned policy and every failed Safe read refuse', async () => {
+  expect(await gate(state => { state.safe.owners = [getAddress(OWNERS[1]!), OWNERS[0]!] })).toEqual([])
+  expect(await gate(() => {}, { policy: undefined })).toEqual(['launch:safe owners/threshold not pinned in the artifact'])
+  expect(await gate(state => { state.failing.add(`storage:${lower(SAFE)}:${SLOT_0}`) })).toEqual(['launch:safe singleton unreadable'])
+  expect(await gate(state => { state.failing.add(`storage:${lower(SAFE)}:${SAFE_GUARD_SLOT}`) })).toEqual(['launch:safe guard unreadable'])
+  for (const fn of ['VERSION', 'getOwners', 'getThreshold', 'getModulesPaginated'] as const) {
+    const label = { VERSION: 'VERSION', getOwners: 'owners', getThreshold: 'threshold', getModulesPaginated: 'modules' }[fn]
+    expect(await gate(state => { state.failing.add(`call:${lower(SAFE)}:${fn}`) })).toEqual([`launch:safe ${label} unreadable`])
+  }
+})
+
+test('LAUNCH-AUDIT-003: Safe failure labels carry no values', async () => {
+  const failures = await gate(state => {
+    state.safe.modules = [a(0xbeef)]
+    state.safe.owners = [a(0xbad)]
+    state.safe.threshold = 3n
+    state.storage[`${lower(SAFE)}:${SAFE_GUARD_SLOT}`] = word(a(0x9a2d))
+    state.storage[`${lower(SAFE)}:${SLOT_0}`] = word(a(0x5a1e))
+  })
+  expect(failures).toHaveLength(5)
+  expect(failures.join(' ')).not.toMatch(/0x[0-9a-fA-F]{8,}/)
 })
 
 // ---- PROD-GATE-002: both core admin roles with the Safe, none with the deployer ----
@@ -207,10 +273,10 @@ test('D16: an opening deploy is refused before anything else when the gate fails
   const state = live(config)
   state.owners[lower(addresses.vault)] = config.roles.admin!
   const chain = reader(state)
-  await expect(assertLaunchGate(config, '0', chain, FLOOR)).rejects.toThrow('production launch gate refused: launch:owner:vault is not the Safe')
+  await expect(assertLaunchGate(config, '0', chain, FLOOR, POLICY)).rejects.toThrow('production launch gate refused: launch:owner:vault is not the Safe')
   const reads = chain.reads.length
-  for (const drain of [undefined, '', '1', 'invalid']) await expect(assertLaunchGate(config, drain, chain, FLOOR)).resolves.toBeUndefined()
+  for (const drain of [undefined, '', '1', 'invalid']) await expect(assertLaunchGate(config, drain, chain, FLOOR, POLICY)).resolves.toBeUndefined()
   expect(chain.reads.length).toBe(reads)
   state.owners[lower(addresses.vault)] = SAFE
-  await expect(assertLaunchGate(config, '0', chain, FLOOR)).resolves.toBeUndefined()
+  await expect(assertLaunchGate(config, '0', chain, FLOOR, POLICY)).resolves.toBeUndefined()
 })

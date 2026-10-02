@@ -349,8 +349,11 @@ The mainnet launch end to end on a throwaway anvil fork of chain 143 (`--network
 2. `DeployHireling` with a fresh core and `MAINNET_GO`.
 3. `PromoteHireling`, then the D16 launch gate (`apps/api/src/prod-config.ts`), which must **refuse**: all six
    handovers are only pending.
-4. `SafeAccept` from one owner, then the gate, which must **pass**: Safe custody, both core admin roles with the Safe
-   and none with the deployer, attester verifier, relay above 2 MON.
+4. `SafeAccept` from one owner, then the gate, which must **pass**: the reviewed Safe, Safe custody, both core admin
+   roles with the Safe and none with the deployer, attester verifier, relay above 2 MON. The reviewed Safe
+   (LAUNCH-AUDIT-003) means a proxy of the canonical SafeL2 (slot 0), `VERSION` 1.4.1, exactly the artifact's pinned
+   `deployment.hireling.safeOwners` and `safeThreshold`, no module and no guard. R7 pins its own Safe's owners and
+   threshold, then shows that a wrong owner pin and a guard written to the guard slot each refuse.
 5. `SeedPool`, then its receipt-based `--sig "verify()"` against forge's real run log.
 6. One direct hire through the v1 pair (`script/RehearseHireAndMine.s.sol`, `RehearseHire`).
 7. A warp past epoch 0, then work mining with the B8 tool (`scripts/mining`, README there):

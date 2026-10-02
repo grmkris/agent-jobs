@@ -33,7 +33,7 @@ contract MainnetRunbookTest is Test {
 
     function test_runbookSequenceWithGates() public view {
         string memory live = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live";
-        string[] memory s = new string[](17);
+        string[] memory s = new string[](18);
         s[0] = "MAINNET_GO=yes forge script script/DeployHireling.s.sol";
         s[1] = "forge script script/PromoteHireling.s.sol";
         s[2] = live;
@@ -45,13 +45,15 @@ contract MainnetRunbookTest is Test {
         s[7] = "forge script script/SafeAccept.s.sol --sig \"check()\"";
         s[8] = live;
         s[9] = "Hireling v1 production launch gate passed";
-        s[10] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
-        s[11] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
-        s[12] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
-        s[13] = "Post-deploy probes";
-        s[14] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz";
-        s[15] = live;
-        s[16] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
+        // LAUNCH-AUDIT-003: the gate reads the reviewed Safe back against the artifact's pins.
+        s[10] = "the reviewed Safe: storage slot 0 is the canonical SafeL2 singleton";
+        s[11] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
+        s[12] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
+        s[13] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
+        s[14] = "Post-deploy probes";
+        s[15] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz";
+        s[16] = live;
+        s[17] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
         _inOrder(doc, s, "runbook");
     }
 
@@ -86,6 +88,40 @@ contract MainnetRunbookTest is Test {
             vm.contains(launch, "getModulesPaginated(address,uint256)(address[],address)"), "launch: no module check"
         );
         assertTrue(vm.contains(launch, GUARD_SLOT), "launch: no guard check");
+    }
+
+    /// LAUNCH-AUDIT-003: D16 itself reads the Safe's singleton, VERSION, owners, threshold, modules and guard against the
+    /// artifact's pins; the artifact has the fields; R7 runs the gate with its own Safe's pins and shows the refusals.
+    function test_launchGateReadsTheReviewedSafe() public view {
+        string memory root = vm.projectRoot();
+        string memory gate = vm.readFile(string.concat(root, "/../apps/api/src/prod-config.ts"));
+        string[8] memory reads = [
+            "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+            GUARD_SLOT,
+            "function VERSION() view returns (string)",
+            "function getOwners() view returns (address[])",
+            "function getThreshold() view returns (uint256)",
+            "function getModulesPaginated(address start, uint256 pageSize)",
+            "safeOwners",
+            "safeThreshold"
+        ];
+        for (uint256 i; i < reads.length; ++i) {
+            assertTrue(vm.contains(gate, reads[i]), string.concat("prod-config.ts lacks ", reads[i]));
+        }
+        assertTrue(vm.contains(doc, "`deployment.hireling.safeOwners`"), "runbook does not pin the Safe owners");
+        assertTrue(vm.contains(doc, "`deployment.hireling.safeThreshold`"), "runbook does not pin the Safe threshold");
+        assertTrue(
+            vm.contains(
+                r7,
+                "liveLaunchGate(config, rpcReader(process.argv[3]), RELAY_FLOOR_MAINNET, JSON.parse(process.argv[4]))"
+            ),
+            "R7 gate without a Safe policy"
+        );
+        assertTrue(
+            vm.contains(r7, "launch:safe owners differ from the pinned set"),
+            "R7 does not show a wrong owner pin refusing"
+        );
+        assertTrue(vm.contains(r7, "launch:safe has a guard set"), "R7 does not show a guard refusing");
     }
 
     function test_runbookCarriesBudgetFundingAndFallbackKey() public view {

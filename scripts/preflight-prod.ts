@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 // By path: scripts/ is not a workspace package, so the bare '@agent-jobs/sdk' specifier does not resolve here.
 import { RELAY_FLOOR_MAINNET } from '../packages/sdk/src/relay.ts'
-import { liveLaunchGate, relayFloorWei, validateExploreRelease, validateProdConfig, type ProdArtifact } from '../apps/api/src/prod-config.ts'
+import { liveLaunchGate, relayFloorWei, safePolicy, validateExploreRelease, validateProdConfig, type ProdArtifact } from '../apps/api/src/prod-config.ts'
 import { probeRelease, rpcReader } from '../apps/api/src/deploy-preflight.ts'
 import { MAINNET_LIVE } from '../apps/explore/src/release.ts'
 import mainnet from '../contracts/config/monad-mainnet.json' with { type: 'json' }
@@ -46,7 +46,7 @@ if (failures.length > 0) {
   try {
     const chain = await fetch(artifact.rpc.url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }), signal: AbortSignal.timeout(15_000) })
     const body = await chain.json() as { result?: string }
-    gate = Number(body.result) === 143 ? await liveLaunchGate(mainnet, reader, relayFloorWei(RELAY_FLOOR_MAINNET)) : ['launch:rpc is not chain 143']
+    gate = Number(body.result) === 143 ? await liveLaunchGate(mainnet, reader, relayFloorWei(RELAY_FLOOR_MAINNET), safePolicy(artifact)) : ['launch:rpc is not chain 143']
   } catch {
     gate = ['launch:rpc unreadable']
   }
@@ -54,6 +54,6 @@ if (failures.length > 0) {
     console.error(`production launch gate refused: ${gate.join(', ')}`)
     process.exitCode = 1
   } else {
-    console.log('Hireling v1 production launch gate passed: Safe owns all six, holds both core admin roles (deployer neither), attester verifies, relay above RELAY_FLOOR_MAINNET')
+    console.log('Hireling v1 production launch gate passed: the reviewed Safe (canonical 1.4.1, pinned owners and threshold, no module, no guard) owns all six, holds both core admin roles (deployer neither), attester verifies, relay above RELAY_FLOOR_MAINNET')
   }
 }

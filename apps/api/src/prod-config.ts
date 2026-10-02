@@ -24,6 +24,9 @@ export interface ProdStack {
 export interface ProdHireling {
   block: number | null
   safe?: string | null | undefined
+  /** Artifact only (LAUNCH-AUDIT-003): the reviewed Safe owners and threshold that D16 reads back live. */
+  safeOwners?: string[] | null | undefined
+  safeThreshold?: number | null | undefined
   factory: string | null
   vault: string | null
   feeSchedule: string | null
@@ -121,6 +124,8 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
     const value = hireling?.[name]
     check(address(value) && artifact.deployment.hireling[name]?.toLowerCase() === value.toLowerCase(), `hireling:${name}`)
   }
+  const pinned = safePolicy(artifact)
+  check(pinned !== undefined, 'hireling:safeOwners/safeThreshold')
   for (const name of ['factory', 'holding', 'evaluator'] as const) {
     const value = deployed.main?.[name]
     check(address(value) && artifact.deployment.main[name]?.toLowerCase() === value.toLowerCase(), `main:${name}`)
@@ -146,6 +151,21 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   return failures
 }
 
+/** The Safe policy D16 enforces, as pinned in the artifact: distinct owners, a threshold between 1 and their number. */
+export interface SafePolicy {
+  owners: string[]
+  threshold: number
+}
+
+export function safePolicy(artifact: Pick<ProdArtifact, 'deployment'>): SafePolicy | undefined {
+  const owners = artifact.deployment?.hireling?.safeOwners
+  const threshold = artifact.deployment?.hireling?.safeThreshold
+  if (!Array.isArray(owners) || owners.length === 0 || !owners.every(address)) return undefined
+  if (new Set(owners.map(owner => owner.toLowerCase())).size !== owners.length) return undefined
+  if (typeof threshold !== 'number' || !Number.isSafeInteger(threshold) || threshold < 1 || threshold > owners.length) return undefined
+  return { owners, threshold }
+}
+
 export function validateProdConfig(config: ChainConfig, artifact: ProdArtifact): string[] {
   try {
     return validateCompleteProdConfig(config, artifact)
@@ -165,6 +185,8 @@ export interface LaunchReader {
   code(address: string): Promise<string>
   call(to: string, data: `0x${string}`): Promise<`0x${string}`>
   balance(address: string): Promise<bigint>
+  /** One 32-byte storage word. */
+  storage(address: string, slot: `0x${string}`): Promise<`0x${string}`>
 }
 
 const launchAbi = parseAbi([
@@ -173,7 +195,19 @@ const launchAbi = parseAbi([
   'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
   'function hasRole(bytes32 role, address account) view returns (bool)',
   'function verifiers(address account) view returns (bool)',
+  'function VERSION() view returns (string)',
+  'function getOwners() view returns (address[])',
+  'function getThreshold() view returns (uint256)',
+  'function getModulesPaginated(address start, uint256 pageSize) view returns (address[] array, address next)',
 ])
+
+/** The canonical SafeL2 v1.4.1 singleton on Monad (runbook §1.1); a Safe proxy keeps it at storage slot 0. */
+export const SAFE_SINGLETON = '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762'
+/** keccak256("guard_manager.guard.address"): Safe v1.4.1's transaction guard. */
+export const SAFE_GUARD_SLOT = '0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8'
+const SAFE_SENTINEL = '0x0000000000000000000000000000000000000001'
+const SLOT_0 = `0x${'0'.repeat(64)}` as const
+const word = (value: unknown): value is `0x${string}` => typeof value === 'string' && /^0x[0-9a-fA-F]{64}$/.test(value)
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
@@ -246,13 +280,18 @@ export function validateReleaseProbe(artifact: Pick<ProdArtifact, 'network' | 'e
 /**
  * Every predicate that must hold, read live, before production admission opens. Returns failure labels, no values;
  * a failed or malformed read is a failure. Pending ownership passes promotion, never this gate.
- *   1. `deployment.hireling.safe` is set and has code (it matching the artifact is the structural check);
+ *   1. `deployment.hireling.safe` is set and has code (it matching the artifact is the structural check), and it is the
+ *      reviewed Safe (LAUNCH-AUDIT-003): a proxy of the canonical SafeL2 singleton, VERSION 1.4.1, exactly the
+ *      artifact's pinned owners and threshold, no module (getModulesPaginated(0x1, 10) is empty) and no guard. A module
+ *      acts without advancing the nonce, which the mining fund's guard (D18) relies on; a guard can block execution;
  *   2. `owner() == safe` on the six v1 contracts;
  *   3. the core's DEFAULT_ADMIN_ROLE and ADMIN_ROLE are held by the Safe, and by the deployer (`roles.admin`) for neither;
  *   4. `verifiers(roles.attester)` on the v1 Evaluator;
  *   5. the relay (`roles.relay`, whose key preflight derives) holds strictly more than the floor.
  */
-export async function liveLaunchGate(config: ChainConfig, reader: LaunchReader, relayFloor: bigint | undefined): Promise<string[]> {
+export async function liveLaunchGate(
+  config: ChainConfig, reader: LaunchReader, relayFloor: bigint | undefined, policy: SafePolicy | undefined,
+): Promise<string[]> {
   const failures: string[] = []
   const deployed = config.deployment
   const safe = deployed.hireling?.safe
@@ -265,7 +304,8 @@ export async function liveLaunchGate(config: ChainConfig, reader: LaunchReader, 
       return undefined
     }
   }
-  const view = async (to: unknown, functionName: 'owner' | 'ADMIN_ROLE' | 'DEFAULT_ADMIN_ROLE' | 'hasRole' | 'verifiers', args: readonly unknown[] = []) => {
+  type LaunchFunction = 'owner' | 'ADMIN_ROLE' | 'DEFAULT_ADMIN_ROLE' | 'hasRole' | 'verifiers' | 'VERSION' | 'getOwners' | 'getThreshold' | 'getModulesPaginated'
+  const view = async (to: unknown, functionName: LaunchFunction, args: readonly unknown[] = []) => {
     if (!address(to)) throw new Error('no address')
     const data = encodeFunctionData({ abi: launchAbi, functionName, args } as never)
     return decodeFunctionResult({ abi: launchAbi, functionName, data: await reader.call(to, data) } as never) as unknown
@@ -274,6 +314,31 @@ export async function liveLaunchGate(config: ChainConfig, reader: LaunchReader, 
   const code = await read('launch:safe code', () => reader.code(safe))
   if (code !== undefined && !/^0x[0-9a-fA-F]*$/.test(code)) failures.push('launch:safe code unreadable')
   else if (code !== undefined && /^0x0*$/.test(code)) failures.push('launch:safe has no code')
+
+  // LAUNCH-AUDIT-003: the reviewed Safe, read live against the artifact's pinned policy.
+  const singleton = await read('launch:safe singleton', () => reader.storage(safe, SLOT_0))
+  if (singleton !== undefined && !(word(singleton) && same(`0x${singleton.slice(26)}`, SAFE_SINGLETON) && /^0x0{24}/.test(singleton))) {
+    failures.push('launch:safe singleton is not the canonical SafeL2 v1.4.1')
+  }
+  const version = await read('launch:safe VERSION', () => view(safe, 'VERSION'))
+  if (version !== undefined && version !== '1.4.1') failures.push('launch:safe VERSION is not 1.4.1')
+  if (policy === undefined) failures.push('launch:safe owners/threshold not pinned in the artifact')
+  const owners = await read('launch:safe owners', () => view(safe, 'getOwners'))
+  if (owners !== undefined && policy !== undefined) {
+    const live = Array.isArray(owners) ? owners.map(owner => String(owner).toLowerCase()) : []
+    const want = policy.owners.map(owner => owner.toLowerCase())
+    if (!Array.isArray(owners) || live.length !== want.length || new Set(live).size !== live.length || !want.every(owner => live.includes(owner))) {
+      failures.push('launch:safe owners differ from the pinned set')
+    }
+  }
+  const threshold = await read('launch:safe threshold', () => view(safe, 'getThreshold'))
+  if (threshold !== undefined && policy !== undefined && threshold !== BigInt(policy.threshold)) failures.push('launch:safe threshold differs from the pinned one')
+  const modules = await read('launch:safe modules', () => view(safe, 'getModulesPaginated', [SAFE_SENTINEL, 10n]))
+  if (modules !== undefined && !(Array.isArray(modules) && Array.isArray(modules[0]) && modules[0].length === 0)) {
+    failures.push('launch:safe has a module enabled')
+  }
+  const guard = await read('launch:safe guard', () => reader.storage(safe, SAFE_GUARD_SLOT))
+  if (guard !== undefined && !(word(guard) && /^0x0{64}$/.test(guard))) failures.push('launch:safe has a guard set')
 
   const owned: Record<(typeof launchOwnedContracts)[number], unknown> = {
     vault: deployed.hireling?.vault, feeSchedule: deployed.hireling?.feeSchedule, holding: deployed.main?.holding,

@@ -56,6 +56,8 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
    vesting, 10% ecosystem and 5% liquidity; nothing can mint again.
 3. **The reviewed production artifact** (`docs/p0-prod-artifact.json`, filled after §3.3). It records:
    - the deployment addresses, including `deployment.hireling.safe`;
+   - the Safe policy the launch gate reads back (§3.6): `deployment.hireling.safeOwners`, the exact owner set, and
+     `deployment.hireling.safeThreshold`;
    - the Privy app id and approval;
    - the RPC and HyperSync providers;
    - `admission.drain` (§3.8, §3.10).
@@ -220,6 +222,9 @@ bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live
 It must print `Hireling v1 production launch gate passed`. It runs after the structural check, reads live state through
 the artifact's public RPC (chain 143 only), and refuses on any failed read. It requires:
 - the Safe set, with code, matching the artifact;
+- the reviewed Safe: storage slot 0 is the canonical SafeL2 singleton (§1.1), `VERSION()` is 1.4.1, `getOwners()` is
+  exactly the artifact's `safeOwners` and `getThreshold()` its `safeThreshold`, `getModulesPaginated(0x1, 10)` is
+  empty, and the guard slot is zero;
 - `owner() == Safe` on all six;
 - the core's `DEFAULT_ADMIN_ROLE` and `ADMIN_ROLE` held by the Safe, and by the deployer for neither;
 - the attester a verifier on the Evaluator;

@@ -3,9 +3,10 @@ import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { privateKeyToAccount } from 'viem/accounts'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import { MAINNET_LIVE } from '../../explore/src/release.ts'
-import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, validateAdmissionMode, validateExploreRelease, validateProdConfig, validateReleaseProbe, type ChainConfig, type LaunchReader, type ProdArtifact } from './prod-config.ts'
+import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, safePolicy, validateAdmissionMode, validateExploreRelease, validateProdConfig, validateReleaseProbe, type ChainConfig, type LaunchReader, type ProdArtifact, type SafePolicy } from './prod-config.ts'
 
-/** JSON-RPC reads only (eth_getCode, eth_call, eth_getBalance at latest). Any transport, HTTP or RPC error throws. */
+/** JSON-RPC reads only (eth_getCode, eth_call, eth_getBalance, eth_getStorageAt at latest). Any transport, HTTP or RPC
+ *  error throws. */
 export function rpcReader(url: string): LaunchReader {
   let id = 0
   const rpc = async (method: string, params: unknown[]): Promise<string> => {
@@ -18,14 +19,17 @@ export function rpcReader(url: string): LaunchReader {
     code: address => rpc('eth_getCode', [address, 'latest']),
     call: async (to, data) => await rpc('eth_call', [{ to, data }, 'latest']) as `0x${string}`,
     balance: async address => BigInt(await rpc('eth_getBalance', [address, 'latest'])),
+    storage: async (address, slot) => await rpc('eth_getStorageAt', [address, slot, 'latest']) as `0x${string}`,
   }
 }
 
 /** D16: refuse a deploy that would open production admission unless the live launch predicates hold. A deploy that pins
  *  an explicit drained `PROD_ADMISSION_DRAIN` (setup or emergency) does not need them. Runs before any resource. */
-export async function assertLaunchGate(config: ChainConfig, drain: string | undefined, reader: LaunchReader, relayFloor: bigint | undefined): Promise<void> {
+export async function assertLaunchGate(
+  config: ChainConfig, drain: string | undefined, reader: LaunchReader, relayFloor: bigint | undefined, policy: SafePolicy | undefined,
+): Promise<void> {
   if (!opensAdmission(drain)) return
-  const failures = await liveLaunchGate(config, reader, relayFloor)
+  const failures = await liveLaunchGate(config, reader, relayFloor, policy)
   if (failures.length > 0) throw new Error(`production launch gate refused: ${failures.join(', ')}`)
 }
 
@@ -72,7 +76,7 @@ export async function assertDeployConfig(stage: string): Promise<void> {
   } catch {
     throw new Error('production read-only RPC chain proof failed')
   }
-  await assertLaunchGate(mainnet, process.env.PROD_ADMISSION_DRAIN, rpcReader(rpc), relayFloorWei(RELAY_FLOOR_MAINNET))
+  await assertLaunchGate(mainnet, process.env.PROD_ADMISSION_DRAIN, rpcReader(rpc), relayFloorWei(RELAY_FLOOR_MAINNET), safePolicy(artifact))
 }
 
 /** Post-deploy (PROD-GATE-006): GET `<origin>/release.json` and compare it to the artifact. A failed fetch or a body that

@@ -4,7 +4,8 @@
 #   1. a 1-of-2 Safe from the canonical v1.4.1 SafeProxyFactory + SafeL2 singleton (their code is checked first);
 #   2. DeployHireling with a fresh core and MAINNET_GO;
 #   3. PromoteHireling (no transactions), then the D16 launch gate, which must refuse: the six are only pending;
-#   4. SafeAccept (six execTransactions from an owner), then the D16 gate, which must pass;
+#   4. SafeAccept (six execTransactions from an owner), then the D16 gate, which must pass with this Safe's owners and
+#      threshold pinned (LAUNCH-AUDIT-003), and refuse a wrong owner pin and a guard;
 #   5. SeedPool (helper, approvals, seed) and its receipt-based verify();
 #   6. one direct hire through the v1 pair (register, stake, publish, activate, submit, accept, settle);
 #   7. mining: warp past epoch 0; a Safe owner signs the price list (a throwaway keystore), scripts/mining computes the
@@ -94,11 +95,12 @@ import { RELAY_FLOOR_MAINNET } from '$REPO/packages/sdk/src/relay.ts'
 import { liveLaunchGate } from '$REPO/apps/api/src/prod-config.ts'
 import { rpcReader } from '$REPO/apps/api/src/deploy-preflight.ts'
 const config = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-const failures = await liveLaunchGate(config, rpcReader(process.argv[3]), RELAY_FLOOR_MAINNET)
+// argv[4]: the Safe policy the artifact would pin (deployment.hireling.safeOwners / safeThreshold), as JSON.
+const failures = await liveLaunchGate(config, rpcReader(process.argv[3]), RELAY_FLOOR_MAINNET, JSON.parse(process.argv[4]))
 console.log(JSON.stringify(failures))
 process.exit(failures.length > 0 ? 3 : 0)
 EOF
-gate() { bun "$GATE_TS" "$CONFIG" "$LOCAL"; }
+gate() { bun "$GATE_TS" "$CONFIG" "$LOCAL" "${1:-$POLICY}"; }
 
 # The fork must be this run's own anvil: refuse a port something else already serves.
 cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
@@ -109,6 +111,8 @@ for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break
 kill -0 "$ANVIL_PID" 2>/dev/null || fail "the anvil this run started is not running (port $PORT taken?)"
 
 DEPLOYER=$(addr $K_DEPLOYER); OWNER1=$(addr $K_OWNER1); OWNER2=$(addr $K_OWNER2)
+# The Safe policy an artifact would pin for this Safe (deployment.hireling.safeOwners / safeThreshold), which D16 reads back.
+POLICY="{\"owners\":[\"$OWNER1\",\"$OWNER2\"],\"threshold\":1}"
 ARBITRATOR=$(addr $K_ARBITRATOR); RELAY=$(addr $K_RELAY); ATTESTER=$(addr $K_ATTESTER); TEAM=$(addr $K_TEAM)
 for k in $K_DEPLOYER $K_OWNER1 $K_OWNER2 $K_RELAY $K_CREATOR $K_WORKER; do
   cast rpc --rpc-url "$LOCAL" anvil_setBalance "$(addr "$k")" 0x21e19e0c9bab2400000 >/dev/null # 10,000 MON
@@ -168,7 +172,17 @@ log /tmp/r7-accept.log env MAINNET_GO=yes forge script script/SafeAccept.s.sol -
 budget_run "4. SafeAccept (6 execTransactions)" SafeAccept
 log /tmp/r7-accept-check.log forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$LOCAL" || fail "SafeAccept check"
 gate >/tmp/r7-gate.log || fail "D16 gate refused after SafeAccept: $(cat /tmp/r7-gate.log)"
-ok "the Safe owns all six; D16 gate passes (Safe custody, core roles, verifier, relay above RELAY_FLOOR_MAINNET)"
+ok "the Safe owns all six; D16 gate passes (reviewed Safe: canonical 1.4.1, pinned owners/threshold, no module, no guard; custody, core roles, verifier, relay above RELAY_FLOOR_MAINNET)"
+# LAUNCH-AUDIT-003 on the fork: a pinned owner set the Safe does not have, then a guard, each refuse.
+set +e; REFUSED=$(gate "{\"owners\":[\"$OWNER1\",\"$TEAM\"],\"threshold\":1}"); CODE=$?; set -e
+[[ $CODE -eq 3 && "$REFUSED" == '["launch:safe owners differ from the pinned set"]' ]] || fail "a wrong owner pin did not refuse: $REFUSED"
+GUARD_SLOT=0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8
+cast rpc --rpc-url "$LOCAL" anvil_setStorageAt "$SAFE" $GUARD_SLOT "$(cast to-uint256 "$TEAM")" >/dev/null
+set +e; REFUSED=$(gate); CODE=$?; set -e
+cast rpc --rpc-url "$LOCAL" anvil_setStorageAt "$SAFE" $GUARD_SLOT "$(cast to-uint256 0)" >/dev/null
+[[ $CODE -eq 3 && "$REFUSED" == '["launch:safe has a guard set"]' ]] || fail "a Safe guard did not refuse: $REFUSED"
+gate >/tmp/r7-gate.log || fail "D16 gate refused once the guard was cleared: $(cat /tmp/r7-gate.log)"
+ok "D16 refuses a wrong pinned owner set and a Safe guard; passes again once cleared"
 
 # 5. SeedPool and its receipt-based verification. The seeder holds the liquidity allocation; USDC is dealt.
 # Monad's USDC is Circle's FiatToken v2 (balances at storage slot 9); anvil_dealERC20 cannot find the slot.
