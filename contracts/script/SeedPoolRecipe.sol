@@ -5,6 +5,7 @@ import {Vm, VmSafe} from "forge-std/Vm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BroadcastPath} from "./BroadcastPath.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {PoolKey, IV4PositionManager, IV4Permit2, IV4StateView, SeedHelper} from "../src/hireling/SeedHelper.sol";
 
@@ -220,10 +221,10 @@ library SeedPoolRecipe {
         }
     }
 
-    // ---- the broadcast log (`broadcast/SeedPool.s.sol/<chainId>/run-latest.json`) ----
+    // ---- the broadcast log (`<broadcast>/SeedPool.s.sol/<chainId>/run-latest.json`, BroadcastPath) ----
 
     function runPath(Vm vm, uint256 chainId) internal view returns (string memory) {
-        return string.concat(vm.projectRoot(), "/broadcast/SeedPool.s.sol/", vm.toString(chainId), "/run-latest.json");
+        return string.concat(BroadcastPath.root(vm), "/SeedPool.s.sol/", vm.toString(chainId), "/run-latest.json");
     }
 
     /// @notice The logs of the run's successful receipts. `strict` (the verification) also refuses a pending

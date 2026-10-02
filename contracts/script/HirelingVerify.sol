@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Vm} from "forge-std/Vm.sol";
 import {HirelingRecipe} from "./HirelingRecipe.sol";
+import {BroadcastPath} from "./BroadcastPath.sol";
 import {IFeeSchedule} from "../src/hireling/interfaces/IFeeSchedule.sol";
 import {HirelingConstants} from "../src/hireling/interfaces/HirelingConstants.sol";
 
@@ -110,9 +111,9 @@ library HirelingVerify {
         _require(owner == c.safe || (owner == c.admin && pending == c.safe), what);
     }
 
-    /// @notice Forge's broadcast log for the deploy: `broadcast/DeployHireling.s.sol/<chainId>/run-latest.json`.
+    /// @notice Forge's broadcast log for the deploy: `<broadcast>/DeployHireling.s.sol/<chainId>/run-latest.json`.
     function runPath(Vm vm, uint256 chainId) internal view returns (string memory) {
-        return string.concat(vm.projectRoot(), "/broadcast/DeployHireling.s.sol/", vm.toString(chainId), "/run-latest.json");
+        return string.concat(BroadcastPath.root(vm), "/DeployHireling.s.sol/", vm.toString(chainId), "/run-latest.json");
     }
 
     /// @notice Deploy blocks from the receipts, after checking the log is complete: every transaction has a successful

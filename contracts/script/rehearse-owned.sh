@@ -1,30 +1,39 @@
 # Sourced by the fork rehearsals (rehearse-launch.sh, rehearse-launch-testnet.sh, rehearse-flows-testnet.sh,
-# rehearse-hireling-pipeline.sh): on exit
-# they delete only what their own run created, after checking it still owns it (G1-DRY-001). A real launch run from
-# the same checkout writes the same broadcast/ and cache/ paths, and must never be swept away by a rehearsal.
+# rehearse-hireling-pipeline.sh). A real launch run from the same checkout writes config/<network>.json and forge's
+# broadcast/<script>/<chain>/run-latest.json (with its cache/ twin); a rehearsal must never write or delete either
+# (G1-DRY-001 and its residual).
 
-# owned_runs <chain> <rpc> <signer address>...: for each script in $SCRIPTS, deletes a broadcast run log on <chain>
-# only if it has transactions, every one was sent by those signers, and its cache twin (forge's record of the RPC each
-# was sent to) names only <rpc>, this rehearsal's loopback fork, which no real launch uses; then the twin too. Anything
-# else is kept and named; the directories (with forge's dry-run/ ones) go only once empty.
-owned_runs() {
-  local chain=$1 rpc=$2 ours s d f twin
-  shift 2
-  ours=$(printf '%s\n' "$@" | tr 'A-F' 'a-f' | jq -R . | jq -sc .)
-  for s in "${SCRIPTS[@]}"; do
-    for f in "broadcast/$s.s.sol/$chain"/*.json "broadcast/$s.s.sol/$chain"/dry-run/*.json; do
-      [[ -e "$f" ]] || continue
-      twin="cache/${f#broadcast/}"
-      if jq -e --argjson ours "$ours" '(.transactions | length) > 0
-          and all(.transactions[]; (.transaction.from // "" | ascii_downcase) as $a | $ours | index($a) != null)' \
-          "$f" >/dev/null 2>&1 \
-        && jq -e --arg rpc "$rpc" '(.transactions | length) > 0 and all(.transactions[]; .rpc == $rpc)' "$twin" >/dev/null 2>&1; then
-        rm -f "$f" "$twin"
-      else
-        echo "kept $f: not sent by this rehearsal's signers to its fork" >&2
-      fi
-    done
-    for d in broadcast cache; do rmdir "$d/$s.s.sol/$chain/dry-run" "$d/$s.s.sol/$chain" 2>/dev/null || true; done
+# rehearsal_run: this run's own names and forge paths. RUN_ID is the pid plus 32 random bits. NETWORK=rehearsal-$RUN_ID
+# selects the scratch config/rehearsal-$RUN_ID.json (gitignored). Forge writes this run's broadcast logs and their cache
+# twins under broadcast/rehearsal-$RUN_ID and cache/rehearsal-$RUN_ID (FOUNDRY_BROADCAST, FOUNDRY_CACHE_PATH), and the
+# scripts read them back from there (script/BroadcastPath.sol), so a rehearsal never touches a real launch's logs. Both
+# directories are new, marked with RUN_ID; the compile cache is seeded from the shared one, so nothing recompiles.
+rehearsal_run() {
+  local d
+  RUN_ID="$$-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
+  export NETWORK="rehearsal-$RUN_ID" FOUNDRY_BROADCAST="broadcast/rehearsal-$RUN_ID" FOUNDRY_CACHE_PATH="cache/rehearsal-$RUN_ID"
+  for d in "$FOUNDRY_BROADCAST" "$FOUNDRY_CACHE_PATH"; do
+    mkdir -p "$(dirname "$d")"
+    mkdir "$d" || { echo "refusing: $d already exists" >&2; exit 1; }
+    printf '%s\n' "$RUN_ID" >"$d/.rehearsal-run"
+  done
+  if [[ -e cache/solidity-files-cache.json ]]; then cp cache/solidity-files-cache.json "$FOUNDRY_CACHE_PATH/"; fi
+}
+
+# real_logs <chain>: a digest of every forge log for <chain> outside the rehearsal directories: a real launch's
+# broadcast/<script>/<chain>/run-latest.json and the rest, with their cache/ twins. A rehearsal takes it after
+# rehearsal_run and checks it again before it passes, to show it touched none of them.
+real_logs() {
+  { find broadcast cache -path '*/rehearsal-*' -prune -o -path "*/$1/*" -type f -print 2>/dev/null || true; } \
+    | LC_ALL=C sort | while IFS= read -r f; do sha256sum "$f"; done | sha256sum
+}
+
+# owned_run_dirs: on exit, deletes this run's two forge directories, each only if it still carries this run's mark.
+owned_run_dirs() {
+  local d
+  for d in "${FOUNDRY_BROADCAST:-}" "${FOUNDRY_CACHE_PATH:-}"; do
+    [[ -n "${RUN_ID:-}" && "$d" == */rehearsal-"$RUN_ID" && -d "$d" ]] || continue
+    if [[ "$(cat "$d/.rehearsal-run" 2>/dev/null)" == "$RUN_ID" ]]; then rm -rf -- "$d"; else echo "kept $d: not this rehearsal's" >&2; fi
   done
 }
 

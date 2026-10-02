@@ -4,30 +4,33 @@
 # fresh 1-of-2 Safe in a scratch config; dev0 stands in for roles.admin as the reused core's admin, so the launch's
 # pauser step grants the Safe ADMIN_ROLE. Then, on the fork:
 #   - no signer, or a password file others can read, refuses; a chain-143 RPC refuses before anything is sent (with
-#     the --private-keys fallback); a second launch refuses;
+#     the --private-keys fallback); a launch started from outside while this rehearsal runs refuses (the launch lock);
+#     a second launch refuses;
 #   - --from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE: nothing sent);
 #   - a Safe with a module, or with a guard, refuses (the mining fund's nonce guard, D18, needs neither);
 #   - 3 days later anyone executes the proposed fee schedule; 8 days later anyone accepts the probed Holding.
-# Prints the gas limits each sender is charged. Writes config/rehearsal-testnet.json and chain-10143 broadcast logs
-# and removes both on exit; refuses to start if any already exist (a real testnet run's). Needs anvil, forge, cast,
-# jq, bun, bc, perl.
+# Prints the gas limits each sender is charged. Holds the launch lock (script/launch-lock.sh), so it refuses while
+# another launch or rehearsal runs in this checkout. Writes only its own scratch config/rehearsal-<pid>-<random>.json
+# and forge logs under broadcast/ and cache/rehearsal-<pid>-<random> (script/rehearse-owned.sh), never a real launch's
+# chain-10143 run-latest.json, and removes them on exit. Needs anvil, forge, cast, jq, bun, bc, perl.
 #   bash script/rehearse-launch-testnet.sh            # RPC=<testnet RPC to fork>, default the public one
 #   KEEP=1 bash script/rehearse-launch-testnet.sh     # stop after the launch, leaving the fork running and the promoted
-#                                                     # scratch config in place (it prints both; fee proposal and Holding
-#                                                     # probe still pending), for a harness to run against
+#                                                     # scratch config and forge directories in place (it prints them;
+#                                                     # fee proposal and Holding probe still pending), for a harness to
+#                                                     # run against; the lock is released
 # The anvil dev accounts' EIP-7702 delegation code (every one has some on Monad testnet) is cleared on the fork first.
 set -euo pipefail
+{ # parsed whole before it runs, so an edit to this file mid-run cannot change what runs
 cd "$(dirname "$0")/.."
+. script/launch-lock.sh
+take_launch_lock
+. script/rehearse-owned.sh
 
 FORK_RPC="${RPC:-https://testnet-rpc.monad.xyz}"
 MAINNET_RPC="${MAINNET_RPC:-https://rpc.monad.xyz}"
 PORT="${PORT:-8599}"
 export REHEARSAL_RPC="http://127.0.0.1:$PORT"
-export NETWORK=rehearsal-testnet
-CONFIG="config/$NETWORK.json"
-CANDIDATE="broadcast/hireling/$NETWORK.candidate.json"
 CHAIN=10143
-SCRIPTS=(DeployHireling PromoteHireling SafeAccept DeployOddTokens)
 export LAUNCH_LOGS
 LAUNCH_LOGS="$(mktemp -d)"
 LOCAL="$REHEARSAL_RPC"
@@ -58,32 +61,25 @@ cast wallet import --keystore-dir "$KEYSTORES" safe-owner --private-key "$REHEAR
 LAUNCH=(env RPC_ENV=REHEARSAL_RPC DEPLOYER_ACCOUNT="$KEYSTORES/deployer" DEPLOYER_PASSWORD_FILE="$PASSWORD_FILE"
   SAFE_OWNER_ACCOUNT="$KEYSTORES/safe-owner" SAFE_OWNER_PASSWORD_FILE="$PASSWORD_FILE" bash script/launch-testnet.sh)
 
-for s in "${SCRIPTS[@]}"; do
-  if [[ -e "broadcast/$s.s.sol/$CHAIN" || -e "cache/$s.s.sol/$CHAIN" ]]; then
-    echo "refusing: broadcast/ or cache/$s.s.sol/$CHAIN exists (a real testnet log?); move it away first" >&2
-    exit 1
-  fi
-done
-[[ ! -e "$CONFIG" && ! -e "$CANDIDATE" ]] || { echo "refusing: $CONFIG or $CANDIDATE exists" >&2; exit 1; }
-
-ANVIL_PID= KEPT=0 SAFE=
-. script/rehearse-owned.sh
-# Only what this run created: G1 itself, run from the same checkout, writes the same chain-10143 broadcast paths.
+ANVIL_PID= KEPT=0 SAFE= CONFIG=
+# Only what this run created, and still owns.
 cleanup() {
   [[ $KEPT -eq 0 && -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  owned_runs "$CHAIN" "$LOCAL" "$DEPLOYER" "$OWNER1"
-  [[ $KEPT -eq 1 ]] || owned_file "$CONFIG" .hireling.safe "$SAFE"
-  owned_file "$CANDIDATE" .safe "$SAFE"
+  [[ $KEPT -eq 1 ]] || { owned_file "$CONFIG" .hireling.safe "$SAFE"; owned_run_dirs; }
   rm -rf "$LAUNCH_LOGS" "$KEYSTORES"
 }
 trap cleanup EXIT
+rehearsal_run
+REAL_LOGS=$(real_logs "$CHAIN")
+CONFIG="config/$NETWORK.json"
+[[ ! -e "$CONFIG" ]] || { echo "refusing: $CONFIG exists" >&2; exit 1; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 
 # The fork must be this run's own anvil: refuse a port something else already serves.
 cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
-# No inherited stdout: with KEEP=1 anvil outlives this script, and must not hold a caller's pipe open.
-anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent </dev/null >/dev/null 2>&1 &
+# No inherited stdout or lock: with KEEP=1 anvil outlives this script, and must not hold a caller's pipe or the lock.
+anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent </dev/null >/dev/null 2>&1 9>&- &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL" 2>/dev/null)" == "$CHAIN" ]] || fail "anvil fork of chain $CHAIN not up"
@@ -147,17 +143,25 @@ refused "refusing: the RPC is chain 143" env MAINNET_TEST_RPC="$MAINNET_RPC" RPC
   bash script/launch-testnet.sh --yes --private-keys || fail "a chain-143 RPC was not refused: $OUT"
 ok "a chain-143 RPC is refused before anything else"
 
+# The launch lock: a launch started from outside meanwhile (9>&-: it does not inherit this rehearsal's lock, as the
+# launch-testnet.sh runs above do) refuses at once.
+refused "refusing: another launch or rehearsal is running" "${LAUNCH[@]}" --yes 9>&- || fail "a concurrent launch was not refused: $OUT"
+ok "a launch started while this rehearsal runs refuses (the launch lock); this rehearsal's own runs inherit the lock"
+
 # The launch itself, with both optional flags.
 "${LAUNCH[@]}" --yes --fee-proposal --holding-probe | tee "$LAUNCH_LOGS/launch.out"
 grep -q "LAUNCH-TESTNET DONE" "$LAUNCH_LOGS/launch.out" || fail "launch-testnet.sh did not finish"
 cp "$LAUNCH_LOGS/hashes.tsv" "$LAUNCH_LOGS/launch-hashes.tsv" # later runs start their own list
 ok "launch-testnet.sh ran end to end"
 if [[ "${KEEP:-0}" == 1 ]]; then
+  [[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
+  ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
   KEPT=1
   echo "KEEP: fork $LOCAL (chain $CHAIN, anvil pid $ANVIL_PID)"
   echo "KEEP: config $PWD/$CONFIG (NETWORK=$NETWORK; Safe $SAFE; fee proposal and Holding probe pending)"
   echo "KEEP: signers are anvil's dev accounts: deployer = index 0, Safe owners = 1 and 2; odd-token wallets $(jq -r '.oddTokens.wallets | join(" ")' "$CONFIG")"
-  echo "KEEP: stop it with: kill $ANVIL_PID; rm $PWD/$CONFIG"
+  echo "KEEP: further forge runs against it: NETWORK=$NETWORK FOUNDRY_BROADCAST=$FOUNDRY_BROADCAST FOUNDRY_CACHE_PATH=$FOUNDRY_CACHE_PATH (in $PWD)"
+  echo "KEEP: stop it with: kill $ANVIL_PID; rm -r $PWD/$CONFIG $PWD/$FOUNDRY_BROADCAST $PWD/$FOUNDRY_CACHE_PATH"
   exit 0
 fi
 
@@ -222,4 +226,8 @@ for k in "DeployHireling (deployer)" "core ADMIN_ROLE (deployer)" "DeployOddToke
   printf '  %-28s %3s txs %12s gas  %s MON at 102 gwei\n' "$k" "${COUNT[$k]:-0}" "${LIMIT[$k]:-0}" \
     "$(bc <<<"scale=4; ${LIMIT[$k]:-0} * 102 / 1000000000")"
 done
+[[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
+ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
 echo "LAUNCH-TESTNET REHEARSAL PASSED"
+exit
+}

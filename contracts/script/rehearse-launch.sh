@@ -12,22 +12,23 @@
 #      epoch from the fork's logs, the Safe sends the tool's fund (an ECDSA SafeTx at the nonce read with totalFunded, as
 #      /admin does, D18; the same signature again reverts) + setRoot, and the worker's and creator's claims stake.
 # Every step's gas (the limits actually sent, which Monad charges, and gasUsed) is printed as the launch budget.
-# Sends nothing to a real chain: anvil's public dev keys sign everything, against a local fork. Writes a scratch
-# config/rehearsal-mainnet.json and chain-143 broadcast logs, and removes both on exit; refuses to start if any
-# chain-143 broadcast log already exists (a real deploy's). Needs anvil, forge, cast, jq, bun.
+# Sends nothing to a real chain: anvil's public dev keys sign everything, against a local fork. Holds the launch lock
+# (script/launch-lock.sh), so it refuses while another launch or rehearsal runs in this checkout. Writes only its own
+# scratch config/rehearsal-<pid>-<random>.json and forge logs under broadcast/ and cache/rehearsal-<pid>-<random>
+# (script/rehearse-owned.sh), never a real launch's chain-143 run-latest.json, and removes them on exit. Needs anvil,
+# forge, cast, jq, bun.
 #   RPC=https://rpc.monad.xyz bash script/rehearse-launch.sh
 set -euo pipefail
 { # parsed whole before it runs, so an edit to this file mid-run cannot change what runs
 cd "$(dirname "$0")/.."
+. script/launch-lock.sh
+take_launch_lock
+. script/rehearse-owned.sh
 
 FORK_RPC="${RPC:-https://rpc.monad.xyz}"
 PORT="${PORT:-8598}"
 LOCAL="http://127.0.0.1:$PORT"
-export NETWORK=rehearsal-mainnet
-CONFIG="config/$NETWORK.json"
-CANDIDATE="broadcast/hireling/$NETWORK.candidate.json"
 CHAIN=143
-SCRIPTS=(DeployHireling PromoteHireling SafeAccept SeedPool RehearseHireAndMine)
 BUDGET="$(mktemp)"
 GATE_TS="$(mktemp --suffix=.ts)"
 MINING="$(mktemp -d)"
@@ -47,26 +48,20 @@ K_DEPLOYER=$(devkey 0); K_OWNER1=$(devkey 1); K_OWNER2=$(devkey 2); K_ARBITRATOR
 K_ATTESTER=$(devkey 5); K_CREATOR=$(devkey 6); K_WORKER=$(devkey 7); K_TEAM=$(devkey 8)
 addr() { cast wallet address --private-key "$1"; }
 
-for s in "${SCRIPTS[@]}"; do
-  if [[ -e "broadcast/$s.s.sol/$CHAIN" || -e "cache/$s.s.sol/$CHAIN" ]]; then
-    echo "refusing: broadcast/ or cache/$s.s.sol/$CHAIN exists (a real chain-143 log?); move it away first" >&2
-    exit 1
-  fi
-done
-[[ ! -e "$CONFIG" ]] || { echo "refusing: $CONFIG exists" >&2; exit 1; }
-
-ANVIL_PID= SAFE=
-. script/rehearse-owned.sh
-# Only what this run created: a real launch from the same checkout writes the same chain-143 broadcast paths.
+ANVIL_PID= SAFE= CONFIG=
+# Only what this run created, and still owns.
 cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  owned_runs "$CHAIN" "$LOCAL" $(for i in $(seq 0 9); do addr "$(devkey "$i")"; done)
   owned_file "$CONFIG" .hireling.safe "$SAFE"
-  owned_file "$CANDIDATE" .safe "$SAFE"
+  owned_run_dirs
   rm -f "$GATE_TS" "$BUDGET"
   rm -rf "$MINING"
 }
 trap cleanup EXIT
+rehearsal_run
+REAL_LOGS=$(real_logs "$CHAIN")
+CONFIG="config/$NETWORK.json"
+[[ ! -e "$CONFIG" ]] || { echo "refusing: $CONFIG exists" >&2; exit 1; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 log() { local f=$1; shift; "$@" >"$f" 2>&1 || { tail -30 "$f"; return 1; }; }
@@ -84,7 +79,7 @@ budget_hashes() {
   done
   record "$label" "$n" "$tl" "$tu"
 }
-budget_run() { mapfile -t hashes < <(jq -r '.receipts[].transactionHash' "broadcast/$2.s.sol/$CHAIN/run-latest.json"); budget_hashes "$1" "${hashes[@]}"; }
+budget_run() { mapfile -t hashes < <(jq -r '.receipts[].transactionHash' "$FOUNDRY_BROADCAST/$2.s.sol/$CHAIN/run-latest.json"); budget_hashes "$1" "${hashes[@]}"; }
 
 # D16 launch gate (apps/api/src/prod-config.ts) against the fork, with the scratch config and the shared
 # RELAY_FLOOR_MAINNET (packages/sdk/src/relay.ts). Prints the failure labels; exit 3 when it refuses. Run with bun, as the
@@ -104,7 +99,7 @@ gate() { bun "$GATE_TS" "$CONFIG" "$LOCAL" "${1:-$POLICY}"; }
 
 # The fork must be this run's own anvil: refuse a port something else already serves.
 cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
-anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent &
+anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent 9>&- &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL")" == "$CHAIN" ]] || fail "anvil fork of chain 143 not up"
@@ -153,7 +148,7 @@ jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg atteste
 log /tmp/r7-deploy.log env MAINNET_GO=yes forge script script/DeployHireling.s.sol --rpc-url "$LOCAL" \
   --private-key $K_DEPLOYER --broadcast --slow || fail "DeployHireling"
 budget_run "2. DeployHireling (fresh core)" DeployHireling
-ok "deployed ($(jq '.transactions | length' broadcast/DeployHireling.s.sol/$CHAIN/run-latest.json) transactions)"
+ok "deployed ($(jq '.transactions | length' "$FOUNDRY_BROADCAST/DeployHireling.s.sol/$CHAIN/run-latest.json") transactions)"
 
 # 3. PromoteHireling, then the D16 gate: pending ownership must not open.
 log /tmp/r7-promote.log forge script script/PromoteHireling.s.sol --rpc-url "$LOCAL" || fail "PromoteHireling"
@@ -244,6 +239,8 @@ echo "LAUNCH BUDGET (Monad charges the gas limit; MON at 102 gwei now, and at fo
 printf '%-78s %4s %12s %12s %10s %10s\n' step txs "gas limit" "gas used" "MON@102" "MON@203"
 awk -F'\t' '{ printf "%-78s %4d %12d %12d %10.4f %10.4f\n", $1, $2, $3, $4, $3*102e-9, $3*203e-9; n+=$2; l+=$3; u+=$4 }
   END { printf "%-78s %4d %12d %12d %10.4f %10.4f\n", "total", n, l, u, l*102e-9, l*203e-9 }' "$BUDGET"
+[[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
+ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
 echo "LAUNCH REHEARSAL PASSED"
 exit
 }

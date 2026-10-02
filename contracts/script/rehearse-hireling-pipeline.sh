@@ -4,39 +4,39 @@
 #   2. a --broadcast run cut off after a few transactions leaves config/ untouched, and promotion refuses it;
 #   3. --resume finishes the sequence, promotion verifies it live and records it once, with receipt blocks;
 #   4. promotion again changes nothing.
-# Sends nothing to a real chain (the deployer is impersonated on the fork). Needs anvil, forge, cast and jq.
+# Sends nothing to a real chain (the deployer is impersonated on the fork). Holds the launch lock
+# (script/launch-lock.sh), so it refuses while another launch or rehearsal runs in this checkout. Writes only its own
+# scratch config/rehearsal-<pid>-<random>.json and forge logs under broadcast/ and cache/rehearsal-<pid>-<random>
+# (script/rehearse-owned.sh), never a real launch's run-latest.json, and removes them on exit. Needs anvil, forge, cast
+# and jq.
 #   RPC=https://testnet-rpc.monad.xyz bash script/rehearse-hireling-pipeline.sh
 set -euo pipefail
+{ # parsed whole before it runs, so an edit to this file mid-run cannot change what runs
 cd "$(dirname "$0")/.."
+. script/launch-lock.sh
+take_launch_lock
+. script/rehearse-owned.sh
 
 FORK_RPC="${RPC:-https://testnet-rpc.monad.xyz}"
 PORT="${PORT:-8599}"
 LOCAL="http://127.0.0.1:$PORT"
-export NETWORK=pipeline-rehearsal
-CONFIG="config/$NETWORK.json"
-CANDIDATE="broadcast/hireling/$NETWORK.candidate.json"
 CHAIN=$(jq -r .chainId config/monad-testnet.json)
-LOGDIR="broadcast/DeployHireling.s.sol/$CHAIN"
-CACHEDIR="cache/DeployHireling.s.sol/$CHAIN"
 ADMIN=$(jq -r .roles.admin config/monad-testnet.json)
 
-if [[ -e "$LOGDIR" || -e "$CACHEDIR" ]]; then
-  echo "refusing: $LOGDIR or $CACHEDIR exists (a real deploy log?); move it away first" >&2
-  exit 1
-fi
-
-ANVIL_PID=
-SCRIPTS=(DeployHireling PromoteHireling)
-. script/rehearse-owned.sh
-# Only what this run created: G1, run from the same checkout, writes the same paths with the same deployer (which this
-# rehearsal impersonates), so a run log counts as this run's only if it was sent to this fork's loopback RPC.
+ANVIL_PID= CONFIG=
+# Only what this run created, and still owns.
 cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  owned_runs "$CHAIN" "$LOCAL" "$ADMIN"
-  owned_file "$CANDIDATE" .safe "$(jq -r .hireling.safe "$CONFIG" 2>/dev/null)"
   owned_file "$CONFIG" .network monad-testnet # a copy of the testnet config under this rehearsal's name
+  owned_run_dirs
 }
 trap cleanup EXIT
+rehearsal_run
+REAL_LOGS=$(real_logs "$CHAIN")
+CONFIG="config/$NETWORK.json"
+CANDIDATE="$FOUNDRY_BROADCAST/hireling/$NETWORK.candidate.json"
+LOGDIR="$FOUNDRY_BROADCAST/DeployHireling.s.sol/$CHAIN"
+[[ ! -e "$CONFIG" ]] || { echo "refusing: $CONFIG exists" >&2; exit 1; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
@@ -44,7 +44,7 @@ ok() { echo "ok: $*"; }
 cp config/monad-testnet.json "$CONFIG"
 # The fork must be this run's own anvil: refuse a port something else already serves.
 cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
-anvil --fork-url "$FORK_RPC" --port "$PORT" --block-time 1 --silent &
+anvil --fork-url "$FORK_RPC" --port "$PORT" --block-time 1 --silent 9>&- &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL")" == "$CHAIN" ]] || fail "anvil fork not up"
@@ -102,4 +102,8 @@ forge script script/PromoteHireling.s.sol --rpc-url "$LOCAL" >/tmp/rehearse-prom
 grep -q "already promoted" /tmp/rehearse-promote2.log || fail "second promotion did not recognise the record"
 [[ "$(sha256sum "$CONFIG")" == "$promoted" ]] || fail "second promotion changed the config"
 ok "second promotion changed nothing"
+[[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
+ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
 echo "PIPELINE REHEARSAL PASSED"
+exit
+}

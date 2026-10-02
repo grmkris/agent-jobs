@@ -3,7 +3,7 @@
 # Monad testnet (chain 10143). Steps:
 #   1. a fresh 1-of-2 Safe; launch-testnet.sh deploys, promotes, accepts, grants the Safe the core's ADMIN_ROLE, deploys
 #      odd tokens and makes the fee proposal and Holding probe, all with fresh keys, promoting into a scratch
-#      config/rehearsal-<pid>.json (gitignored). The tracked config/monad-testnet.json is only ever read: at G1 the real
+#      config/rehearsal-<pid>-<random>.json (gitignored). The tracked config/monad-testnet.json is only ever read: at G1 the real
 #      launch promotes into it, possibly in this same checkout (G1-DRY-001);
 #   2. the wallets get MON, FACTORY v2 and v1 and the reward token (mUSD) on the fork, and deployment.oddTokens is
 #      recorded;
@@ -13,13 +13,18 @@
 #      `env -i` with only fresh keys and the loopback RPC, so neither .env.local nor any real key or RPC can reach it.
 #      Its journal stays in the mirror. The runner's chain-time waits are warped on the fork;
 #   4. a pass/fail table per case and the gas limits (which Monad charges) per wallet, from the hashes the runner prints.
-# Sends nothing to a real chain. Refuses to start if chain-10143 broadcast logs exist; on exit it deletes only what this
-# run created, after checking it still owns it (script/rehearse-owned.sh). Needs anvil, forge, cast, jq, bun.
+# Sends nothing to a real chain. Holds the launch lock (script/launch-lock.sh), so it refuses while another launch or
+# rehearsal runs in this checkout. Forge writes under broadcast/ and cache/rehearsal-<pid>-<random> only, never a real
+# launch's chain-10143 run-latest.json; on exit it deletes only what this run created, after checking it still owns it
+# (script/rehearse-owned.sh). Needs anvil, forge, cast, jq, bun.
 #   bash script/rehearse-flows-testnet.sh [cases]     # default: every case that needs no board (FLOW_CASES)
 #   HOLD=<file> pauses after funding, with the fork up, until <file> is removed (to debug against it).
 set -euo pipefail
 { # parsed whole before it runs, so an edit to this file mid-run cannot change what runs
 cd "$(dirname "$0")/.."
+. script/launch-lock.sh
+take_launch_lock
+. script/rehearse-owned.sh
 REPO="$(cd .. && pwd)"
 
 FORK_RPC="${RPC:-https://testnet-rpc.monad.xyz}"
@@ -27,10 +32,6 @@ PORT="${PORT:-8601}"
 LOCAL="http://127.0.0.1:$PORT"
 CHAIN=10143
 TRACKED="config/monad-testnet.json" # read only
-export NETWORK="rehearsal-$$"
-CONFIG="config/$NETWORK.json"
-CANDIDATE="broadcast/hireling/$NETWORK.candidate.json"
-SCRIPTS=(DeployHireling PromoteHireling SafeAccept DeployOddTokens)
 # Order matters: admin-vault-refusal needs the Holding probe still inside its 8 days, so it runs before the cases that
 # wait out windows; admin-fees waits 3 days and stake-cooldown 7, so they come last. legacy-dispute is left out: it signs
 # with the real legacy arbitrator key, the evaluator's immutable, which a fork cannot stand in for.
@@ -40,7 +41,6 @@ PROFILE="g1dry-$(date +%s)"
 WORK="$(mktemp -d)"
 chmod 700 "$WORK"
 MIRROR="$WORK/mirror"
-. script/rehearse-owned.sh
 SAFE_FACTORY=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
 SAFE_L2=0x29fcB43b46531BcA003ddC8FCB67FFE91900C762
 FALLBACK_HANDLER=0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99
@@ -59,34 +59,30 @@ done
 DEPLOYER=$(addr "$K_DEPLOYER"); OWNER1=$(addr "$K_OWNER1"); OWNER2=$(addr "$K_OWNER2"); ARBITRATOR=$(addr "$K_ARBITRATOR")
 RELAY=$(addr "$K_RELAY"); ATTESTER=$(addr "$K_ATTESTER"); CREATOR=$(addr "$K_CREATOR"); WORKER=$(addr "$K_WORKER")
 
-for s in "${SCRIPTS[@]}"; do
-  if [[ -e "broadcast/$s.s.sol/$CHAIN" || -e "cache/$s.s.sol/$CHAIN" ]]; then
-    echo "refusing: broadcast/ or cache/$s.s.sol/$CHAIN exists (a real testnet log?); move it away first" >&2
-    exit 1
-  fi
-done
-[[ ! -e "$CONFIG" && ! -e "$CANDIDATE" ]] || { echo "refusing: $CONFIG or $CANDIDATE exists" >&2; exit 1; }
 cp "$TRACKED" "$WORK/config.base"
 TRACKED_SUM=$(sha256sum <"$TRACKED")
 
-ANVIL_PID= WARPER_PID= SAFE=
+ANVIL_PID= WARPER_PID= SAFE= CONFIG=
 cleanup() {
   [[ -n "$WARPER_PID" ]] && kill "$WARPER_PID" 2>/dev/null || true
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  owned_runs "$CHAIN" "$LOCAL" "$DEPLOYER" "$OWNER1"
   owned_file "$CONFIG" .hireling.safe "$SAFE"
-  owned_file "$CANDIDATE" .safe "$SAFE"
+  owned_run_dirs
   rm -rf "$WORK"
   [[ "$(sha256sum <"$TRACKED")" == "$TRACKED_SUM" ]] || echo "WARNING: $TRACKED changed during the run (not by it); check it" >&2
 }
 trap cleanup EXIT
+rehearsal_run
+REAL_LOGS=$(real_logs "$CHAIN")
+CONFIG="config/$NETWORK.json"
+[[ ! -e "$CONFIG" ]] || { echo "refusing: $CONFIG exists" >&2; exit 1; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 rpc() { cast rpc --rpc-url "$LOCAL" "$@" >/dev/null 2>&1 || { echo "fork RPC $1 failed" >&2; return 1; }; }
 
 # The fork must be this run's own anvil: refuse a port something else already serves.
 cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
-anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent &
+anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent 9>&- &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL" 2>/dev/null)" == "$CHAIN" ]] || fail "anvil fork of chain $CHAIN not up"
@@ -127,7 +123,7 @@ ADMIN_ROLE=$(cast call --rpc-url "$LOCAL" "$CORE" "ADMIN_ROLE()(bytes32)" 2>/dev
 ok "v1 deployed on the fork and promoted into $CONFIG (Safe $SAFE holds the core's ADMIN_ROLE; fee proposal and Holding probe made)"
 
 # 2. deployment.oddTokens, and the wallets' tokens.
-ODD="broadcast/DeployOddTokens.s.sol/$CHAIN/run-latest.json"
+ODD="$FOUNDRY_BROADCAST/DeployOddTokens.s.sol/$CHAIN/run-latest.json"
 jq --arg b "$(jq -r '[.transactions[] | select(.contractName == "BlocklistUSD")][0].contractAddress' "$ODD")" \
   --arg g "$(jq -r '[.transactions[] | select(.contractName == "GasBurnerUSD")][0].contractAddress' "$ODD")" \
   --argjson block "$(cast to-dec "$(jq -r '.receipts[0].blockNumber' "$ODD")")" \
@@ -193,7 +189,7 @@ warper() {
 }
 : >"$WORK/current.log"
 echo 0 >"$WORK/case.id"
-warper &
+warper 9>&- &
 WARPER_PID=$!
 
 : >"$WORK/results.tsv"
@@ -250,6 +246,8 @@ awk -F'\t' '{ n[$1]++; l[$1]+=$3 } END { for (c in n) printf "  %-30s %4d txs %1
 echo
 echo "DEPLOY (launch-testnet.sh): $(wc -l <"$WORK/launch/hashes.tsv") transactions, listed in its own output"
 pass=$(awk -F'\t' '$2 == "PASS"' "$WORK/results.tsv" | wc -l); total=$(wc -l <"$WORK/results.tsv")
+[[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
+ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
 echo "RESULT: $pass/$total cases passed"
 mkdir -p /tmp/g1-dry && cp "$WORK/results.tsv" "$WORK/gas.tsv" "$WORK/launch-gas.tsv" /tmp/g1-dry/ 2>/dev/null && cp "$WORK"/case-*.log /tmp/g1-dry/ 2>/dev/null || true
 echo "per-case logs and tables copied to /tmp/g1-dry/"

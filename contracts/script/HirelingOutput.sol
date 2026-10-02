@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Vm} from "forge-std/Vm.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {HirelingRecipe} from "./HirelingRecipe.sol";
+import {BroadcastPath} from "./BroadcastPath.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {TeamVesting} from "../src/hireling/TeamVesting.sol";
 import {Factory} from "../src/hireling/Factory.sol";
@@ -204,7 +205,7 @@ library HirelingOutput {
     // ---------------------------------------------------------------------------------------------
 
     function candidateDir(Vm vm) internal view returns (string memory) {
-        return string.concat(vm.projectRoot(), "/broadcast/hireling");
+        return string.concat(BroadcastPath.root(vm), "/hireling");
     }
 
     function candidatePath(Vm vm, string memory network) internal view returns (string memory) {

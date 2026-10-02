@@ -44,12 +44,22 @@
 # The RPC comes from an env var by name too (RPC_ENV=MONAD_TESTNET_RPC_URL). No value is printed or written, and the
 # output is redacted.
 # NETWORK (default monad-testnet) selects config/<NETWORK>.json; script/rehearse-launch-testnet.sh uses it on a fork.
+# One run at a time: it holds contracts/.launch.lock (script/launch-lock.sh) throughout, and a second launch or fork
+# rehearsal started in this checkout meanwhile refuses. Forge's run logs go to its default broadcast/ and cache/; a
+# rehearsal (NETWORK=rehearsal-…) points FOUNDRY_BROADCAST and FOUNDRY_CACHE_PATH at its own, a real launch refuses to.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. script/launch-lock.sh
+take_launch_lock
 REPO="$(cd .. && pwd)"
 
 NETWORK="${NETWORK:-monad-testnet}"
 export NETWORK
+BROADCAST="${FOUNDRY_BROADCAST:-broadcast}"
+if [[ "$NETWORK" != rehearsal-* && -n "${FOUNDRY_BROADCAST:-}${FOUNDRY_CACHE_PATH:-}" ]]; then
+  echo "refusing: FOUNDRY_BROADCAST/FOUNDRY_CACHE_PATH are set, but $NETWORK is no rehearsal; unset them" >&2
+  exit 2
+fi
 CONFIG="config/$NETWORK.json"
 RPC_ENV="${RPC_ENV:-MONAD_TESTNET_RPC_URL}"
 DEPLOYER_KEY_ENV="${DEPLOYER_KEY_ENV:-DEPLOYER_PRIVATE_KEY}"
@@ -128,7 +138,7 @@ hash_line() { printf '%s\t%s\n' "$1" "$2" >>"$HASHES"; printf '  tx %-58s %s\n' 
 
 # Every transaction of a forge broadcast run, from its run log; all receipts must have succeeded.
 forge_hashes() {
-  local script=$1 run="broadcast/$1.s.sol/$CHAIN/run-latest.json"
+  local script=$1 run="$BROADCAST/$1.s.sol/$CHAIN/run-latest.json"
   [[ -f "$run" ]] || fail "$script: no run log at $run"
   jq -e '(.receipts | length) == (.transactions | length) and all(.receipts[]; .status == "0x1")' "$run" >/dev/null \
     || fail "$script: a transaction is missing or failed in $run"
@@ -327,7 +337,7 @@ if runs odd; then
     --broadcast --slow || fail "DeployOddTokens"
   forge_hashes DeployOddTokens
   grep -E "blocklist|gasBurner" "$LOGS/7-odd.log" | sed 's/^ */  /'
-  ok "odd tokens deployed; record them under .deployment.oddTokens (block $(cast to-dec "$(jq -r '.receipts[0].blockNumber' "broadcast/DeployOddTokens.s.sol/$CHAIN/run-latest.json")"))"
+  ok "odd tokens deployed; record them under .deployment.oddTokens (block $(cast to-dec "$(jq -r '.receipts[0].blockNumber' "$BROADCAST/DeployOddTokens.s.sol/$CHAIN/run-latest.json")"))"
 fi
 
 # Flags.

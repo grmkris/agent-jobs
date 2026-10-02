@@ -1,2 +1,4 @@
 # Scratch configs of the fork rehearsals (script/rehearse-*.sh); never the tracked monad-*.json.
 config/rehearsal*.json
+# The launch lock (script/launch-lock.sh).
+.launch.lock

@@ -202,7 +202,8 @@ non-owner sender or a handover that is not pending to the Safe. `test/fork/SafeA
 the live testnet Safe on a fork.
 
 Chain 143 also needs `MAINNET_GO=yes` on step 1. Step 2 refuses unless every transaction in
-`broadcast/DeployHireling.s.sol/<chainId>/run-latest.json` has a successful receipt, every candidate contract was
+`broadcast/DeployHireling.s.sol/<chainId>/run-latest.json` (under `FOUNDRY_BROADCAST` instead, when a fork rehearsal
+sets it to its own directory: `script/BroadcastPath.sol`) has a successful receipt, every candidate contract was
 created by that run, and the live readbacks in `script/HirelingVerify.sol` pass: code at every address and at the
 Safe, the wiring, the bootstrap, a 500M reserve with nothing funded or promised, `reserve.genesis == distributor.genesis
 == t0`, a 1e9 supply, the configured fee schedule with nothing queued, the vesting allocation, every owner the Safe or
@@ -368,8 +369,8 @@ The mainnet launch end to end on a throwaway anvil fork of chain 143 (`--network
    - the Safe sends the tool's `fund` and `setRoot` calldata;
    - the worker's and the creator's claims, with the tool's proofs, stake (`RehearseMining`).
 
-It signs with anvil's public dev keys only, refuses to start if any chain-143 broadcast log exists, and removes its
-scratch `config/rehearsal-mainnet.json` and logs on exit:
+It signs with anvil's public dev keys only, writes only its own scratch config and forge directories (see "Every fork
+rehearsal" under G1-DRY), and removes them on exit:
 `RPC=https://rpc.monad.xyz bash script/rehearse-launch.sh`. Passed 2 Oct (fork of mainnet at that day's head).
 
 **Launch budget** from that run. The limits are the ones forge actually sent, which Monad charges; MON is limit ×
@@ -400,7 +401,10 @@ The coordinator's G1 run: the runbook sequence on Monad testnet, core reused, no
 RPC's chain id and the config). It signs from an encrypted Foundry keystore per role, as mainnet does
 (`DEPLOYER_ACCOUNT`/`SAFE_OWNER_ACCOUNT` plus a mode-600 `*_PASSWORD_FILE`). Raw keys are only an explicit testnet
 fallback: `--private-keys`, read from env vars by name (`DEPLOYER_PRIVATE_KEY`, `SAFE_BACKUP_TESTNET_PRIVATE_KEY`). The
-RPC comes from `MONAD_TESTNET_RPC_URL`. No value is printed, and output and logs are redacted.
+RPC comes from `MONAD_TESTNET_RPC_URL`. No value is printed, and output and logs are redacted. It holds the launch lock
+`contracts/.launch.lock` (`script/launch-lock.sh`) for the whole run, so a second launch or fork rehearsal started in
+the same checkout refuses at once. Forge writes its default `broadcast/` and `cache/`: with `NETWORK` not a
+`rehearsal-…` one, it refuses `FOUNDRY_BROADCAST` and `FOUNDRY_CACHE_PATH`.
 
 1. Checks: the chain, no v1 deployment recorded yet, the deployer is `roles.admin` and can grant the reused core's
    `ADMIN_ROLE`, the Safe is v1.4.1 with threshold 1, no module and no guard (the mining fund's nonce guard, D18, needs
@@ -432,8 +436,10 @@ keys, with a fresh 1-of-2 Safe; dev0 stands in for `roles.admin` as the core's a
 refused, that a re-run from `pauser` sends nothing, that a Safe with a module (enabled through its own
 `execTransaction`) or with a guard is refused, and that the proposal can be executed after 3 days and the probe
 accepted after 8. Every dev account carries someone's EIP-7702 delegation on Monad testnet, so the fork clears that code
-first (R7 does the same on its mainnet fork). `KEEP=1` stops after the launch and leaves the fork running and the
-promoted `config/rehearsal-testnet.json` in place, printing both, for UI's real-chain harness. Passed 2 Oct. Gas limits
+first (R7 does the same on its mainnet fork). `KEEP=1` stops after the launch and leaves the fork running, and the
+promoted scratch config and the run's forge directories in place, printing them, the env that reaches them
+(`NETWORK`, `FOUNDRY_BROADCAST`, `FOUNDRY_CACHE_PATH`) and how to remove them, for UI's real-chain harness; the lock is
+released. Passed 2 Oct. Gas limits
 from that run:
 
 | step | txs | gas limit | MON @ 102 gwei | paid by |
@@ -447,19 +453,31 @@ from that run:
 ### G1-DRY: backend's B11 runner on that deploy (`script/rehearse-flows-testnet.sh`)
 
 On an anvil fork of testnet: the launch above (fresh keys for every role, a fresh Safe, fee proposal, Holding probe),
-promoted into a scratch `config/rehearsal-<pid>.json`. The tracked `config/monad-testnet.json`, into which G1 itself
+promoted into a scratch `config/rehearsal-<pid>-<random>.json`. The tracked `config/monad-testnet.json`, into which G1 itself
 promotes (possibly from the same checkout), is only read. The runner reads the SDK's bundled testnet config, so it
 runs from a private mirror: byte-identical copies of `packages/sdk/src` and `scripts` (no journal), the real
 `node_modules`, and the scratch config at the mirror's `contracts/config/monad-testnet.json`. Each case of
 `v1-flows.ts` runs as its own `bun --no-env-file` process under `env -i`, with only the fresh keys and the loopback RPC,
 so no `.env.local` value or real key can reach it. The runner's chain-time waits are warped.
 
-Every fork rehearsal (this one, the G1 rehearsal, R7, the pipeline rehearsal) starts its own anvil and refuses a port
-already serving an RPC. On exit it deletes only what it can show is its own, through `script/rehearse-owned.sh`:
-- a broadcast run log, only if all its transactions came from the run's signers and its cache twin names only the run's
-  loopback RPC;
-- a scratch config or candidate, only if it names the run's Safe.
-Anything else is kept and named.
+Every fork rehearsal (this one, the G1 rehearsal, R7, the pipeline rehearsal) keeps clear of a real launch run from the
+same checkout (G1-DRY-001 and its residual):
+- It takes the launch lock (`script/launch-lock.sh`) before anything else and holds it for its whole run; a second
+  rehearsal or `launch-testnet.sh` started meanwhile refuses at once instead of waiting. Its own `launch-testnet.sh`
+  inherits the lock (fd 9); its anvil is started without it, so a kept fork never holds it.
+- It names everything by a run id, the pid plus 32 random bits (`rehearsal_run` in `script/rehearse-owned.sh`): the
+  scratch `config/rehearsal-<id>.json`, and forge's broadcast logs and their cache twins under `broadcast/rehearsal-<id>`
+  and `cache/rehearsal-<id>` (`FOUNDRY_BROADCAST`, `FOUNDRY_CACHE_PATH`; PromoteHireling, SeedPool's `verify()` and the
+  candidate read them back through `script/BroadcastPath.sol`). So it never touches a real launch's
+  `broadcast/<script>/<10143|143>/run-latest.json`, and before passing it checks a digest of every such log, taken at
+  its start, is unchanged.
+- It starts its own anvil and refuses a port already serving an RPC.
+- On exit it deletes its two directories, each only if it still carries the run's mark, and the scratch config only if
+  it names the run's Safe; anything else is kept and named.
+
+`bash script/test-launch-lock.sh` checks the lock with no chain: while one run holds it, `launch-testnet.sh` and each
+of the four rehearsals refuse at once and write nothing; the holder's own children go through; a real-network launch
+refuses `FOUNDRY_BROADCAST`. `test/LaunchLock.t.sol` pins the same in the sources.
 It prints pass/fail per case and the gas limits per wallet, for the launch and for the flows. Every runner case that
 needs no board passed on 2 Oct (21/21), all but `legacy-dispute`, which signs with the real legacy arbitrator's key.
 Fork-only stand-ins: an impersonated `roles.admin` makes the fresh deployer the core's admin, and `anvil_dealERC20`
