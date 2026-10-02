@@ -260,7 +260,7 @@ export class Board {
   async relayTransaction(request: RelayRequest): Promise<Hex> {
     const relay = this.#config.relay
     if (relay === undefined) throw new BoardError('conflict', 'the relay is unavailable')
-    this.#relaySender ??= new RelaySender(this.#sql, this.#ctx('main'), relay.account, relay.rpcUrl)
+    this.#relaySender ??= new RelaySender(this.#sql, this.#ctx('main'), relay.account, relay.rpcUrl, () => this.#now())
     return (await this.#relaySender.submit(request)).transactionHash
   }
   #sendRelay(request: RelayRequest): Promise<Hex> {

@@ -7,6 +7,7 @@ import { Board, BoardError } from './service.ts'
 import { SPONSOR_LIMITS, SponsorDesk } from './sponsor.ts'
 import { fromNodeSqlite } from './store.ts'
 import { delegationManagerAbi } from './delegation.ts'
+import { RelaySender } from './relay.ts'
 import { admissionFailure, hostedToolNames, parseHostedAdmission, readOnlyHostedTools } from './admission.ts'
 
 const dbs: DatabaseSync[] = []
@@ -39,9 +40,25 @@ function fixture() {
     estimateGas: vi.fn(async () => 100_000n), call: vi.fn(async () => ({ data: '0x' })), getGasPrice: vi.fn(async () => 1_000_000_000n),
     sendRawTransaction: vi.fn(async ({ serializedTransaction }: { serializedTransaction: Hex }) => {
       const hash = keccak256(serializedTransaction)
+      const tx = parseTransaction(serializedTransaction)
+      if (tx.data === '0x' || tx.data === undefined) {
+        expect(sql.all('SELECT * FROM sponsor_replacements WHERE tx_hash=?', hash)[0]).toMatchObject({ raw_tx: serializedTransaction, nonce, status: 'pending' })
+        expect(tx.to?.toLowerCase()).toBe(relay.address.toLowerCase())
+        expect(tx.value ?? 0n).toBe(0n)
+        expect(tx.nonce).toBe(nonce)
+        nonce++
+        receipts.set(hash, { transactionHash: hash, status: 'success', blockNumber: 5n, gasUsed: 21_000n, effectiveGasPrice: 1_000_000_000n })
+        return hash
+      }
+      if (tx.to?.toLowerCase() !== deployment.delegation.manager.toLowerCase()) {
+        expect(sql.all('SELECT * FROM relay_operations WHERE tx_hash=?', hash)[0]).toMatchObject({ raw_tx: serializedTransaction, nonce, status: 'pending' })
+        expect(tx.nonce).toBe(nonce)
+        nonce++
+        receipts.set(hash, { transactionHash: hash, status: 'success', blockNumber: 5n, gasUsed: 100_000n, effectiveGasPrice: 1_000_000_000n })
+        return hash
+      }
       // Before any broadcast, both identity and signed bytes must already be durable.
       expect(sql.all<{ raw_tx: string; tx_hash: string; status: string; baseline_calls: number }>('SELECT * FROM sponsor_operations WHERE tx_hash=?', hash)[0]).toMatchObject({ raw_tx: serializedTransaction, tx_hash: hash, status: 'pending', baseline_calls: Number(used) })
-      const tx = parseTransaction(serializedTransaction)
       expect(tx.nonce).toBe(nonce)
       const decoded = decodeFunctionData({ abi: delegationManagerAbi, data: tx.data! })
       if (decoded.functionName !== 'redeemDelegations') throw new Error('not a redemption')
@@ -57,7 +74,9 @@ function fixture() {
   const sign = (typedData: string, account = owner) => sdk.signTypedDataJson({ account, signTypedData: (args: Parameters<typeof account.signTypedData>[0]) => account.signTypedData(args) } as never, typedData)
   const live = async () => { const p = await desk.prepare(owner.address); await desk.confirm(owner.address, await sign(p.sign.typedData)); return p }
   const cancel = (n = 1n) => ({ to: stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [n] }) })
-  return { desk, boot, db, sql, ctx, owner, relay, client, sign, live, cancel,
+  return { desk, boot, db, sql, ctx, owner, relay, client, sign, live, cancel, receipts,
+    relaySender: () => new RelaySender(sql, ctx, relay, 'http://127.0.0.1:1', () => now),
+    setNonce: (n: number) => { nonce = n },
     setUsed: (n: bigint) => { used = n }, setNow: (n: number) => { now = n }, advance: (n: number) => { now += n },
     setVisible: (v: boolean) => { visible = v }, setDisabled: () => { disabled = true }, setUpgraded: (v: boolean) => { upgraded = v }, setBalance: (n: bigint) => { balance = n } }
 }
@@ -212,7 +231,17 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     await expect(f.boot().submit(f.relay.address, [f.cancel(2n)], 'fresh')).resolves.toMatchObject({ status: 'pending' })
     expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends + 1)
   })
-  it('a stranded operation is never rebroadcast after grant revocation or expiry', async () => {
+  it('a fresh key recovers a sponsorship crash between INSERT and broadcast with the exact saved bytes', async () => {
+    const f = fixture(); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('process stopped after insert'))
+    const stranded = await f.desk.submit(f.owner.address, [f.cancel()], 'crashed')
+    const raw = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_operations WHERE id=?', stranded.operationId)[0]!.raw_tx
+    expect((await f.boot().submit(f.owner.address, [f.cancel(2n)], 'new-key')).status).toBe('confirmed')
+    expect(f.client.sendRawTransaction.mock.calls.map(([a]) => a.serializedTransaction).slice(0, 2)).toEqual([raw, raw])
+    expect((await f.boot().operation(f.owner.address, stranded.operationId)).status).toBe('confirmed')
+    expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(3)
+  })
+  it('a stranded operation is replaced durably after grant revocation or expiry, releasing both ledgers', async () => {
     for (const revoked of [true, false]) {
       const f = fixture(); await f.live()
       f.client.sendRawTransaction.mockRejectedValueOnce(new Error('not accepted'))
@@ -220,10 +249,71 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
       if (revoked) await f.desk.revoke(f.owner.address)
       else f.advance(SPONSOR_LIMITS.validity)
       const sends = f.client.sendRawTransaction.mock.calls.length
-      expect((await f.boot().submit(f.owner.address, [f.cancel()], 'not-broadcast')).status).toBe('pending')
-      expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends)
       expect((await f.boot().operation(f.owner.address, op.operationId)).status).toBe('pending')
+      expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends)
+      // A different relay request can recover this sponsorship without its key or expired grant.
+      await f.relaySender().submit({ key: 'new-evidence-signature', to: f.ctx.stack.evaluator, data: '0x12345678' })
+      expect((await f.boot().operation(f.owner.address, op.operationId)).status).toBe('dropped')
+      const saved = f.sql.all<{ raw_tx: Hex; tx_hash: Hex; cost: string; charged_day: number }>('SELECT * FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]!
+      const original = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_operations WHERE id=?', op.operationId)[0]!
+      expect(parseTransaction(saved.raw_tx).nonce).toBe(parseTransaction(original.raw_tx).nonce)
+      expect(parseTransaction(saved.raw_tx).maxFeePerGas).toBeGreaterThan(parseTransaction(original.raw_tx).maxFeePerGas!)
+      expect(BigInt(saved.cost)).toBe(21_000n * 1_000_000_000n)
+      expect(saved.charged_day).toBeGreaterThan(0)
+      expect(f.client.sendRawTransaction.mock.calls.slice(sends).some(([a]) => a.serializedTransaction === original.raw_tx)).toBe(false)
+      await f.live()
+      expect((await f.boot().submit(f.owner.address, [f.cancel(2n)], 'fresh-after-recovery')).status).toBe('confirmed')
     }
+  })
+  it('records the original receipt when the saved redemption wins the replacement race', async () => {
+    const f = fixture(); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('lost send'))
+    const op = await f.desk.submit(f.owner.address, [f.cancel()], 'race')
+    await f.desk.revoke(f.owner.address)
+    f.client.sendRawTransaction.mockImplementationOnce(async ({ serializedTransaction }) => {
+      expect(f.sql.all('SELECT raw_tx FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]).toEqual({ raw_tx: serializedTransaction })
+      f.setNonce(1); f.setUsed(1n)
+      f.receipts.set(op.txHash, { transactionHash: op.txHash, status: 'success', blockNumber: 5n, gasUsed: 123n, effectiveGasPrice: 7n })
+      throw new Error('nonce already consumed by original')
+    })
+    const result = await f.boot().submit(f.owner.address, [], 'race')
+    expect(result).toMatchObject({ status: 'confirmed', callsUsed: 1, txHash: op.txHash })
+    expect(f.sql.all('SELECT status,cost FROM sponsor_operations WHERE id=?', op.operationId)[0]).toEqual({ status: 'confirmed', cost: '861' })
+    expect(f.sql.all('SELECT status,cost FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]).toEqual({ status: 'dropped', cost: null })
+  })
+  it('replays a persisted replacement after another crash; the original never rebroadcasts', async () => {
+    const f = fixture(); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('not broadcast'))
+    const op = await f.desk.submit(f.owner.address, [f.cancel()], 'two-crashes')
+    await f.desk.revoke(f.owner.address)
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('crash after replacement insert'))
+    expect((await f.boot().submit(f.owner.address, [], 'two-crashes')).status).toBe('pending')
+    const replacement = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]!
+    expect((await f.boot().submit(f.owner.address, [], 'two-crashes')).status).toBe('dropped')
+    expect(f.client.sendRawTransaction.mock.calls.slice(1).map(([a]) => a.serializedTransaction)).toEqual([replacement.raw_tx, replacement.raw_tx])
+    expect(f.sql.all('SELECT * FROM sponsor_replacements')).toHaveLength(1)
+  })
+  it.each(['success', 'reverted', 'dropped'])('a changed evidence key recovers a relay INSERT crash ending in %s before a new nonce', async (status) => {
+    const f = fixture(), request = { key: 'evidence-old-validUntil-signature', to: f.ctx.stack.evaluator, data: '0x12345678' as Hex }
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('process died before broadcast'))
+    await expect(f.relaySender().submit(request)).rejects.toThrow()
+    const saved = f.sql.all<{ raw_tx: Hex; tx_hash: Hex; nonce: number }>('SELECT * FROM relay_operations WHERE id=?', request.key)[0]!
+    expect(saved.nonce).toBe(0)
+    if (status === 'dropped') f.setNonce(1)
+    else {
+      const send = f.client.sendRawTransaction.getMockImplementation()!
+      f.client.sendRawTransaction.mockImplementationOnce(async a => {
+        expect(a.serializedTransaction).toBe(saved.raw_tx)
+        const hash = await send(a)
+        f.receipts.get(hash)!.status = status
+        return hash
+      })
+    }
+    const fresh = await f.relaySender().submit({ ...request, key: 'evidence-new-validUntil-signature', data: '0x87654321' })
+    expect(fresh.status).toBe('success')
+    expect(f.sql.all('SELECT status FROM relay_operations WHERE id=?', request.key)[0]).toEqual({ status })
+    expect(f.sql.all('SELECT nonce FROM relay_operations WHERE id=?', 'evidence-new-validUntil-signature')[0]).toEqual({ nonce: 1 })
+    expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(status === 'dropped' ? 2 : 3)
   })
   it('chain count/expiry/revocation determine status and revocation remains available during drain', async () => {
     const f = fixture(); await f.live()

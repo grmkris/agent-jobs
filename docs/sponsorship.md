@@ -16,10 +16,17 @@ that transaction is mined, the signed permission remains usable on-chain.
 REST and MCP share the same tools. `sponsor_submit({wallet,key,calls})` accepts 1–4 ordered zero-value calls.
 The client creates and persists one key per action, and reuses it only for retries. An existing key always reconciles the original
 operation before any policy or grant check, even if replacement calls differ. Another key can represent a new action. The result is
-`{operationId,status: "pending"|"confirmed"|"reverted",txHash,callsUsed}`.
+`{operationId,status: "pending"|"confirmed"|"reverted"|"dropped",txHash,callsUsed}`.
 Poll `sponsor_operation({wallet,operationId})` to read the receipt and counter without sending anything.
 An original submission retry reconciles the saved hash, counter baseline and relay nonce before it can rebroadcast
 the identical persisted signed bytes. It never creates another transaction for that action.
+
+Every relay sender recovers pending rows in both ledgers before allocating another nonce. A crash before broadcast
+replays the exact saved bytes while the grant is live. If the grant was revoked, replaced or expired, recovery
+persists a zero-value relay self-send at the same nonce with increased fees before broadcasting it. If the original
+mines first, its receipt confirms or reverts the action. If the replacement mines first, the original becomes
+`dropped`; its `txHash` remains the original hash. Polling never broadcasts. Replacement gas is charged from its
+receipt toward the same daily cap. Fresh operations can proceed only once the nonce is reconciled.
 
 One reserved object in the existing Board binding stores grants and operation records for all boards. Before
 broadcast, it validates canonical calldata against D15, simulates the whole redemption, reserves caps, and persists

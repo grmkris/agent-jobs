@@ -2,7 +2,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
 import { type Hex, decodeFunctionData, encodeFunctionData, parseEther, parseTransaction } from 'viem'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { forkEnabled, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
@@ -150,4 +150,54 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     now += SPONSOR_LIMITS.validity
     expect((await board.sponsorStatus(caller(f.creator), { wallet: f.creator.account.address })).status).toBe('expired')
   }, 60_000)
+
+  it.each(['live', 'revoked', 'expired', 'original-wins'])('recovers a persisted sponsorship crash (%s) before another relay send on real bytecode', async state => {
+    await enable(f.contributor)
+    const calls: sdk.TxRequest[] = [{ description: 'Invalidate an unused selection', chainId: 10143, to: f.ctx.stack.holding, value: '0',
+      data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [888888n + BigInt(['live', 'revoked', 'expired', 'original-wins'].indexOf(state))] }) }]
+    const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })
+    const failedSend = vi.spyOn(f.ctx.publicClient, 'sendRawTransaction').mockRejectedValueOnce(new Error('process stopped after insert'))
+    const failedWait = vi.spyOn(f.ctx.publicClient, 'waitForTransactionReceipt').mockRejectedValueOnce(new Error('not broadcast'))
+    const saved = await submit(f.contributor, `recovery-${state}`, calls)
+    expect(saved.status).toBe('pending')
+    failedSend.mockRestore(); failedWait.mockRestore()
+    const row = db.prepare('SELECT raw_tx FROM sponsor_operations WHERE id=?').get(saved.operationId) as { raw_tx: Hex }
+    if (state === 'revoked' || state === 'original-wins') await board.sponsorRevoke(caller(f.contributor), { wallet: f.contributor.account.address })
+    if (state === 'expired') now += SPONSOR_LIMITS.validity
+    board = boot()
+    const send = f.ctx.publicClient.sendRawTransaction.bind(f.ctx.publicClient)
+    const sent: Hex[] = []
+    const broadcasts = vi.spyOn(f.ctx.publicClient, 'sendRawTransaction').mockImplementation(async args => {
+      sent.push(args.serializedTransaction)
+      const tx = parseTransaction(args.serializedTransaction)
+      if (tx.nonce === nonce && state !== 'live') {
+        expect(db.prepare('SELECT raw_tx FROM sponsor_replacements WHERE operation_id=?').get(saved.operationId)).toEqual({ raw_tx: args.serializedTransaction })
+        expect(tx.to?.toLowerCase()).toBe(f.admin.account.address.toLowerCase())
+        expect(tx.value ?? 0n).toBe(0n)
+        if (state === 'original-wins') {
+          const hash = await send({ serializedTransaction: row.raw_tx })
+          await f.ctx.publicClient.waitForTransactionReceipt({ hash })
+        }
+      }
+      return send(args)
+    })
+    try {
+      await board.relayTransaction({ key: `after-${state}`, to: f.admin.account.address, data: '0x' })
+      const recovered = await board.sponsorOperation(caller(f.contributor), { wallet: f.contributor.account.address, operationId: saved.operationId })
+      expect(recovered.status).toBe(state === 'live' || state === 'original-wins' ? 'confirmed' : 'dropped')
+      expect(sent.filter(raw => raw === row.raw_tx)).toHaveLength(state === 'live' ? 1 : 0)
+      expect(await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })).toBe(nonce + 2)
+      if (state === 'revoked' || state === 'expired') {
+        const replacement = db.prepare('SELECT tx_hash,cost FROM sponsor_replacements WHERE operation_id=?').get(saved.operationId) as { tx_hash: Hex; cost: string }
+        const receipt = await f.ctx.publicClient.getTransactionReceipt({ hash: replacement.tx_hash })
+        expect(BigInt(replacement.cost)).toBe(receipt.gasUsed * receipt.effectiveGasPrice)
+      }
+    } finally {
+      broadcasts.mockRestore()
+      if (state === 'live') {
+        const revoked = await board.sponsorRevoke(caller(f.contributor), { wallet: f.contributor.account.address })
+        if (revoked.transactions.length > 0) await sdk.sendAll(f.contributor, f.ctx.publicClient, revoked.transactions)
+      }
+    }
+  }, 120_000)
 })

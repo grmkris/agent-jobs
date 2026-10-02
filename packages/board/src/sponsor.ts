@@ -1,8 +1,8 @@
 /** ERC-7710 gas sponsorship. Only the relay signs transactions; the wallet signs its own bounded delegation. */
 import * as sdk from '@agent-jobs/sdk'
 import {
-  type Abi, type AbiFunction, type Address, type Hex, type LocalAccount, type TransactionReceipt,
-  TransactionReceiptNotFoundError, concat, decodeFunctionData, encodeAbiParameters, encodeFunctionData, encodePacked,
+  type Abi, type AbiFunction, type Address, type Hex, type LocalAccount,
+  concat, decodeFunctionData, encodeAbiParameters, encodeFunctionData, encodePacked,
   getAddress, isAddress, keccak256, recoverAddress, stringToHex, toFunctionSelector,
 } from 'viem'
 import {
@@ -11,6 +11,8 @@ import {
 } from './delegation.ts'
 import type { Sql } from './store.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
+import { type SponsorOperation as Operation, type SponsorResult, SponsorRecovery } from './sponsor-recovery.ts'
+export type { SponsorResult } from './sponsor-recovery.ts'
 
 /** One object in the existing Board namespace, shared by every tenant and both transports. */
 export const SPONSOR_OBJECT_NAME = '__hosted_sponsor_v1__'
@@ -36,15 +38,9 @@ export interface SponsorDeps {
 interface Grant {
   wallet: string; delegation_json: string; delegation_hash: string; signature: string | null; status: string; expires_at: number
 }
-interface Operation {
-  id: string; wallet: string; delegation_hash: string; status: string; raw_tx: string; tx_hash: string;
-  relay: string; nonce: number; cost: string | null; reserved_cost: string; charged_day: number | null;
-  calls: number; baseline_calls: number; created_at: number; action_key: string; payload_hash: string
-}
 interface Target { address: Address; abi: Abi; methods: readonly string[] }
 type NormalCall = { target: Address; callData: Hex; value: bigint; floor: bigint }
 export type SponsorStatus = { status: 'none' | 'live' | 'expired' | 'used' | 'revoked'; typedData: string | null; callsUsed: number }
-export type SponsorResult = { operationId: string; txHash: Hex; status: 'pending' | 'confirmed' | 'reverted' | 'dropped'; callsUsed: number }
 const eq = (a: string | null | undefined, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
 const uint = (n: bigint) => encodeAbiParameters([{ type: 'uint256' }], [n])
 const caveat = (enforcer: Address, terms: Hex): Caveat => ({ enforcer, terms: terms.toLowerCase() as Hex, args: '0x' })
@@ -72,6 +68,9 @@ export class SponsorDesk {
     const result = this.#queue.then(fn)
     this.#queue = result.catch(() => undefined)
     return result
+  }
+  #grantSerial<T>(fn: () => Promise<T>): Promise<T> {
+    return this.#serial(() => withRelayNonce(this.#ctx().deployment.relay, fn))
   }
   #ctx(): sdk.Ctx {
     const ctx = this.#d.ctx
@@ -126,7 +125,7 @@ export class SponsorDesk {
     return { status, typedData: delegationTypedData(ctx.deployment, parseDelegation(row.delegation_json)), callsUsed: Number(used) }
   }
   status(wallet: string) { return this.#serial(() => this.#status(this.#wallet(wallet))) }
-  prepare(walletText: string) { return this.#serial(async () => {
+  prepare(walletText: string) { return this.#grantSerial(async () => {
     const wallet = this.#wallet(walletText), ctx = this.#ctx()
     this.#relay()
     if ((await this.#status(wallet)).status === 'live') throw this.#d.fail('conflict', 'this wallet already has a live sponsorship delegation')
@@ -139,7 +138,7 @@ export class SponsorDesk {
     const current = await sdk.delegationOf(ctx.publicClient, wallet)
     return { sign: { typedData: delegationTypedData(ctx.deployment, x) }, upgrade: eq(current, ctx.deployment.delegation.delegator) ? null : { delegator: ctx.deployment.delegation.delegator } }
   }) }
-  confirm(walletText: string, signature: string) { return this.#serial(async () => {
+  confirm(walletText: string, signature: string) { return this.#grantSerial(async () => {
     const wallet = this.#wallet(walletText), ctx = this.#ctx(), row = this.#row(wallet)
     if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]{130}$/.test(signature)) throw this.#d.fail('invalid', 'signature must be a 65-byte hex signature')
     if (row === undefined || row.status !== 'prepared' && row.status !== 'live') throw this.#d.fail('conflict', 'start with sponsor_prepare')
@@ -152,7 +151,7 @@ export class SponsorDesk {
     this.#d.sql.run("UPDATE sponsor_grants SET signature=?, status='live' WHERE wallet=?", signature, wallet.toLowerCase())
     return this.#status(wallet)
   }) }
-  revoke(walletText: string) { return this.#serial(async () => {
+  revoke(walletText: string) { return this.#grantSerial(async () => {
     const wallet = this.#wallet(walletText), ctx = this.#ctx(), row = this.#row(wallet)
     this.#d.sql.run("UPDATE sponsor_grants SET status='revoked' WHERE wallet=?", wallet.toLowerCase())
     const transactions: sdk.TxRequest[] = []
@@ -181,39 +180,8 @@ export class SponsorDesk {
       return { target: target.address, callData: call.data.toLowerCase() as Hex, value: 0n, floor }
     })
   }
-  async #receipt(hash: Hex): Promise<TransactionReceipt | undefined> {
-    try { return await this.#ctx().publicClient.getTransactionReceipt({ hash }) }
-    catch (e) { if (e instanceof TransactionReceiptNotFoundError) return undefined; throw e }
-  }
-  async #resume(op: Operation, broadcast = true): Promise<SponsorResult> {
-    const ctx = this.#ctx()
-    if (op.status !== 'pending') return { operationId: op.id, txHash: op.tx_hash as Hex, status: op.status as SponsorResult['status'], callsUsed: Number(await callsMade(ctx, op.delegation_hash as Hex)) }
-    let receipt = await this.#receipt(op.tx_hash as Hex)
-    if (receipt === undefined) {
-      const [used, nonce] = await Promise.all([callsMade(ctx, op.delegation_hash as Hex), ctx.publicClient.getTransactionCount({ address: getAddress(op.relay), blockTag: 'latest' })])
-      // The relay nonce was consumed by another sender, and this exact transaction has no receipt. It can
-      // never become valid later; release the global blocker while preserving the failed operation for polling.
-      if (nonce > op.nonce) {
-        this.#d.sql.run("UPDATE sponsor_operations SET status='dropped' WHERE id=? AND status='pending'", op.id)
-        return { operationId: op.id, txHash: op.tx_hash as Hex, status: 'dropped', callsUsed: Number(used) }
-      }
-      const row = this.#row(op.wallet)
-      // Revocation stops new broadcasts immediately. An already broadcast transaction can still mine until disabled.
-      if (broadcast && used === BigInt(op.baseline_calls) && nonce <= op.nonce && row?.status === 'live' && row.delegation_hash === op.delegation_hash && (await this.#status(this.#wallet(op.wallet))).status === 'live') {
-        // Always broadcast the identical persisted bytes. A dropped response never creates a new nonce/signature.
-        try { await ctx.publicClient.sendRawTransaction({ serializedTransaction: op.raw_tx as Hex }) } catch { /* It may already be in the mempool. Reconcile below. */ }
-        receipt = await ctx.publicClient.waitForTransactionReceipt({ hash: op.tx_hash as Hex, timeout: 20_000 }).catch(() => undefined)
-      }
-    }
-    if (receipt !== undefined) {
-      const block = await ctx.publicClient.getBlock({ blockNumber: receipt.blockNumber })
-      this.#d.sql.run('UPDATE sponsor_operations SET status=?, cost=?, charged_day=? WHERE id=?', receipt.status === 'success' ? 'confirmed' : 'reverted',
-        (receipt.gasUsed * receipt.effectiveGasPrice).toString(), Math.floor(Number(block.timestamp) / 86400) * 86400, op.id)
-    }
-    const row = this.#d.sql.all<{ status: string }>('SELECT status FROM sponsor_operations WHERE id=?', op.id)[0]
-    const status = row?.status === 'dropped' ? 'dropped' : receipt === undefined ? 'pending' : receipt.status === 'success' ? 'confirmed' : 'reverted'
-    return { operationId: op.id, txHash: op.tx_hash as Hex, status, callsUsed: Number(await callsMade(ctx, op.delegation_hash as Hex)) }
-  }
+  #recovery() { return new SponsorRecovery(this.#d.sql, this.#ctx(), this.#d.now, this.#d.relay?.account) }
+  #resume(op: Operation, broadcast = true) { return this.#recovery().resume(op, broadcast) }
   submit(walletText: string, calls: readonly SponsorCall[], key: string) { return this.#serial(async (): Promise<SponsorResult> => {
     const wallet = this.#wallet(walletText)
     const id = keccak256(stringToHex(JSON.stringify([wallet.toLowerCase(), key])))
@@ -222,38 +190,36 @@ export class SponsorDesk {
     // therefore reconcile that send before checking the current grant, policy, keys, caps or replacement calls.
     if (prior !== undefined) return withRelayNonce(getAddress(prior.relay), () => this.#resume(prior))
     const ctx = this.#ctx(), relay = this.#relay()
-    const parsed = this.#validate(calls)
-    if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw this.#d.fail('invalid', 'key must be 1-128 letters, digits, underscores or hyphens; reuse it only for retries of one action')
-    const payloadHash = keccak256(stringToHex(JSON.stringify(parsed.map(c => [c.target.toLowerCase(), c.callData, '0']))))
-    const row = this.#row(wallet)
-    if (row === undefined || row.signature === null) throw this.#d.fail('conflict', 'confirm a sponsorship delegation before submitting calls')
-    // Resolve any ambiguous earlier send before assigning another relay nonce or spending another cap reservation.
-    for (const pending of this.#d.sql.all<Operation>("SELECT * FROM sponsor_operations WHERE status='pending'")) {
-      if ((await this.#resume(pending, false)).status === 'pending') throw this.#refuse('pending', 'an earlier sponsored transaction is pending; retry its original calls')
-    }
-    const current = await this.#status(wallet)
-    if (current.status !== 'live' || row.status !== 'live') throw this.#d.fail('conflict', `sponsorship is ${current.status}`)
-    if (current.callsUsed + parsed.length > SPONSOR_LIMITS.calls) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
-    const signed = this.#current(row)
-    const data = redeemCallsCalldata(signed, parsed)
-    // ADR-0011 inner floors plus manager overhead. The full redemption estimate can raise this floor further.
-    const floor = parsed.reduce((sum, c) => sum + c.floor, 100_000n)
-    const estimated = await ctx.publicClient.estimateGas({ account: relay.account, to: ctx.deployment.delegation.manager, data }).catch(() => { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') })
-    const gas = estimated * 120n / 100n > floor ? estimated * 120n / 100n : floor
-    if (gas > SPONSOR_LIMITS.gas) throw this.#refuse('cap', 'the sponsored transaction exceeds the gas cap')
-    try { await ctx.publicClient.call({ account: relay.account, to: ctx.deployment.delegation.manager, data, gas }) }
-    catch { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') }
-    const gasPrice = await ctx.publicClient.getGasPrice()
-    const maxFeePerGas = gasPrice * 2n, cost = gas * maxFeePerGas
-    const day = Math.floor(this.#d.now() / 86400) * 86400
-    const daily = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE charged_day=? AND cost IS NOT NULL', day)
-    // Charge only receipts. All unresolved sends were reconciled above; this send reserves its maximum cost.
-    if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > SPONSOR_LIMITS.dailyWei) throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
-    const recent = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE wallet=? AND created_at > ?', wallet.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
-    if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the wallet’s sponsorship rate limit is exhausted')
-    if (await ctx.publicClient.getBalance({ address: relay.account.address }) < SPONSOR_LIMITS.relayFloorWei + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
     return withRelayNonce(relay.account.address, async () => {
-      await new RelaySender(this.#d.sql, ctx, relay.account, relay.rpcUrl).checkPending()
+      const parsed = this.#validate(calls)
+      if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw this.#d.fail('invalid', 'key must be 1-128 letters, digits, underscores or hyphens; reuse it only for retries of one action')
+      const payloadHash = keccak256(stringToHex(JSON.stringify(parsed.map(c => [c.target.toLowerCase(), c.callData, '0']))))
+      const row = this.#row(wallet)
+      if (row === undefined || row.signature === null) throw this.#d.fail('conflict', 'confirm a sponsorship delegation before submitting calls')
+      // Both ledgers recover under the same queue before a fresh nonce, simulation or cap reservation.
+      try { await new RelaySender(this.#d.sql, ctx, relay.account, relay.rpcUrl, this.#d.now).checkPendingLocked() }
+      catch { throw this.#refuse('pending', 'an earlier relay transaction is still pending; retry shortly') }
+      const current = await this.#status(wallet)
+      if (current.status !== 'live' || row.status !== 'live') throw this.#d.fail('conflict', `sponsorship is ${current.status}`)
+      if (current.callsUsed + parsed.length > SPONSOR_LIMITS.calls) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
+      const signed = this.#current(row)
+      const data = redeemCallsCalldata(signed, parsed)
+      // ADR-0011 inner floors plus manager overhead. The full redemption estimate can raise this floor further.
+      const floor = parsed.reduce((sum, c) => sum + c.floor, 100_000n)
+      const estimated = await ctx.publicClient.estimateGas({ account: relay.account, to: ctx.deployment.delegation.manager, data }).catch(() => { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') })
+      const gas = estimated * 120n / 100n > floor ? estimated * 120n / 100n : floor
+      if (gas > SPONSOR_LIMITS.gas) throw this.#refuse('cap', 'the sponsored transaction exceeds the gas cap')
+      try { await ctx.publicClient.call({ account: relay.account, to: ctx.deployment.delegation.manager, data, gas }) }
+      catch { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') }
+      const gasPrice = await ctx.publicClient.getGasPrice()
+      const maxFeePerGas = gasPrice * 2n, cost = gas * maxFeePerGas
+      const day = Math.floor(this.#d.now() / 86400) * 86400
+      const daily = this.#d.sql.all<{ cost: string }>('SELECT cost FROM sponsor_operations WHERE charged_day=? AND cost IS NOT NULL UNION ALL SELECT cost FROM sponsor_replacements WHERE charged_day=? AND cost IS NOT NULL', day, day)
+      // Charge only receipts. All unresolved sends were reconciled above; this send reserves its maximum cost.
+      if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > SPONSOR_LIMITS.dailyWei) throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
+      const recent = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE wallet=? AND created_at > ?', wallet.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
+      if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the wallet’s sponsorship rate limit is exhausted')
+      if (await ctx.publicClient.getBalance({ address: relay.account.address }) < SPONSOR_LIMITS.relayFloorWei + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
       const nonce = await ctx.publicClient.getTransactionCount({ address: relay.account.address, blockTag: 'pending' })
       const raw = await relay.account.signTransaction({ type: 'eip1559', chainId: ctx.deployment.chainId, nonce,
         to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas: gasPrice })
@@ -269,6 +235,6 @@ export class SponsorDesk {
     const wallet = this.#wallet(walletText)
     const row = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=? AND wallet=?', operationId, wallet.toLowerCase())[0]
     if (row === undefined) throw this.#d.fail('not-found', 'no sponsorship operation for this wallet')
-    return this.#resume(row, false)
+    return withRelayNonce(getAddress(row.relay), () => this.#resume(row, false))
   }) }
 }
