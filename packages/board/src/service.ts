@@ -31,7 +31,7 @@ import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type SponsorCall, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
-import { confirmedOperationIds } from './receipts.ts'
+import { confirmedOperationIds, confirmsVaultOperation } from './receipts.ts'
 import { RelaySender, type RelayRequest } from './relay.ts'
 import { collectActions, type CollectSnapshot } from './collect.ts'
 import * as v1Tools from './v1-tools.ts'
@@ -276,19 +276,19 @@ export class Board {
   async stake(caller: Caller, input: { amount: string }) {
     const me = this.#requireCaller(caller)
     const prepared = await v1Tools.prepareStake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'stake', me, { amount: prepared.amount })
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'stake', me, { amount: prepared.amount, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
   async requestUnstake(caller: Caller, input: { amount: string }) {
     const me = this.#requireCaller(caller)
     const prepared = await v1Tools.prepareUnstake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'request-unstake', me, { amount: prepared.amount })
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'request-unstake', me, { amount: prepared.amount, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
   async withdrawStake(caller: Caller) {
     const me = this.#requireCaller(caller)
     const prepared = await v1Tools.prepareStakeWithdrawal(this.#ctx('main'), me, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'withdraw-stake', me, { amount: prepared.amount })
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'withdraw-stake', me, { amount: prepared.amount, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
   async getStake(_caller: Caller, input: { wallet: string }) {
@@ -817,6 +817,28 @@ export class Board {
       )
     }
     return out
+  }
+
+  /** Reconcile the original vault operation; omitting txHash polls a previously reported hash. Never prepares or sends. */
+  async reportOperation(caller: Caller, input: { operationId: string; txHash?: string }) {
+    const me = this.#requireCaller(caller)
+    const [op] = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE id=? AND lower(actor)=lower(?)', input.operationId, me)
+    if (op === undefined) throw new BoardError('not-found', 'no wallet operation for this caller')
+    if (!['stake', 'request-unstake', 'withdraw-stake'].includes(op.kind)) throw new BoardError('invalid', 'this operation belongs to a task; use report_transaction')
+    if (input.txHash !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(input.txHash)) throw new BoardError('invalid', 'txHash must be a transaction hash')
+    if (op.status === 'prepared') {
+      const hash = input.txHash ?? op.tx_hash
+      if (hash !== null) {
+        // Keep the reported hash through a lost response. It is a claim until its exact vault event confirms it.
+        this.#sql.run("UPDATE operations SET tx_hash=?,updated_at=? WHERE id=? AND status='prepared'", hash, this.#now(), op.id)
+        const ctx = this.#ctx('main')
+        const receipt = await ctx.publicClient.getTransactionReceipt({ hash: hash as Hex }).catch(() => undefined)
+        if (receipt === undefined) throw new BoardError('chain', 'no receipt yet for the reported wallet operation; retry shortly')
+        if (confirmsVaultOperation(ctx, receipt, op)) this.#sql.run("UPDATE operations SET status='confirmed',tx_hash=?,updated_at=? WHERE id=? AND status='prepared'", hash, this.#now(), op.id)
+      }
+    }
+    const [saved] = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE id=?', op.id)
+    return { operationId: op.id, kind: op.kind, status: saved!.status, txHash: saved!.tx_hash }
   }
 
   /**

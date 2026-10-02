@@ -61,8 +61,10 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
     const [job, listing] = await Promise.all([sdk.getJob(ctx, jobId), sdk.getListing(ctx, jobId)])
     if (!same(job.client, ctx.stack.holding)) throw new Error('the collect index does not match the canonical job Holding')
     if (ctx.stack.openTokens) addToken(ctx, listing.token)
+    const contribution = ctx.stack.kind === 'hireling-v1'
+      ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'topUpOf', args: [jobId, wallet] }) : 0n
     const party = [listing.creator, listing.approver, listing.worker].some(a => same(a, wallet))
-    if (party) {
+    if (party || contribution > 0n) {
       const transactions = ctx.stack.kind === 'hireling-v1' ? await settleHireling(ctx, jobId, undefined, now) : await legacySettlement(ctx, jobId, now)
       if (transactions.length > 0) out.push({ kind: 'settle', jobId: candidate.jobId, description: 'Finalize and settle this job under its agreed outcome.', transactions })
       else if (['Open', 'Funded', 'Submitted'].includes(job.statusName) && now >= job.expiredAt) {
@@ -79,7 +81,6 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
     }
     if (ctx.stack.kind === 'hireling-v1') {
       const v1 = await sdk.getV1Listing(ctx, jobId)
-      const contribution = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'topUpOf', args: [jobId, wallet] })
       if (v1.outcome === 2 && contribution > 0n) out.push({ kind: 'claimTopUpRefund', jobId: candidate.jobId, token: listing.token, amount: contribution.toString(), description: 'Collect your contribution to this refunded job.', transactions: [sdk.topUpRefundTransaction(ctx, jobId, wallet)] })
     }
   }

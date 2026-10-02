@@ -484,13 +484,14 @@ export const tools: Record<string, Tool> = {
   },
 
   report_transaction: {
-    description: 'After sending any returned transaction: the board reconciles the task from the chain.',
+    description: 'After sending any returned transaction: report taskId for job actions or operationId for stake/unstake/withdraw actions; the board matches the exact on-chain event.',
     inputSchema: {
-      type: 'object',
-      properties: { ...taskId, txHash: str('The 0x transaction hash.') },
-      required: ['taskId', 'txHash'],
+      type: 'object', properties: { ...taskId, operationId: str('A wallet operation id from stake, request_unstake or withdraw_stake.'), txHash: str('The 0x transaction hash.') },
+      required: ['txHash'],
     },
-    run: (board, caller, a) => board.reportTransaction(caller, { taskId: s(a, 'taskId'), txHash: s(a, 'txHash') }),
+    run: (board, caller, a) => a.operationId === undefined
+      ? board.reportTransaction(caller, { taskId: s(a, 'taskId'), txHash: s(a, 'txHash') })
+      : board.reportOperation(caller, { operationId: s(a, 'operationId'), txHash: s(a, 'txHash') }),
   },
 
   list_applications: {
@@ -866,6 +867,11 @@ export const tools: Record<string, Tool> = {
     description: 'Read what this wallet can settle or claim across every board and legacy/v1 pair. Returns CollectAction[] with unsigned transactions and canonical amounts; an unavailable or stale index errors.',
     inputSchema: { type: 'object', properties: { wallet: str('Wallet address.') }, required: ['wallet'] },
     run: (board, caller, a) => board.collectActions(caller, { wallet: s(a, 'wallet') }),
+  },
+  report_operation: {
+    description: 'Reconcile your original stake, request_unstake or withdraw_stake operation by exact vault receipt. Give txHash once; omit it to poll the saved hash. Never prepares or sends another action.',
+    inputSchema: { type: 'object', properties: { operationId: str('The wallet operation id.'), txHash: str('Optional transaction hash to report.') }, required: ['operationId'] },
+    run: (board, caller, a) => board.reportOperation(caller, { operationId: s(a, 'operationId'), ...(a.txHash === undefined ? {} : { txHash: s(a, 'txHash') }) }),
   },
 }
 

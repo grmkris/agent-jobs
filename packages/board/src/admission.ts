@@ -10,12 +10,12 @@ export const readOnlyHostedTools = new Set([
 
 export const drainHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke', 'report_operation',
 ])
 
 export const recoveryHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke', 'report_operation',
 ])
 
 export const disabledP0HostedTools = new Set([

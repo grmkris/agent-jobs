@@ -1,7 +1,10 @@
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, type TransactionReceipt, encodeAbiParameters, encodeEventTopics, parseAbi } from 'viem'
 import { expect, it, vi } from 'vitest'
-import { confirmedOperationIds } from './receipts.ts'
+import { confirmedOperationIds, confirmsVaultOperation } from './receipts.ts'
+import { DatabaseSync } from 'node:sqlite'
+import { Board } from './service.ts'
+import { fromNodeSqlite } from './store.ts'
 import type { OperationRow } from './store.ts'
 
 const wallet = `0x${'1'.repeat(40)}` as Address, relay = `0x${'2'.repeat(40)}` as Address, mallory = `0x${'3'.repeat(40)}` as Address
@@ -68,4 +71,43 @@ it('cancel is authorized by the canonical listing creator, and a settle event ne
   expect(await confirmedOperationIds(ctx, 1n, receipt([{ address: ctx.stack.holding, data: '0x', topics: encodeEventTopics({ abi, eventName: 'Cancelled', args: { jobId: 1n } }) }]), [op('cancel'), op('cancel', mallory)])).toEqual([op('cancel').id])
   const settle = { address: ctx.stack.holding, topics: encodeEventTopics({ abi: sdk.hirelingHoldingAbi, eventName: 'RewardSettled', args: { jobId: 1n, to: wallet } }), data: encodeAbiParameters([{ type: 'uint8' }, { type: 'uint256' }], [1, 7n]) }
   expect(await confirmedOperationIds(ctx, 1n, receipt([settle]), [op('accept')])).toEqual([])
+})
+
+const vault = `0x${'4'.repeat(40)}` as Address
+const vaultCtx = { ...ctx, deployment: { ...ctx.deployment, hireling: { vault, factory: ctx.stack.factory } } } as sdk.Ctx
+function vaultLog(kind: 'stake' | 'request-unstake' | 'withdraw-stake', account = wallet, payer = wallet, amount = 7n, address = vault) {
+  if (kind === 'stake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Staked', args: { account, payer } }), data: encodeAbiParameters([{ type: 'uint256' }], [amount]) }
+  if (kind === 'request-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UnstakeRequested', args: { account } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint48' }], [amount, 10n, 1000]) }
+  return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Withdrawn', args: { account } }), data: encodeAbiParameters([{ type: 'uint256' }], [amount]) }
+}
+const vaultOp = (kind: string) => op(kind, wallet, { vault, token: ctx.stack.factory, amount: '7' })
+it.each(['stake', 'request-unstake', 'withdraw-stake'] as const)('vault %s matches the exact account, amount, method and configured vault', kind => {
+  const prepared = vaultOp(kind)
+  expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind)]), prepared)).toBe(true)
+  for (const log of [vaultLog(kind, mallory), vaultLog(kind, wallet, wallet, 8n), vaultLog(kind, wallet, wallet, 7n, mallory), accepted()])
+    expect(confirmsVaultOperation(vaultCtx, receipt([log]), prepared)).toBe(false)
+  expect(confirmsVaultOperation(vaultCtx, { ...receipt([vaultLog(kind)]), status: 'reverted' }, prepared)).toBe(false)
+  expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind)]), { ...prepared, detail: null })).toBe(false)
+})
+it('third-party stakeFor cannot confirm a wallet stake, and a replaced vault cannot confirm an old preparation', () => {
+  expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog('stake', wallet, mallory)]), vaultOp('stake'))).toBe(false)
+  expect(confirmsVaultOperation({ ...vaultCtx, deployment: { ...vaultCtx.deployment, hireling: { ...vaultCtx.deployment.hireling!, vault: mallory } } }, receipt([vaultLog('stake')]), vaultOp('stake'))).toBe(false)
+})
+it('a saved wallet-operation hash survives a lost receipt response and polls the original without another preparation', async () => {
+  const db = new DatabaseSync(':memory:'), sql = fromNodeSqlite(db)
+  const hash = sdk.hashText('vault receipt')
+  const getTransactionReceipt = vi.fn().mockRejectedValueOnce(new Error('lost response')).mockResolvedValue(receipt([vaultLog('stake')]))
+  const config = { network: 'monad-testnet' as const, contexts: { main: { ...vaultCtx, publicClient: { ...vaultCtx.publicClient, getTransactionReceipt } } as sdk.Ctx }, domain: 'test', uri: 'https://test', manifestBaseUrl: '' }
+  try {
+    const board = new Board(sql, config), original = vaultOp('stake')
+    sql.run('INSERT INTO operations VALUES (?,?,?,?,?,?,?,?,?)', original.id, 'vault:' + wallet, original.kind, original.actor, original.status, null, original.detail, 0, 0)
+    await expect(board.reportOperation({ address: wallet }, { operationId: original.id, txHash: hash })).rejects.toThrow('no receipt')
+    expect(sql.all('SELECT status,tx_hash FROM operations')[0]).toEqual({ status: 'prepared', tx_hash: hash })
+    const restarted = new Board(sql, config)
+    expect(await restarted.reportOperation({ address: wallet }, { operationId: original.id })).toEqual({ operationId: original.id, kind: 'stake', status: 'confirmed', txHash: hash })
+    expect(sql.all('SELECT * FROM operations')).toHaveLength(1)
+    expect(await restarted.reportOperation({ address: wallet }, { operationId: original.id, txHash: sdk.hashText('different') })).toMatchObject({ txHash: hash, status: 'confirmed' })
+    await expect(restarted.reportOperation({ address: mallory }, { operationId: original.id })).rejects.toThrow('no wallet operation')
+    expect(getTransactionReceipt).toHaveBeenCalledTimes(2)
+  } finally { db.close() }
 })

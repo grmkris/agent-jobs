@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
 import { Board, fromNodeSqlite as boardSql } from '@agent-jobs/board'
 import { contractsFromDeployment, decode, foldJob, fromNodeSqlite, migrate, stmt, type IndexedEvent } from '@agent-jobs/indexer'
-import { type Address, decodeFunctionData, parseAbi, parseEther } from 'viem'
+import { type Address, decodeFunctionData, encodeFunctionData, parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
 import { collectSnapshot } from '../src/collect-index.ts'
@@ -55,7 +55,9 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
       expect(prep.amount).toBe(parseEther('100').toString())
       const args = decodeFunctionData({ abi: sdk.factoryV2Abi, data: prep.transactions[0]!.data }).args as readonly [string, bigint]
       expect([args[0]!.toLowerCase(), args[1]]).toEqual([ctx.deployment.hireling!.vault.toLowerCase(), parseEther('100')])
-      await sdk.sendAll(wallet, ctx.publicClient, prep.transactions)
+      const stakeHashes = await sdk.sendAll(wallet, ctx.publicClient, prep.transactions)
+      const stakeReport = await board.reportOperation(actor(wallet), { operationId: prep.operationId, txHash: stakeHashes.at(-1)! })
+      expect(stakeReport).toMatchObject({ operationId: prep.operationId, kind: 'stake', status: 'confirmed', txHash: stakeHashes.at(-1)! })
     }
     const x = await listed()
     expect(await board.getStake({}, { wallet: f.worker.account.address })).toMatchObject({ staked: parseEther('100').toString(), reserved: parseEther('10').toString(), available: parseEther('90').toString() })
@@ -70,8 +72,11 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     await expect(board.topUp(actor(f.contributor), { taskId: x.taskId, amount: '0.0000000000000000001' })).rejects.toThrow('fractional')
     const unstake = await board.requestUnstake(actor(f.contributor), { amount: '1' }).catch(() => null)
     expect(unstake).toBeNull()
-    await sdk.sendAll(f.contributor, ctx.publicClient, (await board.stake(actor(f.contributor), { amount: '2' })).transactions)
-    await sdk.sendAll(f.contributor, ctx.publicClient, (await board.requestUnstake(actor(f.contributor), { amount: '1' })).transactions)
+    const contributorStake = await board.stake(actor(f.contributor), { amount: '2' })
+    await sdk.sendAll(f.contributor, ctx.publicClient, contributorStake.transactions)
+    const contributorUnstake = await board.requestUnstake(actor(f.contributor), { amount: '1' })
+    const contributorUnstakeHashes = await sdk.sendAll(f.contributor, ctx.publicClient, contributorUnstake.transactions)
+    expect((await board.reportOperation(actor(f.contributor), { operationId: contributorUnstake.operationId, txHash: contributorUnstakeHashes.at(-1)! })).status).toBe('confirmed')
     await expect(board.withdrawStake(actor(f.contributor))).rejects.toThrow('cooldown')
     await sdk.submit(ctx, f.worker, x.jobId, sdk.hashText('finished'))
     await sdk.accept(ctx, f.creator, x.jobId)
@@ -86,7 +91,9 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     await indexNow()
     const stake = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'stakeWithdraw')!
     expect(stake.amount).toBe(parseEther('1').toString())
-    await sdk.sendAll(f.contributor, ctx.publicClient, (await board.withdrawStake(actor(f.contributor))).transactions)
+    const withdrawal = await board.withdrawStake(actor(f.contributor))
+    const withdrawalHashes = await sdk.sendAll(f.contributor, ctx.publicClient, withdrawal.transactions)
+    expect((await board.reportOperation(actor(f.contributor), { operationId: withdrawal.operationId, txHash: withdrawalHashes.at(-1)! })).status).toBe('confirmed')
     await indexNow()
     expect((await board.collectActions({}, { wallet: f.contributor.account.address })).some(a => a.kind === 'stakeWithdraw')).toBe(false)
   }, 180_000)
@@ -105,7 +112,10 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     await sdk.reject(ctx, f.creator, y.jobId, 'None', sdk.hashText('not accepted'))
     const rejectedAt = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'rejectedAt', args: [y.jobId] }))
     await f.rpc('evm_setNextBlockTimestamp', [rejectedAt + 3601]); await f.rpc('evm_mine')
-    await sdk.rejectAfterWindow(ctx, f.creator, y.jobId); await sdk.settle(ctx, f.creator, y.jobId); await indexNow()
+    await sdk.rejectAfterWindow(ctx, f.creator, y.jobId); await indexNow()
+    const contributorSettlement = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'settle' && a.jobId === y.jobId.toString())!
+    expect(contributorSettlement.transactions.map(t => t.data.slice(0, 10))).toEqual([encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [y.jobId] }).slice(0, 10)])
+    await sdk.sendAll(f.contributor, ctx.publicClient, contributorSettlement.transactions); await indexNow()
     const refund = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'claimTopUpRefund' && a.jobId === y.jobId.toString())!
     expect(refund.amount).toBe(parseEther('0.4').toString()); expect(refund.transactions[0]!.gas).toBe('450000')
     await sdk.sendAll(f.contributor, ctx.publicClient, refund.transactions); await indexNow()
@@ -125,6 +135,29 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     expect(action.transactions.map(t => decodeFunctionData({ abi: sdk.jobHoldingAbi, data: t.data }).functionName)).toEqual(['expireContest','settle'])
     await sdk.sendAll(f.creator, ctx.publicClient, action.transactions); await indexNow()
     expect((await board.collectActions({}, { wallet: f.creator.account.address })).some(a => a.jobId === jobId.toString())).toBe(false)
+  }, 180_000)
+  it.each(['elapsed-rejection', 'deferred-refund'])('a contributor alone recovers %s, then discovers its exact top-up refund', async path => {
+    const x = await listed()
+    await sdk.sendAll(f.contributor, ctx.publicClient, (await board.topUp(actor(f.contributor), { taskId: x.taskId, amount: '0.3' })).transactions)
+    await sdk.submit(ctx, f.worker, x.jobId, sdk.hashText(path))
+    await sdk.reject(ctx, f.creator, x.jobId, 'None', sdk.hashText('refund'))
+    const rejectedAt = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'rejectedAt', args: [x.jobId] }))
+    await f.rpc('evm_setNextBlockTimestamp', [rejectedAt + 3601]); await f.rpc('evm_mine')
+    if (path === 'deferred-refund') {
+      await f.send(ctx.deployment.core, sdk.coreAbi, 'pause')
+      await sdk.rejectAfterWindow(ctx, f.creator, x.jobId)
+      await f.send(ctx.deployment.core, sdk.coreAbi, 'unpause')
+    }
+    await indexNow()
+    const prerequisite = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'settle' && a.jobId === x.jobId.toString())!
+    const first = decodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, data: prerequisite.transactions[0]!.data })
+    expect(first.functionName).toBe(path === 'elapsed-rejection' ? 'rejectAfterWindow' : 'retryDeferred')
+    expect(decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: prerequisite.transactions[1]!.data }).functionName).toBe('settle')
+    await sdk.sendAll(f.contributor, ctx.publicClient, prerequisite.transactions); await indexNow()
+    const refund = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'claimTopUpRefund' && a.jobId === x.jobId.toString())!
+    expect(refund.amount).toBe(parseEther('0.3').toString())
+    await sdk.sendAll(f.contributor, ctx.publicClient, refund.transactions); await indexNow()
+    expect((await board.collectActions({}, { wallet: f.contributor.account.address })).some(a => a.jobId === x.jobId.toString())).toBe(false)
   }, 180_000)
   it('deduplicates pooled refused-token withdrawals and re-reads their canonical balances', async () => {
     const abi = parseAbi(['function mint(address,uint256)', 'function setBlocked(address,bool)'])
