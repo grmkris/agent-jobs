@@ -163,19 +163,20 @@ arbitrator from `holding.termsOf`.
 | `stake`, `stakeWithPermit`, `stakeFor` | anyone | FACTORY in; `stakeFor` credits another account (the mining distributor). |
 | `requestUnstake(amount)` | staker | Unreserved stake into a 7-day cooldown (restarts for the whole amount). |
 | `cancelUnstake` / `withdraw` | staker | Cooldown back to stake / paid out after `unlockAt`. |
-| `reserve` | authorized Holding | Reserves unreserved stake as a bond; a zero amount still checks authorization. |
+| `reserve` | authorized Holding | Reserves unreserved stake as a bond; a zero amount still checks authorization. Refused for a Holding the account denied (`HoldingDenied`). |
+| `setHoldingDenied(holding, denied)` | any staker | The account's veto on a Holding taking new bonds from its stake (C9 ACL-1); existing reservations still settle. |
 | `release` / `slash` | the Holding that reserved | Up to its own `reservedBy`; `slash` burns. Works after revocation. |
-| `proposeHolding` → `acceptHolding` → `revokeHolding` | owner / anyone after 8 d / owner, instant | Holding authorization. |
-| `bootstrapHolding` | owner, once, while `totalStaked == 0` | The first Holding without the delay. |
+| `proposeHolding` → `acceptHolding` → `revokeHolding` | owner / anyone from 8 d to 15 d / owner, instant | Holding authorization. A proposal expires 7 days after its eta, is cancelled (with its event) when replaced, when its Holding is revoked, and when ownership changes. |
+| `bootstrapHolding` | owner, once, while `totalStaked == 0` and nothing is proposed | The first Holding without the delay. |
 
 ## FeeSchedule, Factory, mining
 
 | Contract | Surface |
 | :--- | :--- |
-| `FeeSchedule` | `feeBps(stake)`, `treasury()`, `schedule()`, `pending()`; owner `propose` / `cancel`, anyone `execute` after 3 d. Starts at 0 / 10k / 100k / 1M FACTORY → 30 / 10 / 3 / 1 %. |
+| `FeeSchedule` | `feeBps(stake)`, `treasury()`, `schedule()`, `pending()`; owner `propose` / `cancel`, anyone `execute` from 3 d to 10 d (then `ScheduleExpired`); an ownership change drops the proposal. Starts at 0 / 10k / 100k / 1M FACTORY → 30 / 10 / 3 / 1 %. |
 | `Factory` | ERC-20 + permit + burn, 18 decimals, 1e9 minted once to the genesis allocation, no owner. |
-| `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52). |
-| `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.stakeFor`. |
+| `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52), itself capped at 500M; `budget(epoch)` is cut at that cap (zero from epoch 182). |
+| `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; owner `resizeRoot(epoch, newTotal)` corrects a total (≥ claimed; increases only from unpromised funds); anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.stakeFor`. One leaf per account and epoch: the tree builder must aggregate, and `total` should equal the leaf sum. |
 
 ## Deploy (C8): `script/HirelingRecipe.sol`, `script/DeployHireling.s.sol`, `script/PromoteHireling.s.sol`
 

@@ -1,7 +1,7 @@
 # ADR-0011: Hireling v1 contracts
 
-Date: 2026-10-02. Status: **implemented, unit-tested and fork-rehearsed on Monad testnet and mainnet (C1–C8); not
-deployed**. The audit pass is C9 (`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
+Date: 2026-10-02. Status: **implemented, unit-tested, fork-rehearsed on Monad testnet and mainnet, and audited (C1–C9,
+findings and resolutions in "C9 audit" below); not deployed** (`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
 v1 build plan. Supersedes the contest parts of ADR-0004 and ADR-0007 for new jobs; the legacy pairs keep them.
 
 ## Context
@@ -108,8 +108,10 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   authorization, so revoking a Holding is also the stop switch for its new listings and activations. Unstaking:
   `requestUnstake` (unreserved stake only; restarts the 7-day cooldown for the whole amount) → `withdraw`, or
   `cancelUnstake`. Holdings are authorized through `proposeHolding` → `acceptHolding` (anyone, after 8 days, longer than
-  the cooldown) and removed instantly with `revokeHolding`. `bootstrapHolding` authorizes the first Holding without the
-  delay, once, and only while nothing is staked. Invariants: `reserved ≤ staked` per account, `totalReserved ≤
+  the cooldown, and within 7 days after that) and removed instantly with `revokeHolding`. `bootstrapHolding` authorizes
+  the first Holding without the delay, once, and only while nothing is staked or proposed. The delay lets free stake
+  leave before a new Holding goes live; stake that is still bonded then, and mining rewards claimed for an account, are
+  protected by the account's own veto, `setHoldingDenied` (C9 ACL-1). Invariants: `reserved ≤ staked` per account, `totalReserved ≤
   totalStaked`, balance ≥ `totalStaked + totalUnstaking`.
 - `MiningReserve` holds the 500M and funds the distributor for epochs that have ended, capped so the total ever funded
   stays within the cumulative schedule (epoch 0: 72 h and W · 3/7; epoch k ≥ 1: a week and `W >> ((k − 1) / 26)`,
@@ -123,15 +125,22 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   already in the distributor and not promised to an earlier root. `claim` is permissionless and stakes straight into
   the vault with `stakeFor`. Leaves are OZ double-hashed `(epoch, account, amount)`. A root can be replaced only while
   nothing was claimed from it, so a wrong root is correctable and a bad one can drain at most its own funded total.
+  `resizeRoot` corrects a total after claims (never below what was claimed), so a total above the leaf sum no longer
+  locks mining funds (C9 MATH-5). One leaf per account and epoch; the tree builder aggregates.
 
 ### Admin
 
-Every owner is the Safe (`Ownable2Step`; the deployer hands over at the end of the recipe and the Safe accepts). The
-Safe's powers: the fee schedule (3-day timelock), Holding authorization on the vault (8-day timelock, instant revoke),
-mining funding and roots, the evaluator's verifier set, and the default arbitrator for new listings; none of these can
-move escrowed rewards or reserved stake. On mainnet the Safe also holds the core's admin roles, which are broader:
-pause, `emergencyWithdraw` while paused, the fee setters, the hook whitelist and the UUPS upgrade. Those can move escrow
-and are disclosed as such; the README commits to no upgrade during an active agreement.
+Every owner is the Safe (`Ownable2Step`; the deployer hands over at the end of the recipe and the Safe accepts; a
+pending proposal is dropped when ownership changes). The Safe's powers: the fee schedule (3-day timelock, 7-day
+execution window), Holding authorization on the vault (8-day timelock, 7-day acceptance window, instant revoke), mining
+funding, roots and root totals, the evaluator's verifier set, and the default arbitrator for new listings. None of
+these moves escrowed rewards. Only a newly authorized Holding could touch stake, after 8 days' notice, and never stake
+whose account has denied it. On mainnet the Safe also holds the core's admin roles, which are broader: pause,
+`emergencyWithdraw` while paused, the fee setters, the hook whitelist and the UUPS upgrade. Those can move escrow, and
+an upgrade could misreport a job's state to the evaluator and so burn an honest bond; they are disclosed as such and
+the README commits to no upgrade during an active agreement. A pause no longer freezes decisions or bonds (it defers
+the core call), and a core fee set later never reaches a worker (C9). Before meaningful value is at stake the Safe
+should move from 1-of-2 to at least 2-of-3, and the core upgrade behind a timelock (C9 ACL-8, STAKE-1).
 
 ### Gas (Monad charges the gas limit)
 
@@ -172,6 +181,78 @@ is sent; `PromoteHireling.s.sol` then proves the candidate on-chain (`HirelingVe
 untouched reserve, one genesis, owners and core roles) and against forge's receipts, and only then writes `.deployment`
 in the D1/D5 shape, with receipt block numbers. A dry run or a failed broadcast leaves the config untouched; promotion is
 idempotent and refuses a config it cannot rewrite faithfully.
+
+### C9 audit (2 Oct)
+
+Method: the ethskills audit skill (`evm-audit-skills` master index and checklists). Seven specialist passes ran in
+parallel over `contracts/src/hireling/`, with the vendored core as counterpart and the deploy recipe in scope:
+general; precision and math; ERC-20 with flash loans; staking; signatures with proxies; governance with access
+control; assembly with DoS and chain-specific (Monad). Slither and the ethskills security pre-deploy checklist ran
+too, and the Codex reviewer traced C8-001…003 and C9-001…003. Findings from several passes are merged below. Agent
+severities follow the skill's definitions; reviewer findings keep the reviewer's.
+
+| Finding (passes) | Severity | Resolution |
+| --- | --- | --- |
+| C9-001, ERC20-1, DOS-1, GEN-4, DOS-7: a gas-burning reward token, or an expensive worker hook, made worker-side decisions revert at any limit (the 416k feedback reserve no longer fit), freezing the worker bond or letting the creator win by timeout | High | Fixed 41cb743: core calls capped at `CORE_GAS`, room for the cap, bookkeeping and feedback required up front, fallback `reject` on spare gas only, feedback best effort. DOS-1's overflow variant: `topUp` refuses a reward + bonus that would overflow (1c54e12) |
+| C9-002: a token that moves the balance then returns `false` (or short data) was paid and also owed | Medium | Fixed 1c54e12: the push runs in its own only-self frame (`pushPayment`) that reverts on failure; `owed` only after the rollback |
+| C9-003, GEN-1, ERC20-2, DOS-3: a pending milestone claim plus a deferred refund locked the job for good | Medium | Fixed 41cb743: permissionless `retryDeferred`, which only finishes the recorded outcome; `topUp` refuses a decided job (1c54e12) |
+| ACL-2, GEN-2, DOS-5: deadlines kept running through a core pause (delivery burn, arbitration timeout) | Medium | Fixed 41cb743: a pause defers the core call instead of blocking the decision; `notePause` records the pause and a delivery deadline inside it refunds without the burn |
+| ACL-1, GEN-3, STAKE-2: the 8-day Holding delay did not protect stake still bonded when a new Holding went live, nor mining rewards claimed for an account | Medium | Fixed a108863: `setHoldingDenied`, the account's veto, checked by `reserve` |
+| STAKE-1: core pause froze bonds; a core upgrade could misreport job state and burn a bond | Medium | Pause: fixed 41cb743 (decisions and bonds proceed during a pause). Upgrade: an accepted Safe power, now disclosed in Admin, with the recommendation to timelock it |
+| DOS-2, GEN-6: the feedback `catch` copied unbounded revert data (Monad's linear memory makes a returndata bomb cheap) | Medium | Fixed 41cb743: at most 32 bytes |
+| C8-001: the deploy script wrote the config before the broadcast | Medium | Fixed 99f7c32: candidate + `PromoteHireling` with live and receipt checks; anvil pipeline rehearsal |
+| C8-002: promotion required exact balances anyone can change (dust, `burn`) | Medium | Fixed cdaad49: lower bounds; genesis supply from the Factory creation receipt |
+| C8-003: promotion accepts a pending handover | Info | Kept (coordinator): `/admin` uses the promoted record for the six `acceptOwnership` calls; `owner() == safe` is a separate launch check |
+| ACL-5, SIG-4, GEN-7, ERC20-6: core fee setters reached live jobs; an evaluator fee stranded in the evaluator | Low | Fixed: `activate` refuses a charging core (1c54e12); a payout under core fees goes through Holding (41cb743) |
+| ACL-3: the deployer key keeps owner powers until the Safe accepts | Low | Proposals are dropped on ownership change (a108863); promotion refuses any pending proposal, funding or root (99f7c32). Residual: the Safe accepts at launch |
+| ACL-4, STAKE-3: proposals never expired; revoke left a re-acceptable proposal | Low | Fixed a108863: 7-day windows; revoke and bootstrap clear proposals |
+| ACL-6, SIG-3, GEN-9: the fresh core's roles went to a Safe address without checking it exists | Low | Fixed 99f7c32: `check` requires code at the Safe; promotion too |
+| MATH-1: the fee rounded down, so tiny rewards in 0–2-decimal tokens paid none | Low | Fixed 1c54e12: rounds up, capped so `net ≥ 1` |
+| MATH-5, STAKE-4, GEN-11: a root total above its leaf sum locked funds forever | Low | Fixed a108863: `resizeRoot`. Duplicate leaves per account: the tree builder aggregates |
+| SIG-1, GEN-8: an older evidence attestation could replace a newer one | Low | Fixed 41cb743: `StaleEvidence` |
+| SIG-2: an arbitrator could not revoke a signed ruling | Low | Fixed 41cb743: `cancelRuling` |
+| GEN-5, DOS-4: a worker can suppress its ERC-8004 feedback by making the evaluator an operator of its agent | Low | Accepted: the evaluator's `outcome`/`caseOf` is the canonical record; indexers count a self-feedback `FeedbackFailed` as negative |
+| ERC20-3: `withdraw` sends everything and only to the payee | Low | Accepted: redirecting a blocklisted payee's funds would invite the issuer to blocklist Holding itself |
+| ERC20-4: the core-to-Holding refund leg is not measured, so a token that starts charging or rebases down draws from other listings in the same token | Low | Accepted: isolation is per token (ADR-0010); such tokens are unsupported for full value |
+| ACL-8: the launch Safe is 1-of-2 | Low | Governance recommendation (Admin); the mainnet Safe is set at R2 |
+| MATH-2, DOS-6: the 10k slack assumed Ethereum's cold-access price | Info | Fixed: push frame +25k (1c54e12), feedback reserve +40k (41cb743) |
+| MATH-3, SIG-6: `validUntil` truncated to 48 bits | Info | Fixed 41cb743: clamped |
+| MATH-4: `budget` overstated what `fund` allows past the cap | Info | Fixed a108863 |
+| MATH-6, ACL-9 (config): recipe casts wrapped silently | Info | Fixed 99f7c32: `SafeCast` and bounds |
+| STAKE-8, GEN-12: `stakeWithPermit` NatSpec promised relaying | Info | Fixed a108863 |
+| ACL-9: replaced proposals emitted no cancel | Info | Fixed a108863. The fee treasury is read at payout, not per job, and Holdings are authorized by address (only non-upgradeable ones may be authorized); TeamVesting keeps OZ's single-step `Ownable` |
+| STAKE-5, STAKE-6, STAKE-7: tier griefing via a worker's own unclaimed leaf; one stake lends its tier to many jobs; donations are unrecoverable | Info | Accepted |
+| ACL-7, SIG-5, SIG-7: the default arbitrator resolves at inclusion; attestations do not name the verifier; `termsHash` is a label | Info | Accepted: clients pass an explicit arbitrator and compare `getListing` before activating; verifiers are EOAs |
+| ERC20-5, GEN-10: `FeeCharged` is free in a self-minted token and is emitted even when the fee went to `owed` | Info | For the mining pipeline (B8): count only priced, allowlisted tokens and only fees the treasury received |
+
+Slither (`slither-analyzer` via `uvx`, hireling sources only) on the final code: `uninitialized-state` on
+`_listings` is a false positive (written through a storage pointer); `incorrect-equality` is the `eta == 0` sentinel;
+the `reentrancy-no-eth` and `reentrancy-events` hits are writes after calls to the trusted vault and core inside
+transient `nonReentrant` frames, in the order M1 requires; `timestamp` is the windows. `uninitialized-local` (an
+implicit `false`) was made explicit.
+
+Pre-deploy checklist (ethskills security):
+- Access control: every privileged function has an explicit guard, and every owner is a Safe via `Ownable2Step`.
+- Pause: the only pause is the core's, held by the Safe, and it no longer freezes decisions or bonds.
+- Reentrancy: every state-changing entry point is guarded.
+- Token decimals: amounts are in the token's own units, with no hard-coded `1e18`.
+- Oracles: none.
+- Math: `mulDiv` throughout, with rounding in the protocol's favour.
+- Return values: `SafeERC20` everywhere except the bounded push, which checks the result itself.
+- Input validation: zero values, bounds and lengths are checked.
+- Events: every state change emits one.
+- Maintenance: timeouts, `retryDeferred`, `notePause` and `settle` are callable by anyone with a stake in the result.
+- Approvals: exact `forceApprove` amounts. The one infinite approval is the distributor's to the immutable vault, which
+  pulls only inside `claim`.
+- Fee-on-transfer: refused, measured at every inflow.
+- MEV: no swaps.
+- Proxies: only the vendored core is a proxy; it initializes atomically, its implementation is disabled, and its
+  upgrade authority is the Safe.
+- EIP-712: domain, nonces and deadlines are enforced.
+- Delegatecall: none.
+- Testing: Slither ran, the five fuzz tests passed at 10,000 runs, and the invariant tests passed. Edge cases are
+  covered: zero, max, unauthorized callers, reentrancy and hostile tokens.
+- Source verification: due after deploy (the coordinator's step).
 
 ## Consequences
 

@@ -397,7 +397,7 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
             } catch {}
         }
         _cases[jobId].payoutDeferred = true;
-        bool refunded;
+        bool refunded = false;
         // Opportunistic: whatever gas is spare beyond the feedback's reserve. A starved or refused `reject` loses
         // nothing; the job waits for `retryDeferred`.
         uint256 spare = gasleft();
