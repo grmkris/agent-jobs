@@ -1,5 +1,7 @@
 # Demo video: shot list (3 minutes)
 
+**Historical legacy testnet shot list.** These contest, demo-pair and faucet steps preserve the September rehearsal. They do not apply to new v1 jobs and must not be presented as v1 evidence. V1 uses hires, stake reservations, per-offer windows and Collect; use the [v1 flow runner](../packages/sdk/scripts/v1-flows.md) and dated [reality check](reality-check.md) for its evidence.
+
 The video follows note 12 §2. Every step below was rehearsed on Monad testnet (`docs/reality-check.md`, "B6a
 rehearsal"). Everything is recorded on the testnet **demo** board, whose review and dispute windows are 10 minutes, so
 each outcome lands on camera. Record the terminal and the browser side by side at 1440p, then cut to the timings

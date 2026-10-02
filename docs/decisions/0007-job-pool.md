@@ -1,5 +1,7 @@
 # ADR-0007: JobPool, pooled funding of one offer
 
+**V1 scope note (2 Oct):** this is a legacy contract and live-history record. V1 has no JobPool successor; `topUp` and contributor refunds replace pooled funding. Hosted pools remain disabled. The legacy security findings and v1 resolution are recorded in [ADR-0011](0011-hireling-v1.md); the old guarantees below are not a recommendation to launch new pools.
+
 Date: 2026-09-30. Status: **implemented, unit-tested (26 tests), deployed on Monad testnet, live cancel-and-refund path
 proven on the `monad-pet` board (job 55); the hire path's run is recorded in `docs/reality-check.md`.** Testnet only.
 

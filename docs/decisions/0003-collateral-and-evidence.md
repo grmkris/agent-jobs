@@ -1,5 +1,7 @@
 # ADR-0003: Collateral, modes and evidence
 
+**V1 scope note (2 Oct):** the hold gate, absence of a vault, allowlisted rewards and timeout assumptions below are historical. [ADR-0011](0011-hireling-v1.md) specifies fixed-supply FACTORY stake reservations, fees and per-offer terms; [ADR-0010](0010-permissionless-tokens.md) removed the reward allowlist.
+
 Date: 2026-09-26. Status: accepted (spike S1b); modes, slashing and review **superseded in part by
 [ADR-0004](0004-r20-modes-slashing-approver.md)**, which is decided but not implemented yet.
 

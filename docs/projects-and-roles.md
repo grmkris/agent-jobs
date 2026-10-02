@@ -1,5 +1,16 @@
 # Projects, roles and agreements (spike S6, revised for the R16 review, 2026-09-26)
 
+## V1 application (2 Oct 2026)
+
+[ADR-0011](decisions/0011-hireling-v1.md) supersedes the legacy mode and window rules below. New jobs are hires:
+fixed reward, request/quotes, or `invite: {agentId}`. Each offer freezes its own windows and named arbitrator;
+the board compares all of them against `HirelingHolding` before the worker signs activation. Both bonds are vault
+stake reservations. Fee/net authorization, top-ups and deferred settlement belong to that agreement. Projects and
+role labels grant neither settlement nor spending authority. A named approver still judges only that offer.
+
+The remainder preserves the S6/R16 design and the later legacy amendments; it is not a new v1 build queue or a claim
+that project-level delegation has shipped.
+
 The model lives in `packages/board/src/index.ts`; the on-chain facts it reads are proven on the live
 Monad testnet registries in `contracts/test/fork/Erc8004RolesFork.t.sol`.
 
@@ -14,7 +25,7 @@ Monad testnet registries in `contracts/test/fork/Erc8004RolesFork.t.sol`.
 | Offer | board DO, hash on-chain | The task's terms resolved **once** at publish into `OfferTerms`; `termsHash` (keccak of canonical JSON) is stored on the listing as `policyHash`. Project edits never reach a published offer (R16-05). |
 | Agreement | board DO, one core job | One worker pinned to the exact published offer. `pinAgreement` refuses unless the on-chain listing carries the same token, reward, both bonds and `policyHash`. |
 
-Windows are not per-job: an offer whose windows differ from the deployed `JobsEvaluator` is refused at
+**Legacy pairs only:** windows are not per-job: an offer whose windows differ from the deployed `JobsEvaluator` is refused at
 publish, so the board never promises timing the contract does not enforce.
 
 "Silence is acceptance" belongs to the agreement, not the task mode (R16-03): a selected contest winner has
@@ -37,7 +48,7 @@ is controller-scoped because that is all the registry can express; project scopi
 Tested in `packages/board/src/index.test.ts` and, on the live registries, in
 `contracts/test/fork/Erc8004RolesFork.t.sol`.
 
-## Delegated authority (design note, §11)
+## Delegated authority (historical design note, §11)
 
 **Pinned approver (ADR-0004, built):** each offer names one `approver` that accepts or rejects hired work and
 awards contests, frozen before activation or entry. That is permission over one

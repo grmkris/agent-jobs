@@ -2,7 +2,8 @@
 
 Mainnet hosted writes are open to every authenticated wallet and board from day one. There is no wallet,
 board or action invitation list. Direct chain access remains permissionless. `PROD_ADMISSION_DRAIN=1`
-stops new hosted writes; malformed drain values also drain. Runtime bindings are operator configuration,
+stops new hosted writes; missing, empty or malformed drain values also drain. Only explicit `0`/`false`
+opens deployment admission and runs the pinned production readiness gate. Runtime bindings are operator configuration,
 never request fields. The obsolete `PROD_APPROVED_*` bindings are retained, empty and ignored, solely to
 preserve existing staging bindings.
 
@@ -31,9 +32,10 @@ refuse writes. These checks currently apply to production; local/testnet behavio
 
 The board DO independently loads runtime drain policy, verifies its namespace identity, resolves credentials
 from the shared `Database`, and rejects a supplied caller that differs from the session. Board tools consume
-limits inside the DO so direct RPC cannot skip them. Worker-local registry/directory preparations and
-sign-in consume the same limits. Its RPC namespace is private to the host Worker; there is no public DO
-HTTP, WebSocket, or alarm mutator. Directory mutation enablement is a separate B10 change.
+limits inside the DO so direct RPC cannot skip them. Worker-local registry tools, profile registration preparation and sign-in consume the same limits. Directory
+prepare/submit tools derive their rate identity from the actual action/signed kind inside their own DO,
+re-check shared sessions and runtime policy, and validate the canonical chain/registry/origin/agent object name. Its RPC namespace is private to the host Worker; there is no public DO
+HTTP, WebSocket, or alarm mutator. Directory mutations are enabled behind these gates; their signed record remains the authority.
 
 During drain, authenticated parties retain proof, settlement, appeal, reconciliation, cancellation/refund
 and revocation paths, subject to the same short rate windows and service authorization. Read tools retain

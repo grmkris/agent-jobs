@@ -1,5 +1,7 @@
 # ADR-0002: Escrow model — Holding as the ERC-8183 client
 
+**V1 scope note (2 Oct):** this dated spike establishes Holding as client, not the current handshake or bond custody. [ADR-0011](0011-hireling-v1.md) specifies worker activation, net-budget authorization and vault reservations for v1.
+
 Date: 2026-09-25. Status: accepted (spike S1).
 
 ## Decision

@@ -1,5 +1,7 @@
 # ADR-0004: Finished-work contests, signed hire handshake, slashing, approver (R20)
 
+**V1 scope note (2 Oct):** [ADR-0011](0011-hireling-v1.md) supersedes new-job contests, direct bond transfers, global windows, EOA launch authority and the restricted relay policy. The dated decisions and amendments below remain the legacy record; existing jobs stay on their original pair. V1 sponsorship is a separately caveated relay grant, not a change to the worker named by activation.
+
 Date: 2026-09-26. Status: **contracts implemented and tested (S7, 27 Sep, `main`); not yet deployed.** The board
 side (S8) is still to build. Current contract surface: `contracts/SURFACE.md`. Spec: myplan note 12, R20 synthesis.
 

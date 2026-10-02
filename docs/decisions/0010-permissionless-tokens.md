@@ -1,5 +1,7 @@
 # ADR-0010: Permissionless payment tokens
 
+**V1 scope note (2 Oct):** permissionless rewards remain. `HirelingHolding` extends exact inflow and owed payouts to fees and top-ups, while FACTORY v2 stake reservations isolate bonds. A recorded deferred outcome is recovered, not reversed into a refund. The dated deployment statements below are legacy receipts; [ADR-0011](0011-hireling-v1.md) governs v1.
+
 Date: 2026-09-29 (overnight). Status: **live on testnet** (`main` pair, job 60, `docs/reality-check.md`); `demo`
 awaits a redeploy; mainnet unchanged until Kris decides.
 

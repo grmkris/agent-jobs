@@ -1,5 +1,7 @@
 # ADR-0009: Execution budgets as on-chain delegations
 
+**V1 scope note (2 Oct):** the execution-budget authority and expiry rules remain. V1 [gas sponsorship](../sponsorship.md) is a separate delegation and does not sponsor budget draws. Shared admission rates and relay nonce/cap recovery now exist; the later text saying an upgrade needs a limit is the dated September readiness snapshot. The live jobs named here prove legacy budgets, not the v1 matrix.
+
 Date: 2026-09-29. Status: **implemented, fork-tested, and live on Monad testnet staging with a Privy server wallet as
 the creator** (jobs 58–59, `docs/reality-check.md`). The grant from an embedded wallet in Explore is not live-verified
 yet. Supersedes ADR-0005. Decided in myplan note 12 §16 (R124).

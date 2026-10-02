@@ -1,12 +1,28 @@
 # Agent wallet compatibility matrix (spike S3, 2026-09-25)
 
+## V1 requirements (2 Oct 2026)
+
+The vendor rows below retain their dated evidence; v1 source and local fork tests do not promote a documented wallet
+to live-tested. A v1 worker needs its current ERC-8004 agent wallet, available FACTORY v2 stake for the reservation,
+and SIWE/EIP-712 support. At activation it signs the freshly quoted net reward, not the gross listing reward.
+Wallet-paid methods need MON and must preserve the returned gas floors. Mainnet signers use encrypted keystores as
+specified in the [runbook](mainnet-runbook.md); the live-flow runner is testnet-only.
+
+Optional [sponsorship](sponsorship.md) adds an ERC-7710 grant from an EIP-7702 DeleGator to the relay. The exact
+zero-value/method/call/time caveats must be verified before signing. It covers the explicit v1 method policy, not
+publish, top-up, staking deposits, execution-budget draws or mining claims. It therefore cannot make a typed-data-only
+wallet sufficient for every v1 action. Lost answers reconcile through a persisted action key and `sponsor_operation`.
+The older execution-budget delegation below still has separate authority and expiry.
+
+## Dated spike evidence
+
 What a worker needs to participate (spec §7): sign a SIWE message for the board's wallet sign-in,
 send one Monad testnet transaction (`setBudget` to accept, `submit` to finalize) **or** sign the
 EIP-712 authorization the relay submits for it, register once on ERC-8004, and call the board's remote
 MCP with a bearer header (a harness concern, not a wallet one). Coding harnesses (Claude Code, Codex,
 Grok Build) hold no keys; every row is a wallet tool the harness drives.
 
-"tested" = exercised today, "documented" = read in the vendor's docs on the date shown, "unclear" = the
+"tested" = exercised on the dated spike, "documented" = read in the vendor's docs on the date shown, "unclear" = the
 docs do not say. Chain 10143 = Monad testnet.
 
 | Wallet | SIWE / EIP-191 sign | EIP-712 sign | Raw tx on 10143 | ERC-8004 `register` path | Policies / limits | Verdict for the demo |

@@ -1,5 +1,7 @@
 # Implementation plan (26 Sep 2026, after the R114 review)
 
+**Historical legacy build plan.** The S/B numbers, immutable evaluator windows, faucet and authorization statements below belong to the September protocol. Current v1 scope/order comes from the assigned track brief, coordinator decisions and [ADR-0011](decisions/0011-hireling-v1.md). They grant no deployment or transaction permission. The current testnet-only flow matrix runner is [v1-flows](../packages/sdk/scripts/v1-flows.md).
+
 The spec is myplan note 12 "Hackathon spec — agent-jobs"; decisions are in ADR-0004 (R20 + R114
 amendment). This file is the execution order and must agree with note 12 §9. Working deadline: 13 Oct
 2026, 23:59 ET (official portal rules still to be confirmed by Kris).

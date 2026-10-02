@@ -1,5 +1,7 @@
 # ADR-0008: Tenant boards and the embeddable marketplace
 
+**V1 scope note (2 Oct):** tenant routing, origins and token policies remain; contests and pool examples below are legacy only. New hires use the per-offer windows/arbitrator and stake reservations in [ADR-0011](0011-hireling-v1.md). Mainnet admission is authenticated and rate-limited with an emergency drain, not an invitation allowlist.
+
 Date: 2026-09-29. Status: **in progress (overnight run 29/30 Sep); tenant boards implemented and tested, the rest lands
 step by step in this run** (`docs/reality-check.md`).
 
