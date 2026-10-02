@@ -254,6 +254,13 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         _notePause();
     }
 
+    function pausedSince() external view returns (uint48) {
+        uint256 n = _pauses.length;
+        if (n == 0) return 0;
+        PauseInterval memory p = _pauses[n - 1];
+        return p.end == 0 ? p.start : 0;
+    }
+
     function pauseCount() external view returns (uint256) {
         return _pauses.length;
     }

@@ -301,6 +301,7 @@ contract HirelingEvaluatorTest is BaseV1 {
         assertEq(evaluator.pauseCount(), 1);
         assertEq(evaluator.pauseAt(0).start, d - 1 hours);
         assertEq(evaluator.pauseAt(0).end, 0);
+        assertEq(evaluator.pausedSince(), d - 1 hours);
         vm.warp(d + 1 hours);
         vm.expectRevert(IHirelingEvaluator.CorePaused.selector);
         evaluator.rejectAfterDeliveryDeadline(jobId);
@@ -310,6 +311,7 @@ contract HirelingEvaluatorTest is BaseV1 {
         core.unpause();
         evaluator.notePause();
         assertEq(evaluator.pauseAt(0).end, d + 1 hours);
+        assertEq(evaluator.pausedSince(), 0);
         assertFalse(evaluator.workerPenaltyDue(jobId), "excused");
         uint256 calls = reputation.calls();
         evaluator.rejectAfterDeliveryDeadline(jobId);

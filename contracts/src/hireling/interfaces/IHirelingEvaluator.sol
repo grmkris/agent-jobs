@@ -325,6 +325,8 @@ interface IHirelingEvaluator {
     /// @notice The gas cap (and, on Monad, cost cap) of the ERC-8004 feedback call.
     function FEEDBACK_GAS() external view returns (uint256);
     function CORE_GAS() external view returns (uint256);
+    /// @notice The start of the pause still open in the history, or zero (what `/admin` shows).
+    function pausedSince() external view returns (uint48);
     /// @notice The observed core pauses, oldest first; none is ever removed.
     function pauseCount() external view returns (uint256);
     function pauseAt(uint256 i) external view returns (PauseInterval memory);
