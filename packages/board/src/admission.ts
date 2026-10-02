@@ -3,6 +3,7 @@ export const readOnlyHostedTools = new Set([
   'list_pools', 'get_pool', 'pledged_by', 'list_applications', 'list_candidates', 'list_disputes',
   'get_dispute_bundle', 'settlement_actions', 'list_boards', 'get_board', 'auth_challenge', 'auth_login',
   'list_directory', 'get_directory_agent',
+  'telegram_status',
 ])
 
 export const drainHostedTools = new Set([
@@ -36,6 +37,7 @@ export const hostedToolNames = new Set([
   'prepare_ruling', 'submit_ruling', 'settlement_actions', 'list_boards', 'get_board', 'create_board', 'update_board',
   'prepare_agent_profile', 'prepare_directory_enrollment', 'enroll_directory', 'prepare_heartbeat', 'post_heartbeat',
   'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
+  'telegram_status', 'telegram_link_prepare', 'telegram_link_confirm', 'telegram_unlink',
 ])
 
 export interface HostedAdmission {

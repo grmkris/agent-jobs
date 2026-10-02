@@ -10,6 +10,8 @@ import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { Database } from '../../api/src/database.ts'
 import { rpcUrlForNetwork } from '../../api/src/network.ts'
 import { runtimeSecret } from '../../api/src/prod-config.ts'
+import { queueTelegramNotifications } from '../../api/src/telegram-notifications.ts'
+import { drainTelegramOutbox, migrateTelegram, telegramTransport } from '../../api/src/telegram.ts'
 
 const secret = (name: string) =>
   Config.Redacted(name).pipe(Effect.map((v) => (Redacted.value(v) === 'unset' ? '' : Redacted.value(v))))
@@ -30,6 +32,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
       HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? (process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       HYPERSYNC_API_TOKEN: Redacted.make(runtimeSecret('HYPERSYNC_API_TOKEN') || 'unset'),
+      TELEGRAM_BOT_TOKEN: Redacted.make(runtimeSecret('TELEGRAM_BOT_TOKEN') || 'unset'),
     },
   },
   Effect.gen(function* () {
@@ -40,7 +43,7 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
       Effect.gen(function* () {
         const raw = yield* db.raw
         const sql = fromD1(raw as never)
-        const hide = [yield* secret('MONAD_RPC_URL'), yield* secret('HYPERSYNC_API_TOKEN')].filter((v) => v.length >= 8)
+        const hide = [yield* secret('MONAD_RPC_URL'), yield* secret('HYPERSYNC_API_TOKEN'), yield* secret('TELEGRAM_BOT_TOKEN')].filter((v) => v.length >= 8)
         const safe = hide.reduce((t, v) => t.split(v).join('[redacted]'), detail).slice(0, 2000)
         yield* Effect.promise(async () => {
           await sql.batch([
@@ -54,20 +57,43 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
       const network = (yield* Config.String('NETWORK')) as sdk.Network
       const token = yield* secret('HYPERSYNC_API_TOKEN')
       const rpcUrl = yield* secret('MONAD_RPC_URL')
-      if (token === '' || rpcUrl === '') return { skipped: 'HYPERSYNC_API_TOKEN or MONAD_RPC_URL unset' }
+      const telegramToken = yield* secret('TELEGRAM_BOT_TOKEN')
       const raw = yield* db.raw
       const sql = fromD1(raw as never)
+      yield* Effect.promise(() => migrateTelegram(sql))
+      if (token === '' || rpcUrl === '') {
+        if (telegramToken !== '') yield* Effect.promise(() => drainTelegramOutbox(sql, telegramTransport(telegramToken), Math.floor(Date.now() / 1000)))
+        return { skipped: 'HYPERSYNC_API_TOKEN or MONAD_RPC_URL unset' }
+      }
       const hyper = yield* Config.String('HYPERSYNC_URL')
       return yield* Effect.promise(async () => {
         await migrate(sql)
-        return runOnce(sql, {
-          contracts: contractsOf(network),
-          deployBlock: Number(sdk.deployment(network).deployBlock),
-          source: hyperSync(hyper, token),
-          head: rpcHead(rpcUrl),
-          runner: `cron:${crypto.randomUUID()}`,
-          maxPages: 5,
-        })
+        let allowSilence = false
+        try {
+          const head = rpcHead(rpcUrl)
+          const result = await runOnce(sql, {
+            contracts: contractsOf(network),
+            deployBlock: Number(sdk.deployment(network).deployBlock),
+            source: hyperSync(hyper, token),
+            head,
+            runner: `cron:${crypto.randomUUID()}`,
+            maxPages: 5,
+          })
+          if (telegramToken !== '') {
+            const now = Math.floor(Date.now() / 1000)
+            const deployment = sdk.deployment(network)
+            const client = sdk.context(network, 'main', rpcUrl).publicClient
+            const notifications = await queueTelegramNotifications(sql, network, now, { caughtUp: result.nextBlock !== null && result.nextBlock > await head.finalizedBlock(), legacyReviewWindow: async (job) => {
+              const pair = Object.entries({ ...deployment.stacks, ...deployment.legacyStacks }).find(([name]) => name === job.stack)?.[1]
+              if (pair === undefined || pair.kind !== 'legacy') return null
+              return Number(await client.readContract({ address: pair.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }))
+            } })
+            allowSilence = !notifications.stale
+          }
+          return result
+        } finally {
+          if (telegramToken !== '') await drainTelegramOutbox(sql, telegramTransport(telegramToken), Math.floor(Date.now() / 1000), 20, allowSilence)
+        }
       })
     })
 

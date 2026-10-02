@@ -23,6 +23,8 @@ import DirectoryObject from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
+import { TelegramError, enqueuePublicRequest, enqueueWalletNotification, handleTelegramWebhook, migrateTelegram, telegramPublicChannel } from './telegram.ts'
+import { telegramTools } from './tools-telegram.ts'
 
 const MCP_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
@@ -61,7 +63,7 @@ const BOARD_ROUTE = /^\/b\/([a-z0-9-]{3,32})(\/.*)?$/
 const now = () => Math.floor(Date.now() / 1000)
 /** A Worker-side failure as a board reply: tenant and session errors keep their code, anything else is `error`. */
 const failure = (e: unknown): BoardReply =>
-  e instanceof TenantError || e instanceof SessionError || e instanceof DirectoryError
+  e instanceof TenantError || e instanceof SessionError || e instanceof DirectoryError || e instanceof TelegramError
     ? { ok: false, code: e.code, message: e.message }
     : { ok: false, code: 'error', message: e instanceof Error ? e.message : String(e) }
 const BOARD_CACHE_SECONDS = 30
@@ -98,6 +100,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
       GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
       GITHUB_APP_INSTALLATION_ID: process.env.GITHUB_APP_INSTALLATION_ID || '',
       GITHUB_APP_PRIVATE_KEY: Redacted.make(runtimeSecret('GITHUB_APP_PRIVATE_KEY') || 'unset'),
+      TELEGRAM_BOT_TOKEN: Redacted.make(runtimeSecret('TELEGRAM_BOT_TOKEN') || 'unset'),
+      TELEGRAM_WEBHOOK_SECRET: Redacted.make(runtimeSecret('TELEGRAM_WEBHOOK_SECRET') || 'unset'),
       // Retain existing binding names for guarded staging updates; these obsolete lists are ignored.
       PROD_APPROVED_WALLETS: '',
       PROD_APPROVED_BOARDS: '',
@@ -119,6 +123,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const url = new URL(request.originalUrl)
         const network = (yield* Config.String('NETWORK')) as sdk.Network
         const stage = yield* Config.String('DEPLOY_STAGE')
+        const telegramSecret = yield* secret('TELEGRAM_WEBHOOK_SECRET')
+        const telegramToken = yield* secret('TELEGRAM_BOT_TOKEN')
         if (network === 'monad-mainnet' && stage !== 'prod') return HttpServerResponse.jsonUnsafe({ ok: false, code: 'unavailable', message: 'production stage mismatch' }, { status: 503 })
         const rpcUrl = yield* secret('MONAD_RPC_URL')
         const relayKey = yield* secret('RELAY_PRIVATE_KEY')
@@ -126,6 +132,18 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const chainId = deployment.chainId
         const raw = yield* facts.raw
         const sql: AsyncSql = fromD1(raw as never)
+
+        if (url.pathname === '/telegram/webhook' && request.method === 'POST') {
+          const supplied = request.headers['x-telegram-bot-api-secret-token'] ?? null
+          if (telegramSecret === '' || supplied !== telegramSecret) return HttpServerResponse.jsonUnsafe({ ok: false }, { status: 401 })
+          let body: unknown
+          try { body = JSON.parse(yield* request.text) } catch { return HttpServerResponse.jsonUnsafe({ ok: false }, { status: 400 }) }
+          const result = yield* Effect.promise(async () => {
+            await migrateTelegram(sql)
+            return handleTelegramWebhook(sql, network, body, supplied, telegramSecret, now())
+          })
+          return HttpServerResponse.jsonUnsafe(result, { status: result.ok ? 200 : 401 })
+        }
 
         // Which board: `/b/<slug>/...` or the public one.
         let path = url.pathname
@@ -158,6 +176,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           await migrateRegistry(sql)
           await migrateDirectory(sql)
           await desk.migrate()
+          await migrateTelegram(sql)
         })()
         yield* Effect.promise(() => migrated as Promise<void>)
 
@@ -235,7 +254,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 const session = await desk.resolve({ bearer, mcpSession })
                 // Board tools are limited inside the DO, so direct RPC cannot bypass the counters.
                 // Worker-local tools, including sign-in, use exactly the same reserved object.
-                if (tool === 'auth_challenge' || tool === 'auth_login' || Object.hasOwn(directoryTools, tool) || Object.hasOwn(tenantTools, tool)) {
+                if (tool === 'auth_challenge' || tool === 'auth_login' || Object.hasOwn(directoryTools, tool) || Object.hasOwn(tenantTools, tool) || Object.hasOwn(telegramTools, tool)) {
                   const rate = await enforceHostedRate(runtimeEnv as Record<string, unknown>, { network, tool, boardId: tenant.id, bearer, mcpSession, caller: session?.address, ip })
                   if (!rate.ok) return { reply: rate }
                 }
@@ -255,6 +274,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address)
                 if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
                 if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args) } }
+                const telegram = telegramTools[tool]
+                if (telegram !== undefined) return { reply: { ok: true, result: await telegram.run({ sql, network, now,
+                  configured: telegramSecret !== '' && telegramToken !== '', verify: async (input) => reads === undefined ? false : reads.verifyMessage(input),
+                }, session?.address, args) } }
                 const registry = tenantTools[tool]
                 if (registry !== undefined) {
                   return { reply: { ok: true, result: await registry.run({ sql, deployment, resolveToken: tokenInfo, now }, session?.address, tenant, args) } }
@@ -275,6 +298,19 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 delete r.manifest
               }
               yield* Effect.promise(() => recordOffer(sql, { boardId: tenant.id, termsHash: r.termsHash, taskId: r.taskId, now: now() }))
+            }
+            if (reply.ok && tool === 'submit_selection') {
+              const selection = reply.result as { worker?: string }
+              if (typeof selection.worker === 'string') yield* Effect.promise(() => enqueueWalletNotification(sql, network, selection.worker!, {
+                id: `telegram:selected:${tenant.id}:${String(args.taskId)}:${String(args.nonce)}`,
+                text: `You were selected for Hireling task ${String(args.taskId)}. Activate the agreement to accept the job.`, now: now(),
+              }))
+            }
+            if (reply.ok && tool === 'request_quotes') {
+              const r = reply.result as { requestId?: string }
+              if (typeof r.requestId === 'string') yield* Effect.promise(() => enqueuePublicRequest(sql, telegramPublicChannel(network), {
+                boardId: tenant.id, taskId: r.requestId!, kind: 'quotes', network, now: now(), ...(typeof args.title === 'string' ? { title: args.title } : {}),
+              }))
             }
             return reply
           })
@@ -386,6 +422,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                   ...Object.entries(tools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
                   ...Object.entries(tenantTools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
                   ...Object.entries(directoryTools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
+                  ...Object.entries(telegramTools).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })),
                 ],
               })
             case 'tools/call': {
