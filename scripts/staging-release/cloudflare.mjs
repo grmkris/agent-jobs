@@ -13,7 +13,7 @@ export async function cloudflare(path, options = {}) {
 
 const bindingFields = ['type', 'name', 'namespace_id', 'class_name', 'id', 'bucket_name', 'service', 'environment']
 
-export async function census() {
+export async function census(options = {}) {
   const workers = {}
   for (const id of ['Api', 'Indexer', 'Explore']) {
     const name = targets[id]
@@ -37,13 +37,14 @@ export async function census() {
   const namespaces = (await cloudflare('/workers/durable_objects/namespaces')).filter((namespace) => namespace.script === targets.Api)
     .map(({ id, class: className, script }) => ({ id, className, script }))
   const result = { workers, domains, databaseId: database.uuid, bucketName: bucket.name, namespaces }
-  validateCensus(result)
+  validateCensus(result, options)
   return result
 }
 
-export function validateCensus(live) {
+export function validateCensus(live, options = {}) {
   if (live.databaseId !== targets.Database || live.bucketName !== targets.Manifests) throw new Error('Live storage identity drift')
-  if (live.domains.length !== 2 || live.domains.some((domain) => domain.service !== targets.Explore || domain.zone_id !== 'd4ad1574270cad47f2e33381dba31f84')) throw new Error('Live domain ownership drift')
+  const domains = options.domains ?? ['hireling.xyz', 'testnet.hireling.xyz']
+  if (live.domains.length !== domains.length || domains.some(hostname => live.domains.filter(domain => domain.hostname === hostname).length !== 1) || live.domains.some((domain) => domain.service !== targets.Explore || domain.zone_id !== 'd4ad1574270cad47f2e33381dba31f84')) throw new Error('Live domain ownership drift')
   const get = (worker, name) => live.workers[worker].bindings.find((binding) => binding.name === name)
   for (const id of ['Api', 'Indexer', 'Explore']) {
     if (live.workers[id].name !== targets[id]) throw new Error(`Live Worker identity drift: ${id}`)

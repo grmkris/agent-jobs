@@ -2,9 +2,21 @@
   "stage": "prod",
   "network": "monad-mainnet",
   "chainId": 143,
-  "rpc": { "url": "https://rpc.monad.xyz", "chainId": null },
-  "hyperSync": { "url": "https://monad.hypersync.xyz", "chainId": null },
-  "privy": { "appId": null, "origins": ["https://hireling.xyz"], "approved": false },
+  "rpc": {
+    "url": "https://rpc.monad.xyz",
+    "chainId": null
+  },
+  "hyperSync": {
+    "url": "https://monad.hypersync.xyz",
+    "chainId": null
+  },
+  "privy": {
+    "appId": null,
+    "origins": [
+      "https://hireling.xyz"
+    ],
+    "approved": false
+  },
   "remoteState": true,
   "secretSources": {
     "MONAD_RPC_URL": "HIRELING_PROD_MONAD_RPC_URL",
@@ -12,13 +24,15 @@
     "ATTESTER_PRIVATE_KEY": "HIRELING_PROD_ATTESTER_PRIVATE_KEY",
     "AI_GATEWAY_API_KEY": "HIRELING_PROD_AI_GATEWAY_API_KEY",
     "GITHUB_APP_PRIVATE_KEY": "HIRELING_PROD_GITHUB_APP_PRIVATE_KEY",
-    "HYPERSYNC_API_TOKEN": "HIRELING_PROD_HYPERSYNC_API_TOKEN"
+    "HYPERSYNC_API_TOKEN": "HIRELING_PROD_HYPERSYNC_API_TOKEN",
+    "TELEGRAM_BOT_TOKEN": "HIRELING_PROD_TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_WEBHOOK_SECRET": "HIRELING_PROD_TELEGRAM_WEBHOOK_SECRET"
   },
   "addresses": {
-    "admin": "0x675269d710692d4d0d7166da11B76463577aad73",
-    "relay": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
-    "attester": "0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f",
-    "arbitrator": "0xc657F023F938BB89de590Ed96f79B775c7dDd632",
+    "admin": null,
+    "relay": null,
+    "attester": null,
+    "arbitrator": null,
     "identity": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
     "reputation": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
     "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
@@ -26,5 +40,24 @@
     "factory": null,
     "holding": null,
     "evaluator": null
+  },
+  "deployment": {
+    "main": {
+      "kind": "hireling-v1",
+      "factory": null,
+      "holding": null,
+      "evaluator": null,
+      "openTokens": true
+    },
+    "hireling": {
+      "block": null,
+      "factory": null,
+      "vault": null,
+      "feeSchedule": null,
+      "distributor": null,
+      "miningReserve": null,
+      "teamVesting": null,
+      "t0": null
+    }
   }
 }

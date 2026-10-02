@@ -17,5 +17,5 @@ if (failures.length > 0) {
   console.error(`production preflight rejected: ${failures.join(', ')}`)
   process.exitCode = 1
 } else if (process.exitCode !== 1) {
-  console.log('production structural preflight passed; this is not launch authorization or live contract proof')
+  console.log('Hireling v1 production structural preflight passed (single main pair, vault, fees and mining); live contract proof and launch authorization are separate gates')
 }

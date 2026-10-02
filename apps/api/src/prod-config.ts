@@ -5,7 +5,30 @@ export const prodSecretSources = {
   AI_GATEWAY_API_KEY: 'HIRELING_PROD_AI_GATEWAY_API_KEY',
   GITHUB_APP_PRIVATE_KEY: 'HIRELING_PROD_GITHUB_APP_PRIVATE_KEY',
   HYPERSYNC_API_TOKEN: 'HIRELING_PROD_HYPERSYNC_API_TOKEN',
+  TELEGRAM_BOT_TOKEN: 'HIRELING_PROD_TELEGRAM_BOT_TOKEN',
+  TELEGRAM_WEBHOOK_SECRET: 'HIRELING_PROD_TELEGRAM_WEBHOOK_SECRET',
 } as const
+
+export interface ProdStack {
+  // JSON artifacts are validated at runtime below; keep this broad enough for
+  // inferred JSON fixtures while the accepted values remain fail-closed.
+  kind?: string | undefined
+  factory?: string | null | undefined
+  holding: string | null
+  evaluator: string | null
+  openTokens?: boolean | undefined
+}
+
+export interface ProdHireling {
+  block: number | null
+  factory: string | null
+  vault: string | null
+  feeSchedule: string | null
+  distributor: string | null
+  miningReserve: string | null
+  teamVesting: string | null
+  t0: number | null
+}
 
 export interface ProdArtifact {
   stage: string
@@ -17,6 +40,11 @@ export interface ProdArtifact {
   remoteState: boolean
   secretSources: Record<string, string>
   addresses: Record<string, string | null>
+  deployment: {
+    main: ProdStack
+    hireling: ProdHireling
+    legacy?: Record<string, ProdStack> | undefined
+  }
 }
 
 interface ChainConfig {
@@ -29,13 +57,17 @@ interface ChainConfig {
   holdGates: { minHoldToPublish: number; minHoldToClaim: number }
   faucetTokens: { names: string[]; symbols: string[] }
   knownTokens: string[]
+  stacks: { names: string[] }
   deployment: {
     network?: string
     block?: number
     core?: string
     factory?: string
-    main?: { holding: string; evaluator: string; openTokens?: boolean }
-    legacy?: Record<string, { openTokens?: boolean }>
+    main?: ProdStack
+    hireling?: ProdHireling
+    demo?: ProdStack
+    fast?: ProdStack
+    legacy?: Record<string, ProdStack>
   }
 }
 
@@ -67,7 +99,24 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   const deployed = config.deployment
   check(deployed.network === artifact.network && Number.isSafeInteger(deployed.block) && (deployed.block ?? 0) > 0, 'deployment network/block')
   check(deployed.main?.openTokens === true, 'open-token main Holding metadata')
-  check(Object.values(deployed.legacy ?? {}).every(stack => stack.openTokens !== true), 'legacy tokens closed')
+  check(config.stacks.names.length === 1 && config.stacks.names[0] === 'main' && deployed.demo === undefined && deployed.fast === undefined, 'single v1 stack')
+  check(deployed.main?.kind === 'hireling-v1' && artifact.deployment.main.kind === 'hireling-v1', 'main v1 kind')
+  check(address(deployed.main?.factory) && deployed.main.factory.toLowerCase() === deployed.factory?.toLowerCase() &&
+    deployed.main.factory.toLowerCase() === deployed.hireling?.factory?.toLowerCase(), 'v1 factory consistency')
+  check(Object.keys(deployed.legacy ?? {}).length === 0 && Object.keys(artifact.deployment.legacy ?? {}).length === 0, 'no mainnet legacy pairs')
+  const hireling = deployed.hireling
+  check(hireling !== undefined && Number.isSafeInteger(hireling.block) && (hireling.block ?? 0) > 0 &&
+    Number.isSafeInteger(hireling.t0) && (hireling.t0 ?? 0) > 0 &&
+    artifact.deployment.hireling.block === hireling.block && artifact.deployment.hireling.t0 === hireling.t0, 'hireling block/T0')
+  for (const name of ['factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
+    const value = hireling?.[name]
+    check(address(value) && artifact.deployment.hireling[name]?.toLowerCase() === value.toLowerCase(), `hireling:${name}`)
+  }
+  for (const name of ['factory', 'holding', 'evaluator'] as const) {
+    const value = deployed.main?.[name]
+    check(address(value) && artifact.deployment.main[name]?.toLowerCase() === value.toLowerCase(), `main:${name}`)
+  }
+  check(artifact.deployment.main.openTokens === true, 'artifact main open tokens')
   const expected = {
     ...config.roles,
     identity: config.erc8004.identity,

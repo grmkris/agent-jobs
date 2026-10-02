@@ -8,6 +8,7 @@ import test from 'node:test'
 import { expected } from './evidence.mjs'
 import { evaluateExistingStackRelease, fileByteLimit, wrapperSchemaVersion } from './guard.mjs'
 import { migrationManifest } from './migration-fixtures.mjs'
+import { readApprovedChanges } from './approved-changes.mjs'
 
 const now = Date.parse('2026-09-30T20:40:00Z')
 const stamp = new Date(now).toISOString()
@@ -59,6 +60,53 @@ test('synthetic evidence validates only an offline packet and produces no deploy
   assert.equal(result.liveEvidence, false)
   assert.equal(result.evidenceTier, 'offline-saved-evidence-only')
   assert.deepEqual(result.targets.map((target) => target.resourceId), [expected.resources.Api, expected.resources.Indexer, expected.resources.Explore])
+})
+
+test('guard admits only the manifest-pinned secret rotations and additions', () => {
+  const bundle = fixture()
+  bundle.approvedChanges = readApprovedChanges().reference
+  bundle.plan.secretChanges = [
+    { logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' },
+    { logicalId: 'Api', name: 'TELEGRAM_WEBHOOK_SECRET', action: 'add' },
+  ]
+  assert.equal(evaluateExistingStackRelease(bundle, now).ok, true)
+  const digest = evaluateExistingStackRelease(bundle, now).reviewDigest
+  bundle.plan.secretChanges.pop()
+  assert.notEqual(evaluateExistingStackRelease(bundle, now).reviewDigest, digest)
+  bundle.plan.secretChanges.push({ logicalId: 'Api', name: 'UNLISTED_TOKEN', action: 'add' })
+  assert.equal(evaluateExistingStackRelease(bundle, now).ok, false)
+})
+
+test('guard refuses tampered manifests, wrong secret actions, values, and migrations', () => {
+  for (const mutate of [
+    bundle => { bundle.approvedChanges.sha256 = '0'.repeat(64) },
+    bundle => { bundle.approvedChanges.path = '../approved-changes.json' },
+    bundle => { bundle.plan.secretChanges[0].action = 'add' },
+    bundle => { bundle.plan.secretChanges[0].value = 'untrusted-marker' },
+    bundle => { bundle.plan.secretChanges[0].logicalId = 'Indexer' },
+    bundle => { bundle.plan.migrations.push('0002.sql') },
+    bundle => { bundle.plan.resourceCreates.push('AnotherWorker') },
+    bundle => { bundle.plan.scheduleChanges.push('* * * * *') },
+  ]) {
+    const bundle = fixture()
+    bundle.approvedChanges = readApprovedChanges().reference
+    bundle.plan.secretChanges = [{ logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' }]
+    mutate(bundle)
+    const result = evaluateExistingStackRelease(bundle, now)
+    assert.equal(result.ok, false)
+    assert.ok(!JSON.stringify(result).includes('untrusted-marker'))
+  }
+})
+
+test('the exact apex alias release preserves observed ownership and the testnet alias', () => {
+  const bundle = fixture()
+  bundle.approvedChanges = readApprovedChanges().reference
+  bundle.plan.domainChanges = structuredClone(readApprovedChanges().manifest.domainChanges)
+  const explore = bundle.plan.operations.find(operation => operation.logicalId === 'Explore')
+  explore.aliases = explore.aliases.filter(alias => alias.hostname !== 'hireling.xyz')
+  assert.equal(evaluateExistingStackRelease(bundle, now).ok, true)
+  bundle.plan.domainChanges[0].hostname = 'testnet.hireling.xyz'
+  assert.equal(evaluateExistingStackRelease(bundle, now).ok, false)
 })
 
 for (const [name, mutate, blocker] of [

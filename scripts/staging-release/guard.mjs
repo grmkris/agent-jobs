@@ -3,6 +3,7 @@ import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, rea
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expected, validateStagingEvidence } from './evidence.mjs'
+import { validatePlanChanges } from './approved-changes.mjs'
 import { sourceHashes, validateMigrationFixtureManifest } from './migration-fixtures.mjs'
 
 export const wrapperSchemaVersion = 1
@@ -20,8 +21,9 @@ function onlyFields(value, allowed, required = allowed) {
 }
 
 function validPacketShape(bundle) {
-  const fields = ['wrapperSchemaVersion', 'schemaVersion', 'accountId', 'stage', 'network', 'release', 'state', 'live', 'plan', 'rollback', 'liveChecks', 'artifacts', 'migrationManifest']
-  if (!onlyFields(bundle, fields)) return false
+  const fields = ['wrapperSchemaVersion', 'schemaVersion', 'accountId', 'stage', 'network', 'release', 'state', 'live', 'plan', 'rollback', 'liveChecks', 'artifacts', 'migrationManifest', 'approvedChanges']
+  if (!onlyFields(bundle, fields, fields.filter(field => field !== 'approvedChanges'))) return false
+  if (bundle.approvedChanges !== undefined && !onlyFields(bundle.approvedChanges, ['path', 'sha256'])) return false
   if (!onlyFields(bundle.release, ['commit', 'tree', 'clean', 'reviewed', 'excludedE39Worktree', 'excludedE39Revision', 'artifactHashes']) || !onlyFields(bundle.release.artifactHashes, targetOrder)) return false
   if (!onlyFields(bundle.state, ['backend', 'root', 'profile', 'permission', 'accountId', 'stack', 'stage', 'readable', 'readStatus', 'readMethod', 'observedAt', 'bootstrapAttempted', 'resources'], ['backend', 'accountId', 'stack', 'stage', 'readable', 'readStatus', 'readMethod', 'observedAt', 'bootstrapAttempted', 'resources'])) return false
   if (bundle.state.permission !== undefined && !onlyFields(bundle.state.permission, ['allowed', 'name', 'accountId', 'source', 'tokenId', 'observedAt'])) return false
@@ -32,7 +34,7 @@ function validPacketShape(bundle) {
   if (!Array.isArray(bundle.live.workers) || !bundle.live.workers.every((worker) => onlyFields(worker, ['logicalId', 'resourceId', 'accountId', 'activeVersion', 'trafficPercent', 'bindings', 'cron'], ['logicalId', 'resourceId', 'accountId', 'activeVersion', 'trafficPercent', 'bindings']) && onlyFields(worker.bindings, bindingKeys[worker.logicalId] ?? [], []))) return false
   if (!Array.isArray(bundle.live.domains) || !bundle.live.domains.every(aliasShape)) return false
   if (!onlyFields(bundle.plan, ['mode', 'observedAt', 'commit', 'tree', 'stateMigration', 'migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges', 'operations'])) return false
-  for (const field of ['migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges']) if (!Array.isArray(bundle.plan[field]) || bundle.plan[field].length !== 0) return false
+  for (const field of ['migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges']) if (!Array.isArray(bundle.plan[field])) return false
   if (!Array.isArray(bundle.plan.operations) || !bundle.plan.operations.every((operation) => {
     if (!onlyFields(operation, ['logicalId', 'resourceId', 'action', 'bindings', 'aliases'], ['logicalId', 'resourceId', 'action'])) return false
     if (targetOrder.includes(operation.logicalId)) return onlyFields(operation.bindings, bindingKeys[operation.logicalId], []) && Array.isArray(operation.aliases) && operation.aliases.every(aliasShape)
@@ -107,8 +109,10 @@ function reviewOnlyPlan(bundle, now) {
   verifyArtifacts(bundle, blockers)
   const migration = validateMigrationFixtureManifest(bundle?.migrationManifest ?? null)
   for (const blocker of migration.blockers) blockers.add(blocker)
+  const approved = validatePlanChanges(bundle?.plan, bundle?.approvedChanges)
+  for (const blocker of approved.blockers) blockers.add(blocker)
   const operations = Array.isArray(bundle?.plan?.operations) ? bundle.plan.operations : []
-  const allowedBundleFields = ['wrapperSchemaVersion', 'schemaVersion', 'accountId', 'stage', 'network', 'release', 'state', 'live', 'plan', 'rollback', 'liveChecks', 'artifacts', 'migrationManifest']
+  const allowedBundleFields = ['wrapperSchemaVersion', 'schemaVersion', 'accountId', 'stage', 'network', 'release', 'state', 'live', 'plan', 'rollback', 'liveChecks', 'artifacts', 'migrationManifest', 'approvedChanges']
   const allowedPlanFields = ['mode', 'observedAt', 'commit', 'tree', 'stateMigration', 'migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges', 'operations']
   if (Object.keys(bundle).some((key) => !allowedBundleFields.includes(key)) || Object.keys(bundle?.plan ?? {}).some((key) => !allowedPlanFields.includes(key))) blockers.add('undeclared-wrapper-field')
   const forbiddenExecutionFields = ['execute', 'apply', 'upload', 'providerCommand', 'alchemyCommand', 'cloudflareCommand']
@@ -126,7 +130,7 @@ function reviewOnlyPlan(bundle, now) {
     action: ['update', 'noop'].includes(operations.find((operation) => operation?.logicalId === logicalId)?.action) ? operations.find((operation) => operation?.logicalId === logicalId).action : null,
   }))
 
-  const modules = Object.fromEntries(['guard.mjs', 'evidence.mjs', 'migration-fixtures.mjs', 'entrypoint.mjs', 'digests.mjs'].map((name) => [name, createHash('sha256').update(readBoundedFile(name)).digest('hex')]))
+  const modules = Object.fromEntries(['guard.mjs', 'evidence.mjs', 'migration-fixtures.mjs', 'approved-changes.mjs', 'approved-changes.json', 'entrypoint.mjs', 'digests.mjs'].map((name) => [name, createHash('sha256').update(readBoundedFile(name)).digest('hex')]))
   const reviewDigest = createHash('sha256').update(canonicalJson({ bundle, modules, sourceHashes, wrapperSchemaVersion, nodeVersion: process.version, sqliteVersion: process.versions.sqlite })).digest('hex')
   return {
     schemaVersion: wrapperSchemaVersion,

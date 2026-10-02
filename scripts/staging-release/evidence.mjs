@@ -1,3 +1,5 @@
+import { plannedDomains, validatePlanChanges } from './approved-changes.mjs'
+
 export const expected = {
   accountId: 'bceaeae4788dce3493514fde194b4a7e',
   commit: 'b6c508e06e7df8b70c2a9ad6de2ef65e5062d610',
@@ -38,6 +40,7 @@ export function validateStagingEvidence(bundle, now = Date.now()) {
   const permission = snapshot?.permission
   const workers = Array.isArray(bundle?.live?.workers) ? bundle.live.workers : []
   const domains = Array.isArray(bundle?.live?.domains) ? bundle.live.domains : []
+  const expectedDomains = plannedDomains(bundle?.plan, bundle?.approvedChanges, expected.domains)
   const resources = Array.isArray(snapshot?.resources) ? snapshot.resources : []
   const operations = Array.isArray(bundle?.plan?.operations) ? bundle.plan.operations : []
 
@@ -78,14 +81,12 @@ export function validateStagingEvidence(bundle, now = Date.now()) {
       const liveWorker = workers.find((worker) => worker?.logicalId === logicalId)
       requireGate(sameBindings(operation?.bindings, liveWorker?.bindings), 'planned-binding-drift')
       const aliases = Array.isArray(operation?.aliases) ? operation.aliases : undefined
-      const requiredAliases = logicalId === 'Explore' ? expected.domains : []
+      const requiredAliases = logicalId === 'Explore' ? expectedDomains : []
       requireGate(aliases !== undefined && aliases.length === requiredAliases.length && requiredAliases.every((hostname) => aliases.filter((alias) => alias?.hostname === hostname && alias?.service === expected.resources.Explore).length === 1), 'planned-alias-conflict')
     }
   }
   requireGate(bundle?.plan?.commit === expected.commit && bundle?.plan?.tree === expected.tree, 'plan-revision-mismatch')
-  for (const key of ['migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges']) {
-    requireGate(Array.isArray(bundle?.plan?.[key]) && bundle.plan[key].length === 0, 'unapproved-additive-or-config-change')
-  }
+  for (const blocker of validatePlanChanges(bundle?.plan, bundle?.approvedChanges).blockers) requireGate(false, blocker)
   requireGate(workers.length === 3, 'live-worker-census')
   for (const logicalId of ['Api', 'Indexer', 'Explore']) {
     const matching = workers.filter((worker) => worker?.logicalId === logicalId)
@@ -95,7 +96,7 @@ export function validateStagingEvidence(bundle, now = Date.now()) {
     requireGate(bundle?.rollback?.versions?.[logicalId] === expected.versions[logicalId], 'rollback-version-mismatch')
     requireGate(/^[a-f0-9]{64}$/.test(bundle?.release?.artifactHashes?.[logicalId] ?? ''), 'artifact-digest-missing')
   }
-  requireGate(domains.length === 2, 'domain-census')
+  requireGate(domains.length === expected.domains.length, 'domain-census')
   for (const hostname of expected.domains) {
     const matching = domains.filter((domain) => domain?.hostname === hostname)
     requireGate(matching.length === 1 && matching[0]?.service === expected.resources.Explore, 'domain-ownership-or-alias-conflict')

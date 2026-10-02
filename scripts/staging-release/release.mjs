@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseEnv } from 'node:util'
+import { readApprovedChanges } from './approved-changes.mjs'
+import { nativeResource, reviewLivePlan } from './live-plan.mjs'
 
 const repo = resolve(new URL('../..', import.meta.url).pathname)
 const state = await import('./state.ts')
@@ -44,7 +46,7 @@ function preflight() {
   process.env.ALCHEMY_REMOTE_STATE = '0'
   process.env.AGENT_JOBS_STAGE = 'staging'
   process.env.AGENT_JOBS_NETWORK = 'monad-testnet'
-  process.env.AGENT_JOBS_APPLY_MIGRATIONS = '1'
+  process.env.AGENT_JOBS_APPLY_MIGRATIONS = '0'
   process.env.AGENT_JOBS_WITHOUT_EXPLORE = '0'
   process.env.NODE_ENV = 'production'
   process.env.CLOUDFLARE_ACCOUNT_ID = state.accountId
@@ -54,37 +56,35 @@ function preflight() {
   execFileSync(process.execPath, ['scripts/db-generate.mjs', '--check'], { cwd: repo, stdio: 'pipe' })
 }
 
-function sameSecretAfterNewlineNormalization(name) {
+function sameSecretAfterNewlineNormalization(logicalId, name) {
   const current = process.env[name]
   if (typeof current !== 'string') return false
-  const record = JSON.parse(readFileSync(resolve(repo, '.alchemy/state/AgentJobs/staging/Api.json'), 'utf8'))
+  if (!['Api', 'Indexer'].includes(logicalId)) return false
+  const record = JSON.parse(readFileSync(resolve(repo, `.alchemy/state/AgentJobs/staging/${logicalId}.json`), 'utf8'))
   const binding = record.bindings?.find((item) => item.sid === name)?.data?.bindings?.find((item) => item.name === name)
   return typeof binding?.text === 'string' && binding.text.replaceAll('\\n', '\n') === current.replaceAll('\\n', '\n')
 }
 
-function safePlan(snapshot) {
-  const operations = snapshot.resources.map((resource) => ({
-    fqn: resource.fqn,
-    logicalId: resource.logicalId,
-    type: resource.resourceType,
-    action: resource.action,
-    bindings: resource.bindings.map((binding) => ({ sid: binding.sid, action: binding.action })),
-  }))
+function safePlan(snapshot, live, reference) {
+  const reviewed = reviewLivePlan(snapshot, live, reference, sameSecretAfterNewlineNormalization)
+  if (!reviewed.ok) fail(`plan protection failed: ${reviewed.blockers.join(', ')}`)
+  const operations = reviewed.operations
   const api = operations.find((row) => row.logicalId === 'Api')
   const directory = api?.bindings.find((binding) => binding.sid === 'DirectoryObject')
   const directoryDb = api?.bindings.find((binding) => binding.sid === 'DIRECTORY_DATABASE')
   if (snapshot.summary.create !== 0 || snapshot.summary.delete !== 0 || snapshot.summary.replace !== 0 || snapshot.summary.orphaned !== 0 || snapshot.summary.adopted !== 0) fail('plan contains resource creation, deletion, replacement, orphaning, or adoption')
   if (snapshot.resources.some((resource) => !['noop', 'update'].includes(resource.action))) fail('plan contains an unapproved resource action')
-  if (operations.some((row) => row.bindings.some((binding) => ['delete', 'update'].includes(binding.action) && /PRIVATE_KEY|API_KEY|TOKEN/.test(binding.sid) && !sameSecretAfterNewlineNormalization(binding.sid)))) fail('plan changes an existing secret binding; rotate and review credentials first')
-  if (!['create', 'noop'].includes(directory?.action) || !['create', 'noop'].includes(directoryDb?.action)) fail('directory Durable Object and existing-D1 alias are not being added')
+  if (directory?.action !== 'noop' || directoryDb?.action !== 'noop') fail('existing directory bindings must remain unchanged')
   if (operations.length !== 5 || Object.keys(state.targets).some((id) => operations.filter((row) => row.logicalId === id && row.fqn === id).length !== 1) || snapshot.actions.length) fail('unexpected resource or action census')
-  for (const node of Object.values(snapshot.native.resources)) {
+  for (const id of Object.keys(state.targets)) {
+    const node = nativeResource(snapshot, id)
+    if (node === undefined) fail(`native plan resource missing: ${id}`)
     state.validateStateRecord(node.resource.LogicalId, node.state)
     if (node.mode !== 'live' || node.renamedFrom?.length) fail('state mode or resource rename drift')
   }
   if (operations.find((row) => row.logicalId === 'Manifests').action !== 'noop') fail('unexpected manifests bucket update')
   if (operations.some((row) => row.bindings.some((binding) => binding.action === 'delete'))) fail('binding deletion refused')
-  return { summary: snapshot.summary, operations }
+  return { summary: snapshot.summary, operations, approvedChanges: reviewed.approvedChanges, changes: reviewed.changes, expectedDomains: reviewed.expectedDomains }
 }
 
 async function run() {
@@ -92,6 +92,7 @@ async function run() {
   const before = await census()
   const source = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}') }
   const stateDigests = state.inspectStagingState()
+  const approvedChanges = readApprovedChanges().reference
   const migrationSha256 = createHash('sha256').update(readFileSync(resolve(repo, 'apps/api/migrations/0001_directory_agents.sql'))).digest('hex')
   await import(resolve(repo, 'node_modules/alchemy/bin/register-oxc.js'))
   const Alchemist = await import('alchemy/Alchemist')
@@ -108,7 +109,7 @@ async function run() {
         target: { entrypoint: resolve(repo, 'alchemy.run.ts'), stage: 'staging', envFile: resolve(repo, '.env.local') },
         operation: 'deploy', adopt: false, updateStateStore: false,
       })
-      const safe = safePlan(snapshot)
+      const safe = safePlan(snapshot, before, approvedChanges)
       const reviewed = { source, stateDigests, migrationSha256, live: before, ...safe }
       const digest = createHash('sha256').update(canonical(reviewed)).digest('hex')
       const packet = { schemaVersion: 1, stage: 'staging', network: 'monad-testnet', digest, ...reviewed }
@@ -119,6 +120,7 @@ async function run() {
       }
       if (args[1] !== digest) fail('apply requires the digest from the current source, state, and live plan')
       if (git('rev-parse', 'HEAD') !== source.commit || git('diff', '--name-only')) fail('checkout changed during planning')
+      if (canonical(readApprovedChanges().reference) !== canonical(approvedChanges)) fail('approved-change manifest changed during planning')
       if (canonical(state.inspectStagingState()) !== canonical(stateDigests) || canonical(yield* Effect.promise(census)) !== canonical(before)) fail('state or live resources changed during planning')
       const runRoot = resolve(root, `release-${Date.now()}`)
       mkdirSync(runRoot, { mode: 0o700 })
@@ -139,7 +141,7 @@ async function run() {
         }
         if (!verified) fail(`Post-upload verification failed: ${id}`)
       }
-      const after = yield* Effect.promise(census)
+      const after = yield* Effect.promise(() => census({ domains: safe.expectedDomains }))
       journal.status = 'verified'
       journal.versions = Object.fromEntries(Object.entries(after.workers).map(([id, worker]) => [id, worker.version]))
       writeFileSync(resolve(runRoot, 'journal.json'), JSON.stringify(journal, null, 2), { mode: 0o600 })

@@ -1,5 +1,6 @@
 import * as Deferred from 'effect/Deferred'
 import * as Effect from 'effect/Effect'
+import { nativeResource } from './live-plan.mjs'
 
 /** Keep Alchemy's complete graph and lifecycle, gating each Worker reconcile on
  * its predecessor's successful readback. A failed step interrupts the graph. */
@@ -7,7 +8,8 @@ export const sequenceWorkers = (snapshot, verify, record) => Effect.gen(function
   const ready = {}
   for (const id of ['Api', 'Indexer', 'Explore']) ready[id] = yield* Deferred.make()
   for (const [id, predecessor] of [['Api', undefined], ['Indexer', 'Api'], ['Explore', 'Indexer']]) {
-    const node = snapshot.native.resources[id]
+    const node = nativeResource(snapshot, id)
+    if (node === undefined) return yield* Effect.fail(new Error(`Native plan resource missing: ${id}`))
     if (node.action === 'noop') {
       yield* Effect.promise(() => verify(id))
       yield* Deferred.succeed(ready[id], undefined)
