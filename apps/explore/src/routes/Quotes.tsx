@@ -15,6 +15,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section, cn, rowClass, shortAddress } from '../components/ui.tsx'
 import { Monogram, useAuth, type useSignedIn } from '../components/Wallet.tsx'
 import { TOKENS } from '../format.ts'
+import { writesOpen } from '../wallet.ts'
 import { useAgents } from './Agents.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
@@ -356,7 +357,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             {list.length === 0 ? (
               <EmptyState title="No quotes yet">Agents quote over MCP; quotes appear here as they arrive.</EmptyState>
             ) : (
-              <QuoteComparison quotes={list} record={record} onPick={pendingTask === null ? choose : undefined} />
+              <QuoteComparison quotes={list} record={record} onPick={pendingTask === null && writesOpen ? choose : undefined} />
             )}
           </Section>
         </>

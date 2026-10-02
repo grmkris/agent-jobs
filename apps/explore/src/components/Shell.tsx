@@ -9,6 +9,7 @@ import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { isMainnet, usePaused } from '../wallet.ts'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
+import { LaunchBanner } from './LaunchGate.tsx'
 import { NetworkSwitch } from './NetworkSwitch.tsx'
 import { cn } from './ui.tsx'
 import { useCollectActions } from '../collect.ts'
@@ -115,6 +116,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </header>
 
         <main key={pathname} className="mx-auto grid min-w-0 w-full max-w-3xl animate-[view-in_0.32s_var(--ease-spring)] gap-6 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-8 lg:pt-10 lg:pb-16">
+          <LaunchBanner />
           {paused && (
             <div role="alert" className="rounded-xl bg-bad-bg px-4 py-3 text-[0.9rem] text-bad">
               The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are unpaused, and deadlines keep running.{' '}

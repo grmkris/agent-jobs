@@ -4,6 +4,8 @@ import type { EIP1193Provider } from 'viem'
 import { createConfig, http, useReadContract } from 'wagmi'
 import { monad, monadTestnet } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
+import { closeWrites } from './launch.ts'
+import { MAINNET_LIVE } from './release.ts'
 
 declare const __AGENT_JOBS_NETWORK__: sdk.Network
 declare const __PRIVY_APP_ID__: string
@@ -16,8 +18,13 @@ export const isMainnet = network === 'monad-mainnet'
 
 /** Canonical origin of each network's Explore (the header's network switch links to the other one's root). */
 export const NETWORK_ORIGINS = { 'monad-mainnet': 'https://hireling.xyz', 'monad-testnet': 'https://testnet.hireling.xyz' } as const
-/** Until mainnet is deployed, the switch shows Mainnet as disabled ("soon"). */
-export const MAINNET_LIVE = false
+export { MAINNET_LIVE }
+/**
+ * Whether this deploy may publish, take, stake, pay or administer anything (D16): always on testnet, on mainnet only
+ * once `MAINNET_LIVE` is set. Closed, the pages that write show "launching soon", the board client refuses write
+ * tools and the wallet refuses to send or sign (`launch.ts`), whatever URL was opened.
+ */
+export const writesOpen = !isMainnet || MAINNET_LIVE
 
 /** The deploy's chain; testnet with the explorer overridden (the chain's default testnet explorer entry is stale). */
 export const chain: Chain = isMainnet
@@ -35,13 +42,15 @@ let privyProvider: EIP1193Provider | undefined
 export const setPrivyProvider = (p: EIP1193Provider | undefined) => {
   privyProvider = p
 }
-export const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider: () => privyProvider } })
+export const privyConnector = injected({ target: { id: 'privy', name: 'Privy', provider: () => closeWrites(privyProvider, writesOpen) } })
 /**
  * A browser wallet (`window.ethereum`) for the embedded widget only (`/embed/<board>?wallet=injected`, ADR-0008):
  * a host page that already has a wallet passes it through. Explore's own sign-in stays Privy only; nothing here
  * auto-connects.
  */
-export const injectedConnector = injected()
+export const injectedConnector = writesOpen
+  ? injected()
+  : injected({ target: { id: 'injected', name: 'Browser wallet', provider: () => closeWrites((globalThis as { ethereum?: EIP1193Provider }).ethereum, false) } })
 
 export const wagmiConfig = createConfig({
   chains: [chain] as [Chain],

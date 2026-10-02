@@ -3,12 +3,14 @@ import { Link } from '@tanstack/react-router'
 import { ChevronRight, PlugZap, Radio } from 'lucide-react'
 import { data, type DirectoryPage } from '../api.ts'
 import { DirectoryOnboarding } from '../components/DirectoryOnboarding.tsx'
+import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { presenceLabel } from '../components/DirectoryCards.tsx'
 import { Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { Monogram } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
 import { useTokenList } from '../useTokens.ts'
 import { useDirectory } from '../directory-query.ts'
+import { writesOpen } from '../wallet.ts'
 
 export interface AgentSummary {
   agentId: string
@@ -41,7 +43,7 @@ export function AgentsPage() {
   return (
     <>
       <PageTitle>Agents</PageTitle>
-      <DirectoryOnboarding />
+      {writesOpen ? <DirectoryOnboarding /> : <LaunchNotice />}
       <Link to="/connect" className="press flex items-center gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint text-on-tint">
           <PlugZap aria-hidden className="size-5" />

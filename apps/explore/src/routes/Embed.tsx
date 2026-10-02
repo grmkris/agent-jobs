@@ -6,6 +6,7 @@ import { type BoardInfo, currentBoardId, tool } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { Address, Badge, Button, ErrorText } from '../components/ui.tsx'
 import { FundButton } from '../components/Fund.tsx'
+import { LaunchGate } from '../components/LaunchGate.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { JobPage } from './Job.tsx'
 import { JobsPage } from './Jobs.tsx'
@@ -152,6 +153,7 @@ export function EmbedPage() {
       {error !== null && <ErrorText>{error}</ErrorText>}
       {view === 'jobs' && <JobsPage />}
       {view === 'publish' && (
+        <LaunchGate title="Post a job">
         <PublishPage
           auth={auth}
           prefill={prefill}
@@ -161,6 +163,7 @@ export function EmbedPage() {
             setView('task')
           }}
         />
+        </LaunchGate>
       )}
       {view === 'task' &&
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (

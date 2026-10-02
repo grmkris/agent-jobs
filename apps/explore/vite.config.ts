@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
+import { MAINNET_LIVE } from './src/release.ts'
 
 const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'
 
@@ -46,6 +47,29 @@ function manifest() {
 }
 
 /**
+ * What this build lets visitors do (D16, PROD-GATE-006), at `/release.json`: the network and `MAINNET_LIVE` from
+ * `src/release.ts`, the same value the app is built with. The production artifact pins it and the release checks the
+ * built file; post-deploy probes can read it from the live origin. Writes are open on testnet, and on mainnet only
+ * once `MAINNET_LIVE` is true.
+ */
+const releaseInfo = () => `${JSON.stringify({ network, mainnetLive: MAINNET_LIVE, writesOpen: network !== 'monad-mainnet' || MAINNET_LIVE }, null, 2)}\n`
+function release() {
+  return {
+    name: 'hireling-release',
+    configureServer(server: { middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void } }) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? '').split('?')[0] !== '/release.json') return next()
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.end(releaseInfo())
+      })
+    },
+    generateBundle(this: { emitFile(f: { type: 'asset'; fileName: string; source: string }): void }) {
+      this.emitFile({ type: 'asset', fileName: 'release.json', source: releaseInfo() })
+    },
+  }
+}
+
+/**
  * The agent skills (the repo's `skill/<role>/SKILL.md`) at `/skills/<role>/SKILL.md`, so an operator can `curl` the
  * skill that matches this deploy (the Run your agent page shows how). Emitted into the build; served from the repo in
  * dev.
@@ -71,7 +95,7 @@ function skills() {
 
 // Alchemy's Cloudflare.Website.Vite injects the Cloudflare plugin at deploy; `worker.ts` is the Worker entry.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), manifest(), skills()],
+  plugins: [react(), tailwindcss(), manifest(), skills(), release()],
   // The network is fixed per deploy stage (AGENT_JOBS_NETWORK, the same variable the API and indexer read).
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {

@@ -28,6 +28,9 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
 }, transform(source, id) {
   if (borrowed && id.endsWith(`/contracts/config/${network}.json`)) return JSON.stringify({ ...JSON.parse(source), deployment: readConfig('monad-testnet').deployment });
+  // Joining the directory writes, so on mainnet it opens only with the launch (D16): the mainnet run is the launch-day
+  // build. launch.e2e.mjs covers the build before it.
+  if (network === 'monad-mainnet' && id.endsWith('/src/release.ts')) return source.replace('export const MAINNET_LIVE = false', 'export const MAINNET_LIVE = true');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });

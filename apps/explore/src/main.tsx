@@ -6,6 +6,7 @@ import { WagmiProvider } from 'wagmi'
 import { PrivyRoot } from './components/Privy.tsx'
 import { ToastProvider } from './components/Sheet.tsx'
 import { AuthProvider, useAuth } from './components/Wallet.tsx'
+import { LaunchGate } from './components/LaunchGate.tsx'
 import { Shell } from './components/Shell.tsx'
 import { AgentsPage } from './routes/Agents.tsx'
 import { MePage } from './routes/Me.tsx'
@@ -48,11 +49,13 @@ const job = createRoute({
     return <JobPage auth={useAuth()} />
   },
 })
+// Pages that write are "launching soon" on mainnet before launch (D16), also when opened by URL.
 const publish = createRoute({
   getParentRoute: () => root,
   path: '/publish',
   component: function PublishRoute() {
-    return <PublishPage auth={useAuth()} />
+    const auth = useAuth()
+    return <LaunchGate title="Post a job"><PublishPage auth={auth} /></LaunchGate>
   },
 })
 const quotes = createRoute({ getParentRoute: () => root, path: '/quotes', component: QuotesPage })
@@ -68,19 +71,20 @@ const agents = createRoute({ getParentRoute: () => root, path: '/agents', compon
 const connect = createRoute({ getParentRoute: () => root, path: '/connect', component: ConnectPage })
 const me = createRoute({ getParentRoute: () => root, path: '/me', component: MePage })
 // Staking is the protocol's, not a board's: one page for every board.
-const stake = createRoute({ getParentRoute: () => root, path: '/stake', component: StakePage })
-const admin = createRoute({ getParentRoute: () => root, path: '/admin', component: AdminPage })
+const stake = createRoute({ getParentRoute: () => root, path: '/stake', component: () => <LaunchGate title="Stake"><StakePage /></LaunchGate> })
+const admin = createRoute({ getParentRoute: () => root, path: '/admin', component: () => <LaunchGate title="Admin"><AdminPage /></LaunchGate> })
 // What the wallet can close or claim, on every board.
-const collect = createRoute({ getParentRoute: () => root, path: '/collect', component: CollectPage })
-const telegram = createRoute({ getParentRoute: () => root, path: '/telegram', component: TelegramPage })
-const sponsorship = createRoute({ getParentRoute: () => root, path: '/sponsorship', component: SponsorshipPage })
+const collect = createRoute({ getParentRoute: () => root, path: '/collect', component: () => <LaunchGate title="Collect"><CollectPage /></LaunchGate> })
+const telegram = createRoute({ getParentRoute: () => root, path: '/telegram', component: () => <LaunchGate title="Telegram"><TelegramPage /></LaunchGate> })
+const sponsorship = createRoute({ getParentRoute: () => root, path: '/sponsorship', component: () => <LaunchGate title="Gas sponsorship"><SponsorshipPage /></LaunchGate> })
 // Tenant boards (ADR-0008): the same pages under /b/<slug>, plus the boards directory, creation and the widget.
 const boards = createRoute({ getParentRoute: () => root, path: '/boards', component: BoardsPage })
 const boardNew = createRoute({
   getParentRoute: () => root,
   path: '/boards/new',
   component: function BoardNewRoute() {
-    return <BoardNewPage auth={useAuth()} />
+    const auth = useAuth()
+    return <LaunchGate title="Create a board"><BoardNewPage auth={auth} /></LaunchGate>
   },
 })
 const board = createRoute({ getParentRoute: () => root, path: '/b/$boardId', component: Outlet })
@@ -96,7 +100,8 @@ const boardPublish = createRoute({
   getParentRoute: () => board,
   path: '/publish',
   component: function BoardPublishRoute() {
-    return <PublishPage auth={useAuth()} />
+    const auth = useAuth()
+    return <LaunchGate title="Post a job"><PublishPage auth={auth} /></LaunchGate>
   },
 })
 const boardQuotes = createRoute({ getParentRoute: () => board, path: '/quotes', component: QuotesPage })

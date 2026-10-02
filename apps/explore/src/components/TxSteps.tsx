@@ -9,7 +9,8 @@ import { batchGasLimit, gasLimit } from '../gas.ts'
 import { hireling } from '../hireling.ts'
 import { type SponsorOperation, sponsorApi, sponsorCalls, sponsorKey, sponsorable, submitFailure, useLiveSponsorship } from '../sponsor.ts'
 import { friendlyError } from '../txErrors.ts'
-import { chain, wagmiConfig } from '../wallet.ts'
+import { chain, wagmiConfig, writesOpen } from '../wallet.ts'
+import { LaunchNotice } from './LaunchGate.tsx'
 import { usePrivyBatch } from './Privy.tsx'
 import { useAuth } from './Wallet.tsx'
 import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
@@ -212,6 +213,7 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
    * calls, which returns the same operation if the first request reached the relay.
    */
   const runSponsored = async () => {
+    if (!writesOpen) return
     const at = status[0]?.at
     if (sending.current || !canSend || address === undefined || (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) || at === 'signing' || at === 'sent' || at === 'confirmed' || at === 'recorded') return
     sending.current = true
@@ -347,6 +349,7 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   }, [allDone])
 
   const run = async (i: number) => {
+    if (!writesOpen) return
     if (record.sponsored === true) {
       await runSponsored()
       return
@@ -416,6 +419,9 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
   const safeToRestart = record.pending === null && status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
   useEffect(() => { onSafeToRestartChange?.(safeToRestart) }, [safeToRestart, onSafeToRestartChange])
+
+  // Mainnet before launch (D16): whatever page handed these over, nothing is sent or signed.
+  if (!writesOpen) return <LaunchNotice />
 
   if (chainId !== chain.id && record.sponsored !== true) {
     return (

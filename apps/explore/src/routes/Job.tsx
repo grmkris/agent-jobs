@@ -9,6 +9,7 @@ import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { Delivered, type EvidenceRow } from '../components/job/Deliverables.tsx'
 import { HireAgainLink } from '../components/job/HireAgain.tsx'
+import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { FeeQuote, TopUp } from '../components/job/V1Panels.tsx'
 import { type ActionJob, type JobEvent, JobActions } from '../components/job/JobActions.tsx'
 import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
@@ -19,6 +20,7 @@ import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
 import { hireling, isV1Stack } from '../hireling.ts'
 import { useToken } from '../useTokens.ts'
+import { writesOpen } from '../wallet.ts'
 import { useJobs } from './Jobs.tsx'
 
 export type { JobEvent }
@@ -208,14 +210,15 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
       {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-[0.88rem] text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
 
-      {phase?.key === 'completed' && agentId !== null && auth.address !== undefined && (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
+      {writesOpen && phase?.key === 'completed' && agentId !== null && auth.address !== undefined && (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={jobId} />
           <p className="px-4 text-[0.85rem] text-label-2">A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.</p>
         </div>
       )}
 
-      {phase !== null && t !== undefined && taskId !== undefined && (
+      {phase !== null && t !== undefined && taskId !== undefined && !writesOpen && <LaunchNotice />}
+      {writesOpen && phase !== null && t !== undefined && taskId !== undefined && (
         <JobActions
           job={{
             taskId,
@@ -238,10 +241,10 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         />
       )}
 
-      {v1 !== null && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
+      {writesOpen && v1 !== null && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
         <FeeQuote jobId={jobId} holding={v1.holding} viewer={auth.address as Account} token={token} />
       )}
-      {v1 !== null && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
+      {writesOpen && v1 !== null && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
         <TopUp jobId={jobId} holding={v1.holding} token={token as Account} viewer={auth.address as Account} />
       )}
 
@@ -260,7 +263,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         evidence={d?.evidence ?? []}
       />
 
-      {listed !== undefined && listed.executionBudget !== null && boardId === currentBoardId() && (
+      {writesOpen && listed !== undefined && listed.executionBudget !== null && boardId === currentBoardId() && (
         <BudgetPanel task={listed} status={t?.chain.status ?? d?.job.status ?? 'unknown'} roles={roles} signedIn={auth.signedIn} address={auth.address} />
       )}
 

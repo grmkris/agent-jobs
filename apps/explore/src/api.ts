@@ -5,8 +5,10 @@
  * kept in localStorage (so a new tab stays signed in until it expires) and is valid on every board. Which address it
  * belongs to is kept beside it (`Wallet.tsx`), so another wallet never inherits it.
  */
-import { type BoardApi, PUBLIC_BOARD_ID, createBoardApi } from '@agent-jobs/react'
+import { ApiError, type BoardApi, PUBLIC_BOARD_ID, createBoardApi } from '@agent-jobs/react'
 import type { DirectoryAgent } from '@agent-jobs/sdk'
+import { LAUNCH_MESSAGE, toolAllowed } from './launch.ts'
+import { writesOpen } from './wallet.ts'
 
 export {
   ApiError,
@@ -68,7 +70,11 @@ const persistent = {
 export function boardApi(id = currentBoardId()): BoardApi {
   let api = apis.get(id)
   if (api === undefined) {
-    api = createBoardApi({ baseUrl: '', boardId: id, storage: persistent })
+    const client = createBoardApi({ baseUrl: '', boardId: id, storage: persistent })
+    // Mainnet before launch (D16): only the board's read tools leave the browser, whatever page asks.
+    api = writesOpen
+      ? client
+      : { ...client, tool: <T,>(name: string, args?: Record<string, unknown>) => (toolAllowed(name, false) ? client.tool<T>(name, args) : Promise.reject(new ApiError('launching', LAUNCH_MESSAGE))) }
     apis.set(id, api)
   }
   return api
