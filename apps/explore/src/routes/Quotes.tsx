@@ -225,7 +225,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
   return (
     <>
-      <BoardLink target={boardRoutes().quotes()} className="-mb-3 inline-flex items-center gap-0.5 justify-self-start text-[0.92rem] text-tint">
+      <BoardLink target={boardRoutes().quotes()} className="-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-[0.92rem] text-tint">
         <ChevronLeft aria-hidden className="size-4" />
         Quote requests
       </BoardLink>

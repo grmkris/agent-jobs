@@ -9,7 +9,7 @@ import { PrivyLogin } from '../components/Privy.tsx'
 import { useToast } from '../components/Sheet.tsx'
 import { Countdown, When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
-import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, cn } from '../components/ui.tsx'
+import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section, Segmented, cn } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber, span } from '../format.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
@@ -158,6 +158,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
   const last = useRef<{ facts: Facts; at: number } | null>(null)
   if (current !== null && reads.dataUpdatedAt !== last.current?.at) last.current = { facts: current, at: reads.dataUpdatedAt }
   const facts = current ?? last.current?.facts ?? null
+  const ready = (facts !== null || reads.isError) && !holdings.isPending
   const stale = current === null && facts !== null
 
   const [op, setOpState] = useState<Op | null>(() => loadOp(address))
@@ -222,7 +223,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
 
   return (
     <>
-      <Link to="/me" className="-mb-2 inline-flex w-fit items-center gap-0.5 text-tint">
+      <Link to="/me" className="-mt-2.5 -mb-[1.125rem] inline-flex min-w-11 w-fit items-center gap-0.5 py-2.5 text-tint">
         <ChevronLeft aria-hidden className="-ml-1.5 size-5" strokeWidth={2.4} />
         Me
       </Link>
@@ -258,191 +259,203 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
               Reserved
               <span className="block text-[0.78rem] text-label-3">Bonds on your live jobs; cannot be unstaked</span>
             </span>
-            <span className="tabular">{facts === null ? '—' : fmt(facts.reserved)}</span>
+            {/* min-w-28: each value's room is kept while it loads, so its label does not rewrap when it lands. */}
+            <span className="tabular min-w-28 text-right">{facts === null ? '—' : fmt(facts.reserved)}</span>
           </ListRow>
           <ListRow>
             <span className="size-4 shrink-0" />
             <span className="flex-1">Available to unstake</span>
-            <span className="tabular">{facts === null ? '—' : fmt(facts.available)}</span>
+            <span className="tabular min-w-28 text-right">{facts === null ? '—' : fmt(facts.available)}</span>
           </ListRow>
           <ListRow>
             <span className="size-4 shrink-0" />
             <span className="flex-1">In your wallet</span>
-            <span className="tabular">{facts === null ? '—' : fmt(facts.wallet)}</span>
+            <span className="tabular min-w-28 text-right">{facts === null ? '—' : fmt(facts.wallet)}</span>
           </ListRow>
         </Group>
       </section>
 
-      {proposal !== null && (
-        <ProposedHolding proposal={proposal} grace={grace} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
-      )}
-      {refusedInUse === true && (
-        <Section title="You refused the Holding in use">
-          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
-            <Group className="bg-bg">
-              <ListRow>
-                <span className="flex-1">Holding in use</span>
-                <AddressText value={c.holding} />
-              </ListRow>
-            </Group>
-            <p className="text-[0.92rem] leading-relaxed">It cannot reserve your stake, so you cannot publish or take a job that needs a bond from you.</p>
-            <Button variant="tinted" disabled={op !== null} onClick={() => refuse(c.holding, false)}>
-              Allow it again
-            </Button>
-          </div>
-        </Section>
-      )}
-
-      {facts !== null && tiers !== null && (
-        <Section title="Your fee as a worker" note="Taken from what a job pays you, at the rate in force when you activate it. A bigger stake pays less.">
-          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
-            <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="tabular font-display text-[1.5rem] font-bold">{percent(tiers.current.bps)}</span>
-              <span className="text-label-2">fee on what you are paid</span>
-            </p>
-            {tiers.next === null ? (
-              <p className="text-[0.9rem] text-label-2">You are in the lowest fee tier.</p>
-            ) : (
-              <>
-                <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-fill">
-                  <div className="h-full rounded-full bg-tint" style={{ width: `${progress(facts.staked, tiers.current.threshold, tiers.next.threshold)}%` }} />
-                </div>
-                <p className="text-[0.9rem] text-label-2">
-                  Stake <span className="tabular font-semibold text-label">{fmt(tiers.next.needed)}</span> more to pay {percent(tiers.next.bps)}.
-                </p>
-              </>
-            )}
-          </div>
-          <Group className="mt-2">
-            {facts.schedule.thresholds.map((threshold, i) => (
-              <ListRow key={i}>
-                <span className="tabular flex-1">{i === 0 ? 'Any stake' : `From ${fmt(threshold)}`}</span>
-                {i === tiers.current.index && <Badge tone="info">You</Badge>}
-                <span className={cn('tabular w-14 text-right', i === tiers.current.index ? 'font-semibold' : 'text-label-2')}>{percent(facts.schedule.bps[i] ?? 0)}</span>
-              </ListRow>
-            ))}
-          </Group>
-          {facts.pending !== null && (
-            <p role="note" className="mt-2 rounded-lg bg-tint/10 px-3 py-2 text-[0.86rem] text-label-2">
-              A new fee schedule can take effect from <When at={facts.pending.eta} />. Jobs already activated keep their rate.
-            </p>
+      {/* Nothing below the card until the stake and Holding reads answer: what arrives then is added below it and
+          pushes nothing already on screen (no layout shift when the chain answers late, U-PERF-A11Y). */}
+      {ready ? (
+        <>
+          {proposal !== null && (
+            <ProposedHolding proposal={proposal} grace={grace} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
           )}
-        </Section>
-      )}
-
-      {facts !== null && facts.unstaking > 0n && (
-        <Section title="Unstaking">
-          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <Hourglass aria-hidden className="size-5 shrink-0 text-label-3" />
-              <span className="min-w-0 flex-1">
-                <span className="tabular block font-semibold">{fmt(facts.unstaking)}</span>
-                <span className="block text-[0.86rem] text-label-2">
-                  {unlocked ? 'Ready to withdraw' : <>Withdrawable in <Countdown to={facts.unlockAt} /> · <When at={facts.unlockAt} show="time" /></>}
-                </span>
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="flex-1"
-                disabled={!unlocked || op !== null || stale}
-                onClick={() => setOp({ kind: 'withdraw', txs: [tx(`Withdraw ${fmt(facts.unstaking)}`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw' }))] })}
-              >
-                Withdraw
-              </Button>
-              <Button
-                variant="tinted"
-                className="flex-1"
-                disabled={op !== null || stale}
-                onClick={() => setOp({ kind: 'cancel', txs: [tx(`Stake ${fmt(facts.unstaking)} again`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelUnstake' }))] })}
-              >
-                Keep it staked
-              </Button>
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {facts !== null && !facts.open && op === null ? (
-        <div role="status" className="grid gap-1 rounded-2xl bg-tint/10 px-4 py-3.5">
-          <p className="font-semibold">Staking opens at launch</p>
-          <p className="text-[0.9rem] leading-relaxed text-label-2">
-            The vault takes stake once the first Hireling contract is authorized to reserve bonds from it, at launch. Until then nothing can be staked; your FACTORY stays in your wallet.
-          </p>
-        </div>
-      ) : op !== null ? (
-        <Section title="Send">
-          <TxSteps
-            key={op.txs.map((t) => t.data).join()}
-            taskId={`stake:${address.toLowerCase()}`}
-            txs={op.txs}
-            owner={address}
-            reportToBoard={false}
-            onSafeToRestartChange={setSafeToDismiss}
-            onDone={() => {
-              const kind = op.kind
-              setOp(null)
-              void reads.refetch()
-              void holdings.refetch()
-              void proposalRefusal.refetch()
-              toast(DONE[kind])
-            }}
-          />
-          {safeToDismiss && (
-            <Button variant="plain" size="sm" className="mt-2 justify-self-center" onClick={() => setOp(null)}>
-              Not now
-            </Button>
-          )}
-        </Section>
-      ) : (
-        <Section title={mode === 'stake' ? 'Stake' : 'Unstake'}>
-          <form
-            className="grid gap-3 rounded-xl bg-surface px-4 py-3.5"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit()
-            }}
-          >
-            <Segmented label="Stake or unstake" value={mode} onChange={setMode} options={[['stake', 'Stake'], ['unstake', 'Unstake']]} />
-            <label className="grid gap-1.5">
-              <span className="text-[0.82rem] text-label-2">Amount of FACTORY</span>
-              <span className="flex gap-2">
-                <Input id="stake-amount" value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" placeholder="0" className="tabular flex-1" autoComplete="off" />
-                <Button
-                  variant="gray"
-                  disabled={facts === null}
-                  onClick={() => facts !== null && setText(trim(mode === 'stake' ? facts.wallet : facts.available))}
-                >
-                  Max
+          {refusedInUse === true && (
+            <Section title="You refused the Holding in use">
+              <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+                <Group className="bg-bg">
+                  <ListRow>
+                    <span className="flex-1">Holding in use</span>
+                    <AddressText value={c.holding} />
+                  </ListRow>
+                </Group>
+                <p className="text-[0.92rem] leading-relaxed">It cannot reserve your stake, so you cannot publish or take a job that needs a bond from you.</p>
+                <Button variant="tinted" disabled={op !== null} onClick={() => refuse(c.holding, false)}>
+                  Allow it again
                 </Button>
-              </span>
-            </label>
-            <p className="text-[0.86rem] leading-snug text-label-2">
-              {mode === 'stake'
-                ? 'One signature and one transaction: the signature lets the vault take exactly this amount, nothing more.'
-                : facts !== null && facts.unstaking > 0n
-                  ? `You are already unstaking ${fmt(facts.unstaking)}. Adding to it restarts the ${days} cooldown for the whole amount.`
-                  : `It stops counting for your fee tier now and can be withdrawn after ${days}. You can cancel until you withdraw.`}
-            </p>
-            {problem !== null && <ErrorText>{problem}</ErrorText>}
-            {error !== null && <ErrorText>{error}</ErrorText>}
-            <Button size="lg" type="submit" busy={busy} disabled={amount === null || problem !== null || facts === null || stale}>
-              {mode === 'stake' ? (amount === null ? 'Stake' : `Stake ${fmt(amount)}`) : amount === null ? 'Unstake' : `Unstake ${fmt(amount)}`}
-            </Button>
-          </form>
-        </Section>
-      )}
-
-      <Section title="How staking works">
-        <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5 text-[0.92rem] leading-relaxed">
-          <p>
-            <span className="font-semibold">Reserved stake.</span> A bond is not sent anywhere: when you publish a job, or activate one as a worker, its bond is reserved from your stake. Reserved stake still counts for your fee tier, but it cannot be unstaked until the job settles, and a ruling against you, or a missed deadline, can burn it.
-          </p>
-          <p>
-            <span className="font-semibold">Why unstaking waits {days}.</span> So that stake cannot leave just before a bond is reserved or burned, and so that every staker can leave before a new Holding contract is allowed to reserve stake: adding one takes the Safe 8 days, longer than the cooldown. You can also stay and refuse it: a Holding you refuse can never reserve your stake.
-          </p>
+              </div>
+            </Section>
+          )}
+  
+          {facts !== null && tiers !== null && (
+            <Section title="Your fee as a worker" note="Taken from what a job pays you, at the rate in force when you activate it. A bigger stake pays less.">
+              <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+                <p className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="tabular font-display text-[1.5rem] font-bold">{percent(tiers.current.bps)}</span>
+                  <span className="text-label-2">fee on what you are paid</span>
+                </p>
+                {tiers.next === null ? (
+                  <p className="text-[0.9rem] text-label-2">You are in the lowest fee tier.</p>
+                ) : (
+                  <>
+                    <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-fill">
+                      <div className="h-full rounded-full bg-tint" style={{ width: `${progress(facts.staked, tiers.current.threshold, tiers.next.threshold)}%` }} />
+                    </div>
+                    <p className="text-[0.9rem] text-label-2">
+                      Stake <span className="tabular font-semibold text-label">{fmt(tiers.next.needed)}</span> more to pay {percent(tiers.next.bps)}.
+                    </p>
+                  </>
+                )}
+              </div>
+              <Group className="mt-2">
+                {facts.schedule.thresholds.map((threshold, i) => (
+                  <ListRow key={i}>
+                    <span className="tabular flex-1">{i === 0 ? 'Any stake' : `From ${fmt(threshold)}`}</span>
+                    {i === tiers.current.index && <Badge tone="info">You</Badge>}
+                    <span className={cn('tabular w-14 text-right', i === tiers.current.index ? 'font-semibold' : 'text-label-2')}>{percent(facts.schedule.bps[i] ?? 0)}</span>
+                  </ListRow>
+                ))}
+              </Group>
+              {facts.pending !== null && (
+                <p role="note" className="mt-2 rounded-lg bg-tint/10 px-3 py-2 text-[0.86rem] text-label-2">
+                  A new fee schedule can take effect from <When at={facts.pending.eta} />. Jobs already activated keep their rate.
+                </p>
+              )}
+            </Section>
+          )}
+  
+          {facts !== null && facts.unstaking > 0n && (
+            <Section title="Unstaking">
+              <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <Hourglass aria-hidden className="size-5 shrink-0 text-label-3" />
+                  <span className="min-w-0 flex-1">
+                    <span className="tabular block font-semibold">{fmt(facts.unstaking)}</span>
+                    <span className="block text-[0.86rem] text-label-2">
+                      {unlocked ? 'Ready to withdraw' : <>Withdrawable in <Countdown to={facts.unlockAt} /> · <When at={facts.unlockAt} show="time" /></>}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="flex-1"
+                    disabled={!unlocked || op !== null || stale}
+                    onClick={() => setOp({ kind: 'withdraw', txs: [tx(`Withdraw ${fmt(facts.unstaking)}`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw' }))] })}
+                  >
+                    Withdraw
+                  </Button>
+                  <Button
+                    variant="tinted"
+                    className="flex-1"
+                    disabled={op !== null || stale}
+                    onClick={() => setOp({ kind: 'cancel', txs: [tx(`Stake ${fmt(facts.unstaking)} again`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelUnstake' }))] })}
+                  >
+                    Keep it staked
+                  </Button>
+                </div>
+              </div>
+            </Section>
+          )}
+  
+          {facts !== null && !facts.open && op === null ? (
+            <div role="status" className="grid gap-1 rounded-2xl bg-tint/10 px-4 py-3.5">
+              <p className="font-semibold">Staking opens at launch</p>
+              <p className="text-[0.9rem] leading-relaxed text-label-2">
+                The vault takes stake once the first Hireling contract is authorized to reserve bonds from it, at launch. Until then nothing can be staked; your FACTORY stays in your wallet.
+              </p>
+            </div>
+          ) : op !== null ? (
+            <Section title="Send">
+              <TxSteps
+                key={op.txs.map((t) => t.data).join()}
+                taskId={`stake:${address.toLowerCase()}`}
+                txs={op.txs}
+                owner={address}
+                reportToBoard={false}
+                onSafeToRestartChange={setSafeToDismiss}
+                onDone={() => {
+                  const kind = op.kind
+                  setOp(null)
+                  void reads.refetch()
+                  void holdings.refetch()
+                  void proposalRefusal.refetch()
+                  toast(DONE[kind])
+                }}
+              />
+              {safeToDismiss && (
+                <Button variant="plain" size="sm" className="mt-2 justify-self-center" onClick={() => setOp(null)}>
+                  Not now
+                </Button>
+              )}
+            </Section>
+          ) : (
+            <Section title={mode === 'stake' ? 'Stake' : 'Unstake'}>
+              <form
+                className="grid gap-3 rounded-xl bg-surface px-4 py-3.5"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  submit()
+                }}
+              >
+                <Segmented label="Stake or unstake" value={mode} onChange={setMode} options={[['stake', 'Stake'], ['unstake', 'Unstake']]} />
+                <label className="grid gap-1.5">
+                  <span className="text-[0.82rem] text-label-2">Amount of FACTORY</span>
+                  <span className="flex gap-2">
+                    <Input id="stake-amount" value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" placeholder="0" className="tabular flex-1" autoComplete="off" />
+                    <Button
+                      variant="gray"
+                      disabled={facts === null}
+                      onClick={() => facts !== null && setText(trim(mode === 'stake' ? facts.wallet : facts.available))}
+                    >
+                      Max
+                    </Button>
+                  </span>
+                </label>
+                <p className="text-[0.86rem] leading-snug text-label-2">
+                  {mode === 'stake'
+                    ? 'One signature and one transaction: the signature lets the vault take exactly this amount, nothing more.'
+                    : facts !== null && facts.unstaking > 0n
+                      ? `You are already unstaking ${fmt(facts.unstaking)}. Adding to it restarts the ${days} cooldown for the whole amount.`
+                      : `It stops counting for your fee tier now and can be withdrawn after ${days}. You can cancel until you withdraw.`}
+                </p>
+                {problem !== null && <ErrorText>{problem}</ErrorText>}
+                {error !== null && <ErrorText>{error}</ErrorText>}
+                <Button size="lg" type="submit" busy={busy} disabled={amount === null || problem !== null || facts === null || stale}>
+                  {mode === 'stake' ? (amount === null ? 'Stake' : `Stake ${fmt(amount)}`) : amount === null ? 'Unstake' : `Unstake ${fmt(amount)}`}
+                </Button>
+              </form>
+            </Section>
+          )}
+  
+          <Section title="How staking works">
+            <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5 text-[0.92rem] leading-relaxed">
+              <p>
+                <span className="font-semibold">Reserved stake.</span> A bond is not sent anywhere: when you publish a job, or activate one as a worker, its bond is reserved from your stake. Reserved stake still counts for your fee tier, but it cannot be unstaked until the job settles, and a ruling against you, or a missed deadline, can burn it.
+              </p>
+              <p>
+                <span className="font-semibold">Why unstaking waits {days}.</span> So that stake cannot leave just before a bond is reserved or burned, and so that every staker can leave before a new Holding contract is allowed to reserve stake: adding one takes the Safe 8 days, longer than the cooldown. You can also stay and refuse it: a Holding you refuse can never reserve your stake.
+              </p>
+            </div>
+          </Section>
+        </>
+      ) : (
+        // Tall enough that the footer starts below the fold while loading, so it is not pushed down on screen.
+        <div className="min-h-[70dvh]">
+          <LoadingRows rows={3} />
         </div>
-      </Section>
+      )}
     </>
   )
 }

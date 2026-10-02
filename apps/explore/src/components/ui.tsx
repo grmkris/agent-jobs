@@ -170,7 +170,7 @@ export function Address({ value, you = false }: { value: string | null | undefin
   if (value === null || value === undefined) return <span className="text-label-3">—</span>
   return (
     <span className="inline-flex min-w-0 max-w-full flex-wrap items-center justify-end gap-0.5 font-mono text-[0.82rem]">
-      <a href={explorer('address', value)} target="_blank" rel="noreferrer" className="text-label-2 hover:text-label">
+      <a href={explorer('address', value)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-label-2 hover:text-label">
         {shortAddress(value)}
       </a>
       {you && <Badge tone="info" className="ml-1 font-sans">You</Badge>}
@@ -182,7 +182,8 @@ export function Address({ value, you = false }: { value: string | null | undefin
 export function TxLink({ hash, label }: { hash: string | null | undefined; label?: string }) {
   if (hash === null || hash === undefined) return null
   return (
-    <a href={explorer('tx', hash)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-[0.8rem] text-tint">
+    // py-3.5 -my-3.5: a 44 px target that takes no more room in its line.
+    <a href={explorer('tx', hash)} target="_blank" rel="noreferrer" className="-my-3.5 inline-flex items-center gap-1 py-3.5 font-mono text-[0.8rem] text-tint">
       {label ?? `${hash.slice(0, 10)}…`}
       <ExternalLink aria-hidden className="size-3" />
     </a>
@@ -194,7 +195,8 @@ export function Amount({ value, token, className }: { value: string | null | und
   return <span className={cn('tabular font-semibold whitespace-nowrap', className)}>{formatAmount(value, token)}</span>
 }
 
-const FIELD = 'w-full min-w-0 rounded-lg bg-fill px-3 py-2 text-[0.95rem] outline-none focus:ring-2 focus:ring-tint/40'
+// min-h-11: every field is at least a 44 px touch target (U-PERF-A11Y).
+const FIELD = 'w-full min-w-0 min-h-11 rounded-lg bg-fill px-3 py-2 text-[0.95rem] outline-none focus:ring-2 focus:ring-tint/40'
 
 export function Field({ label, children, hint, className }: { label: ReactNode; children: ReactNode; hint?: ReactNode; className?: string }) {
   return (

@@ -297,7 +297,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
 function Back() {
   return (
-    <BoardLink target={boardRoutes().jobs()} className="-mb-2 inline-flex w-fit items-center gap-0.5 text-tint">
+    <BoardLink target={boardRoutes().jobs()} className="-mt-2.5 -mb-[1.125rem] inline-flex w-fit items-center gap-0.5 py-2.5 text-tint">
       <ChevronLeft aria-hidden className="-ml-1.5 size-5" strokeWidth={2.4} />
       Jobs
     </BoardLink>
@@ -471,7 +471,7 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
         )}
         {termsHash !== undefined && (
           <Row label="Offer ID">
-            <a className="font-mono text-[0.8rem] text-tint" href={`/offers/${termsHash}.json`} target="_blank" rel="noreferrer">
+            <a className="-my-3.5 inline-flex py-3.5 font-mono text-[0.8rem] text-tint" href={`/offers/${termsHash}.json`} target="_blank" rel="noreferrer">
               {termsHash.slice(0, 12)}…
             </a>
           </Row>

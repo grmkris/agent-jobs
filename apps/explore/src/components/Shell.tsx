@@ -55,7 +55,7 @@ function Mark() {
 function Brand() {
   const boardId = currentBoardId()
   return (
-    <Link to="/" className="flex min-w-0 items-center gap-2.5 font-display text-[1.15rem] font-bold tracking-[-0.02em]">
+    <Link to="/" className="flex min-h-11 min-w-0 items-center gap-2.5 font-display text-[1.15rem] font-bold tracking-[-0.02em]">
       <Mark />
       <span className="truncate">
         Hireling
