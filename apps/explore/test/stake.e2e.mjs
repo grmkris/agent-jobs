@@ -11,7 +11,7 @@ const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-stake-evidence';
 const base = 'http://127.0.0.1:5194';
 const owner = '0x1111111111111111111111111111111111111111';
-const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005' };
+const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const results = [];
 const errors = [];
 
@@ -23,7 +23,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
   // v1's addresses come from the test (`window.__hireling`), so one run covers deployed and not deployed.
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null = .*/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling[\s\S]*$/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null\n');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });

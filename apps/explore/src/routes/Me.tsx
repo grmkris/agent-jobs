@@ -9,12 +9,14 @@ import { PrivyLogin } from '../components/Privy.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { useAuth, useSignOut } from '../components/Wallet.tsx'
+import { useSafeOwner } from './Admin.tsx'
 import { useJobs } from './Jobs.tsx'
 
 /** The signed-in person's place: what needs them now (from the shared lifecycle model), their wallet, sign out. */
 export function MePage() {
   const auth = useAuth()
   const signOut = useSignOut(auth)
+  const owner = useSafeOwner(auth.address)
   if (auth.address === undefined) {
     return (
       <>
@@ -45,6 +47,15 @@ export function MePage() {
             </span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
+          {owner === true && (
+            <Link to="/admin" className={rowClass({ interactive: true })}>
+              <span className="flex-1">
+                Admin
+                <span className="block text-[0.78rem] text-label-3">You own the Safe that owns Hireling</span>
+              </span>
+              <ChevronRight aria-hidden className="size-4 text-label-3" />
+            </Link>
+          )}
           <Link to="/boards" className={rowClass({ interactive: true })}>
             <span className="flex-1">Boards</span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />
