@@ -82,14 +82,16 @@ column, which covers forge's 203 gwei max fee, not just the charged one.
 
 Keep the role wallets separate; each has its own key in `.env.local`.
 
+**Fresh keys (R2) first.** The relay and attester keys were exposed on 1 Oct, and the arbitrator key is replaced with them. Generate new relay, attester and arbitrator keys for mainnet, put only their addresses into `roles` in `config/monad-mainnet.json` and the artifact, and store the keys in the dedicated production secret sources. Never fund or configure `0xac72…9e7e`, `0x66b7…963f` or `0xc657…d632` on mainnet.
+
 | role | address | send | why |
 | :--- | :--- | :--- | :--- |
 | admin (deployer) | `0x675269d710692d4d0d7166da11B76463577aad73` | 6.5 MON | deploy + Safe, 5.4 on hand at the max fee, plus a retry |
 | liquidity holder (`hireling.allocation.liquidity`) | from the config | 1 MON + 305 USDC | the seed (3M FACTORY and $300 at $0.0001), plus the 5 USDC repair cap, which comes back unless spent |
 | Safe owner that sends | from the Safe | 0.5 MON | SafeAccept, and each epoch's fund + setRoot |
-| relay | `0xac7282b6a519665dcb71563317C71d1F357f9e7e` | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it |
-| attester | `0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f` | 1 MON | attaches evidence |
-| arbitrator | `0xc657F023F938BB89de590Ed96f79B775c7dDd632` | 0 | only signs; the relay sends |
+| relay | `roles.relay` (a fresh R2 key) | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it |
+| attester | `roles.attester` (a fresh R2 key) | 1 MON | attaches evidence |
+| arbitrator | `roles.arbitrator` (a fresh R2 key) | 0 | only signs; the relay sends |
 
 If the deployer is also the liquidity holder, send it both rows and use `DEPLOYER_PRIVATE_KEY` in §3.7. Besides the
 role keys in `.env.example`, the commands below read `SAFE_OWNER_PRIVATE_KEY` (the Safe owner that sends) and
