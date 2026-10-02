@@ -103,7 +103,7 @@ contracts:
 | Endpoint | Contract and handling |
 | --- | --- |
 | Account Durable Object namespaces | Page/total_count traversal, fixed in this WP. Provider upload already uses `listNamespaces.items()` to traverse namespaces. |
-| Account Workers domains | The pinned Workers API declares single-collection mode, with no page request fields. The runner keeps that contract and now checks any returned total_count against the complete array. Provider domain reconciliation uses the same complete collection, filtered by service. |
+| Account Workers domains | Corrected by STAGING-GUARD-G2-001: the pinned API is paginated, so the census uses fail-closed page/total_count traversal before filtering Hireling domains. Missing metadata refuses. |
 | R2 buckets | Supports `per_page` and lexicographic `start_after`, without a response continuation token/count. The runner now traverses sorted full pages until a short page, refusing malformed/repeated pages. This matches the pinned Bucket provider's exhaustive walk. |
 | Worker deployments | The live API is paginated despite the pinned schema: G2-PLAN-4 traverses page/total_count, checks every created_on, and proves page 1's first row is the unique newest in descending order. It requires one 100% version. |
 | Worker schedules | Live responses have no result_info; the complete per-script collection is shape-checked, with any returned total_count checked. |
@@ -170,3 +170,8 @@ default bundle is reused after the source changes, resolve an in-flight cached
 Effect, exercise both diagnostic labels, refuse unreadable bytes and unsupported
 source arms, and retain the Explore Vite pin. No staging plan or apply ran in
 backend.
+
+STAGING-GUARD-G2-001 corrects the earlier domain-list audit conclusion: the
+pinned Workers `listDomains` is a paginated operation. The census now exhausts
+its pages before filtering Hireling's two domains and requires pagination
+metadata. Regressions find a target on page 3 and refuse missing/changed totals.

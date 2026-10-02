@@ -47,7 +47,7 @@ export async function cloudflarePaged(path, { items = result => result, pageSize
   }
 }
 
-/** Domains and schedules return complete collections; check returned counts if present. */
+/** Schedules return a complete collection; check returned counts if present. */
 async function cloudflareComplete(path, items = result => result) {
   const body = await cloudflareEnvelope(path)
   const rows = items(body.result)
@@ -99,6 +99,12 @@ export async function liveNamespaces() {
     .map(({ id, class: className, script }) => ({ id, className, script }))
 }
 
+/** Exhaust the paginated account domains before narrowing to Hireling's domains. */
+export async function liveDomains() {
+  return (await cloudflarePaged('/workers/domains')).filter(domain => ['hireling.xyz', 'testnet.hireling.xyz'].includes(domain.hostname))
+    .map(({ hostname, service, zone_id }) => ({ hostname, service, zone_id })).toSorted((a, b) => a.hostname.localeCompare(b.hostname))
+}
+
 /** Exhaust the history, then prove the API's first row is the unique newest deployment. */
 export async function liveDeployment(name) {
   const deployments = await cloudflarePaged(`/workers/scripts/${name}/deployments`, { items: result => result?.deployments })
@@ -131,8 +137,7 @@ export async function census(options = {}) {
       crons: schedules.map((schedule) => schedule.cron).toSorted(),
     }
   }
-  const domains = (await cloudflareComplete('/workers/domains')).filter((domain) => ['hireling.xyz', 'testnet.hireling.xyz'].includes(domain.hostname))
-    .map(({ hostname, service, zone_id }) => ({ hostname, service, zone_id })).toSorted((a, b) => a.hostname.localeCompare(b.hostname))
+  const domains = await liveDomains()
   const database = await cloudflare(`/d1/database/${targets.Database}`)
   const bucket = (await liveBuckets()).find((item) => item.name === targets.Manifests)
   if (bucket === undefined) throw new StagingReleaseError('census-manifests-missing')

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cloudflarePaged, liveBuckets, liveDeployment, liveNamespaces } from './cloudflare.mjs'
+import { cloudflarePaged, liveBuckets, liveDeployment, liveDomains, liveNamespaces } from './cloudflare.mjs'
 
 const originalFetch = globalThis.fetch
 const response = body => new Response(JSON.stringify({ success: true, ...body }), { headers: { 'content-type': 'application/json' } })
@@ -17,6 +17,32 @@ test('liveNamespaces reads every page when total_pages is absent', async () => {
     assert.deepEqual(await liveNamespaces(), [{ id: 'directory', className: 'DirectoryObject', script: 'agentjobs-api-staging-ba2zqmaom6el4lws' }])
     assert.deepEqual(calls, [1, 2, 3])
   } finally { globalThis.fetch = originalFetch }
+})
+
+test('domain census traverses later pages before filtering Hireling domains', async () => {
+  const calls = []
+  const target = { hostname: 'testnet.hireling.xyz', service: 'fixture-script', zone_id: 'fixture-zone' }
+  globalThis.fetch = async url => {
+    const page = Number(new URL(url).searchParams.get('page'))
+    assert.equal(new URL(url).pathname.endsWith('/workers/domains'), true)
+    calls.push(page)
+    return response({ result: [page === 3 ? target : { hostname: `other-${page}.example` }], result_info: { page, per_page: 1, count: 1, total_count: 3 } })
+  }
+  try {
+    assert.deepEqual(await liveDomains(), [target])
+    assert.deepEqual(calls, [1, 2, 3])
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('domain census refuses missing metadata and a changed total on a later page', async () => {
+  for (const missing of [true, false]) {
+    globalThis.fetch = async url => {
+      const page = Number(new URL(url).searchParams.get('page'))
+      return response({ result: [{ hostname: 'other.example' }], result_info: missing ? undefined : { page, per_page: 1, count: 1, total_count: page === 1 ? 3 : 4 } })
+    }
+    try { await assert.rejects(liveDomains(), { message: missing ? 'census-pagination-metadata-missing' : 'census-total-changed' }) }
+    finally { globalThis.fetch = originalFetch }
+  }
 })
 
 test('pagination fails closed when a page is short before total_count', async () => {
