@@ -11,11 +11,13 @@ import { overflow, shifts, smallTargets, trackShifts, unnamed } from './audit-ch
 //   --audit  at 375 and 390 px, with chain reads answering 1.2 s late: touch targets under 44 px, interactive elements
 //            without an accessible name, horizontal scroll and layout shifts (audit-checks.mjs). Writes audit.json and
 //            exits 1 on any finding (U-PERF-A11Y).
-//   heavy node test/shots.mjs ~/code/agent-jobs.wt/ui-shots [--prod] [--audit] [page…]
+//   --widths=390,1440  only these widths.
+//   heavy node test/shots.mjs ~/code/agent-jobs.wt/ui-shots [--prod] [--audit] [--widths=…] [page…]
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const args = process.argv.slice(2);
 const prod = args.includes('--prod');
 const auditing = args.includes('--audit');
+const widthsFlag = args.find((a) => a.startsWith('--widths='))?.slice('--widths='.length);
 const [output = '/tmp/hireling-shots', ...only] = args.filter((a) => !a.startsWith('--'));
 const base = 'http://127.0.0.1:5202';
 const me = '0x1111111111111111111111111111111111111111';
@@ -25,15 +27,49 @@ const token = config.deployment.rewardTokens[0].toLowerCase();
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const now = Math.floor(Date.now() / 1000);
 const K = 10n ** 18n;
-const widths = auditing ? [375, 390] : [375, 390, 1440];
+const widths = widthsFlag !== undefined ? widthsFlag.split(',').map(Number) : auditing ? [375, 390] : [375, 390, 1440];
 const LATENCY = 1200;
 
 const reply = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: 'Fix the checkout on mobile Safari', brief: 'The checkout button does nothing on iOS 18 Safari. Find out why and fix it; keep the change small.', acceptanceCriteria: ['Checkout completes on iOS 18 Safari', 'No change to desktop behaviour'], mode: 'hire', token, reward: '25000000', creatorBond: (5n * K).toString(), workerBond: (3n * K).toString(), creator: me, approver: me, deliveryDeadline: now + 2 * 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+// Job 74 is the one the lifecycle shots follow; the others fill the home page with the kind of work agents did on testnet.
+const TITLES = { 74: 'Fix the checkout on mobile Safari', 75: 'Add a CI badge and a test job to the README', 76: 'Roman numeral converter with property tests', 77: 'Summarise 40 support tickets into a FAQ', 78: 'Port the CSV stats script to TypeScript' };
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: TITLES[jobId] ?? TITLES[74], brief: 'The checkout button does nothing on iOS 18 Safari. Find out why and fix it; keep the change small.', acceptanceCriteria: ['Checkout completes on iOS 18 Safari', 'No change to desktop behaviour'], mode: 'hire', token, reward: '25000000', creatorBond: (5n * K).toString(), workerBond: (3n * K).toString(), creator: me, approver: me, deliveryDeadline: now + 2 * 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
 const chainJob = (id, status) => ({ job_id: id, status, mode: 'hire', stack: 'main', board_id: 'public', token, reward: '25000000', creator: me, approver: me, worker: status === 'open' ? null : agentWallet, agent_id: status === 'open' ? null : '1942', delivery_deadline: now + 2 * 86400, creator_bond: (5n * K).toString(), worker_bond: (3n * K).toString(), violation: null, rejection_reason_hash: null });
+const DELIVERED = ['submitted', 'completed', 'rejected-pending', 'disputed'];
+// Job history (/data/agents) as the staging indexer read it on 3 Oct, for the agents the shots name.
+const AGENTS = [
+  { agentId: '1942', jobs: 14, completed: 11, inProgress: 3, lost: 0, earned: { [token]: '45000000' }, feedback: { completed: 11 }, lastBlock: 100 },
+  { agentId: '1939', jobs: 21, completed: 13, inProgress: 1, lost: 7, earned: { [token]: '47000000' }, feedback: { completed: 13, 'rejected-quality': 2 }, lastBlock: 100 },
+  { agentId: '1944', jobs: 5, completed: 4, inProgress: 1, lost: 0, earned: { [token]: '21000000' }, feedback: { completed: 4 }, lastBlock: 100 },
+  { agentId: '1943', jobs: 4, completed: 3, inProgress: 1, lost: 0, earned: { [token]: '20000000' }, feedback: { completed: 3 }, lastBlock: 100 },
+];
+// Opted-in directory entries: fixtures (the testnet directory itself is still empty).
+const listing = (agentId, name, description, service, seconds, fresh = true) => ({
+  agentId, chainId: config.chainId, identityRegistry: config.erc8004.identity, wallet: agentWallet, profile: { name, description, services: [service] }, profileSource: 'operator-supplied', agentURI: '', enrolled: true, ownership: 'verified',
+  presence: { freshness: fresh ? 'fresh' : 'stale', state: 'available', accepting: fresh, lastSeenBucket: now - (now % 60) },
+  ads: [{ serviceId: service.toLowerCase().replaceAll(' ', '-'), name: service, description, inputs: 'A repository and acceptance criteria', outputs: 'A commit with CI green', turnaroundSeconds: seconds, price: { model: 'quote', amountBaseUnits: '0', token }, adHash: `0x${'00'.repeat(32)}`, expiresAt: now + 86400 }],
+  observedAt: now, projectionAt: now, revision: 1,
+});
+const DIRECTORY = [
+  listing('1942', 'Claude Code worker', 'Small fixes and features in TypeScript repositories, delivered as a branch with CI green.', 'Bug fixes', 3600),
+  listing('1943', 'Codex worker', 'Ports, refactors and test suites; quotes before it starts.', 'Refactors', 7200),
+  listing('1944', 'Grok worker', 'Scripts, data clean-up and CSV tooling.', 'Data scripts', 3600, false),
+];
+const DATA = {
+  '/data/stats': () => ({ ok: true, jobs: 61, completed: 36, agents: 9, paidOut: { [token]: '649000000' }, inEscrow: { [token]: '10000000' } }),
+  '/data/agents': () => ({ ok: true, agents: AGENTS }),
+  '/data/directory': () => ({ ok: true, agents: DIRECTORY, nextCursor: null, observedAt: now, chainId: config.chainId, identityRegistry: config.erc8004.identity, scope: 'opted-in Hireling directory' }),
+};
 
-/** Board and chain-data replies shared by every page; `api` answers the page's own tools first. */
-function routes(api = {}, jobs = {}) {
+/**
+ * Board and chain-data replies shared by every page. The page's `api` answers its own tools first; `jobs` maps job IDs
+ * to chain statuses; `detail(id)` and `task(id)` add to that job's indexer record and board task; `data` replaces
+ * /data answers; `account` is the viewer.
+ */
+function routes(p) {
+  const { api = {}, jobs = {} } = p;
+  const account = p.account ?? me;
+  const data = { ...DATA, ...p.data };
   return async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -41,7 +77,14 @@ function routes(api = {}, jobs = {}) {
     if (url.pathname === '/__test/receipt') return reply(route, { status: 'success' });
     if (url.pathname === '/data/jobs') return reply(route, { ok: true, jobs: Object.entries(jobs).map(([id, s]) => chainJob(id, s)), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
-    if (detail !== undefined && jobs[detail] !== undefined) return reply(route, { ok: true, job: chainJob(detail, jobs[detail]), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
+    if (detail !== undefined && jobs[detail] !== undefined) return reply(route, { ok: true, job: chainJob(detail, jobs[detail]), board: { boardId: 'public', taskId: `task-${detail}` }, submission: null, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null, ...p.detail?.(detail) });
+    const agent = /^\/data\/(agents|directory)\/(\d+)$/.exec(url.pathname);
+    if (agent !== null) {
+      const summary = AGENTS.find((a) => a.agentId === agent[2]);
+      if (agent[1] === 'directory') return reply(route, { ok: true, agent: DIRECTORY.find((a) => a.agentId === agent[2]) ?? listing(agent[2], `Agent #${agent[2]}`, '', 'Code review', 3600) });
+      return summary === undefined ? reply(route, { ok: false, code: 'not-found', message: 'No jobs yet' }, 404) : reply(route, { ok: true, agent: summary, wallets: [agentWallet], bonds: { returned: summary.completed }, jobs: [], feedback: [] });
+    }
+    if (data[url.pathname] !== undefined) return reply(route, data[url.pathname]());
     if (url.pathname.startsWith('/data/')) return reply(route, { ok: true, agents: [], jobs: [], boards: [] });
     if (!url.pathname.includes('/api/')) return route.continue();
     const name = url.pathname.replace(/^.*\/api\//, '');
@@ -49,8 +92,13 @@ function routes(api = {}, jobs = {}) {
     if (name === 'task_index') return reply(route, { ok: true, result: Object.entries(jobs).map(([id, s]) => offer(id, s)) });
     if (name === 'get_task') {
       const id = /^task-(\d+)$/.exec(route.request().postDataJSON().taskId)?.[1];
-      if (id === undefined || jobs[id] === undefined) return reply(route, { ok: true, result: { taskId: 'x', jobId: null, creator: me } });
-      return reply(route, { ok: true, result: { ...offer(id, jobs[id]), you: [], selection: [], terms: { brief: offer(id).brief, acceptanceCriteria: offer(id).acceptanceCriteria, windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status: jobs[id], provider: jobs[id] === 'open' ? null : agentWallet, timely: true, submittedAt: null, reviewEndsAt: null, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
+      const status = jobs[id];
+      if (id === undefined || status === undefined) return reply(route, { ok: true, result: { taskId: 'x', jobId: null, creator: me } });
+      const delivered = DELIVERED.includes(status);
+      const you = account === me ? ['creator', 'approver'] : account === agentWallet && status !== 'open' ? ['worker'] : [];
+      const { chain: chainExtra, ...extra } = p.task?.(id) ?? {};
+      const chain = { status, provider: status === 'open' ? null : agentWallet, timely: true, submittedAt: delivered ? now - 5400 : null, reviewEndsAt: status === 'submitted' ? now + 22 * 3600 : null, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false, ...chainExtra };
+      return reply(route, { ok: true, result: { ...offer(id, status), you, selection: [], terms: { brief: offer(id).brief, acceptanceCriteria: offer(id).acceptanceCriteria, windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain, ...extra } });
     }
     return reply(route, { ok: false, message: 'Fixture denies this operation' }, 400);
   };
@@ -74,6 +122,33 @@ const delegation = JSON.stringify({
   },
 });
 const onboarding = { wagmi: 'onboarding-wagmi.mjs', privy: 'onboarding-privy.mjs' };
+// Job 74's story for the lifecycle shots, as the indexer reports it: what happened and in which transaction.
+const hash = (n) => `0x${n.toString(16).padStart(4, '0').repeat(16)}`;
+const event = (name, values, ago, n) => ({ name, block: 1000 + n, logIndex: 0, txHash: hash(n), args: values, at: now - ago });
+const NET = '22500000'; // 25 mUSD less the 10 % tier fee (quoteActivation)
+const story = {
+  published: [event('Published', { reward: '25000000' }, 26 * 3600, 1)],
+  active: [event('Activated', { agentId: '1942' }, 25 * 3600, 2)],
+  delivered: [event('JobSubmitted', {}, 5400, 3), event('EvidenceAttached', { conclusion: 1 }, 5000, 4)],
+  deliveredEarlier: [event('JobSubmitted', {}, 6 * 3600, 3), event('EvidenceAttached', { conclusion: 1 }, 6 * 3600 - 400, 4)],
+  paid: [event('Accepted', {}, 1800, 5), event('PaymentReleased', { amount: NET }, 1800, 6), event('FeedbackRecorded', { tag: 'completed' }, 1800, 7)],
+  ruled: [event('Rejected', { violation: 1 }, 4 * 3600, 8), event('Disputed', {}, 3 * 3600, 9), event('Ruled', { forWorker: true, slashLoser: true }, 1800, 10), event('BondBurned', { side: 0, amount: (5n * K).toString() }, 1800, 11), event('PaymentReleased', { amount: NET }, 1800, 12), event('FeedbackRecorded', { tag: 'completed' }, 1800, 13)],
+};
+const commit = '4f1c2a9e7b3d51c08e6a2f94d7c1b3e5a8f60d21';
+const delivery = { deliverables: [{ repo: 'https://github.com/example-shop/storefront', branch: 'fix/safari-checkout', sha: commit, deliverable_hash: `0x${'5e'.repeat(32)}`, check: { ok: true, detail: `${commit.slice(0, 7)} is on fix/safari-checkout`, checkedAt: now - 5400 } }] };
+const evidence = [{ verifier: config.roles.attester, submission_hash: `0x${'5e'.repeat(32)}`, tested_sha: commit, conclusion: 'success', expired: false, onchainMatch: true, tx_hash: hash(4) }];
+const lifecycle = (name, status, timeline, ruled = null) => ({
+  name, wagmi: 'v1-wagmi.mjs', path: '/job/74', v1: true, jobs: { 74: status, 75: 'completed', 76: 'completed' },
+  task: () => ({ ...(DELIVERED.includes(status) || ruled !== null ? delivery : {}), chain: { violation: ruled === null ? null : 'Quality' } }),
+  detail: () => ({
+    timeline, evidence: DELIVERED.includes(status) || ruled !== null ? evidence : [],
+    job: { ...chainJob('74', status), published_tx: hash(1), violation: ruled === null ? null : 'Quality', rejection_reason_hash: ruled === null ? null : `0x${'9a'.repeat(32)}`, ...(status === 'open' ? {} : { fee_bps: 1000, fee: '2500000', net: NET }) },
+    rewards: status === 'completed' ? [{ kind: 'reward', recipient: agentWallet, amount: NET, tx_hash: hash(6) }] : [],
+    ruling: ruled,
+  }),
+  api: { list_applications: () => [{ id: 'app-1942', worker: agentWallet, agent_id: '1942', note: 'Invited. I can start now.' }], get_dispute_bundle: () => ({ bundle: { rejection: { reasonText: 'Does not fix the bug on my phone.' }, statements: [{ role: 'worker', text: 'CI is green on 4f1c2a9 and the fix is in checkout.ts; the rejection names no failing case.' }] } }) },
+  ...(status === 'active' ? { v1State: { bonus: 2_000_000n } } : {}),
+});
 const PAGES = [
   {
     name: 'stake', wagmi: 'stake-wagmi.mjs', path: '/stake',
@@ -137,6 +212,35 @@ const PAGES = [
   },
   { name: 'job-quote', wagmi: 'v1-wagmi.mjs', path: '/job/70', v1: true, account: '0x5555555555555555555555555555555555555555', jobs: { 70: 'open' } },
   { name: 'job-topup', wagmi: 'v1-wagmi.mjs', path: '/job/71', v1: true, account: '0x5555555555555555555555555555555555555555', jobs: { 71: 'active' }, v1State: { bonus: 2_000_000n, topUp: 0n } },
+  // One direct hire through its lifecycle, seen by its creator; then the same job had it been rejected, disputed and ruled.
+  lifecycle('job-published', 'open', story.published),
+  lifecycle('job-active', 'active', [...story.published, ...story.active]),
+  lifecycle('job-review', 'submitted', [...story.published, ...story.active, ...story.delivered]),
+  lifecycle('job-paid', 'completed', [...story.published, ...story.active, ...story.delivered, ...story.paid]),
+  lifecycle('job-ruled', 'completed', [...story.published, ...story.active, ...story.deliveredEarlier, ...story.ruled], { for_worker: 1, slash_loser: 1, reason_hash: `0x${'7b'.repeat(32)}`, tx_hash: hash(10) }),
+  { name: 'home', wagmi: 'v1-wagmi.mjs', path: '/', visitor: true, jobs: { 74: 'open', 75: 'active', 76: 'submitted', 77: 'completed', 78: 'completed' } },
+  { name: 'directory', wagmi: 'directory-wagmi.mjs', path: '/agents', visitor: true },
+  {
+    name: 'publish-review', wagmi: 'v1-wagmi.mjs', path: '/publish', v1: true, v1State: { free: 20_000n * K },
+    init: () => { window.__balances = { native: 3n * 10n ** 18n, balanceOf: 120_000_000n }; },
+    api: { create_task: () => ({ taskId: 'task-74', termsHash: `0x${'74'.repeat(32)}`, manifestUrl: '/offers/74.json', screening: { verdict: 'clean', reasons: [] }, transactions: [{ description: 'Approve reward token', chainId: 10143, to: token, data: '0x01', value: '0' }, { description: 'Publish job', chainId: 10143, to: contracts.holding, data: '0x02', value: '0' }] }) },
+    prepare: async (page) => {
+      await page.locator('#post-title').fill('Fix the checkout on mobile Safari');
+      await page.locator('#post-brief').fill('The checkout button does nothing on iOS 18 Safari. Find out why and fix it.');
+      await page.getByRole('button', { name: 'Continue', exact: true }).click();
+      await page.locator('#post-invite').fill('1942');
+      await page.getByRole('button', { name: 'Continue', exact: true }).click();
+      await page.locator('#post-reward').fill('25');
+      await page.getByRole('radio', { name: 'Fast', exact: true }).click();
+      await page.locator('#post-creator-bond').fill('5');
+      await page.locator('#post-worker-bond').fill('3');
+      await page.getByRole('button', { name: 'Review', exact: true }).click();
+      await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
+    },
+  },
+  // The production mainnet build as it is before launch day (no deployment in the config, MAINNET_LIVE false): Explore's
+  // own wagmi and Privy, no fixture modules, nothing indexed yet.
+  ...['/', '/stake'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Hireling directory' }) } })),
 ];
 
 mkdirSync(output, { recursive: true });
@@ -153,20 +257,35 @@ const fixtures = (p) => ({ name: 'shots-fixtures', enforce: 'pre', resolveId(sou
   if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
 } });
 const built = new Map();
-/** The dev server, or (--prod) the production build for this page's fixtures, built once per set and previewed. */
+/**
+ * The dev server, or (--prod) the production build for this page's fixtures, built once per set and previewed. A page
+ * with a `network` is that network's build with no fixture modules (vite.config reads AGENT_JOBS_NETWORK when it loads).
+ */
 async function serve(p) {
-  if (!prod) {
-    const server = await createServer({ envFile: false, logLevel: 'silent', server: { host: '127.0.0.1', port: 5202, strictPort: true }, plugins: [fixtures(p)] });
-    await server.listen();
-    return server;
+  const env = { network: process.env.AGENT_JOBS_NETWORK, privy: process.env.HIRELING_PROD_PRIVY_APP_ID };
+  if (p.network !== undefined) {
+    process.env.AGENT_JOBS_NETWORK = p.network;
+    delete process.env.HIRELING_PROD_PRIVY_APP_ID;
   }
-  const key = `${p.wagmi}-${p.privy ?? 'privy.mjs'}`.replace(/[^a-z0-9]+/gi, '-');
-  const outDir = `/tmp/hireling-prod-build/${key}`;
-  if (!built.has(key)) {
-    await build({ envFile: false, logLevel: 'error', plugins: [fixtures(p)], build: { outDir, emptyOutDir: true } });
-    built.set(key, outDir);
+  try {
+    const plugins = p.network === undefined ? [fixtures(p)] : [];
+    if (!prod) {
+      const server = await createServer({ envFile: false, logLevel: 'silent', server: { host: '127.0.0.1', port: 5202, strictPort: true }, plugins });
+      await server.listen();
+      return server;
+    }
+    const key = (p.network ?? `${p.wagmi}-${p.privy ?? 'privy.mjs'}`).replace(/[^a-z0-9]+/gi, '-');
+    const outDir = `/tmp/hireling-prod-build/${key}`;
+    if (!built.has(key)) {
+      await build({ envFile: false, logLevel: 'error', plugins, build: { outDir, emptyOutDir: true } });
+      built.set(key, outDir);
+    }
+    return await preview({ envFile: false, logLevel: 'silent', preview: { host: '127.0.0.1', port: 5202, strictPort: true }, build: { outDir } });
+  } finally {
+    if (env.network === undefined) delete process.env.AGENT_JOBS_NETWORK;
+    else process.env.AGENT_JOBS_NETWORK = env.network;
+    if (env.privy !== undefined) process.env.HIRELING_PROD_PRIVY_APP_ID = env.privy;
   }
-  return preview({ envFile: false, logLevel: 'silent', preview: { host: '127.0.0.1', port: 5202, strictPort: true }, build: { outDir } });
 }
 
 const report = [];
@@ -177,18 +296,20 @@ try {
       for (const width of widths) {
         const phone = width < 600;
         const context = await browser.newContext({ viewport: { width, height: width === 375 ? 667 : width === 390 ? 844 : 900 }, hasTouch: phone, isMobile: phone });
-        await context.addInitScript(({ account, c, v1State, latency }) => {
+        // A visitor has no wallet connected and no board session.
+        await context.addInitScript(({ account, c, v1State, latency, visitor }) => {
           window.__hireling = c;
           window.__chainLatency = latency;
-          window.__wallet = { address: account, connected: true, signatures: [], messages: [], sends: [], upgrades: 0 };
+          window.__wallet = { address: account, connected: !visitor, signatures: [], messages: [], sends: [], upgrades: 0 };
           const extra = Object.fromEntries(Object.entries(v1State ?? {}).map(([k, v]) => [k, BigInt(v)]));
           window.__v1 = { arbiter: '0xa000000000000000000000000000000000000001', free: 2n * 10n ** 18n, quote: [1000, 2500000n, 22500000n], topUp: 0n, bonus: 0n, ...extra };
+          if (visitor) return;
           localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
           localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-        }, { account: p.account ?? me, c: contracts, latency: auditing ? LATENCY : 0, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
+        }, { account: p.account ?? me, c: contracts, latency: auditing ? LATENCY : 0, visitor: p.visitor === true, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
         if (p.init !== undefined) await context.addInitScript(p.init, contracts);
         if (auditing) await context.addInitScript(trackShifts);
-        await context.route('**/*', routes(p.api, p.jobs));
+        await context.route('**/*', routes(p));
         const page = await context.newPage();
         page.on('pageerror', (error) => console.log(`  page error on ${p.name}@${width}: ${error.message.split('\n')[0]}`));
         page.on('console', (message) => { if (message.type() === 'error') console.log(`  console error on ${p.name}@${width}: ${message.text().slice(0, 200)}`); });
@@ -197,7 +318,13 @@ try {
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(auditing ? LATENCY * 2 + 600 : 400);
         const file = `${output}/${p.name}-${width}.png`;
-        await page.screenshot({ path: file, fullPage: true });
+        if (auditing) await page.screenshot({ path: file, fullPage: true });
+        else {
+          // The whole page in one viewport, so the fixed tab bar and sidebar sit where a person sees them, not mid-page.
+          await page.setViewportSize({ width, height: Math.max(page.viewportSize().height, await page.evaluate(() => document.documentElement.scrollHeight)) });
+          await page.waitForTimeout(300);
+          await page.screenshot({ path: file });
+        }
         console.log(file);
         if (auditing) {
           const found = { page: p.name, width, small: await smallTargets(page), unnamed: await unnamed(page), overflow: await overflow(page), shifts: await shifts(page) };

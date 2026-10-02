@@ -26,13 +26,16 @@ export const useSwitchChain = () => ({ switchChainAsync: async () => {} });
  */
 const late = () => (window.__chainLatency ?? 0) > 0;
 export const chainLatency = () => (late() ? new Promise((resolve) => setTimeout(resolve, window.__chainLatency)) : undefined);
+// Every balance and amount read answers 10^24 unless the page sets a realistic one (shots.mjs): `window.__balances`,
+// by function name, with `native` for the MON balance.
+const balance = (name) => window.__balances?.[name] ?? 10n ** 24n;
 export const useBalance = () => {
-  const query = useQuery({ queryKey: ['fixture-balance'], queryFn: async () => { await chainLatency(); return { value: 10n ** 24n }; }, enabled: late() });
-  return late() ? query : { data: { value: 10n ** 24n }, isLoading: false };
+  const query = useQuery({ queryKey: ['fixture-balance'], queryFn: async () => { await chainLatency(); return { value: balance('native') }; }, enabled: late() });
+  return late() ? query : { data: { value: balance('native') }, isLoading: false };
 };
 export const useReadContract = ({ functionName }) => {
-  const query = useQuery({ queryKey: ['fixture-read', functionName], queryFn: async () => { await chainLatency(); return functionName === 'paused' ? false : 10n ** 24n; }, enabled: late() });
-  return late() ? query : { data: functionName === 'paused' ? false : 10n ** 24n, isLoading: false };
+  const query = useQuery({ queryKey: ['fixture-read', functionName], queryFn: async () => { await chainLatency(); return functionName === 'paused' ? false : balance(functionName); }, enabled: late() });
+  return late() ? query : { data: functionName === 'paused' ? false : balance(functionName), isLoading: false };
 };
 export const useReadContracts = ({ contracts, query }) => useQuery({ queryKey: ['fixture-token', contracts[0]?.address], queryFn: async () => {
   await chainLatency();
