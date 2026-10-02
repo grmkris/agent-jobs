@@ -263,3 +263,32 @@ Config (coordinator): input `"oddTokens": { "wallets": ["0x…"], "mint": 10000 
 output and the deploy receipt (the script writes no config). Command:
 `NETWORK=monad-testnet forge script script/DeployOddTokens.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast`.
 `test/testnet/OddTokens.t.sol` runs both paths on the v1 pair.
+
+## Liquidity seed (C12): `script/SeedPool.s.sol`
+
+One full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, created in a single PositionManager `multicall`
+(`initializePool` at the configured price, then `MINT_POSITION` + `SETTLE_PAIR` paid through Permit2), so nobody can
+initialize the pool at another price in between. The price is `quoteAmount / factoryAmount` ($300 / 3M FACTORY =
+$0.0001, $100k FDV). Liquidity is computed from 99.99% of each amount with the full amounts as caps, so the mint
+refuses a pool whose price is off by more than that; the script also refuses a pool already initialized at another
+price (`PoolPriceMismatch`). Run from the account holding the liquidity allocation and the USDC, with `MAINNET_GO=yes`:
+`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --private-key … --broadcast`.
+`test/fork/SeedPoolRehearsal.t.sol` seeds on a mainnet fork against the live contracts.
+
+Config (coordinator commits it in `config/monad-mainnet.json`; the protocol addresses were checked with `cast code`,
+and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY comes from `deployment.hireling.factory`:
+
+```jsonc
+"liquidity": {
+  "uniswapV4": {
+    "poolManager": "0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e",
+    "positionManager": "0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "stateView": "0x77395F3b2E73aE90843717371294fa97cC419D64"
+  },
+  "quote": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",   // USDC (6 decimals)
+  "fee": 3000, "tickSpacing": 60,                           // 0.3 %, ticks ±887220
+  "factoryAmount": 3000000, "quoteAmount": 300,             // whole tokens
+  "positionOwner": "0x…"                                    // the mainnet Safe (R2); zero refuses (fails closed)
+}
+```
