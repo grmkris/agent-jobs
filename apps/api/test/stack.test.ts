@@ -68,7 +68,7 @@ test('MCP: initialize opens a session and lists the board tools',
     expect(init.session).toBeTypeOf('string')
     const list = yield* mcp(apiUrl, 'tools/list', {}, init.session)
     const names = (list.body.result.tools as Array<{ name: string }>).map((t) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['protocol_info', 'auth_login', 'create_task', 'build_activation', 'submit_work']))
+    expect(names).toEqual(expect.arrayContaining(['protocol_info', 'auth_login', 'create_task', 'build_activation', 'submit_work', 'sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation']))
     const info = yield* mcp(apiUrl, 'tools/call', { name: 'protocol_info', arguments: {} }, init.session)
     const infoBody = JSON.parse(info.body.result.content[0].text) as { chainId: number }
     expect(infoBody.chainId).toBe(10143)

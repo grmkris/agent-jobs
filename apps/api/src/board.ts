@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -37,7 +37,7 @@ const key32 = (k: string) => /^0x[0-9a-fA-F]{64}$/.test(k)
 
 export type BoardReply =
   | { readonly ok: true; readonly result: unknown }
-  | { readonly ok: false; readonly code: string; readonly message: string; readonly retryAfter?: number }
+  | { readonly ok: false; readonly code: string; readonly message: string; readonly retryAfter?: number; readonly reason?: string }
 
 /**
  * One Durable Object per hosted board (spec §5). It owns the board's SQLite (tasks, applications, selections,
@@ -51,6 +51,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     let service: { key: string; board: BoardService } | undefined
     let limits: AdmissionRateLimits | undefined
+    // Serialize across awaits and service/config replacement, including callers from different tenants.
+    let callQueue: Promise<unknown> = Promise.resolve()
 
     const boardFor = (env: BoardCall['env']): BoardService => {
       const key = JSON.stringify(env)
@@ -101,7 +103,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         }),
         /** Runs one tool and returns its JSON reply; tool errors are replies, not failures. */
         call: (req: BoardCall) =>
-          Effect.promise(async (): Promise<string> => {
+          Effect.promise(() => {
+            const result = callQueue.then(async (): Promise<string> => {
             const tool = tools[req.tool]
             if (tool === undefined) return toJson({ ok: false, code: 'not-found', message: `no tool ${req.tool}` })
             try {
@@ -114,10 +117,12 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               if (req.env.network !== network || network === 'monad-mainnet' && stage !== 'prod') {
                 return toJson({ ok: false, code: 'forbidden', message: 'Durable Object runtime network/stage mismatch' })
               }
+              const namespace = bindings.Board as { idFromName: (name: string) => { toString: () => string } } | undefined
+              const sponsored = sponsorToolNames.has(req.tool)
+              const objectName = sponsored ? SPONSOR_OBJECT_NAME : req.env.boardId
+              if ((sponsored || network === 'monad-mainnet') && (namespace === undefined || namespace.idFromName(objectName).toString() !== state.id.toString())) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
               let directCaller = req.caller !== undefined ? { address: getAddress(req.caller) } : undefined
               if (network === 'monad-mainnet') {
-                const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName: (name: string) => { toString: () => string } } | undefined
-                if (namespace === undefined || namespace.idFromName(req.env.boardId).toString() !== state.id.toString()) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
                 const desk = new SessionDesk({ sql: fromD1((runtimeEnv as Record<string, unknown>).Database as never), now: () => Math.floor(Date.now() / 1000), verify: async () => false })
                 const session = await desk.resolve({ bearer: req.bearer, mcpSession: req.mcpSession })
                 if (req.caller !== undefined && session?.address.toLowerCase() !== req.caller.toLowerCase()) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object caller is not the authenticated session wallet' })
@@ -132,13 +137,17 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const denied = admissionFailure(admission, network, req.env.boardId, req.tool, caller?.address)
               if (denied !== undefined) return toJson({ ok: false, code: 'forbidden', message: denied })
               const ctx: ToolContext = { network: req.env.network, mcpSession: req.mcpSession }
-              const result = await tool.run(board, caller, req.args, ctx)
-              return toJson({ ok: true, result } satisfies BoardReply)
+              const toolResult = await tool.run(board, caller, req.args, ctx)
+              return toJson({ ok: true, result: toolResult } satisfies BoardReply)
             } catch (e) {
               const code = e instanceof BoardError ? e.code : 'error'
               const message = e instanceof Error ? (e as { shortMessage?: string }).shortMessage ?? e.message : String(e)
-              return toJson({ ok: false, code, message } satisfies BoardReply)
+              const reason = e instanceof Error ? (e as { reason?: string }).reason : undefined
+              return toJson({ ok: false, code, message, ...(reason === undefined ? {} : { reason }) } satisfies BoardReply)
             }
+            })
+            callQueue = result.catch(() => undefined)
+            return result
           }),
     })
   }),

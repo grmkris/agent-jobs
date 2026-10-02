@@ -793,6 +793,44 @@ export const tools: Record<string, Tool> = {
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.cancelRuling(caller, { taskId: s(a, 'taskId') }),
   },
+  sponsor_status: {
+    description: 'Read-only: the current ERC-7710 gas sponsorship delegation for your wallet and its on-chain call count.',
+    inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.') }, required: ['wallet'] },
+    run: (board, caller, a) => board.sponsorStatus(caller, { wallet: s(a, 'wallet') }),
+  },
+
+  sponsor_prepare: {
+    description: 'Prepare one bounded root ERC-7710 delegation from your EIP-7702 wallet to Hireling’s relay. Sign the returned typed data; no funds move.',
+    inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.') }, required: ['wallet'] },
+    run: (board, caller, a) => board.sponsorPrepare(caller, { wallet: s(a, 'wallet') }),
+  },
+
+  sponsor_confirm: {
+    description: 'Confirm your signature over sponsor_prepare. The wallet must already point at the configured DeleGator.',
+    inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.'), signature: str('The 65-byte EIP-712 signature.') }, required: ['wallet', 'signature'] },
+    run: (board, caller, a) => board.sponsorConfirm(caller, { wallet: s(a, 'wallet'), signature: s(a, 'signature') }),
+  },
+
+  sponsor_revoke: {
+    description: 'Stop sponsorship for your wallet and return the unsigned disableDelegation transaction, if one remains to send.',
+    inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.') }, required: ['wallet'] },
+    run: (board, caller, a) => board.sponsorRevoke(caller, { wallet: s(a, 'wallet') }),
+  },
+
+  sponsor_submit: {
+    description: 'Submit 1–4 zero-value calls to the four v1 contracts under your signed sponsorship delegation. The relay validates, simulates, records, and sends one bounded transaction.',
+    inputSchema: { type: 'object', properties: {
+      wallet: str('Your wallet address.'), key: str('A unique action key, 1-128 letters, digits, underscores or hyphens. Persist and reuse only for retries.'),
+      calls: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'object', properties: { to: str('v1 contract address.'), data: str('Canonical calldata.'), value: str('Must be "0" when present.'), chainId: num('Optional chain id; must match the deployment.'), description: str('Optional display metadata; ignored.'), gas: str('Optional display metadata; ignored. Relay gas is bounded by policy.') }, required: ['to', 'data'], additionalProperties: false } },
+    }, required: ['wallet', 'key', 'calls'] },
+    run: (board, caller, a) => board.sponsorSubmit(caller, { wallet: s(a, 'wallet'), key: s(a, 'key'), calls: a.calls as Array<{ to: string; data: string; value?: string; chainId?: number }> }),
+  },
+
+  sponsor_operation: {
+    description: 'Read-only: poll one sponsor_submit operation. It reconciles the recorded receipt and enforcer counter and never sends a new transaction.',
+    inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.'), operationId: str('The operationId from sponsor_submit.') }, required: ['wallet', 'operationId'] },
+    run: (board, caller, a) => board.sponsorOperation(caller, { wallet: s(a, 'wallet'), operationId: s(a, 'operationId') }),
+  },
 }
 
 /** JSON with bigints as decimal strings. */

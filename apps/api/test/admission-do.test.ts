@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, WRITE_LIMITS } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, WRITE_LIMITS } from '@agent-jobs/board'
 import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Test from 'alchemy/Test/Vitest'
@@ -25,6 +25,7 @@ test('real local Durable Object rejects forged caller, board, network, and polic
     { tool: 'create_task', args: {}, env: { ...env, boardId: 'other' } },
     { tool: 'create_task', args: {}, env: { ...env, network: 'monad-testnet' } },
     { tool: 'upgrade_account', args: {}, env },
+    { tool: 'sponsor_prepare', args: { wallet: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }, env },
   ]
   for (const [index, call] of attempts.entries()) {
     const response = yield* HttpClient.post(url as string, { body: HttpBody.text(JSON.stringify({ name: 'public', call }), 'application/json') })
@@ -36,7 +37,11 @@ test('real local Durable Object rejects forged caller, board, network, and polic
     if (index === 1) expect(result.message).toContain('authenticated session wallet')
     if (index === 3) expect(result.message).toContain('board identity mismatch')
     if (index === 4) expect(result.message).toContain('runtime network/stage mismatch')
+    if (index === 6) expect(result.message).toContain('board identity mismatch')
   }
+  const response = yield* HttpClient.post(url as string, { body: HttpBody.text(JSON.stringify({ name: SPONSOR_OBJECT_NAME,
+    call: { tool: 'sponsor_submit', args: {}, caller: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', env } }), 'application/json') })
+  expect(yield* response.json).toMatchObject({ ok: false, code: 'forbidden', message: 'Durable Object caller is not the authenticated session wallet' })
 }))
 
 test('real workerd counters serialize concurrent REST/MCP-equivalent admissions across boards', Effect.gen(function* () {

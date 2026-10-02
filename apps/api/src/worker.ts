@@ -5,7 +5,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
@@ -289,7 +289,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             })
             if ('reply' in pre) return pre.reply
             const reply = JSON.parse(
-              yield* boards.getByName(tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
+              yield* boards.getByName(sponsorToolNames.has(tool) ? SPONSOR_OBJECT_NAME : tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
             ) as BoardReply
             if (reply.ok && (tool === 'create_task' || tool === 'pick_quote' || tool === 'create_pool')) {
               const r = reply.result as { taskId: string; termsHash: string; manifest?: string }
@@ -432,7 +432,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
               return respond(
                 reply.ok
                   ? { content: [{ type: 'text', text: JSON.stringify(reply.result, null, 2) }] }
-                  : { content: [{ type: 'text', text: `${reply.code}: ${reply.message}` }], isError: true },
+                  : { content: [{ type: 'text', text: `${reply.code}${reply.reason === undefined ? '' : ` (${reply.reason})`}: ${reply.message}` }], isError: true },
               )
             }
             default:

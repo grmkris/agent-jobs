@@ -4,16 +4,17 @@ export const readOnlyHostedTools = new Set([
   'get_dispute_bundle', 'settlement_actions', 'list_boards', 'get_board', 'auth_challenge', 'auth_login',
   'list_directory', 'get_directory_agent',
   'telegram_status',
+  'sponsor_status', 'sponsor_operation',
 ])
 
 export const drainHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke',
 ])
 
 export const recoveryHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund', 'sponsor_revoke',
 ])
 
 export const disabledP0HostedTools = new Set([
@@ -38,6 +39,7 @@ export const hostedToolNames = new Set([
   'prepare_agent_profile', 'prepare_directory_enrollment', 'enroll_directory', 'prepare_heartbeat', 'post_heartbeat',
   'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
   'telegram_status', 'telegram_link_prepare', 'telegram_link_confirm', 'telegram_unlink',
+  'sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation',
 ])
 
 export interface HostedAdmission {

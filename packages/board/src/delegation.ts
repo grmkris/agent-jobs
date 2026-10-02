@@ -180,12 +180,17 @@ export function advanceExecution(token: Address, worker: Address, amount: bigint
 
 /** `redeemDelegations` calldata for the signed delegation and one execution; the worker sends it to the manager. */
 export function redeemCalldata(signed: Delegation, execution: Execution): Hex {
+  return redeemCallsCalldata(signed, [execution])
+}
+
+/** Atomic ordered calls through the manager. Each execution consumes one LimitedCalls count. */
+export function redeemCallsCalldata(signed: Delegation, executions: readonly Execution[]): Hex {
   const context = encodeAbiParameters(permissionContextAbi, [[{ ...signed, caveats: [...signed.caveats] }]])
-  const executionCallData = encodePacked(['address', 'uint256', 'bytes'], [execution.target, execution.value, execution.callData])
   return encodeFunctionData({
     abi: delegationManagerAbi,
     functionName: 'redeemDelegations',
-    args: [[context], [SINGLE_DEFAULT_MODE], [executionCallData]],
+    args: [executions.map(() => context), executions.map(() => SINGLE_DEFAULT_MODE),
+      executions.map(execution => encodePacked(['address', 'uint256', 'bytes'], [execution.target, execution.value, execution.callData]))],
   })
 }
 

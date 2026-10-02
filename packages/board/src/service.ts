@@ -30,6 +30,7 @@ import {
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
+import { type SponsorCall, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
@@ -187,6 +188,7 @@ export class Board {
   readonly #config: BoardConfig
 
   readonly #budget: BudgetDesk
+  #sponsor: SponsorDesk | undefined
 
   constructor(sql: Sql, config: BoardConfig) {
     this.#sql = sql
@@ -231,6 +233,20 @@ export class Board {
   revokeBudget(caller: Caller, input: { taskId: string }) {
     return this.#budget.revoke(this.#requireCaller(caller), input)
   }
+
+  #sponsorDesk(caller: Caller, wallet: string): SponsorDesk {
+    const me = this.#requireCaller(caller)
+    if (!isAddress(wallet) || !eq(me, wallet)) throw new BoardError('forbidden', 'sponsorship requires the authenticated wallet’s own address')
+    this.#sponsor ??= new SponsorDesk({ sql: this.#sql, ctx: this.#ctx('main'), now: () => this.#now(),
+      ...(this.#config.relay === undefined ? {} : { relay: this.#config.relay }), fail: (code, message) => new BoardError(code, message) })
+    return this.#sponsor
+  }
+  sponsorStatus(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).status(input.wallet) }
+  sponsorPrepare(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).prepare(input.wallet) }
+  sponsorConfirm(caller: Caller, input: { wallet: string; signature: string }) { return this.#sponsorDesk(caller, input.wallet).confirm(input.wallet, input.signature) }
+  sponsorRevoke(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).revoke(input.wallet) }
+  sponsorSubmit(caller: Caller, input: { wallet: string; calls: readonly SponsorCall[]; key: string }) { return this.#sponsorDesk(caller, input.wallet).submit(input.wallet, input.calls, input.key) }
+  sponsorOperation(caller: Caller, input: { wallet: string; operationId: string }) { return this.#sponsorDesk(caller, input.wallet).operation(input.wallet, input.operationId) }
 
   /**
    * The descriptor a worker submits (ADR-0006): `deliverable`, or the legacy `{repo, branch, sha}` as git. Refused
