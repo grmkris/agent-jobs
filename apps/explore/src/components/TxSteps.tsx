@@ -196,9 +196,14 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
 
   /** Follows the operation the board answered with to the chain. */
   const follow = async (op: SponsorOperation, r: OpRecord) => {
-    // Reverted: nothing happened, and a retry with this key would only answer the same.
+    // Reverted or dropped: nothing happened, and a retry with this key would only answer the same. The steps go to
+    // the wallet with a record that has no key, so a later sponsored attempt is a new operation with a new key.
     if (op.status === 'reverted') {
       toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', op.txHash)
+      return
+    }
+    if (op.status === 'dropped') {
+      toWallet('Hireling’s relay transaction was replaced before it was mined, so nothing happened. You can send these from your wallet; you pay the gas.', op.txHash)
       return
     }
     const known: OpRecord = { ...r, sponsor: { key: r.sponsor?.key ?? '', operationId: op.operationId }, hashes: [op.txHash] }

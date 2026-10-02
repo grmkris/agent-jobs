@@ -100,6 +100,8 @@ async function fixture(viewport, options = {}) {
       // The hosted rate limit answers before the tool runs: a code, no reason, and it cannot see the key.
       if (step === 'rate-limited') return reply({ ok: false, code: 'rate-limited', message: 'too many requests' }, 429);
       const id = `${body.wallet}:${body.key}`;
+      // The relay's nonce went to another transaction: the saved one has no receipt and never mines (B6 21:27).
+      if (state.dropExisting && state.operations.has(id)) state.operations.get(id).status = 'dropped';
       if (!state.operations.has(id)) {
         const n = state.operations.size + 1;
         state.operations.set(id, { operationId: `0x${n.toString(16).padStart(64, 'a')}`, status: step === 'reverted' ? 'reverted' : 'pending', txHash: `0x${n.toString(16).padStart(64, 'b')}`, callsUsed: (state.callsUsed += body.calls.length) });
@@ -203,6 +205,36 @@ try {
     assert.equal(new Set(state.submits.map((x) => x.key)).size, 1);
     assert.equal(await sends(page), 0);
     results.push({ checks: ['refusal after a lost answer stays unknown, no wallet fallback', 'check again: same key, done'], passed: true });
+    await context.close();
+  }
+
+  // Dropped (B6 21:27): the relay's transaction is not mined, a check finds its nonce consumed, nothing happened. The
+  // wallet is offered with the dropped hash, and the next sponsored action carries a new key, never the dropped one.
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [ACTIONS[0], ACTIONS[2]] });
+    await page.goto(`${base}/collect`);
+    state.collecting = 'settle';
+    state.receiptDown = true;
+    await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
+    await page.getByText('Hireling’s relay sent it and Monad has not mined it yet. Check again in a moment.', { exact: true }).waitFor({ timeout: 90_000 });
+    const dropped = state.submits[0].key;
+    state.dropExisting = true;
+    state.receiptDown = false;
+    await page.getByRole('button', { name: 'Check again' }).click();
+    await page.getByRole('status').filter({ hasText: 'Hireling’s relay transaction was replaced before it was mined, so nothing happened.' }).waitFor();
+    await capture(page, 'sponsor-dropped');
+    assert.equal(state.submits.at(-1).key, dropped);
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('status').filter({ hasText: 'Settled' }).waitFor();
+    assert.equal(await sends(page), 1);
+    state.dropExisting = false;
+    state.collecting = 'stakeWithdraw';
+    await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
+    await page.getByRole('status').filter({ hasText: 'Withdrawn to your wallet' }).waitFor();
+    assert.notEqual(state.submits.at(-1).key, dropped);
+    assert.equal(await sends(page), 1);
+    results.push({ checks: ['not mined, then dropped on check: nothing happened, wallet offered with the hash', 'the dropped key is never reused', 'next sponsored action has a new key'], passed: true });
     await context.close();
   }
 

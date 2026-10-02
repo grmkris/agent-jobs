@@ -137,10 +137,14 @@ export function useSponsorStatus(wallet: string | undefined, signedIn: boolean) 
   })
 }
 
-/** A sponsored send: the relay's one transaction for 1–4 ordered calls (B6). */
+/**
+ * A sponsored send: the relay's one transaction for 1–4 ordered calls (B6). `dropped` (B6 21:27): the relay's nonce
+ * went to another transaction and this one has no receipt, so it never mines; like `reverted`, nothing happened, and
+ * a new attempt needs a new key.
+ */
 export interface SponsorOperation {
   operationId: Hex
-  status: 'pending' | 'confirmed' | 'reverted'
+  status: 'pending' | 'confirmed' | 'reverted' | 'dropped'
   txHash: Hex
   callsUsed: number
 }
