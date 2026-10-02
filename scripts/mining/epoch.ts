@@ -98,13 +98,20 @@ async function main() {
   let root: Hex | null = null
   let tree = null
   const claims: Record<string, { amount: string; proof: Hex[] }> = {}
-  const calls: Record<string, { to: Address; data: Hex }> = {}
+  const calls: Record<string, { to: Address; data: Hex; expect?: { totalFunded: string; fundedForEpoch: string } }> = {}
   if (r.leaves.length > 0) {
     tree = buildTree(leafValues(epoch, r.leaves))
     root = tree.tree[0]!
     tree.values.forEach((v, i) => { claims[v.value[1]] = { amount: v.value[2], proof: proofOf(tree!, i) } })
     const toFund = r.total > budget.fundedThis ? r.total - budget.fundedThis : 0n
-    if (toFund > 0n) calls.fund = { to: lower(h.miningReserve), data: encodeFunctionData({ abi: reserveAbi, functionName: 'fund', args: [epoch, toFund] }) }
+    // fund adds to what is there: it is right only while totalFunded() is still what this run read (B8-SEC-004).
+    if (toFund > 0n) {
+      calls.fund = {
+        to: lower(h.miningReserve),
+        data: encodeFunctionData({ abi: reserveAbi, functionName: 'fund', args: [epoch, toFund] }),
+        expect: { totalFunded: s(budget.totalFunded), fundedForEpoch: s(budget.fundedThis) },
+      }
+    }
     calls.setRoot = { to: lower(h.distributor), data: encodeFunctionData({ abi: distributorAbi, functionName: 'setRoot', args: [epoch, root, r.total, dataHash] }) }
   }
 
@@ -126,6 +133,9 @@ async function main() {
   console.log(`  dataHash ${dataHash}`)
   if (budget.fundedThis > 0n) console.log(`  epoch ${epoch} already has ${budget.fundedThis} funded; fund adds only the rest`)
   for (const [name, call] of Object.entries(calls)) console.log(`  Safe call ${name}: to ${getAddress(call.to)} data ${call.data}`)
+  if (calls.fund !== undefined) {
+    console.log(`  fund adds ${r.total - budget.fundedThis}: send it only while MiningReserve.totalFunded() is ${budget.totalFunded} (epoch ${epoch} has ${budget.fundedThis}); if it moved, run this again`)
+  }
   console.log(`wrote ${path}`)
 }
 

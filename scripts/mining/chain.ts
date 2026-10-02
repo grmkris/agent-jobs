@@ -74,18 +74,28 @@ export async function holdingLogs(c: PublicClient, holdings: Address[], from: bi
   return { fees: fees.toSorted(chainOrder), owed: owed.toSorted(chainOrder), withdrawals: withdrawals.toSorted(chainOrder) }
 }
 
-/** `cumulativeBudget(n)` less what was funded for earlier epochs (EpochFunded logs), and what epoch n already has. */
-export async function budgetOf(c: PublicClient, reserve: Address, epoch: bigint, deployBlock: bigint, latest: bigint, page: bigint) {
+/**
+ * `cumulativeBudget(n)` less what was funded for earlier epochs (EpochFunded logs), and what epoch n already has, all
+ * at the finalized `head`. `fund` adds to what is there, so a funding transaction that is mined but not yet final would
+ * otherwise be missed and funded twice (B8-SEC-004): refuse until `totalFunded` agrees at latest and at `head`, and
+ * until the logs add up to it.
+ */
+export async function budgetOf(c: PublicClient, reserve: Address, epoch: bigint, deployBlock: bigint, head: bigint, page: bigint) {
   const cumulativeBudget = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'cumulativeBudget', args: [epoch] })
-  const totalFunded = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'totalFunded' })
+  const totalFunded = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'totalFunded', blockNumber: head })
+  const totalFundedLatest = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'totalFunded' })
+  if (totalFundedLatest !== totalFunded) throw new Error('a MiningReserve funding transaction is not final yet; wait for finality and run again')
   let fundedBefore = 0n
   let fundedThis = 0n
   if (totalFunded > 0n) {
-    const logs = await pagedLogs(deployBlock, latest, page, (fromBlock, toBlock) => c.getLogs({ address: reserve, event: epochFunded, fromBlock, toBlock, strict: true }))
+    let sum = 0n
+    const logs = await pagedLogs(deployBlock, head, page, (fromBlock, toBlock) => c.getLogs({ address: reserve, event: epochFunded, fromBlock, toBlock, strict: true }))
     for (const log of logs) {
+      sum += log.args.amount
       if (log.args.epoch < epoch) fundedBefore += log.args.amount
       else if (log.args.epoch === epoch) fundedThis += log.args.amount
     }
+    if (sum !== totalFunded) throw new Error(`the EpochFunded logs add up to ${sum}, but totalFunded() is ${totalFunded} at block ${head}`)
   }
   const available = cumulativeBudget > fundedBefore ? cumulativeBudget - fundedBefore : 0n
   return { cumulativeBudget, fundedBefore, fundedThis, totalFunded, available }

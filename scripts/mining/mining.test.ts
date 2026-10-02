@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
+import { budgetOf } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
 import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
 import { buildTree, leafHash, proofOf, verifyProof, type LeafValue } from './tree.ts'
-import { privateKeyToAccount, type Address, type Hex } from './viem.ts'
+import { privateKeyToAccount, type Address, type Hex, type PublicClient } from './viem.ts'
 
 // Run: bun test scripts/mining
 
@@ -179,4 +180,34 @@ test('the price list file refuses duplicates, zero prices and bad decimals', () 
   expect(() => parsePriceList({ message: { ...ok.message, tokens: [{ ...ok.message.tokens[0]!, usdPrice: '0' }] } })).toThrow('no price')
   expect(() => parsePriceList({ message: { ...ok.message, tokens: [{ ...ok.message.tokens[0]!, decimals: 40 }] } })).toThrow('decimals')
   expect(() => parsePriceList({ message: { ...ok.message, factoryUsdPrice: '1.5' } })).toThrow('decimal string')
+})
+
+// A MiningReserve as budgetOf reads it: totalFunded at the finalized block and at latest, and its EpochFunded logs.
+const reserveAt = (finalized: bigint, latest: bigint, funded: { epoch: bigint; amount: bigint }[]) => {
+  let scans = 0
+  const c = {
+    readContract: async ({ functionName, blockNumber }: { functionName: string; blockNumber?: bigint }) =>
+      functionName === 'cumulativeBudget' ? factory(4_000_000) : blockNumber === undefined ? latest : finalized,
+    getLogs: async () => {
+      scans++
+      return funded.map(f => ({ args: { epoch: f.epoch, amount: f.amount, totalFunded: 0n } }))
+    },
+  } as unknown as PublicClient
+  return { c, scans: () => scans }
+}
+
+test('B8-SEC-004: a funding transaction that is not final yet refuses, so fund is never printed twice', async () => {
+  const pending = reserveAt(0n, factory(5), [])
+  await expect(budgetOf(pending.c, a(1), 0n, 1n, 100n, 1000n)).rejects.toThrow('not final yet')
+  const torn = reserveAt(factory(10), factory(10), [{ epoch: 0n, amount: factory(4) }])
+  await expect(budgetOf(torn.c, a(1), 1n, 1n, 100n, 1000n)).rejects.toThrow('add up to')
+})
+
+test('the budget is the cumulative cap less earlier epochs; what this epoch has is reported apart', async () => {
+  const funded = reserveAt(factory(10), factory(10), [{ epoch: 0n, amount: factory(4) }, { epoch: 1n, amount: factory(6) }])
+  const b = await budgetOf(funded.c, a(1), 1n, 1n, 100n, 1000n)
+  expect([b.fundedBefore, b.fundedThis, b.totalFunded, b.available]).toEqual([factory(4), factory(6), factory(10), factory(4_000_000 - 4)])
+  const fresh = reserveAt(0n, 0n, [])
+  expect((await budgetOf(fresh.c, a(1), 0n, 1n, 100n, 1000n)).available).toBe(factory(4_000_000))
+  expect(fresh.scans()).toBe(0)
 })

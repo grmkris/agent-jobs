@@ -11,7 +11,7 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
 - **RPC.** `--rpc`, else `MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. It reads only and is never printed.
 - **Config.** `--config` defaults to `contracts/config/<network>.json`; its `deployment.hireling` and every
   `hireling-v1` pair are used. The fork rehearsal passes a scratch config.
-- **Paging.** Logs are read with `eth_getLogs` in pages of `--page` blocks (default 1000). A page the RPC refuses is
+- **Paging.** Logs are read with `eth_getLogs` in pages of `--page` blocks (default 1000; it must be a positive integer). A page the RPC refuses is
   halved and retried.
 - **Tests.** `bun test scripts/mining` runs the fixture tests. The anvil fork run is step 7 of
   `contracts/script/rehearse-launch.sh`.
@@ -19,21 +19,29 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
 ## What it counts
 
 1. **Window.** From `MiningReserve.epochStart(n)` to `epochEnd(n)`: epoch 0 is 72 h from genesis, later epochs 7
-   days. A log counts when its block timestamp is at or after the start and before the end. The epoch must have
-   ended.
+   days. A log counts when its block timestamp is at or after the start and before the end.
+   - Everything is read up to the **finalized** head, which must be past the window's end, so a reorg cannot change
+     what was counted.
+   - The window's last block hash is in `inputs.window.toBlockHash`.
 2. **Events.** `FeeCharged`, `PayoutOwed` and `OwedWithdrawn` from every `hireling-v1` Holding in the config, over the
    window's blocks.
 3. **Priced tokens only.** A fee counts only if its token is on the epoch's signed price list.
 4. **Received fees only.** A fee counts only once the treasury holds it.
    - `_settle` emits `FeeCharged`, then pays the worker, then the treasury.
-   - If the treasury's transfer was refused, its `PayoutOwed` is the last one after the fee in that transaction, for
-     the same Holding, job and token.
+   - A refused leg is a `PayoutOwed` after the fee in that transaction, for the same Holding, job and token.
+   - The treasury's leg is always `FeeCharged.amount`. So a refused leg counts as the treasury's when it is not to the
+     worker, or when its amount is the fee's. A worker that is also the treasury, or a worker leg of exactly the
+     fee's amount, therefore fails closed: the fee is not counted.
    - Such a fee counts only if the treasury withdrew that token later in the window. `withdraw` takes the whole owed
      balance, so any later `OwedWithdrawn` to the same address and token clears it.
 5. **Fee value.** `fee USD = amount × usdPrice ÷ 10^decimals`, 18 decimals, rounded down.
 6. **Emission.** `min(budget, 0.5 × Σ fee USD ÷ max(factoryUsdPrice, 10^14))`, in FACTORY wei. `10^14` is $0.0001.
 7. **Budget.** `MiningReserve.cumulativeBudget(n)` minus everything already funded for earlier epochs: the sum of
    `EpochFunded(epoch < n)` logs. Unspent budget rolls over. Run epochs in order.
+   - The tool refuses while `totalFunded()` differs between latest and the finalized head (a funding transaction not
+     yet final), and when the logs don't add up to it.
+   - `fund` adds to what is already there, so the printed call is only right while `totalFunded()` is what the run
+     read. `calls.fund.expect` records that value; if it has moved, run the tool again.
 8. **Split.** 60 % of the emission to workers and 40 % to creators, each pro rata by fee USD. Arbitrators get nothing.
    - An account that was both worker and creator gets one leaf with both parts.
    - Each part is rounded down, and zero leaves are dropped.
