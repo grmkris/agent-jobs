@@ -78,8 +78,11 @@ library HirelingVerify {
         _require(feeEta == 0, "fee schedule pending");
 
         // FACTORY and mining: the whole supply, the untouched reserve, one genesis, nothing promised yet.
-        _require(d.factory.totalSupply() == HirelingConstants.FACTORY_SUPPLY, "factory supply");
-        _require(d.factory.balanceOf(address(d.reserve)) == HirelingConstants.MINING_RESERVE, "reserve balance");
+        // The genesis supply is proven from the Factory's creation receipt (`blocks`), not from live `totalSupply`,
+        // which any holder can lower with `burn` (review C8-002).
+        // Lower bounds for balances anyone can donate to (review C8-002): dust must not block promotion. The exact
+        // allocation is already proven by the run's successful receipts and the fixed, immutable supply.
+        _require(d.factory.balanceOf(address(d.reserve)) >= HirelingConstants.MINING_RESERVE, "reserve balance");
         _require(d.reserve.totalFunded() == 0 && d.distributor.outstanding() == 0, "mining untouched");
         _require(d.reserve.genesis() == d.t0 && d.distributor.genesis() == d.t0, "mining genesis");
         if (c.genesis != 0) _require(d.t0 == c.genesis, "configured genesis");
@@ -88,7 +91,7 @@ library HirelingVerify {
         _require(d.vesting.duration() == c.vestingDuration, "vesting duration");
         _require(
             d.factory.balanceOf(address(d.vesting)) + d.vesting.released(address(d.factory))
-                == HirelingRecipe.TEAM_SHARE,
+                >= HirelingRecipe.TEAM_SHARE,
             "vesting allocation"
         );
 
@@ -113,8 +116,9 @@ library HirelingVerify {
     }
 
     /// @notice Deploy blocks from the receipts, after checking the log is complete: every transaction has a successful
-    ///         receipt and every candidate contract was created by one of them. `hirelingBlock` is the first block of
-    ///         the run; `coreBlock` is the core proxy's block (zero when the core was reused).
+    ///         receipt, every candidate contract was created by one of them, and the Factory's creation receipt mints
+    ///         exactly the 1e9 supply (review C8-002; FACTORY has no mint after its constructor). `hirelingBlock` is the
+    ///         first block of the run; `coreBlock` is the core proxy's block (zero when the core was reused).
     function blocks(Vm vm, string memory path, HirelingRecipe.Deployed memory d)
         internal
         view
@@ -128,13 +132,15 @@ library HirelingVerify {
 
         address[] memory created = new address[](n);
         uint256[] memory blockOf = new uint256[](n);
+        uint256[] memory receiptOf = new uint256[](n);
         hirelingBlock = type(uint256).max;
         for (uint256 i; i < n; ++i) {
             string memory t = string.concat(".transactions[", vm.toString(i), "]");
             bytes32 hash = vm.parseJsonBytes32(json, string.concat(t, ".hash"));
-            (bool found, uint256 blockNumber) = _receipt(vm, json, hash);
+            (bool found, uint256 blockNumber, uint256 r) = _receipt(vm, json, hash);
             if (!found) revert BadBroadcast("transaction without a successful receipt");
             blockOf[i] = blockNumber;
+            receiptOf[i] = r;
             if (blockNumber < hirelingBlock) hirelingBlock = blockNumber;
             if (_eq(vm.parseJsonString(json, string.concat(t, ".transactionType")), "CREATE")) {
                 created[i] = vm.parseJsonAddress(json, string.concat(t, ".contractAddress"));
@@ -159,15 +165,40 @@ library HirelingVerify {
             }
             if (coreBlock == 0) revert BadBroadcast("core proxy not created by this run");
         }
+        for (uint256 i; i < n; ++i) {
+            if (created[i] == address(d.factory)) {
+                if (_minted(vm, json, receiptOf[i], address(d.factory)) != HirelingConstants.FACTORY_SUPPLY) {
+                    revert BadBroadcast("factory genesis is not the 1e9 supply");
+                }
+            }
+        }
     }
 
-    function _receipt(Vm vm, string memory json, bytes32 hash) private view returns (bool, uint256) {
+    function _receipt(Vm vm, string memory json, bytes32 hash)
+        private
+        view
+        returns (bool found, uint256 blockNumber, uint256 index)
+    {
         for (uint256 j;; ++j) {
             string memory r = string.concat(".receipts[", vm.toString(j), "]");
-            if (!vm.keyExistsJson(json, r)) return (false, 0);
+            if (!vm.keyExistsJson(json, r)) return (false, 0, 0);
             if (vm.parseJsonBytes32(json, string.concat(r, ".transactionHash")) != hash) continue;
-            if (vm.parseJsonUint(json, string.concat(r, ".status")) != 1) return (false, 0);
-            return (true, vm.parseJsonUint(json, string.concat(r, ".blockNumber")));
+            if (vm.parseJsonUint(json, string.concat(r, ".status")) != 1) return (false, 0, 0);
+            return (true, vm.parseJsonUint(json, string.concat(r, ".blockNumber")), j);
+        }
+    }
+
+    /// @dev The sum of `Transfer(0, …)` events `token` emitted in receipt `r`.
+    function _minted(Vm vm, string memory json, uint256 r, address token) private view returns (uint256 total) {
+        bytes32 transferTopic = keccak256("Transfer(address,address,uint256)");
+        string memory base = string.concat(".receipts[", vm.toString(r), "].logs[");
+        for (uint256 k;; ++k) {
+            string memory l = string.concat(base, vm.toString(k), "]");
+            if (!vm.keyExistsJson(json, l)) return total;
+            if (vm.parseJsonAddress(json, string.concat(l, ".address")) != token) continue;
+            bytes32[] memory topics = vm.parseJsonBytes32Array(json, string.concat(l, ".topics"));
+            if (topics.length != 3 || topics[0] != transferTopic || topics[1] != bytes32(0)) continue;
+            total += abi.decode(vm.parseJsonBytes(json, string.concat(l, ".data")), (uint256));
         }
     }
 

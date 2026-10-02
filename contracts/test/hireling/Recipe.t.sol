@@ -14,6 +14,7 @@ import {IEpochDistributor} from "../../src/hireling/interfaces/IEpochDistributor
 import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
 import {HirelingOutput} from "../../script/HirelingOutput.sol";
 import {HirelingVerify} from "../../script/HirelingVerify.sol";
+import {HirelingConstants} from "../../src/hireling/interfaces/HirelingConstants.sol";
 import {HirelingHolding} from "../../src/hireling/HirelingHolding.sol";
 import {StakeVault} from "../../src/hireling/StakeVault.sol";
 import {MockIdentity} from "../mocks/MockIdentity.sol";
@@ -70,6 +71,7 @@ contract RecipeTest is Test {
     function setUp() public {
         vm.warp(1_800_000_000);
         vm.etch(safe, hex"00"); // the Safe is a contract; the recipe and the promotion check it has code
+        vm.createDir(HirelingOutput.candidateDir(vm), true); // gitignored: absent on a clean checkout
         (arbitrator, arbitratorPk) = makeAddrAndKey("arbiter");
         c.network = "local";
         c.chainId = block.chainid;
@@ -530,6 +532,51 @@ contract RecipeTest is Test {
         _expectNotLive(c, d, "reserve balance");
     }
 
+    /// @dev Review C8-002: unsolicited dust to the reserve or the vesting wallet, before or after their allocation,
+    ///      cannot block promotion; a short allocation still refuses.
+    function test_promotion_dustDoesNotBlock_shortfallRefuses() public {
+        driver.step(0);
+        driver.step(1);
+        HirelingRecipe.Deployed memory d = driver.deployed();
+        // Dust to the vesting wallet before FACTORY exists is impossible; right after genesis, from a holder:
+        driver.step(2);
+        d = driver.deployed();
+        vm.prank(ecosystem);
+        d.factory.transfer(address(d.vesting), 1);
+        for (uint256 i = 3; i < 11; ++i) {
+            driver.step(i);
+        }
+        d = driver.deployed();
+        // Dust to the reserve before its 500M arrives, then after.
+        vm.prank(ecosystem);
+        d.factory.transfer(address(d.reserve), 1);
+        driver.step(11);
+        driver.step(12);
+        vm.prank(ecosystem);
+        d.factory.transfer(address(d.reserve), 1);
+        d = driver.deployed();
+        this.verifyExternal(c, d);
+
+        // A reserve below 500M (the allocation never fully arrived) refuses.
+        HirelingRecipe.Deployed memory e = _runShortReserve();
+        _expectNotLive(c, e, "reserve balance");
+    }
+
+    /// @dev A deployment whose reserve received 1 wei less than 500M (simulates a short allocation).
+    function _runShortReserve() internal returns (HirelingRecipe.Deployed memory e) {
+        RecipeDriver other = new RecipeDriver();
+        other.configure(c);
+        for (uint256 i; i < 13; ++i) {
+            other.step(i);
+        }
+        e = other.deployed();
+        // Move 1 wei out of the reserve's balance by rewriting it (no contract path can).
+        bytes32 slot = keccak256(abi.encode(address(e.reserve), uint256(0)));
+        uint256 bal = e.factory.balanceOf(address(e.reserve));
+        vm.store(address(e.factory), slot, bytes32(bal - 1));
+        require(e.factory.balanceOf(address(e.reserve)) == bal - 1, "balance slot");
+    }
+
     function test_promotion_refusesAnIncompleteHandover() public {
         driver.step(0);
         for (uint256 i = 1; i < 12; ++i) {
@@ -569,6 +616,15 @@ contract RecipeTest is Test {
         view
         returns (string memory)
     {
+        return _runLog(d, status, dropLast, HirelingConstants.FACTORY_SUPPLY);
+    }
+
+    /// @dev The Factory's creation receipt carries two genesis mints adding up to `minted`.
+    function _runLog(HirelingRecipe.Deployed memory d, string memory status, bool dropLast, uint256 minted)
+        internal
+        view
+        returns (string memory)
+    {
         address[9] memory created = [
             address(d.core),
             address(d.vesting),
@@ -595,12 +651,44 @@ contract RecipeTest is Test {
                 '"}'
             );
             if (dropLast && i == created.length - 1) continue;
+            string memory logs = i == 2 ? _mintLogs(address(d.factory), minted) : "";
             receipts = string.concat(
                 receipts, ',{"transactionHash":"', hash, '","status":"0x1","blockNumber":"', i == 0 ? "0x101" : "0x102",
-                '"}'
+                '","logs":[', logs, "]}"
             );
         }
         return string.concat('{"transactions":[', txs, '],"receipts":[', receipts, '],"pending":[]}');
+    }
+
+    function _mintLogs(address factory, uint256 minted) internal view returns (string memory) {
+        string memory topic0 = vm.toString(keccak256("Transfer(address,address,uint256)"));
+        string memory zero = vm.toString(bytes32(0));
+        string memory one = vm.toString(bytes32(uint256(uint160(admin))));
+        string memory a = vm.toString(abi.encode(minted / 2));
+        string memory b = vm.toString(abi.encode(minted - minted / 2));
+        return string.concat(
+            '{"address":"', vm.toString(factory), '","topics":["', topic0, '","', zero, '","', one, '"],"data":"', a,
+            '"},{"address":"', vm.toString(factory), '","topics":["', topic0, '","', zero, '","', one, '"],"data":"', b,
+            '"}'
+        );
+    }
+
+    /// @dev Review C8-002: a holder burning FACTORY before promotion cannot block it; a genesis that minted anything
+    ///      but the 1e9 supply is refused.
+    function test_promotion_supplyFromTheGenesisReceipt() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        vm.prank(ecosystem);
+        d.factory.burn(1e18);
+        this.verifyExternal(c, d);
+        string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test-supply.json");
+        vm.writeFile(path, _runLog(d, "0x1", false));
+        this.blocksExternal(path, d);
+        vm.writeFile(path, _runLog(d, "0x1", false, HirelingConstants.FACTORY_SUPPLY + 1));
+        vm.expectRevert(
+            abi.encodeWithSelector(HirelingVerify.BadBroadcast.selector, "factory genesis is not the 1e9 supply")
+        );
+        this.blocksExternal(path, d);
+        vm.removeFile(path);
     }
 
     function test_promotion_isIdempotent() public {

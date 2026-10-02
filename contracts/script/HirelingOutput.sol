@@ -175,8 +175,12 @@ library HirelingOutput {
     // `PromoteHireling` verifies it on-chain before anything reaches `config/<network>.json`.
     // ---------------------------------------------------------------------------------------------
 
+    function candidateDir(Vm vm) internal view returns (string memory) {
+        return string.concat(vm.projectRoot(), "/broadcast/hireling");
+    }
+
     function candidatePath(Vm vm, string memory network) internal view returns (string memory) {
-        return string.concat(vm.projectRoot(), "/broadcast/hireling/", network, ".candidate.json");
+        return string.concat(candidateDir(vm), "/", network, ".candidate.json");
     }
 
     function writeCandidate(
@@ -186,6 +190,8 @@ library HirelingOutput {
         HirelingRecipe.Deployed memory d,
         address safe
     ) internal {
+        // broadcast/ is gitignored, so the directory may not exist yet.
+        vm.createDir(candidateDir(vm), true);
         string memory k = "candidate";
         vm.serializeUint(k, "chainId", chainId);
         vm.serializeAddress(k, "safe", safe);
