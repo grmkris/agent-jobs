@@ -44,6 +44,8 @@ export function sendFixtureTransaction(transaction) {
       button.addEventListener('click', () => {
         panel.remove();
         if (action === 'Decline fixture') return reject(Object.assign(new Error('User rejected the request.'), { code: 4001 }));
+        // The wallet failed before broadcasting: an error that is not a refusal, and nothing went out.
+        if (window.__wallet.dropped) return reject(new Error('Wallet transport failed before broadcast'));
         window.__wallet.sends.push(transaction);
         localStorage.setItem('fixture-wallet-sends', JSON.stringify(window.__wallet.sends, (_key, value) => typeof value === 'bigint' ? value.toString() : value));
         if (window.__wallet.ambiguous) return reject(new Error('Transport failed after broadcast'));

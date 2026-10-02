@@ -257,23 +257,79 @@ async function testChainFailure() {
 }
 
 async function testUncertainSend() {
-  const { context, page } = await fixture({ width: 390, height: 844 });
-  await page.goto(`${base}/publish?resume=fixture-offer`);
-  await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
-  await page.evaluate(() => { window.__wallet.ambiguous = true; });
-  await page.getByRole('button', { name: 'Confirm fixture' }).click();
-  await page.getByRole('textbox', { name: 'Transaction hash from wallet activity' }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Try again', exact: true }).count(), 0);
-  assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
-  await page.reload();
-  await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
-  await page.getByRole('textbox', { name: 'Transaction hash from wallet activity' }).fill(`0x${'1'.padStart(64, '0')}`);
-  await page.getByRole('button', { name: 'Check existing transaction' }).click();
-  await page.getByRole('button', { name: 'Confirm step 2 of 3' }).waitFor();
-  assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
-  results.push({ name: 'ambiguous-broadcast-reload-reconcile-no-resend', passed: true });
-  await context.close();
+  // A wallet error after the broadcast: the nonce snapshot finds the mined step, so it continues without a resend.
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 });
+    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
+    await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.evaluate(() => { window.__wallet.ambiguous = true; });
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByText('Checking the chain…', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Try again', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Confirm step 2 of 3' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    assert.equal(state.reports, 1);
+    results.push({ name: 'ambiguous-broadcast-found-by-nonce-no-resend', passed: true });
+    await context.close();
+  }
+  // The chain cannot answer: the step stays uncertain with a check again, never a resend, until the chain finds it.
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 });
+    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
+    await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.evaluate(() => { window.__wallet.ambiguous = true; window.__wallet.chainDown = true; });
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('button', { name: 'Check the chain again' }).waitFor({ timeout: 30000 });
+    await page.getByRole('textbox', { name: 'Transaction hash from wallet activity' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Try again', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: /Confirm step/ }).count(), 0);
+    await snap(page, 'mobile', 'uncertain-chain-unavailable');
+    await page.evaluate(() => { window.__wallet.chainDown = false; });
+    await page.getByRole('button', { name: 'Check the chain again' }).click();
+    await page.getByRole('button', { name: 'Confirm step 2 of 3' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    results.push({ name: 'ambiguous-broadcast-chain-down-stays-uncertain-then-check-again', passed: true });
+    await context.close();
+  }
+  // A reload while the chain is being checked picks the check up again from the stored snapshot.
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 });
+    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
+    await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.evaluate(() => { window.__wallet.ambiguous = true; window.__wallet.chainDown = true; });
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByText('Checking the chain…', { exact: true }).waitFor();
+    await page.reload();
+    await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
+    await page.getByRole('button', { name: 'Confirm step 2 of 3' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    results.push({ name: 'ambiguous-broadcast-reload-reconciles-from-snapshot', passed: true });
+    await context.close();
+  }
+  // A wallet error before anything was broadcast: the unchanged nonce proves it, and a real retry is offered.
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 });
+    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
+    await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.evaluate(() => { window.__wallet.dropped = true; });
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('button', { name: 'Try again' }).waitFor({ timeout: 20000 });
+    await page.getByText(/nothing left your account, so nothing was sent/).waitFor();
+    assert.equal(await page.getByRole('textbox', { name: 'Transaction hash from wallet activity' }).count(), 0);
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await snap(page, 'mobile', 'dropped-send-retry');
+    await page.evaluate(() => { window.__wallet.dropped = false; });
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('button', { name: 'Confirm step 2 of 3' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    results.push({ name: 'wallet-error-before-broadcast-offers-real-retry', passed: true });
+    await context.close();
+  }
 }
 
 async function testSignedOutSettle() {
@@ -476,7 +532,7 @@ async function testLongToken() {
 
 try {
   // One case by name (`node test/ux.e2e.mjs <dir> uncertain-send`), or all of them.
-  const only = { 'long-token': testLongToken, 'signed-out-settle': testSignedOutSettle }[process.argv[3] ?? ''];
+  const only = { 'long-token': testLongToken, 'uncertain-send': testUncertainSend, 'signed-out-settle': testSignedOutSettle }[process.argv[3] ?? ''];
   if (only !== undefined) {
     await only();
   } else {
