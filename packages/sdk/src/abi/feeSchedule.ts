@@ -56,6 +56,19 @@ export const feeScheduleAbi = [
   },
   {
     "type": "function",
+    "name": "PROPOSAL_GRACE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "acceptOwnership",
     "inputs": [],
     "outputs": [],

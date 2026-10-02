@@ -152,6 +152,7 @@ contract FeeScheduleTest is Test {
     // ---------------------------------------------------------------------------------------------
 
     function test_propose_expiresAfterTheGrace() public {
+        assertEq(fees.PROPOSAL_GRACE(), 7 days);
         IFeeSchedule.Schedule memory s = _default(stranger);
         vm.prank(safe);
         fees.propose(s);

@@ -64,4 +64,7 @@ interface IFeeSchedule {
 
     /// @notice The highest rate any tier may charge (3000 bps).
     function MAX_BPS() external view returns (uint16);
+
+    /// @notice How long after its eta a proposed schedule can still be executed (7 days).
+    function PROPOSAL_GRACE() external view returns (uint48);
 }

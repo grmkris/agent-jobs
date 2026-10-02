@@ -173,4 +173,7 @@ interface IStakeVault {
 
     /// @notice The delay before a proposed Holding can be accepted (8 days).
     function HOLDING_DELAY() external view returns (uint48);
+
+    /// @notice How long after its eta a Holding proposal can still be accepted (7 days).
+    function PROPOSAL_GRACE() external view returns (uint48);
 }

@@ -508,6 +508,7 @@ contract StakeVaultTest is Test {
     }
 
     function test_holding_proposalExpiresAfterTheGrace() public {
+        assertEq(vault.PROPOSAL_GRACE(), 7 days);
         vm.prank(safe);
         vault.proposeHolding(holding2);
         vm.warp(vm.getBlockTimestamp() + 8 days + 7 days + 1);

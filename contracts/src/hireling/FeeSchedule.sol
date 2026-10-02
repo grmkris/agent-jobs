@@ -12,6 +12,7 @@ import {HirelingConstants} from "./interfaces/HirelingConstants.sol";
 contract FeeSchedule is IFeeSchedule, Ownable2Step {
     uint48 public constant DELAY = HirelingConstants.FEE_DELAY;
     uint16 public constant MAX_BPS = HirelingConstants.MAX_FEE_BPS;
+    uint48 public constant PROPOSAL_GRACE = HirelingConstants.PROPOSAL_GRACE;
 
     Schedule internal _schedule;
     Schedule internal _pending;
@@ -57,7 +58,7 @@ contract FeeSchedule is IFeeSchedule, Ownable2Step {
         uint48 eta = _eta;
         if (eta == 0) revert NoPendingSchedule();
         if (block.timestamp < eta) revert ScheduleTimelocked(eta);
-        if (block.timestamp > uint256(eta) + HirelingConstants.PROPOSAL_GRACE) revert ScheduleExpired(eta);
+        if (block.timestamp > uint256(eta) + PROPOSAL_GRACE) revert ScheduleExpired(eta);
         Schedule memory s = _pending;
         _schedule = s;
         delete _pending;

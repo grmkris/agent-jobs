@@ -32,6 +32,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
 
     uint48 public constant UNSTAKE_DELAY = HirelingConstants.UNSTAKE_DELAY;
     uint48 public constant HOLDING_DELAY = HirelingConstants.HOLDING_DELAY;
+    uint48 public constant PROPOSAL_GRACE = HirelingConstants.PROPOSAL_GRACE;
 
     IFactory public immutable factory;
 
@@ -167,7 +168,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         if (holding == address(0)) revert NoHoldingProposed();
         uint48 eta = _pendingEta;
         if (block.timestamp < eta) revert HoldingTimelocked(eta);
-        if (block.timestamp > uint256(eta) + HirelingConstants.PROPOSAL_GRACE) revert HoldingProposalExpired();
+        if (block.timestamp > uint256(eta) + PROPOSAL_GRACE) revert HoldingProposalExpired();
         delete _pendingHolding;
         delete _pendingEta;
         isHolding[holding] = true;
