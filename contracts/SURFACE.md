@@ -247,3 +247,19 @@ genesis more than a day in the past or 90 days ahead (C9).
 
 Core admin on a fresh (mainnet) core, held by the Safe: `pause`/`unpause`, `emergencyWithdraw` while paused, the fee
 setters, the hook whitelist and the UUPS upgrade. On testnet the reused core keeps its existing admin.
+
+## Testnet odd tokens (C11): `src/testnet/OddTokens.sol`, `script/DeployOddTokens.s.sol`
+
+Testnet only (the script refuses chain 143). Two 6-decimal tokens for live M2 / C9-001 evidence on the v1 pair, both
+owned by the deployer, which mints `oddTokens.mint` whole tokens of each to every wallet in `oddTokens.wallets`:
+
+| Token | Owner controls | Shows |
+| :--- | :--- | :--- |
+| `BlocklistUSD` (bUSD) | `setBlocked(account, bool)`: every transfer from or to a blocked account reverts | Block the worker after activation: the decision lands, the payout is deferred, then owed until unblocked (`withdraw`). |
+| `GasBurnerUSD` (gUSD) | `setHungry(account, rounds)`: transfers *to* the account burn `rounds` rounds of hashing, or all forwarded gas at `type(uint256).max` | Arm it for the worker: a decision at the documented limit still lands (`CORE_GAS`), the payout is deferred, then owed. |
+
+Config (coordinator): input `"oddTokens": { "wallets": ["0x…"], "mint": 10000 }`; record
+`"deployment": { …, "oddTokens": { "blocklist": "0x…", "gasBurner": "0x…", "block": 123 } }`, from the script's
+output and the deploy receipt (the script writes no config). Command:
+`NETWORK=monad-testnet forge script script/DeployOddTokens.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast`.
+`test/testnet/OddTokens.t.sol` runs both paths on the v1 pair.
