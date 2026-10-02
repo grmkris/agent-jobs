@@ -59,6 +59,32 @@ to testnet. Indexer retains its `* * * * *` cron. No duplicate stack is a releas
 or rollback target. Remote state is allowed only for an explicitly configured
 production release; a stray `ALCHEMY_REMOTE_STATE=1` fails before state selection.
 
+## Hireling v1 approved changes (since 2 Oct 2026)
+
+Since 2 Oct 2026 the runner keeps **migrations off** (`AGENT_JOBS_APPLY_MIGRATIONS=0`). The directory migration and
+its bindings are already live, and the plan must leave them unchanged.
+
+**Still refused, always:** migrations, resource creates/deletes/replacements/adoptions, schedule changes, binding
+deletions or type changes, and any new grouped or inherited binding. New v1 tables appear only through runtime
+`CREATE TABLE IF NOT EXISTS`, never through a migration.
+
+**What the manifest allows.**
+- `scripts/staging-release/approved-changes.json` lists, by name only, the secret additions and rotations, plus the
+  single domain change, that the guard may accept. It never contains values.
+- The plan pins the manifest's bytes and the digest of its module; `apply` re-reads it and refuses if it changed.
+- A secret change not listed in the manifest refuses the plan, and so does a tampered digest.
+
+**Releasing the apex.**
+- The only allowed domain change releases `hireling.xyz` from staging Explore, so that production can claim it.
+- Set `HIRELING_APEX_REDIRECT=0` in the deploying shell for that release.
+- `testnet.hireling.xyz` stays on staging.
+
+**Maintenance.**
+- Edits to the manifest are coordinator-reviewed commits.
+- After a listed change has landed and been verified, remove its entry in a follow-up commit, so the list never
+  becomes a standing permission.
+- Rotated values go into `.env.local` only; nothing prints them.
+
 ## Directory migration
 
 `pnpm db:generate` generates `apps/api/migrations/0001_directory_agents.sql` from
