@@ -1,0 +1,447 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Factory} from "../../src/hireling/Factory.sol";
+import {StakeVault} from "../../src/hireling/StakeVault.sol";
+import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
+
+contract StakeVaultTest is Test {
+    uint256 constant SUPPLY = 1_000_000_000e18;
+
+    address safe = makeAddr("safe");
+    address holding = makeAddr("holding");
+    address holding2 = makeAddr("holding2");
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
+    Factory token;
+    StakeVault vault;
+    uint256 t0;
+
+    function setUp() public {
+        t0 = vm.getBlockTimestamp();
+        address[] memory to = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        (to[0], amounts[0]) = (address(this), SUPPLY);
+        token = new Factory("Factory", "FACTORY", to, amounts);
+        vault = new StakeVault(token);
+        vault.bootstrapHolding(holding);
+        vault.transferOwnership(safe);
+        vm.prank(safe);
+        vault.acceptOwnership();
+
+        token.transfer(alice, 1_000_000e18);
+        token.transfer(bob, 1_000_000e18);
+        vm.prank(alice);
+        token.approve(address(vault), type(uint256).max);
+        vm.prank(bob);
+        token.approve(address(vault), type(uint256).max);
+    }
+
+    function _stake(address who, uint256 amount) internal {
+        vm.prank(who);
+        vault.stake(amount);
+    }
+
+    function _reserve(address by, address who, uint256 amount) internal {
+        vm.prank(by);
+        vault.reserve(who, amount);
+    }
+
+    function _assertConserved() internal view {
+        assertEq(token.balanceOf(address(vault)), vault.totalStaked() + vault.totalUnstaking(), "balance");
+        assertLe(vault.totalReserved(), vault.totalStaked(), "reserved <= staked");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Staking
+    // ---------------------------------------------------------------------------------------------
+
+    function test_stake_creditsAndCountsForTier() public {
+        _stake(alice, 100e18);
+        assertEq(vault.stakeOf(alice), 100e18);
+        assertEq(vault.availableOf(alice), 100e18);
+        assertEq(vault.totalStaked(), 100e18);
+        _assertConserved();
+    }
+
+    function test_stake_refusesZero() public {
+        vm.prank(alice);
+        vm.expectRevert(IStakeVault.ZeroAmount.selector);
+        vault.stake(0);
+    }
+
+    function test_stakeFor_paidByCallerCreditsAccount() public {
+        vm.prank(bob);
+        vm.expectEmit(address(vault));
+        emit IStakeVault.Staked(alice, bob, 5e18);
+        vault.stakeFor(alice, 5e18);
+        assertEq(vault.stakeOf(alice), 5e18);
+        assertEq(vault.stakeOf(bob), 0);
+        assertEq(token.balanceOf(bob), 1_000_000e18 - 5e18);
+
+        vm.prank(bob);
+        vm.expectRevert(IStakeVault.ZeroAddress.selector);
+        vault.stakeFor(address(0), 1);
+    }
+
+    function test_stakeWithPermit_andToleratesAFrontRunPermit() public {
+        (address carol, uint256 key) = makeAddrAndKey("carol");
+        token.transfer(carol, 10e18);
+        uint256 deadline = block.timestamp + 1 hours;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(key, carol, 10e18, 0, deadline);
+
+        // Someone submits the permit first; the stake still goes through on the allowance it left.
+        token.permit(carol, address(vault), 10e18, deadline, v, r, s);
+        vm.prank(carol);
+        vault.stakeWithPermit(10e18, deadline, v, r, s);
+        assertEq(vault.stakeOf(carol), 10e18);
+    }
+
+    function test_stakeWithPermit_plain() public {
+        (address carol, uint256 key) = makeAddrAndKey("carol");
+        token.transfer(carol, 10e18);
+        uint256 deadline = block.timestamp + 1 hours;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(key, carol, 10e18, 0, deadline);
+        vm.prank(carol);
+        vault.stakeWithPermit(10e18, deadline, v, r, s);
+        assertEq(vault.stakeOf(carol), 10e18);
+        assertEq(token.allowance(carol, address(vault)), 0);
+    }
+
+    function _signPermit(uint256 key, address owner, uint256 value, uint256 nonce, uint256 deadline)
+        internal
+        view
+        returns (uint8, bytes32, bytes32)
+    {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                owner,
+                address(vault),
+                value,
+                nonce,
+                deadline
+            )
+        );
+        return vm.sign(key, keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash)));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Unstaking (timelock)
+    // ---------------------------------------------------------------------------------------------
+
+    function test_unstake_cooldownSevenDays() public {
+        _stake(alice, 100e18);
+        vm.prank(alice);
+        vault.requestUnstake(40e18);
+        (uint256 amount, uint48 unlockAt) = vault.unstakeOf(alice);
+        assertEq(amount, 40e18);
+        assertEq(unlockAt, t0 + 7 days);
+        assertEq(vault.stakeOf(alice), 60e18, "cooldown no longer counts for the tier");
+        _assertConserved();
+
+        vm.warp(t0 + 7 days - 1);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UnstakeLocked.selector, uint48(t0 + 7 days)));
+        vault.withdraw();
+
+        vm.warp(t0 + 7 days);
+        uint256 before = token.balanceOf(alice);
+        vm.prank(alice);
+        vault.withdraw();
+        assertEq(token.balanceOf(alice), before + 40e18);
+        assertEq(vault.totalUnstaking(), 0);
+        _assertConserved();
+
+        vm.prank(alice);
+        vm.expectRevert(IStakeVault.NothingUnstaking.selector);
+        vault.withdraw();
+    }
+
+    function test_unstake_secondRequestRestartsCooldown() public {
+        _stake(alice, 100e18);
+        vm.prank(alice);
+        vault.requestUnstake(10e18);
+        vm.warp(t0 + 6 days);
+        vm.prank(alice);
+        vault.requestUnstake(10e18);
+        (uint256 amount, uint48 unlockAt) = vault.unstakeOf(alice);
+        assertEq(amount, 20e18);
+        assertEq(unlockAt, t0 + 13 days);
+    }
+
+    function test_unstake_cancelRestoresStake() public {
+        _stake(alice, 100e18);
+        vm.prank(alice);
+        vault.requestUnstake(30e18);
+        vm.prank(alice);
+        vault.cancelUnstake();
+        assertEq(vault.stakeOf(alice), 100e18);
+        (uint256 amount,) = vault.unstakeOf(alice);
+        assertEq(amount, 0);
+        _assertConserved();
+
+        vm.prank(alice);
+        vm.expectRevert(IStakeVault.NothingUnstaking.selector);
+        vault.cancelUnstake();
+    }
+
+    function test_unstake_reservationBlocksUnstake() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 70e18);
+        assertEq(vault.stakeOf(alice), 100e18, "reservations count for the tier");
+        assertEq(vault.availableOf(alice), 30e18);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.InsufficientAvailable.selector, 30e18, 31e18));
+        vault.requestUnstake(31e18);
+
+        vm.prank(alice);
+        vault.requestUnstake(30e18);
+        assertEq(vault.availableOf(alice), 0);
+        _assertConserved();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Bonds
+    // ---------------------------------------------------------------------------------------------
+
+    function test_reserve_onlyAuthorizedHolding() public {
+        _stake(alice, 100e18);
+        vm.prank(bob);
+        vm.expectRevert(IStakeVault.NotHolding.selector);
+        vault.reserve(alice, 1);
+        // A zero amount still checks authorization: a revoked Holding cannot publish even unbonded offers.
+        vm.prank(bob);
+        vm.expectRevert(IStakeVault.NotHolding.selector);
+        vault.reserve(alice, 0);
+        _reserve(holding, alice, 0);
+        assertEq(vault.reservedOf(alice), 0);
+    }
+
+    function test_reserve_limitedToAvailable() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 60e18);
+        vm.prank(holding);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.InsufficientAvailable.selector, 40e18, 41e18));
+        vault.reserve(alice, 41e18);
+
+        // Stake in cooldown cannot be reserved either.
+        vm.prank(alice);
+        vault.requestUnstake(40e18);
+        vm.prank(holding);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.InsufficientAvailable.selector, 0, 1));
+        vault.reserve(alice, 1);
+    }
+
+    function test_release_returnsToAvailable_cappedAtOwnReservation() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 60e18);
+        vm.prank(holding);
+        assertEq(vault.release(alice, 80e18), 60e18, "capped");
+        assertEq(vault.reservedOf(alice), 0);
+        assertEq(vault.reservedBy(holding, alice), 0);
+        assertEq(vault.availableOf(alice), 100e18);
+        vm.prank(holding);
+        assertEq(vault.release(alice, 1), 0);
+        _assertConserved();
+    }
+
+    function test_slash_burnsFromReservedOnly() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 60e18);
+        uint256 supply = token.totalSupply();
+        vm.prank(holding);
+        vm.expectEmit(address(vault));
+        emit IStakeVault.Slashed(holding, alice, 25e18);
+        assertEq(vault.slash(alice, 25e18), 25e18);
+        assertEq(token.totalSupply(), supply - 25e18, "burned, not moved");
+        assertEq(vault.stakeOf(alice), 75e18);
+        assertEq(vault.reservedOf(alice), 35e18);
+        _assertConserved();
+
+        // Capped at what this Holding reserved: the unreserved 40 are never touched.
+        vm.prank(holding);
+        assertEq(vault.slash(alice, 1_000e18), 35e18);
+        assertEq(vault.stakeOf(alice), 40e18);
+        assertEq(vault.reservedOf(alice), 0);
+        _assertConserved();
+    }
+
+    function test_holdingCannotTouchAnotherHoldingsReservation() public {
+        _authorize(holding2);
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 50e18);
+        _reserve(holding2, alice, 20e18);
+        assertEq(vault.reservedOf(alice), 70e18);
+
+        vm.prank(holding2);
+        assertEq(vault.slash(alice, 50e18), 20e18, "only its own 20");
+        vm.prank(holding2);
+        assertEq(vault.release(alice, 1), 0);
+        assertEq(vault.reservedBy(holding, alice), 50e18);
+        assertEq(vault.stakeOf(alice), 80e18);
+        _assertConserved();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Holding authorization (timelock, bootstrap, revoke)
+    // ---------------------------------------------------------------------------------------------
+
+    function _authorize(address h) internal {
+        vm.prank(safe);
+        vault.proposeHolding(h);
+        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vault.acceptHolding();
+    }
+
+    function test_holding_proposeAcceptAfterEightDays_anyoneAccepts() public {
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        (address pending, uint48 eta) = vault.pendingHolding();
+        assertEq(pending, holding2);
+        assertEq(eta, t0 + 8 days);
+
+        vm.warp(t0 + 8 days - 1);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.HoldingTimelocked.selector, uint48(t0 + 8 days)));
+        vault.acceptHolding();
+
+        vm.warp(t0 + 8 days);
+        vm.prank(bob);
+        vault.acceptHolding();
+        assertTrue(vault.isHolding(holding2));
+        (pending,) = vault.pendingHolding();
+        assertEq(pending, address(0));
+    }
+
+    /// @dev The timelock outlasts the cooldown: a staker who unstakes on the day of the proposal is out before the new
+    ///      Holding can reserve anything.
+    function test_holding_delayOutlastsCooldown() public {
+        assertGt(vault.HOLDING_DELAY(), vault.UNSTAKE_DELAY());
+        _stake(alice, 100e18);
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        vm.prank(alice);
+        vault.requestUnstake(100e18);
+        vm.warp(t0 + 7 days);
+        vm.prank(alice);
+        vault.withdraw();
+        vm.expectRevert();
+        vault.acceptHolding();
+    }
+
+    function test_holding_onlyOwnerProposesCancelsRevokes() public {
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
+        vault.proposeHolding(holding2);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
+        vault.revokeHolding(holding);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
+        vault.cancelHoldingProposal();
+    }
+
+    function test_holding_proposalRules() public {
+        vm.startPrank(safe);
+        vm.expectRevert(IStakeVault.ZeroAddress.selector);
+        vault.proposeHolding(address(0));
+        vm.expectRevert(IStakeVault.HoldingAlreadyAuthorized.selector);
+        vault.proposeHolding(holding);
+        vm.expectRevert(IStakeVault.NoHoldingProposed.selector);
+        vault.cancelHoldingProposal();
+        vault.proposeHolding(holding2);
+        vault.cancelHoldingProposal();
+        vm.stopPrank();
+        vm.warp(t0 + 9 days);
+        vm.expectRevert(IStakeVault.NoHoldingProposed.selector);
+        vault.acceptHolding();
+    }
+
+    function test_revoke_stopsReservingButExistingReservationsStillSettle() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 60e18);
+        vm.prank(safe);
+        vault.revokeHolding(holding);
+        assertFalse(vault.isHolding(holding));
+
+        vm.prank(holding);
+        vm.expectRevert(IStakeVault.NotHolding.selector);
+        vault.reserve(alice, 1);
+
+        vm.prank(holding);
+        assertEq(vault.release(alice, 20e18), 20e18);
+        vm.prank(holding);
+        assertEq(vault.slash(alice, 40e18), 40e18);
+        assertEq(vault.stakeOf(alice), 60e18);
+        assertEq(vault.reservedOf(alice), 0);
+        _assertConserved();
+
+        vm.prank(safe);
+        vm.expectRevert(IStakeVault.NotHolding.selector);
+        vault.revokeHolding(holding);
+    }
+
+    function test_bootstrap_onceOnly() public {
+        // setUp already bootstrapped.
+        assertTrue(vault.bootstrapped());
+        vm.prank(safe);
+        vm.expectRevert(IStakeVault.BootstrapClosed.selector);
+        vault.bootstrapHolding(holding2);
+    }
+
+    function test_bootstrap_onlyWhileNothingStaked() public {
+        StakeVault fresh = new StakeVault(token);
+        token.approve(address(fresh), 1);
+        fresh.stake(1);
+        vm.expectRevert(IStakeVault.BootstrapClosed.selector);
+        fresh.bootstrapHolding(holding);
+
+        StakeVault fresh2 = new StakeVault(token);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
+        fresh2.bootstrapHolding(holding);
+        vm.expectRevert(IStakeVault.ZeroAddress.selector);
+        fresh2.bootstrapHolding(address(0));
+        fresh2.bootstrapHolding(holding);
+        assertTrue(fresh2.isHolding(holding));
+    }
+
+    function test_ownership_twoStep() public {
+        vm.prank(safe);
+        vault.transferOwnership(bob);
+        assertEq(vault.owner(), safe);
+        assertEq(vault.pendingOwner(), bob);
+        vm.prank(bob);
+        vault.acceptOwnership();
+        assertEq(vault.owner(), bob);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Fuzz: random flows keep the books
+    // ---------------------------------------------------------------------------------------------
+
+    function testFuzz_flowsConserve(uint96 s, uint96 r, uint96 u, uint96 x, bool slashIt) public {
+        uint256 staked = bound(uint256(s), 1, 1_000_000e18);
+        _stake(alice, staked);
+        uint256 reserved = bound(uint256(r), 0, staked);
+        _reserve(holding, alice, reserved);
+        uint256 unstake = bound(uint256(u), 0, staked - reserved);
+        if (unstake > 0) {
+            vm.prank(alice);
+            vault.requestUnstake(unstake);
+        }
+        _assertConserved();
+        uint256 amount = bound(uint256(x), 0, reserved + 1);
+        uint256 supply = token.totalSupply();
+        vm.prank(holding);
+        uint256 moved = slashIt ? vault.slash(alice, amount) : vault.release(alice, amount);
+        assertEq(moved, amount < reserved ? amount : reserved);
+        if (slashIt) assertEq(token.totalSupply(), supply - moved);
+        assertEq(vault.stakeOf(alice), staked - unstake - (slashIt ? moved : 0));
+        assertEq(vault.reservedOf(alice), reserved - moved);
+        _assertConserved();
+    }
+}
