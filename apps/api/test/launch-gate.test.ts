@@ -2,7 +2,8 @@ import { decodeFunctionData, encodeFunctionResult, keccak256, parseAbi, parseEth
 import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import { assertLaunchGate } from '../src/deploy-preflight.ts'
-import { launchOwnedContracts, liveLaunchGate, opensAdmission, relayFloorWei, type ChainConfig, type LaunchReader } from '../src/prod-config.ts'
+import { launchOwnedContracts, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, type ChainConfig, type LaunchReader } from '../src/prod-config.ts'
+import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { parseHostedAdmission } from '@agent-jobs/board'
 
 const abi = parseAbi([
@@ -17,7 +18,7 @@ const SAFE = a(0x5afe)
 const addresses = { core: a(0xc0), holding: a(0x10), evaluator: a(0x11), vault: a(0x12), feeSchedule: a(0x13), distributor: a(0x14), miningReserve: a(0x15) }
 const DEFAULT_ADMIN = toHex(0, { size: 32 })
 const ADMIN = keccak256(toHex('ADMIN_ROLE'))
-const FLOOR = parseEther('2')
+const FLOOR = RELAY_FLOOR_MAINNET
 const lower = (value: string) => value.toLowerCase()
 
 /** A promoted mainnet config: the six owned by the Safe and the core's roles with it. */
@@ -184,13 +185,21 @@ test('D16: failure labels carry no values beyond role names', async () => {
 
 // ---- wiring: only a deploy that opens admission needs the gate ----
 
-test('D16: missing, empty, 0 and false open admission and need the gate; explicit drained values agree with the Worker', async () => {
-  for (const value of [undefined, '', '0', 'false', 'FALSE']) expect(opensAdmission(value)).toBe(true)
-  for (const value of ['1', 'true', 'drain', ' 0']) {
+test('PROD-GATE-005: only explicit 0/false opens; missing, empty and malformed values always drain', async () => {
+  for (const value of ['0', 'false', 'FALSE']) {
+    expect(opensAdmission(value)).toBe(true)
+    expect(admissionDrainBinding(value)).toBe('0')
+  }
+  for (const value of [undefined, '', '1', 'true', 'drain', ' 0', '0 ', 'off', 'null']) {
     expect(opensAdmission(value)).toBe(false)
-    expect(parseHostedAdmission(value).drain).toBe(true)
+    expect(admissionDrainBinding(value)).toBe('1')
+    expect(parseHostedAdmission(admissionDrainBinding(value)).drain).toBe(true)
+    expect(validateAdmissionMode({ admission: { drain: true } }, value)).toEqual([])
+    expect(validateAdmissionMode({ admission: { drain: false } }, value)).toEqual(['admission runtime mismatch'])
   }
   for (const value of ['0', 'false']) expect(parseHostedAdmission(value).drain).toBe(false)
+  expect(validateAdmissionMode({ admission: { drain: false } }, '0')).toEqual([])
+  expect(validateAdmissionMode({ admission: { drain: true } }, '0')).toEqual(['admission runtime mismatch'])
 })
 
 test('D16: an opening deploy is refused before anything else when the gate fails; a drained deploy is not gated', async () => {
@@ -199,9 +208,8 @@ test('D16: an opening deploy is refused before anything else when the gate fails
   state.owners[lower(addresses.vault)] = config.roles.admin!
   const chain = reader(state)
   await expect(assertLaunchGate(config, '0', chain, FLOOR)).rejects.toThrow('production launch gate refused: launch:owner:vault is not the Safe')
-  await expect(assertLaunchGate(config, undefined, chain, FLOOR)).rejects.toThrow('launch:owner:vault')
   const reads = chain.reads.length
-  await expect(assertLaunchGate(config, '1', chain, FLOOR)).resolves.toBeUndefined()
+  for (const drain of [undefined, '', '1', 'invalid']) await expect(assertLaunchGate(config, drain, chain, FLOOR)).resolves.toBeUndefined()
   expect(chain.reads.length).toBe(reads)
   state.owners[lower(addresses.vault)] = SAFE
   await expect(assertLaunchGate(config, '0', chain, FLOOR)).resolves.toBeUndefined()

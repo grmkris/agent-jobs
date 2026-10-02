@@ -41,6 +41,8 @@ export interface ProdArtifact {
   hyperSync: { url: string; chainId: number | null }
   privy: { appId: string | null; origins: string[]; approved: boolean }
   remoteState: boolean
+  /** Reviewed intended hosted admission mode. A runtime mismatch refuses deployment. */
+  admission: { drain: boolean }
   secretSources: Record<string, string>
   addresses: Record<string, string | null>
   deployment: {
@@ -94,6 +96,7 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   check(mainnetUrl(artifact.rpc.url), 'rpc URL')
   check(mainnetUrl(artifact.hyperSync.url, true), 'HyperSync URL')
   check(artifact.remoteState === true, 'remote state')
+  check(typeof artifact.admission?.drain === 'boolean', 'admission mode')
   check(artifact.privy.approved === true && typeof artifact.privy.appId === 'string' && artifact.privy.appId.length > 0 &&
     artifact.privy.origins.length > 0 && artifact.privy.origins.every(origin => origin === 'https://hireling.xyz'), 'Privy app/origin approval')
   check(config.factory.faucet === false && config.faucetTokens.names.length === 0 && config.faucetTokens.symbols.length === 0, 'no mainnet faucet')
@@ -181,10 +184,19 @@ export function relayFloorWei(floor: bigint | string | number | undefined): bigi
   return typeof floor === 'bigint' ? floor : parseEther(String(floor))
 }
 
-/** True unless the deploy pins an explicit drained value. Missing or empty counts as opening: the Worker binding has
- *  turned it into `0` (open) so far. The explicit values follow `parseHostedAdmission`. */
+/** Only an explicit open value opens. Missing, empty and malformed values are drained. */
 export function opensAdmission(drain: string | undefined): boolean {
-  return drain === undefined || drain === '' || drain === '0' || drain.toLowerCase() === 'false'
+  return drain === '0' || drain?.toLowerCase() === 'false'
+}
+
+/** The exact deploy binding, shared with the live gate's mode check. */
+export function admissionDrainBinding(drain: string | undefined): '0' | '1' {
+  return opensAdmission(drain) ? '0' : '1'
+}
+
+export function validateAdmissionMode(artifact: Pick<ProdArtifact, 'admission'>, drain: string | undefined): string[] {
+  if (typeof artifact.admission?.drain !== 'boolean') return ['admission mode']
+  return artifact.admission.drain === !opensAdmission(drain) ? [] : ['admission runtime mismatch']
 }
 
 /**

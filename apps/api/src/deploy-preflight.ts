@@ -1,11 +1,8 @@
 import { readFileSync } from 'node:fs'
+import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { privateKeyToAccount } from 'viem/accounts'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
-import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, validateProdConfig, type ChainConfig, type LaunchReader, type ProdArtifact } from './prod-config.ts'
-
-// TODO(D16, B6): import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk' (packages/sdk/src/relay.ts, 2 MON) once B6 is on
-// main, and delete this placeholder. Until then the floor is undefined, so the live launch gate refuses to open.
-const RELAY_FLOOR_MAINNET: bigint | string | undefined = undefined
+import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, validateAdmissionMode, validateProdConfig, type ChainConfig, type LaunchReader, type ProdArtifact } from './prod-config.ts'
 
 /** JSON-RPC reads only (eth_getCode, eth_call, eth_getBalance at latest). Any transport, HTTP or RPC error throws. */
 export function rpcReader(url: string): LaunchReader {
@@ -45,7 +42,7 @@ export async function assertDeployConfig(stage: string): Promise<void> {
   }
   let failures: string[]
   try {
-    failures = validateProdConfig(mainnet, artifact)
+    failures = [...validateProdConfig(mainnet, artifact), ...validateAdmissionMode(artifact, process.env.PROD_ADMISSION_DRAIN)]
   } catch {
     throw new Error('production artifact has missing or invalid fields')
   }

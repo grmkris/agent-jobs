@@ -6,7 +6,7 @@ import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
-import { runtimeSecret } from './prod-config.ts'
+import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
@@ -106,7 +106,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       PROD_APPROVED_WALLETS: '',
       PROD_APPROVED_BOARDS: '',
       PROD_APPROVED_ACTIONS: '',
-      PROD_ADMISSION_DRAIN: process.env.PROD_ADMISSION_DRAIN || '0',
+      PROD_ADMISSION_DRAIN: admissionDrainBinding(process.env.PROD_ADMISSION_DRAIN),
     },
   },
   Effect.gen(function* () {

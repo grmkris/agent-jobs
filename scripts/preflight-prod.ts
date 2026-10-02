@@ -1,10 +1,8 @@
 import { readFileSync } from 'node:fs'
+import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { liveLaunchGate, relayFloorWei, validateProdConfig, type ProdArtifact } from '../apps/api/src/prod-config.ts'
 import { rpcReader } from '../apps/api/src/deploy-preflight.ts'
 import mainnet from '../contracts/config/monad-mainnet.json' with { type: 'json' }
-
-// TODO(D16, B6): import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk' once B6 is on main; until then --live refuses.
-const RELAY_FLOOR_MAINNET: bigint | string | undefined = undefined
 
 const path = process.argv[2]
 const live = process.argv.includes('--live')
