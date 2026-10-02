@@ -373,3 +373,40 @@ gas price.
 The deployer needs about 3.1 MON charged (Safe + deploy + seed), or 6.2 MON on hand at the 203 gwei max fee (Monad
 checks the balance against limit × max fee). A Safe owner needs about 0.15 MON, or 0.3 on hand. The relay must hold
 more than `RELAY_FLOOR_MAINNET` (2 MON, B6) before opening.
+
+## Testnet launch (G1): `script/launch-testnet.sh`, `script/rehearse-launch-testnet.sh`
+
+The coordinator's G1 run: the runbook sequence on Monad testnet, core reused, no seed. It refuses chain 143 (the
+RPC's chain id and the config) and takes the RPC and both keys from environment variables by name
+(`MONAD_TESTNET_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, `SAFE_BACKUP_TESTNET_PRIVATE_KEY`, each renamable through `*_ENV`).
+It never prints their values, and its output and logs are redacted.
+
+1. Checks: the chain, no v1 deployment recorded yet, the deployer is `roles.admin`, the Safe is v1.4.1 with threshold 1
+   and the Safe-owner key is an owner, an `oddTokens` block exists, and both senders hold the gas limits at twice the
+   current gas price.
+2. `DeployHireling` dry run, then `--broadcast --slow`.
+3. `PromoteHireling`.
+4. `SafeAccept`, then its `check()`.
+5. `owner() == Safe` and `pendingOwner() == 0` on the six.
+6. The SDK loads the promoted deployment.
+7. `DeployOddTokens`.
+
+Optional flags:
+- `--fee-proposal`: the Safe calls `FeeSchedule.propose` through `execTransaction`. Anyone can execute it 3 days later,
+  within 7; an early `execute` is shown to refuse.
+- `--holding-probe`: the Safe proposes `0x…dEaD` as a vault Holding, and an early `acceptHolding` is shown to refuse.
+  Anyone may accept it from 8 to 15 days later; `cancelHoldingProposal` withdraws it.
+- `--dry-run`, `--yes`, `--from/--to <step>`.
+
+Every transaction hash is printed and listed again at the end.
+
+`rehearse-launch-testnet.sh` runs it unchanged on an anvil fork of testnet, with dev keys and a fresh 1-of-2 Safe. It
+also checks that a chain-143 RPC and a second launch are refused, that a re-read passes, and that the proposal can be
+executed after 3 days and the probe accepted after 8. Passed 2 Oct. Gas limits from that run:
+
+| step | txs | gas limit | MON @ 102 gwei | paid by |
+| --- | ---: | ---: | ---: | --- |
+| DeployHireling, reused core | 18 | 17,940,929 | 1.830 | deployer |
+| DeployOddTokens (2 tokens, 2 wallets) | 6 | 2,189,372 | 0.223 | deployer |
+| SafeAccept (6 × execTransaction) | 6 | 797,152 | 0.081 | Safe owner |
+| fee proposal + Holding probe | 2 | 340,098 | 0.035 | Safe owner |
