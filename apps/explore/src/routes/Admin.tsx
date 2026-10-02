@@ -221,7 +221,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
   const busy = op !== null
   return (
     <>
-      <PageTitle sub={<>Acting as the Safe <AddressText value={safe} /> · threshold 1</>}>Admin</PageTitle>
+      <PageTitle sub={<span>As the Safe <AddressText value={safe} /> · threshold 1</span>}>Admin</PageTitle>
       {op !== null && refused !== undefined && !refused.ok && (
         <Section title="Saved operation refused">
           <div role="alert" className="grid gap-2 rounded-xl bg-bad-bg p-4 text-[0.9rem] text-bad">
@@ -339,7 +339,7 @@ function KV({ k, children, stack = false }: { k: string; children: ReactNode; st
   }
   return (
     <ListRow>
-      <span className="w-32 shrink-0 text-[0.85rem] text-label-2">{k}</span>
+      <span className="w-24 shrink-0 text-[0.85rem] text-label-2 sm:w-32">{k}</span>
       <span className="min-w-0 flex-1 text-right [overflow-wrap:anywhere]">{children}</span>
     </ListRow>
   )
@@ -771,7 +771,8 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
           <Group>
             <KV k="Current epoch">{String(currentEpoch)}</KV>
             <KV k="Funded so far">{fmt(result<bigint>(base.data, 1) ?? 0n)}</KV>
-            <KV k="Distributor">{fmt(result<bigint>(base.data, 2) ?? 0n)} available · {fmt(result<bigint>(base.data, 3) ?? 0n)} owed</KV>
+            <KV k="Owed, unclaimed">{fmt(result<bigint>(base.data, 3) ?? 0n)}</KV>
+            <KV k="Spare in the distributor">{fmt(result<bigint>(base.data, 2) ?? 0n)}</KV>
           </Group>
           <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
             <label className="grid gap-1">
@@ -782,8 +783,17 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
               <Group className="bg-bg">
                 <KV k="Ends">{end === undefined ? '—' : <When at={Number(end)} />}</KV>
                 <KV k="Budget">{budget === undefined ? '—' : fmt(budget)}</KV>
-                <KV k="Budget so far">{cumulative === undefined ? '—' : `${fmt(cumulative)} (unspent budget rolls over)`}</KV>
-                <KV k="Root">{root === undefined ? '—' : hasRoot ? <code className="font-mono text-[0.8rem] break-all">{root.root}</code> : 'Not posted'}</KV>
+                <KV k="Budget so far">
+                  {cumulative === undefined ? '—' : fmt(cumulative)}
+                  <span className="block text-[0.78rem] text-label-3">Unspent budget rolls over</span>
+                </KV>
+                {hasRoot ? (
+                  <KV k="Root" stack>
+                    <code className="font-mono text-[0.78rem] break-all">{root.root}</code>
+                  </KV>
+                ) : (
+                  <KV k="Root">{root === undefined ? '—' : 'Not posted'}</KV>
+                )}
                 {hasRoot && <KV k="Claimed">{`${fmt(root.claimed)} of ${fmt(root.total)}`}</KV>}
               </Group>
             )}
@@ -808,24 +818,28 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
                 </Button>
               </div>
             )}
-            <p className="rounded-lg bg-fill px-3 py-2 text-[0.85rem] text-label-2">
-              The epoch's price list, root, total and data hash come from the mining tool (<code className="font-mono">pnpm mining:epoch</code>), which is not wired into this page yet. Paste its output here.
-            </p>
-            <Input aria-label="Merkle root" value={form.root} placeholder="0x… root" className="font-mono text-[0.85rem]" onChange={(e) => setForm({ ...form, root: e.target.value })} />
-            <Input aria-label="Epoch total" value={form.total} placeholder="Total, FACTORY" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, total: e.target.value })} />
-            <Input aria-label="Data hash" value={form.dataHash} placeholder="0x… data hash" className="font-mono text-[0.85rem]" onChange={(e) => setForm({ ...form, dataHash: e.target.value })} />
-            {form.root !== '' && problem !== null && <ErrorText>{problem}</ErrorText>}
-            {!ended && epoch !== null && end !== undefined && <p className="text-[0.85rem] text-label-2">This epoch has not ended: the distributor refuses its root until it does.</p>}
-            <Button
-              disabled={busy || problem !== null || epoch === null || hasRoot}
-              onClick={() => {
-                const total = factoryAmount(form.total)
-                if (epoch === null || total === null || problem !== null) return
-                act(`Post the root of epoch ${epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [epoch, form.root.trim(), total, form.dataHash.trim()] }, 'safe')
-              }}
-            >
-              {hasRoot ? 'Root posted' : 'Review the root'}
-            </Button>
+            {!hasRoot && (
+              <>
+                <p className="rounded-lg bg-fill px-3 py-2 text-[0.85rem] text-label-2">
+                  The epoch's price list, root, total and data hash come from the mining tool (<code className="font-mono">pnpm mining:epoch</code>), which is not wired into this page yet. Paste its output here.
+                </p>
+                <Input aria-label="Merkle root" value={form.root} placeholder="0x… root" className="font-mono text-[0.85rem]" onChange={(e) => setForm({ ...form, root: e.target.value })} />
+                <Input aria-label="Epoch total" value={form.total} placeholder="Total, FACTORY" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, total: e.target.value })} />
+                <Input aria-label="Data hash" value={form.dataHash} placeholder="0x… data hash" className="font-mono text-[0.85rem]" onChange={(e) => setForm({ ...form, dataHash: e.target.value })} />
+                {form.root !== '' && problem !== null && <ErrorText>{problem}</ErrorText>}
+                {!ended && epoch !== null && end !== undefined && <p className="text-[0.85rem] text-label-2">This epoch has not ended: the distributor refuses its root until it does.</p>}
+                <Button
+                  disabled={busy || problem !== null || epoch === null}
+                  onClick={() => {
+                    const total = factoryAmount(form.total)
+                    if (epoch === null || total === null || problem !== null) return
+                    act(`Post the root of epoch ${epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [epoch, form.root.trim(), total, form.dataHash.trim()] }, 'safe')
+                  }}
+                >
+                  Review the root
+                </Button>
+              </>
+            )}
             <div className="flex gap-2">
               <Input aria-label="Amount to fund" value={form.fund} placeholder="Fund, FACTORY" inputMode="decimal" className="tabular flex-1" onChange={(e) => setForm({ ...form, fund: e.target.value })} />
               <Button

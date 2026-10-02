@@ -200,7 +200,8 @@ try {
     await mining.getByRole('textbox', { name: 'Amount to fund' }).fill('5000');
     await mining.getByRole('button', { name: 'Review funding' }).click();
     await send(page, 'Fund epoch 1');
-    await mining.getByText(/5,000 FACTORY available/).waitFor();
+    await mining.getByText(/^Spare in the distributor\s*5,000 FACTORY$/).waitFor();
+    assert.equal(await mining.getByRole('textbox', { name: 'Merkle root' }).count(), 0);
     // The posted total overstated the leaves: shrink it to their sum, never above the posted total.
     await mining.getByRole('textbox', { name: 'New epoch total' }).fill('6000');
     await mining.getByText('The new total must be below the posted one.', { exact: true }).waitFor();
