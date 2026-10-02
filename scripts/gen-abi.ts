@@ -34,8 +34,8 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['StakeVault.sol', 'StakeVault', 'stakeVault', 'stakeVaultAbi'],
   ['FeeSchedule.sol', 'FeeSchedule', 'feeSchedule', 'feeScheduleAbi'],
   ['Factory.sol', 'Factory', 'factoryV2', 'factoryV2Abi'],
-  ['IMiningReserve.sol', 'IMiningReserve', 'miningReserve', 'miningReserveAbi', [ownable()]],
-  ['IEpochDistributor.sol', 'IEpochDistributor', 'epochDistributor', 'epochDistributorAbi', [ownable()]],
+  ['MiningReserve.sol', 'MiningReserve', 'miningReserve', 'miningReserveAbi'],
+  ['EpochDistributor.sol', 'EpochDistributor', 'epochDistributor', 'epochDistributorAbi'],
 ]
 
 function ownable(): Source {
