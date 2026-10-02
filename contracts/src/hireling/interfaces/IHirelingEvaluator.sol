@@ -120,11 +120,16 @@ interface IHirelingEvaluator {
     event Disputed(uint256 indexed jobId, address indexed worker);
     event Ruled(uint256 indexed jobId, address indexed arbitrator, bool forWorker, bool slashLoser, bytes32 reasonHash);
     event TimedOut(uint256 indexed jobId, bytes32 reason);
-    /// @notice `core.complete` failed (M2). `refundedToHolding` says whether `core.reject` then moved the reward into
-    ///         Holding; if not, the core's `claimRefund` will. The worker is paid through `IHirelingHolding.settle`.
+    /// @notice `core.complete` failed or was skipped (M2). `refundedToHolding` says whether `core.reject` then moved the
+    ///         reward into Holding; if not, `retryDeferred` (or the core's `claimRefund`) will. The worker is paid
+    ///         through `IHirelingHolding.settle`.
     event PayoutDeferred(uint256 indexed jobId, bool refundedToHolding);
-    /// @notice `core.reject` failed on a ruling for the creator; the core's `claimRefund` refunds later.
+    /// @notice `core.reject` failed on a refund outcome; `retryDeferred` (or the core's `claimRefund`) refunds later.
     event RefundDeferred(uint256 indexed jobId);
+    event DeferredRetried(uint256 indexed jobId);
+    event CorePauseNoted(uint256 since);
+    event CorePauseEnded(uint256 start, uint256 end);
+    event RulingCancelled(address indexed arbitrator, uint256 nonce);
     event EvidenceAttached(
         uint256 indexed jobId,
         address indexed verifier,
@@ -170,12 +175,17 @@ interface IHirelingEvaluator {
     error AlreadyRuled();
     /// @dev The job already has an outcome.
     error AlreadyResolved();
+    /// @dev A missed delivery is not judged while the core is paused.
     error CorePaused();
     error EvidenceExpired();
     error EvidenceJobMismatch();
     error EvidencePolicyMismatch();
-    /// @dev The transaction's gas cannot cover the feedback call's full budget.
-    error FeedbackGasTooLow(uint256 left, uint256 needed);
+    /// @dev An older statement (sooner expiry) cannot replace the stored one.
+    error StaleEvidence();
+    /// @dev The transaction's gas cannot cover the core call's full budget plus what follows it.
+    error CoreGasTooLow(uint256 left, uint256 needed);
+    error NotResolved();
+    error NothingDeferred();
 
     // ---------------------------------------------------------------------------------------------
     // Parties
@@ -228,8 +238,20 @@ interface IHirelingEvaluator {
     function refundAfterArbitrationTimeout(uint256 jobId) external;
 
     /// @notice A funded job with no timely submission, strictly after the delivery deadline: refund, the worker bond
-    ///         slashed, the creator bond released.
+    ///         slashed, the creator bond released. Reverts `CorePaused` while the core is paused; a deadline inside the
+    ///         observed pause (`notePause`) refunds without the slash.
     function rejectAfterDeliveryDeadline(uint256 jobId) external;
+
+    /// @notice Finishes a deferred core call under the recorded outcome (C9-003): refund outcomes, and worker outcomes
+    ///         whose payout was deferred, while the core job is Funded or Submitted. Never turns a worker outcome into a
+    ///         refund.
+    function retryDeferred(uint256 jobId) external;
+
+    /// @notice Records the core's pause state (start or end); permissionless.
+    function notePause() external;
+
+    /// @notice Revokes one of the caller's own signed rulings by burning its nonce.
+    function cancelRuling(uint256 nonce) external;
 
     // ---------------------------------------------------------------------------------------------
     // Owner (the Safe)
@@ -296,4 +318,8 @@ interface IHirelingEvaluator {
     function EVIDENCE_TYPEHASH() external view returns (bytes32);
     /// @notice The gas cap (and, on Monad, cost cap) of the ERC-8004 feedback call.
     function FEEDBACK_GAS() external view returns (uint256);
+    function CORE_GAS() external view returns (uint256);
+    function pausedSince() external view returns (uint48);
+    function lastPauseStart() external view returns (uint48);
+    function lastPauseEnd() external view returns (uint48);
 }

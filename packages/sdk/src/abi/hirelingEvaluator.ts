@@ -23,6 +23,19 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "function",
+    "name": "CORE_GAS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "EVIDENCE_TYPEHASH",
     "inputs": [],
     "outputs": [
@@ -215,6 +228,19 @@ export const hirelingEvaluatorAbi = [
             "internalType": "uint256"
           }
         ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelRuling",
+    "inputs": [
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -484,6 +510,39 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "function",
+    "name": "lastPauseEnd",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lastPauseStart",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "notePause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "outcome",
     "inputs": [
       {
@@ -510,6 +569,19 @@ export const hirelingEvaluatorAbi = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pausedSince",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint48",
+        "internalType": "uint48"
       }
     ],
     "stateMutability": "view"
@@ -665,6 +737,19 @@ export const hirelingEvaluatorAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "retryDeferred",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -971,6 +1056,51 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "event",
+    "name": "CorePauseEnded",
+    "inputs": [
+      {
+        "name": "start",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "end",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CorePauseNoted",
+    "inputs": [
+      {
+        "name": "since",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DeferredRetried",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Disputed",
     "inputs": [
       {
@@ -1245,6 +1375,25 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "event",
+    "name": "RulingCancelled",
+    "inputs": [
+      {
+        "name": "arbitrator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "TimedOut",
     "inputs": [
       {
@@ -1308,6 +1457,22 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "error",
+    "name": "CoreGasTooLow",
+    "inputs": [
+      {
+        "name": "left",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "needed",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "CorePaused",
     "inputs": []
   },
@@ -1330,22 +1495,6 @@ export const hirelingEvaluatorAbi = [
     "type": "error",
     "name": "EvidencePolicyMismatch",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "FeedbackGasTooLow",
-    "inputs": [
-      {
-        "name": "left",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "needed",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
   },
   {
     "type": "error",
@@ -1409,12 +1558,22 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "error",
+    "name": "NotResolved",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotSubmitted",
     "inputs": []
   },
   {
     "type": "error",
     "name": "NotVerifier",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NothingDeferred",
     "inputs": []
   },
   {
@@ -1457,6 +1616,11 @@ export const hirelingEvaluatorAbi = [
   {
     "type": "error",
     "name": "RulingNonceUsed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StaleEvidence",
     "inputs": []
   },
   {

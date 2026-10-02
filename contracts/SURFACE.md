@@ -109,7 +109,7 @@ Same vendored core, same rows as above, with these differences:
 | :--- | :--- |
 | `createJob` | Through `HirelingHolding.publish` only; `expiredAt ≥ deliveryDeadline + review + dispute + arbitration + margin`, from the listing's own windows. |
 | `setProvider`, `setBudget`, `fund` | Inside `HirelingHolding.activate` only. The budget is **`net = reward − fee`**, not the reward: the worker's `SetBudgetAuthorization` names `net` (`quoteActivation`). Holding keeps the fee until `settle`. Core fees stay 0. |
-| `complete` | Only `HirelingEvaluator`, wrapped in `try` (M2). On failure the evaluator calls `reject("payout-deferred")` and the worker is paid by `HirelingHolding.settle`. |
+| `complete` | Only `HirelingEvaluator`, wrapped in `try` and capped at `CORE_GAS` (M2, C9-001). On failure the evaluator calls `reject("payout-deferred")` if gas allows, else `retryDeferred` does later, and the worker is paid by `HirelingHolding.settle`. |
 | `reject` | `HirelingHolding.cancel` (Open) and the evaluator's terminal paths. |
 | `claimRefund` | The outage path, as before: the refund lands in Holding and `settle` pays whoever `earnedByWorker` names. |
 | `award`, contests | Do not exist on the v1 pair. |
@@ -119,20 +119,22 @@ Same vendored core, same rows as above, with these differences:
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
 | `publish(PublishParams)` | anyone | Pulls the reward (any ERC-20; must arrive in full, `RewardTokenShortfall`); **reserves** `creatorBond` from the creator's stake (no token moves). Checks window bounds (review and dispute 1 h–14 d, arbitration 12 h–14 d), arbitrator ≠ creator/approver (`ArbitratorConflict`), a future deadline, the expiry rule, and `policyListed[creator][policyHash]` (M3). Resolves `arbitrator = 0` to `defaultArbitrator` and freezes it. |
-| `activate(sel, creatorSig, budgetAuth)` | the selected worker itself | Checks the `Selection` as the legacy pair does, the ERC-8004 wallet, and that the worker is not the creator, approver or arbitrator (`RoleConflict`). Snapshots `feeBps` from `vault.stakeOf(worker)`, **reserves** the worker bond, funds the core with `net`. |
+| `activate(sel, creatorSig, budgetAuth)` | the selected worker itself | Checks the `Selection` as the legacy pair does, the ERC-8004 wallet, and that the worker is not the creator, approver or arbitrator (`RoleConflict`). Refuses a core that charges fees (`CoreChargesFees`). Snapshots `feeBps` from `vault.stakeOf(worker)`, **reserves** the worker bond, funds the core with `net`. The fee rounds up but never takes the whole reward (`net ≥ 1`). |
 | `quoteActivation(jobId, worker)` | view | `(feeBps, fee, net)` the worker's budget authorization must match. |
 | `cancel(jobId)` | creator, before activation | `reject` on the core and settle in one transaction: reward back, no fee, creator bond released. |
 | `cancelSelection(nonce)` | creator | None. |
-| `topUp(jobId, amount)` | anyone, after activation while Funded or Submitted | Pulls a bonus in the reward token (must arrive in full). |
+| `topUp(jobId, amount)` | anyone, after activation while Funded or Submitted and undecided | Pulls a bonus in the reward token (must arrive in full). Refused once the evaluator recorded an outcome (`NotActive`) or if reward + bonus would overflow (`TopUpTooLarge`). |
 | `claimTopUpRefund(jobId, contributor)` | anyone | After a refunded settlement: the contributor's top-ups back to the contributor (or `owed`). |
 | `settle(jobId)` | anyone, after a terminal core status | The money table in `IHirelingHolding`: worker paid (fee + bonus fee to the treasury, `FeeCharged`), or reward back to the creator (bonus refundable per contributor). Bonds the evaluator did not settle: slashed if `creatorPenaltyDue` / `workerPenaltyDue`, else released. Every transfer falls back to `owed`. |
 | `withdraw(token)` | whoever is `owed` | Everything owed in `token`. |
+| `pushPayment(token, to, amount)` | **this contract only** (`OnlySelf`) | The payout push's own frame (C9-002): a transfer that moves the balance and then reports failure (`false`, short return data) reverts here, so `_pay` records `owed` only after the token's move rolled back. Each liability is paid or owed, never both. |
 | `burnBond(jobId, side)` / `returnBonds(jobId)` | evaluator only, non-reentrant | `vault.slash` (burns) / `vault.release`. |
 | `setEvaluator` (once), `setDefaultArbitrator` | owner | None; the default applies to listings published afterwards. |
 
-Gas floors (EVM, `GasFloors.t.sol`; send the ADR-0011 limits, not viem's bare estimate): `settle` 587k worst case
-→ send 1,000,000; `claimTopUpRefund` 337k → 450,000. Each payout push reserves `TRANSFER_GAS` (300k) and reverts
-`TransferGasTooLow` rather than silently falling back to `owed`.
+Gas floors (Monad pricing, `GasFloors.t.sol`; send the ADR-0011 limits, not viem's bare estimate): `settle` 619k
+worst case → send 1,000,000; `claimTopUpRefund` 367k → 450,000; `cancel` 523k → 700,000. Each payout push reserves its
+frame (`TRANSFER_GAS` 300k for the token, about 345k in all) and reverts `TransferGasTooLow` rather than silently
+falling back to `owed`.
 
 ## HirelingEvaluator
 
@@ -142,12 +144,17 @@ arbitrator from `holding.termsOf`.
 | Change | Rule |
 | :--- | :--- |
 | Order (M1) | checks → record `outcome`/`slashed` → emit → slash the loser → release the rest → core call → feedback. |
-| `_payWorker` (M2) | `try complete`; on failure `payoutDeferred`, `PayoutDeferred`, `try reject("payout-deferred")`; else `claimRefund` later. A ruling for the creator tries `reject` the same way (`RefundDeferred`). A paused core reverts the whole call (`CorePaused`). |
+| `_payWorker` (M2, C9-001) | `try complete{gas: CORE_GAS}` (300k); on failure, or when the core charges fees, `payoutDeferred`, `PayoutDeferred`, and `reject("payout-deferred")` with whatever gas is spare. A ruling for the creator tries `reject{gas: CORE_GAS}` (`RefundDeferred`). The call must leave room for the full `CORE_GAS`, the bookkeeping and the feedback before the core call (`CoreGasTooLow` otherwise), so neither a starved nor a gas-burning core call can roll a decision back. A paused core defers instead of reverting. |
+| `retryDeferred(jobId)` (C9-003) | anyone | For a recorded refund outcome, or a worker outcome whose payout was deferred, while the core job is Funded or Submitted: `core.reject` moves the reward to Holding (and closes any pending milestone claim); `settle` then pays under the recorded outcome. Never turns a worker outcome into a refund. Reverts if the token still refuses. |
+| Core pause (C9 ACL-2) | anyone: `notePause()` | Records the pause start and end (`pausedSince`, `lastPauseStart`, `lastPauseEnd`; the Safe batches it with `pause`/`unpause`). `rejectAfterDeliveryDeadline` reverts `CorePaused` during a pause, and a delivery deadline inside the recorded pause refunds the creator without the burn or feedback (`workerPenaltyDue` agrees). |
+| `cancelRuling(nonce)` | an arbitrator | Burns one of its own ruling nonces, revoking a signed ruling not yet relayed. |
+| Feedback | best effort | Capped at `FEEDBACK_GAS`; a missing budget or a registry failure emits `FeedbackFailed` (at most 32 bytes of revert data) and never undoes the decision. |
+| Evidence | | An attestation that expires sooner than the stored one cannot replace it (`StaleEvidence`); the stored expiry is clamped to `uint48`. |
 | Decided once | With an `outcome` recorded, every other terminal path reverts `AlreadyResolved`; `rule` twice and the arbitration timeout after a ruling revert `AlreadyRuled`. |
 | `ruleWithSignature` | Signed by the listing's arbitrator; nonces per arbitrator (`rulingNonceUsed[arbitrator][nonce]`). |
 | Views for `settle` | `earnedByWorker` (deferred payout, an `Accepted`/`Silence`/`RuledForWorker` outcome, or the R114-03 silence right), `workerPenaltyDue`, `creatorPenaltyDue`. |
 | Admin | `setVerifier` (owner). |
-| Gas | Floors (EVM): `accept`/`completeAfterSilence` 708k, `rule` 732k, `ruleWithSignature` 747k, driven by the 416k feedback reserve; send 1,100,000. |
+| Gas | Floors (Monad pricing): `accept`/`completeAfterSilence` 987k, `rule` 1,011k, `ruleWithSignature` 1,035k, `rejectAfterDeliveryDeadline` 1,034k, driven by the reserves for `CORE_GAS` and the feedback; send 1,200,000. `retryDeferred` 133k → 300,000. |
 
 ## StakeVault
 

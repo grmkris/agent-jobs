@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Signatures} from "../Signatures.sol";
 import {ERC8183} from "../vendor/erc8183/ERC8183.sol";
 import {IERC8004Reputation} from "../vendor/erc8004/IERC8004.sol";
@@ -24,6 +25,14 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
     );
     /// @dev Upper bound for the ERC-8004 feedback call. Monad charges the gas limit, so this is also a cost cap.
     uint256 public constant FEEDBACK_GAS = 400_000;
+    /// @dev Upper bound for each `core.complete` / `core.reject` a decision makes (C9-001). A token or worker hook that
+    ///      needs more is not starved: the payout routes through Holding instead (M2).
+    uint256 public constant CORE_GAS = 300_000;
+    /// @dev What `_feedback` needs left: its budget under the 63/64 rule, plus the job read, the cold registry access
+    ///      (10,100 on Monad) and the event.
+    uint256 private constant FEEDBACK_RESERVE = FEEDBACK_GAS * 64 / 63 + 40_000;
+    /// @dev The bookkeeping after a failed core call: the pause read, the flag, the event.
+    uint256 private constant DEFER_RESERVE = 30_000;
 
     ERC8183 public immutable core;
     IHirelingHolding public immutable holding;
@@ -34,6 +43,10 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
     mapping(uint256 jobId => mapping(address verifier => Evidence)) public evidence;
     mapping(address verifier => bool) public verifiers;
     mapping(address verifier => mapping(bytes32 digest => bool)) public usedDigest;
+    /// @notice The core pause as observed here (`notePause`); a delivery deadline inside it is never slashed (C9 ACL-2).
+    uint48 public pausedSince;
+    uint48 public lastPauseStart;
+    uint48 public lastPauseEnd;
 
     constructor(ERC8183 core_, IHirelingHolding holding_, IERC8004Reputation reputation_)
         EIP712("AgentJobsEvaluator", "1")
@@ -174,7 +187,7 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         emit TimedOut(jobId, "dispute-window");
         if (v != Violation.None) holding.burnBond(jobId, IHirelingHolding.Side.Worker);
         holding.returnBonds(jobId);
-        _refundCreator(jobId, "rejection-undisputed");
+        _refundCreator(jobId, "rejection-undisputed", true);
         _feedback(jobId, 0, _rejectionTag(v));
     }
 
@@ -190,7 +203,7 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         c.outcome = Outcome.ArbitrationTimeout;
         emit TimedOut(jobId, "arbitration-window");
         holding.returnBonds(jobId);
-        _refundCreator(jobId, "arbitrator-inactive");
+        _refundCreator(jobId, "arbitrator-inactive", false);
     }
 
     function rejectAfterDeliveryDeadline(uint256 jobId) external nonReentrant {
@@ -198,18 +211,54 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         Case storage c = _cases[jobId];
         if (c.outcome != Outcome.None) revert AlreadyResolved();
         if (t.funded == 0) revert NotFunded();
+        // Nobody can deliver while the core is paused, so a missed delivery is not judged during a pause.
+        if (core.paused()) revert CorePaused();
+        _notePause();
         ERC8183.Job memory job = core.getJob(jobId);
         bool missed = job.status == ERC8183.JobStatus.Funded
             || (job.status == ERC8183.JobStatus.Submitted && job.submittedAt > t.deliveryDeadline);
         if (!missed) revert NotLate();
         if (block.timestamp <= t.deliveryDeadline) revert WindowOpen();
+        // A deadline that fell inside a core pause still refunds the creator, but burns nothing and records no
+        // feedback: the worker could not submit (C9 ACL-2).
+        bool excused = _excusedByPause(t.deliveryDeadline);
         c.outcome = Outcome.DeliveryMissed;
-        c.slashed = SlashedSide.Worker;
+        if (!excused) c.slashed = SlashedSide.Worker;
         emit TimedOut(jobId, "delivery-deadline");
-        holding.burnBond(jobId, IHirelingHolding.Side.Worker);
+        if (!excused) holding.burnBond(jobId, IHirelingHolding.Side.Worker);
         holding.returnBonds(jobId);
-        _refundCreator(jobId, "not-delivered");
-        _feedback(jobId, 0, "not-delivered");
+        _refundCreator(jobId, "not-delivered", !excused);
+        if (!excused) _feedback(jobId, 0, "not-delivered");
+    }
+
+    /// @notice Finishes a decision whose core call was deferred (C9-003): a recorded refund outcome, or a worker-side
+    ///         outcome whose payout was deferred, while the core job is still Funded or Submitted. `core.reject` moves
+    ///         the reward to Holding (and closes any pending milestone claim); `settle` then pays it under the
+    ///         recorded outcome: a deferred worker payout stays the worker's (`earnedByWorker`), so this can never
+    ///         turn Accepted, Silence or RuledForWorker into a refund. Redoes no outcome, slash, bond or feedback.
+    function retryDeferred(uint256 jobId) external nonReentrant {
+        Case storage c = _cases[jobId];
+        Outcome o = c.outcome;
+        if (o == Outcome.None) revert NotResolved();
+        bool workerSide = o == Outcome.Accepted || o == Outcome.Silence || o == Outcome.RuledForWorker;
+        if (workerSide && !c.payoutDeferred) revert NothingDeferred();
+        ERC8183.JobStatus status = core.getJob(jobId).status;
+        if (status != ERC8183.JobStatus.Funded && status != ERC8183.JobStatus.Submitted) revert NothingDeferred();
+        emit DeferredRetried(jobId);
+        core.reject(jobId, workerSide ? bytes32("payout-deferred") : bytes32("refund-retried"), "");
+    }
+
+    /// @notice Records the core's pause state: anyone, any time (the Safe batches it with `pause`/`unpause`; a worker
+    ///         whose `submit` hits the pause calls it). Only the latest pause is kept.
+    function notePause() external {
+        _notePause();
+    }
+
+    /// @notice An arbitrator burns one of its own ruling nonces, revoking a signed ruling not yet relayed (C9 SIG-2).
+    function cancelRuling(uint256 nonce) external {
+        if (rulingNonceUsed[msg.sender][nonce]) revert RulingNonceUsed();
+        rulingNonceUsed[msg.sender][nonce] = true;
+        emit RulingCancelled(msg.sender, nonce);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -236,7 +285,7 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         if (t.funded == 0) return false;
         uint48 submittedAt = core.getJob(jobId).submittedAt;
         if ((submittedAt == 0 || submittedAt > t.deliveryDeadline) && block.timestamp > t.deliveryDeadline) {
-            return true;
+            return !core.paused() && !_excusedByPause(t.deliveryDeadline);
         }
         return c.rejectedAt != 0 && c.disputedAt == 0 && c.violation != Violation.None
             && block.timestamp > uint256(c.rejectedAt) + t.disputeWindow;
@@ -326,36 +375,76 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
             _payWorker(jobId, "ruled-for-worker");
             _feedback(jobId, 1, "completed");
         } else {
-            _refundCreator(jobId, "ruled-for-creator");
+            _refundCreator(jobId, "ruled-for-creator", true);
             _feedback(jobId, 0, slashLoser ? _rejectionTag(v) : "rejected");
         }
     }
 
-    /// @dev M2. A failed `complete` (a token refusing the worker, or a starved call) defers the payout instead of
-    ///      blocking the decision: the reward goes to Holding through `reject`, or later through the core's
-    ///      `claimRefund`, and Holding's `settle` pays the worker because `earnedByWorker` stays true. The revert data
-    ///      is never copied. A paused core reverts the whole call, so a pause never becomes a deferral.
+    /// @dev M2. A failed `complete` (a refusing or gas-burning token, a worker hook, a paused core, a core that started
+    ///      charging fees) defers the payout instead of blocking the decision: the reward reaches Holding through
+    ///      `reject` now if gas allows, else through `retryDeferred` or the core's `claimRefund`, and Holding's `settle`
+    ///      pays the worker because `earnedByWorker` stays true. The core call is capped at `CORE_GAS` and the caller
+    ///      must leave room for it, the bookkeeping and the feedback (C9-001), so neither a starved nor a gas-burning
+    ///      call can roll the decision back. The revert data is never copied.
     function _payWorker(uint256 jobId, bytes32 reason) private {
-        try core.complete(jobId, reason, "") {}
-        catch {
-            if (core.paused()) revert CorePaused();
-            _cases[jobId].payoutDeferred = true;
-            bool refunded = false;
-            try core.reject(jobId, "payout-deferred", "") {
+        // Holding funded `net` and keeps the fee; core fees would cut the worker again and strand the evaluator's
+        // share here, so the payout goes through Holding instead (C9 ACL-5).
+        bool coreCharges = core.platformFeeBP() != 0 || core.evaluatorFeeBP() != 0;
+        _requireCoreGas(true);
+        if (!coreCharges) {
+            try core.complete{gas: CORE_GAS}(jobId, reason, "") {
+                return;
+            } catch {}
+        }
+        _cases[jobId].payoutDeferred = true;
+        bool refunded;
+        // Opportunistic: whatever gas is spare beyond the feedback's reserve. A starved or refused `reject` loses
+        // nothing; the job waits for `retryDeferred`.
+        uint256 spare = gasleft();
+        if (spare > FEEDBACK_RESERVE + DEFER_RESERVE + 100_000 && !core.paused()) {
+            uint256 budget = Math.min(CORE_GAS, spare - FEEDBACK_RESERVE - DEFER_RESERVE);
+            try core.reject{gas: budget}(jobId, "payout-deferred", "") {
                 refunded = true;
             } catch {}
-            emit PayoutDeferred(jobId, refunded);
+        }
+        emit PayoutDeferred(jobId, refunded);
+    }
+
+    /// @dev The refund side of M2: a failed `reject` (a refusing token, a paused core) leaves the reward in the core
+    ///      until `retryDeferred` or its `claimRefund`; the recorded outcome already decides where Holding sends it.
+    function _refundCreator(uint256 jobId, bytes32 reason, bool feedbackAfter) private {
+        _requireCoreGas(feedbackAfter);
+        try core.reject{gas: CORE_GAS}(jobId, reason, "") {}
+        catch {
+            emit RefundDeferred(jobId);
         }
     }
 
-    /// @dev The refund side of M2: a failed `reject` leaves the reward in the core until its `claimRefund`; the
-    ///      recorded outcome already decides where Holding sends it.
-    function _refundCreator(uint256 jobId, bytes32 reason) private {
-        try core.reject(jobId, reason, "") {}
-        catch {
-            if (core.paused()) revert CorePaused();
-            emit RefundDeferred(jobId);
+    /// @dev Refuses a call that cannot give the core its full `CORE_GAS` and still finish (C9-001): a starved core call
+    ///      must never look like a refusing token.
+    function _requireCoreGas(bool feedbackAfter) private view {
+        uint256 needed = CORE_GAS * 64 / 63 + DEFER_RESERVE + (feedbackAfter ? FEEDBACK_RESERVE : 0);
+        if (gasleft() < needed) revert CoreGasTooLow(gasleft(), needed);
+    }
+
+    function _notePause() private {
+        bool paused = core.paused();
+        uint48 since = pausedSince;
+        if (paused && since == 0) {
+            pausedSince = uint48(block.timestamp);
+            emit CorePauseNoted(block.timestamp);
+        } else if (!paused && since != 0) {
+            (lastPauseStart, lastPauseEnd, pausedSince) = (since, uint48(block.timestamp), 0);
+            emit CorePauseEnded(since, block.timestamp);
         }
+    }
+
+    /// @dev Whether `deadline` fell inside the observed core pause (an unobserved end counts as still paused).
+    function _excusedByPause(uint256 deadline) private view returns (bool) {
+        uint256 since = pausedSince;
+        if (since != 0 && since <= deadline) return true;
+        uint256 start = lastPauseStart;
+        return start != 0 && start <= deadline && deadline <= lastPauseEnd;
     }
 
     function _rejectionTag(Violation v) private pure returns (string memory) {
@@ -390,6 +479,10 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         if (block.timestamp > a.validUntil) revert EvidenceExpired();
         // Same verifier, same statement: acknowledged once, never a second endorsement (R16-06).
         if (usedDigest[verifier][digest]) return;
+        // Stored expiry, clamped instead of truncated (C9 MATH-3); a statement that expires sooner than the stored one
+        // is older and cannot replace it (C9 SIG-1). Every attachment is still in the events.
+        uint48 validUntil = uint48(Math.min(a.validUntil, type(uint48).max));
+        if (validUntil < evidence[jobId][verifier].validUntil) revert StaleEvidence();
         usedDigest[verifier][digest] = true;
         evidence[jobId][verifier] = Evidence({
             digest: digest,
@@ -397,7 +490,7 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
             policyHash: a.policyHash,
             testedSha: a.testedSha,
             at: uint48(block.timestamp),
-            validUntil: uint48(a.validUntil),
+            validUntil: validUntil,
             conclusion: a.conclusion
         });
         emit EvidenceAttached(
@@ -405,18 +498,30 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         );
     }
 
-    /// @dev Reason-aware ERC-8004 feedback for the worker's agent, as the client of record. Bounded gas and
-    ///      `try/catch`: a registry failure is observable and never undoes a settlement (R16-10). A call whose gas
-    ///      cannot cover the whole budget reverts instead, so estimation never settles on a limit that starves it.
+    /// @dev Reason-aware ERC-8004 feedback for the worker's agent, as the client of record. Best effort (C9-001): a
+    ///      registry failure or a missing budget is observable (`FeedbackFailed`) and never undoes a decision (R16-10).
+    ///      The core call before it already refused a call without `FEEDBACK_RESERVE` left, so an honest caller cannot
+    ///      skip it. At most 32 bytes of revert data are copied (C9 GEN-6).
     function _feedback(uint256 jobId, int128 value, string memory tag) private {
         if (address(reputation) == address(0)) return;
         uint256 agentId = core.getJob(jobId).providerAgentId;
         if (agentId == 0) return;
-        uint256 needed = FEEDBACK_GAS * 64 / 63 + 10_000;
-        if (gasleft() < needed) revert FeedbackGasTooLow(gasleft(), needed);
+        if (gasleft() < FEEDBACK_GAS * 64 / 63 + 15_000) {
+            emit FeedbackFailed(jobId, agentId, "gas");
+            return;
+        }
         try reputation.giveFeedback{gas: FEEDBACK_GAS}(agentId, value, 0, "agent-jobs", tag, "", "", bytes32(jobId)) {
             emit FeedbackRecorded(jobId, agentId, value, tag);
-        } catch (bytes memory reason) {
+        } catch {
+            bytes memory reason;
+            assembly ("memory-safe") {
+                let n := returndatasize()
+                if gt(n, 32) { n := 32 }
+                reason := mload(0x40)
+                mstore(reason, n)
+                returndatacopy(add(reason, 0x20), 0, n)
+                mstore(0x40, add(reason, 0x40))
+            }
             emit FeedbackFailed(jobId, agentId, reason);
         }
     }

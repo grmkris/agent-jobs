@@ -45,14 +45,18 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   slash the loser's bond → release the other bonds → core call → feedback. A hostile reward token that re-enters
   `HirelingHolding.settle` during the core call finds both bonds already settled, and `settle` itself consults
   `creatorPenaltyDue` and `workerPenaltyDue`, so even a re-entry before the slash would slash rather than release.
-- **M2, `_payWorker`.** Accept, silence and a ruling for the worker `try core.complete`. On failure the evaluator sets
-  `payoutDeferred`, emits `PayoutDeferred`, and `try core.reject("payout-deferred")` so the net reward lands in Holding;
-  if that fails too, the core's permissionless `claimRefund` brings it there after expiry. `earnedByWorker` is true
-  for a deferred payout and for an `Accepted`, `Silence` or `RuledForWorker` outcome, so `settle` pays the worker or
-  records the amount as `owed`. Gas starvation of the inner call changes only the route, never the payee. A ruling for
-  the creator tries `core.reject` the same way. If the core is paused the whole call reverts instead, so a pause never
-  turns into a deferred payout. Once an outcome is recorded every other terminal path reverts (`AlreadyResolved`); the
-  arbitration timeout reverts `AlreadyRuled`, so a deferred ruling for the worker can never become a refund.
+- **M2, `_payWorker`.** Accept, silence and a ruling for the worker `try core.complete{gas: CORE_GAS}` (300k). On
+  failure (a refusing or gas-burning token, an expensive worker hook, a paused core), or when the core charges fees,
+  the evaluator sets `payoutDeferred`, emits `PayoutDeferred`, and tries `core.reject("payout-deferred")` with whatever
+  gas is spare so the net reward lands in Holding; otherwise the permissionless `retryDeferred` (or the core's
+  `claimRefund` after expiry) brings it there. `earnedByWorker` is true for a deferred payout and for an `Accepted`,
+  `Silence` or `RuledForWorker` outcome, so `settle` pays the worker or records the amount as `owed`. A ruling for the
+  creator tries `core.reject{gas: CORE_GAS}` the same way. Before the core call the evaluator requires gas for the full
+  `CORE_GAS`, the bookkeeping and the feedback (`CoreGasTooLow`), so a starved core call can never pass for a refusing
+  token, and a gas-burning one consumes at most `CORE_GAS` and cannot roll the decision back (C9-001). Feedback is best
+  effort. Once an outcome is recorded every other terminal path reverts (`AlreadyResolved`); the arbitration timeout
+  reverts `AlreadyRuled`, so a deferred ruling for the worker can never become a refund, and `retryDeferred` only
+  finishes the recorded outcome (C9-003).
 - **M3.** `policyListed` is keyed by creator and hash. A copied hash published by someone else no longer blocks the
   real creator; a creator still cannot fund the same offer twice (R114-07).
 - **H1, H2, M4** go with `JobPool`, which has no v1 successor. Top-ups replace it.
@@ -66,20 +70,26 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   proposal needs a zero first threshold, strictly ascending thresholds, rates ≤ 3000 bps that never increase, and a
   nonzero treasury. Four tiers, fixed-size arrays: a bounded loop and a simple ABI.
 - At `activate`, Holding snapshots `feeBps = feeSchedule.feeBps(vault.stakeOf(worker))` (reservations included,
-  cooldown excluded) and `fee = reward · feeBps / 10 000`, and funds the core with `net = reward − fee` only. The
+  cooldown excluded) and `fee = ⌈reward · feeBps / 10 000⌉`, capped at `reward − 1` so `net ≥ 1` (C9 MATH-1), and
+  funds the core with `net = reward − fee` only. The
   worker's `SetBudgetAuthorization` names `net`, so its signature pins the fee it agreed to; `quoteActivation` tells it
-  the number. A schedule change never touches a live job. The core's own fee stays 0.
+  the number. A schedule change never touches a live job. The core's own fee stays 0: `activate` refuses a core that
+  charges one, and a fee set later routes the payout through Holding, so the worker is never charged twice and nothing
+  strands in the evaluator (C9 ACL-5).
 - Holding keeps the fee until `settle`: to the treasury when the worker is paid, back to the creator on a refund.
   `FeeCharged(jobId, token, worker, creator, amount, bonusPart)` is emitted on a paid settlement and is the input to
   mining. The treasury is read at payout time.
 - `topUp` lets anyone add a bonus in the reward token after activation, while the core job is Funded or Submitted. The
-  bonus pays the worker with the reward at the same rate (`bonusFee = bonus · feeBps / 10 000` to the treasury), or is
+  bonus pays the worker with the reward at the same rate (`bonusFee = ⌈bonus · feeBps / 10 000⌉` to the treasury), or is
   refundable per contributor with `claimTopUpRefund` (pull-based; anyone may trigger it, the money goes to the
   contributor). The worker agreed to "at least the reward"; the bonus sits outside the signed terms.
 - Every outflow (worker, treasury, creator, contributor) is a push with a fixed gas budget (`TRANSFER_GAS` = 300k,
   reading at most 32 bytes back) and falls back to `owed[token][account]`, withdrawn with `withdraw(token)` (no gas
-  cap). A refusing, reverting or gas-burning token never blocks bonds or other payees. The caller must leave room for
-  the full budget (`TransferGasTooLow` otherwise), so starving the call cannot push an honest payee into `owed`.
+  cap). The push runs in its own call frame (`pushPayment`, callable only by Holding), which reverts unless the transfer
+  clearly succeeded, so a token that moves the balance and then returns `false` is rolled back before `owed` records it
+  (C9-002). A refusing, reverting or gas-burning token never blocks bonds or other payees. The caller must leave room
+  for the full frame (`TransferGasTooLow` otherwise), so starving the call cannot push an honest payee into `owed`.
+  `topUp` is refused once the evaluator has recorded an outcome.
 - Accepted griefing vector: anyone can `stakeFor` a worker just before its activation and move it to a cheaper tier;
   the worker's budget authorization then names the wrong `net` and activation reverts until it re-quotes. It costs the
   griefer the gifted stake and harms no funds.
@@ -125,25 +135,30 @@ and are disclosed as such; the README commits to no upgrade during an active agr
 
 ### Gas (Monad charges the gas limit)
 
-Floors measured by `test/hireling/GasFloors.t.sol` (binary search for the smallest execution gas that succeeds, EVM
-pricing, excluding the 21k intrinsic). They are dominated by the fixed reserves the contracts require: 315k per payout
-push and 416k for the ERC-8004 feedback call. Monad prices cold state access above the EVM, so a client sets its limit
-above the floor; the limits below are what the SDK and the relay should use (decisions D4, adjusted).
+Floors measured by `test/hireling/GasFloors.t.sol`: a binary search for the smallest execution gas that succeeds,
+excluding the 21k intrinsic gas and calldata. `foundry.toml` sets `network = "monad"`, and a probe confirms the tests run
+with Monad's opcode pricing (a cold account access costs 10,117, not 2,600), so these are Monad floors; the earlier
+"EVM pricing" note was wrong. They are dominated by fixed reserves the contracts require: about 345k per payout push
+(the `pushPayment` frame), and on every evaluator decision `CORE_GAS` (300k under the 63/64 rule) plus the 446k
+feedback reserve. The limits below are what the SDK and the relay should send (decisions D4a); each covers the floor
+plus intrinsic gas, calldata and a margin for state that is colder than in the tests.
 
-| Call | Floor (EVM) | Limit to send |
+| Call | Floor | Limit to send |
 | --- | --- | --- |
-| `HirelingHolding.settle`, worst case (2 bond releases, worker and treasury pushes) | 587k | 1,000,000 |
-| `HirelingHolding.settle` after an accept (bonus and fee pushes) | 446k | 1,000,000 |
-| `HirelingHolding.claimTopUpRefund` | 337k | 450,000 |
-| `HirelingHolding.cancel` (core reject, bond release, reward push) | 492k | 700,000 |
-| `HirelingEvaluator.accept` / `completeAfterSilence` | 708k | 1,100,000 |
-| `HirelingEvaluator.rule` (with a slash) | 732k | 1,100,000 |
-| `HirelingEvaluator.ruleWithSignature` (with a slash) | 747k | 1,100,000 |
+| `HirelingHolding.settle`, worst case (2 bond releases, worker and treasury pushes) | 619k | 1,000,000 |
+| `HirelingHolding.settle` after an accept (bonus and fee pushes) | 478k | 1,000,000 |
+| `HirelingHolding.claimTopUpRefund` | 367k | 450,000 |
+| `HirelingHolding.cancel` (core reject, bond release, reward push) | 523k | 700,000 |
+| `HirelingEvaluator.accept` / `completeAfterSilence` | 987k | 1,200,000 |
+| `HirelingEvaluator.rule` (with a slash) | 1,011k | 1,200,000 |
+| `HirelingEvaluator.ruleWithSignature` (with a slash) | 1,035k | 1,200,000 |
+| `HirelingEvaluator.rejectAfterDeliveryDeadline` | 1,034k | 1,200,000 |
+| `HirelingEvaluator.retryDeferred` | 133k | 300,000 |
 
-The evaluator limits are above D4's 900k because the 416k feedback reserve and the work before it leave little
-headroom once Monad's cold-access pricing is applied. The C8 fork rehearsals run a disputed hire on Monad testnet and
-mainnet forks under exactly these limits, but forge prices the EVM schedule even on a fork, so the live
-`eth_estimateGas` in B11 is the authoritative check.
+The evaluator limits rose from 1.1M because each decision now reserves the full `CORE_GAS` before the core call
+(C9-001). A gas-burning token costs a decision no more than this: the core call is capped, the second core attempt
+uses only spare gas, and `retryDeferred` finishes it later. The C8 fork rehearsals run a disputed hire on Monad
+testnet and mainnet forks under these limits; the live `eth_estimateGas` in B11 stays the final check.
 
 ### Deploy
 

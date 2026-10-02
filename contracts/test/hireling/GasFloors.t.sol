@@ -7,12 +7,12 @@ import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluat
 import {BaseV1} from "./BaseV1.t.sol";
 
 /// @dev The smallest gas each payout call succeeds with (EVM pricing, execution gas without the 21k intrinsic), found
-///      by binary search, and a guard that it stays under the limits the coordinator published (decisions D4). Monad
-///      prices cold state access higher than the EVM, so clients add a margin on top (ADR-0011, gas table).
+///      by binary search, and a guard that it stays under the EVM floors behind the ADR-0011 gas table (decisions D4a).
+///      Monad prices cold state access higher than the EVM, so the table's client limits add a margin on top.
 contract GasFloorsTest is BaseV1 {
     uint256 constant SETTLE_LIMIT = 1_000_000;
     uint256 constant TOPUP_REFUND_LIMIT = 450_000;
-    uint256 constant EVALUATOR_LIMIT = 900_000;
+    uint256 constant EVALUATOR_LIMIT = 1_100_000;
     uint256 constant CANCEL_LIMIT = 600_000;
 
     function _floor(address from, address target, bytes memory data) internal returns (uint256 lo) {
@@ -104,5 +104,28 @@ contract GasFloorsTest is BaseV1 {
         uint256 g = _floor(relayer, address(evaluator), abi.encodeCall(IHirelingEvaluator.ruleWithSignature, (r, sig)));
         console.log("ruleWithSignature for creator with worker slash:", g);
         assertLt(g, EVALUATOR_LIMIT);
+    }
+
+    function test_gas_rejectAfterDeliveryDeadline() public {
+        uint256 jobId = fundedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        uint256 g = _floor(
+            stranger, address(evaluator), abi.encodeCall(IHirelingEvaluator.rejectAfterDeliveryDeadline, (jobId))
+        );
+        console.log("rejectAfterDeliveryDeadline (burn, release, reject, feedback):", g);
+        assertLt(g, EVALUATOR_LIMIT);
+    }
+
+    function test_gas_retryDeferred() public {
+        uint256 jobId = submittedJob();
+        vm.prank(deployer);
+        core.pause();
+        vm.prank(creator);
+        evaluator.accept(jobId);
+        vm.prank(deployer);
+        core.unpause();
+        uint256 g = _floor(stranger, address(evaluator), abi.encodeCall(IHirelingEvaluator.retryDeferred, (jobId)));
+        console.log("retryDeferred (core reject to Holding):", g);
+        assertLt(g, 300_000);
     }
 }

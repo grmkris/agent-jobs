@@ -187,7 +187,7 @@ contract HirelingRehearsalForkTest is Test {
         (v, r, s) = vm.sign(arbitratorPk, d.evaluator.rulingDigest(ruling));
         uint256 workerBefore = token.balanceOf(worker);
         vm.prank(stranger);
-        d.evaluator.ruleWithSignature{gas: 1_100_000}(ruling, abi.encodePacked(r, s, v));
+        d.evaluator.ruleWithSignature{gas: 1_200_000}(ruling, abi.encodePacked(r, s, v));
         d.holding.settle{gas: 1_000_000}(jobId);
         assertEq(uint8(d.core.getJob(jobId).status), uint8(ERC8183.JobStatus.Completed));
         assertEq(token.balanceOf(worker) - workerBefore, net);

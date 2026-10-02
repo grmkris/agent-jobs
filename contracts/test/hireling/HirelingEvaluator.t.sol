@@ -243,15 +243,330 @@ contract HirelingEvaluatorTest is BaseV1 {
         evaluator.accept(jobId);
     }
 
-    function test_pausedCoreRevertsInsteadOfDeferring() public {
+    /// @dev A paused core no longer blocks decisions: the outcome lands, the core call is deferred, and after the
+    ///      unpause anyone finishes it with `retryDeferred` (C9 ACL-2: rulings can no longer time out under a pause).
+    function test_pausedCoreDefers_thenRetryPaysTheWorker() public {
         uint256 jobId = submittedJob();
         vm.prank(deployer);
         core.pause();
         vm.prank(creator);
-        vm.expectRevert(IHirelingEvaluator.CorePaused.selector);
         evaluator.accept(jobId);
-        assertFalse(evaluator.payoutDeferred(jobId));
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.Accepted));
+        assertTrue(evaluator.payoutDeferred(jobId));
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Submitted));
+        assertEq(vault.reservedOf(worker), 0, "bonds settle with the decision");
+        vm.prank(contributor);
+        vm.expectRevert(IHirelingHolding.NotActive.selector);
+        holding.topUp(jobId, 1e6);
+        vm.expectRevert();
+        evaluator.retryDeferred(jobId);
+
+        vm.prank(deployer);
+        core.unpause();
+        vm.prank(stranger);
+        evaluator.retryDeferred(jobId);
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Rejected));
+        uint256 before = pay.balanceOf(worker);
+        holding.settle(jobId);
+        (uint256 fee, uint256 net) = feeOf(REWARD, WORKER_STAKE);
+        assertEq(pay.balanceOf(worker) - before, net, "still the worker's");
+        assertEq(pay.balanceOf(treasury), fee);
+        vm.expectRevert(IHirelingEvaluator.NothingDeferred.selector);
+        evaluator.retryDeferred(jobId);
+    }
+
+    function test_retryDeferred_refusesWhatIsNotDeferred() public {
+        uint256 jobId = submittedJob();
+        vm.expectRevert(IHirelingEvaluator.NotResolved.selector);
+        evaluator.retryDeferred(jobId);
+        vm.prank(creator);
+        evaluator.accept(jobId);
+        vm.expectRevert(IHirelingEvaluator.NothingDeferred.selector);
+        evaluator.retryDeferred(jobId);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9 ACL-2: a delivery deadline inside a core pause is never slashed
+    // ------------------------------------------------------------------------------------------
+
+    function test_pause_deadlineInsideThePauseRefundsWithoutTheSlash() public {
+        uint256 jobId = fundedJob();
+        uint48 d = listing(jobId).deliveryDeadline;
+        vm.warp(d - 1 hours);
+        vm.prank(deployer);
+        core.pause();
+        vm.prank(stranger);
+        evaluator.notePause();
+        assertEq(evaluator.pausedSince(), d - 1 hours);
+        vm.warp(d + 1 hours);
+        vm.expectRevert(IHirelingEvaluator.CorePaused.selector);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertFalse(evaluator.workerPenaltyDue(jobId));
+
+        vm.prank(deployer);
+        core.unpause();
+        evaluator.notePause();
+        assertEq(evaluator.lastPauseStart(), d - 1 hours);
+        assertEq(evaluator.lastPauseEnd(), d + 1 hours);
+        assertFalse(evaluator.workerPenaltyDue(jobId), "excused");
+        uint256 calls = reputation.calls();
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(uint8(evaluator.slashed(jobId)), uint8(IHirelingEvaluator.SlashedSide.None));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE, "nothing burned");
+        assertEq(vault.reservedOf(worker), 0);
+        assertEq(reputation.calls(), calls, "no not-delivered feedback");
+        uint256 before = pay.balanceOf(creator);
+        holding.settle(jobId);
+        assertEq(pay.balanceOf(creator) - before, REWARD, "the creator is still refunded");
+    }
+
+    function test_pause_endedBeforeTheDeadlineExcusesNothing() public {
+        uint256 jobId = fundedJob();
+        uint48 d = listing(jobId).deliveryDeadline;
+        vm.warp(d - 3 hours);
+        vm.prank(deployer);
+        core.pause();
+        evaluator.notePause();
+        vm.warp(d - 2 hours);
+        vm.prank(deployer);
+        core.unpause();
+        evaluator.notePause();
+        vm.warp(d + 1);
+        assertTrue(evaluator.workerPenaltyDue(jobId));
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(uint8(evaluator.slashed(jobId)), uint8(IHirelingEvaluator.SlashedSide.Worker));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9-003: a pending core claim cannot lock a deferred refund
+    // ------------------------------------------------------------------------------------------
+
+    function _pausyJob() internal returns (PausableToken pz, uint256 jobId) {
+        pz = new PausableToken();
+        pz.mint(creator, REWARD);
+        pz.mint(contributor, REWARD);
+        vm.prank(creator);
+        pz.approve(address(holding), REWARD);
+        vm.prank(contributor);
+        pz.approve(address(holding), REWARD);
+        jobId = publishWith(params(IERC20(address(pz)), REWARD, CREATOR_BOND, WORKER_BOND));
+        activate(jobId);
+        vm.prank(contributor);
+        holding.topUp(jobId, 10e6);
+    }
+
+    function _deferredMissedDelivery(bool claimFirst) internal returns (PausableToken pz, uint256 jobId) {
+        (pz, jobId) = _pausyJob();
+        if (claimFirst) {
+            vm.prank(worker);
+            core.submitClaim(jobId, 1, keccak256("claim"), "");
+        }
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        pz.setPaused(true);
+        uint256 calls = reputation.calls();
+        vm.prank(stranger);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.DeliveryMissed));
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Funded), "the refund was deferred");
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND, "the worker bond burned");
+        assertEq(reputation.calls(), calls + 1, "feedback recorded with the decision");
+        if (!claimFirst) {
+            // The worker files the claim after the deferral, before expiry.
+            vm.prank(worker);
+            core.submitClaim(jobId, 1, keccak256("claim"), "");
+        }
+        assertTrue(core.pendingClaimHash(jobId) != bytes32(0));
+        vm.expectRevert(IHirelingEvaluator.AlreadyResolved.selector);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        vm.prank(contributor);
+        vm.expectRevert(IHirelingHolding.NotActive.selector);
+        holding.topUp(jobId, 1);
+        vm.expectRevert();
+        evaluator.retryDeferred(jobId); // the token still refuses
+    }
+
+    function _recoverWithoutTheWorker(PausableToken pz, uint256 jobId) internal {
+        pz.setPaused(false);
+        vm.warp(core.getJob(jobId).expiredAt + 2 hours);
+        vm.prank(stranger);
+        evaluator.retryDeferred(jobId);
+        assertEq(core.pendingClaimHash(jobId), bytes32(0), "the reject closed the claim");
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Rejected));
+        holding.settle(jobId);
+        assertEq(pz.balanceOf(creator), REWARD, "the full reward is back");
+        holding.claimTopUpRefund(jobId, contributor);
+        assertEq(pz.balanceOf(contributor), REWARD, "the top-up is back");
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND, "burned once");
+        assertEq(pz.balanceOf(address(holding)), 0);
+    }
+
+    function test_C9003_pendingClaimBeforeTheDeferral() public {
+        (PausableToken pz, uint256 jobId) = _deferredMissedDelivery(true);
+        _recoverWithoutTheWorker(pz, jobId);
+    }
+
+    function test_C9003_pendingClaimAfterTheDeferral() public {
+        (PausableToken pz, uint256 jobId) = _deferredMissedDelivery(false);
+        _recoverWithoutTheWorker(pz, jobId);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9-001: a gas-burning reward token cannot roll back a decision (feedback enabled, documented limit)
+    // ------------------------------------------------------------------------------------------
+
+    uint256 internal constant DECISION_GAS = 1_100_000;
+
+    function _hungryDispute() internal returns (GasHungryToken hungry, uint256 jobId) {
+        hungry = new GasHungryToken();
+        hungry.mint(creator, REWARD);
+        vm.prank(creator);
+        hungry.approve(address(holding), REWARD);
+        jobId = publishWith(params(IERC20(address(hungry)), REWARD, CREATOR_BOND, WORKER_BOND));
+        activate(jobId);
+        submit(jobId);
+        rejectAs(jobId, IHirelingEvaluator.Violation.Quality);
+        vm.prank(worker);
+        evaluator.dispute(jobId);
+    }
+
+    function _relayRuling(uint256 jobId, bool forWorker, bool slashLoser, uint256 nonce) internal {
+        IHirelingEvaluator.Ruling memory r = IHirelingEvaluator.Ruling(
+            jobId, forWorker, slashLoser, REASON, vm.getBlockTimestamp() + 1 hours, nonce
+        );
+        bytes memory sig = signRuling(arbitratorPk, r);
+        vm.prank(relayer);
+        evaluator.ruleWithSignature{gas: DECISION_GAS}(r, sig);
+    }
+
+    function test_C9001_gasBurningWorkerTransferCannotRollBackAWorkerRuling() public {
+        (GasHungryToken hungry, uint256 jobId) = _hungryDispute();
+        hungry.setHungry(worker, type(uint256).max);
+        uint256 calls = reputation.calls();
+        _relayRuling(jobId, true, true, 1);
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.RuledForWorker));
+        assertEq(uint8(evaluator.slashed(jobId)), uint8(IHirelingEvaluator.SlashedSide.Creator));
+        assertTrue(evaluator.rulingNonceUsed(arbitrator, 1));
+        assertTrue(evaluator.payoutDeferred(jobId));
+        assertEq(reputation.calls(), calls + 1, "feedback still recorded");
+        assertEq(vault.stakeOf(creator), CREATOR_STAKE - CREATOR_BOND);
+        assertEq(vault.reservedOf(worker), 0, "the worker bond is free");
+
+        vm.warp(vm.getBlockTimestamp() + ARBITRATION + 1);
+        vm.expectRevert(IHirelingEvaluator.AlreadyRuled.selector);
+        evaluator.refundAfterArbitrationTimeout(jobId);
+
+        if (status(jobId) == ERC8183.JobStatus.Submitted) evaluator.retryDeferred(jobId);
+        holding.settle{gas: 1_000_000}(jobId);
+        (, uint256 net) = feeOf(REWARD, WORKER_STAKE);
+        assertEq(holding.owed(IERC20(address(hungry)), worker) + hungry.balanceOf(worker), net);
+        assertEq(hungry.balanceOf(creator), 0, "the creator did not win by burning gas");
+        hungry.setHungry(worker, 0);
+        if (holding.owed(IERC20(address(hungry)), worker) > 0) {
+            vm.prank(worker);
+            holding.withdraw(IERC20(address(hungry)));
+        }
+        assertEq(hungry.balanceOf(worker), net);
+    }
+
+    function test_C9001_bothCoreAttemptsBurnTheirBudgets_decisionStillLands() public {
+        (GasHungryToken hungry, uint256 jobId) = _hungryDispute();
+        hungry.setHungry(worker, type(uint256).max);
+        hungry.setHungry(address(holding), type(uint256).max);
+        _relayRuling(jobId, true, false, 1);
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.RuledForWorker));
+        assertTrue(evaluator.payoutDeferred(jobId));
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Submitted), "nothing reached Holding yet");
+        assertEq(vault.reservedOf(worker), 0);
+        assertEq(vault.reservedOf(creator), 0);
+        vm.expectRevert();
+        evaluator.retryDeferred{gas: 5_000_000}(jobId);
+
+        hungry.setHungry(address(holding), 0);
+        evaluator.retryDeferred(jobId);
+        holding.settle{gas: 1_000_000}(jobId);
+        (, uint256 net) = feeOf(REWARD, WORKER_STAKE);
+        assertEq(holding.owed(IERC20(address(hungry)), worker), net, "owed while the token still burns");
+    }
+
+    function test_C9001_gasBurningRefundCannotRollBackACreatorRuling() public {
+        (GasHungryToken hungry, uint256 jobId) = _hungryDispute();
+        hungry.setHungry(address(holding), type(uint256).max);
+        uint256 calls = reputation.calls();
+        _relayRuling(jobId, false, true, 1);
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.RuledForCreator));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+        assertEq(reputation.calls(), calls + 1);
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Submitted), "refund deferred");
+        hungry.setHungry(address(holding), 0);
+        evaluator.retryDeferred(jobId);
+        holding.settle(jobId);
+        assertEq(hungry.balanceOf(creator), REWARD);
+    }
+
+    function test_coreGasTooLow_refusesBeforeRecording() public {
+        uint256 jobId = submittedJob();
+        vm.prank(creator);
+        vm.expectRevert();
+        evaluator.accept{gas: 600_000}(jobId);
         assertEq(uint8(evaluator.outcome(jobId)), 0);
+        assertEq(vault.reservedOf(worker), WORKER_BOND);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9 ACL-5: core fees never cut the worker or strand tokens in the evaluator
+    // ------------------------------------------------------------------------------------------
+
+    function activateExt(uint256 jobId) external {
+        activate(jobId);
+    }
+
+    function test_coreFees_refuseActivation_liveJobPaysThroughHolding() public {
+        uint256 live = submittedJob();
+        uint256 open = publish();
+        vm.prank(deployer);
+        core.setEvaluatorFee(500);
+        vm.expectRevert(IHirelingHolding.CoreChargesFees.selector);
+        this.activateExt(open);
+
+        vm.prank(creator);
+        evaluator.accept(live);
+        assertTrue(evaluator.payoutDeferred(live));
+        if (status(live) == ERC8183.JobStatus.Submitted) evaluator.retryDeferred(live);
+        uint256 before = pay.balanceOf(worker);
+        holding.settle(live);
+        (, uint256 net) = feeOf(REWARD, WORKER_STAKE);
+        assertEq(pay.balanceOf(worker) - before, net, "the full net");
+        assertEq(pay.balanceOf(address(evaluator)), 0, "nothing stranded");
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // C9 SIG-2, SIG-1, GEN-6
+    // ------------------------------------------------------------------------------------------
+
+    function test_cancelRuling_revokesASignedRuling() public {
+        uint256 jobId = disputedJob();
+        IHirelingEvaluator.Ruling memory r =
+            IHirelingEvaluator.Ruling(jobId, false, true, REASON, vm.getBlockTimestamp() + 1 hours, 7);
+        bytes memory sig = signRuling(arbitratorPk, r);
+        vm.prank(arbitrator);
+        evaluator.cancelRuling(7);
+        vm.prank(relayer);
+        vm.expectRevert(IHirelingEvaluator.RulingNonceUsed.selector);
+        evaluator.ruleWithSignature(r, sig);
+        vm.prank(arbitrator);
+        vm.expectRevert(IHirelingEvaluator.RulingNonceUsed.selector);
+        evaluator.cancelRuling(7);
+    }
+
+    function test_feedbackFailure_copiesAtMost32Bytes() public {
+        uint256 jobId = submittedJob();
+        reputation.setMode(MockReputation.Mode.Revert);
+        uint256 agentId = core.getJob(jobId).providerAgentId;
+        vm.expectEmit(true, true, false, true, address(evaluator));
+        emit IHirelingEvaluator.FeedbackFailed(jobId, agentId, abi.encodePacked(bytes4(0x08c379a0), bytes28(0)));
+        vm.prank(creator);
+        evaluator.accept(jobId);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -281,8 +596,9 @@ contract HirelingEvaluatorTest is BaseV1 {
         assertEq(vault.reservedOf(creator), 0);
         (uint256 fee, uint256 net) = feeOf(REWARD, WORKER_STAKE);
         assertEq(hook.balanceOf(worker), net);
-        // The re-entrant settle ran inside the core call and could only do the fixed thing: the fee to the treasury.
-        assertTrue(hook.reentered(), "settle was re-entered during complete");
+        // A re-entrant settle inside the capped core call either ran and could only do the fixed thing (the fee to
+        // the treasury), or lacked the gas for a push and rolled back; settle afterwards does the same.
+        if (!hook.reentered()) holding.settle(jobId);
         assertEq(hook.balanceOf(treasury), fee);
         vm.expectRevert(IHirelingHolding.NothingToSettle.selector);
         holding.settle(jobId);
@@ -296,7 +612,7 @@ contract HirelingEvaluatorTest is BaseV1 {
         assertTrue(hook.attempted());
         assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND, "the upheld violation still burned");
         assertTrue(listing(jobId).workerBondBurned);
-        assertTrue(hook.reentered(), "settle was re-entered during reject");
+        if (!hook.reentered()) holding.settle(jobId);
         assertEq(hook.balanceOf(creator), REWARD);
     }
 
@@ -433,6 +749,36 @@ contract HirelingEvaluatorTest is BaseV1 {
     // Evidence and feedback
     // ------------------------------------------------------------------------------------------
 
+    /// @dev C9 SIG-1 / MATH-3: an older statement (sooner expiry) cannot replace the stored one; the stored expiry is
+    ///      clamped, not truncated.
+    function test_evidence_olderStatementCannotReplaceANewerOne() public {
+        uint256 jobId = submittedJob();
+        IHirelingEvaluator.EvidenceAttestation memory a = IHirelingEvaluator.EvidenceAttestation({
+            jobId: jobId,
+            submissionHash: DELIVERABLE,
+            policyHash: listing(jobId).policyHash,
+            repo: keccak256("repo"),
+            headSha: keccak256("head"),
+            testedSha: keccak256("tested"),
+            checkRunsHash: keccak256("checks"),
+            conclusion: 1,
+            validUntil: block.timestamp + 2 days
+        });
+        vm.prank(attester);
+        evaluator.attachEvidenceDirect(jobId, a);
+        a.conclusion = 2;
+        a.validUntil = block.timestamp + 1 days;
+        vm.prank(attester);
+        vm.expectRevert(IHirelingEvaluator.StaleEvidence.selector);
+        evaluator.attachEvidenceDirect(jobId, a);
+        a.validUntil = type(uint256).max;
+        vm.prank(attester);
+        evaluator.attachEvidenceDirect(jobId, a);
+        (,,,,, uint48 validUntil, uint8 conclusion) = evaluator.evidence(jobId, attester);
+        assertEq(validUntil, type(uint48).max);
+        assertEq(conclusion, 2);
+    }
+
     function test_evidence_boundToTheListingsPolicy() public {
         uint256 jobId = submittedJob();
         IHirelingEvaluator.EvidenceAttestation memory a = IHirelingEvaluator.EvidenceAttestation({
@@ -475,8 +821,8 @@ contract HirelingEvaluatorTest is BaseV1 {
     }
 }
 
-/// @dev Gas starvation, with no reputation registry (otherwise the feedback gas floor refuses a starved call outright):
-///      an expensive transfer to the worker fails inside `complete` for lack of gas, and only the route changes.
+/// @dev An expensive transfer to the worker exceeds `CORE_GAS` inside `complete`, and only the route changes (no
+///      reputation registry here; `test_C9001_*` cover the same with feedback enabled).
 contract HirelingEvaluatorStarvationTest is BaseV1 {
     function withReputation() internal pure override returns (bool) {
         return false;
@@ -516,7 +862,7 @@ contract HirelingEvaluatorStarvationTest is BaseV1 {
         assertEq(hungry.balanceOf(creator), 0, "the creator never got the reward back");
     }
 
-    function test_withoutStarvationTheSameJobCompletesDirectly() public {
+    function test_expensiveTransferDefersAtAnyGasLimit() public {
         GasHungryToken hungry = new GasHungryToken();
         hungry.mint(creator, REWARD);
         vm.prank(creator);
@@ -527,7 +873,7 @@ contract HirelingEvaluatorStarvationTest is BaseV1 {
         hungry.setHungry(worker, 60_000);
         vm.prank(creator);
         evaluator.accept{gas: 30_000_000}(jobId);
-        assertFalse(evaluator.payoutDeferred(jobId));
-        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Completed));
+        assertTrue(evaluator.payoutDeferred(jobId), "complete is capped at CORE_GAS whatever the caller sends");
+        assertEq(uint8(status(jobId)), uint8(ERC8183.JobStatus.Rejected), "spare gas moved the reward to Holding");
     }
 }
