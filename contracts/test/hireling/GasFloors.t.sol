@@ -6,9 +6,11 @@ import {IHirelingHolding} from "../../src/hireling/interfaces/IHirelingHolding.s
 import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
 import {BaseV1} from "./BaseV1.t.sol";
 
-/// @dev The smallest gas each payout call succeeds with (EVM pricing, execution gas without the 21k intrinsic), found
-///      by binary search, and a guard that it stays under the EVM floors behind the ADR-0011 gas table (decisions D4a).
-///      Monad prices cold state access higher than the EVM, so the table's client limits add a margin on top.
+/// @dev The smallest gas each payout call succeeds with (execution gas without the 21k intrinsic and calldata), found
+///      by binary search, and a guard that it stays under the floors behind the ADR-0011 gas table (decisions D4a/D4b).
+///      `foundry.toml` sets `network = "monad"`, so these run with Monad's opcode pricing (cold access 10,100); the
+///      table's client limits add intrinsic gas, calldata and a margin for colder state. The search reverts its state
+///      between attempts, so live `eth_estimateGas` stays the final check.
 contract GasFloorsTest is BaseV1 {
     uint256 constant SETTLE_LIMIT = 1_000_000;
     uint256 constant TOPUP_REFUND_LIMIT = 450_000;

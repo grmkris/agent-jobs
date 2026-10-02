@@ -1,8 +1,8 @@
 # ADR-0011: Hireling v1 contracts
 
-Date: 2026-10-02. Status: **implemented, unit-tested and fork-rehearsed on Monad testnet and mainnet (C1–C8); C9 audit
-in progress — sign-off pending C9-007** (findings and resolutions in "C9 audit" below); not deployed
-(`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
+Date: 2026-10-02. Status: **implemented, unit-tested, fork-rehearsed on Monad testnet and mainnet; audited — C9 signed
+off 2 Oct (`review/contracts-C9-signoff.md`, at 4dfc039); not deployed** (`~/code/agent-jobs.wt/briefs/plan.md`).
+Findings and resolutions are in "C9 audit" below. The sign-off is a source review, not deployment authorization. Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
 v1 build plan. Supersedes the contest parts of ADR-0004 and ADR-0007 for new jobs; the legacy pairs keep them.
 
 ## Context
