@@ -1,7 +1,35 @@
 import { readFileSync } from 'node:fs'
 import { privateKeyToAccount } from 'viem/accounts'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
-import { prodSecretSources, validateProdConfig, type ProdArtifact } from './prod-config.ts'
+import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, validateProdConfig, type ChainConfig, type LaunchReader, type ProdArtifact } from './prod-config.ts'
+
+// TODO(D16, B6): import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk' (packages/sdk/src/relay.ts, 2 MON) once B6 is on
+// main, and delete this placeholder. Until then the floor is undefined, so the live launch gate refuses to open.
+const RELAY_FLOOR_MAINNET: bigint | string | undefined = undefined
+
+/** JSON-RPC reads only (eth_getCode, eth_call, eth_getBalance at latest). Any transport, HTTP or RPC error throws. */
+export function rpcReader(url: string): LaunchReader {
+  let id = 0
+  const rpc = async (method: string, params: unknown[]): Promise<string> => {
+    const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }), signal: AbortSignal.timeout(15_000) })
+    const body = await response.json() as { result?: unknown; error?: unknown }
+    if (!response.ok || body.error !== undefined || typeof body.result !== 'string' || !/^0x[0-9a-fA-F]*$/.test(body.result)) throw new Error('read failed')
+    return body.result
+  }
+  return {
+    code: address => rpc('eth_getCode', [address, 'latest']),
+    call: async (to, data) => await rpc('eth_call', [{ to, data }, 'latest']) as `0x${string}`,
+    balance: async address => BigInt(await rpc('eth_getBalance', [address, 'latest'])),
+  }
+}
+
+/** D16: refuse a deploy that would open production admission unless the live launch predicates hold. A deploy that pins
+ *  an explicit drained `PROD_ADMISSION_DRAIN` (setup or emergency) does not need them. Runs before any resource. */
+export async function assertLaunchGate(config: ChainConfig, drain: string | undefined, reader: LaunchReader, relayFloor: bigint | undefined): Promise<void> {
+  if (!opensAdmission(drain)) return
+  const failures = await liveLaunchGate(config, reader, relayFloor)
+  if (failures.length > 0) throw new Error(`production launch gate refused: ${failures.join(', ')}`)
+}
 
 export async function assertDeployConfig(stage: string): Promise<void> {
   const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'
@@ -46,4 +74,5 @@ export async function assertDeployConfig(stage: string): Promise<void> {
   } catch {
     throw new Error('production read-only RPC chain proof failed')
   }
+  await assertLaunchGate(mainnet, process.env.PROD_ADMISSION_DRAIN, rpcReader(rpc), relayFloorWei(RELAY_FLOOR_MAINNET))
 }

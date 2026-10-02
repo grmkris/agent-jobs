@@ -51,6 +51,7 @@
     },
     "hireling": {
       "block": null,
+      "safe": null,
       "factory": null,
       "vault": null,
       "feeSchedule": null,

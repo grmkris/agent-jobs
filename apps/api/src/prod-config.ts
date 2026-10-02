@@ -1,3 +1,5 @@
+import { decodeFunctionResult, encodeFunctionData, parseAbi, parseEther } from 'viem'
+
 export const prodSecretSources = {
   MONAD_RPC_URL: 'HIRELING_PROD_MONAD_RPC_URL',
   RELAY_PRIVATE_KEY: 'HIRELING_PROD_RELAY_PRIVATE_KEY',
@@ -21,6 +23,7 @@ export interface ProdStack {
 
 export interface ProdHireling {
   block: number | null
+  safe?: string | null | undefined
   factory: string | null
   vault: string | null
   feeSchedule: string | null
@@ -47,7 +50,7 @@ export interface ProdArtifact {
   }
 }
 
-interface ChainConfig {
+export interface ChainConfig {
   network: string
   chainId: number
   roles: Record<string, string>
@@ -108,7 +111,8 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   check(hireling !== undefined && Number.isSafeInteger(hireling.block) && (hireling.block ?? 0) > 0 &&
     Number.isSafeInteger(hireling.t0) && (hireling.t0 ?? 0) > 0 &&
     artifact.deployment.hireling.block === hireling.block && artifact.deployment.hireling.t0 === hireling.t0, 'hireling block/T0')
-  for (const name of ['factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
+  // D16 / PROD-GATE-001: the Safe that must own everything is part of the reviewed record, in config and artifact.
+  for (const name of ['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
     const value = hireling?.[name]
     check(address(value) && artifact.deployment.hireling[name]?.toLowerCase() === value.toLowerCase(), `hireling:${name}`)
   }
@@ -147,4 +151,107 @@ export function validateProdConfig(config: ChainConfig, artifact: ProdArtifact):
 
 export function runtimeSecret(name: keyof typeof prodSecretSources): string | undefined {
   return process.env[process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? prodSecretSources[name] : name]
+}
+
+// ---- D16: the live launch gate (PROD-GATE-001/002/003/004) ----
+
+/** Read-only chain access for the launch gate. Every method throws on a failed read. */
+export interface LaunchReader {
+  code(address: string): Promise<string>
+  call(to: string, data: `0x${string}`): Promise<`0x${string}`>
+  balance(address: string): Promise<bigint>
+}
+
+const launchAbi = parseAbi([
+  'function owner() view returns (address)',
+  'function ADMIN_ROLE() view returns (bytes32)',
+  'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
+  'function hasRole(bytes32 role, address account) view returns (bool)',
+  'function verifiers(address account) view returns (bool)',
+])
+
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+
+/** The six Ownable2Step v1 contracts the Safe must own (not merely be pending for) before admission opens. */
+export const launchOwnedContracts = ['vault', 'feeSchedule', 'holding', 'evaluator', 'distributor', 'miningReserve'] as const
+
+/** A floor given in wei (bigint) or in MON (string/number); undefined stays undefined, which the gate refuses. */
+export function relayFloorWei(floor: bigint | string | number | undefined): bigint | undefined {
+  if (floor === undefined) return undefined
+  return typeof floor === 'bigint' ? floor : parseEther(String(floor))
+}
+
+/** True unless the deploy pins an explicit drained value. Missing or empty counts as opening: the Worker binding has
+ *  turned it into `0` (open) so far. The explicit values follow `parseHostedAdmission`. */
+export function opensAdmission(drain: string | undefined): boolean {
+  return drain === undefined || drain === '' || drain === '0' || drain.toLowerCase() === 'false'
+}
+
+/**
+ * Every predicate that must hold, read live, before production admission opens. Returns failure labels, no values;
+ * a failed or malformed read is a failure. Pending ownership passes promotion, never this gate.
+ *   1. `deployment.hireling.safe` is set and has code (it matching the artifact is the structural check);
+ *   2. `owner() == safe` on the six v1 contracts;
+ *   3. the core's DEFAULT_ADMIN_ROLE and ADMIN_ROLE are held by the Safe, and by the deployer (`roles.admin`) for neither;
+ *   4. `verifiers(roles.attester)` on the v1 Evaluator;
+ *   5. the relay (`roles.relay`, whose key preflight derives) holds strictly more than the floor.
+ */
+export async function liveLaunchGate(config: ChainConfig, reader: LaunchReader, relayFloor: bigint | undefined): Promise<string[]> {
+  const failures: string[] = []
+  const deployed = config.deployment
+  const safe = deployed.hireling?.safe
+  if (!address(safe)) return ['launch:safe unset']
+  const read = async <T>(label: string, run: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      return await run()
+    } catch {
+      failures.push(`${label} unreadable`)
+      return undefined
+    }
+  }
+  const view = async (to: unknown, functionName: 'owner' | 'ADMIN_ROLE' | 'DEFAULT_ADMIN_ROLE' | 'hasRole' | 'verifiers', args: readonly unknown[] = []) => {
+    if (!address(to)) throw new Error('no address')
+    const data = encodeFunctionData({ abi: launchAbi, functionName, args } as never)
+    return decodeFunctionResult({ abi: launchAbi, functionName, data: await reader.call(to, data) } as never) as unknown
+  }
+
+  const code = await read('launch:safe code', () => reader.code(safe))
+  if (code !== undefined && !/^0x[0-9a-fA-F]*$/.test(code)) failures.push('launch:safe code unreadable')
+  else if (code !== undefined && /^0x0*$/.test(code)) failures.push('launch:safe has no code')
+
+  const owned: Record<(typeof launchOwnedContracts)[number], unknown> = {
+    vault: deployed.hireling?.vault, feeSchedule: deployed.hireling?.feeSchedule, holding: deployed.main?.holding,
+    evaluator: deployed.main?.evaluator, distributor: deployed.hireling?.distributor, miningReserve: deployed.hireling?.miningReserve,
+  }
+  for (const name of launchOwnedContracts) {
+    const owner = await read(`launch:owner:${name}`, () => view(owned[name], 'owner'))
+    if (owner !== undefined && (typeof owner !== 'string' || !same(owner, safe))) failures.push(`launch:owner:${name} is not the Safe`)
+  }
+
+  const deployer = config.roles.admin
+  if (!address(deployer) || same(deployer, safe)) failures.push('launch:deployer must be a separate account')
+  for (const roleName of ['DEFAULT_ADMIN_ROLE', 'ADMIN_ROLE'] as const) {
+    const role = await read(`launch:core ${roleName}`, () => view(deployed.core, roleName))
+    if (role === undefined) continue
+    const safeHolds = await read(`launch:core ${roleName} of the Safe`, () => view(deployed.core, 'hasRole', [role, safe]))
+    if (safeHolds !== undefined && safeHolds !== true) failures.push(`launch:core ${roleName} not held by the Safe`)
+    if (address(deployer)) {
+      const deployerHolds = await read(`launch:core ${roleName} of the deployer`, () => view(deployed.core, 'hasRole', [role, deployer]))
+      if (deployerHolds !== undefined && deployerHolds !== false) failures.push(`launch:core ${roleName} still held by the deployer`)
+    }
+  }
+
+  const verifier = await read('launch:attester verifier', () => view(deployed.main?.evaluator, 'verifiers', [config.roles.attester]))
+  if (verifier !== undefined && verifier !== true) failures.push('launch:attester is not a verifier on the v1 Evaluator')
+
+  if (relayFloor === undefined) failures.push('launch:relay floor undefined (RELAY_FLOOR_MAINNET, @agent-jobs/sdk)')
+  const relay = config.roles.relay
+  const balance = await read('launch:relay balance', () => {
+    if (!address(relay)) throw new Error('no address')
+    return reader.balance(relay)
+  })
+  if (balance !== undefined && relayFloor !== undefined && !(typeof balance === 'bigint' && balance > relayFloor)) {
+    failures.push('launch:relay at or below RELAY_FLOOR_MAINNET')
+  }
+  return failures
 }

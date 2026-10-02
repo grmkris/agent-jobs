@@ -10,7 +10,7 @@ const configured = () => {
   config.deployment = {
     network: 'monad-mainnet', block: 123, core: fixtureAddress, factory: fixtureAddress,
     main: { kind: 'hireling-v1', factory: fixtureAddress, holding: fixtureAddress, evaluator: fixtureAddress, openTokens: true },
-    hireling: { block: 123, factory: fixtureAddress, vault: fixtureAddress, feeSchedule: fixtureAddress, distributor: fixtureAddress, miningReserve: fixtureAddress, teamVesting: fixtureAddress, t0: 1_791_500_000 },
+    hireling: { block: 123, safe: fixtureAddress, factory: fixtureAddress, vault: fixtureAddress, feeSchedule: fixtureAddress, distributor: fixtureAddress, miningReserve: fixtureAddress, teamVesting: fixtureAddress, t0: 1_791_500_000 },
   }
   artifact.deployment = structuredClone({ main: config.deployment.main!, hireling: config.deployment.hireling! })
   for (const [name, value] of Object.entries(config.roles)) artifact.addresses[name] = value
@@ -54,7 +54,7 @@ test.each(['stage', 'chain', 'RPC', 'HyperSync', 'Privy', 'secret', 'address', '
   expect(validateProdConfig(config, artifact).length).toBeGreaterThan(0)
 })
 
-test.each(['factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const)('every v1 component %s requires an explicit matching address', name => {
+test.each(['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const)('every v1 component %s requires an explicit matching address', name => {
   const { config, artifact } = configured()
   config.deployment.hireling![name] = null
   expect(validateProdConfig(config, artifact)).toContain(`hireling:${name}`)
@@ -62,4 +62,13 @@ test.each(['factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 't
 
 test.each([null, {}, { rpc: null }, { privy: { origins: 'bad' } }])('malformed artifact fails closed without echoing input', input => {
   expect(validateProdConfig(mainnet, input as unknown as ProdArtifact)).toEqual(['artifact structure'])
+})
+
+test('D16 / PROD-GATE-001: the Safe must be recorded and match between config and artifact', () => {
+  const { config, artifact } = configured()
+  delete config.deployment.hireling!.safe
+  expect(validateProdConfig(config, artifact)).toContain('hireling:safe')
+  const other = configured()
+  other.artifact.deployment.hireling.safe = '0x2222222222222222222222222222222222222222'
+  expect(validateProdConfig(other.config, other.artifact)).toContain('hireling:safe')
 })
