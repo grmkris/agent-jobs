@@ -33,7 +33,7 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['IHirelingEvaluator.sol', 'IHirelingEvaluator', 'hirelingEvaluator', 'hirelingEvaluatorAbi', [ownable()]],
   ['IStakeVault.sol', 'IStakeVault', 'stakeVault', 'stakeVaultAbi', [ownable()]],
   ['IFeeSchedule.sol', 'IFeeSchedule', 'feeSchedule', 'feeScheduleAbi', [ownable()]],
-  ['IFactory.sol', 'IFactory', 'factoryV2', 'factoryV2Abi'],
+  ['Factory.sol', 'Factory', 'factoryV2', 'factoryV2Abi'],
   ['IMiningReserve.sol', 'IMiningReserve', 'miningReserve', 'miningReserveAbi', [ownable()]],
   ['IEpochDistributor.sol', 'IEpochDistributor', 'epochDistributor', 'epochDistributorAbi', [ownable()]],
 ]
