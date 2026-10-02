@@ -26,35 +26,51 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling[\s\S]*$/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null\n');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
 mkdirSync(output, { recursive: true });
 
-async function fixture(viewport) {
+const now = Math.floor(Date.now() / 1000);
+const worker = '0x5555555555555555555555555555555555555555';
+const agentWallet = '0x6666666666666666666666666666666666666666';
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+const v1Jobs = { 70: 'open', 71: 'active' };
+
+async function fixture(viewport, account = creator) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling, defaultArbiter }) => {
+  await context.addInitScript(({ viewer, hireling, defaultArbiter }) => {
     window.__hireling = hireling;
-    window.__v1 = { arbiter: defaultArbiter, free: 2n * 10n ** 18n, quote: [1000, 0n, 0n], topUp: 0n };
-    window.__wallet = { address: account, connected: true, signatures: [], sends: [] };
+    window.__v1 = { arbiter: defaultArbiter, free: 2n * 10n ** 18n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
+    window.__wallet = { address: viewer, connected: true, signatures: [], sends: [] };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: creator, hireling: contracts, defaultArbiter: arbiter });
+    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { viewer: account, hireling: contracts, defaultArbiter: arbiter });
   const state = { created: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/__test/token') return reply({ symbol: 'mUSD', decimals: 6 });
-    if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: [], index: { next_block: 100, updated_at: Math.floor(Date.now() / 1000) } });
+    if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
+    const chainJob = (id) => ({ job_id: id, status: v1Jobs[id], mode: 'hire', stack: 'main', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: v1Jobs[id] === 'open' ? null : agentWallet, agent_id: v1Jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: null, rejection_reason_hash: null });
+    if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(v1Jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
+    const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
+    if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
-    if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
+    if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: Object.keys(v1Jobs).map((id) => offer(id, v1Jobs[id])) });
     if (url.pathname.endsWith('/api/create_task')) {
       state.created.push(route.request().postDataJSON());
       return reply({ ok: true, result: { taskId: 'task-v1', termsHash: `0x${'b'.repeat(64)}`, manifestUrl: '/offers/v1.json', screening: null, transactions: [{ description: 'Approve reward token', chainId: 10143, to: token, data: '0x01', value: '0' }, { description: 'Publish job', chainId: 10143, to: contracts.holding, data: '0x02', value: '0' }] } });
     }
-    if (url.pathname.endsWith('/api/get_task')) return reply({ ok: true, result: { taskId: 'task-v1', jobId: null, creator } });
+    if (url.pathname.endsWith('/api/get_task')) {
+      const { taskId } = route.request().postDataJSON();
+      const id = /^task-(\d+)$/.exec(taskId)?.[1];
+      if (id === undefined || v1Jobs[id] === undefined) return reply({ ok: true, result: { taskId, jobId: null, creator } });
+      const open = v1Jobs[id] === 'open';
+      return reply({ ok: true, result: { ...offer(id, v1Jobs[id]), you: account === creator ? ['creator', 'approver'] : [], selection: [], terms: { brief: 'A v1 hire.', acceptanceCriteria: ['Done'], windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status: open ? 'open' : 'active', provider: open ? null : agentWallet, timely: true, submittedAt: null, reviewEndsAt: null, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
+    }
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     return route.continue();
   });
@@ -124,6 +140,35 @@ try {
     await page.getByText('Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake.', { exact: false }).waitFor();
     await capture(page, `${device}-v1-review`);
     results.push({ device, checks: ['two modes', 'named agent invited', 'presets', 'custom windows in bounds', 'default arbiter by name', 'custom arbiter warning and not creator', 'bonds from stake', 'free-stake shortfall with Stake link', 'create_task v1 arguments'], passed: true });
+    await context.close();
+  }
+  // The v1 job page: a would-be worker sees its fee and net before activating; anyone tops up an active job.
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    const device = viewport.width === 390 ? 'mobile' : 'desktop';
+    const { context, page } = await fixture(viewport, worker);
+    await page.goto(`${base}/job/70`);
+    await page.getByRole('heading', { name: 'If you take this job' }).waitFor();
+    await page.getByText('Fee · 10 %, from your stake', { exact: true }).waitFor();
+    await page.getByText('− 0.5 mUSD', { exact: true }).waitFor();
+    await page.getByText('4.5 mUSD', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Add to the reward' }).count(), 0);
+    await capture(page, `${device}-v1-fee-quote`);
+    await page.goto(`${base}/job/71`);
+    await page.getByRole('heading', { name: 'Add to the reward' }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'If you take this job' }).count(), 0);
+    await page.getByRole('textbox', { name: 'Amount to add' }).fill('2');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    for (const step of [1, 2]) {
+      await page.getByRole('button', { name: `Confirm step ${step} of 2` }).click();
+      await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    }
+    await page.getByRole('status').filter({ hasText: 'Added to the reward' }).waitFor();
+    await page.getByText('By you', { exact: true }).waitFor();
+    assert.equal(await page.getByText('2 mUSD', { exact: true }).count(), 2);
+    const sends = await page.evaluate(() => window.__wallet.sends.map((tx) => tx.to.toLowerCase()));
+    assert.deepEqual(sends, [token, contracts.holding]);
+    await capture(page, `${device}-v1-top-up`);
+    results.push({ device, checks: ['fee tier and net before activation', 'no top-up before activation', 'top-up approve then topUp', 'bonus shown after'], passed: true });
     await context.close();
   }
   assert.deepEqual(errors, []);

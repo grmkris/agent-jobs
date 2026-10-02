@@ -3,11 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, CircleAlert, Clock, Lock, ReceiptText } from 'lucide-react'
 import type { ReactNode } from 'react'
+import type { Address as Account } from 'viem'
 import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TaskIndexEntry, boardApi, currentBoardId, data } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { Delivered, type EvidenceRow } from '../components/job/Deliverables.tsx'
 import { HireAgainLink } from '../components/job/HireAgain.tsx'
+import { FeeQuote, TopUp } from '../components/job/V1Panels.tsx'
 import { type ActionJob, type JobEvent, JobActions } from '../components/job/JobActions.tsx'
 import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
@@ -15,6 +17,7 @@ import { useNow } from '../components/Time.tsx'
 import { Address, Badge, Button, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
+import { hireling, isV1Stack } from '../hireling.ts'
 import { useToken } from '../useTokens.ts'
 import { useJobs } from './Jobs.tsx'
 
@@ -159,6 +162,8 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   useToken(token)
   const agentId = d?.job.agent_id ?? null
   const otherBoard = d?.board != null && d.board.boardId !== currentBoardId() && d.board.boardId !== 'public'
+  // A Hireling v1 job (ADR-0011): its fee quote and top-ups come from the v1 Holding.
+  const v1 = /^\d+$/.test(jobId) && isV1Stack(d?.job.stack ?? listed?.stack ?? t?.stack) ? hireling : null
 
   if (chain.isLoading && listed === undefined) return <JobSkeleton />
   if (chain.data === undefined && listed === undefined && !chain.isLoading) {
@@ -231,6 +236,13 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           sourceAvailable={!board.isError && !chain.isError}
           onEvent={onEvent}
         />
+      )}
+
+      {v1 !== null && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
+        <FeeQuote jobId={jobId} holding={v1.holding} viewer={auth.address as Account} token={token} />
+      )}
+      {v1 !== null && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
+        <TopUp jobId={jobId} holding={v1.holding} token={token as Account} viewer={auth.address as Account} />
       )}
 
       {d !== undefined && (d.timeline?.length ?? 0) > 0 && (

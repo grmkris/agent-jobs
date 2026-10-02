@@ -26,3 +26,6 @@ export const hireling: HirelingContracts | null =
   h === null || main === undefined || main.kind !== 'hireling-v1'
     ? null
     : { factory: h.factory, vault: h.vault, feeSchedule: h.feeSchedule, distributor: h.distributor, miningReserve: h.miningReserve, holding: main.holding, evaluator: main.evaluator, safe: h.safe }
+
+/** Whether a job on `stack` is a Hireling v1 job: on a v1 network the `main` stack is the v1 pair (D1). */
+export const isV1Stack = (stack: string | null | undefined): boolean => hireling !== null && stack === 'main'

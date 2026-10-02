@@ -1,5 +1,7 @@
+import { hirelingHoldingAbi } from '@agent-jobs/sdk';
 import { useQuery } from '@tanstack/react-query';
-import { useReadContract as useFixtureReadContract, useReadContracts as useFixtureReadContracts } from './wagmi.mjs';
+import { decodeFunctionData } from 'viem';
+import { sendFixtureTransaction, useReadContract as useFixtureReadContract, useReadContracts as useFixtureReadContracts } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
 
@@ -13,6 +15,7 @@ const V1_READS = {
   defaultArbitrator: () => window.__v1.arbiter,
   quoteActivation: () => window.__v1.quote,
   topUpOf: () => window.__v1.topUp,
+  getListing: () => ({ bonus: window.__v1.bonus }),
   allowance: () => 0n,
 };
 export const useReadContracts = (options) => {
@@ -30,3 +33,12 @@ export const useReadContract = (options) => {
   if (options.functionName === 'availableOf') return { data: window.__v1.free, isLoading: false, isError: false };
   return read;
 };
+// A top-up the wallet double sends is applied to the fixture listing, so the page shows the bonus grow.
+export const useSendTransaction = () => ({ sendTransactionAsync: async (transaction) => {
+  const hash = await sendFixtureTransaction(transaction);
+  try {
+    const { functionName, args } = decodeFunctionData({ abi: hirelingHoldingAbi, data: transaction.data });
+    if (functionName === 'topUp') { window.__v1.bonus += args[1]; window.__v1.topUp += args[1]; }
+  } catch { /* an approval, not a Holding call */ }
+  return hash;
+} });
