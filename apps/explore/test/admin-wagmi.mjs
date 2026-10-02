@@ -29,6 +29,7 @@ function answer({ address, functionName, args = [] }) {
     case 'schedule': return s.schedule;
     case 'pending': return s.pending === null ? [{ thresholds: [0n, 0n, 0n, 0n], bps: [0, 0, 0, 0], treasury: ZERO }, 0] : [s.pending.schedule, s.pending.eta];
     case 'DELAY': return 259200;
+    case 'PROPOSAL_GRACE': return 604800;
     case 'MAX_BPS': return 3000;
     case 'bootstrapped': return s.bootstrapped;
     case 'pendingHolding': return s.pendingHolding === null ? [ZERO, 0] : [s.pendingHolding.holding, s.pendingHolding.eta];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PROPOSAL_GRACE, amountProblem, factoryAmount, percent, proposalState, tierOf } from './stake.ts'
+import { amountProblem, factoryAmount, percent, proposalState, tierOf } from './stake.ts'
 
 const K = 10n ** 18n * 1000n
 // The deploy schedule (ADR-0011) as the contract returns it; the page reads it, these tests only fix the arithmetic.
@@ -43,10 +43,10 @@ describe('typed amounts', () => {
 describe('timelocked proposals', () => {
   it('wait for their eta, then stay executable for the grace window, then expire', () => {
     const eta = 1_000_000
-    expect(PROPOSAL_GRACE).toBe(7 * 86_400)
-    expect(proposalState(eta, eta - 1)).toBe('waiting')
-    expect(proposalState(eta, eta)).toBe('open')
-    expect(proposalState(eta, eta + PROPOSAL_GRACE)).toBe('open')
-    expect(proposalState(eta, eta + PROPOSAL_GRACE + 1)).toBe('expired')
+    const grace = 7 * 86_400
+    expect(proposalState(eta, eta - 1, grace)).toBe('waiting')
+    expect(proposalState(eta, eta, grace)).toBe('open')
+    expect(proposalState(eta, eta + grace, grace)).toBe('open')
+    expect(proposalState(eta, eta + grace + 1, grace)).toBe('expired')
   })
 })

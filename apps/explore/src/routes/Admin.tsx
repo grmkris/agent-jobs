@@ -14,7 +14,7 @@ import { formatNumber } from '../format.ts'
 import { resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
 import { type Call, calldata, describe, execTransaction, safeAbi } from '../safe.ts'
-import { PROPOSAL_GRACE, factoryAmount, percent, proposalState } from '../stake.ts'
+import { factoryAmount, percent, proposalState } from '../stake.ts'
 import { chain, deployment } from '../wallet.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
@@ -442,6 +442,7 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
       { address: c.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'pending', chainId: chain.id },
       { address: c.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'DELAY', chainId: chain.id },
       { address: c.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'MAX_BPS', chainId: chain.id },
+      { address: c.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'PROPOSAL_GRACE', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
@@ -449,6 +450,7 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
   const pendingRead = result<readonly [Schedule, number]>(reads.data, 1)
   const delay = result<number>(reads.data, 2)
   const maxBps = result<number>(reads.data, 3)
+  const feeGrace = result<number>(reads.data, 4)
   const pending = pendingRead !== undefined && Number(pendingRead[1]) !== 0 ? { ...pendingRead[0], eta: Number(pendingRead[1]) } : null
   const [draft, setDraft] = useState<{ thresholds: string[]; rates: string[]; treasury: string } | null>(null)
   const form = draft ?? (current === undefined ? null : {
@@ -472,9 +474,9 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
           {pending !== null && (
             <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
               <ScheduleTable title="Proposed" schedule={pending} />
-              <Expiry eta={pending.eta} now={now} verb="Executable" />
+              <Expiry eta={pending.eta} now={now} grace={feeGrace} verb="Executable" />
               <div className="flex flex-wrap gap-2">
-                <Button className="flex-1" disabled={busy || proposalState(pending.eta, now) !== 'open'} onClick={() => act('Execute the proposed fee schedule', fee({ functionName: 'execute' }), 'direct')}>
+                <Button className="flex-1" disabled={busy || feeGrace === undefined || proposalState(pending.eta, now, Number(feeGrace)) !== 'open'} onClick={() => act('Execute the proposed fee schedule', fee({ functionName: 'execute' }), 'direct')}>
                   Execute
                 </Button>
                 <Button variant="danger" className="flex-1" disabled={busy} onClick={() => act('Cancel the proposed fee schedule', fee({ functionName: 'cancel' }), 'safe')}>
@@ -521,10 +523,11 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
   )
 }
 
-/** When a timelocked proposal can be executed, and when it lapses (`PROPOSAL_GRACE` after its eta). */
-function Expiry({ eta, now, verb }: { eta: number; now: number; verb: string }) {
-  const state = proposalState(eta, now)
-  const lapses = eta + PROPOSAL_GRACE
+/** When a timelocked proposal can be executed, and when it lapses (the contract's `PROPOSAL_GRACE()` after its eta). */
+function Expiry({ eta, now, grace, verb }: { eta: number; now: number; grace: number | undefined; verb: string }) {
+  if (grace === undefined) return <p className="text-[0.88rem] text-label-2">{now < eta ? <>{verb} in <Countdown to={eta} /> · <When at={eta} show="time" />.</> : 'When it lapses cannot be read right now.'}</p>
+  const state = proposalState(eta, now, Number(grace))
+  const lapses = eta + Number(grace)
   return (
     <p className="text-[0.88rem] text-label-2">
       {state === 'waiting' ? (
@@ -571,6 +574,7 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding', chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'HOLDING_DELAY', chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'isHolding', args: [c.holding], chainId: chain.id },
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'PROPOSAL_GRACE', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
@@ -578,6 +582,7 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
   const pendingRead = result<readonly [Address, number]>(reads.data, 1)
   const delay = result<number>(reads.data, 2)
   const active = result<boolean>(reads.data, 3)
+  const vaultGrace = result<number>(reads.data, 4)
   const pending = pendingRead !== undefined && !same(pendingRead[0], zeroAddress) ? { holding: pendingRead[0], eta: Number(pendingRead[1]) } : null
   const [proposed, setProposed] = useState('')
   const [revoked, setRevoked] = useState<string>(c.holding)
@@ -609,9 +614,9 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
           {pending !== null && (
             <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
               <p className="text-[0.92rem]">Proposed Holding <AddressText value={pending.holding} /></p>
-              <Expiry eta={pending.eta} now={now} verb="Acceptable" />
+              <Expiry eta={pending.eta} now={now} grace={vaultGrace} verb="Acceptable" />
               <div className="flex flex-wrap gap-2">
-                <Button className="flex-1" disabled={busy || proposalState(pending.eta, now) !== 'open'} onClick={() => act('Accept the proposed Holding', vault({ functionName: 'acceptHolding' }), 'direct')}>
+                <Button className="flex-1" disabled={busy || vaultGrace === undefined || proposalState(pending.eta, now, Number(vaultGrace)) !== 'open'} onClick={() => act('Accept the proposed Holding', vault({ functionName: 'acceptHolding' }), 'direct')}>
                   Accept
                 </Button>
                 <Button variant="danger" className="flex-1" disabled={busy} onClick={() => act('Cancel the Holding proposal', vault({ functionName: 'cancelHoldingProposal' }), 'safe')}>

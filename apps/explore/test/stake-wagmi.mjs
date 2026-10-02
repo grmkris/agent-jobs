@@ -24,6 +24,7 @@ function answer({ functionName, address, args = [] }) {
     case 'eip712Domain': return ['0x0f', 'Factory', '1', 10143n, address, `0x${'0'.repeat(64)}`, []];
     case 'bootstrapped': return s.open;
     case 'paused': return false;
+    case 'PROPOSAL_GRACE': return 604800;
     case 'pendingHolding': return s.proposal === undefined ? ['0x0000000000000000000000000000000000000000', 0] : [s.proposal.holding, s.proposal.eta];
     case 'holdingDenied': return (s.denied ?? {})[args[1].toLowerCase()] === true;
     default: throw new Error(`Fixture has no read for ${functionName}`);

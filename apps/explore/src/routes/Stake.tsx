@@ -13,7 +13,7 @@ import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, In
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber, span } from '../format.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
-import { PROPOSAL_GRACE, amountProblem, factoryAmount, percent, proposalState, tierOf } from '../stake.ts'
+import { amountProblem, factoryAmount, percent, proposalState, tierOf } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain } from '../wallet.ts'
 
@@ -139,12 +139,14 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
     contracts: [
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding', chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'holdingDenied', args: [address, c.holding], chainId: chain.id },
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'PROPOSAL_GRACE', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
   const pendingRead = holdings.data?.[0]?.status === 'success' ? (holdings.data[0].result as readonly [Address, number]) : undefined
   const proposal = pendingRead !== undefined && pendingRead[0].toLowerCase() !== zeroAddress ? { holding: pendingRead[0], eta: Number(pendingRead[1]) } : null
   const refusedInUse = holdings.data?.[1]?.status === 'success' ? (holdings.data[1].result as boolean) : undefined
+  const grace = holdings.data?.[2]?.status === 'success' ? Number(holdings.data[2].result) : undefined
   const proposalRefusal = useReadContracts({
     contracts: [{ address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'holdingDenied', args: [address, proposal?.holding ?? zeroAddress], chainId: chain.id }],
     query: { enabled: proposal !== null, refetchInterval: 30_000 },
@@ -342,7 +344,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       )}
 
       {proposal !== null && (
-        <ProposedHolding proposal={proposal} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
+        <ProposedHolding proposal={proposal} grace={grace} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
       )}
       {refusedInUse === true && (
         <Section title="You refused the Holding in use">
@@ -446,9 +448,10 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
 }
 
 /** A Holding the Safe proposed: when it can go live, when the proposal lapses, and this staker's refusal. */
-function ProposedHolding({ proposal, refused, now, disabled, onRefuse }: { proposal: { holding: Address; eta: number }; refused: boolean | undefined; now: number; disabled: boolean; onRefuse: (denied: boolean) => void }) {
-  const state = proposalState(proposal.eta, now)
-  const lapses = proposal.eta + PROPOSAL_GRACE
+function ProposedHolding({ proposal, grace, refused, now, disabled, onRefuse }: { proposal: { holding: Address; eta: number }; grace: number | undefined; refused: boolean | undefined; now: number; disabled: boolean; onRefuse: (denied: boolean) => void }) {
+  // Until the vault's PROPOSAL_GRACE is read, the lapse time is unknown: the proposal reads as waiting or open only.
+  const state = proposalState(proposal.eta, now, grace ?? Number.POSITIVE_INFINITY)
+  const lapses = grace === undefined ? null : proposal.eta + grace
   return (
     <Section title="A new Holding is proposed" note="Once live, a Holding can reserve stake for the bonds of jobs on it, like the one in use now.">
       <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
@@ -465,7 +468,7 @@ function ProposedHolding({ proposal, refused, now, disabled, onRefuse }: { propo
           </ListRow>
           <ListRow>
             <span className="shrink-0">{state === 'expired' ? 'Lapsed' : 'Lapses if not accepted by'}</span>
-            <span className="min-w-0 flex-1 text-right text-label-2"><When at={lapses} show="time" /></span>
+            <span className="min-w-0 flex-1 text-right text-label-2">{lapses === null ? '—' : <When at={lapses} show="time" />}</span>
           </ListRow>
         </Group>
         {refused === true ? (
