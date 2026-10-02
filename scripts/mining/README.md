@@ -1,0 +1,133 @@
+# Work mining: one epoch (B8)
+
+`pnpm mining:epoch <n>` computes epoch `n`'s rewards from chain data alone, then writes the Merkle tree the
+`EpochDistributor` pays from, plus the Safe's two calls. It never reads the indexer or D1. Rules: ADR-0011, D12 #2, D17.
+
+```
+pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir>
+                      [--rpc <url>] [--config <config JSON>] [--page <blocks>]
+```
+
+- **RPC.** `--rpc`, else `MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. It reads only and is never printed.
+- **Config.** `--config` defaults to `contracts/config/<network>.json`; its `deployment.hireling` and every
+  `hireling-v1` pair are used. The fork rehearsal passes a scratch config.
+- **Paging.** Logs are read with `eth_getLogs` in pages of `--page` blocks (default 1000). A page the RPC refuses is
+  halved and retried.
+- **Tests.** `bun test scripts/mining` runs the fixture tests. The anvil fork run is step 7 of
+  `contracts/script/rehearse-launch.sh`.
+
+## What it counts
+
+1. **Window.** From `MiningReserve.epochStart(n)` to `epochEnd(n)`: epoch 0 is 72 h from genesis, later epochs 7
+   days. A log counts when its block timestamp is at or after the start and before the end. The epoch must have
+   ended.
+2. **Events.** `FeeCharged`, `PayoutOwed` and `OwedWithdrawn` from every `hireling-v1` Holding in the config, over the
+   window's blocks.
+3. **Priced tokens only.** A fee counts only if its token is on the epoch's signed price list.
+4. **Received fees only.** A fee counts only once the treasury holds it.
+   - `_settle` emits `FeeCharged`, then pays the worker, then the treasury.
+   - If the treasury's transfer was refused, its `PayoutOwed` is the last one after the fee in that transaction, for
+     the same Holding, job and token.
+   - Such a fee counts only if the treasury withdrew that token later in the window. `withdraw` takes the whole owed
+     balance, so any later `OwedWithdrawn` to the same address and token clears it.
+5. **Fee value.** `fee USD = amount × usdPrice ÷ 10^decimals`, 18 decimals, rounded down.
+6. **Emission.** `min(budget, 0.5 × Σ fee USD ÷ max(factoryUsdPrice, 10^14))`, in FACTORY wei. `10^14` is $0.0001.
+7. **Budget.** `MiningReserve.cumulativeBudget(n)` minus everything already funded for earlier epochs: the sum of
+   `EpochFunded(epoch < n)` logs. Unspent budget rolls over. Run epochs in order.
+8. **Split.** 60 % of the emission to workers and 40 % to creators, each pro rata by fee USD. Arbitrators get nothing.
+   - An account that was both worker and creator gets one leaf with both parts.
+   - Each part is rounded down, and zero leaves are dropped.
+   - `total` is the sum of the leaves, so it can sit a few wei under the emission.
+
+## Leaves
+
+The leaves form an OpenZeppelin `StandardMerkleTree` with encoding `['uint256','address','uint256']` =
+`(epoch, account, amount)`. Each leaf is `keccak256(bytes.concat(keccak256(abi.encode(epoch, account, amount))))`,
+which is `EpochDistributor.leaf`.
+
+`tree.ts` implements the library's format (`standard-v1`) without the dependency. Its dumps, proofs and roots are
+byte-identical to `@openzeppelin/merkle-tree` 1.0.8, and `mining.test.ts` pins roots the library computed. Load a dump
+with `StandardMerkleTree.load(epoch.tree)`.
+
+## The price list (EIP-712)
+
+A current Safe owner signs it. The tool recovers the signer and refuses unless it is in `Safe.getOwners()` (read
+live) and the list is for this chain, distributor and epoch. Every listed token's `decimals` must match the token on
+chain. Only EOA signatures (ECDSA) are accepted.
+
+```ts
+domain = {
+  name: 'Hireling Mining Prices',
+  version: '1',
+  chainId,                              // 10143 testnet, 143 mainnet
+  verifyingContract: <EpochDistributor>, // deployment.hireling.distributor
+}
+primaryType = 'PriceList'
+types = {
+  PriceList: [
+    { name: 'epoch', type: 'uint256' },
+    { name: 'tokens', type: 'TokenPrice[]' },
+    { name: 'factoryUsdPrice', type: 'uint256' }, // USD per whole FACTORY, 18 decimals; below 1e14 counts as 1e14
+  ],
+  TokenPrice: [
+    { name: 'token', type: 'address' },
+    { name: 'decimals', type: 'uint8' },      // the token's own decimals
+    { name: 'usdPrice', type: 'uint256' },    // USD per whole token, 18 decimals (USDC at $1 = 1e18)
+  ],
+}
+```
+
+The file `--prices` takes holds the integers as decimal strings:
+
+```json
+{
+  "message": {
+    "epoch": "0",
+    "tokens": [{ "token": "0x7547…b603", "decimals": 6, "usdPrice": "1000000000000000000" }],
+    "factoryUsdPrice": "100000000000000"
+  },
+  "signer": "0x…",
+  "signature": "0x…"
+}
+```
+
+`signer` is optional; when present it must match the recovered address. `domain` may be included for reference, but
+the tool rebuilds the domain itself.
+
+**Signing on the command line** uses a Foundry keystore, as on mainnet. It builds the typed data, signs it with
+`cast wallet sign --data --from-file`, checks the recovered address, and writes the signed file:
+
+```
+bun scripts/mining/sign-prices.ts <unsigned.json> --network monad-testnet --out <signed.json> \
+  --account <keystore name> --password-file <0600 file>    # or --keystore <path>
+```
+
+`<unsigned.json>` is the `message` above, on its own. The helper also reads `--config` and refuses `--private-key`
+unless the network is testnet.
+
+## Output: `<out>/epoch-<n>.json`
+
+```
+{ chainId, epoch, window: { start, end, fromBlock, toBlock },
+  priceList: { message, signer, signature },
+  budget, feeUsd, factoryUsdPrice, demand, emission, total, root, dataHash,
+  inputs, tree, claims: { <account>: { amount, proof } },
+  calls: { fund: { to, data }, setRoot: { to, data } } }
+```
+
+Integers are decimal strings, and addresses are lowercase.
+
+- **`inputs`** is the canonical record: `{ chainId, epoch, window, holdings, priceList, budget, fees }`.
+  - `holdings` is sorted.
+  - `fees` lists every `FeeCharged` in the window in chain order, with its position (block, logIndex, tx, holding),
+    fields, `status` (`counted`, `unpriced` or `owed-to-treasury`) and `usd`.
+- **`dataHash`** = `keccak256(utf8(JSON.stringify(inputs)))`, over `inputs` exactly as written. Parse the file,
+  stringify `inputs`, and hash it to check.
+- **`tree`** is `StandardMerkleTree.dump()`, and **`claims`** carries each account's amount and proof for
+  `EpochDistributor.claim(epoch, account, amount, proof)`.
+- **`calls`** are for the Safe, in this order:
+  1. `MiningReserve.fund(n, total)`;
+  2. `EpochDistributor.setRoot(n, root, total, dataHash)`.
+
+  Send each as an `execTransaction`, from `/admin` or with `cast send … --account …` (keystores are mandatory on
+  mainnet). With no counted fees there is no tree and no calls.
