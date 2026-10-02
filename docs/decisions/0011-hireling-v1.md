@@ -1,7 +1,8 @@
 # ADR-0011: Hireling v1 contracts
 
-Date: 2026-10-02. Status: **implemented, unit-tested, fork-rehearsed on Monad testnet and mainnet, and audited (C1–C9,
-findings and resolutions in "C9 audit" below); not deployed** (`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
+Date: 2026-10-02. Status: **implemented, unit-tested and fork-rehearsed on Monad testnet and mainnet (C1–C8); C9 audit
+in progress — sign-off pending C9-007** (findings and resolutions in "C9 audit" below); not deployed
+(`~/code/agent-jobs.wt/briefs/plan.md`). Decided in myplan note 17 (`doc_eea3BzAG1fugdaPf`, rev 8) and the
 v1 build plan. Supersedes the contest parts of ADR-0004 and ADR-0007 for new jobs; the legacy pairs keep them.
 
 ## Context
@@ -197,6 +198,7 @@ severities follow the skill's definitions; reviewer findings keep the reviewer's
 | C9-002: a token that moves the balance then returns `false` (or short data) was paid and also owed | Medium | Fixed 1c54e12: the push runs in its own only-self frame (`pushPayment`) that reverts on failure; `owed` only after the rollback |
 | C9-003, GEN-1, ERC20-2, DOS-3: a pending milestone claim plus a deferred refund locked the job for good | Medium | Fixed 41cb743: permissionless `retryDeferred`, which only finishes the recorded outcome; `topUp` refuses a decided job (1c54e12) |
 | ACL-2, GEN-2, DOS-5: deadlines kept running through a core pause (delivery burn, arbitration timeout) | Medium | Fixed 41cb743: a pause defers the core call instead of blocking the decision; `notePause` records the pause and a delivery deadline inside it refunds without the burn |
+| C9-007: only the latest pause was remembered, so a later pause erased an unresolved job's exemption | Medium | Fixed: an append-only pause history searched by binary search, used identically by the timeout and `workerPenaltyDue` |
 | ACL-1, GEN-3, STAKE-2: the 8-day Holding delay did not protect stake still bonded when a new Holding went live, nor mining rewards claimed for an account | Medium | Fixed a108863: `setHoldingDenied`, the account's veto, checked by `reserve` |
 | STAKE-1: core pause froze bonds; a core upgrade could misreport job state and burn a bond | Medium | Pause: fixed 41cb743 (decisions and bonds proceed during a pause). Upgrade: an accepted Safe power, now disclosed in Admin, with the recommendation to timelock it |
 | DOS-2, GEN-6: the feedback `catch` copied unbounded revert data (Monad's linear memory makes a returndata bomb cheap) | Medium | Fixed 41cb743: at most 32 bytes |
@@ -208,6 +210,7 @@ severities follow the skill's definitions; reviewer findings keep the reviewer's
 | ACL-4, STAKE-3: proposals never expired; revoke left a re-acceptable proposal | Low | Fixed a108863: 7-day windows; revoke and bootstrap clear proposals |
 | ACL-6, SIG-3, GEN-9: the fresh core's roles went to a Safe address without checking it exists | Low | Fixed 99f7c32: `check` requires code at the Safe; promotion too |
 | MATH-1: the fee rounded down, so tiny rewards in 0–2-decimal tokens paid none | Low | Fixed 1c54e12: rounds up, capped so `net ≥ 1` |
+| C9-006: rounding up departs from the brief's worker-favour rounding (at most one raw unit per component) | Low | Accepted by coordinator decision D11: the fee and the bonus fee round **up** and the fee is clamped to `reward − 1`, so a fee-paying job always pays a fee and `net` is never 0 |
 | MATH-5, STAKE-4, GEN-11: a root total above its leaf sum locked funds forever | Low | Fixed a108863: `resizeRoot`. Duplicate leaves per account: the tree builder aggregates |
 | SIG-1, GEN-8: an older evidence attestation could replace a newer one | Low | Fixed 41cb743: `StaleEvidence` |
 | SIG-2: an arbitrator could not revoke a signed ruling | Low | Fixed 41cb743: `cancelRuling` |
@@ -216,7 +219,7 @@ severities follow the skill's definitions; reviewer findings keep the reviewer's
 | ERC20-4: the core-to-Holding refund leg is not measured, so a token that starts charging or rebases down draws from other listings in the same token | Low | Accepted: isolation is per token (ADR-0010); such tokens are unsupported for full value |
 | ACL-8: the launch Safe is 1-of-2 | Low | Governance recommendation (Admin); the mainnet Safe is set at R2 |
 | MATH-2, DOS-6: the 10k slack assumed Ethereum's cold-access price | Info | Fixed: push frame +25k (1c54e12), feedback reserve +40k (41cb743) |
-| MATH-3, SIG-6: `validUntil` truncated to 48 bits | Info | Fixed 41cb743: clamped |
+| MATH-3, SIG-6, C9-005: `validUntil` truncated to 48 bits; then clamped, which left storage and event apart | Low | Fixed: an expiry above `uint48` is refused (`SafeCast`), so storage and event agree |
 | MATH-4: `budget` overstated what `fund` allows past the cap | Info | Fixed a108863 |
 | MATH-6, ACL-9 (config): recipe casts wrapped silently | Info | Fixed 99f7c32: `SafeCast` and bounds |
 | STAKE-8, GEN-12: `stakeWithPermit` NatSpec promised relaying | Info | Fixed a108863 |

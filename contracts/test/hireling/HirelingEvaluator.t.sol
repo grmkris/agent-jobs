@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
 import {IHirelingHolding} from "../../src/hireling/interfaces/IHirelingHolding.sol";
 import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
@@ -297,7 +298,9 @@ contract HirelingEvaluatorTest is BaseV1 {
         core.pause();
         vm.prank(stranger);
         evaluator.notePause();
-        assertEq(evaluator.pausedSince(), d - 1 hours);
+        assertEq(evaluator.pauseCount(), 1);
+        assertEq(evaluator.pauseAt(0).start, d - 1 hours);
+        assertEq(evaluator.pauseAt(0).end, 0);
         vm.warp(d + 1 hours);
         vm.expectRevert(IHirelingEvaluator.CorePaused.selector);
         evaluator.rejectAfterDeliveryDeadline(jobId);
@@ -306,8 +309,7 @@ contract HirelingEvaluatorTest is BaseV1 {
         vm.prank(deployer);
         core.unpause();
         evaluator.notePause();
-        assertEq(evaluator.lastPauseStart(), d - 1 hours);
-        assertEq(evaluator.lastPauseEnd(), d + 1 hours);
+        assertEq(evaluator.pauseAt(0).end, d + 1 hours);
         assertFalse(evaluator.workerPenaltyDue(jobId), "excused");
         uint256 calls = reputation.calls();
         evaluator.rejectAfterDeliveryDeadline(jobId);
@@ -318,6 +320,83 @@ contract HirelingEvaluatorTest is BaseV1 {
         uint256 before = pay.balanceOf(creator);
         holding.settle(jobId);
         assertEq(pay.balanceOf(creator) - before, REWARD, "the creator is still refunded");
+    }
+
+    function _pause(uint256 from, uint256 to) internal {
+        vm.warp(from);
+        vm.prank(deployer);
+        core.pause();
+        evaluator.notePause();
+        vm.warp(to);
+        vm.prank(deployer);
+        core.unpause();
+        evaluator.notePause();
+    }
+
+    /// @dev C9-007: P1 covers the deadline, P2 comes later; P2 must not erase P1's exemption, for the timeout or for
+    ///      settle after the core's expiry.
+    function test_pause_laterPauseKeepsAnEarlierExemption_timeout() public {
+        uint256 jobId = fundedJob();
+        uint48 d = listing(jobId).deliveryDeadline;
+        _pause(d - 1 hours, d + 1 hours);
+        _pause(d + 2 hours, d + 3 hours);
+        vm.warp(d + 3 hours + 1);
+        assertEq(evaluator.pauseCount(), 2);
+        assertFalse(evaluator.workerPenaltyDue(jobId));
+        uint256 calls = reputation.calls();
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(uint8(evaluator.slashed(jobId)), uint8(IHirelingEvaluator.SlashedSide.None));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        assertEq(reputation.calls(), calls, "no negative feedback");
+    }
+
+    function test_pause_laterPauseKeepsAnEarlierExemption_settleAfterExpiry() public {
+        uint256 jobId = fundedJob();
+        uint48 d = listing(jobId).deliveryDeadline;
+        _pause(d - 1 hours, d + 1 hours);
+        _pause(d + 2 hours, d + 3 hours);
+        vm.warp(core.getJob(jobId).expiredAt + 1 hours);
+        core.claimRefund(jobId);
+        assertFalse(evaluator.workerPenaltyDue(jobId));
+        holding.settle(jobId);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE, "released, not burned");
+        assertEq(vault.reservedOf(worker), 0);
+    }
+
+    /// @dev Several intervals and the boundaries: a deadline at a pause's start or end is inside it, and each job is
+    ///      judged against its own interval however many pauses follow.
+    function test_pause_history_boundaries() public {
+        uint256 jobA = fundedJob();
+        uint48 dA = listing(jobA).deliveryDeadline;
+        vm.warp(vm.getBlockTimestamp() + 12 hours);
+        uint256 jobB = fundedJob();
+        uint48 dB = listing(jobB).deliveryDeadline; // dA + 12 hours
+        _pause(dA - 10 hours, dA - 9 hours); // before both
+        _pause(dA, dA + 1 hours); // starts exactly at dA
+        _pause(dB - 1 hours, dB); // ends exactly at dB
+        _pause(dB + 5 hours, dB + 6 hours); // after both
+        assertEq(evaluator.pauseCount(), 4);
+        vm.warp(dB + 7 hours);
+        assertFalse(evaluator.workerPenaltyDue(jobA), "deadline at a pause's start");
+        assertFalse(evaluator.workerPenaltyDue(jobB), "deadline at a pause's end");
+        evaluator.rejectAfterDeliveryDeadline(jobA);
+        evaluator.rejectAfterDeliveryDeadline(jobB);
+        assertEq(uint8(evaluator.slashed(jobA)), uint8(IHirelingEvaluator.SlashedSide.None));
+        assertEq(uint8(evaluator.slashed(jobB)), uint8(IHirelingEvaluator.SlashedSide.None));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+    }
+
+    function test_pause_deadlineOutsideEveryIntervalStillBurns() public {
+        uint256 jobId = fundedJob();
+        uint48 d = listing(jobId).deliveryDeadline;
+        _pause(d - 5 hours, d - 4 hours);
+        _pause(d - 3 hours, d - 1);
+        _pause(d + 1, d + 2 hours);
+        vm.warp(d + 2 hours + 1);
+        assertTrue(evaluator.workerPenaltyDue(jobId));
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(uint8(evaluator.slashed(jobId)), uint8(IHirelingEvaluator.SlashedSide.Worker));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
     }
 
     function test_pause_endedBeforeTheDeadlineExcusesNothing() public {
@@ -749,8 +828,8 @@ contract HirelingEvaluatorTest is BaseV1 {
     // Evidence and feedback
     // ------------------------------------------------------------------------------------------
 
-    /// @dev C9 SIG-1 / MATH-3: an older statement (sooner expiry) cannot replace the stored one; the stored expiry is
-    ///      clamped, not truncated.
+    /// @dev C9 SIG-1 / MATH-3 / C9-005: an older statement (sooner expiry) cannot replace the stored one; an expiry
+    ///      storage cannot hold is refused, so storage and the event agree.
     function test_evidence_olderStatementCannotReplaceANewerOne() public {
         uint256 jobId = submittedJob();
         IHirelingEvaluator.EvidenceAttestation memory a = IHirelingEvaluator.EvidenceAttestation({
@@ -773,9 +852,21 @@ contract HirelingEvaluatorTest is BaseV1 {
         evaluator.attachEvidenceDirect(jobId, a);
         a.validUntil = type(uint256).max;
         vm.prank(attester);
+        vm.expectRevert(abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, 48, type(uint256).max));
+        evaluator.attachEvidenceDirect(jobId, a);
+        a.validUntil = uint256(type(uint48).max) + 1;
+        vm.prank(attester);
+        vm.expectRevert(
+            abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, 48, uint256(type(uint48).max) + 1)
+        );
+        evaluator.attachEvidenceDirect(jobId, a);
+        a.validUntil = type(uint48).max;
+        vm.expectEmit(true, true, false, false, address(evaluator));
+        emit IHirelingEvaluator.EvidenceAttached(jobId, attester, 0, 0, 0, 0, 0, 0);
+        vm.prank(attester);
         evaluator.attachEvidenceDirect(jobId, a);
         (,,,,, uint48 validUntil, uint8 conclusion) = evaluator.evidence(jobId, attester);
-        assertEq(validUntil, type(uint48).max);
+        assertEq(validUntil, type(uint48).max, "storage = event");
         assertEq(conclusion, 2);
     }
 

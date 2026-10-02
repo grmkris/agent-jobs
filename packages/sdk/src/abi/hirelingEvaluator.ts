@@ -510,32 +510,6 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "function",
-    "name": "lastPauseEnd",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "lastPauseStart",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "notePause",
     "inputs": [],
     "outputs": [],
@@ -575,13 +549,44 @@ export const hirelingEvaluatorAbi = [
   },
   {
     "type": "function",
-    "name": "pausedSince",
+    "name": "pauseAt",
+    "inputs": [
+      {
+        "name": "i",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IHirelingEvaluator.PauseInterval",
+        "components": [
+          {
+            "name": "start",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "end",
+            "type": "uint48",
+            "internalType": "uint48"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pauseCount",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -1617,6 +1622,22 @@ export const hirelingEvaluatorAbi = [
     "type": "error",
     "name": "RulingNonceUsed",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeCastOverflowedUintDowncast",
+    "inputs": [
+      {
+        "name": "bits",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

@@ -5,6 +5,7 @@ import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Signatures} from "../Signatures.sol";
 import {ERC8183} from "../vendor/erc8183/ERC8183.sol";
 import {IERC8004Reputation} from "../vendor/erc8004/IERC8004.sol";
@@ -43,10 +44,9 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
     mapping(uint256 jobId => mapping(address verifier => Evidence)) public evidence;
     mapping(address verifier => bool) public verifiers;
     mapping(address verifier => mapping(bytes32 digest => bool)) public usedDigest;
-    /// @notice The core pause as observed here (`notePause`); a delivery deadline inside it is never slashed (C9 ACL-2).
-    uint48 public pausedSince;
-    uint48 public lastPauseStart;
-    uint48 public lastPauseEnd;
+    /// @dev Every core pause observed here (`notePause`), oldest first, never overwritten (C9-007): a delivery deadline
+    ///      inside any of them is never slashed (C9 ACL-2). `end == 0` while the pause is open.
+    PauseInterval[] internal _pauses;
 
     constructor(ERC8183 core_, IHirelingHolding holding_, IERC8004Reputation reputation_)
         EIP712("AgentJobsEvaluator", "1")
@@ -249,9 +249,17 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
     }
 
     /// @notice Records the core's pause state: anyone, any time (the Safe batches it with `pause`/`unpause`; a worker
-    ///         whose `submit` hits the pause calls it). Only the latest pause is kept.
+    ///         whose `submit` hits the pause calls it). Each pause is appended and kept.
     function notePause() external {
         _notePause();
+    }
+
+    function pauseCount() external view returns (uint256) {
+        return _pauses.length;
+    }
+
+    function pauseAt(uint256 i) external view returns (PauseInterval memory) {
+        return _pauses[i];
     }
 
     /// @notice An arbitrator burns one of its own ruling nonces, revoking a signed ruling not yet relayed (C9 SIG-2).
@@ -429,22 +437,32 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
 
     function _notePause() private {
         bool paused = core.paused();
-        uint48 since = pausedSince;
-        if (paused && since == 0) {
-            pausedSince = uint48(block.timestamp);
+        uint256 n = _pauses.length;
+        bool open = n != 0 && _pauses[n - 1].end == 0;
+        if (paused && !open) {
+            _pauses.push(PauseInterval(uint48(block.timestamp), 0));
             emit CorePauseNoted(block.timestamp);
-        } else if (!paused && since != 0) {
-            (lastPauseStart, lastPauseEnd, pausedSince) = (since, uint48(block.timestamp), 0);
-            emit CorePauseEnded(since, block.timestamp);
+        } else if (!paused && open) {
+            PauseInterval storage p = _pauses[n - 1];
+            p.end = uint48(block.timestamp);
+            emit CorePauseEnded(p.start, block.timestamp);
         }
     }
 
-    /// @dev Whether `deadline` fell inside the observed core pause (an unobserved end counts as still paused).
+    /// @dev Whether `deadline` fell inside any observed core pause (an unobserved end counts as still paused). The
+    ///      intervals are appended in time order and never overlap, so the last one starting at or before `deadline`
+    ///      decides; binary search keeps the lookup logarithmic.
     function _excusedByPause(uint256 deadline) private view returns (bool) {
-        uint256 since = pausedSince;
-        if (since != 0 && since <= deadline) return true;
-        uint256 start = lastPauseStart;
-        return start != 0 && start <= deadline && deadline <= lastPauseEnd;
+        uint256 lo;
+        uint256 hi = _pauses.length;
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            if (_pauses[mid].start <= deadline) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo == 0) return false;
+        PauseInterval memory p = _pauses[lo - 1];
+        return p.end == 0 || deadline <= p.end;
     }
 
     function _rejectionTag(Violation v) private pure returns (string memory) {
@@ -479,9 +497,9 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         if (block.timestamp > a.validUntil) revert EvidenceExpired();
         // Same verifier, same statement: acknowledged once, never a second endorsement (R16-06).
         if (usedDigest[verifier][digest]) return;
-        // Stored expiry, clamped instead of truncated (C9 MATH-3); a statement that expires sooner than the stored one
-        // is older and cannot replace it (C9 SIG-1). Every attachment is still in the events.
-        uint48 validUntil = uint48(Math.min(a.validUntil, type(uint48).max));
+        // An expiry storage cannot hold is refused, so storage and the event always agree (C9 MATH-3, C9-005); a
+        // statement that expires sooner than the stored one is older and cannot replace it (C9 SIG-1).
+        uint48 validUntil = SafeCast.toUint48(a.validUntil);
         if (validUntil < evidence[jobId][verifier].validUntil) revert StaleEvidence();
         usedDigest[verifier][digest] = true;
         evidence[jobId][verifier] = Evidence({

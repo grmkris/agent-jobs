@@ -100,6 +100,12 @@ interface IHirelingEvaluator {
         uint8 conclusion;
     }
 
+    /// @notice One observed core pause; `end` is zero while it is open.
+    struct PauseInterval {
+        uint48 start;
+        uint48 end;
+    }
+
     /// @notice A job's dispute state in one read.
     struct Case {
         uint48 rejectedAt;
@@ -319,7 +325,7 @@ interface IHirelingEvaluator {
     /// @notice The gas cap (and, on Monad, cost cap) of the ERC-8004 feedback call.
     function FEEDBACK_GAS() external view returns (uint256);
     function CORE_GAS() external view returns (uint256);
-    function pausedSince() external view returns (uint48);
-    function lastPauseStart() external view returns (uint48);
-    function lastPauseEnd() external view returns (uint48);
+    /// @notice The observed core pauses, oldest first; none is ever removed.
+    function pauseCount() external view returns (uint256);
+    function pauseAt(uint256 i) external view returns (PauseInterval memory);
 }
