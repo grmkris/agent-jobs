@@ -1,16 +1,17 @@
 /**
  * The app's frame. On a phone: a translucent top bar (brand and account) and a tab bar at the bottom (Jobs, Post,
- * Agents, Me), both clear of the notch and the home indicator. On a wide screen: a sidebar with the same places,
+ * Collect, Agents, Me), both clear of the notch and the home indicator. On a wide screen: a sidebar with the same places,
  * the secondary ones (quotes, boards), the network and the account. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BriefcaseBusiness, CircleUserRound, type LucideIcon, MessagesSquare, PlusCircle, SquareStack } from 'lucide-react'
+import { Bot, BriefcaseBusiness, CircleUserRound, HandCoins, type LucideIcon, MessagesSquare, PlusCircle, SquareStack } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { isMainnet, usePaused } from '../wallet.ts'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
 import { NetworkSwitch } from './NetworkSwitch.tsx'
 import { cn } from './ui.tsx'
+import { useCollectActions } from '../collect.ts'
 import { AccountControl, useAuth, useAutoSignIn } from './Wallet.tsx'
 
 interface Place {
@@ -29,6 +30,7 @@ function places(): { main: Place[]; more: Place[] } {
     main: [
       { label: 'Jobs', icon: BriefcaseBusiness, target: r.jobs(), active: (p) => p === (base || '/') || p === `${base}/` || under('/job/')(p) },
       { label: 'Post', icon: PlusCircle, target: r.publish(), active: under('/publish') },
+      { label: 'Collect', icon: HandCoins, target: { to: '/collect' }, active: (p) => p.startsWith('/collect') },
       { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: (p) => p.startsWith('/agents') || p.startsWith('/agent/') || under('/agent/')(p) || p.startsWith('/connect') },
       { label: 'Me', icon: CircleUserRound, target: { to: '/me' }, active: (p) => p.startsWith('/me') },
     ],
@@ -78,6 +80,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const paused = usePaused()
   const { pathname } = useLocation()
   const { main, more } = places()
+  // How many things the wallet can collect: a count on the Collect tab, nothing when unknown.
+  const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
+  const badge = (label: string) => (label === 'Collect' && collect > 0 ? collect : null)
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-1 overflow-y-auto border-r border-sep bg-side px-3 pt-5 pb-4 lg:flex" aria-label="Sections">
@@ -86,7 +91,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <nav className="grid gap-0.5">
           {main.map((p) => (
-            <SideItem key={p.label} place={p} on={p.active(pathname)} />
+            <SideItem key={p.label} place={p} on={p.active(pathname)} count={badge(p.label)} />
           ))}
         </nav>
         <nav className="mt-4 grid gap-0.5" aria-label="More">
@@ -128,14 +133,15 @@ export function Shell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <nav aria-label="Sections" className="material fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t-[0.5px] border-sep pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden">
+      <nav aria-label="Sections" className="material fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t-[0.5px] border-sep pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden">
         {main.map((p) => {
           const on = p.active(pathname)
           const Icon = p.icon
           return (
-            <BoardLink key={p.label} target={p.target} className={cn('grid justify-items-center gap-0.5 py-1 text-[0.66rem] font-medium active:opacity-60', on ? 'text-tint' : 'text-label-3')}>
+            <BoardLink key={p.label} target={p.target} className={cn('relative grid justify-items-center gap-0.5 py-1 text-[0.66rem] font-medium active:opacity-60', on ? 'text-tint' : 'text-label-3')}>
               <Icon aria-hidden className="size-6" strokeWidth={on ? 2.2 : 1.8} />
               {p.label}
+              {badge(p.label) !== null && <Count n={badge(p.label) as number} className="absolute top-0 left-[calc(50%+0.5rem)]" />}
             </BoardLink>
           )
         })}
@@ -144,7 +150,16 @@ export function Shell({ children }: { children: ReactNode }) {
   )
 }
 
-function SideItem({ place, on, quiet = false }: { place: Place; on: boolean; quiet?: boolean }) {
+/** A small count, as on an app icon: the actions waiting in Collect. */
+function Count({ n, className }: { n: number; className?: string }) {
+  return (
+    <span aria-label={`${n} to collect`} className={cn('tabular grid h-[1.1rem] min-w-[1.1rem] place-items-center rounded-full bg-bad px-1 text-[0.66rem] leading-none font-semibold text-white', className)}>
+      {n > 99 ? '99+' : n}
+    </span>
+  )
+}
+
+function SideItem({ place, on, quiet = false, count = null }: { place: Place; on: boolean; quiet?: boolean; count?: number | null }) {
   const Icon = place.icon
   return (
     <BoardLink
@@ -156,7 +171,8 @@ function SideItem({ place, on, quiet = false }: { place: Place; on: boolean; qui
       )}
     >
       <Icon aria-hidden className={cn('size-5', quiet ? 'text-label-3' : 'text-tint')} />
-      {place.label}
+      <span className="flex-1">{place.label}</span>
+      {count !== null && <Count n={count} />}
     </BoardLink>
   )
 }

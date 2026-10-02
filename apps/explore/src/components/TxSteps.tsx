@@ -86,7 +86,7 @@ const LABEL: Record<Status['at'], string> = {
  * where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in plain words; a failed
  * report is retried without sending again; and a reload picks up a sent transaction instead of offering to resend.
  */
-export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange, reportToBoard = true }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void; reportToBoard?: boolean }) {
+export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange, reportToBoard = true, autoStart = false }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void; reportToBoard?: boolean; autoStart?: boolean }) {
   const { chainId, address } = useAccount()
   const batch = usePrivyBatch(address)
   const { switchChainAsync } = useSwitchChain()
@@ -260,6 +260,11 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
 
   const next = status.findIndex((s) => s.at !== 'recorded')
   const current = status[next]
+  // `autoStart`: the tap that showed these steps was the decision, so the wallet opens at once for a fresh operation
+  // (never for one restored from a reload, which reconciles instead).
+  useEffect(() => {
+    if (autoStart && chainId === chain.id && !started && load(key) === null) void run(0)
+  }, [])
   const busy = current !== undefined && (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
   const safeToRestart = record.pending === null && status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
