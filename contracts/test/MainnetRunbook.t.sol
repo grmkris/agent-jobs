@@ -77,16 +77,65 @@ contract MainnetRunbookTest is Test {
     }
 
     function test_mainnetSignsFromKeystores() public view {
-        string[5] memory needles = [
+        string[11] memory needles = [
             "cast wallet import hireling-deployer --interactive",
             "--account hireling-deployer --password-file ~/.config/hireling/deployer.password",
             "--account hireling-safe-owner",
             "--account hireling-liquidity",
-            "--password-file ~/.config/hireling/safe-owner.password"
+            "--password-file ~/.config/hireling/safe-owner.password",
+            // KEYSTORE-SEC-002: an existing directory or file is tightened, and every signer is checked first.
+            "chmod 700 ~/.config/hireling",
+            "rm -f ~/.config/hireling/deployer.password",
+            "chmod 600 ~/.config/hireling/deployer.password",
+            "pwcheck ~/.config/hireling/deployer.password && bash -c",
+            "pwcheck ~/.config/hireling/safe-owner.password && \\",
+            "pwcheck ~/.config/hireling/liquidity.password && \\"
         ];
         for (uint256 i; i < needles.length; ++i) {
             assertTrue(vm.contains(doc, needles[i]), string.concat("runbook lacks ", needles[i]));
         }
+    }
+
+    /// KEYSTORE-SEC-001: no mainnet command anywhere it is documented passes a raw key; testnet examples may.
+    function test_noMainnetRawKeyExamples() public view {
+        string memory root = vm.projectRoot();
+        string[5] memory paths = [
+            string.concat(root, "/SURFACE.md"),
+            string.concat(root, "/script/SeedPool.s.sol"),
+            string.concat(root, "/script/DeployHireling.s.sol"),
+            string.concat(root, "/script/SafeAccept.s.sol"),
+            string.concat(root, "/../docs/mainnet-runbook.md")
+        ];
+        for (uint256 i; i < paths.length; ++i) {
+            _noMainnetRawKey(paths[i]);
+        }
+    }
+
+    /// A line passing a raw key (`--private-key $…`, `"…"` or `…`) may not be, or follow, a mainnet or any-network line.
+    function _noMainnetRawKey(string memory path) internal view {
+        bytes memory text = bytes(vm.readFile(path));
+        string memory prev = "";
+        uint256 start;
+        for (uint256 i; i <= text.length; ++i) {
+            if (i < text.length && text[i] != "\n") continue;
+            bytes memory raw = new bytes(i - start);
+            for (uint256 j; j < raw.length; ++j) {
+                raw[j] = text[start + j];
+            }
+            string memory line = string(raw);
+            bool rawKey = vm.contains(line, "--private-key $") || vm.contains(line, "--private-key \"")
+                || vm.contains(line, unicode"--private-key …");
+            assertFalse(
+                rawKey && (_anyNetwork(line) || _anyNetwork(prev)),
+                string.concat(path, ": a mainnet raw-key command: ", line)
+            );
+            prev = line;
+            start = i + 1;
+        }
+    }
+
+    function _anyNetwork(string memory line) internal pure returns (bool) {
+        return vm.contains(line, "monad-mainnet") || vm.contains(line, "MAINNET_GO") || vm.contains(line, "<network>");
     }
 
     function test_namedScriptsExist() public view {

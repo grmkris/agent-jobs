@@ -89,10 +89,24 @@ you own with mode 600. Import each one once, on the box that sends: the deployer
 as `hireling-safe-owner`, the liquidity holder as `hireling-liquidity`.
 
 ```
-mkdir -m 700 -p ~/.config/hireling
+mkdir -p ~/.config/hireling && chmod 700 ~/.config/hireling   # also tightens a directory that already exists
 cast wallet import hireling-deployer --interactive   # prompts for the key and a password; nothing reaches the shell
+rm -f ~/.config/hireling/deployer.password   # an existing file would keep its old mode when overwritten
 (umask 077; read -rsp 'keystore password: ' p; printf '%s' "$p" >~/.config/hireling/deployer.password; unset p; echo)
+chmod 600 ~/.config/hireling/deployer.password
 cast wallet address --account hireling-deployer --password-file ~/.config/hireling/deployer.password   # roles.admin
+```
+
+Before every command that signs, check the password file the way `launch-testnet.sh` does. The directory must be yours
+with mode 700, the file yours with mode 600 (or 400), and neither a symlink. Define this once per shell; each signing
+command below starts with it:
+
+```
+pwcheck() {
+  local d=~/.config/hireling
+  [[ -d $d && ! -L $d && -O $d && $(stat -c %a "$d") == 700 && -f $1 && ! -L $1 && -O $1 && $(stat -c %a "$1") =~ ^[46]00$ ]] \
+    || { echo "refusing: $1 or $d is not yours with mode 600/700" >&2; return 1; }
+}
 ```
 
 The keystore is `~/.foundry/keystores/hireling-deployer`. Delete any other copy of the raw key. The relay and attester
@@ -129,7 +143,7 @@ cast call <safe> "getOwners()(address[])"; cast call <safe> "getThreshold()(uint
 From `contracts/`. First run it without `--broadcast` as a dry run, then send:
 
 ```
-bash -c 'set -a; . ../.env.local; set +a; \
+pwcheck ~/.config/hireling/deployer.password && bash -c 'set -a; . ../.env.local; set +a; \
   NETWORK=monad-mainnet MAINNET_GO=yes forge script script/DeployHireling.s.sol \
   --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-deployer --password-file ~/.config/hireling/deployer.password \
   --broadcast --slow \
@@ -173,6 +187,7 @@ relay (§2) and run it again.
 With a threshold-1 Safe, sent by one owner, from `contracts/`:
 
 ```
+pwcheck ~/.config/hireling/safe-owner.password && \
 bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SafeAccept.s.sol \
   --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-safe-owner \
   --password-file ~/.config/hireling/safe-owner.password --broadcast --slow'
@@ -201,6 +216,7 @@ the artifact's public RPC (chain 143 only), and refuses on any failed read. It r
 From `contracts/`, sent by the liquidity holder:
 
 ```
+pwcheck ~/.config/hireling/liquidity.password && \
 bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol \
   --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-liquidity \
   --password-file ~/.config/hireling/liquidity.password --broadcast --slow'
@@ -267,11 +283,15 @@ Registry the first time. Record every hash in `docs/reality-check.md` under "v1 
 ## 4. Mining epochs
 
 Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch ends:
-1. `pnpm mining:epoch <n>` (the backend's B8 tool) produces the root, total and data hash.
+1. Compute the epoch with B8 (`scripts/mining/README.md`). A Safe owner signs the epoch's price list (USD per priced
+   token, the FACTORY reference price): `bun scripts/mining/sign-prices.ts <list> --network monad-mainnet --out
+   <signed> --account hireling-safe-owner --password-file …`. Then run `pnpm mining:epoch <n> --network monad-mainnet
+   --prices <signed> --out <dir>`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
+   Safe's two calls.
 2. The Safe sends `MiningReserve.fund(n, total)` and `EpochDistributor.setRoot(n, root, total, dataHash)`. R7 sends them
-   as two `execTransaction`s; `/admin`'s mining panel builds them for Safe{Wallet}. From a terminal, send each
-   `execTransaction` with `cast send <safe> … --account hireling-safe-owner --password-file
-   ~/.config/hireling/safe-owner.password`, never `--private-key`.
+   as two `execTransaction`s; `/admin`'s mining panel builds them for Safe{Wallet}. From a terminal, run
+   `pwcheck ~/.config/hireling/safe-owner.password`, then send each `execTransaction` with `cast send <safe> …
+   --account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password`, never `--private-key`.
 3. Each claim stakes the reward into the vault for the claimant.
 
 `fund` works only for an ended epoch and only up to the cumulative schedule (500M in all). A root can be replaced until

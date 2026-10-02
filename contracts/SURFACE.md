@@ -186,12 +186,14 @@ Two steps, run by the coordinator only (review C8-001). Neither a dry run nor a 
 ```sh
 # 1. Broadcast. Writes only broadcast/hireling/<network>.candidate.json (gitignored), and only with --broadcast.
 #    Cut off part way? Re-run the same command with --resume.
-NETWORK=<network> forge script script/DeployHireling.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast --slow
+#    Testnet takes the raw key; mainnet signs from a keystore (--account hireling-deployer --password-file …, runbook §3.2).
+NETWORK=monad-testnet forge script script/DeployHireling.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast --slow
 # 2. Promote. Sends nothing. Verifies the candidate against live state and forge's receipts, then writes the record.
 NETWORK=<network> forge script script/PromoteHireling.s.sol --rpc-url …
 # 3. The Safe accepts the six handovers (C10), sent by one Safe owner (testnet: the backup owner), then reads back
 #    owner() == safe on all six. Re-running skips what the Safe already owns; --sig "check()" only reads back.
-NETWORK=<network> forge script script/SafeAccept.s.sol --rpc-url … --private-key $SAFE_BACKUP_TESTNET_PRIVATE_KEY --broadcast
+#    Mainnet: --account hireling-safe-owner --password-file … instead of the raw key (runbook §3.5).
+NETWORK=monad-testnet forge script script/SafeAccept.s.sol --rpc-url … --private-key $SAFE_BACKUP_TESTNET_PRIVATE_KEY --broadcast
 ```
 
 Step 3 sends one `execTransaction` per contract with a pre-validated signature (`r` = the owner, `s` = 0, `v` = 1),
@@ -286,7 +288,8 @@ seeder (the account holding the liquidity allocation and the USDC):
    and only once.
 
 Commands, with `MAINNET_GO=yes`:
-`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --private-key … --broadcast --slow`.
+`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --account hireling-liquidity
+--password-file ~/.config/hireling/liquidity.password --broadcast --slow` (a keystore, never a raw key; runbook §3.7).
 The dry run (without `--broadcast`) simulates the seed; a `Repaired` event in its trace shows what a repair would cost.
 
 **After the broadcast, check it** (review C12-001; the simulation's readback proves nothing):

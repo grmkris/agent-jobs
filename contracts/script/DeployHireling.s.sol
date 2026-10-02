@@ -17,7 +17,9 @@ import {HirelingOutput} from "./HirelingOutput.sol";
 ///
 ///         If the broadcast stops part way, finish it with the same command plus `--resume` (forge replays the saved
 ///         sequence; this function does not run again, so the candidate stays the one for that sequence). Mainnet
-///         (chain 143) additionally requires MAINNET_GO=yes, set only on Kris's explicit go.
+///         (chain 143) additionally requires MAINNET_GO=yes, set only on Kris's explicit go, and signs from a keystore,
+///         never a raw key: `--account hireling-deployer --password-file ~/.config/hireling/deployer.password`
+///         (docs/mainnet-runbook.md §2, §3.2).
 contract DeployHireling is Script {
     function run() external {
         string memory network = vm.envString("NETWORK");

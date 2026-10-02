@@ -11,7 +11,9 @@ import {SeedHelper} from "../src/hireling/SeedHelper.sol";
 ///         the repair cap of each, which come back unless a repair spends them):
 ///
 ///         NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url $MONAD_MAINNET_RPC_URL \
-///           --private-key $LIQUIDITY_PRIVATE_KEY --broadcast --slow
+///           --account hireling-liquidity --password-file ~/.config/hireling/liquidity.password --broadcast --slow
+///
+///         Mainnet signs from a keystore, never a raw key (docs/mainnet-runbook.md §2, §3.7).
 ///
 ///         Three transactions: deploy the `SeedHelper`, approve it both tokens, `seed()`. Without `--broadcast` it is
 ///         a dry run (the simulated `Repaired` event shows what a repair would cost). Then, the authoritative check:

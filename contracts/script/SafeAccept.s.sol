@@ -11,7 +11,9 @@ import {HirelingSafeAccept, ISafe} from "./HirelingSafeAccept.sol";
 ///           --private-key $SAFE_BACKUP_TESTNET_PRIVATE_KEY --broadcast
 ///
 ///         Without `--broadcast` it is a dry run. `--sig "check()"` only reads back the six owners. Chain 143 also
-///         needs MAINNET_GO=yes. Sends up to six transactions, from the owner, to the Safe.
+///         needs MAINNET_GO=yes and signs from a keystore, never a raw key: `--account hireling-safe-owner
+///         --password-file ~/.config/hireling/safe-owner.password` (docs/mainnet-runbook.md §3.5). Sends up to six
+///         transactions, from the owner, to the Safe.
 contract SafeAccept is Script {
     function run() external {
         string memory network = vm.envString("NETWORK");
