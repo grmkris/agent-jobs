@@ -7,6 +7,24 @@ expected while provider chain proofs, Privy approval, and freshly deployed contr
 Malformed input produces a generic diagnostic rather than echoing JSON. A synthetic passing fixture proves
 validation logic only; it is not live deployment proof or approval.
 
+The same script has three modes:
+
+- **No flag (structural).** Validates the artifact against `contracts/config/monad-mainnet.json`. It also checks
+  Explore's launch flag (PROD-GATE-006): the artifact's `explore.mainnetLive` must equal `MAINNET_LIVE` in
+  `apps/explore/src/release.ts` (that line is the only source). It must be false while `admission.drain` is true,
+  and true before the artifact may open admission.
+- **`--live`.** Additionally runs the D16 launch gate, read-only through the artifact's public RPC:
+  - the Safe has code;
+  - `owner()` is the Safe on all six v1 contracts;
+  - the core admin roles are held by the Safe and not by the deployer;
+  - the attester is a verifier;
+  - the relay holds more than `RELAY_FLOOR_MAINNET`.
+- **`--probe <origin>`.** After a deploy, compares `<origin>/release.json` with the artifact: network, `mainnetLive`,
+  and `writesOpen` equal to `mainnetLive`. A redirect, a non-OK response, or a body that is not JSON fails.
+
+A missing or empty `PROD_ADMISSION_DRAIN` means drained, and the artifact's admission mode must match the runtime
+value. The launch order is in [mainnet-runbook.md](mainnet-runbook.md) §3.8–3.10.
+
 The Alchemy stack calls `assertDeployConfig` before any resources are evaluated whenever either `prod` stage or
 `monad-mainnet` is selected. Both must be selected together, with `AGENT_JOBS_STAGE=prod`,
 `ALCHEMY_REMOTE_STATE=1`, and an explicit `AGENT_JOBS_PROD_ARTIFACT` JSON path. There is no production local-state
