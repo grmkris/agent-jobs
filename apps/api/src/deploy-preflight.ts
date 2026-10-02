@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { privateKeyToAccount } from 'viem/accounts'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
-import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, validateAdmissionMode, validateProdConfig, type ChainConfig, type LaunchReader, type ProdArtifact } from './prod-config.ts'
+import { MAINNET_LIVE } from '../../explore/src/release.ts'
+import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, validateAdmissionMode, validateExploreRelease, validateProdConfig, validateReleaseProbe, type ChainConfig, type LaunchReader, type ProdArtifact } from './prod-config.ts'
 
 /** JSON-RPC reads only (eth_getCode, eth_call, eth_getBalance at latest). Any transport, HTTP or RPC error throws. */
 export function rpcReader(url: string): LaunchReader {
@@ -42,7 +43,7 @@ export async function assertDeployConfig(stage: string): Promise<void> {
   }
   let failures: string[]
   try {
-    failures = [...validateProdConfig(mainnet, artifact), ...validateAdmissionMode(artifact, process.env.PROD_ADMISSION_DRAIN)]
+    failures = [...validateProdConfig(mainnet, artifact), ...validateAdmissionMode(artifact, process.env.PROD_ADMISSION_DRAIN), ...validateExploreRelease(artifact, MAINNET_LIVE)]
   } catch {
     throw new Error('production artifact has missing or invalid fields')
   }
@@ -72,4 +73,24 @@ export async function assertDeployConfig(stage: string): Promise<void> {
     throw new Error('production read-only RPC chain proof failed')
   }
   await assertLaunchGate(mainnet, process.env.PROD_ADMISSION_DRAIN, rpcReader(rpc), relayFloorWei(RELAY_FLOOR_MAINNET))
+}
+
+/** Post-deploy (PROD-GATE-006): GET `<origin>/release.json` and compare it to the artifact. A failed fetch or a body that
+ *  is not JSON fails; returns labels only. */
+export async function probeRelease(artifact: Pick<ProdArtifact, 'network' | 'explore'>, origin: string, fetcher: typeof fetch = fetch): Promise<string[]> {
+  let url: URL
+  try {
+    url = new URL('/release.json', origin)
+  } catch {
+    return ['release.json origin invalid']
+  }
+  let served: unknown
+  try {
+    const response = await fetcher(url, { headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) })
+    if (!response.ok) return ['release.json unreachable']
+    served = await response.json()
+  } catch {
+    return ['release.json unreachable']
+  }
+  return validateReleaseProbe(artifact, served)
 }

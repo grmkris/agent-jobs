@@ -43,6 +43,8 @@ export interface ProdArtifact {
   remoteState: boolean
   /** Reviewed intended hosted admission mode. A runtime mismatch refuses deployment. */
   admission: { drain: boolean }
+  /** Explore's launch flag, `MAINNET_LIVE` in `apps/explore/src/release.ts` (PROD-GATE-006): pinned and checked. */
+  explore: { mainnetLive: boolean }
   secretSources: Record<string, string>
   addresses: Record<string, string | null>
   deployment: {
@@ -197,6 +199,48 @@ export function admissionDrainBinding(drain: string | undefined): '0' | '1' {
 export function validateAdmissionMode(artifact: Pick<ProdArtifact, 'admission'>, drain: string | undefined): string[] {
   if (typeof artifact.admission?.drain !== 'boolean') return ['admission mode']
   return artifact.admission.drain === !opensAdmission(drain) ? [] : ['admission runtime mismatch']
+}
+
+// ---- PROD-GATE-006: Explore's launch flag, pinned ----
+
+/** What an Explore build serves at `/release.json` (its vite config writes it from `release.ts`). */
+export interface ExploreRelease {
+  network: string
+  mainnetLive: boolean
+  writesOpen: boolean
+}
+
+/**
+ * The artifact pins `explore.mainnetLive`, which must equal the source (`MAINNET_LIVE` in `apps/explore/src/release.ts`,
+ * the only place it is set) and agree with the admission mode: an open artifact (`admission.drain` false) needs it true,
+ * a drained setup artifact needs it false. Labels only, no values.
+ */
+export function validateExploreRelease(artifact: Pick<ProdArtifact, 'admission' | 'explore'>, sourceMainnetLive: boolean): string[] {
+  const pinned = artifact.explore?.mainnetLive
+  if (typeof pinned !== 'boolean') return ['explore:mainnetLive']
+  const failures: string[] = []
+  if (pinned !== sourceMainnetLive) failures.push('explore:mainnetLive differs from apps/explore/src/release.ts')
+  const drain = artifact.admission?.drain
+  if (typeof drain !== 'boolean') failures.push('admission mode')
+  else if (drain && pinned) failures.push('explore:mainnetLive must be false while admission is drained')
+  else if (!drain && !pinned) failures.push('explore:mainnetLive must be true to open admission')
+  return failures
+}
+
+/**
+ * Post-deploy: the served `/release.json` must be the artifact's: the mainnet network, the pinned `mainnetLive`, and
+ * writes open exactly when it is live. Anything else, including a body that is not that shape, fails.
+ */
+export function validateReleaseProbe(artifact: Pick<ProdArtifact, 'network' | 'explore'>, served: unknown): string[] {
+  const pinned = artifact.explore?.mainnetLive
+  if (typeof pinned !== 'boolean') return ['explore:mainnetLive']
+  if (typeof served !== 'object' || served === null) return ['release.json is not an object']
+  const body = served as Partial<ExploreRelease>
+  const failures: string[] = []
+  if (body.network !== artifact.network) failures.push('release.json network')
+  if (body.mainnetLive !== pinned) failures.push('release.json mainnetLive')
+  if (body.writesOpen !== pinned) failures.push('release.json writesOpen')
+  return failures
 }
 
 /**

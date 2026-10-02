@@ -19,6 +19,7 @@
   },
   "remoteState": true,
   "admission": { "drain": true },
+  "explore": { "mainnetLive": false },
   "secretSources": {
     "MONAD_RPC_URL": "HIRELING_PROD_MONAD_RPC_URL",
     "RELAY_PRIVATE_KEY": "HIRELING_PROD_RELAY_PRIVATE_KEY",

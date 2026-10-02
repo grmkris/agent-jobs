@@ -33,7 +33,7 @@ contract MainnetRunbookTest is Test {
 
     function test_runbookSequenceWithGates() public view {
         string memory live = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live";
-        string[] memory s = new string[](14);
+        string[] memory s = new string[](15);
         s[0] = "MAINNET_GO=yes forge script script/DeployHireling.s.sol";
         s[1] = "forge script script/PromoteHireling.s.sol";
         s[2] = live;
@@ -46,8 +46,9 @@ contract MainnetRunbookTest is Test {
         s[9] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
         s[10] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
         s[11] = "Post-deploy probes";
-        s[12] = live;
-        s[13] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
+        s[12] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz";
+        s[13] = live;
+        s[14] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
         _inOrder(doc, s, "runbook");
     }
 
@@ -81,6 +82,7 @@ contract MainnetRunbookTest is Test {
         _has(string.concat(root, "/script/SeedPool.s.sol"), "function verify()");
         _has(string.concat(root, "/../scripts/preflight-prod.ts"), "process.argv.includes('--live')");
         _has(string.concat(root, "/../scripts/preflight-prod.ts"), "Hireling v1 production launch gate passed");
+        _has(string.concat(root, "/../scripts/preflight-prod.ts"), "process.argv.indexOf('--probe')");
         _has(string.concat(root, "/../package.json"), "\"deploy:prod\":");
     }
 

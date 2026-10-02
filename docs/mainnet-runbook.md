@@ -211,7 +211,8 @@ AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm 
   hosted writes are refused.
 - A missing or empty `PROD_ADMISSION_DRAIN` also drains, and the artifact's mode must match the runtime value.
 - `assertDeployConfig` runs before any resource: structure, provider and Privy mapping, dedicated secret sources,
-  the signing keys against the configured relay and attester, and the RPC's chain id.
+  the signing keys against the configured relay and attester, and the RPC's chain id. It also checks Explore's pinned
+  `explore.mainnetLive`, which must equal `MAINNET_LIVE` in `apps/explore/src/release.ts` and be false while drained.
 - A drained deploy skips the D16 gate, so an emergency redeploy is never blocked by it.
 - **Blocker:** remote state needs verified, account-scoped **Secrets Store: Edit** permission on the Cloudflare token,
   and must be readable and map the intended resources before evaluation. Do not bootstrap state to make the preflight
@@ -224,17 +225,20 @@ AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm 
 - The indexer's `GET /` shows `next_block` at or past `deployment.hireling.block` within a few minutes.
 - Explore shows chain 143 and Monadscan links, and the board refuses new hosted writes (drained). Direct chain calls
   stay permissionless; draining is a hosted-admission control only.
+- `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz` must pass: the served
+  `/release.json` is `{"network": "monad-mainnet", "mainnetLive": <pinned>, "writesOpen": <pinned>}`, both false here.
 
 ### 3.10 Explicit opening
 
-1. Review and commit the artifact with `admission.drain: false`. In the same commit, set `MAINNET_LIVE = true` in
-   `apps/explore/src/release.ts`; that line is the only source. While it is false, Explore on chain 143 is read-only
+1. Review and commit the artifact with `admission.drain: false` and `explore.mainnetLive: true`. In the same commit,
+   set `MAINNET_LIVE = true` in `apps/explore/src/release.ts`; that line is the only source, and the preflight refuses
+   an open artifact unless the pin and the source are both true. While it is false, Explore on chain 143 is read-only
    by any URL (PROD-GATE-006). Every write page shows "Launching soon", and only read tools reach the board. The build
    writes the value to `/release.json` as `{network, mainnetLive, writesOpen}`.
 2. Run `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live` again; it must pass.
 3. Deploy with `AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 pnpm deploy:prod`. An
    opening deploy runs the D16 gate inside `assertDeployConfig` before any resource, and refuses on any failure.
-4. Repeat §3.9; write paths are now live. `GET https://hireling.xyz/release.json` must show `"mainnetLive": true, "writesOpen": true`. In the drained setup release (§3.8) it shows both false.
+4. Repeat §3.9; write paths are now live. The `--probe` check now expects `"mainnetLive": true, "writesOpen": true`.
 
 ### 3.11 The first real USDC job [tx]
 
