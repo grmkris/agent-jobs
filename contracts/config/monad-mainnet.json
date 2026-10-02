@@ -53,6 +53,7 @@
     "tickSpacing": 60,
     "factoryAmount": 3000000,
     "quoteAmount": 300,
+    "maxRepairCost": 5,
     "positionOwner": "0x0000000000000000000000000000000000000000"
   },
   "deployment": {}
