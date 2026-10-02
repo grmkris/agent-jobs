@@ -22,6 +22,7 @@ import { tools } from './tools.ts'
 import DirectoryObject from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
+import { enforceHostedRate } from './admission-rate.ts'
 
 const MCP_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
@@ -31,6 +32,8 @@ const STATUS: Record<string, number> = {
   'not-found': 404,
   invalid: 400,
   conflict: 409,
+  'rate-limited': 429,
+  unavailable: 503,
   chain: 502,
 }
 
@@ -95,14 +98,16 @@ export default class Api extends Cloudflare.Worker<Api>()(
       GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
       GITHUB_APP_INSTALLATION_ID: process.env.GITHUB_APP_INSTALLATION_ID || '',
       GITHUB_APP_PRIVATE_KEY: Redacted.make(runtimeSecret('GITHUB_APP_PRIVATE_KEY') || 'unset'),
-      PROD_APPROVED_WALLETS: process.env.PROD_APPROVED_WALLETS || '',
-      PROD_APPROVED_BOARDS: process.env.PROD_APPROVED_BOARDS || '',
+      // Retain existing binding names for guarded staging updates; these obsolete lists are ignored.
+      PROD_APPROVED_WALLETS: '',
+      PROD_APPROVED_BOARDS: '',
+      PROD_APPROVED_ACTIONS: '',
       PROD_ADMISSION_DRAIN: process.env.PROD_ADMISSION_DRAIN || '0',
-      PROD_APPROVED_ACTIONS: process.env.PROD_APPROVED_ACTIONS || '',
     },
   },
   Effect.gen(function* () {
     const boards = yield* Board
+    const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     const directory = yield* DirectoryObject
     const manifests = yield* Cloudflare.R2.ReadWriteBucket(Manifests)
     // Explore's chain facts (read-only here; the indexer is the only writer of its tables) and the board registry.
@@ -188,10 +193,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           })
 
         const admission = parseHostedAdmission(
-          yield* Config.String('PROD_APPROVED_WALLETS'),
-          yield* Config.String('PROD_APPROVED_BOARDS'),
           yield* Config.String('PROD_ADMISSION_DRAIN'),
-          yield* Config.String('PROD_APPROVED_ACTIONS'),
         )
         const env: BoardCall['env'] = {
           network,
@@ -214,6 +216,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           },
         }
         const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '') || undefined
+        const ip = request.headers['cf-connecting-ip']
         const directoryCall = (tool: string, args: Record<string, unknown>) => runDirectoryTool({
           sql, network, rpcUrl, audience: url.origin,
           call: async (id, req) => JSON.parse(await yieldlessDirectoryCall(id, req)),
@@ -230,6 +233,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
             const pre = yield* Effect.promise(async (): Promise<{ reply: BoardReply } | { forward: { args: Record<string, unknown>; caller: string | undefined } }> => {
               try {
                 const session = await desk.resolve({ bearer, mcpSession })
+                // Board tools are limited inside the DO, so direct RPC cannot bypass the counters.
+                // Worker-local tools, including sign-in, use exactly the same reserved object.
+                if (tool === 'auth_challenge' || tool === 'auth_login' || Object.hasOwn(directoryTools, tool) || Object.hasOwn(tenantTools, tool)) {
+                  const rate = await enforceHostedRate(runtimeEnv as Record<string, unknown>, { network, tool, boardId: tenant.id, bearer, mcpSession, caller: session?.address, ip })
+                  if (!rate.ok) return { reply: rate }
+                }
                 if (tool === 'auth_challenge') {
                   return { reply: { ok: true, result: await desk.challenge({ address: String(args.address ?? ''), domain: siweDomain, uri: siweUri, chainId, boardId: tenant.id }) } }
                 }
@@ -257,7 +266,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             })
             if ('reply' in pre) return pre.reply
             const reply = JSON.parse(
-              yield* boards.getByName(tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, env }),
+              yield* boards.getByName(tenant.id).call({ tool, args: pre.forward.args, bearer, mcpSession, caller: pre.forward.caller, ip, env }),
             ) as BoardReply
             if (reply.ok && (tool === 'create_task' || tool === 'pick_quote' || tool === 'create_pool')) {
               const r = reply.result as { taskId: string; termsHash: string; manifest?: string }
@@ -346,7 +355,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           const text = yield* request.text
           const args = text === '' ? {} : (JSON.parse(text) as Record<string, unknown>)
           const reply = yield* call(tool, args)
-          return json(reply, reply.ok ? 200 : (STATUS[reply.code] ?? 500))
+          return json(reply, reply.ok ? 200 : (STATUS[reply.code] ?? 500), !reply.ok && reply.retryAfter !== undefined ? { 'retry-after': String(reply.retryAfter) } : {})
         }
 
         if (path === '/mcp') {

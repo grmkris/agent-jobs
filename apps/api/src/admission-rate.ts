@@ -1,0 +1,54 @@
+import { isIP } from 'node:net'
+import { ADMISSION_OBJECT_NAME, admissionFailure, parseHostedAdmission, readOnlyHostedTools, SessionDesk } from '@agent-jobs/board'
+import { fromD1 } from '@agent-jobs/indexer'
+import type { Network } from '@agent-jobs/sdk'
+
+export interface AdmissionCall {
+  network: Network
+  tool: string
+  boardId: string
+  bearer?: string | undefined
+  mcpSession?: string | undefined
+  caller?: string | undefined
+  /** Only the host Worker supplies this, from CF-Connecting-IP; never from tool arguments. */
+  ip?: string | undefined
+}
+
+export type AdmissionReply = { ok: true } | { ok: false; code: string; message: string; retryAfter?: number }
+export interface AdmissionNamespace {
+  idFromName(name: string): { toString(): string }
+  get(id: { toString(): string }): { admit(input: AdmissionCall): Promise<string> }
+}
+
+export const needsWriteRate = (tool: string) => !readOnlyHostedTools.has(tool) || tool === 'auth_challenge' || tool === 'auth_login'
+
+export async function admissionIdentity(bindings: Record<string, unknown>, input: AdmissionCall) {
+  if (bindings.NETWORK !== input.network || input.network !== 'monad-mainnet' || bindings.DEPLOY_STAGE !== 'prod') throw new Error('admission runtime network/stage mismatch')
+  const desk = new SessionDesk({ sql: fromD1(bindings.Database as never), verify: async () => false })
+  const session = await desk.resolve(input)
+  if (input.caller !== undefined && input.caller.toLowerCase() !== session?.address.toLowerCase()) throw new Error('caller is not the authenticated session wallet')
+  const policy = parseHostedAdmission(typeof bindings.PROD_ADMISSION_DRAIN === 'string' ? bindings.PROD_ADMISSION_DRAIN : '1')
+  const denied = admissionFailure(policy, input.network, input.boardId, input.tool, session?.address)
+  if (denied !== undefined) throw new Error(denied)
+  return session?.address
+}
+
+/** Canonicalize before hashing, so alternate IPv6 spellings share a counter. Never store the raw IP. */
+export async function admissionIpHash(ip: string | undefined): Promise<string> {
+  if (ip === undefined || isIP(ip) === 0) throw new Error('hosted writes require the edge client IP')
+  const canonical = isIP(ip) === 6 ? new URL(`http://[${ip}]/`).hostname : ip
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical.toLowerCase()))
+  return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** Both the Worker and board DO use the same counter object; failures refuse the write. */
+export async function enforceHostedRate(bindings: Record<string, unknown>, input: AdmissionCall): Promise<AdmissionReply> {
+  if (input.network !== 'monad-mainnet' || !needsWriteRate(input.tool)) return { ok: true }
+  try {
+    const namespace = bindings.Board as AdmissionNamespace | undefined
+    if (namespace === undefined) throw new Error('missing admission namespace')
+    return JSON.parse(await namespace.get(namespace.idFromName(ADMISSION_OBJECT_NAME)).admit(input)) as AdmissionReply
+  } catch {
+    return { ok: false, code: 'unavailable', message: 'hosted write admission unavailable' }
+  }
+}

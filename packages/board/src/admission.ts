@@ -16,38 +16,48 @@ export const recoveryHostedTools = new Set([
 ])
 
 export const disabledP0HostedTools = new Set([
-  'create_pool', 'pledge', 'launch_pool', 'upgrade_account', 'spend_budget', 'spend_budget_call',
-  'budget_grant_prepare', 'budget_grant_confirm',
+  'create_pool', 'pledge', 'launch_pool',
+])
+
+/**
+ * Every tool which can reach the hosted board.  Production admission is open, but an
+ * unknown tool must still fail closed instead of becoming a write by accident.
+ * Keep this list alongside the API tool registry when adding a new hosted tool.
+ */
+export const hostedToolNames = new Set([
+  ...readOnlyHostedTools,
+  ...drainHostedTools,
+  ...disabledP0HostedTools,
+  'auth_challenge', 'auth_login', 'whoami', 'create_task', 'request_quotes', 'submit_quote', 'pick_quote',
+  'spend_budget', 'spend_budget_call', 'upgrade_account', 'budget_grant_prepare', 'budget_grant_confirm', 'get_budget',
+  'revoke_budget', 'report_transaction', 'list_applications', 'select_worker', 'submit_selection', 'publish_transactions',
+  'cancel_task', 'approve_work', 'reject_work', 'apply', 'prepare_activation', 'build_activation', 'submit_work',
+  'dispute', 'add_statement', 'prepare_entry', 'submit_entry', 'award', 'request_evidence', 'arbiter_lease',
+  'prepare_ruling', 'submit_ruling', 'settlement_actions', 'list_boards', 'get_board', 'create_board', 'update_board',
+  'prepare_agent_profile', 'prepare_directory_enrollment', 'enroll_directory', 'prepare_heartbeat', 'post_heartbeat',
+  'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
 ])
 
 export interface HostedAdmission {
-  readonly enabled: boolean
   readonly drain: boolean
-  readonly wallets: readonly string[]
-  readonly boards: readonly string[]
-  readonly actions: readonly string[]
 }
 
-export const openAdmission: HostedAdmission = { enabled: false, drain: false, wallets: [], boards: [], actions: [] }
+export const openAdmission: HostedAdmission = { drain: false }
 
-const normalized = (value: string) => value.split(',').map(item => item.trim().toLowerCase()).filter(Boolean)
-
-export function parseHostedAdmission(wallets: string, boards: string, drain: string, actions = ''): HostedAdmission {
-  const allowedWallets = normalized(wallets).filter(item => /^0x[0-9a-f]{40}$/.test(item))
-  const allowedBoards = normalized(boards).filter(item => /^[a-z0-9-]{3,32}$/.test(item))
-  return { enabled: true, drain: drain !== '0' && drain.toLowerCase() !== 'false', wallets: allowedWallets, boards: allowedBoards, actions: normalized(actions) }
+/** Missing or malformed runtime values drain; admission is otherwise open. */
+export function parseHostedAdmission(drain: string): HostedAdmission {
+  return { drain: drain !== '0' && drain.toLowerCase() !== 'false' }
 }
 
-export function admissionFailure(admission: HostedAdmission, network: string, board: string, tool: string, caller: string | undefined): string | undefined {
+export function admissionFailure(admission: HostedAdmission, network: string, _board: string, tool: string, caller: string | undefined): string | undefined {
   if (network !== 'monad-mainnet' || readOnlyHostedTools.has(tool)) return undefined
+  if (!hostedToolNames.has(tool)) return 'unknown hosted tool'
   if (admission.drain && !drainHostedTools.has(tool)) return 'production hosted writes are in drain mode'
-  if (disabledP0HostedTools.has(tool)) return 'this hosted feature is disabled for production P0'
+  if (disabledP0HostedTools.has(tool)) return 'hosted pools are disabled in production'
   if (recoveryHostedTools.has(tool) && caller !== undefined) return undefined
   if (admission.drain && drainHostedTools.has(tool)) return 'production recovery requires an authenticated wallet'
   if (admission.drain) return 'production hosted writes are in drain mode'
-  if (!admission.enabled || caller === undefined || !admission.wallets.includes(caller.toLowerCase()) || !admission.boards.includes(board.toLowerCase()) || !admission.actions.includes(tool)) {
-    return 'production hosted admission requires an approved wallet and board'
-  }
+  if (caller === undefined || !/^0x[0-9a-fA-F]{40}$/.test(caller)) return 'production hosted admission requires an authenticated wallet'
   return undefined
 }
 

@@ -1,52 +1,53 @@
-import { admissionFailure, parseHostedAdmission, readOnlyHostedTools, recoveryHostedTools } from '@agent-jobs/board'
+import { admissionFailure, disabledP0HostedTools, hostedToolNames, parseHostedAdmission, readOnlyHostedTools, recoveryHostedTools } from '@agent-jobs/board'
 import { expect, test } from 'vitest'
 import { hostedCallFailure } from '../src/hosted-admission.ts'
 import { tools } from '../src/tools.ts'
 import { tenantTools } from '../src/tools-tenant.ts'
 import { directoryTools } from '../src/directory.ts'
+import { admissionIpHash, enforceHostedRate } from '../src/admission-rate.ts'
 
 const wallet = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const stranger = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 const allTools = Object.keys({ ...tools, ...tenantTools, ...directoryTools })
-const policy = parseHostedAdmission(wallet, 'public,ops', '0', allTools.join(','))
+const policy = parseHostedAdmission('0')
 
-test('every REST/MCP tool is a read, existing-party recovery, or deny-by-default write', () => {
-  const denied = parseHostedAdmission('', '', '0', '')
+test('every REST/MCP tool is classified; authenticated writes are open except pools', () => {
+  expect([...hostedToolNames].toSorted()).toEqual(allTools.toSorted())
   for (const tool of allTools) {
-    if (readOnlyHostedTools.has(tool)) {
-      expect(admissionFailure(denied, 'monad-mainnet', 'public', tool, undefined), tool).toBeUndefined()
-    } else {
-      expect(admissionFailure(denied, 'monad-mainnet', 'public', tool, undefined), tool).toBeDefined()
-      if (!recoveryHostedTools.has(tool)) expect(admissionFailure(denied, 'monad-mainnet', 'public', tool, wallet), tool).toBeDefined()
-    }
-    expect(admissionFailure(denied, 'monad-testnet', 'public', tool, undefined), tool).toBeUndefined()
+    expect(admissionFailure(policy, 'monad-mainnet', 'public', tool, undefined) === undefined, tool).toBe(readOnlyHostedTools.has(tool))
+    expect(admissionFailure(policy, 'monad-mainnet', 'new-board', tool, stranger) === undefined, tool).toBe(!disabledP0HostedTools.has(tool))
+    expect(admissionFailure(policy, 'monad-testnet', 'public', tool, undefined), tool).toBeUndefined()
   }
-  expect(admissionFailure(policy, 'monad-mainnet', 'public', 'future_unknown_mutator', wallet)).toBeDefined()
 })
 
-test.each(['workers.dev', 'direct REST', 'MCP', 'embed'])('%s dispatch does not trust caller, origin, delegated wallet, or nested batch arguments', () => {
-  const malicious = { caller: wallet, address: wallet, origin: 'https://hireling.xyz', boardId: 'ops', network: 'monad-testnet', steps: [{ caller: wallet, tool: 'create_task' }], admission: { enabled: false } }
+test.each(['workers.dev', 'direct REST', 'MCP', 'embed'])('%s does not take authentication from arguments', () => {
+  const malicious = { caller: wallet, address: wallet, origin: 'https://hireling.xyz', boardId: 'ops', network: 'monad-testnet', steps: [{ caller: wallet, tool: 'create_task' }], admission: { drain: false } }
   for (const tool of ['create_task', 'request_quotes', 'apply', 'publish_transactions', 'select_worker', 'prepare_activation', 'create_board', 'update_board', 'upgrade_account', 'create_pool']) {
-    expect(hostedCallFailure(policy, 'monad-mainnet', 'public', tool, malicious, stranger), tool).toBeDefined()
     expect(hostedCallFailure(policy, 'monad-mainnet', 'public', tool, malicious, undefined), tool).toBeDefined()
   }
 })
 
-test('alternate and newly created boards are checked by target; revocation closes new writes', () => {
-  expect(hostedCallFailure(policy, 'monad-mainnet', 'other', 'create_task', {}, wallet)).toBeDefined()
-  expect(hostedCallFailure(policy, 'monad-mainnet', 'public', 'create_board', { slug: 'other' }, wallet)).toBeDefined()
-  expect(hostedCallFailure(policy, 'monad-mainnet', 'public', 'update_board', { boardId: 'other' }, wallet)).toBeDefined()
-  expect(hostedCallFailure(policy, 'monad-mainnet', 'public', 'create_board', { slug: 'ops' }, wallet)).toBeUndefined()
-  const revoked = parseHostedAdmission('', 'public,ops', '0', allTools.join(','))
-  expect(hostedCallFailure(revoked, 'monad-mainnet', 'public', 'create_task', {}, wallet)).toBeDefined()
-  expect(hostedCallFailure(revoked, 'monad-mainnet', 'public', 'submit_work', {}, wallet)).toBeUndefined()
+test('alternate and newly created boards are open without invitation lists', () => {
+  expect(hostedCallFailure(policy, 'monad-mainnet', 'other', 'create_task', {}, wallet)).toBeUndefined()
+  expect(hostedCallFailure(policy, 'monad-mainnet', 'public', 'create_board', { slug: 'other' }, stranger)).toBeUndefined()
+  expect(hostedCallFailure(policy, 'monad-mainnet', 'public', 'update_board', { boardId: 'other' }, stranger)).toBeUndefined()
 })
 
-test('drain cannot be bypassed with an approved wallet/action and preserves authenticated recovery', () => {
-  const draining = { ...policy, drain: true }
+test('drain preserves authenticated recovery while refusing new writes', () => {
+  const draining = { drain: true }
   for (const tool of allTools) {
     if (readOnlyHostedTools.has(tool) || recoveryHostedTools.has(tool)) continue
     expect(hostedCallFailure(draining, 'monad-mainnet', 'public', tool, {}, wallet), tool).toBeDefined()
   }
   for (const tool of recoveryHostedTools) expect(hostedCallFailure(draining, 'monad-mainnet', 'other', tool, {}, wallet), tool).toBeUndefined()
+})
+
+test('IP counters normalize IPv6 and reject missing or spoofed forwarded chains', async () => {
+  expect(await admissionIpHash('2001:db8::1')).toBe(await admissionIpHash('2001:0DB8:0:0:0:0:0:1'))
+  for (const ip of [undefined, '', '192.0.2.1, 192.0.2.2', 'spoofed']) await expect(admissionIpHash(ip)).rejects.toThrow()
+})
+
+test('writes fail closed when the shared counter namespace is unavailable', async () => {
+  expect(await enforceHostedRate({}, { network: 'monad-mainnet', tool: 'create_task', boardId: 'public' })).toMatchObject({ ok: false, code: 'unavailable' })
+  expect(await enforceHostedRate({}, { network: 'monad-mainnet', tool: 'list_tasks', boardId: 'public' })).toEqual({ ok: true })
 })

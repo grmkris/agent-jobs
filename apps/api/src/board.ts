@@ -1,4 +1,4 @@
-import { admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import { getAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { type ToolContext, toJson, tools } from './tools.ts'
+import { admissionIdentity, admissionIpHash, enforceHostedRate, needsWriteRate, type AdmissionCall, type AdmissionNamespace, type AdmissionReply } from './admission-rate.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
 export interface BoardCall {
@@ -15,6 +16,7 @@ export interface BoardCall {
   readonly mcpSession?: string | undefined
   /** The signed-in wallet, when the Worker already resolved it from the shared session store (ADR-0008). */
   readonly caller?: string | undefined
+  readonly ip?: string | undefined
   readonly env: {
     readonly network: sdk.Network
     readonly boardId: string
@@ -35,7 +37,7 @@ const key32 = (k: string) => /^0x[0-9a-fA-F]{64}$/.test(k)
 
 export type BoardReply =
   | { readonly ok: true; readonly result: unknown }
-  | { readonly ok: false; readonly code: string; readonly message: string }
+  | { readonly ok: false; readonly code: string; readonly message: string; readonly retryAfter?: number }
 
 /**
  * One Durable Object per hosted board (spec §5). It owns the board's SQLite (tasks, applications, selections,
@@ -48,6 +50,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     const state = yield* Cloudflare.DurableObjectState
     const runtimeEnv = yield* Cloudflare.WorkerEnvironment
     let service: { key: string; board: BoardService } | undefined
+    let limits: AdmissionRateLimits | undefined
 
     const boardFor = (env: BoardCall['env']): BoardService => {
       const key = JSON.stringify(env)
@@ -80,6 +83,22 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     }
 
     return Effect.succeed({
+        /** Private RPC, reachable only through the existing Board binding's reserved object. */
+        admit: (req: AdmissionCall) => Effect.promise(async (): Promise<string> => {
+          const bindings = runtimeEnv as Record<string, unknown>
+          try {
+            const namespace = bindings.Board as AdmissionNamespace | undefined
+            if (namespace?.idFromName(ADMISSION_OBJECT_NAME).toString() !== state.id.toString()) throw new Error('admission object identity mismatch')
+            const wallet = await admissionIdentity(bindings, req)
+            if (!needsWriteRate(req.tool)) return toJson({ ok: true })
+            const ipHash = await admissionIpHash(req.ip)
+            limits ??= new AdmissionRateLimits(fromDurableObjectSql(state.storage.sql.raw))
+            const result = state.raw.storage.transactionSync(() => limits!.consume(wallet, ipHash, req.tool, Math.floor(Date.now() / 1000)))
+            return toJson(result)
+          } catch {
+            return toJson({ ok: false, code: 'forbidden', message: 'hosted write admission requires a valid session, edge IP and runtime policy' } satisfies AdmissionReply)
+          }
+        }),
         /** Runs one tool and returns its JSON reply; tool errors are replies, not failures. */
         call: (req: BoardCall) =>
           Effect.promise(async (): Promise<string> => {
@@ -90,10 +109,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const network = bindings.NETWORK as sdk.Network
               const stage = bindings.DEPLOY_STAGE
               const admission = parseHostedAdmission(
-                typeof bindings.PROD_APPROVED_WALLETS === 'string' ? bindings.PROD_APPROVED_WALLETS : '',
-                typeof bindings.PROD_APPROVED_BOARDS === 'string' ? bindings.PROD_APPROVED_BOARDS : '',
                 typeof bindings.PROD_ADMISSION_DRAIN === 'string' ? bindings.PROD_ADMISSION_DRAIN : '1',
-                typeof bindings.PROD_APPROVED_ACTIONS === 'string' ? bindings.PROD_APPROVED_ACTIONS : '',
               )
               if (req.env.network !== network || network === 'monad-mainnet' && stage !== 'prod') {
                 return toJson({ ok: false, code: 'forbidden', message: 'Durable Object runtime network/stage mismatch' })
@@ -108,6 +124,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
                 directCaller = session === undefined ? undefined : { address: session.address }
                 const directDenied = admissionFailure(admission, network, req.env.boardId, req.tool, directCaller?.address)
                 if (directDenied !== undefined) return toJson({ ok: false, code: 'forbidden', message: directDenied })
+                const rate = await enforceHostedRate(bindings, { network, tool: req.tool, boardId: req.env.boardId, bearer: req.bearer, mcpSession: req.mcpSession, caller: req.caller, ip: req.ip })
+                if (!rate.ok) return toJson(rate)
               }
               const board = boardFor(req.env)
               const caller = directCaller ?? board.resolveCaller({ bearer: req.bearer, mcpSession: req.mcpSession })
