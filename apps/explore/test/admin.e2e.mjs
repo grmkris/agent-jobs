@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { encodeFunctionData, parseAbi } from 'viem';
+import { concatHex, encodeFunctionData, encodePacked, parseAbi, size } from 'viem';
 import { createServer } from 'vite';
 
 // The Safe console (U5) against a fixture Safe and Hireling v1 (admin-wagmi.mjs): owner-only gating, accepting
@@ -19,6 +19,13 @@ const c = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf00
 const multiSendCallOnly = '0x9641d764fc13c8b624c04430c7356c1c7c8102e2';
 const safeExec = parseAbi(['function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool)']);
 const preValidatedBy = (account) => `0x${account.slice(2).padStart(64, '0')}${'0'.repeat(64)}01`;
+// The core the page reads from the testnet config, and the pause pair's calldata as the console would build it.
+const coreAddress = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.core;
+const pauseAbi = parseAbi(['function pause()', 'function unpause()', 'function notePause()']);
+const pauseCall = (functionName) => encodeFunctionData({ abi: pauseAbi, functionName });
+const asSafe = (to, data, operation = 0) => ({ description: 'Core.pause + HirelingEvaluator.notePause as the Safe, in one transaction', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) });
+const multiSendAbi = parseAbi(['function multiSend(bytes transactions) payable']);
+const multiSend = (calls) => encodeFunctionData({ abi: multiSendAbi, functionName: 'multiSend', args: [concatHex(calls.map(([to, data]) => encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, to, 0n, BigInt(size(data)), data])))] });
 const results = [];
 const errors = [];
 
@@ -238,13 +245,39 @@ try {
       assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
       await context.close();
     }
+    // U5-SEC-002: a correctly signed pause restored alone, or split from its note over two transactions, is refused;
+    // the atomic pair through MultiSendCallOnly reads back and is offered.
+    for (const [txs, problem] of [
+      [[asSafe(coreAddress, pauseCall('pause'))], /Core\.pause goes out only with the Evaluator’s notePause, as one MultiSend transaction\./],
+      [[asSafe(coreAddress, pauseCall('unpause'))], /Core\.unpause goes out only with the Evaluator’s notePause/],
+      [[asSafe(coreAddress, pauseCall('pause')), asSafe(c.evaluator, pauseCall('notePause'))], /Core\.pause goes out only with the Evaluator’s notePause/],
+    ]) {
+      const { context, page } = await fixture({ width: 390, height: 844 }, { draft: { txs } });
+      await page.goto(`${base}/admin`);
+      await page.getByRole('alert').filter({ hasText: problem }).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).count(), 0);
+      assert.equal(await page.getByText('Review and send', { exact: true }).count(), 0);
+      assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+      await context.close();
+    }
+    {
+      const { context, page } = await fixture({ width: 390, height: 844 }, { draft: { txs: [asSafe(multiSendCallOnly, multiSend([[coreAddress, pauseCall('pause')], [c.evaluator, pauseCall('notePause')]]), 1)] } });
+      await page.goto(`${base}/admin`);
+      await page.getByText('Review and send', { exact: true }).waitFor();
+      await page.getByText('pause()', { exact: true }).waitFor();
+      await page.getByText('notePause()', { exact: true }).waitFor();
+      assert.equal(await page.getByRole('alert').filter({ hasText: 'Saved operation refused' }).count(), 0);
+      await capture(page, 'restored-atomic-pair');
+      await context.close();
+    }
+
     // Without MultiSendCallOnly on the network, the pause pair is not offered at all.
     const { context, page } = await fixture({ width: 390, height: 844 }, { noMultiSend: true });
     await page.goto(`${base}/admin`);
     await section(page, 'Core').getByText(/Pausing waits for MultiSendCallOnly/).waitFor();
     assert.equal(await section(page, 'Core').getByRole('button', { name: 'Pause the core' }).isDisabled(), true);
     await context.close();
-    results.push({ checks: ['restored draft calling outside the deployment refused, not sent', 'restored draft signed for another owner refused', 'no MultiSendCallOnly code: pause not offered'], passed: true });
+    results.push({ checks: ['restored draft calling outside the deployment refused, not sent', 'restored draft signed for another owner refused', 'restored standalone pause and unpause refused (U5-SEC-002)', 'restored pause and note as two transactions refused', 'restored atomic pause pair accepted', 'no MultiSendCallOnly code: pause not offered'], passed: true });
   }
 
   {

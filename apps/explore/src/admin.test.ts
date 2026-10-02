@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, encodeFunctionData } from 'viem'
-import { type AdminContext, bpsOf, readAdminTx, resizeProblem, rootProblem, scheduleProposal } from './admin.ts'
+import { type AdminContext, bpsOf, readAdminOp, readAdminTx, resizeProblem, rootProblem, scheduleProposal } from './admin.ts'
 import { MULTI_SEND_CALL_ONLY, atomically, calldata, execTransaction, multiSend, preValidated, safeAbi } from './safe.ts'
 
 const treasury = '0x9999999999999999999999999999999999999999'
@@ -101,5 +101,26 @@ describe('reading an admin transaction back from its calldata', () => {
     expect(problem(tx(safe, raw(MULTI_SEND_CALL_ONLY, multiSend([{ to: core, data: pause }, { to: fees, data: accept }]), 1)))).toMatch(/not a pause pair|not something/)
     expect(problem(tx(safe, raw(fees, accept, 2)))).toMatch(/unknown Safe operation/)
     expect(problem(tx(safe, '0x1234'))).toMatch(/does not decode/)
+  })
+
+  // U5-SEC-002: the core's pause and unpause go out only inside the atomic pair; a lone notePause stays allowed.
+  it('refuses a standalone pause or unpause, and a pause split over two transactions', () => {
+    const unpause = fn(core, sdk.coreAbi as unknown as Abi, 'unpause')
+    const alonePause = tx(safe, execTransaction(owner, { to: core, data: pause }))
+    const aloneUnpause = tx(safe, execTransaction(owner, { to: core, data: unpause }))
+    const noteAsSafe = tx(safe, execTransaction(owner, { to: evaluator, data: note }))
+    const pair = tx(safe, atomically(owner, [{ to: core, data: pause }, { to: evaluator, data: note }]))
+    const refused = (txs: Array<ReturnType<typeof tx>>) => readAdminOp(txs, ctx).find((r) => !r.ok)
+    for (const alone of [alonePause, aloneUnpause]) {
+      expect(readAdminTx(alone, ctx)).toMatchObject({ ok: false, problem: expect.stringMatching(/goes out only with the Evaluator’s notePause/) })
+      expect(refused([alone])).toBeDefined()
+    }
+    expect(refused([alonePause, noteAsSafe])).toMatchObject({ ok: false, problem: expect.stringMatching(/Core\.pause goes out only with/) })
+    // Even two transactions that each read as allowed are not one operation.
+    expect(refused([noteAsSafe, noteAsSafe])).toMatchObject({ ok: false, problem: expect.stringMatching(/holds 2 transactions/) })
+    expect(refused([pair])).toBeUndefined()
+    expect(readAdminOp([pair], ctx)).toMatchObject([{ ok: true, via: 'atomic' }])
+    expect(readAdminOp([noteAsSafe], ctx)).toMatchObject([{ ok: true, via: 'safe', calls: [{ functionName: 'notePause' }] }])
+    expect(readAdminOp([tx(evaluator, note)], ctx)).toMatchObject([{ ok: true, via: 'direct' }])
   })
 })

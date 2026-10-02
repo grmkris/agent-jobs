@@ -101,6 +101,8 @@ const no = (problem: string) => ({ ok: false as const, problem })
 
 /** The pause pairs D13 sends atomically: the core's pause or unpause, then the Evaluator's notePause. */
 const ATOMIC = [['Core', ['pause', 'unpause']], ['HirelingEvaluator', ['notePause']]] as const
+/** The core's pause and unpause go out only inside that pair, never alone (U5-SEC-002); a lone notePause is fine. */
+const pairedOnly = (call: InnerCall) => call.contract === ATOMIC[0][0] && (ATOMIC[0][1] as readonly string[]).includes(call.functionName)
 
 /**
  * Reads an admin transaction back from its calldata alone, and refuses it unless it is one this console builds for
@@ -156,7 +158,9 @@ export function readAdminTx(tx: { chainId: number; to: string; data: string; val
   ]
   if (operation === 0) {
     const inner = call(to, data, 'safe')
-    return typeof inner === 'string' ? no(inner) : { ok: true, via: 'safe', calls: [inner], outer }
+    if (typeof inner === 'string') return no(inner)
+    if (pairedOnly(inner)) return no(`${inner.contract}.${inner.functionName} goes out only with the Evaluator’s notePause, as one MultiSend transaction.`)
+    return { ok: true, via: 'safe', calls: [inner], outer }
   }
   if (operation !== 1) return no('It uses an unknown Safe operation.')
   if (!same(to, MULTI_SEND_CALL_ONLY)) return no('Its delegatecall is not to MultiSendCallOnly.')
@@ -172,6 +176,16 @@ export function readAdminTx(tx: { chainId: number; to: string; data: string; val
     calls.push(inner)
   }
   return { ok: true, via: 'atomic', calls, outer }
+}
+
+/**
+ * Reads a whole console operation: each transaction by `readAdminTx`, and the operation refused unless it is exactly
+ * one transaction, as every operation this console builds is. A pause and its note split over two transactions is
+ * the gap D13 closes, whatever each one reads as alone.
+ */
+export function readAdminOp(txs: ReadonlyArray<Parameters<typeof readAdminTx>[0]>, ctx: AdminContext): AdminTx[] {
+  const reads = txs.map((tx) => readAdminTx(tx, ctx))
+  return txs.length === 1 ? reads : [...reads, no(`It holds ${txs.length} transactions; this console sends one per operation.`)]
 }
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()

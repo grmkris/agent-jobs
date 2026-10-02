@@ -12,7 +12,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
-import { type AdminContext, type AdminTx, readAdminTx, resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
+import { type AdminContext, type AdminTx, readAdminOp, resizeProblem, rootProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
 import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execTransaction, safeAbi } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
@@ -40,7 +40,7 @@ export function useSafeOwner(address: string | undefined): boolean | null {
 type Via = 'safe' | 'direct'
 /**
  * What the page will send: its transactions, kept until they are done. Only the transactions are stored; every call
- * shown or sent is decoded from their calldata and checked again (`readAdminTx`), so a stored draft is never trusted.
+ * shown or sent is decoded from their calldata and checked again (`readAdminOp`), so a stored draft is never trusted.
  */
 interface Op {
   title: string
@@ -185,7 +185,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
   const ctx = useMemo(() => adminContext(c, safe, me), [c, safe, me])
   const [op, setOpState] = useState<Op | null>(() => {
     const txs = loadTxs(me)
-    return txs === null ? null : { title: titleOf(txs.map((tx) => readAdminTx(tx, ctx))), txs }
+    return txs === null ? null : { title: titleOf(readAdminOp(txs, ctx)), txs }
   })
   const [dismissable, setDismissable] = useState(true)
   const setOp = (next: Op | null) => {
@@ -214,7 +214,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
     window.scrollTo({ top: 0 })
   }
   // What is shown and sent is read back from the calldata on every render, the same for a fresh and a restored op.
-  const reads = op === null ? [] : op.txs.map((tx) => readAdminTx(tx, ctx))
+  const reads = op === null ? [] : readAdminOp(op.txs, ctx)
   const refused = reads.find((r) => !r.ok)
   const atomic = reads.some((r) => r.ok && r.via === 'atomic')
   const blocked = refused !== undefined ? null : atomic && !atomicReady ? (multiSendCode.isLoading ? 'Checking MultiSendCallOnly on this network…' : `MultiSendCallOnly has no code at ${MULTI_SEND_CALL_ONLY} on this network, so these calls cannot go as one transaction. Nothing is sent.`) : null
