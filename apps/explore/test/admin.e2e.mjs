@@ -45,7 +45,7 @@ async function fixture(viewport, options = {}) {
       safe: contracts.safe, owners, threshold: 1n,
       owner: Object.fromEntries([...owned.map((a) => [a, contracts.safe]), [contracts.feeSchedule.toLowerCase(), previousOwner]]),
       pendingOwner: { [contracts.feeSchedule.toLowerCase()]: contracts.safe },
-      paused: false, pausedSince: 0, safeIsAdmin: true,
+      paused: false, pauses: [], safeIsAdmin: true,
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
       currentEpoch: 2n, totalFunded: 0n, available: 0n, genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
@@ -119,11 +119,11 @@ try {
     await capture(page, `${device}-review-pause`);
     await sendSteps(page, 2, 'Pause the core');
     await core.getByText('Paused', { exact: true }).waitFor();
-    assert.ok(await page.evaluate(() => window.__admin.pausedSince > 0));
+    assert.ok(await page.evaluate(() => window.__admin.pauses.length === 1 && window.__admin.pauses[0].end === 0));
     await core.getByRole('button', { name: 'Unpause the core' }).click();
     await sendSteps(page, 2, 'Unpause the core');
     await core.getByRole('button', { name: 'Pause the core' }).waitFor();
-    assert.equal(await page.evaluate(() => window.__admin.pausedSince), 0);
+    assert.ok(await page.evaluate(() => window.__admin.pauses.length === 1 && window.__admin.pauses[0].end > 0));
     // A pause sent from elsewhere, without the note: the console says so and anyone may send the note alone.
     await page.evaluate(() => { window.__admin.paused = true; window.dispatchEvent(new Event('visibilitychange')); });
     await core.getByText(/The Evaluator has not noted this pause/).waitFor();
@@ -131,7 +131,7 @@ try {
     await send(page, 'Note the pause on the Evaluator');
     await core.getByText(/The Evaluator has not noted this pause/).waitFor({ state: 'hidden' });
     assert.deepEqual(await last(page), { via: 'direct', to: c.evaluator, functionName: 'notePause', signatures: null });
-    await page.evaluate(() => { window.__admin.paused = false; window.__admin.pausedSince = 0; window.dispatchEvent(new Event('visibilitychange')); });
+    await page.evaluate(() => { window.__admin.paused = false; window.__admin.pauses.at(-1).end = Math.floor(Date.now() / 1000); window.dispatchEvent(new Event('visibilitychange')); });
     await core.getByRole('button', { name: 'Pause the core' }).waitFor();
 
     // Fee schedule: a proposal the contract would refuse is refused here; a valid one waits 3 days; cancel; execute.

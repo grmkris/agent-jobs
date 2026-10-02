@@ -365,13 +365,19 @@ function Core({ c, safe, act, busy }: { c: HirelingContracts; safe: Address; act
     contracts: [
       { address: core, abi: sdk.coreAbi, functionName: 'paused', chainId: chain.id },
       { address: core, abi: sdk.coreAbi, functionName: 'ADMIN_ROLE', chainId: chain.id },
-      { address: c.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'pausedSince', chainId: chain.id },
+      { address: c.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'pauseCount', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
   const paused = result<boolean>(base.data, 0)
   const role = result<Hex>(base.data, 1)
-  const since = result<number | bigint>(base.data, 2)
+  const count = result<bigint>(base.data, 2)
+  // The Evaluator's pause history is append-only (C9-007): the latest interval is open while its end is 0.
+  const latest = useReadContracts({
+    contracts: [{ address: c.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'pauseAt', args: [count !== undefined && count > 0n ? count - 1n : 0n], chainId: chain.id }],
+    query: { enabled: count !== undefined && count > 0n, refetchInterval: 30_000 },
+  })
+  const interval = result<{ start: number; end: number }>(latest.data, 0)
   const admin = useReadContracts({
     contracts: [{ address: core, abi: sdk.coreAbi, functionName: 'hasRole', args: [role ?? `0x${'0'.repeat(64)}`, safe], chainId: chain.id }],
     query: { enabled: role !== undefined },
@@ -381,12 +387,12 @@ function Core({ c, safe, act, busy }: { c: HirelingContracts; safe: Address; act
   // D4b: the Evaluator records the pause, so a delivery deadline that falls inside it is never slashed. It goes in the
   // same send as the pause or unpause; anyone may also send it alone when the two have drifted apart.
   const note: Call = { contract: 'HirelingEvaluator', to: c.evaluator, abi: sdk.hirelingEvaluatorAbi as unknown as Abi, functionName: 'notePause' }
-  const noted = since === undefined ? undefined : BigInt(since) !== 0n
+  const noted = count === undefined ? undefined : count === 0n ? false : interval === undefined ? undefined : Number(interval.end) === 0
   const drift = paused !== undefined && noted !== undefined && paused !== noted
   return (
     <Section title="Core" note="Pausing stops every call on the job core: nothing can be funded, delivered or paid. The Evaluator notes the pause in the same send, so a delivery deadline inside it is never slashed.">
-      {base.isError || admin.isError ? (
-        <Unavailable retry={() => void Promise.all([base.refetch(), admin.refetch()])} />
+      {base.isError || admin.isError || latest.isError ? (
+        <Unavailable retry={() => void Promise.all([base.refetch(), admin.refetch(), latest.refetch()])} />
       ) : (
         <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
           <p className="flex flex-wrap items-center gap-2">

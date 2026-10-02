@@ -21,7 +21,8 @@ function answer({ address, functionName, args = [] }) {
     case 'owner': return s.owner[key(address)] ?? ZERO;
     case 'pendingOwner': return s.pendingOwner[key(address)] ?? ZERO;
     case 'paused': return s.paused;
-    case 'pausedSince': return s.pausedSince;
+    case 'pauseCount': return BigInt(s.pauses.length);
+    case 'pauseAt': return s.pauses[Number(args[0])];
     case 'balanceOf': return 0n;
     case 'ADMIN_ROLE': return `0x${'a'.repeat(64)}`;
     case 'hasRole': return s.safeIsAdmin;
@@ -69,8 +70,13 @@ function apply({ to, data }) {
   if (functionName === 'acceptOwnership') { s.owner[key(inner.to)] = s.safe; s.pendingOwner[key(inner.to)] = ZERO; }
   if (functionName === 'pause') s.paused = true;
   if (functionName === 'unpause') s.paused = false;
-  // The Evaluator's note of the core pause (D4b): the start while paused, cleared when the core runs again.
-  if (functionName === 'notePause') s.pausedSince = s.paused ? (s.pausedSince || now) : 0;
+  // The Evaluator's pause history (D4b, C9-007): notePause opens an interval while the core is paused and closes the
+  // open one once it runs again.
+  if (functionName === 'notePause') {
+    const open = s.pauses.at(-1)?.end === 0;
+    if (s.paused && !open) s.pauses.push({ start: now, end: 0 });
+    if (!s.paused && open) s.pauses.at(-1).end = now;
+  }
   if (functionName === 'propose') s.pending = { schedule: args[0], eta: now + 259200 };
   if (functionName === 'cancel') s.pending = null;
   if (functionName === 'execute') { s.schedule = s.pending.schedule; s.pending = null; }
