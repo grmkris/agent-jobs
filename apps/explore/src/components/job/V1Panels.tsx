@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { type Address, encodeFunctionData, erc20Abi } from 'viem'
 import { useReadContracts } from 'wagmi'
 import type { TxRequest } from '../../api.ts'
-import { amount } from '../../format.ts'
+import { amount, tokenInfo } from '../../format.ts'
 import { percent } from '../../stake.ts'
 import { chain } from '../../wallet.ts'
 import { toBase } from '../post/form.ts'
@@ -33,7 +33,10 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
       ) : (
         <Group>
           <ListRow>
-            <span className="flex-1">Fee{bps === undefined ? '' : ` · ${percent(Number(bps))}, from your stake`}</span>
+            <span className="flex-1">
+              <span className="block">Hireling’s fee{bps === undefined ? '' : ` · ${percent(Number(bps))}`}</span>
+              <span className="block text-[0.78rem] leading-snug text-label-3">Your rate, set by how much you stake</span>
+            </span>
             <span className="tabular text-label-2">{fee === undefined ? '…' : `− ${amount(fee.toString(), token)}`}</span>
           </ListRow>
           <ListRow>
@@ -108,13 +111,14 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
         </div>
       ) : (
         <form
-          className="mt-2 flex gap-2"
+          className="mt-2 flex items-stretch gap-2"
           onSubmit={(e) => {
             e.preventDefault()
             add()
           }}
         >
-          <Input aria-label="Amount to add" value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" placeholder="Amount" className="tabular flex-1" />
+          <Input aria-label="Amount to add" value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" placeholder="0.00" className="tabular flex-1 text-right" />
+          <span className="self-center text-label-2">{tokenInfo(token).symbol}</span>
           <Button type="submit" variant="tinted" disabled={!valid}>
             Add
           </Button>

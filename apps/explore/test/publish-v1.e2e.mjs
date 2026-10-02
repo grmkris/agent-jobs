@@ -153,7 +153,8 @@ try {
     const { context, page } = await fixture(viewport, worker);
     await page.goto(`${base}/job/70`);
     await page.getByRole('heading', { name: 'If you take this job' }).waitFor();
-    await page.getByText('Fee · 10 %, from your stake', { exact: true }).waitFor();
+    await page.getByText('Hireling’s fee · 10 %', { exact: true }).waitFor();
+    await page.getByText('Your rate, set by how much you stake', { exact: true }).waitFor();
     await page.getByText('− 0.5 mUSD', { exact: true }).waitFor();
     await page.getByText('4.5 mUSD', { exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Add to the reward' }).count(), 0);

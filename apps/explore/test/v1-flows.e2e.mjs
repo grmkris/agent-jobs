@@ -241,7 +241,7 @@ try {
     for (const [bps, fee, net, pct] of [[3000, 1500000n, 3500000n, '30 %'], [1000, 500000n, 4500000n, '10 %'], [300, 150000n, 4850000n, '3 %'], [100, 50000n, 4950000n, '1 %']]) {
       await page.evaluate((q) => { window.__v1.quote = [q[0], BigInt(q[1]), BigInt(q[2])]; }, [bps, String(fee), String(net)]);
       await refetch(page);
-      await page.getByText(`Fee · ${pct}, from your stake`, { exact: true }).waitFor();
+      await page.getByText(`Hireling’s fee · ${pct}`, { exact: true }).waitFor();
       await page.getByText(`− ${Number(fee) / 1e6} mUSD`, { exact: true }).waitFor();
       await page.getByText(`${Number(net) / 1e6} mUSD`, { exact: true }).first().waitFor();
     }
