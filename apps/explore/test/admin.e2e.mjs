@@ -18,6 +18,8 @@ const deployer = '0x7777777777777777777777777777777777777777';
 const c = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const multiSendCallOnly = '0x9641d764fc13c8b624c04430c7356c1c7c8102e2';
 const safeExec = parseAbi(['function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool)']);
+/** An epoch-1.json upload as mining:epoch would write it (D17). */
+const epochFile = (body) => ({ name: 'epoch-1.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(body)) });
 const preValidatedBy = (account) => `0x${account.slice(2).padStart(64, '0')}${'0'.repeat(64)}01`;
 // The core the page reads from the testnet config, and the pause pair's calldata as the console would build it.
 const coreAddress = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.core;
@@ -200,7 +202,6 @@ try {
     const root = `0x${'ab'.repeat(32)}`;
     const dataHash = `0x${'cd'.repeat(32)}`;
     const total = (5000n * 10n ** 18n).toString();
-    const epochFile = (body) => ({ name: 'epoch-1.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(body)) });
     const file = { chainId: 10143, epoch: 1, window: { start: 0, end: 1 }, priceList: {}, budget: total, emission: total, total, root, dataHash, inputs: {}, tree: { values: [{}, {}] } };
     assert.equal(await mining.getByRole('textbox', { name: 'Merkle root' }).count(), 0);
     await mining.getByLabel('Epoch file').setInputFiles(epochFile({ ...file, chainId: 143 }));
