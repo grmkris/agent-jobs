@@ -266,6 +266,25 @@ contract SeedPoolRehearsalForkTest is Test {
         assertEq(c.positionManager.ownerOf(tokenId), safe);
     }
 
+    /// @dev Review C12-004: dust sent to the spent helper after the seed does not block the verification, and the
+    ///      seed itself left it empty.
+    function test_fork_mainnet_dustOnTheSpentHelperStillVerifies() public {
+        (bool forked, SeedPoolRecipe.Config memory c) = _setUp("dusted");
+        if (!forked) return vm.skip(true);
+        SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
+        SeedHelper h = _helper(c, p);
+        (, VmSafe.Log[] memory logs) = _seed(h);
+        assertEq(IERC20(p.key.currency0).balanceOf(address(h)), 0, "the seed returned everything");
+        assertEq(IERC20(p.key.currency1).balanceOf(address(h)), 0);
+        deal(p.key.currency0, stranger, 10);
+        deal(p.key.currency1, stranger, 10);
+        vm.startPrank(stranger);
+        IERC20(p.key.currency0).transfer(address(h), 1);
+        IERC20(p.key.currency1).transfer(address(h), 1);
+        vm.stopPrank();
+        _verify(c, p, logs, h);
+    }
+
     /// @dev After a seed that landed: the broadcast log round-trips through the script's parser, a later mint in the
     ///      same pool does not change what it verifies, and a second run of the script is refused before it sends
     ///      anything. The helper itself seeds once.

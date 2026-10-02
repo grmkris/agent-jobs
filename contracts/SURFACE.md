@@ -296,7 +296,7 @@ the PositionManager's `Transfer(0 → Safe)` in the seed receipt, matched by the
 (planned pool, price after the seed, liquidity). It then reads back live state:
 - `ownerOf` is the Safe;
 - the position's liquidity, pool key and ±ticks match the plan;
-- the helper holds no tokens;
+- the helper is spent (`seeded()`); its token balances are not checked, since anyone can send it dust afterwards (C12-004);
 - no allowance is left, from the seeder to the helper, from the helper to Permit2, or Permit2's to the PositionManager.
 
 **A second `run` is refused** (`AlreadySeeded`) while that run log holds a seed of this pool for the Safe.

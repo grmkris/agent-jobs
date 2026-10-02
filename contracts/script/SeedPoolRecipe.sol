@@ -196,7 +196,9 @@ library SeedPoolRecipe {
     }
 
     /// @notice Post-broadcast: the position as it is now: owned by the Safe, the planned liquidity, the planned pool
-    ///         key and full-range ticks; and the helper and the seeder's allowances to it left empty.
+    ///         key and full-range ticks; the helper spent (`seeded`) with no allowance left from it or to it. Its token
+    ///         balances are not checked: `seed()` returns everything it holds, and anyone can send it dust afterwards
+    ///         (review C12-004), which must not block this check.
     function verifyPosition(Config memory c, Plan memory p, uint256 tokenId, address helper) internal view {
         if (c.positionManager.ownerOf(tokenId) != c.safe) revert BadRun("position owner is not the Safe");
         if (c.positionManager.getPositionLiquidity(tokenId) != p.liquidity) revert BadRun("position liquidity");
@@ -205,11 +207,11 @@ library SeedPoolRecipe {
         if (int24(uint24(info >> 8)) != p.tickLower || int24(uint24(info >> 32)) != p.tickUpper) {
             revert BadRun("position ticks");
         }
+        if (!SeedHelper(helper).seeded()) revert BadRun("helper not seeded");
         address seeder = SeedHelper(helper).seeder();
         address[2] memory tokens = [p.key.currency0, p.key.currency1];
         for (uint256 i; i < 2; ++i) {
             IERC20 t = IERC20(tokens[i]);
-            if (t.balanceOf(helper) != 0) revert BadRun("helper holds tokens");
             if (t.allowance(helper, c.permit2) != 0 || t.allowance(seeder, helper) != 0) {
                 revert BadRun("allowance left");
             }
