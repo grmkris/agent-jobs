@@ -9,6 +9,8 @@ export class ApiError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    /** Why a refusal happened, when the board says (sponsorship: policy, simulation, cap, floor, rate, unavailable, pending). */
+    readonly reason?: string,
   ) {
     super(message)
   }
@@ -73,10 +75,10 @@ export function createBoardApi(options: BoardApiOptions) {
       headers: { 'content-type': 'application/json', ...(token === null ? {} : { authorization: `Bearer ${token}` }) },
       body: JSON.stringify(args),
     })
-    const body = (await res.json()) as { ok: boolean; result?: T; code?: string; message?: string }
+    const body = (await res.json()) as { ok: boolean; result?: T; code?: string; message?: string; reason?: string }
     if (!body.ok) {
       if (body.code === 'unauthenticated') setSession(null)
-      throw new ApiError(body.code ?? String(res.status), body.message ?? 'request failed')
+      throw new ApiError(body.code ?? String(res.status), body.message ?? 'request failed', typeof body.reason === 'string' ? body.reason : undefined)
     }
     return body.result as T
   }
