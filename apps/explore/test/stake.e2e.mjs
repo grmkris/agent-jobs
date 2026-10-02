@@ -31,15 +31,15 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling, connected, down, open, proposal }) => {
+  await context.addInitScript(({ account, hireling, connected, down, open, proposal, staked }) => {
     const K = 10n ** 21n;
     window.__hireling = hireling;
     window.__wallet = { address: account, connected, signatures: [], sends: [] };
-    window.__stake = { wallet: 50n * K, staked: 4n * K, reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open, denied: {} };
+    window.__stake = { wallet: 50n * K, staked: staked === null ? 4n * K : BigInt(staked), reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open, denied: {} };
     if (proposal !== null) window.__stake.proposal = proposal;
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true, proposal: options.proposal ?? null });
+  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true, proposal: options.proposal ?? null, staked: options.staked ?? null });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -172,6 +172,24 @@ try {
     await page.getByText('You refused the Holding in use', { exact: true }).waitFor({ state: 'hidden' });
     results.push({ device, checks: ['proposed Holding with go-live and lapse times', 'refuse sends setHoldingDenied(holding, true)', 'allow again', 'refusal of the Holding in use shows its undo'], passed: true });
     await context.close();
+  }
+
+  // Each tier of the schedule (thresholds 0 / 10k / 100k / 1M FACTORY at 30 / 10 / 3 / 1 %): the page names the tier
+  // the stake is in and what the next one needs.
+  {
+    const E = 10n ** 18n;
+    for (const [staked, pct, next] of [[2000n * E, '30 %', 'Stake 8,000 FACTORY more to pay 10 %.'], [10_000n * E, '10 %', 'Stake 90,000 FACTORY more to pay 3 %.'], [250_000n * E, '3 %', 'Stake 750,000 FACTORY more to pay 1 %.'], [1_000_000n * E, '1 %', 'You are in the lowest fee tier.']]) {
+      const { context, page } = await fixture({ width: 390, height: 844 }, { staked: String(staked) });
+      await page.goto(`${base}/stake`);
+      const fee = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Your fee as a worker', exact: true }) });
+      await fee.getByText(pct, { exact: true }).first().waitFor();
+      await fee.getByText(next, { exact: true }).waitFor();
+      const mine = await fee.getByText('You', { exact: true }).locator('xpath=ancestor::*[contains(@class, "flex")][1]').innerText();
+      assert.ok(mine.includes(pct), `${pct}: the "You" row reads ${mine}`);
+      if (pct === '3 %') await capture(page, 'tier-3');
+      await context.close();
+    }
+    results.push({ checks: ['30 % tier', '10 % tier', '3 % tier', '1 % tier (lowest)', 'next tier and amount needed'], passed: true });
   }
 
   {
