@@ -822,6 +822,11 @@ export const stakeVaultAbi = [
   },
   {
     "type": "error",
+    "name": "NotBootstrapped",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotHolding",
     "inputs": []
   },

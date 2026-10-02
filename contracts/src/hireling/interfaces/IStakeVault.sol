@@ -17,8 +17,10 @@ import {IFactory} from "./IFactory.sol";
 ///         Holdings: only an authorized Holding can reserve. The owner (the Safe) proposes a Holding, anyone accepts it
 ///         after 8 days (longer than the 7-day cooldown, so every staker can leave first), and the owner can revoke one
 ///         instantly. A revoked Holding can no longer reserve, but it still releases and slashes the reservations it
-///         made, so live jobs settle. `bootstrapHolding` authorizes the first Holding without the delay, once, and only
-///         while nothing is staked. A Holding can only ever release or slash what it reserved itself (`reservedBy`).
+///         made, so live jobs settle. `bootstrapHolding` authorizes the first Holding without the delay, once. Staking
+///         stays closed until a first Holding is authorized (bootstrapped or accepted), so nobody can stake first to
+///         force the launch onto the 8-day path. A Holding can only ever release or slash what it reserved itself
+///         (`reservedBy`).
 ///
 ///         Invariants: `reservedOf(a) <= stakeOf(a)` for every account; `totalReserved <= totalStaked`; the vault's
 ///         FACTORY balance is at least `totalStaked + totalUnstaking`.
@@ -49,6 +51,8 @@ interface IStakeVault {
     error HoldingTimelocked(uint48 eta);
     error HoldingAlreadyAuthorized();
     error BootstrapClosed();
+    /// @dev Staking opens when the first Holding is authorized.
+    error NotBootstrapped();
 
     // ---------------------------------------------------------------------------------------------
     // Staking
@@ -106,7 +110,8 @@ interface IStakeVault {
     /// @notice Owner only, instant. `holding` can no longer reserve; its existing reservations still release and slash.
     function revokeHolding(address holding) external;
 
-    /// @notice Owner only, once, and only while `totalStaked == 0`: authorizes the first Holding without the delay.
+    /// @notice Owner only, once, and only before any Holding was authorized: authorizes the first Holding without the
+    ///         delay and opens staking.
     function bootstrapHolding(address holding) external;
 
     // ---------------------------------------------------------------------------------------------
@@ -140,7 +145,8 @@ interface IStakeVault {
     /// @notice The proposed Holding and when it can be accepted; zero when none.
     function pendingHolding() external view returns (address holding, uint48 eta);
 
-    /// @notice Whether `bootstrapHolding` has been used.
+    /// @notice Whether a first Holding has been authorized (by `bootstrapHolding` or `acceptHolding`): staking is open
+    ///         and `bootstrapHolding` is closed.
     function bootstrapped() external view returns (bool);
 
     /// @notice The unstake cooldown (7 days).

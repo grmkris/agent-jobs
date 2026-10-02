@@ -392,21 +392,42 @@ contract StakeVaultTest is Test {
         vault.bootstrapHolding(holding2);
     }
 
-    function test_bootstrap_onlyWhileNothingStaked() public {
+    function test_bootstrap_stakingClosedUntilBootstrapThenBootstrapWorks() public {
         StakeVault fresh = new StakeVault(token);
+        token.approve(address(fresh), type(uint256).max);
+        // Nobody can stake 1 wei ahead of the bootstrap to force the 8-day path.
+        vm.expectRevert(IStakeVault.NotBootstrapped.selector);
+        fresh.stake(1);
+        vm.expectRevert(IStakeVault.NotBootstrapped.selector);
+        fresh.stakeFor(alice, 1);
+        vm.expectRevert(IStakeVault.NotBootstrapped.selector);
+        fresh.stakeWithPermit(1, block.timestamp, 0, bytes32(0), bytes32(0));
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
+        fresh.bootstrapHolding(holding);
+        vm.expectRevert(IStakeVault.ZeroAddress.selector);
+        fresh.bootstrapHolding(address(0));
+        fresh.bootstrapHolding(holding);
+        assertTrue(fresh.isHolding(holding));
+        assertTrue(fresh.bootstrapped());
+
+        fresh.stake(1);
+        assertEq(fresh.stakeOf(address(this)), 1);
+        vm.expectRevert(IStakeVault.BootstrapClosed.selector);
+        fresh.bootstrapHolding(holding2);
+    }
+
+    function test_bootstrap_acceptedHoldingAlsoOpensStakingAndClosesBootstrap() public {
+        StakeVault fresh = new StakeVault(token);
+        fresh.proposeHolding(holding);
+        vm.warp(t0 + 8 days);
+        fresh.acceptHolding();
+        assertTrue(fresh.bootstrapped());
         token.approve(address(fresh), 1);
         fresh.stake(1);
         vm.expectRevert(IStakeVault.BootstrapClosed.selector);
-        fresh.bootstrapHolding(holding);
-
-        StakeVault fresh2 = new StakeVault(token);
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
-        fresh2.bootstrapHolding(holding);
-        vm.expectRevert(IStakeVault.ZeroAddress.selector);
-        fresh2.bootstrapHolding(address(0));
-        fresh2.bootstrapHolding(holding);
-        assertTrue(fresh2.isHolding(holding));
+        fresh.bootstrapHolding(holding2);
     }
 
     function test_ownership_twoStep() public {

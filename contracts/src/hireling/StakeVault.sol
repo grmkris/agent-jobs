@@ -164,6 +164,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         delete _pendingHolding;
         delete _pendingEta;
         isHolding[holding] = true;
+        bootstrapped = true;
         emit HoldingAuthorized(holding, false);
     }
 
@@ -173,8 +174,8 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         emit HoldingRevoked(holding);
     }
 
-    /// @dev Safe at launch because the recipe bootstraps before any FACTORY reaches a third party: until then only the
-    ///      deployer and the Safe hold it, so nobody can stake first to block the bootstrap.
+    /// @dev Staking is closed until this (or `acceptHolding`) runs, so nobody can stake first and force the launch onto
+    ///      the 8-day path; `totalStaked == 0` is kept as a second guard.
     function bootstrapHolding(address holding) external onlyOwner {
         if (bootstrapped || totalStaked != 0) revert BootstrapClosed();
         if (holding == address(0)) revert ZeroAddress();
@@ -214,6 +215,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     // ---------------------------------------------------------------------------------------------
 
     function _stake(address payer, address account, uint256 amount) private {
+        if (!bootstrapped) revert NotBootstrapped();
         if (amount == 0) revert ZeroAmount();
         factory.safeTransferFrom(payer, address(this), amount);
         _accounts[account].staked += uint128(amount);
