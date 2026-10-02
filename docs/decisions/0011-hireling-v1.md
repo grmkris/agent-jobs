@@ -135,6 +135,7 @@ above the floor; the limits below are what the SDK and the relay should use (dec
 | `HirelingHolding.settle`, worst case (2 bond releases, worker and treasury pushes) | 587k | 1,000,000 |
 | `HirelingHolding.settle` after an accept (bonus and fee pushes) | 446k | 1,000,000 |
 | `HirelingHolding.claimTopUpRefund` | 337k | 450,000 |
+| `HirelingHolding.cancel` (core reject, bond release, reward push) | 492k | 700,000 |
 | `HirelingEvaluator.accept` / `completeAfterSilence` | 708k | 1,100,000 |
 | `HirelingEvaluator.rule` (with a slash) | 732k | 1,100,000 |
 | `HirelingEvaluator.ruleWithSignature` (with a slash) | 747k | 1,100,000 |

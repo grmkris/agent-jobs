@@ -340,7 +340,7 @@ contract HirelingEvaluator is IHirelingEvaluator, EIP712, Ownable2Step, Reentran
         catch {
             if (core.paused()) revert CorePaused();
             _cases[jobId].payoutDeferred = true;
-            bool refunded;
+            bool refunded = false;
             try core.reject(jobId, "payout-deferred", "") {
                 refunded = true;
             } catch {}

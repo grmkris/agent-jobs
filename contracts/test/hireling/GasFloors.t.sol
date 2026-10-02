@@ -13,6 +13,7 @@ contract GasFloorsTest is BaseV1 {
     uint256 constant SETTLE_LIMIT = 1_000_000;
     uint256 constant TOPUP_REFUND_LIMIT = 450_000;
     uint256 constant EVALUATOR_LIMIT = 900_000;
+    uint256 constant CANCEL_LIMIT = 600_000;
 
     function _floor(address from, address target, bytes memory data) internal returns (uint256 lo) {
         lo = 21_000;
@@ -61,6 +62,13 @@ contract GasFloorsTest is BaseV1 {
             _floor(relayer, address(holding), abi.encodeCall(IHirelingHolding.claimTopUpRefund, (jobId, contributor)));
         console.log("claimTopUpRefund:", g);
         assertLt(g, TOPUP_REFUND_LIMIT);
+    }
+
+    function test_gas_cancel() public {
+        uint256 jobId = publish();
+        uint256 g = _floor(creator, address(holding), abi.encodeCall(IHirelingHolding.cancel, (jobId)));
+        console.log("cancel (core reject, bond release, reward push):", g);
+        assertLt(g, CANCEL_LIMIT);
     }
 
     function test_gas_accept() public {

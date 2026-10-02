@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {IStakeVault} from "./interfaces/IStakeVault.sol";
 import {IEpochDistributor} from "./interfaces/IEpochDistributor.sol";
@@ -31,7 +32,7 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
         vault = vault_;
         genesis = genesis_;
         // The vault is immutable and pulls only inside `stakeFor`, which only `claim` calls.
-        factory_.approve(address(vault_), type(uint256).max);
+        SafeERC20.forceApprove(factory_, address(vault_), type(uint256).max);
     }
 
     function setRoot(uint256 epoch, bytes32 root, uint256 total, bytes32 dataHash) external onlyOwner {

@@ -310,7 +310,7 @@ interface IHirelingHolding {
     // ---------------------------------------------------------------------------------------------
 
     /// @notice Once, at deploy: the evaluator (it needs this address in its constructor).
-    function setEvaluator(address evaluator) external;
+    function setEvaluator(address evaluator_) external;
 
     /// @notice The arbitrator a new listing gets when it names none. Resolved and stored at publish, so changing it
     ///         never touches a live job; lets arbiter keys rotate.
