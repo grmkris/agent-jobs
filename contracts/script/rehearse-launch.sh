@@ -15,6 +15,7 @@
 # chain-143 broadcast log already exists (a real deploy's). Needs anvil, forge, cast, jq, bun.
 #   RPC=https://rpc.monad.xyz bash script/rehearse-launch.sh
 set -euo pipefail
+{ # parsed whole before it runs, so an edit to this file mid-run cannot change what runs
 cd "$(dirname "$0")/.."
 
 FORK_RPC="${RPC:-https://rpc.monad.xyz}"
@@ -52,11 +53,15 @@ for s in "${SCRIPTS[@]}"; do
 done
 [[ ! -e "$CONFIG" ]] || { echo "refusing: $CONFIG exists" >&2; exit 1; }
 
-ANVIL_PID=
+ANVIL_PID= SAFE=
+. script/rehearse-owned.sh
+# Only what this run created: a real launch from the same checkout writes the same chain-143 broadcast paths.
 cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  for s in "${SCRIPTS[@]}"; do rm -rf "broadcast/$s.s.sol/$CHAIN" "cache/$s.s.sol/$CHAIN"; done
-  rm -f "$CONFIG" "$CANDIDATE" "$GATE_TS" "$BUDGET"
+  owned_runs "$CHAIN" "$LOCAL" $(for i in $(seq 0 9); do addr "$(devkey "$i")"; done)
+  owned_file "$CONFIG" .hireling.safe "$SAFE"
+  owned_file "$CANDIDATE" .safe "$SAFE"
+  rm -f "$GATE_TS" "$BUDGET"
   rm -rf "$MINING"
 }
 trap cleanup EXIT
@@ -94,10 +99,13 @@ process.exit(failures.length > 0 ? 3 : 0)
 EOF
 gate() { bun "$GATE_TS" "$CONFIG" "$LOCAL"; }
 
+# The fork must be this run's own anvil: refuse a port something else already serves.
+cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
 anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL")" == "$CHAIN" ]] || fail "anvil fork of chain 143 not up"
+kill -0 "$ANVIL_PID" 2>/dev/null || fail "the anvil this run started is not running (port $PORT taken?)"
 
 DEPLOYER=$(addr $K_DEPLOYER); OWNER1=$(addr $K_OWNER1); OWNER2=$(addr $K_OWNER2)
 ARBITRATOR=$(addr $K_ARBITRATOR); RELAY=$(addr $K_RELAY); ATTESTER=$(addr $K_ATTESTER); TEAM=$(addr $K_TEAM)
@@ -215,3 +223,5 @@ printf '%-78s %4s %12s %12s %10s %10s\n' step txs "gas limit" "gas used" "MON@10
 awk -F'\t' '{ printf "%-78s %4d %12d %12d %10.4f %10.4f\n", $1, $2, $3, $4, $3*102e-9, $3*203e-9; n+=$2; l+=$3; u+=$4 }
   END { printf "%-78s %4d %12d %12d %10.4f %10.4f\n", "total", n, l, u, l*102e-9, l*203e-9 }' "$BUDGET"
 echo "LAUNCH REHEARSAL PASSED"
+exit
+}

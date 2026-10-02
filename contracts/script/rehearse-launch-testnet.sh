@@ -65,23 +65,28 @@ for s in "${SCRIPTS[@]}"; do
 done
 [[ ! -e "$CONFIG" && ! -e "$CANDIDATE" ]] || { echo "refusing: $CONFIG or $CANDIDATE exists" >&2; exit 1; }
 
-ANVIL_PID= KEPT=0
+ANVIL_PID= KEPT=0 SAFE=
+. script/rehearse-owned.sh
+# Only what this run created: G1 itself, run from the same checkout, writes the same chain-10143 broadcast paths.
 cleanup() {
   [[ $KEPT -eq 0 && -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  for s in "${SCRIPTS[@]}"; do rm -rf "broadcast/$s.s.sol/$CHAIN" "cache/$s.s.sol/$CHAIN"; done
-  [[ $KEPT -eq 1 ]] || rm -f "$CONFIG"
-  rm -f "$CANDIDATE"
+  owned_runs "$CHAIN" "$LOCAL" "$DEPLOYER" "$OWNER1"
+  [[ $KEPT -eq 1 ]] || owned_file "$CONFIG" .hireling.safe "$SAFE"
+  owned_file "$CANDIDATE" .safe "$SAFE"
   rm -rf "$LAUNCH_LOGS" "$KEYSTORES"
 }
 trap cleanup EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 
+# The fork must be this run's own anvil: refuse a port something else already serves.
+cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
 # No inherited stdout: with KEEP=1 anvil outlives this script, and must not hold a caller's pipe open.
 anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent </dev/null >/dev/null 2>&1 &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL" 2>/dev/null)" == "$CHAIN" ]] || fail "anvil fork of chain $CHAIN not up"
+kill -0 "$ANVIL_PID" 2>/dev/null || fail "the anvil this run started is not running (port $PORT taken?)"
 for a in $DEPLOYER $OWNER1; do
   cast rpc --rpc-url "$LOCAL" anvil_setBalance "$a" 0x3635c9adc5dea00000 >/dev/null 2>&1 # 1,000 MON
 done

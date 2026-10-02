@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # G1-DRY: backend's B11 runner (packages/sdk/scripts/v1-flows.ts) against a real v1 deploy, on a throwaway anvil fork of
 # Monad testnet (chain 10143). Steps:
-#   1. a fresh 1-of-2 Safe; launch-testnet.sh deploys, promotes, accepts, deploys odd tokens and makes the fee proposal
-#      and Holding probe, all with anvil dev keys, promoting into contracts/config/monad-testnet.json. That file is
-#      backed up first and restored on any exit; it must have no local changes to start, and is never committed;
-#   2. the dev wallets get MON, FACTORY v2 and the reward token (mUSD) on the fork, and deployment.oddTokens is recorded;
-#   3. each case runs as its own `bun --no-env-file v1-flows.ts <case>` process, under `env -i` with only dev keys and
-#      the loopback RPC, so neither .env.local nor any real key or RPC can reach it. The runner's chain-time waits are
-#      warped on the fork;
+#   1. a fresh 1-of-2 Safe; launch-testnet.sh deploys, promotes, accepts, grants the Safe the core's ADMIN_ROLE, deploys
+#      odd tokens and makes the fee proposal and Holding probe, all with fresh keys, promoting into a scratch
+#      config/rehearsal-<pid>.json (gitignored). The tracked config/monad-testnet.json is only ever read: at G1 the real
+#      launch promotes into it, possibly in this same checkout (G1-DRY-001);
+#   2. the wallets get MON, FACTORY v2 and v1 and the reward token (mUSD) on the fork, and deployment.oddTokens is
+#      recorded;
+#   3. the runner, which reads the SDK's bundled monad-testnet config, runs from a private mirror: byte-identical copies
+#      of packages/sdk/src and scripts (without any journal), the real node_modules, and the scratch config as its
+#      contracts/config/monad-testnet.json. Each case is its own `bun --no-env-file v1-flows.ts <case>` process, under
+#      `env -i` with only fresh keys and the loopback RPC, so neither .env.local nor any real key or RPC can reach it.
+#      Its journal stays in the mirror. The runner's chain-time waits are warped on the fork;
 #   4. a pass/fail table per case and the gas limits (which Monad charges) per wallet, from the hashes the runner prints.
-# Sends nothing to a real chain. Refuses to start if chain-10143 broadcast logs exist. Needs anvil, forge, cast, jq, bun.
+# Sends nothing to a real chain. Refuses to start if chain-10143 broadcast logs exist; on exit it deletes only what this
+# run created, after checking it still owns it (script/rehearse-owned.sh). Needs anvil, forge, cast, jq, bun.
 #   bash script/rehearse-flows-testnet.sh [cases]     # default: every case that needs no board (FLOW_CASES)
 #   HOLD=<file> pauses after funding, with the fork up, until <file> is removed (to debug against it).
 set -euo pipefail
@@ -21,7 +26,10 @@ FORK_RPC="${RPC:-https://testnet-rpc.monad.xyz}"
 PORT="${PORT:-8601}"
 LOCAL="http://127.0.0.1:$PORT"
 CHAIN=10143
-CONFIG="config/monad-testnet.json"
+TRACKED="config/monad-testnet.json" # read only
+export NETWORK="rehearsal-$$"
+CONFIG="config/$NETWORK.json"
+CANDIDATE="broadcast/hireling/$NETWORK.candidate.json"
 SCRIPTS=(DeployHireling PromoteHireling SafeAccept DeployOddTokens)
 # Order matters: admin-vault-refusal needs the Holding probe still inside its 8 days, so it runs before the cases that
 # wait out windows; admin-fees waits 3 days and stake-cooldown 7, so they come last. legacy-dispute is left out: it signs
@@ -29,9 +37,10 @@ SCRIPTS=(DeployHireling PromoteHireling SafeAccept DeployOddTokens)
 DEFAULT_CASES="admin-ownership,admin-vault-refusal,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,fees,owed-blocklist,owed-gas,legacy-contest,admin-fees,admin-pause,stake-cooldown"
 CASES="${1:-${FLOW_CASES:-$DEFAULT_CASES}}"
 PROFILE="g1dry-$(date +%s)"
-JOURNAL="$REPO/packages/sdk/scripts/.v1-flows/$PROFILE"
 WORK="$(mktemp -d)"
 chmod 700 "$WORK"
+MIRROR="$WORK/mirror"
+. script/rehearse-owned.sh
 SAFE_FACTORY=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
 SAFE_L2=0x29fcB43b46531BcA003ddC8FCB67FFE91900C762
 FALLBACK_HANDLER=0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99
@@ -56,32 +65,35 @@ for s in "${SCRIPTS[@]}"; do
     exit 1
   fi
 done
-[[ ! -e broadcast/hireling/monad-testnet.candidate.json ]] || { echo "refusing: a monad-testnet candidate exists" >&2; exit 1; }
-git diff --quiet -- "$CONFIG" || { echo "refusing: $CONFIG has local changes; it is restored from a backup afterwards" >&2; exit 1; }
-cp "$CONFIG" "$WORK/config.backup"
+[[ ! -e "$CONFIG" && ! -e "$CANDIDATE" ]] || { echo "refusing: $CONFIG or $CANDIDATE exists" >&2; exit 1; }
+cp "$TRACKED" "$WORK/config.base"
+TRACKED_SUM=$(sha256sum <"$TRACKED")
 
-ANVIL_PID= WARPER_PID=
+ANVIL_PID= WARPER_PID= SAFE=
 cleanup() {
   [[ -n "$WARPER_PID" ]] && kill "$WARPER_PID" 2>/dev/null || true
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  cp "$WORK/config.backup" "$CONFIG"
-  git diff --quiet -- "$CONFIG" || echo "WARNING: $CONFIG differs from git after restore; check it" >&2
-  for s in "${SCRIPTS[@]}"; do rm -rf "broadcast/$s.s.sol/$CHAIN" "cache/$s.s.sol/$CHAIN"; done
-  rm -f broadcast/hireling/monad-testnet.candidate.json
-  rm -rf "$JOURNAL" "$WORK"
+  owned_runs "$CHAIN" "$LOCAL" "$DEPLOYER" "$OWNER1"
+  owned_file "$CONFIG" .hireling.safe "$SAFE"
+  owned_file "$CANDIDATE" .safe "$SAFE"
+  rm -rf "$WORK"
+  [[ "$(sha256sum <"$TRACKED")" == "$TRACKED_SUM" ]] || echo "WARNING: $TRACKED changed during the run (not by it); check it" >&2
 }
 trap cleanup EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 rpc() { cast rpc --rpc-url "$LOCAL" "$@" >/dev/null 2>&1 || { echo "fork RPC $1 failed" >&2; return 1; }; }
 
+# The fork must be this run's own anvil: refuse a port something else already serves.
+cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
 anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL" 2>/dev/null)" == "$CHAIN" ]] || fail "anvil fork of chain $CHAIN not up"
+kill -0 "$ANVIL_PID" 2>/dev/null || fail "the anvil this run started is not running (port $PORT taken?)"
 for a in $DEPLOYER $OWNER1 $ARBITRATOR $RELAY $CREATOR $WORKER; do rpc anvil_setBalance "$a" 0x3635c9adc5dea00000; done # 1,000 MON
 
-# 1. Safe, then the launch into the (backed-up) testnet config.
+# 1. Safe, then the launch into the scratch config.
 SETUP=$(cast calldata "setup(address[],uint256,address,bytes,address,address,uint256,address)" "[$OWNER1,$OWNER2]" 1 $ZERO 0x $FALLBACK_HANDLER $ZERO 0 $ZERO)
 SALT=$(date +%s)
 SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT" 2>/dev/null)
@@ -89,8 +101,8 @@ cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" $SAFE_FACTORY "createPr
 # On testnet the deployer is roles.admin, which holds the reused core's DEFAULT_ADMIN_ROLE, so launch-testnet.sh's
 # pauser step can grant the Safe ADMIN_ROLE. Here the deployer is a fresh key, so roles.admin (impersonated, on the fork
 # only) first makes it the core's admin too; the grant to the Safe is then launch-testnet.sh's own transaction.
-CORE=$(jq -r .deployment.core "$WORK/config.backup")
-REAL_ADMIN=$(jq -r .roles.admin "$WORK/config.backup")
+CORE=$(jq -r .deployment.core "$WORK/config.base")
+REAL_ADMIN=$(jq -r .roles.admin "$WORK/config.base")
 DEFAULT_ADMIN_ROLE=0x0000000000000000000000000000000000000000000000000000000000000000
 [[ "$(cast call --rpc-url "$LOCAL" "$CORE" "hasRole(bytes32,address)(bool)" $DEFAULT_ADMIN_ROLE "$REAL_ADMIN" 2>/dev/null)" == true ]] \
   || fail "roles.admin $REAL_ADMIN is not the core's DEFAULT_ADMIN_ROLE on testnet"
@@ -103,9 +115,9 @@ jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg atteste
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arb }
   | .hireling.safe = $safe | .hireling.defaultArbitrator = $arb | .hireling.schedule.treasury = $safe
   | .hireling.allocation = { treasury: $safe, ecosystem: $admin, liquidity: $admin }
-  | .oddTokens = { wallets: [$c, $w], mint: 1000 }' "$WORK/config.backup" >"$CONFIG"
+  | .oddTokens = { wallets: [$c, $w], mint: 1000 }' "$WORK/config.base" >"$CONFIG"
 export FLOW_RPC="$LOCAL" FLOW_DEPLOYER_KEY="$K_DEPLOYER" FLOW_SAFE_OWNER_KEY="$K_OWNER1"
-env NETWORK=monad-testnet RPC_ENV=FLOW_RPC DEPLOYER_KEY_ENV=FLOW_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=FLOW_SAFE_OWNER_KEY LAUNCH_LOGS="$WORK/launch" \
+env RPC_ENV=FLOW_RPC DEPLOYER_KEY_ENV=FLOW_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=FLOW_SAFE_OWNER_KEY LAUNCH_LOGS="$WORK/launch" \
   bash script/launch-testnet.sh --yes --private-keys --fee-proposal --holding-probe >"$WORK/launch.out" 2>&1 \
   || { tail -30 "$WORK/launch.out"; fail "launch-testnet.sh"; }
 grep -q "LAUNCH-TESTNET DONE" "$WORK/launch.out" || fail "launch-testnet.sh did not finish"
@@ -131,7 +143,7 @@ rpc anvil_dealERC20 "$CREATOR" "$MUSD" 0x3b9aca00 # 1,000 mUSD (6 decimals)
   || fail "could not deal mUSD to the creator on the fork"
 # legacy-contest publishes on the legacy open-token pair (main before promotion), which needs the creator to hold its
 # FACTORY (v1, at least 1). After promotion .deployment.factory is v2, so ask that holding which token it reads.
-FACTORY_V1=$(cast call --rpc-url "$LOCAL" "$(jq -r .deployment.main.holding "$WORK/config.backup")" "factory()(address)" 2>/dev/null)
+FACTORY_V1=$(cast call --rpc-url "$LOCAL" "$(jq -r .deployment.main.holding "$WORK/config.base")" "factory()(address)" 2>/dev/null)
 [[ "${FACTORY_V1,,}" != "${FACTORY,,}" ]] || fail "the legacy pair's FACTORY is v2?"
 for w in $CREATOR $WORKER; do
   rpc anvil_dealERC20 "$w" "$FACTORY_V1" 0x56bc75e2d63100000 # 100 FACTORY v1
@@ -140,17 +152,29 @@ for w in $CREATOR $WORKER; do
 done
 ok "creator and worker hold 50,000 FACTORY v2 and 100 FACTORY v1; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
 if [[ -n "${HOLD:-}" ]]; then # HOLD=<file>: pause here, fork up and config promoted, until the file is removed
-  touch "$HOLD"; echo "holding: fork $LOCAL; remove $HOLD to run the cases"
+  touch "$HOLD"; echo "holding: fork $LOCAL, config $PWD/$CONFIG; remove $HOLD to run the cases"
   while [[ -e "$HOLD" ]]; do sleep 2; done
 fi
 
-# 3. The runner, one case per process, isolated from every .env file and real key.
+# 3. The runner, one case per process, isolated from every .env file and real key. It and the SDK import
+# ../../../contracts/config/monad-testnet.json, so they run from a mirror where that path is the scratch config.
+mkdir -p "$MIRROR/packages/sdk" "$MIRROR/contracts/config"
+cp -r "$REPO/packages/sdk/src" "$MIRROR/packages/sdk/src"
+cp "$REPO/packages/sdk/package.json" "$MIRROR/packages/sdk/"
+# The runner and its siblings, never a real journal (.v1-flows holds signed transactions).
+(cd "$REPO/packages/sdk" && tar --exclude=./scripts/.v1-flows -cf - ./scripts) | (cd "$MIRROR/packages/sdk" && tar -xf -)
+[[ ! -e "$MIRROR/packages/sdk/scripts/.v1-flows" ]] || fail "a real flow journal reached the mirror"
+ln -s "$REPO/packages/sdk/node_modules" "$MIRROR/packages/sdk/node_modules"
+cp "$REPO/contracts/config/monad-mainnet.json" "$MIRROR/contracts/config/"
+cp "$CONFIG" "$MIRROR/contracts/config/monad-testnet.json"
+diff -r "$REPO/packages/sdk/src" "$MIRROR/packages/sdk/src" >/dev/null && diff -r -x .v1-flows "$REPO/packages/sdk/scripts" \
+  "$MIRROR/packages/sdk/scripts" >/dev/null || fail "the SDK mirror differs from packages/sdk"
 [[ "$LOCAL" == http://127.0.0.1:* ]] || fail "the runner RPC must be the loopback fork"
 runner() { # <case> [profile]
   (cd "$WORK" && env -i PATH="$PATH" HOME="$HOME" NO_COLOR=1 MONAD_TESTNET_RPC_URL="$LOCAL" V1_FLOW_PROFILE="${2:-$PROFILE}" \
     TESTNET_CREATOR_PRIVATE_KEY="$K_CREATOR" TESTNET_WORKER_PRIVATE_KEY="$K_WORKER" RELAY_PRIVATE_KEY="$K_RELAY" \
     V1_ARBITRATOR_PRIVATE_KEY="$K_ARBITRATOR" SAFE_BACKUP_TESTNET_PRIVATE_KEY="$K_OWNER1" TESTNET_ODD_OWNER_PRIVATE_KEY="$K_DEPLOYER" \
-    timeout 1200 bun --no-env-file "$REPO/packages/sdk/scripts/v1-flows.ts" "$1")
+    timeout 1200 bun --no-env-file "$MIRROR/packages/sdk/scripts/v1-flows.ts" "$1")
 }
 # Warp whatever chain time the runner says it is waiting for. run_case bumps case.id, which resets the count.
 warper() {

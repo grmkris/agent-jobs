@@ -435,9 +435,19 @@ from that run:
 ### G1-DRY: backend's B11 runner on that deploy (`script/rehearse-flows-testnet.sh`)
 
 On an anvil fork of testnet: the launch above (fresh keys for every role, a fresh Safe, fee proposal, Holding probe),
-promoted into `config/monad-testnet.json`, which is backed up first and restored on exit. Then each case of
-`packages/sdk/scripts/v1-flows.ts` runs as its own `bun --no-env-file` process under `env -i`, with only the fresh
-keys and the loopback RPC, so no `.env.local` value or real key can reach it. The runner's chain-time waits are warped.
+promoted into a scratch `config/rehearsal-<pid>.json`. The tracked `config/monad-testnet.json`, into which G1 itself
+promotes (possibly from the same checkout), is only read. The runner reads the SDK's bundled testnet config, so it
+runs from a private mirror: byte-identical copies of `packages/sdk/src` and `scripts` (no journal), the real
+`node_modules`, and the scratch config at the mirror's `contracts/config/monad-testnet.json`. Each case of
+`v1-flows.ts` runs as its own `bun --no-env-file` process under `env -i`, with only the fresh keys and the loopback RPC,
+so no `.env.local` value or real key can reach it. The runner's chain-time waits are warped.
+
+Every fork rehearsal (this one, the G1 rehearsal, R7, the pipeline rehearsal) starts its own anvil and refuses a port
+already serving an RPC. On exit it deletes only what it can show is its own, through `script/rehearse-owned.sh`:
+- a broadcast run log, only if all its transactions came from the run's signers and its cache twin names only the run's
+  loopback RPC;
+- a scratch config or candidate, only if it names the run's Safe.
+Anything else is kept and named.
 It prints pass/fail per case and the gas limits per wallet, for the launch and for the flows. Every runner case that
 needs no board passed on 2 Oct (21/21), all but `legacy-dispute`, which signs with the real legacy arbitrator's key.
 Fork-only stand-ins: an impersonated `roles.admin` makes the fresh deployer the core's admin, and `anvil_dealERC20`

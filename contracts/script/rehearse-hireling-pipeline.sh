@@ -26,10 +26,15 @@ if [[ -e "$LOGDIR" || -e "$CACHEDIR" ]]; then
 fi
 
 ANVIL_PID=
+SCRIPTS=(DeployHireling PromoteHireling)
+. script/rehearse-owned.sh
+# Only what this run created: G1, run from the same checkout, writes the same paths with the same deployer (which this
+# rehearsal impersonates), so a run log counts as this run's only if it was sent to this fork's loopback RPC.
 cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  rm -rf "$LOGDIR" "$CACHEDIR" "broadcast/PromoteHireling.s.sol/$CHAIN" "cache/PromoteHireling.s.sol/$CHAIN"
-  rm -f "$CONFIG" "$CANDIDATE"
+  owned_runs "$CHAIN" "$LOCAL" "$ADMIN"
+  owned_file "$CANDIDATE" .safe "$(jq -r .hireling.safe "$CONFIG" 2>/dev/null)"
+  owned_file "$CONFIG" .network monad-testnet # a copy of the testnet config under this rehearsal's name
 }
 trap cleanup EXIT
 
@@ -37,10 +42,13 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 
 cp config/monad-testnet.json "$CONFIG"
+# The fork must be this run's own anvil: refuse a port something else already serves.
+cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && fail "port $PORT already serves an RPC; stop it, or set PORT"
 anvil --fork-url "$FORK_RPC" --port "$PORT" --block-time 1 --silent &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL")" == "$CHAIN" ]] || fail "anvil fork not up"
+kill -0 "$ANVIL_PID" 2>/dev/null || fail "the anvil this run started is not running (port $PORT taken?)"
 cast rpc --rpc-url "$LOCAL" anvil_impersonateAccount "$ADMIN" >/dev/null
 cast rpc --rpc-url "$LOCAL" anvil_setBalance "$ADMIN" 0x56bc75e2d63100000 >/dev/null # 100 MON
 
