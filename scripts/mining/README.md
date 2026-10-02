@@ -1,5 +1,31 @@
 # Work mining: one epoch (B8)
 
+After the Safe has funded and published the epoch root, the coordinator publishes
+the computed file for Collect:
+
+```
+pnpm mining:publish <epoch-n.json> --stage staging|prod
+```
+
+This checks the selected network config, RPC chain id, every claim/proof, total
+and recomputed `dataHash`, then requires the file's root/total/dataHash to equal
+`EpochDistributor.rootOf(epoch)`. It uploads the captured file bytes to
+`mining/epoch-<n>.json` in the existing Manifests bucket and reads them back to
+compare sha256. A failed readback exits unsuccessfully; retry the same file.
+It sends no on-chain transaction and never creates or changes Alchemy state.
+
+Credentials come from `.env.local` over the shell environment:
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` and the stage's
+`MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. Existing stage/network env
+settings must agree with `--stage`. Values, bucket names, URLs and provider
+error bodies are never printed. Staging uses the canonical Api/Manifests
+identities from the guarded release; prod resolves exactly one Api by Alchemy's
+stack/stage/logical-id ownership tags. Both verify the Api's runtime stage/network
+and its Manifests binding against the same generated naming used by
+`Bucket('Manifests')` in `alchemy.run.ts`, including the deployed instance suffix.
+No bucket suffix is guessed or overridden. Unit tests use fake R2 only; the
+coordinator runs live publication.
+
 `pnpm mining:epoch <n>` computes epoch `n`'s rewards from chain data alone, then writes the Merkle tree the
 `EpochDistributor` pays from, plus the Safe's two calls. It never reads the indexer or D1. Rules: ADR-0011, D12 #2, D17.
 

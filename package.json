@@ -23,6 +23,7 @@
     "reality-check": "bun scripts/reality-check.ts",
     "p0:drills": "bun scripts/p0-drills.ts",
     "mining:epoch": "bun scripts/mining/epoch.ts",
+    "mining:publish": "bun scripts/mining/publish.ts",
     "mining:test": "bun test scripts/mining",
     "cre:simulate": "pnpm --filter @agent-jobs/ci-evidence run simulate",
     "cre:setup": "pnpm --filter @agent-jobs/ci-evidence run setup",
