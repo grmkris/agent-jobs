@@ -85,6 +85,21 @@ deletions or type changes, and any new grouped or inherited binding. New v1 tabl
   becomes a standing permission.
 - Rotated values go into `.env.local` only; nothing prints them.
 
+**What the apply digest covers (since 2 Oct 2026, reviews B12-001/002).** The digest also commits to the following, and `apply` recomputes each of them:
+- **`payload`:** for each Worker,
+  - keyed commitments to every secret, plain-text and JSON value;
+  - the resource identities and Worker settings, in clear;
+  - the upload's build bytes. For Api and Indexer these come from the provider's own build. Explore's Vite build is pinned only by the source tree and its `VITE_*` environment.
+- **`transitions`:** the Durable Object migration and tag change that the provider would derive from the live script tags at upload time. Any class creation, rename, deletion or transfer refuses the plan.
+- **Live identities:** every planned binding, noop ones included (for example `DirectoryObject` and `DIRECTORY_DATABASE`), is compared to its live identity. Any drift refuses the plan.
+
+Each Worker's payload and transition are recomputed again inside its reconcile, immediately before upload. A difference stops the release before that upload.
+
+**The commitment key.** `.alchemy/recovery/commitment.key` (32 random bytes, mode 0600) is created on the first `plan`.
+- Keep it private and in place.
+- Replacing or deleting it changes every digest, so any pending `apply <digest>` is then refused and needs a new `plan`.
+- Neither the plan packet nor the journal ever prints a value. They show only the commitments and the key's id.
+
 ## Directory migration
 
 `pnpm db:generate` generates `apps/api/migrations/0001_directory_agents.sql` from
