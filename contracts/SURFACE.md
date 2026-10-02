@@ -350,7 +350,11 @@ The mainnet launch end to end on a throwaway anvil fork of chain 143 (`--network
    and none with the deployer, attester verifier, relay above 2 MON.
 5. `SeedPool`, then its receipt-based `--sig "verify()"` against forge's real run log.
 6. One direct hire through the v1 pair (`script/RehearseHireAndMine.s.sol`, `RehearseHire`).
-7. A warp past epoch 0; the Safe funds it and posts a one-leaf root, and the worker's claim stakes (`RehearseMining`).
+7. A warp past epoch 0, then work mining with the B8 tool (`scripts/mining`, README there):
+   - a Safe owner signs the price list from a throwaway keystore;
+   - `mining:epoch` computes epoch 0 from the fork's logs;
+   - the Safe sends the tool's `fund` and `setRoot` calldata;
+   - the worker's and the creator's claims, with the tool's proofs, stake (`RehearseMining`).
 
 It signs with anvil's public dev keys only, refuses to start if any chain-143 broadcast log exists, and removes its
 scratch `config/rehearsal-mainnet.json` and logs on exit:
@@ -373,6 +377,10 @@ gas price.
 The deployer needs about 3.1 MON charged (Safe + deploy + seed), or 6.2 MON on hand at the 203 gwei max fee (Monad
 checks the balance against limit × max fee). A Safe owner needs about 0.15 MON, or 0.3 on hand. The relay must hold
 more than `RELAY_FLOOR_MAINNET` (2 MON, B6) before opening.
+
+Since B8 (2 Oct), step 7 is four transactions: `fund`, `setRoot` and two claims. That's 968,520 gas limit (0.099 MON
+@ 102 gwei), and each claim is paid by whoever sends it. In that run the hire's 2.5 USDC fee mined 12,500 FACTORY:
+7,500 to the worker and 5,000 to the creator.
 
 ## Testnet launch (G1): `script/launch-testnet.sh`, `script/rehearse-launch-testnet.sh`
 

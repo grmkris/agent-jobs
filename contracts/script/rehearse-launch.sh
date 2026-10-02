@@ -7,7 +7,8 @@
 #   4. SafeAccept (six execTransactions from an owner), then the D16 gate, which must pass;
 #   5. SeedPool (helper, approvals, seed) and its receipt-based verify();
 #   6. one direct hire through the v1 pair (register, stake, publish, activate, submit, accept, settle);
-#   7. mining: warp past epoch 0, the Safe funds it and posts a one-leaf root, the worker's claim stakes.
+#   7. mining: warp past epoch 0; a Safe owner signs the price list (a throwaway keystore), scripts/mining computes the
+#      epoch from the fork's logs, the Safe sends the tool's fund + setRoot, and the worker's and creator's claims stake.
 # Every step's gas (the limits actually sent, which Monad charges, and gasUsed) is printed as the launch budget.
 # Sends nothing to a real chain: anvil's public dev keys sign everything, against a local fork. Writes a scratch
 # config/rehearsal-mainnet.json and chain-143 broadcast logs, and removes both on exit; refuses to start if any
@@ -26,6 +27,7 @@ CHAIN=143
 SCRIPTS=(DeployHireling PromoteHireling SafeAccept SeedPool RehearseHireAndMine)
 BUDGET="$(mktemp)"
 GATE_TS="$(mktemp --suffix=.ts)"
+MINING="$(mktemp -d)"
 REPO="$(cd .. && pwd)"
 
 # Canonical Safe v1.4.1 on chain 143.
@@ -55,6 +57,7 @@ cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
   for s in "${SCRIPTS[@]}"; do rm -rf "broadcast/$s.s.sol/$CHAIN" "cache/$s.s.sol/$CHAIN"; done
   rm -f "$CONFIG" "$CANDIDATE" "$GATE_TS" "$BUDGET"
+  rm -rf "$MINING"
 }
 trap cleanup EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -177,10 +180,27 @@ END=$(cast call --rpc-url "$LOCAL" "$RESERVE" "epochEnd(uint256)(uint256)" 0 | a
 NOW=$(cast block --rpc-url "$LOCAL" latest -f timestamp)
 cast rpc --rpc-url "$LOCAL" evm_increaseTime $((END - NOW + 60)) >/dev/null
 cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null
-log /tmp/r7-mine.log env MAINNET_GO=yes SAFE_OWNER_KEY=$K_OWNER1 WORKER_KEY=$K_WORKER \
+# The B8 tool, as the coordinator runs it: the price list signed from a keystore (USDC at $1, FACTORY at $0.0001), then
+# the epoch from chain logs alone.
+chmod 700 "$MINING"
+(umask 077; printf 'r7-%s%s' "$RANDOM" "$RANDOM" >"$MINING/password")
+cast wallet import --keystore-dir "$MINING" owner --private-key "$K_OWNER1" --unsafe-password "$(cat "$MINING/password")" >/dev/null 2>&1
+printf '{"epoch":"0","tokens":[{"token":"%s","decimals":6,"usdPrice":"1000000000000000000"}],"factoryUsdPrice":"100000000000000"}\n' \
+  "$USDC" >"$MINING/unsigned.json"
+log /tmp/r7-prices.log bun ../scripts/mining/sign-prices.ts "$MINING/unsigned.json" --network monad-mainnet --config "$PWD/$CONFIG" \
+  --out "$MINING/prices.json" --keystore "$MINING/owner" --password-file "$MINING/password" || fail "sign the price list"
+log /tmp/r7-epoch.log bun ../scripts/mining/epoch.ts 0 --network monad-mainnet --config "$PWD/$CONFIG" --rpc "$LOCAL" \
+  --prices "$MINING/prices.json" --out "$MINING" || fail "mining:epoch"
+EPOCH="$MINING/epoch-0.json"
+[[ "$(jq '[.inputs.fees[] | select(.status == "counted")] | length' "$EPOCH")" -ge 1 ]] || fail "the tool counted no fee from the hire"
+claim() { jq -r --arg a "$(addr "$1" | tr 'A-F' 'a-f')" ".claims[\$a].$2 | if type == \"array\" then join(\",\") else . end" "$EPOCH"; }
+log /tmp/r7-mine.log env MAINNET_GO=yes SAFE_OWNER_KEY=$K_OWNER1 WORKER_KEY=$K_WORKER CREATOR_KEY=$K_CREATOR \
+  FUND_DATA="$(jq -r .calls.fund.data "$EPOCH")" SETROOT_DATA="$(jq -r .calls.setRoot.data "$EPOCH")" \
+  WORKER_AMOUNT="$(claim $K_WORKER amount)" WORKER_PROOF="$(claim $K_WORKER proof)" \
+  CREATOR_AMOUNT="$(claim $K_CREATOR amount)" CREATOR_PROOF="$(claim $K_CREATOR proof)" \
   forge script script/RehearseHireAndMine.s.sol --tc RehearseMining --rpc-url "$LOCAL" --broadcast --slow || fail "mining"
-budget_run "7. Mining epoch 0 (fund + setRoot via Safe, claim → stake)" RehearseHireAndMine
-ok "epoch 0 funded, root set, claim staked"
+budget_run "7. Mining epoch 0 (fund + setRoot via Safe, two claims → stake)" RehearseHireAndMine
+ok "epoch 0 by scripts/mining: $(jq -r .total "$EPOCH") FACTORY wei over $(jq '.claims | length' "$EPOCH") leaves, root $(jq -r .root "$EPOCH" | cut -c1-14)…; funded, root set, both claims staked"
 
 echo
 echo "LAUNCH BUDGET (Monad charges the gas limit; MON at 102 gwei now, and at forge's 203 gwei max fee)"

@@ -122,7 +122,14 @@ contract RehearseHire is RehearsalScript {
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 structHash = keccak256(
             abi.encode(
-                core.SET_BUDGET_AUTHORIZATION_TYPEHASH(), signer, jobId, token, amount, keccak256(""), uint72(1), deadline
+                core.SET_BUDGET_AUTHORIZATION_TYPEHASH(),
+                signer,
+                jobId,
+                token,
+                amount,
+                keccak256(""),
+                uint72(1),
+                deadline
             )
         );
         (uint8 v, bytes32 r, bytes32 s) =
@@ -131,40 +138,38 @@ contract RehearseHire is RehearsalScript {
     }
 }
 
-/// @notice Mining after epoch 0 has ended: the Safe funds epoch 0 and posts a one-leaf root for the worker, and the
-///         worker's claim stakes the reward into the vault. Keys: SAFE_OWNER_KEY (a threshold-1 Safe owner),
-///         WORKER_KEY.
+/// @notice Mining after epoch 0 has ended, from the B8 tool's output (`scripts/mining`, `epoch-0.json`): the Safe sends
+///         the tool's own `fund` and `setRoot` calldata, then the worker's and the creator's claims, with the tool's
+///         proofs, stake their rewards into the vault. Keys: SAFE_OWNER_KEY (a threshold-1 Safe owner), WORKER_KEY,
+///         CREATOR_KEY. From the epoch JSON: FUND_DATA, SETROOT_DATA, WORKER_AMOUNT/WORKER_PROOF and
+///         CREATOR_AMOUNT/CREATOR_PROOF (proofs comma-separated).
 contract RehearseMining is RehearsalScript {
     function run() external {
         _load();
         uint256 ownerKey = vm.envUint("SAFE_OWNER_KEY");
-        uint256 workerKey = vm.envUint("WORKER_KEY");
-        address worker = vm.addr(workerKey);
         ISafe safe = ISafe(_addr(".deployment.hireling.safe"));
         IMiningReserve reserve = IMiningReserve(_addr(".deployment.hireling.miningReserve"));
         IEpochDistributor distributor = IEpochDistributor(_addr(".deployment.hireling.distributor"));
         IStakeVault vault = IStakeVault(_addr(".deployment.hireling.vault"));
         require(block.timestamp >= reserve.epochEnd(0), "epoch 0 has not ended; warp first");
-        uint256 amount = 1_000e18;
-        bytes32 leaf = distributor.leaf(0, worker, amount);
-        uint256 stakeBefore = vault.stakeOf(worker);
+        address worker = vm.addr(vm.envUint("WORKER_KEY"));
+        address creator = vm.addr(vm.envUint("CREATOR_KEY"));
+        uint256 workerAmount = vm.envUint("WORKER_AMOUNT");
+        uint256 creatorAmount = vm.envUint("CREATOR_AMOUNT");
+        uint256 workerBefore = vault.stakeOf(worker);
+        uint256 creatorBefore = vault.stakeOf(creator);
 
         vm.startBroadcast(ownerKey);
-        _exec(safe, vm.addr(ownerKey), address(reserve), abi.encodeCall(IMiningReserve.fund, (0, amount)));
-        _exec(
-            safe,
-            vm.addr(ownerKey),
-            address(distributor),
-            abi.encodeCall(IEpochDistributor.setRoot, (0, leaf, amount, keccak256("rehearsal-epoch-0")))
-        );
+        _exec(safe, vm.addr(ownerKey), address(reserve), vm.envBytes("FUND_DATA"));
+        _exec(safe, vm.addr(ownerKey), address(distributor), vm.envBytes("SETROOT_DATA"));
+        // Claims are permissionless and stake for the leaf's account; the owner sends both.
+        distributor.claim(0, worker, workerAmount, vm.envBytes32("WORKER_PROOF", ","));
+        distributor.claim(0, creator, creatorAmount, vm.envBytes32("CREATOR_PROOF", ","));
         vm.stopBroadcast();
 
-        vm.startBroadcast(workerKey);
-        distributor.claim(0, worker, amount, new bytes32[](0));
-        vm.stopBroadcast();
-
-        require(vault.stakeOf(worker) == stakeBefore + amount, "claim did not stake");
-        console2.log("claimed and staked for the worker", amount);
+        require(vault.stakeOf(worker) == workerBefore + workerAmount, "worker claim did not stake");
+        require(vault.stakeOf(creator) == creatorBefore + creatorAmount, "creator claim did not stake");
+        console2.log("claimed and staked: worker", workerAmount, "creator", creatorAmount);
     }
 
     function _exec(ISafe safe, address owner, address to, bytes memory data) internal {
