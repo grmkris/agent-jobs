@@ -81,5 +81,39 @@ There is no storage-write or binding exception, and no manifest permission for a
 migration. The coordinator reruns the read-only plan; neither binding drift is
 considered resolved until its field and live meaning are explained.
 
+## D21 follow-up: G2-PLAN-3
+
+The coordinator's read-only probe at `db78e88` confirmed both causes: the account
+has 41 namespaces over 20-item pages without `total_pages`, and DirectoryObject
+is on a later page; Explore.API's live environment is the platform default
+`production` while its desired environment is omitted.
+
+The namespace reader now keeps the response envelope and traverses pages until
+`total_count` is covered. Missing/changed totals, mismatched counts, wrong page
+numbers, changed page sizes, duplicate identities, overfull pages and short pages before the end all refuse. It filters
+for the three staging hosts only after reading the complete account list.
+
+Only service-binding environment comparison normalizes missing/null/empty to
+`production` on both sides. Explicit staging still differs from production, and
+entrypoint, DO environment and every other comparison retain their prior rules.
+
+The list-read audit covers all release-helper reads and their pinned provider
+contracts:
+
+| Endpoint | Contract and handling |
+| --- | --- |
+| Account Durable Object namespaces | Page/total_count traversal, fixed in this WP. Provider upload already uses `listNamespaces.items()` to traverse namespaces. |
+| Account Workers domains | The pinned Workers API declares single-collection mode, with no page request fields. The runner keeps that contract and now checks any returned total_count against the complete array. Provider domain reconciliation uses the same complete collection, filtered by service. |
+| R2 buckets | Supports `per_page` and lexicographic `start_after`, without a response continuation token/count. The runner now traverses sorted full pages until a short page, refusing malformed/repeated pages. This matches the pinned Bucket provider's exhaustive walk. |
+| Worker deployments and schedules | Complete per-script collections with no page request in the pinned API; array shape and any total_count are checked. The deployment reader selects the current first deployment and requires one 100% version. |
+| Worker secrets | The runner reads names/types from the per-script settings binding collection, never a separate secrets list or secret values. The secrets-list API is single-collection mode if used by a provider. |
+| Zone Worker routes | No runner list read; the selected stack declares no routes. The pinned route-list API is a complete collection without page parameters. |
+| D1 databases | The runner addresses the owned database by its exact ID; no database list. Storage is noop-only, so database reconciliation/listing never runs in an accepted apply. |
+| R2 domain/lifecycle lists | Storage is noop-only; no bucket reconciliation runs in an accepted apply. |
+
+Fake-API regressions put DirectoryObject on page 3 with no total_pages, and
+verify incomplete totals/pages refuse. R2 tests cover later-page discovery and
+repeated-page refusal. No provider call, staging plan or apply ran in backend.
+
 The offline directory fixture's source hashes are refreshed for B10's reviewed
 code; its extracted schemas and migration permissions are unchanged.

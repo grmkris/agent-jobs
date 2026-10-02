@@ -30,7 +30,7 @@ export function sameIdentity(wire, old, workerName, namespaces) {
       break
     case 'service':
       if (!sameValue(wire.service, old.service)) differences.push('service')
-      if (!sameValue(wire.environment, old.environment)) differences.push('environment')
+      if (!sameValue(blank(wire.environment) ? 'production' : wire.environment, blank(old.environment) ? 'production' : old.environment)) differences.push('environment')
       if (!sameValue(wire.entrypoint, old.entrypoint)) differences.push('entrypoint')
       break
     case 'kv_namespace': if (!sameValue(wire.namespaceId ?? wire.namespace_id, old.namespace_id)) differences.push('namespaceId'); break

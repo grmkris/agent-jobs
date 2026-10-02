@@ -208,6 +208,14 @@ test('service drift reports all differing fields without values and retains exis
   assert.deepEqual(sameIdentity({ type: 'service', service: 'api' }, { service: 'api', environment: '', entrypoint: null }, 'explore', []), [])
 })
 
+test('service environment normalizes only the platform production default', () => {
+  assert.deepEqual(sameIdentity({ type: 'service', service: 'api', environment: '' }, { service: 'api', environment: 'production' }, 'explore', []), [])
+  assert.deepEqual(sameIdentity({ type: 'service', service: 'api', environment: 'production' }, { service: 'api', environment: null }, 'explore', []), [])
+  assert.deepEqual(sameIdentity({ type: 'service', service: 'api', environment: '' }, { service: 'api', environment: 'staging' }, 'explore', []), ['environment'])
+  assert.deepEqual(sameIdentity({ type: 'service', service: 'api', environment: 'staging' }, { service: 'api', environment: 'production' }, 'explore', []), ['environment'])
+  assert.deepEqual(sameIdentity({ type: 'durable_object_namespace', className: 'Board', scriptName: 'other', environment: '' }, { class_name: 'Board', script_name: 'other', environment: 'production' }, 'api', []), ['environment'])
+})
+
 test('D21: an unchanged applied migration is noop, but a real new SQL migration is refused with the flag on', async () => {
   assert.match(readFileSync(new URL('./release.mjs', import.meta.url), 'utf8'), /process\.env\.AGENT_JOBS_APPLY_MIGRATIONS = '1'/)
   const root = mkdtempSync(new URL('./.migration-test-', import.meta.url).pathname)
