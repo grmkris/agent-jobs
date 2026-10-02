@@ -1,0 +1,68 @@
+# Hireling v1 live matrix
+
+`pnpm testnet:v1:flows --list` lists the implemented cases without keys or RPC calls.
+`pnpm testnet:v1:flows hire,cancel,topup-paid` runs the short money paths. Pass a comma-separated list;
+`all` includes long waits and integration prerequisites. Only chain 10143 is accepted, and the SDK must load
+a promoted v1 `main` pair. The runner never deploys or edits the deployment config.
+
+Run from the backend worktree. Bun loads its testnet-only `.env.local`. Required names:
+`MONAD_TESTNET_RPC_URL`, `TESTNET_CREATOR_PRIVATE_KEY`, `TESTNET_WORKER_PRIVATE_KEY`, `RELAY_PRIVATE_KEY`,
+`V1_ARBITRATOR_PRIVATE_KEY`. `ARBITRATOR_PRIVATE_KEY` is a fallback for the v1 signer only when that is the
+configured v1 key. `LEGACY_ARBITRATOR_PRIVATE_KEY` is needed for `legacy-dispute`. The named arbitrator is
+passed explicitly at publish; the worker checks the listing and signs a fresh net quote before activation.
+
+Optional `TESTNET_AGENT_ID` reuses a registered worker identity. Otherwise registration is journaled.
+`V1_FLOW_REWARD` (default 1 token), `V1_FLOW_BOND` (default 10 FACTORY), and `V1_STAKE_TARGET` (default
+100 FACTORY) are whole-token decimal amounts. Decimals are read on chain. Fund these wallets with testnet
+MON, FACTORY v2 and the configured reward token before running; v2 FACTORY has no faucet.
+
+Every signed transaction, including setup/approvals, is saved before broadcast in
+`packages/sdk/scripts/.v1-flows/<V1_FLOW_PROFILE>/journal.json` (profile defaults to `default`). It contains signed authority, so it is ignored by git and
+written with mode 600. Preserve it for retries. A retry reconciles the exact hash and raw transaction;
+an independently consumed nonce refuses another send. Changing deployment, wallets or reward/bond amounts
+requires a separate profile/journal. A process lock prevents concurrent use of one journal; a stale lock is
+reclaimed only when its recorded process no longer exists. Do not reuse the same wallets across two profiles. Flows run sequentially,
+so the runner remains below the two-flow and 15-rps limits.
+
+| Live matrix row | Case(s) |
+| --- | --- |
+| Hire, silence, cancellation | `hire`, `silence`, `cancel` |
+| Both ruling directions and slash flags | `ruling-worker`, `ruling-worker-slash`, `ruling-creator`, `ruling-creator-slash` |
+| Undisputed violation and missed delivery | `violation`, `missed` |
+| Arbitration timeout | `arbitration-timeout` (12 h) |
+| Top-up payment and contributor pull refund | `topup-paid`, `topup-refund` |
+| Stake, reservations, slash, cooldown | Setup, the hire/slash cases, `stake-cooldown` (7 d) |
+| Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid FACTORY to reach it) |
+| Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
+| Legacy contracts and immutable key | `legacy-contest`, `legacy-dispute` |
+| Direct hire with sponsored activation/decisions | `direct-hire` |
+| Request → quote → hire | `quotes` |
+| Execution budget with worker bond | `budget-advance`, `budget-call` |
+| Sponsorship rate/call cap refuses | `sponsor-caps` (at most 20 harmless calls before the hourly rate refuses) |
+| Canonical cross-board Collect | `collect` (requires a real pending claim/settlement, refuses an empty result) |
+| Epoch compute/root/fund/claim/stake | Contracts' `pnpm mining:epoch`, Safe root/fund, then `mining` |
+| Telegram notifications | `telegram` (linked creator/worker; produces a real hire; human DM/channel receipt is recorded separately) |
+| Safe ownership, fee delay, vault delay, pause | `admin-ownership`, `admin-fees`, `admin-vault-refusal`, `admin-pause` |
+
+Hosted cases require `V1_BOARD_URL` pointing to this testnet deployment. Each wallet signs in with SIWE.
+The runner checks `protocol_info` before hosted writes and reports each canonical receipt. Sponsor action keys
+are persisted and reused after a lost response; the relay's hash is printed and polled. Budget call exercises
+a real ERC-20 transfer from the creator's DeleGator, with one allowed function and bounded value.
+
+Odd-token cases require the coordinator's promoted `deployment.oddTokens` and `TESTNET_ODD_OWNER_PRIVATE_KEY`.
+They arm the real token after submission, verify deferred payment, settled bonds and exact `owed`, clear the
+refusal and withdraw. A crash while armed resumes those same steps; do not abandon the journal.
+
+Admin cases require `SAFE_BACKUP_TESTNET_PRIVATE_KEY`, an owner of the threshold-1 configured testnet Safe.
+G1 prepares fee and Holding proposals. `admin-fees` consumes that existing proposal after its three-day delay;
+`admin-vault-refusal` proves early refusal and cancels the existing probe. `admin-pause` uses atomic Safe
+MultiSendCallOnly pause/notePause and unpause/notePause pairs (the Safe needs the core admin role).
+
+Long cases print their chain-time wait and resume from the saved journal after interruption. Start the
+12-hour arbitration row in time for G3; start the seven-day cooldown immediately after G1. Use at most two
+isolated wallet sets when running long cases in parallel. Mining waits for B8/B8b and a published/funded root;
+Telegram waits for the real bot and wallet links. Missing dependencies error rather than count as evidence.
+
+The runner prints every signed hash before broadcast and after receipt. Local fork tests run the same journal,
+core lifecycle and hosted registry code with real bytecode. Those tests establish local integration only;
+the coordinator records remote hashes and actual Telegram delivery in `docs/reality-check.md` at G1/G2/G4.

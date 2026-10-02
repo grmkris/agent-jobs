@@ -10,6 +10,7 @@ export class BoardApiError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly reason?: string,
   ) {
     super(`${code}: ${message}`)
   }
@@ -33,8 +34,8 @@ export function boardClient(baseUrl: string) {
       headers: { 'content-type': 'application/json', ...(session === undefined ? {} : { authorization: `Bearer ${session}` }) },
       body: JSON.stringify(args),
     })
-    const body = (await res.json()) as { ok: boolean; result?: T; code?: string; message?: string }
-    if (!body.ok) throw new BoardApiError(body.code ?? String(res.status), body.message ?? 'request failed')
+    const body = (await res.json()) as { ok: boolean; result?: T; code?: string; message?: string; reason?: string }
+    if (!body.ok) throw new BoardApiError(body.code ?? String(res.status), body.message ?? 'request failed', body.reason)
     return body.result as T
   }
   return {

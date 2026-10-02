@@ -11,6 +11,7 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 packages/sdk/scripts/.state.json
+packages/sdk/scripts/.v1-flows/
 
 # CRE compiler output and local transaction journals
 workflows/ci-evidence/.local/

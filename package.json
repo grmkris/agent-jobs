@@ -28,7 +28,8 @@
     "cre:setup": "pnpm --filter @agent-jobs/ci-evidence run setup",
     "cre:cleanup": "pnpm --filter @agent-jobs/ci-evidence run cleanup",
     "db:generate": "node scripts/db-generate.mjs",
-    "staging:release": "node scripts/staging-release/release.mjs"
+    "staging:release": "node scripts/staging-release/release.mjs",
+    "testnet:v1:flows": "bun packages/sdk/scripts/v1-flows.ts"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
