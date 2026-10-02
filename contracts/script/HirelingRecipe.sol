@@ -81,12 +81,25 @@ library HirelingRecipe {
 
     error WrongChain(uint256 expected, uint256 actual);
     error BadConfig(string what);
+    error MainnetNotGo();
 
     uint256 internal constant MINING = HirelingConstants.MINING_RESERVE;
     uint256 internal constant TREASURY_SHARE = 200_000_000e18;
     uint256 internal constant TEAM_SHARE = 150_000_000e18;
     uint256 internal constant ECOSYSTEM_SHARE = 100_000_000e18;
     uint256 internal constant LIQUIDITY_SHARE = 50_000_000e18;
+
+    /// @notice Every script calls this before any broadcast or readback (review C10-001): the RPC must be the config's
+    ///         chain, so a testnet config on a mainnet RPC cannot skip the guard; and when the script sends
+    ///         transactions to chain 143 it needs MAINNET_GO=yes, judged by the connected chain.
+    function guardChain(Vm vm, string memory json, bool sends) internal view returns (uint256 chainId) {
+        chainId = vm.parseJsonUint(json, ".chainId");
+        if (block.chainid != chainId) revert WrongChain(chainId, block.chainid);
+        if (sends && block.chainid == MAINNET && keccak256(bytes(vm.envOr("MAINNET_GO", string("")))) != keccak256("yes"))
+        {
+            revert MainnetNotGo();
+        }
+    }
 
     function path(Vm vm, string memory network) internal view returns (string memory) {
         return string.concat(vm.projectRoot(), "/config/", network, ".json");

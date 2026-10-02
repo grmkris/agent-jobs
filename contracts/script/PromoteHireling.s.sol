@@ -20,6 +20,7 @@ import {HirelingVerify} from "./HirelingVerify.sol";
 contract PromoteHireling is Script {
     function run() external {
         string memory network = vm.envString("NETWORK");
+        HirelingRecipe.guardChain(vm, vm.readFile(HirelingRecipe.path(vm, network)), false);
         HirelingRecipe.Config memory c = HirelingRecipe.load(vm, network);
         (HirelingRecipe.Deployed memory d, address safe, uint256 chainId) =
             HirelingOutput.readCandidate(vm, HirelingOutput.candidatePath(vm, network));

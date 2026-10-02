@@ -21,14 +21,11 @@ import {HirelingOutput} from "./HirelingOutput.sol";
 contract DeployHireling is Script {
     function run() external {
         string memory network = vm.envString("NETWORK");
+        string memory json = vm.readFile(HirelingRecipe.path(vm, network));
+        HirelingRecipe.guardChain(vm, json, true);
         HirelingRecipe.Config memory c = HirelingRecipe.load(vm, network);
-        if (c.chainId == HirelingRecipe.MAINNET) {
-            require(
-                keccak256(bytes(vm.envOr("MAINNET_GO", string("")))) == keccak256("yes"), "mainnet needs MAINNET_GO=yes"
-            );
-        }
         // Refuse before broadcasting anything if the record could not be written afterwards.
-        HirelingOutput.preflight(vm, vm.readFile(HirelingRecipe.path(vm, network)));
+        HirelingOutput.preflight(vm, json);
         vm.startBroadcast();
         require(msg.sender == c.admin, "broadcaster must be the configured admin");
         HirelingRecipe.Deployed memory d = HirelingRecipe.deploy(c);

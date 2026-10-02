@@ -93,11 +93,7 @@ contract SafeAccept is Script {
     function run() external {
         string memory network = vm.envString("NETWORK");
         string memory json = vm.readFile(HirelingRecipe.path(vm, network));
-        if (vm.parseJsonUint(json, ".chainId") == HirelingRecipe.MAINNET) {
-            require(
-                keccak256(bytes(vm.envOr("MAINNET_GO", string("")))) == keccak256("yes"), "mainnet needs MAINNET_GO=yes"
-            );
-        }
+        HirelingRecipe.guardChain(vm, json, true);
         (address safe, address[6] memory t) = HirelingSafeAccept.targets(vm, json);
         vm.startBroadcast();
         uint256 accepted = HirelingSafeAccept.accept(ISafe(safe), t, msg.sender);
@@ -109,6 +105,7 @@ contract SafeAccept is Script {
 
     function check() external view {
         string memory json = vm.readFile(HirelingRecipe.path(vm, vm.envString("NETWORK")));
+        HirelingRecipe.guardChain(vm, json, false);
         (address safe, address[6] memory t) = HirelingSafeAccept.targets(vm, json);
         HirelingSafeAccept.verify(safe, t);
         console2.log("owner() == safe on all six:", safe);

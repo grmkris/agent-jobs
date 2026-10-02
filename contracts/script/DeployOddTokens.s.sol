@@ -46,6 +46,7 @@ library OddTokensRecipe {
 contract DeployOddTokens is Script {
     function run() external {
         string memory json = vm.readFile(HirelingRecipe.path(vm, vm.envString("NETWORK")));
+        HirelingRecipe.guardChain(vm, json, true);
         (address[] memory wallets, uint256 amount) = OddTokensRecipe.load(vm, json);
         vm.startBroadcast();
         OddTokensRecipe.Deployed memory d = OddTokensRecipe.deploy(msg.sender, wallets, amount);

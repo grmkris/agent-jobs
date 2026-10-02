@@ -176,13 +176,7 @@ library SeedPoolRecipe {
 contract SeedPool is Script {
     function run() external {
         string memory json = vm.readFile(HirelingRecipe.path(vm, vm.envString("NETWORK")));
-        // The RPC must be the config's chain, so a testnet config on a mainnet RPC cannot skip MAINNET_GO.
-        require(block.chainid == vm.parseJsonUint(json, ".chainId"), "RPC chain is not the config's chainId");
-        if (block.chainid == HirelingRecipe.MAINNET) {
-            require(
-                keccak256(bytes(vm.envOr("MAINNET_GO", string("")))) == keccak256("yes"), "mainnet needs MAINNET_GO=yes"
-            );
-        }
+        HirelingRecipe.guardChain(vm, json, true);
         SeedPoolRecipe.Config memory c = SeedPoolRecipe.load(vm, json);
         SeedPoolRecipe.check(c);
         SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);

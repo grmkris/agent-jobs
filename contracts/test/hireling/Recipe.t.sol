@@ -462,6 +462,33 @@ contract RecipeTest is Test {
         assertEq(l.admin, vm.parseJsonAddress(base, ".roles.admin"));
     }
 
+    function guardExt(string memory json, bool sends) external view returns (uint256) {
+        return HirelingRecipe.guardChain(vm, json, sends);
+    }
+
+    /// @dev Review C10-001: a testnet config on a mainnet RPC is refused before anything is sent or read; chain 143
+    ///      needs MAINNET_GO=yes to send, judged by the connected chain; a read-only check needs only the match.
+    function test_guardChain_rpcMustMatchTheConfig() public {
+        string memory testnet = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
+        string memory mainnet = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
+        vm.setEnv("MAINNET_GO", "");
+        vm.chainId(143);
+        vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.WrongChain.selector, 10143, 143));
+        this.guardExt(testnet, true);
+        vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.WrongChain.selector, 10143, 143));
+        this.guardExt(testnet, false);
+        vm.expectRevert(HirelingRecipe.MainnetNotGo.selector);
+        this.guardExt(mainnet, true);
+        assertEq(this.guardExt(mainnet, false), 143);
+        vm.setEnv("MAINNET_GO", "yes");
+        assertEq(this.guardExt(mainnet, true), 143);
+        vm.setEnv("MAINNET_GO", "");
+        vm.chainId(10143);
+        assertEq(this.guardExt(testnet, true), 10143);
+        vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.WrongChain.selector, 143, 10143));
+        this.guardExt(mainnet, true);
+    }
+
     function writeExternal(string memory path, HirelingRecipe.Deployed memory d) external {
         HirelingOutput.write(vm, path, d, safe, 1, 1);
     }
