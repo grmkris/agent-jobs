@@ -1,11 +1,13 @@
 /** Board preparations executed against real v1 bytecode on a local Monad fork. No remote broadcasts. */
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
-import { decodeFunctionData, formatEther, getAddress, parseEther } from 'viem'
+import { decodeFunctionData, encodeFunctionData, erc20Abi, formatEther, getAddress, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
+import { admissionFailure, parseHostedAdmission } from './admission.ts'
+import { ROOT_AUTHORITY, delegationTypedData, redeemCalldata } from './delegation.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('Hireling board on a local Monad fork', () => {
@@ -54,6 +56,59 @@ fork('Hireling board on a local Monad fork', () => {
     expect(built.transactions).toHaveLength(1)
     await sdk.sendAll(f.worker, f.ctx.publicClient, built.transactions)
   }
+
+  it.each(['arbitrary caller', 'drain recovery'])('refuses a copied-hash publication reported through %s, then binds and activates the creator’s job', async (path) => {
+    const created = await board.createTask({ address: f.creator.account.address }, offer())
+    await sdk.stake(f.ctx, f.contributor, parseEther('10'))
+    const spoof = await sdk.publish(f.ctx, f.contributor, { mode: 'hire', token: f.ctx.stack.factory, reward: 101n,
+      creatorBond: parseEther('10'), workerBond: parseEther('10'), deliveryDeadline: now + 3600,
+      reviewWindow: windows.reviewSeconds, disputeWindow: windows.disputeSeconds, arbitrationWindow: windows.arbitrationSeconds,
+      arbitrator: f.arbitrator.account.address, manifestHash: created.termsHash, termsHash: created.termsHash })
+    const caller = { address: f.worker.account.address }
+    if (path === 'drain recovery') expect(admissionFailure(parseHostedAdmission('1'), 'monad-mainnet', 'public', 'report_transaction', caller.address)).toBeUndefined()
+    const reported = await board.reportTransaction(caller, { taskId: created.taskId, txHash: spoof.receipt.transactionHash })
+    expect(reported.jobId).toBeNull()
+    expect(reported.chain.status).toBe('awaiting-publish')
+    expect(db.prepare('SELECT job_id, publish_tx FROM tasks WHERE id = ?').get(created.taskId)).toEqual({ job_id: null, publish_tx: null })
+    expect(reported.operations.find(o => o.kind === 'publish')?.status).toBe('prepared')
+    const hashes = await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
+    const genuine = await board.reportTransaction(caller, { taskId: created.taskId, txHash: hashes.at(-1)! })
+    expect(genuine.jobId).not.toBeNull()
+    expect(genuine.jobId).not.toBe(spoof.jobId.toString())
+    expect(db.prepare('SELECT publish_tx FROM tasks WHERE id = ?').get(created.taskId)).toEqual({ publish_tx: hashes.at(-1) })
+    // A later spoof receipt cannot replace the established binding.
+    expect((await board.reportTransaction(caller, { taskId: created.taskId, txHash: spoof.receipt.transactionHash })).jobId).toBe(genuine.jobId)
+    const selection = await board.selectWorker({ address: f.creator.account.address }, { taskId: created.taskId, applicationId: created.applicationId! })
+    await board.submitSelection({ address: f.creator.account.address }, { taskId: created.taskId, nonce: selection.nonce, signature: await sdk.signTypedDataJson(f.creator, selection.sign.typedData) })
+    await activate(created.taskId)
+    expect((await board.getTask({}, { taskId: created.taskId })).chain.status).toBe('active')
+    await sdk.submit(f.ctx, f.worker, BigInt(genuine.jobId!), sdk.hashText('genuine delivery'))
+    await sdk.accept(f.ctx, f.creator, BigInt(genuine.jobId!))
+    await sdk.settle(f.ctx, f.contributor, BigInt(genuine.jobId!))
+  }, 180_000)
+
+  it.each(['batch', 'relay'])('binds a genuine %s publication using the event creator, regardless of receipt.to/from', async (path) => {
+    const created = await board.createTask({ address: f.creator.account.address }, offer())
+    const approval: sdk.TxRequest = { chainId: f.ctx.deployment.chainId, to: f.ctx.stack.factory, value: '0', description: 'Approve reward',
+      data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [f.ctx.stack.holding, 101n] }) }
+    const publish = created.transactions.at(-1)!
+    let hash
+    if (path === 'batch') {
+      hash = await sdk.sendBatch(f.creator, f.ctx.publicClient, [approval, publish], f.ctx.deployment.delegation.delegator)
+      expect((await f.ctx.publicClient.getTransactionReceipt({ hash })).to?.toLowerCase()).toBe(f.creator.account.address.toLowerCase())
+    } else {
+      await sdk.sendAll(f.creator, f.ctx.publicClient, [approval])
+      const grant = { delegator: f.creator.account.address, delegate: f.contributor.account.address, authority: ROOT_AUTHORITY,
+        salt: BigInt(created.termsHash), caveats: [], signature: '0x' as const }
+      const signed = { ...grant, signature: await sdk.signTypedDataJson(f.creator, delegationTypedData(f.ctx.deployment, grant)) }
+      hash = await f.contributor.sendTransaction({ to: f.ctx.deployment.delegation.manager, data: redeemCalldata(signed, { target: publish.to, value: 0n, callData: publish.data }) })
+      expect((await f.ctx.publicClient.waitForTransactionReceipt({ hash })).from.toLowerCase()).toBe(f.contributor.account.address.toLowerCase())
+    }
+    const reported = await board.reportTransaction({ address: f.worker.account.address }, { taskId: created.taskId, txHash: hash })
+    expect(reported.chain.listingMatchesOffer).toBe(true)
+    expect(db.prepare('SELECT publish_tx FROM tasks WHERE id = ?').get(created.taskId)).toEqual({ publish_tx: hash })
+    expect((await sdk.getListing(f.ctx, BigInt(reported.jobId!))).creator.toLowerCase()).toBe(f.creator.account.address.toLowerCase())
+  }, 180_000)
 
   it('direct hire freezes windows/arbitrator and signs the current net; a changed fee quote requires a new signature', async () => {
     await expect(board.createTask({ address: f.creator.account.address }, { ...offer(), mode: 'contest' })).rejects.toThrow('hires only')

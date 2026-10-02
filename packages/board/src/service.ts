@@ -742,7 +742,7 @@ export class Board {
 
   /**
    * Reconciles a task from the chain after the caller sent a transaction: a publish is recorded only once its
-   * receipt shows a `Published` event for exactly this offer's `termsHash`. Any other transaction only triggers a
+   * receipt shows a `Published` event for this creator and this offer's `termsHash`. Any other transaction only triggers a
    * fresh read; nothing is taken from the caller's word.
    */
   async reportTransaction(caller: Caller, input: { taskId: string; txHash: string }) {
@@ -791,19 +791,24 @@ export class Board {
         // another event
       }
     }
-    if (task.job_id === null) {
+    if (task.job_id === null && receipt.status === 'success') {
       for (const log of receipt.logs) {
         if (!eq(log.address, ctx.stack.holding)) continue
         try {
           const event = decodeEventLog({ abi: hireling.holdingAbi(ctx), data: log.data, topics: log.topics })
-          if (event.eventName === 'Published' && eq(event.args.policyHash, task.terms_hash)) {
-            this.#sql.run('UPDATE tasks SET job_id = ?, publish_tx = ? WHERE id = ?', event.args.jobId.toString(), input.txHash, task.id)
+          if (event.eventName === 'Published' && eq(event.args.policyHash, task.terms_hash) && eq(event.args.creator, task.creator)) {
+            const bound = this.#sql.all<{ id: string }>(
+              'UPDATE tasks SET job_id = ?, publish_tx = ? WHERE id = ? AND job_id IS NULL RETURNING id',
+              event.args.jobId.toString(), input.txHash, task.id,
+            )
+            if (bound.length === 0) break
             this.#sql.run(
               "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE task_id = ? AND kind = 'publish'",
               input.txHash,
               this.#now(),
               task.id,
             )
+            break
           }
         } catch {
           // another event
