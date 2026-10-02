@@ -46,21 +46,23 @@ test('real local Durable Object rejects forged caller, board, network, and polic
 
 test('real workerd counters serialize concurrent REST/MCP-equivalent admissions across boards', Effect.gen(function* () {
   const { url } = yield* stack
-  const wallet = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-  const token = 'local-test-only-session'
-  const admit = { network: 'monad-mainnet', boardId: 'public', tool: 'create_board', bearer: token, caller: wallet, ip: '192.0.2.10' }
+  // Local workerd state survives suite reruns; each drill needs fresh wallet and IP counters.
+  const wallet = `0x${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().slice(0, 8)}`
+  const token = `local-test-${crypto.randomUUID()}`
+  const ipPrefix = `2001:db8:${crypto.randomUUID().slice(0, 4)}:${crypto.randomUUID().slice(0, 4)}`
+  const admit = { network: 'monad-mainnet', boardId: 'public', tool: 'create_board', bearer: token, caller: wallet, ip: `${ipPrefix}::10` }
   const post = (body: unknown) => Effect.gen(function* () {
     const response = yield* HttpClient.post(url as string, { body: HttpBody.text(JSON.stringify(body), 'application/json') })
     return (yield* response.json) as { ok: boolean; code?: string; retryAfter?: number }
   })
   expect(yield* post({ name: ADMISSION_OBJECT_NAME, admit, seed: { token, wallet } })).toEqual({ ok: true })
   const results = yield* Effect.all(Array.from({ length: WRITE_LIMITS.wallet + 5 }, (_, n) => post({
-    name: ADMISSION_OBJECT_NAME, admit: { ...admit, boardId: n % 2 ? 'public' : 'other-board', tool: n % 2 ? 'create_task' : 'submit_quote', ip: `192.0.2.${20 + n}` },
+    name: ADMISSION_OBJECT_NAME, admit: { ...admit, boardId: n % 2 ? 'public' : 'other-board', tool: n % 2 ? 'create_task' : 'submit_quote', ip: `${ipPrefix}::${20 + n}` },
   })), { concurrency: 10 })
   expect(results.filter(r => r.ok)).toHaveLength(WRITE_LIMITS.wallet - 1)
   expect(results.filter(r => !r.ok).every(r => r.code === 'rate-limited' && (r.retryAfter ?? 0) > 0)).toBe(true)
   const env = { network: 'monad-mainnet', boardId: 'public', rpcUrl: '', domain: 'test.invalid', uri: 'https://test.invalid', manifestBaseUrl: '', screening: { baseUrl: '', apiKey: '', model: '' }, attesterKey: '', relayKey: '', github: { appId: '', privateKeyPem: '', installationId: '' } }
-  expect(yield* post({ name: 'public', call: { tool: 'create_task', args: { ip: '203.0.113.1', caller: 'ignored' }, bearer: token, caller: wallet, ip: '192.0.2.200', env } })).toMatchObject({ ok: false, code: 'rate-limited' })
+  expect(yield* post({ name: 'public', call: { tool: 'create_task', args: { ip: '203.0.113.1', caller: 'ignored' }, bearer: token, caller: wallet, ip: `${ipPrefix}::200`, env } })).toMatchObject({ ok: false, code: 'rate-limited' })
   expect(yield* post({ name: ADMISSION_OBJECT_NAME, admit: { ...admit, tool: 'list_tasks' } })).toEqual({ ok: true })
   expect(yield* post({ name: 'wrong-object', admit })).toMatchObject({ ok: false, code: 'forbidden' })
   expect(yield* post({ name: ADMISSION_OBJECT_NAME, admit: { ...admit, caller: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } })).toMatchObject({ ok: false, code: 'forbidden' })

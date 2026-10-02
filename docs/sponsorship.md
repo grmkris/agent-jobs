@@ -14,8 +14,8 @@ limits before signing. `sponsor_revoke` stops board sends immediately and return
 that transaction is mined, the signed permission remains usable on-chain.
 
 REST and MCP share the same tools. `sponsor_submit({wallet,key,calls})` accepts 1–4 ordered zero-value calls.
-The client creates and persists one key per action, and reuses it only for retries. Reusing the key with different
-calls refuses; another key can represent a legitimate identical action. The result is
+The client creates and persists one key per action, and reuses it only for retries. An existing key always reconciles the original
+operation before any policy or grant check, even if replacement calls differ. Another key can represent a new action. The result is
 `{operationId,status: "pending"|"confirmed"|"reverted",txHash,callsUsed}`.
 Poll `sponsor_operation({wallet,operationId})` to read the receipt and counter without sending anything.
 An original submission retry reconciles the saved hash, counter baseline and relay nonce before it can rebroadcast

@@ -106,7 +106,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     const f = fixture(); await f.live()
     const first = await f.desk.submit(f.owner.address, [f.cancel()], 'one')
     expect(await f.desk.submit(f.owner.address, [{ ...f.cancel(), value: '0', chainId: f.ctx.deployment.chainId }], 'one')).toEqual(first)
-    await expect(f.desk.submit(f.owner.address, [f.cancel(2n)], 'one')).rejects.toMatchObject({ reason: 'policy' })
+    expect(await f.desk.submit(f.owner.address, [f.cancel(2n)], 'one')).toEqual(first)
     const second = await f.desk.submit(f.owner.address, [f.cancel()], 'two')
     expect(second.operationId).not.toBe(first.operationId)
     expect(second.callsUsed).toBe(2)
@@ -114,6 +114,17 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     await f.desk.revoke(f.owner.address); await f.live()
     expect((await f.desk.submit(f.owner.address, [f.cancel()], 'one')).txHash).toBe(first.txHash)
     expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(2)
+  })
+  it('reconciles an existing key before policy, relay or revoked/exhausted grant refusals', async () => {
+    const f = fixture(); await f.live(); f.setVisible(false)
+    const first = await f.desk.submit(f.owner.address, [f.cancel()], 'lost')
+    await f.desk.revoke(f.owner.address)
+    f.setVisible(true); f.setUsed(100n); f.setBalance(0n)
+    const withoutRelay = new SponsorDesk({ sql: f.sql, ctx: f.ctx, now: () => 1_800_000_000, fail: (code, message) => new BoardError(code, message) })
+    const recovered = await withoutRelay.submit(f.owner.address, [{ to: f.owner.address, data: '0x' }], 'lost')
+    expect(recovered).toMatchObject({ operationId: first.operationId, txHash: first.txHash, status: 'confirmed', callsUsed: 100 })
+    expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(1)
+    await expect(withoutRelay.submit(f.owner.address, [f.cancel()], 'fresh')).rejects.toMatchObject({ reason: 'unavailable' })
   })
   it('D15 refuses every omitted mutating method and noncanonical calldata before simulation', async () => {
     const f = fixture(); await f.live()
@@ -135,7 +146,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     expect(f.client.estimateGas).not.toHaveBeenCalled()
     expect(f.client.sendRawTransaction).not.toHaveBeenCalled()
   })
-  it('uses summed ADR gas floors and receipt gas cost, while retaining conservative pending reservations', async () => {
+  it('uses summed ADR gas floors and receipt gas cost, reserving only the prospective send', async () => {
     const f = fixture(); await f.live()
     const calls = [
       { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },

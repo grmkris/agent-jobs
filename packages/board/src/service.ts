@@ -24,7 +24,6 @@ import {
   isHex,
   pad,
   parseUnits,
-  toHex,
   zeroAddress,
 } from 'viem'
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
@@ -32,6 +31,7 @@ import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type SponsorCall, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
+import { confirmedOperationIds } from './receipts.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
@@ -766,27 +766,14 @@ export class Board {
     const ctx = this.#taskCtx(task)
     const receipt = await ctx.publicClient.getTransactionReceipt({ hash: input.txHash as Hex }).catch(() => undefined)
     if (receipt === undefined) throw new BoardError('chain', `no receipt yet for ${input.txHash}; retry shortly`)
-    // Any other confirmed transaction from a party of this task confirms that party's latest prepared operation.
-    // Only a transaction to this deployment that emitted an event for this job (jobId is the first indexed topic of
-    // every lifecycle event) confirms anything; an unrelated transaction from the same wallet does not.
-    const jobTopic = task.job_id === null ? null : pad(toHex(BigInt(task.job_id)), { size: 32 }).toLowerCase()
-    // By the emitting contract, not the receipt's `to`: an EIP-7702 batch is a call to the sender itself.
-    const ours = [ctx.deployment.core, ctx.stack.holding, ctx.stack.evaluator]
-    const touchesJob =
-      jobTopic !== null && receipt.logs.some((l) => ours.some((a) => eq(l.address, a)) && l.topics[1]?.toLowerCase() === jobTopic)
-    if (task.job_id !== null && receipt.status === 'success' && touchesJob) {
-      const [op] = this.#sql.all<OperationRow>(
-        "SELECT * FROM operations WHERE task_id = ? AND lower(actor) = lower(?) AND status = 'prepared' ORDER BY created_at DESC LIMIT 1",
-        task.id,
-        receipt.from,
-      )
-      const known = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE task_id = ? AND tx_hash = ?', task.id, input.txHash)
-      if (op !== undefined && known.length === 0) {
+    if (task.job_id !== null) {
+      const prepared = this.#sql.all<OperationRow>("SELECT * FROM operations WHERE task_id=? AND status='prepared'", task.id)
+      for (const id of await confirmedOperationIds(ctx, BigInt(task.job_id), receipt, prepared)) {
         this.#sql.run(
-          "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE id = ?",
+          "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE id = ? AND status='prepared'",
           input.txHash,
           this.#now(),
-          op.id,
+          id,
         )
       }
     }

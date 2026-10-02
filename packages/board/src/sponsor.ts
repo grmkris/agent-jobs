@@ -206,16 +206,16 @@ export class SponsorDesk {
     return { operationId: op.id, txHash: op.tx_hash as Hex, status, callsUsed: Number(await callsMade(ctx, op.delegation_hash as Hex)) }
   }
   submit(walletText: string, calls: readonly SponsorCall[], key: string) { return this.#serial(async (): Promise<SponsorResult> => {
-    const wallet = this.#wallet(walletText), ctx = this.#ctx(), relay = this.#relay()
+    const wallet = this.#wallet(walletText)
+    const id = keccak256(stringToHex(JSON.stringify([wallet.toLowerCase(), key])))
+    const prior = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]
+    // An existing key always names the original send. A fresh-key refusal means nothing was sent; a retry must
+    // therefore reconcile that send before checking the current grant, policy, keys, caps or replacement calls.
+    if (prior !== undefined) return this.#resume(prior)
+    const ctx = this.#ctx(), relay = this.#relay()
     const parsed = this.#validate(calls)
     if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw this.#d.fail('invalid', 'key must be 1-128 letters, digits, underscores or hyphens; reuse it only for retries of one action')
     const payloadHash = keccak256(stringToHex(JSON.stringify(parsed.map(c => [c.target.toLowerCase(), c.callData, '0']))))
-    const id = keccak256(stringToHex(JSON.stringify([wallet.toLowerCase(), key])))
-    const prior = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]
-    if (prior !== undefined) {
-      if (prior.payload_hash !== payloadHash) throw this.#refuse('policy', 'this action key already names different calls')
-      return this.#resume(prior)
-    }
     const row = this.#row(wallet)
     if (row === undefined || row.signature === null) throw this.#d.fail('conflict', 'confirm a sponsorship delegation before submitting calls')
     // Resolve any ambiguous earlier send before assigning another relay nonce or spending another cap reservation.
@@ -237,8 +237,9 @@ export class SponsorDesk {
     const gasPrice = await ctx.publicClient.getGasPrice()
     const maxFeePerGas = gasPrice * 2n, cost = gas * maxFeePerGas
     const day = Math.floor(this.#d.now() / 86400) * 86400
-    const daily = this.#d.sql.all<Operation>("SELECT * FROM sponsor_operations WHERE charged_day=? OR status='pending'", day)
-    if (daily.reduce((sum, op) => sum + BigInt(op.cost ?? op.reserved_cost), cost) > SPONSOR_LIMITS.dailyWei) throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
+    const daily = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE charged_day=? AND cost IS NOT NULL', day)
+    // Charge only receipts. All unresolved sends were reconciled above; this send reserves its maximum cost.
+    if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > SPONSOR_LIMITS.dailyWei) throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
     const recent = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE wallet=? AND created_at > ?', wallet.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
     if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the wallet’s sponsorship rate limit is exhausted')
     if (await ctx.publicClient.getBalance({ address: relay.account.address }) < SPONSOR_LIMITS.relayFloorWei + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')

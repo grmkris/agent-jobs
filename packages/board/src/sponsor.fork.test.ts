@@ -38,7 +38,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     expect((await enable(f.creator)).status).toBe('live')
     const created = await board.createTask(caller(f.creator), { title: 'Sponsored hire', brief: 'Fork test', acceptanceCriteria: ['finished'], token: f.ctx.stack.factory,
       reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, mode: 'hire',
-      windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, invite: { agentId: agentId.toString() } })
+      windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, invite: { agentId: agentId.toString() }, deliverable: { accepts: ['onchain'] } })
     const hashes = await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
     const task = await board.reportTransaction(caller(f.creator), { taskId: created.taskId, txHash: hashes.at(-1)! })
     const sel = await board.selectWorker(caller(f.creator), { taskId: created.taskId, applicationId: created.applicationId! })
@@ -48,16 +48,23 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     const workerNonce = await f.ctx.publicClient.getTransactionCount({ address: f.worker.account.address })
     const active = await submit(f.worker, 'activate', activation.transactions)
     expect(active).toMatchObject({ status: 'confirmed', callsUsed: 1 })
+    const activeReport = await board.reportTransaction(caller(f.contributor), { taskId: created.taskId, txHash: active.txHash })
+    expect(activeReport.operations.find(o => o.kind === 'activate')).toMatchObject({ status: 'confirmed', tx_hash: active.txHash })
     expect(await f.ctx.publicClient.getTransactionCount({ address: f.worker.account.address })).toBe(workerNonce)
     expect((await sdk.getJob(f.ctx, BigInt(task.jobId!))).provider.toLowerCase()).toBe(f.worker.account.address.toLowerCase())
-    const delivery: sdk.TxRequest = { description: 'Submit finished work', chainId: f.ctx.deployment.chainId, to: f.ctx.deployment.core, value: '0',
-      data: encodeFunctionData({ abi: sdk.coreAbi, functionName: 'submit', args: [BigInt(task.jobId!), sdk.hashText('finished'), '0x'] }) }
-    expect((await submit(f.worker, 'deliver', [delivery])).status).toBe('confirmed')
+    const delivery = await board.submitWork(caller(f.worker), { taskId: created.taskId, deliverable: { kind: 'onchain', chainId: 10143, address: f.ctx.stack.holding } })
+    const delivered = await submit(f.worker, 'deliver', delivery.transactions)
+    expect(delivered.status).toBe('confirmed')
+    const deliveredReport = await board.reportTransaction(caller(f.contributor), { taskId: created.taskId, txHash: delivered.txHash })
+    expect(deliveredReport.operations.find(o => o.kind === 'submit')).toMatchObject({ status: 'confirmed', tx_hash: delivered.txHash })
+    expect(deliveredReport.onchainSubmission?.deliverable_hash).toBe(delivery.deliverableHash)
     const accepted = await board.approveWork(caller(f.creator), { taskId: created.taskId })
     const settlement: sdk.TxRequest = { description: 'Settle fees', chainId: f.ctx.deployment.chainId, to: f.ctx.stack.holding, value: '0',
       data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [BigInt(task.jobId!)] }) }
     const paid = await submit(f.creator, 'accept-settle', [...accepted.transactions, settlement])
     expect(paid).toMatchObject({ status: 'confirmed', callsUsed: 2 })
+    const paidReport = await board.reportTransaction(caller(f.contributor), { taskId: created.taskId, txHash: paid.txHash })
+    expect(paidReport.operations.find(o => o.kind === 'accept')).toMatchObject({ status: 'confirmed', tx_hash: paid.txHash })
     const receipt = await f.ctx.publicClient.getTransactionReceipt({ hash: paid.txHash })
     const op = db.prepare('SELECT raw_tx, cost, baseline_calls FROM sponsor_operations WHERE id=?').get(paid.operationId) as { raw_tx: Hex; cost: string; baseline_calls: number }
     expect(parseTransaction(op.raw_tx).gas).toBeGreaterThanOrEqual(sdk.V1_GAS.evaluator + sdk.V1_GAS.settle + 100_000n)
@@ -71,8 +78,25 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     expect(await submit(f.creator, 'accept-settle', [...accepted.transactions, settlement])).toEqual(paid)
     expect(await board.sponsorOperation(caller(f.creator), { wallet: f.creator.account.address, operationId: paid.operationId })).toEqual(paid)
     expect(await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })).toBe(relayNonce)
+    // A lost-answer retry remains an operation result after local revocation and current cap exhaustion.
+    await board.sponsorRevoke(caller(f.creator), { wallet: f.creator.account.address })
+    expect(await submit(f.creator, 'accept-settle', [...accepted.transactions, settlement])).toEqual(paid)
+    await enable(f.creator)
     await expect(submit(f.creator, 'different-action', [...accepted.transactions, settlement])).rejects.toMatchObject({ reason: 'simulation' })
   }, 180_000)
+
+  it('reports a sponsored cancel/settle batch by its canonical creator, regardless of the reporter or relay', async () => {
+    const created = await board.createTask(caller(f.creator), { title: 'Cancel sponsored hire', brief: 'Fork test', acceptanceCriteria: ['finished'], token: f.ctx.stack.factory,
+      reward: '1', creatorBond: '10', workerBond: '10', deliveryDeadline: now + 3600, mode: 'hire', windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 } })
+    const hashes = await sdk.sendAll(f.creator, f.ctx.publicClient, created.transactions)
+    await board.reportTransaction(caller(f.contributor), { taskId: created.taskId, txHash: hashes.at(-1)! })
+    const cancel = await board.cancelTask(caller(f.creator), { taskId: created.taskId })
+    const cancelled = await submit(f.creator, 'cancel-settle', cancel.transactions)
+    expect(cancelled.status).toBe('confirmed')
+    const reported = await board.reportTransaction(caller(f.worker), { taskId: created.taskId, txHash: cancelled.txHash })
+    expect(reported.operations.find(o => o.kind === 'cancel')).toMatchObject({ status: 'confirmed', tx_hash: cancelled.txHash })
+    expect(reported.chain.status).toBe('cancelled')
+  }, 120_000)
 
   it('the chain enforcers refuse unsafe D15 methods, an outside target, native value, and a non-relay redeemer', async () => {
     const row = db.prepare('SELECT delegation_json, signature FROM sponsor_grants WHERE wallet=?').get(f.worker.account.address.toLowerCase()) as { delegation_json: string; signature: Hex }
