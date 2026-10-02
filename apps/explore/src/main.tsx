@@ -23,6 +23,8 @@ import { EmbedPage } from './routes/Embed.tsx'
 import { StakePage } from './routes/Stake.tsx'
 import { AdminPage } from './routes/Admin.tsx'
 import { CollectPage } from './routes/Collect.tsx'
+import { SponsorshipPage } from './routes/Sponsorship.tsx'
+import { TelegramPage } from './routes/Telegram.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 
 function Layout() {
@@ -70,6 +72,8 @@ const stake = createRoute({ getParentRoute: () => root, path: '/stake', componen
 const admin = createRoute({ getParentRoute: () => root, path: '/admin', component: AdminPage })
 // What the wallet can close or claim, on every board.
 const collect = createRoute({ getParentRoute: () => root, path: '/collect', component: CollectPage })
+const telegram = createRoute({ getParentRoute: () => root, path: '/telegram', component: TelegramPage })
+const sponsorship = createRoute({ getParentRoute: () => root, path: '/sponsorship', component: SponsorshipPage })
 // Tenant boards (ADR-0008): the same pages under /b/<slug>, plus the boards directory, creation and the widget.
 const boards = createRoute({ getParentRoute: () => root, path: '/boards', component: BoardsPage })
 const boardNew = createRoute({
@@ -107,7 +111,7 @@ const boardAgent = createRoute({ getParentRoute: () => board, path: '/agent/$age
 const embed = createRoute({ getParentRoute: () => root, path: '/embed/$boardId', component: EmbedPage })
 const router = createRouter({
   routeTree: root.addChildren([
-    jobs, job, publish, quotes, quoteRequest, agent, agents, connect, me, stake, admin, collect, boards, boardNew, embed,
+    jobs, job, publish, quotes, quoteRequest, agent, agents, connect, me, stake, admin, collect, telegram, sponsorship, boards, boardNew, embed,
     board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardAgent]),
   ]),
 })

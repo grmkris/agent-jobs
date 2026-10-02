@@ -7,8 +7,11 @@ import { InstallHint } from '../components/InstallHint.tsx'
 import { Sentence, phaseOf } from '../components/Phase.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
+import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { useAuth, useSignOut } from '../components/Wallet.tsx'
+import { hireling } from '../hireling.ts'
+import { useSponsorStatus } from '../sponsor.ts'
+import { useTelegramStatus } from '../telegram.ts'
 import { useSafeOwner } from './Admin.tsx'
 import { useJobs } from './Jobs.tsx'
 
@@ -17,6 +20,8 @@ export function MePage() {
   const auth = useAuth()
   const signOut = useSignOut(auth)
   const owner = useSafeOwner(auth.address)
+  const telegram = useTelegramStatus(auth.address, auth.signedIn, false)
+  const sponsor = useSponsorStatus(auth.address, auth.signedIn)
   if (auth.address === undefined) {
     return (
       <>
@@ -45,6 +50,24 @@ export function MePage() {
               Stake
               <span className="block text-[0.78rem] text-label-3">Your fee tier, bonds and unstaking</span>
             </span>
+            <ChevronRight aria-hidden className="size-4 text-label-3" />
+          </Link>
+          {hireling !== null && (
+            <Link to="/sponsorship" className={rowClass({ interactive: true })}>
+              <span className="flex-1">
+                Gas sponsorship
+                <span className="block text-[0.78rem] text-label-3">Hireling pays the gas for your Hireling transactions</span>
+              </span>
+              {sponsor.data?.status === 'live' && <Badge tone="success">On</Badge>}
+              <ChevronRight aria-hidden className="size-4 text-label-3" />
+            </Link>
+          )}
+          <Link to="/telegram" className={rowClass({ interactive: true })}>
+            <span className="flex-1">
+              Telegram
+              <span className="block text-[0.78rem] text-label-3">A message when a job needs you</span>
+            </span>
+            {telegram.data?.linked === true && <Badge tone="success">Linked</Badge>}
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
           {owner === true && (
