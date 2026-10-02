@@ -95,3 +95,73 @@ so an outage promise made while paused is void; this is stated rather than mitig
 
 `getJob`, `jobs`, `jobCounter`, `pendingClaimHash`, `submittedClaimHash`, `whitelistedHooks`, fee getters, `DOMAIN_SEPARATOR`, the typehash constants. Read freely; the
 indexer builds Explore from events plus `getJob`.
+
+# Hireling v1 (ADR-0011) — draft, frozen at F0 (3 Oct 20:00)
+
+New contracts in `src/hireling/`, against the interfaces in `src/hireling/interfaces/`. The legacy pairs above are
+unchanged and keep their jobs. Status: **interfaces only (C1)**; every row below is planned until its test names are
+filled in (C2–C7). Every owner is the Safe (`Ownable2Step`); the deployer hands over at the end of the recipe.
+
+## The core under v1
+
+Same vendored core, same rows as above, with these differences:
+
+| Function | v1 |
+| :--- | :--- |
+| `createJob` | Through `HirelingHolding.publish` only; `expiredAt ≥ deliveryDeadline + review + dispute + arbitration + margin`, from the listing's own windows. |
+| `setProvider`, `setBudget`, `fund` | Inside `HirelingHolding.activate` only. The budget is **`net = reward − fee`**, not the reward: the worker's `SetBudgetAuthorization` names `net` (`quoteActivation`). Holding keeps the fee until `settle`. Core fees stay 0. |
+| `complete` | Only `HirelingEvaluator`, wrapped in `try` (M2). On failure the evaluator calls `reject("payout-deferred")` and the worker is paid by `HirelingHolding.settle`. |
+| `reject` | `HirelingHolding.cancel` (Open) and the evaluator's terminal paths. |
+| `claimRefund` | The outage path, as before: the refund lands in Holding and `settle` pays whoever `earnedByWorker` names. |
+| `award`, contests | Do not exist on the v1 pair. |
+
+## HirelingHolding
+
+| Function | Who | Effect on money |
+| :--- | :--- | :--- |
+| `publish(PublishParams)` | anyone | Pulls the reward (any ERC-20; must arrive in full, `RewardTokenShortfall`); **reserves** `creatorBond` from the creator's stake (no token moves). Checks window bounds (review and dispute 1 h–14 d, arbitration 12 h–14 d), arbitrator ≠ creator/approver (`ArbitratorConflict`), a future deadline, the expiry rule, and `policyListed[creator][policyHash]` (M3). Resolves `arbitrator = 0` to `defaultArbitrator` and freezes it. |
+| `activate(sel, creatorSig, budgetAuth)` | the selected worker itself | Checks the `Selection` as the legacy pair does, the ERC-8004 wallet, and that the worker is not the creator, approver or arbitrator (`RoleConflict`). Snapshots `feeBps` from `vault.stakeOf(worker)`, **reserves** the worker bond, funds the core with `net`. |
+| `quoteActivation(jobId, worker)` | view | `(feeBps, fee, net)` the worker's budget authorization must match. |
+| `cancel(jobId)` | creator, before activation | `reject` on the core and settle in one transaction: reward back, no fee, creator bond released. |
+| `cancelSelection(nonce)` | creator | None. |
+| `topUp(jobId, amount)` | anyone, after activation while Funded or Submitted | Pulls a bonus in the reward token (must arrive in full). |
+| `claimTopUpRefund(jobId, contributor)` | anyone | After a refunded settlement: the contributor's top-ups back to the contributor (or `owed`). |
+| `settle(jobId)` | anyone, after a terminal core status | The money table in `IHirelingHolding`: worker paid (fee + bonus fee to the treasury, `FeeCharged`), or reward back to the creator (bonus refundable per contributor). Bonds the evaluator did not settle: slashed if `creatorPenaltyDue` / `workerPenaltyDue`, else released. Every transfer falls back to `owed`. |
+| `withdraw(token)` | whoever is `owed` | Everything owed in `token`. |
+| `burnBond(jobId, side)` / `returnBonds(jobId)` | evaluator only, non-reentrant | `vault.slash` (burns) / `vault.release`. |
+| `setEvaluator` (once), `setDefaultArbitrator` | owner | None; the default applies to listings published afterwards. |
+
+## HirelingEvaluator
+
+Same functions as `JobsEvaluator` minus `completeAward` and `settlementWindow`, with per-listing windows, approver and
+arbitrator from `holding.termsOf`.
+
+| Change | Rule |
+| :--- | :--- |
+| Order (M1) | checks → record `outcome`/`slashed` → emit → slash the loser → release the rest → core call → feedback. |
+| `_payWorker` (M2) | `try complete`; on failure `payoutDeferred`, `PayoutDeferred`, `try reject("payout-deferred")`; else `claimRefund` later. A ruling for the creator tries `reject` the same way (`RefundDeferred`). A paused core reverts the whole call (`CorePaused`). |
+| Decided once | With an `outcome` recorded, every other terminal path reverts `AlreadyResolved`; `rule` twice and the arbitration timeout after a ruling revert `AlreadyRuled`. |
+| `ruleWithSignature` | Signed by the listing's arbitrator; nonces per arbitrator (`rulingNonceUsed[arbitrator][nonce]`). |
+| Views for `settle` | `earnedByWorker` (deferred payout, an `Accepted`/`Silence`/`RuledForWorker` outcome, or the R114-03 silence right), `workerPenaltyDue`, `creatorPenaltyDue`. |
+| Admin | `setVerifier` (owner). |
+
+## StakeVault
+
+| Function | Who | Effect |
+| :--- | :--- | :--- |
+| `stake`, `stakeWithPermit`, `stakeFor` | anyone | FACTORY in; `stakeFor` credits another account (the mining distributor). |
+| `requestUnstake(amount)` | staker | Unreserved stake into a 7-day cooldown (restarts for the whole amount). |
+| `cancelUnstake` / `withdraw` | staker | Cooldown back to stake / paid out after `unlockAt`. |
+| `reserve` | authorized Holding | Reserves unreserved stake as a bond; a zero amount still checks authorization. |
+| `release` / `slash` | the Holding that reserved | Up to its own `reservedBy`; `slash` burns. Works after revocation. |
+| `proposeHolding` → `acceptHolding` → `revokeHolding` | owner / anyone after 8 d / owner, instant | Holding authorization. |
+| `bootstrapHolding` | owner, once, while `totalStaked == 0` | The first Holding without the delay. |
+
+## FeeSchedule, Factory, mining
+
+| Contract | Surface |
+| :--- | :--- |
+| `FeeSchedule` | `feeBps(stake)`, `treasury()`, `schedule()`, `pending()`; owner `propose` / `cancel`, anyone `execute` after 3 d. Starts at 0 / 10k / 100k / 1M FACTORY → 30 / 10 / 3 / 1 %. |
+| `Factory` | ERC-20 + permit + burn, 18 decimals, 1e9 minted once to the genesis allocation, no owner. |
+| `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52). |
+| `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.stakeFor`. |
