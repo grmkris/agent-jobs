@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -42,6 +42,13 @@ if (keyEnv !== undefined) {
   signerArgs = [...(account !== undefined ? ['--account', account] : ['--keystore', keystore!]), '--password-file', password]
 }
 
+/** Runs cast; a failure reports cast's own stderr, never the command line (it may hold a key). */
+function cast(args: string[]): string {
+  const run = spawnSync('cast', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NO_COLOR: '1' } })
+  if (run.status !== 0) throw new Error(`cast ${args[0]} ${args[1]} failed: ${(run.stderr ?? '').trim().split('\n').slice(-3).join(' ')}`)
+  return run.stdout.trim()
+}
+
 const unsigned = JSON.parse(readFileSync(input, 'utf8')) as PriceListFile['message'] | PriceListFile
 const message = 'message' in unsigned ? unsigned.message : unsigned
 const list = parsePriceList({ message })
@@ -51,15 +58,6 @@ const dir = mkdtempSync(join(tmpdir(), 'prices-'))
 try {
   const typedPath = join(dir, 'typed.json')
   writeFileSync(typedPath, JSON.stringify(typed), { mode: 0o600 })
-  // A failed execFileSync quotes its whole command line, which may hold a key: report only cast's own stderr.
-  const cast = (args: string[]) => {
-    try {
-      return execFileSync('cast', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NO_COLOR: '1' } }).trim()
-    } catch (error) {
-      const stderr = String((error as { stderr?: unknown }).stderr ?? '').trim().split('\n').slice(-3).join(' ')
-      throw new Error(`cast ${args[0]} ${args[1]} failed: ${stderr}`)
-    }
-  }
   const signature = cast(['wallet', 'sign', '--data', '--from-file', typedPath, ...signerArgs]) as Hex
   const signer = cast(['wallet', 'address', ...signerArgs]).toLowerCase() as Address
   const recovered = await recoverPriceListSigner(list, signature, config.chainId, distributor)

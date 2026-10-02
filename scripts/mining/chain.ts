@@ -35,6 +35,7 @@ export async function firstBlockAtOrAfter(c: PublicClient, t: bigint, lo: bigint
 
 /** eth_getLogs over [from, to] in pages; a page the RPC refuses is halved and retried, and grows back after. */
 async function pagedLogs<T>(from: bigint, to: bigint, pageSize: bigint, fetch: (from: bigint, to: bigint) => Promise<T[]>): Promise<T[]> {
+  if (pageSize < 1n) throw new Error('the page size must be at least one block')
   const out: T[] = []
   let page = pageSize
   for (let start = from; start <= to;) {
@@ -52,6 +53,8 @@ async function pagedLogs<T>(from: bigint, to: bigint, pageSize: bigint, fetch: (
 }
 
 const lower = (a: string) => a.toLowerCase() as Address
+const chainOrder = (x: { block: bigint; logIndex: number }, y: { block: bigint; logIndex: number }) =>
+  x.block === y.block ? x.logIndex - y.logIndex : x.block < y.block ? -1 : 1
 
 export async function holdingLogs(c: PublicClient, holdings: Address[], from: bigint, to: bigint, page: bigint) {
   const logs = await pagedLogs(from, to, page, (fromBlock, toBlock) => c.getLogs({ address: holdings, events: holdingEvents, fromBlock, toBlock, strict: true }))
@@ -68,8 +71,7 @@ export async function holdingLogs(c: PublicClient, holdings: Address[], from: bi
       withdrawals.push({ ...at, to: lower(log.args.to), token: lower(log.args.token), amount: log.args.amount })
     }
   }
-  const order = (x: { block: bigint; logIndex: number }, y: { block: bigint; logIndex: number }) => (x.block === y.block ? x.logIndex - y.logIndex : x.block < y.block ? -1 : 1)
-  return { fees: fees.sort(order), owed: owed.sort(order), withdrawals: withdrawals.sort(order) }
+  return { fees: fees.toSorted(chainOrder), owed: owed.toSorted(chainOrder), withdrawals: withdrawals.toSorted(chainOrder) }
 }
 
 /** `cumulativeBudget(n)` less what was funded for earlier epochs (EpochFunded logs), and what epoch n already has. */

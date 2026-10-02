@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { spawnSync } from 'node:child_process'
 import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
 import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
 import { buildTree, leafHash, proofOf, verifyProof, type LeafValue } from './tree.ts'
@@ -24,7 +25,8 @@ let position = 0
 const at = (tx: number) => ({ block: BigInt(100 + tx), logIndex: position++, tx: `0x${tx.toString(16).padStart(64, '0')}` as Hex, holding: HOLDING })
 const fee = (tx: number, jobId: number, token: Address, worker: Address, creator: Address, dollars: number): FeeCharged =>
   ({ ...at(tx), jobId: BigInt(jobId), token, worker, creator, amount: BigInt(dollars * 1_000_000) })
-const owedTo = (f: FeeCharged, to: Address): PayoutOwed => ({ ...at(Number(BigInt(f.tx))), jobId: f.jobId, to, token: f.token, amount: f.amount })
+// A refused leg: the treasury's is always the fee's amount; a worker's is what the worker was due.
+const owedTo = (f: FeeCharged, to: Address, amount = f.amount): PayoutOwed => ({ ...at(Number(BigInt(f.tx))), jobId: f.jobId, to, token: f.token, amount })
 const withdrawn = (tx: number, to: Address, token: Address): OwedWithdrawn => ({ ...at(tx), to, token, amount: 1n })
 
 test('one leaf per account: a worker who is also a creator gets both parts', () => {
@@ -37,7 +39,7 @@ test('one leaf per account: a worker who is also a creator gets both parts', () 
   const f4 = fee(6, 4, USDC, D, B, 2) // refused after that withdrawal, and never withdrawn
   const o4 = owedTo(f4, TREASURY)
   const f6 = fee(7, 6, USDC, E, C, 1) // only the worker's transfer was refused: the treasury holds the fee
-  const o6 = owedTo(f6, E)
+  const o6 = owedTo(f6, E, f6.amount * 9n)
   const r = computeEpoch({ fees: [f1, f2, f3, f4, f5, f6], owed: [o4, o5, o6], withdrawals: [w5], prices, budget: factory(10_000_000) })
 
   expect(r.fees.map(x => x.status)).toEqual(['counted', 'unpriced', 'counted', 'owed-to-treasury', 'counted', 'counted'])
@@ -80,20 +82,32 @@ test('no counted fee: no emission, no leaves', () => {
 
 test('the treasury owed entry is the last PayoutOwed after the fee in its transaction', () => {
   const f = fee(41, 41, USDC, A, B, 2)
-  const worker = owedTo(f, A)
+  const worker = owedTo(f, A, 7n)
   const treasury = owedTo(f, TREASURY)
   expect(treasuryOwed(f, [worker])).toBeUndefined()
   expect(treasuryOwed(f, [treasury])).toEqual(treasury)
   expect(treasuryOwed(f, [worker, treasury])).toEqual(treasury)
   // A worker that is the treasury: both refused, the second is the treasury's.
   const f2 = fee(42, 42, USDC, TREASURY, B, 2)
-  const first = owedTo(f2, TREASURY)
+  const first = owedTo(f2, TREASURY, 7n)
   const second = owedTo(f2, TREASURY)
   expect(treasuryOwed(f2, [first, second])).toEqual(second)
   // Another job, another transaction, or a log before the fee does not count.
   expect(treasuryOwed(f, [{ ...treasury, jobId: 99n }])).toBeUndefined()
   expect(treasuryOwed(f, [{ ...treasury, tx: f2.tx }])).toBeUndefined()
   expect(treasuryOwed(f, [{ ...treasury, logIndex: f.logIndex - 1, block: f.block }])).toBeUndefined()
+})
+
+test('B8-SEC-001: a worker that is the treasury, with one refused leg, is told apart by amount', () => {
+  const f = fee(45, 45, USDC, TREASURY, B, 2)
+  const treasuryLeg = owedTo(f, TREASURY) // the fee's amount: the treasury's leg was refused
+  const workerLeg = owedTo(f, TREASURY, 7n) // the worker's own amount: the treasury received the fee
+  const run = (owed: PayoutOwed[]) => computeEpoch({ fees: [f], owed, withdrawals: [], prices, budget: factory(1_000_000) }).fees[0]!.status
+  expect(run([treasuryLeg])).toBe('owed-to-treasury')
+  expect(run([workerLeg])).toBe('counted')
+  // A worker leg that happens to equal the fee cannot be told apart: it fails closed.
+  const g = fee(46, 46, USDC, A, B, 2)
+  expect(computeEpoch({ fees: [g], owed: [owedTo(g, A)], withdrawals: [], prices, budget: factory(1_000_000) }).fees[0]!.status).toBe('owed-to-treasury')
 })
 
 test('a withdrawal before the refused transfer does not clear it', () => {
@@ -131,6 +145,19 @@ test('dataHash is the keccak of the inputs JSON and moves with any input', () =>
   const inputs = { chainId: 10143, epoch: '3', fees: [{ jobId: '1', amount: '5' }] }
   expect(dataHashOf(inputs)).toBe(dataHashOf(JSON.parse(JSON.stringify(inputs))))
   expect(dataHashOf({ ...inputs, epoch: '4' })).not.toBe(dataHashOf(inputs))
+  // B8-SEC-002: the window's last block hash is an input, so a different history gives a different dataHash.
+  const window = { start: '1', end: '2', fromBlock: '10', toBlock: '20', toBlockHash: `0x${'1'.repeat(64)}` }
+  expect(dataHashOf({ ...inputs, window })).not.toBe(dataHashOf({ ...inputs, window: { ...window, toBlockHash: `0x${'2'.repeat(64)}` } }))
+})
+
+test('B8-SEC-003: --page must be a positive number of blocks, refused before any read', () => {
+  const env = { ...process.env, NO_COLOR: '1' }
+  delete env.FORCE_COLOR
+  for (const page of ['0', '-1', '1.5', 'x']) {
+    const run = spawnSync('bun', [`${import.meta.dirname}/epoch.ts`, '0', '--prices', '/nonexistent', '--out', '/tmp', '--rpc', 'http://127.0.0.1:9', '--page', page], { encoding: 'utf8', env, timeout: 30_000 })
+    expect(run.status).not.toBe(0)
+    expect(run.stderr).toContain('--page takes a positive number of blocks')
+  }
 })
 
 const OWNER_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d' as const // anvil dev key 1

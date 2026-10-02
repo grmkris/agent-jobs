@@ -180,6 +180,8 @@ END=$(cast call --rpc-url "$LOCAL" "$RESERVE" "epochEnd(uint256)(uint256)" 0 | a
 NOW=$(cast block --rpc-url "$LOCAL" latest -f timestamp)
 cast rpc --rpc-url "$LOCAL" evm_increaseTime $((END - NOW + 60)) >/dev/null
 cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null
+# mining:epoch reads only up to the finalized head, which on anvil trails latest by 64 blocks.
+cast rpc --rpc-url "$LOCAL" anvil_mine 0x41 >/dev/null
 # The B8 tool, as the coordinator runs it: the price list signed from a keystore (USDC at $1, FACTORY at $0.0001), then
 # the epoch from chain logs alone.
 chmod 700 "$MINING"

@@ -30,7 +30,7 @@ export function buildTree(values: readonly LeafValue[]): TreeDump {
   if (values.length === 0) throw new Error('a tree needs at least one leaf')
   const hashed = values.map((value, valueIndex) => ({ valueIndex, hash: leafHash(value) }))
   hashed.sort((a, b) => (a.hash < b.hash ? -1 : a.hash > b.hash ? 1 : 0))
-  const tree: Hex[] = new Array(2 * hashed.length - 1)
+  const tree = Array.from<unknown, Hex>({ length: 2 * hashed.length - 1 }, () => '0x')
   hashed.forEach((h, i) => { tree[tree.length - 1 - i] = h.hash })
   for (let i = tree.length - 1 - hashed.length; i >= 0; i--) tree[i] = hashPair(tree[2 * i + 1]!, tree[2 * i + 2]!)
   const indexed = values.map(value => ({ value, treeIndex: 0 }))

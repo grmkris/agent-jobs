@@ -61,15 +61,16 @@ export interface EpochResult {
 const after = (a: LogPosition, b: LogPosition) => a.block > b.block || (a.block === b.block && a.logIndex > b.logIndex)
 
 /**
- * The treasury's `PayoutOwed` for a fee, if its transfer was refused. `_settle` emits `FeeCharged`, then pays the
- * worker, then the treasury, so in the same transaction the treasury's `PayoutOwed` (same Holding, job and token) is
- * the last one after the fee: the second when both were refused, else the only one if it is not to the worker.
+ * The treasury's `PayoutOwed` for a fee, if its transfer may have been refused. `_settle` emits `FeeCharged`, then pays
+ * the worker, then the treasury, each refusal becoming a `PayoutOwed` (same transaction, Holding, job and token). The
+ * treasury's leg is exactly `FeeCharged.amount`, so a refused leg is the treasury's when it is not to the worker, or
+ * when its amount is the fee's (B8-SEC-001: a worker that is also the treasury, or a worker leg of the same amount,
+ * is read as the treasury's, failing closed).
  */
 export function treasuryOwed(fee: FeeCharged, owed: readonly PayoutOwed[]): PayoutOwed | undefined {
-  const mine = owed.filter(o => o.tx === fee.tx && o.holding === fee.holding && o.jobId === fee.jobId && o.token === fee.token && after(o, fee))
-  if (mine.length === 0) return undefined
-  const last = mine.reduce((a, b) => (after(b, a) ? b : a))
-  return mine.length >= 2 || last.to !== fee.worker ? last : undefined
+  const legs = owed.filter(o => o.tx === fee.tx && o.holding === fee.holding && o.jobId === fee.jobId && o.token === fee.token && after(o, fee)
+    && (o.to !== fee.worker || o.amount === fee.amount))
+  return legs.length === 0 ? undefined : legs.reduce((a, b) => (after(b, a) ? b : a))
 }
 
 /**
@@ -118,7 +119,7 @@ export function computeEpoch(input: {
   }
   const leaves = [...amounts]
     .filter(([, amount]) => amount > 0n)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([account, amount]) => ({ account, amount }))
   return { fees, feeUsd, factoryUsdPrice, demand, emission, leaves, total: leaves.reduce((s, l) => s + l.amount, 0n) }
 }

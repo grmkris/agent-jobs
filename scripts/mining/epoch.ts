@@ -25,7 +25,9 @@ if (network !== 'monad-testnet' && network !== 'monad-mainnet') throw new Error(
 const epoch = BigInt(epochArg)
 const rpc = flag('rpc') ?? process.env[network === 'monad-mainnet' ? 'MONAD_MAINNET_RPC_URL' : 'MONAD_TESTNET_RPC_URL']
 if (rpc === undefined || rpc === '') throw new Error(`set --rpc or ${network === 'monad-mainnet' ? 'MONAD_MAINNET_RPC_URL' : 'MONAD_TESTNET_RPC_URL'}`)
-const page = BigInt(flag('page') ?? '1000')
+const pageArg = flag('page') ?? '1000'
+if (!/^[1-9][0-9]*$/.test(pageArg)) throw new Error(`--page takes a positive number of blocks. ${usage}`)
+const page = BigInt(pageArg)
 const configPath = resolve(flag('config') ?? join(import.meta.dirname, '../../contracts/config', `${network}.json`))
 
 // Errors from the RPC client can quote the URL; it may carry a key.
@@ -40,7 +42,7 @@ async function main() {
   const h = d.hireling
   const holdings = [...Object.values(d.stacks), ...Object.values(d.legacyStacks)]
     .filter(st => st?.kind === 'hireling-v1').map(st => lower(st!.holding))
-  const uniqueHoldings = [...new Set(holdings)].sort()
+  const uniqueHoldings = [...new Set(holdings)].toSorted()
   const c = client(rpc!)
 
   const chainId = await c.getChainId()
@@ -60,18 +62,20 @@ async function main() {
     if (onChain !== t.decimals) throw new Error(`price list: ${t.token} has ${onChain} decimals on chain, the list says ${t.decimals}`)
   }
 
-  // The window, by block timestamp: [epochStart, epochEnd).
+  // The window, by block timestamp: [epochStart, epochEnd), read only up to the finalized head (B8-SEC-002), so no
+  // reorg can change what it counts; the last window block's hash is committed in the inputs.
   const start = await c.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochStart', args: [epoch] })
   const end = await c.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochEnd', args: [epoch] })
-  const latest = await c.getBlock({ blockTag: 'latest' })
-  if (latest.timestamp < end) throw new Error(`epoch ${epoch} ends at ${end}; the chain is at ${latest.timestamp}`)
-  const fromBlock = await firstBlockAtOrAfter(c, start, h.block, latest.number)
-  const toBlock = (await firstBlockAtOrAfter(c, end, h.block, latest.number)) - 1n
+  const head = await c.getBlock({ blockTag: 'finalized' })
+  if (head.timestamp < end) throw new Error(`epoch ${epoch} ends at ${end}; the finalized head is block ${head.number} at ${head.timestamp}: wait for it`)
+  const fromBlock = await firstBlockAtOrAfter(c, start, h.block, head.number)
+  const toBlock = (await firstBlockAtOrAfter(c, end, h.block, head.number)) - 1n
+  const toBlockHash = (await c.getBlock({ blockNumber: toBlock })).hash
   const logs = fromBlock <= toBlock ? await holdingLogs(c, uniqueHoldings, fromBlock, toBlock, page) : { fees: [], owed: [], withdrawals: [] }
-  const budget = await budgetOf(c, h.miningReserve, epoch, h.block, latest.number, page)
+  const budget = await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
 
   const r = computeEpoch({ ...logs, prices, budget: budget.available })
-  const window = { start: s(start), end: s(end), fromBlock: s(fromBlock), toBlock: s(toBlock) }
+  const window = { start: s(start), end: s(end), fromBlock: s(fromBlock), toBlock: s(toBlock), toBlockHash }
   const priceList = {
     message: { epoch: s(prices.epoch), tokens: prices.tokens.map(t => ({ token: t.token, decimals: t.decimals, usdPrice: s(t.usdPrice) })), factoryUsdPrice: s(prices.factoryUsdPrice) },
     signer,
