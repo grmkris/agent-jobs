@@ -180,3 +180,15 @@ STAGING-GUARD-G2-002 requires a nonempty unique deployment id across all pages
 and strictly decreasing timestamps, including older equal timestamps. Regressions
 cover a duplicate id on a later page, missing ids and equal older timestamps
 across a page boundary; newest uniqueness and one-version/100% checks remain.
+
+STAGING-GUARD-G2-003 refuses any set `DISTILLED_DEBUG*` variable in either
+the inherited process environment or parsed `.env.local`, before census or
+provider calls. The pinned Distilled core `protocol-http.ts:538` logs request
+bodies, `protocol-rest.ts:306` logs HTTP bodies, and Cloudflare
+`protocol.ts:332` logs response bodies under `DISTILLED_DEBUG_HTTP`. A source
+audit of pinned Alchemy and Distilled found no other deploy-path body-logging
+environment switch. Alchemy's `DEBUG` switches belong to runtime bootstraps
+and the nuke command; `GIT_PUMP_DEBUG` traces git-object streaming, none of
+which run in this release. Regression tests cover inherited/local/empty/zero
+settings and show refusal before a fake provider's private error response can
+reach the console. No environment values are rendered in the diagnostic.

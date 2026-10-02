@@ -14,7 +14,7 @@ const codes = new Set([
   'census-domain-ownership-drift', 'census-worker-identity-drift', 'census-worker-ownership-drift', 'census-cron-drift',
   'census-binding-drift', 'census-board-namespace-drift', 'census-secret-binding-missing',
   'worker-readback-failed', 'worker-health-invalid', 'worker-runtime-invalid', 'directory-readback-failed',
-  'guard-checkout-not-main', 'guard-tracked-changes', 'guard-untracked-source', 'guard-credential-missing',
+  'guard-checkout-not-main', 'guard-tracked-changes', 'guard-untracked-source', 'guard-credential-missing', 'guard-debug-env-set',
   'guard-plan-protection-failed', 'guard-resource-action-refused', 'guard-directory-binding-drift',
   'guard-resource-census-invalid', 'guard-native-resource-missing', 'guard-state-mode-drift',
   'guard-manifests-update-refused', 'guard-binding-deletion-refused', 'guard-artifact-store-missing',

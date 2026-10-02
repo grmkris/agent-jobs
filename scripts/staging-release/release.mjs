@@ -6,6 +6,7 @@ import { parseEnv } from 'node:util'
 import * as Effect from 'effect/Effect'
 import { StagingReleaseError, reportReleaseFailure, runStagingEffect } from './errors.mjs'
 import { prepareArtifacts, storedBundle } from './artifacts.mjs'
+import { assertSafeProviderEnv } from './provider-env.mjs'
 import { readApprovedChanges } from './approved-changes.mjs'
 import { nativeResource, reviewLivePlan } from './live-plan.mjs'
 import { artifactOf, commitmentKey, durableObjectTransition, keyId, viteArtifactNow, workerPayload } from './payload.mjs'
@@ -38,12 +39,14 @@ function git(...gitArgs) {
 }
 
 function preflight() {
+  assertSafeProviderEnv(process.env)
   if (git('branch', '--show-current') !== 'main') fail('guard-checkout-not-main')
   if (git('diff', '--name-only').length > 0 || git('diff', '--cached', '--name-only').length > 0) fail('guard-tracked-changes')
   state.inspectStagingState()
   const unknown = git('ls-files', '--others', '--exclude-standard').split('\n').filter((name) => name && !name.startsWith('.artifact-video/') && !name.startsWith('packages/sdk/scripts/.local/'))
   if (unknown.length) fail('guard-untracked-source')
   const localEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
+  assertSafeProviderEnv(localEnv)
   // This checkout's deployment credentials are authoritative; a login shell can
   // carry unrelated credentials for another product.
   Object.assign(process.env, localEnv)
