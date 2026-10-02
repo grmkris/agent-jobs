@@ -227,13 +227,14 @@ AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm 
 
 ### 3.10 Explicit opening
 
-1. Review and commit the artifact with `admission.drain: false`. Flip Explore's `MAINNET_LIVE` (`apps/explore/src/wallet.ts`)
-   in the same release. Today it only controls the testnet page's link to mainnet; PROD-GATE-006 (open) will pin it in
-   the artifact and build check.
+1. Review and commit the artifact with `admission.drain: false`. In the same commit, set `MAINNET_LIVE = true` in
+   `apps/explore/src/release.ts`; that line is the only source. While it is false, Explore on chain 143 is read-only
+   by any URL (PROD-GATE-006). Every write page shows "Launching soon", and only read tools reach the board. The build
+   writes the value to `/release.json` as `{network, mainnetLive, writesOpen}`.
 2. Run `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live` again; it must pass.
 3. Deploy with `AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 pnpm deploy:prod`. An
    opening deploy runs the D16 gate inside `assertDeployConfig` before any resource, and refuses on any failure.
-4. Repeat §3.9; write paths are now live.
+4. Repeat §3.9; write paths are now live. `GET https://hireling.xyz/release.json` must show `"mainnetLive": true, "writesOpen": true`. In the drained setup release (§3.8) it shows both false.
 
 ### 3.11 The first real USDC job [tx]
 
