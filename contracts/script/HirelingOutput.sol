@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Vm} from "forge-std/Vm.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {HirelingRecipe} from "./HirelingRecipe.sol";
+
+/// @title HirelingOutput
+/// @notice Rewrites `.deployment` in a network config after the Hireling v1 deploy, in the shape of decisions D1:
+///         `factory` becomes FACTORY v2; `hireling` lists the owner Safe (D5), the protocol contracts and `t0`; `main` is the v1 pair
+///         (`kind: "hireling-v1"`); the previous `main` and `demo` move into `legacy` as the next free `main-vN` and
+///         `demo-vN`; every legacy pair gets an explicit `kind` and `factory`. Every other key is copied. An unknown key,
+///         or a config that already records a v1 deployment, refuses instead of dropping anything.
+library HirelingOutput {
+    error UnknownKey(string where, string key);
+    error AlreadyDeployed();
+
+    function _eq(string memory a, string memory b) private pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+
+    function _has(string[] memory keys, string memory key) private pure returns (bool) {
+        for (uint256 i; i < keys.length; ++i) {
+            if (_eq(keys[i], key)) return true;
+        }
+        return false;
+    }
+
+    function _keys(Vm vm, string memory json, string memory at) private view returns (string[] memory) {
+        if (!vm.keyExistsJson(json, at)) return new string[](0);
+        return vm.parseJsonKeys(json, at);
+    }
+
+    /// @notice Refuses a config this writer could not rewrite faithfully, before anything is broadcast.
+    function preflight(Vm vm, string memory json) internal view {
+        string[] memory keys = _keys(vm, json, ".deployment");
+        string[8] memory known =
+            ["block", "core", "network", "factory", "poolFactory", "rewardTokens", "stacksBlock", "legacy"];
+        for (uint256 i; i < keys.length; ++i) {
+            string memory k = keys[i];
+            if (_eq(k, "hireling")) revert AlreadyDeployed();
+            if (_eq(k, "main") || _eq(k, "demo")) {
+                _checkPair(vm, json, string.concat(".deployment.", k), k);
+                continue;
+            }
+            bool ok;
+            for (uint256 j; j < known.length; ++j) {
+                if (_eq(k, known[j])) ok = true;
+            }
+            if (!ok) revert UnknownKey("deployment", k);
+        }
+        string[] memory legacy = _keys(vm, json, ".deployment.legacy");
+        for (uint256 i; i < legacy.length; ++i) {
+            _checkPair(vm, json, string.concat(".deployment.legacy.", legacy[i]), legacy[i]);
+        }
+    }
+
+    function _checkPair(Vm vm, string memory json, string memory at, string memory name) private pure {
+        string[] memory keys = vm.parseJsonKeys(json, at);
+        for (uint256 i; i < keys.length; ++i) {
+            string memory k = keys[i];
+            if (!(_eq(k, "holding") || _eq(k, "evaluator") || _eq(k, "openTokens") || _eq(k, "kind")
+                        || _eq(k, "factory"))) {
+                revert UnknownKey(name, k);
+            }
+        }
+    }
+
+    function write(Vm vm, string memory path, HirelingRecipe.Deployed memory d, address safe, uint256 deployBlock)
+        internal
+    {
+        string memory json = vm.readFile(path);
+        preflight(vm, json);
+        string memory o = "deployment";
+        string[] memory keys = _keys(vm, json, ".deployment");
+
+        if (d.coreDeployed) {
+            vm.serializeAddress(o, "core", address(d.core));
+            vm.serializeUint(o, "block", deployBlock);
+        } else {
+            vm.serializeAddress(o, "core", vm.parseJsonAddress(json, ".deployment.core"));
+            vm.serializeUint(o, "block", vm.parseJsonUint(json, ".deployment.block"));
+        }
+        if (_has(keys, "poolFactory")) {
+            vm.serializeAddress(o, "poolFactory", vm.parseJsonAddress(json, ".deployment.poolFactory"));
+        }
+        if (_has(keys, "rewardTokens")) {
+            vm.serializeAddress(o, "rewardTokens", vm.parseJsonAddressArray(json, ".deployment.rewardTokens"));
+        }
+        if (_has(keys, "stacksBlock")) {
+            vm.serializeUint(o, "stacksBlock", vm.parseJsonUint(json, ".deployment.stacksBlock"));
+        }
+        address oldFactory = _has(keys, "factory") ? vm.parseJsonAddress(json, ".deployment.factory") : address(0);
+        vm.serializeAddress(o, "factory", address(d.factory));
+
+        string memory h = "deployment.hireling";
+        vm.serializeUint(h, "block", deployBlock);
+        vm.serializeAddress(h, "safe", safe);
+        vm.serializeAddress(h, "factory", address(d.factory));
+        vm.serializeAddress(h, "vault", address(d.vault));
+        vm.serializeAddress(h, "feeSchedule", address(d.fees));
+        vm.serializeAddress(h, "distributor", address(d.distributor));
+        vm.serializeAddress(h, "miningReserve", address(d.reserve));
+        vm.serializeAddress(h, "teamVesting", address(d.vesting));
+        vm.serializeString(o, "hireling", vm.serializeUint(h, "t0", d.t0));
+
+        string memory m = "deployment.main";
+        vm.serializeString(m, "kind", "hireling-v1");
+        vm.serializeAddress(m, "factory", address(d.factory));
+        vm.serializeAddress(m, "holding", address(d.holding));
+        vm.serializeAddress(m, "evaluator", address(d.evaluator));
+        vm.serializeString(o, "main", vm.serializeBool(m, "openTokens", true));
+
+        string[] memory legacy = _keys(vm, json, ".deployment.legacy");
+        bool moveMain = _has(keys, "main");
+        bool moveDemo = _has(keys, "demo");
+        if (legacy.length > 0 || moveMain || moveDemo) {
+            string memory l = "deployment.legacy";
+            string memory out;
+            for (uint256 i; i < legacy.length; ++i) {
+                out = _pair(vm, json, l, string.concat(".deployment.legacy.", legacy[i]), legacy[i], oldFactory);
+            }
+            if (moveMain) out = _pair(vm, json, l, ".deployment.main", _next(legacy, "main-v"), oldFactory);
+            if (moveDemo) out = _pair(vm, json, l, ".deployment.demo", _next(legacy, "demo-v"), oldFactory);
+            vm.serializeString(o, "legacy", out);
+        }
+
+        string memory result = vm.serializeString(o, "network", vm.parseJsonString(json, ".network"));
+        vm.writeJson(result, path, ".deployment");
+    }
+
+    /// @dev One legacy pair with an explicit `kind` and `factory`, added to the legacy object under `name`.
+    function _pair(
+        Vm vm,
+        string memory json,
+        string memory parent,
+        string memory at,
+        string memory name,
+        address oldFactory
+    ) private returns (string memory) {
+        string memory p = string.concat(parent, ".", name);
+        vm.serializeString(p, "kind", "legacy");
+        address factory = vm.keyExistsJson(json, string.concat(at, ".factory"))
+            ? vm.parseJsonAddress(json, string.concat(at, ".factory"))
+            : oldFactory;
+        vm.serializeAddress(p, "factory", factory);
+        if (vm.keyExistsJson(json, string.concat(at, ".openTokens"))) {
+            vm.serializeBool(p, "openTokens", vm.parseJsonBool(json, string.concat(at, ".openTokens")));
+        }
+        vm.serializeAddress(p, "holding", vm.parseJsonAddress(json, string.concat(at, ".holding")));
+        string memory pair =
+            vm.serializeAddress(p, "evaluator", vm.parseJsonAddress(json, string.concat(at, ".evaluator")));
+        return vm.serializeString(parent, name, pair);
+    }
+
+    /// @dev The first `prefix<N>` (N from 1) not already in `legacy`.
+    function _next(string[] memory legacy, string memory prefix) private pure returns (string memory name) {
+        for (uint256 n = 1;; ++n) {
+            name = string.concat(prefix, Strings.toString(n));
+            if (!_has(legacy, name)) return name;
+        }
+    }
+}
