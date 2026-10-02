@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { describePlan } from 'alchemy/Plan'
+import { havePropsChanged } from 'alchemy/Diff'
 import { readApprovedChanges } from './approved-changes.mjs'
 import { nativeResource, reviewLivePlan } from './live-plan.mjs'
 
@@ -102,6 +103,39 @@ test('migrations, resource creates, storage updates, schedules and directory cha
   }
 })
 
+test('protection blockers identify the logical resource and binding without exposing values', () => {
+  const storage = fixture()
+  nativeResource(storage.snapshot, 'Manifests').action = 'update'
+  const storageResult = review(storage)
+  assert.ok(storageResult.blockers.includes('storage-write-refused(Manifests: update)'), storageResult.blockers.join(','))
+
+  const bindingDrift = fixture()
+  liveBinding(bindingDrift, 'DirectoryObject').namespace_id = 'secret-namespace-value'
+  const bindingResult = review(bindingDrift)
+  assert.ok(bindingResult.blockers.includes('binding-identity-drift(Api.DirectoryObject)'), bindingResult.blockers.join(','))
+  assert.ok(!bindingResult.blockers.some(blocker => blocker.includes('secret-namespace-value')))
+})
+
+test('omitting the deployed migration input requests a Database update under the pinned engine fallback', () => {
+  const deployed = { migrations: '/test-only/migrations' }
+  // Database.diff returns undefined when migrations are omitted; Plan then falls back to havePropsChanged.
+  assert.equal(havePropsChanged(deployed, {}), true)
+  assert.equal(havePropsChanged(deployed, { ...deployed }), false)
+  const input = fixture()
+  nativeResource(input.snapshot, 'Database').action = 'update'
+  assert.ok(review(input).blockers.includes('storage-write-refused(Database: update)'))
+})
+
+test('aggregate duplicate approval failures remain refused after adding contextual labels', () => {
+  const input = fixture()
+  const node = nativeResource(input.snapshot, 'Api')
+  node.bindings[0].action = 'update'
+  input.snapshot.native.resources['DuplicateApi'] = { ...node, resource: { ...node.resource, FQN: 'DuplicateApi' } }
+  const result = review(input)
+  assert.equal(result.ok, false)
+  assert.ok(result.blockers.includes('unapproved-additive-or-config-change(Plan)'))
+})
+
 test('the exact apex release requires its setting and preserves the testnet domain', () => {
   const prior = process.env.HIRELING_APEX_REDIRECT
   try {
@@ -149,7 +183,7 @@ test('B12-002: a noop directory binding whose live class, namespace or database 
     drift(input)
     const result = review(input)
     assert.equal(result.ok, false)
-    assert.ok(result.blockers.some(blocker => ['binding-identity-drift', 'binding-type-change-refused'].includes(blocker)), result.blockers.join(','))
+    assert.ok(result.blockers.some(blocker => blocker.startsWith('binding-identity-drift(') || blocker.startsWith('binding-type-change-refused(')), result.blockers.join(','))
   }
 })
 
@@ -176,7 +210,7 @@ test('B12-002: a class migration the provider would derive from live tags is ref
     assert.equal(input.snapshot.actions?.length ?? 0, 0)
     const result = review(input)
     assert.equal(result.ok, false)
-    assert.ok(result.blockers.includes('durable-object-migration-refused'), result.blockers.join(','))
+    assert.ok(result.blockers.some(blocker => blocker.startsWith('durable-object-migration-refused(')), result.blockers.join(','))
     assert.ok(result.transitions.Api[field].length > 0, field)
     assert.deepEqual(result.changes.migrations, ['durable-object:Api'])
   }
