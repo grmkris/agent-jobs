@@ -79,7 +79,9 @@ const repo = fileURLToPath(new URL('../../../', import.meta.url))
 const hasBun = spawnSync('bun', ['--version']).status === 0
 
 test.skipIf(!hasBun)('the runbook command starts and judges the artifact (its imports resolve from scripts/)', () => {
-  const run = spawnSync('bun', ['scripts/preflight-prod.ts', 'docs/p0-prod-artifact.json'], { cwd: repo, encoding: 'utf8', timeout: 60_000 })
+  // The check runner sets FORCE_COLOR; without this, Bun colours stderr and the anchored match below misses.
+  const { FORCE_COLOR: _, ...env } = process.env
+  const run = spawnSync('bun', ['scripts/preflight-prod.ts', 'docs/p0-prod-artifact.json'], { cwd: repo, encoding: 'utf8', timeout: 60_000, env: { ...env, NO_COLOR: '1' } })
   expect(run.stderr).not.toContain('Cannot find module')
   // The checked-in artifact is the proposal: structurally incomplete on purpose, and its Explore pin is not the reason.
   expect(run.status).toBe(1)
