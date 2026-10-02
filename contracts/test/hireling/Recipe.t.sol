@@ -413,6 +413,43 @@ contract RecipeTest is Test {
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "hireling-v1");
         assertFalse(vm.keyExistsJson(out, ".deployment.legacy"));
         assertEq(vm.parseJsonString(out, ".deployment.network"), "monad-mainnet");
+        // LAUNCH-AUDIT-004: the shipped config has knownTokens only; the record carries USDC as its reward token.
+        address[] memory rewards = vm.parseJsonAddressArray(out, ".deployment.rewardTokens");
+        assertEq(rewards.length, 1);
+        assertEq(rewards[0], vm.parseJsonAddress(real, ".x402.usdc"));
+        assertEq(rewards[0], vm.parseJsonAddressArray(real, ".knownTokens")[0]);
+    }
+
+    /// @dev LAUNCH-AUDIT-004: on mainnet a reward list without USDC, or no list and not exactly one known token, refuses
+    ///      before anything is written; an explicit list with USDC is kept as it is.
+    function test_output_mainnetRewardTokensKeepUsdc() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
+        string memory usdc = vm.toString(vm.parseJsonAddress(real, ".x402.usdc"));
+
+        string memory path = _temp("rewards-no-usdc", real);
+        vm.writeJson('{"rewardTokens":["0x0000000000000000000000000000000000000Bad"]}', path, ".deployment");
+        vm.expectRevert(HirelingOutput.MainnetRewardTokens.selector);
+        this.writeExternal(path, d);
+        vm.removeFile(path);
+
+        path = _temp("rewards-two-known", real);
+        vm.writeJson(string.concat('["', usdc, '","0x0000000000000000000000000000000000000Bad"]'), path, ".knownTokens");
+        vm.expectRevert(HirelingOutput.MainnetRewardTokens.selector);
+        this.writeExternal(path, d);
+        vm.removeFile(path);
+
+        path = _temp("rewards-kept", real);
+        vm.writeJson(
+            string.concat('{"rewardTokens":["0x0000000000000000000000000000000000000Bad","', usdc, '"]}'),
+            path,
+            ".deployment"
+        );
+        this.writeExternal(path, d);
+        address[] memory kept = vm.parseJsonAddressArray(vm.readFile(path), ".deployment.rewardTokens");
+        vm.removeFile(path);
+        assertEq(kept.length, 2);
+        assertEq(vm.toString(kept[1]), usdc);
     }
 
     function test_output_refusesUnknownKeys() public {
@@ -664,24 +701,40 @@ contract RecipeTest is Test {
             address(d.reserve)
         ];
         string memory txs = string.concat(
-            '{"hash":"', vm.toString(bytes32(uint256(1000))), '","transactionType":"CALL","contractAddress":"',
-            vm.toString(address(d.core)), '"}'
+            '{"hash":"',
+            vm.toString(bytes32(uint256(1000))),
+            '","transactionType":"CALL","contractAddress":"',
+            vm.toString(address(d.core)),
+            '"}'
         );
         string memory receipts = string.concat(
-            '{"transactionHash":"', vm.toString(bytes32(uint256(1000))), '","status":"', status,
+            '{"transactionHash":"',
+            vm.toString(bytes32(uint256(1000))),
+            '","status":"',
+            status,
             '","blockNumber":"0x100"}'
         );
         for (uint256 i; i < created.length; ++i) {
             string memory hash = vm.toString(bytes32(uint256(1001 + i)));
             txs = string.concat(
-                txs, ',{"hash":"', hash, '","transactionType":"CREATE","contractAddress":"', vm.toString(created[i]),
+                txs,
+                ',{"hash":"',
+                hash,
+                '","transactionType":"CREATE","contractAddress":"',
+                vm.toString(created[i]),
                 '"}'
             );
             if (dropLast && i == created.length - 1) continue;
             string memory logs = i == 2 ? _mintLogs(address(d.factory), minted) : "";
             receipts = string.concat(
-                receipts, ',{"transactionHash":"', hash, '","status":"0x1","blockNumber":"', i == 0 ? "0x101" : "0x102",
-                '","logs":[', logs, "]}"
+                receipts,
+                ',{"transactionHash":"',
+                hash,
+                '","status":"0x1","blockNumber":"',
+                i == 0 ? "0x101" : "0x102",
+                '","logs":[',
+                logs,
+                "]}"
             );
         }
         return string.concat('{"transactions":[', txs, '],"receipts":[', receipts, '],"pending":[]}');
@@ -694,8 +747,26 @@ contract RecipeTest is Test {
         string memory a = vm.toString(abi.encode(minted / 2));
         string memory b = vm.toString(abi.encode(minted - minted / 2));
         return string.concat(
-            '{"address":"', vm.toString(factory), '","topics":["', topic0, '","', zero, '","', one, '"],"data":"', a,
-            '"},{"address":"', vm.toString(factory), '","topics":["', topic0, '","', zero, '","', one, '"],"data":"', b,
+            '{"address":"',
+            vm.toString(factory),
+            '","topics":["',
+            topic0,
+            '","',
+            zero,
+            '","',
+            one,
+            '"],"data":"',
+            a,
+            '"},{"address":"',
+            vm.toString(factory),
+            '","topics":["',
+            topic0,
+            '","',
+            zero,
+            '","',
+            one,
+            '"],"data":"',
+            b,
             '"}'
         );
     }

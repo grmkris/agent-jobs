@@ -20,10 +20,16 @@ import {MiningReserve} from "../src/hireling/MiningReserve.sol";
 ///         `factory` becomes FACTORY v2; `hireling` lists the owner Safe (D5), the protocol contracts and `t0`; `main` is the v1 pair
 ///         (`kind: "hireling-v1"`); the previous `main` and `demo` move into `legacy` as the next free `main-vN` and
 ///         `demo-vN`; every legacy pair gets an explicit `kind` and `factory`. Every other key is copied. An unknown key,
-///         or a config that already records a v1 deployment, refuses instead of dropping anything.
+///         or a config that already records a v1 deployment, refuses instead of dropping anything. On mainnet
+///         (LAUNCH-AUDIT-004) `rewardTokens` is kept or, when absent, derived from the single `knownTokens` entry, and must
+///         contain `x402.usdc`: the SDK and Explore read their reward tokens from it.
 library HirelingOutput {
     error UnknownKey(string where, string key);
     error AlreadyDeployed();
+    /// @dev Mainnet: no `rewardTokens` and not exactly one `knownTokens` entry, or a reward list without `x402.usdc`.
+    error MainnetRewardTokens();
+
+    uint256 private constant MAINNET = 143;
 
     function _eq(string memory a, string memory b) private pure returns (bool) {
         return keccak256(bytes(a)) == keccak256(bytes(b));
@@ -63,6 +69,29 @@ library HirelingOutput {
         for (uint256 i; i < legacy.length; ++i) {
             _checkPair(vm, json, string.concat(".deployment.legacy.", legacy[i]), legacy[i]);
         }
+        if (_mainnet(vm, json)) rewardTokens(vm, json);
+    }
+
+    /// @notice The reward tokens the record will carry: `.deployment.rewardTokens` if present, else on mainnet the single
+    ///         `knownTokens` entry (USDC). On mainnet the list must contain `x402.usdc`.
+    function rewardTokens(Vm vm, string memory json) internal view returns (address[] memory tokens) {
+        bool mainnet = _mainnet(vm, json);
+        if (vm.keyExistsJson(json, ".deployment.rewardTokens")) {
+            tokens = vm.parseJsonAddressArray(json, ".deployment.rewardTokens");
+        } else if (mainnet) {
+            tokens = vm.parseJsonAddressArray(json, ".knownTokens");
+            if (tokens.length != 1) revert MainnetRewardTokens();
+        }
+        if (!mainnet) return tokens;
+        address usdc = vm.parseJsonAddress(json, ".x402.usdc");
+        for (uint256 i; i < tokens.length; ++i) {
+            if (tokens[i] == usdc) return tokens;
+        }
+        revert MainnetRewardTokens();
+    }
+
+    function _mainnet(Vm vm, string memory json) private view returns (bool) {
+        return vm.keyExistsJson(json, ".chainId") && vm.parseJsonUint(json, ".chainId") == MAINNET;
     }
 
     function _checkPair(Vm vm, string memory json, string memory at, string memory name) private pure {
@@ -101,9 +130,8 @@ library HirelingOutput {
         if (_has(keys, "poolFactory")) {
             vm.serializeAddress(o, "poolFactory", vm.parseJsonAddress(json, ".deployment.poolFactory"));
         }
-        if (_has(keys, "rewardTokens")) {
-            vm.serializeAddress(o, "rewardTokens", vm.parseJsonAddressArray(json, ".deployment.rewardTokens"));
-        }
+        address[] memory rewards = rewardTokens(vm, json);
+        if (_has(keys, "rewardTokens") || rewards.length > 0) vm.serializeAddress(o, "rewardTokens", rewards);
         if (_has(keys, "stacksBlock")) {
             vm.serializeUint(o, "stacksBlock", vm.parseJsonUint(json, ".deployment.stacksBlock"));
         }
@@ -183,13 +211,9 @@ library HirelingOutput {
         return string.concat(candidateDir(vm), "/", network, ".candidate.json");
     }
 
-    function writeCandidate(
-        Vm vm,
-        string memory path,
-        uint256 chainId,
-        HirelingRecipe.Deployed memory d,
-        address safe
-    ) internal {
+    function writeCandidate(Vm vm, string memory path, uint256 chainId, HirelingRecipe.Deployed memory d, address safe)
+        internal
+    {
         // broadcast/ is gitignored, so the directory may not exist yet.
         vm.createDir(candidateDir(vm), true);
         string memory k = "candidate";

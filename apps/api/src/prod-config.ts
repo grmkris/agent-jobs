@@ -54,6 +54,8 @@ export interface ProdArtifact {
     main: ProdStack
     hireling: ProdHireling
     legacy?: Record<string, ProdStack> | undefined
+    /** LAUNCH-AUDIT-004: the promoted reward-token list, which must contain USDC. */
+    rewardTokens?: string[] | undefined
   }
 }
 
@@ -78,6 +80,7 @@ export interface ChainConfig {
     demo?: ProdStack
     fast?: ProdStack
     legacy?: Record<string, ProdStack>
+    rewardTokens?: string[]
   }
 }
 
@@ -131,6 +134,14 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
     check(address(value) && artifact.deployment.main[name]?.toLowerCase() === value.toLowerCase(), `main:${name}`)
   }
   check(artifact.deployment.main.openTokens === true, 'artifact main open tokens')
+  // LAUNCH-AUDIT-004: the SDK and Explore take their reward tokens from this list; mainnet's must hold USDC, and the
+  // artifact pins the same list.
+  const rewards = (list: unknown) => Array.isArray(list) && list.every(address) ? list.map(token => token.toLowerCase()) : undefined
+  const configRewards = rewards(deployed.rewardTokens)
+  const artifactRewards = rewards(artifact.deployment.rewardTokens)
+  check(configRewards !== undefined && configRewards.includes(config.x402.usdc.toLowerCase()), 'rewardTokens:USDC')
+  check(configRewards === undefined || (artifactRewards !== undefined && artifactRewards.length === configRewards.length &&
+    artifactRewards.every((token, i) => token === configRewards[i])), 'artifact rewardTokens')
   const expected = {
     ...config.roles,
     identity: config.erc8004.identity,

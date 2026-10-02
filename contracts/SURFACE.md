@@ -243,7 +243,10 @@ Output (`.deployment`, decisions D1 + D5): `factory` = FACTORY v2; `hireling = {
 feeSchedule, distributor, miningReserve, teamVesting, t0 }`; `main = { kind: "hireling-v1", factory, holding,
 evaluator, openTokens: true }`; the previous `main`/`demo` move to the next free `legacy.main-vN`/`legacy.demo-vN` and
 every legacy pair gets an explicit `kind: "legacy"` and `factory`; `core`, `block`, `poolFactory`, `rewardTokens`,
-`stacksBlock` are kept. An unknown key or an existing `hireling` record refuses before anything is broadcast. `load`
+`stacksBlock` are kept. On mainnet (LAUNCH-AUDIT-004) an absent `rewardTokens` is derived from the single `knownTokens`
+entry, USDC, and a list without `x402.usdc` refuses: the SDK and Explore take their reward tokens from it. The
+production preflight requires the promoted list to hold USDC and the artifact's `deployment.rewardTokens` to equal it.
+An unknown key or an existing `hireling` record refuses before anything is broadcast. `load`
 narrows every config number with `SafeCast` and `check` refuses a Safe with no code, a threshold above the supply and a
 genesis more than a day in the past or 90 days ahead (C9).
 

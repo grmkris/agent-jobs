@@ -51,6 +51,7 @@
       "evaluator": null,
       "openTokens": true
     },
+    "rewardTokens": [],
     "hireling": {
       "block": null,
       "safe": null,

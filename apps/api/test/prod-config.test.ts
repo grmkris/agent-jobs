@@ -11,8 +11,9 @@ const configured = () => {
     network: 'monad-mainnet', block: 123, core: fixtureAddress, factory: fixtureAddress,
     main: { kind: 'hireling-v1', factory: fixtureAddress, holding: fixtureAddress, evaluator: fixtureAddress, openTokens: true },
     hireling: { block: 123, safe: fixtureAddress, factory: fixtureAddress, vault: fixtureAddress, feeSchedule: fixtureAddress, distributor: fixtureAddress, miningReserve: fixtureAddress, teamVesting: fixtureAddress, t0: 1_791_500_000 },
+    rewardTokens: [mainnet.x402.usdc],
   }
-  artifact.deployment = structuredClone({ main: config.deployment.main!, hireling: config.deployment.hireling! })
+  artifact.deployment = structuredClone({ main: config.deployment.main!, hireling: config.deployment.hireling!, rewardTokens: config.deployment.rewardTokens! })
   artifact.deployment.hireling.safeOwners = ['0x5555555555555555555555555555555555555555', '0x6666666666666666666666666666666666666666']
   artifact.deployment.hireling.safeThreshold = 1
   for (const [name, value] of Object.entries(config.roles)) artifact.addresses[name] = value
@@ -94,4 +95,22 @@ test.each([
 test('LAUNCH-AUDIT-003: the shipped artifact has the Safe policy fields, still unpinned', () => {
   expect(proposed.deployment.hireling).toMatchObject({ safeOwners: [], safeThreshold: null })
   expect(validateProdConfig(mainnet, proposed)).toContain('hireling:safeOwners/safeThreshold')
+})
+
+test('LAUNCH-AUDIT-004: the promoted reward list must hold USDC, and the artifact must pin the same list', () => {
+  const cases: [string, (c: ReturnType<typeof configured>) => void, string][] = [
+    ['no promoted list', c => { delete c.config.deployment.rewardTokens }, 'rewardTokens:USDC'],
+    ['a list without USDC', c => { c.config.deployment.rewardTokens = ['0x7777777777777777777777777777777777777777']; c.artifact.deployment.rewardTokens = ['0x7777777777777777777777777777777777777777'] }, 'rewardTokens:USDC'],
+    ['an artifact without the list', c => { delete c.artifact.deployment.rewardTokens }, 'artifact rewardTokens'],
+    ['an artifact list that differs', c => { c.artifact.deployment.rewardTokens = [mainnet.x402.usdc, '0x7777777777777777777777777777777777777777'] }, 'artifact rewardTokens'],
+  ]
+  for (const [, mutate, label] of cases) {
+    const c = configured()
+    mutate(c)
+    expect(validateProdConfig(c.config, c.artifact)).toEqual([label])
+  }
+  const c = configured()
+  c.artifact.deployment.rewardTokens = [mainnet.x402.usdc.toLowerCase()]
+  expect(validateProdConfig(c.config, c.artifact)).toEqual([])
+  expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining(['rewardTokens:USDC']))
 })

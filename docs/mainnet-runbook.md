@@ -50,6 +50,8 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
    - `hireling.vesting`: team beneficiary, start offset, duration, cliff.
    - `hireling.mining.genesis`: 0 means the deploy time.
    - `liquidity.positionOwner` = the Safe; `maxRepairCost` = 5.
+   - `knownTokens` = [USDC] (= `x402.usdc`). Leave `deployment.rewardTokens` absent: PromoteHireling derives [USDC] from
+     it, and refuses a mainnet reward list without USDC. The artifact's `deployment.rewardTokens` pins the same list.
    - Hold gates stay 0 and there is no faucet.
 
    FACTORY is fixed-supply. The deploy mints exactly 1e9 once, split 50% mining reserve, 20% treasury, 15% team

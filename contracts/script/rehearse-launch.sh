@@ -165,6 +165,12 @@ set +e; REFUSED=$(gate); CODE=$?; set -e
 [[ "$(jq length <<<"$REFUSED")" == 6 && "$(jq '[.[] | select(endswith("is not the Safe"))] | length' <<<"$REFUSED")" == 6 ]] \
   || fail "D16 gate refused for other reasons: $REFUSED"
 ok "promoted; D16 gate refuses with the six handovers pending"
+# LAUNCH-AUDIT-004: the config had knownTokens only; the promoted record must give the SDK USDC as its reward token.
+bun -e "import { readFileSync } from 'node:fs'; import { deploymentFromConfig } from '$REPO/packages/sdk/src/deployment.ts'
+const c = JSON.parse(readFileSync('$PWD/$CONFIG', 'utf8')); const d = deploymentFromConfig('monad-mainnet', c)
+process.exit(d.rewardTokens.length === 1 && d.rewardTokens[0].toLowerCase() === c.x402.usdc.toLowerCase() ? 0 : 1)" \
+  || fail "the promoted record does not give the SDK USDC as its reward token"
+ok "the SDK reads the promoted record's reward token: USDC, derived from knownTokens"
 
 # 4. SafeAccept, then the D16 gate passes.
 log /tmp/r7-accept.log env MAINNET_GO=yes forge script script/SafeAccept.s.sol --rpc-url "$LOCAL" \
