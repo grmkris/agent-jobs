@@ -20,6 +20,7 @@ import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
 import { BoardsPage } from './routes/Boards.tsx'
 import { BoardNewPage } from './routes/BoardNew.tsx'
 import { EmbedPage } from './routes/Embed.tsx'
+import { StakePage } from './routes/Stake.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 
 function Layout() {
@@ -62,6 +63,8 @@ const agent = createRoute({ getParentRoute: () => root, path: '/agent/$agentId',
 const agents = createRoute({ getParentRoute: () => root, path: '/agents', component: AgentsPage })
 const connect = createRoute({ getParentRoute: () => root, path: '/connect', component: ConnectPage })
 const me = createRoute({ getParentRoute: () => root, path: '/me', component: MePage })
+// Staking is the protocol's, not a board's: one page for every board.
+const stake = createRoute({ getParentRoute: () => root, path: '/stake', component: StakePage })
 // Tenant boards (ADR-0008): the same pages under /b/<slug>, plus the boards directory, creation and the widget.
 const boards = createRoute({ getParentRoute: () => root, path: '/boards', component: BoardsPage })
 const boardNew = createRoute({
@@ -99,7 +102,7 @@ const boardAgent = createRoute({ getParentRoute: () => board, path: '/agent/$age
 const embed = createRoute({ getParentRoute: () => root, path: '/embed/$boardId', component: EmbedPage })
 const router = createRouter({
   routeTree: root.addChildren([
-    jobs, job, publish, quotes, quoteRequest, agent, agents, connect, me, boards, boardNew, embed,
+    jobs, job, publish, quotes, quoteRequest, agent, agents, connect, me, stake, boards, boardNew, embed,
     board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardAgent]),
   ]),
 })

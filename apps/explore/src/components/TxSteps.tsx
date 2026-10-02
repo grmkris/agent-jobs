@@ -78,12 +78,13 @@ const LABEL: Record<Status['at'], string> = {
 }
 
 /**
- * The transactions a board tool returned, from the wallet to the chain and back to the board. From the Privy wallet
+ * The transactions a board tool returned (or the app built, `reportToBoard={false}`), from the wallet to the chain and
+ * back to the board. From the Privy wallet
  * several go out as one transaction (EIP-7702 batch) with one confirmation; otherwise one at a time. Each step shows
  * where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in plain words; a failed
  * report is retried without sending again; and a reload picks up a sent transaction instead of offering to resend.
  */
-export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void }) {
+export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange, reportToBoard = true }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void; reportToBoard?: boolean }) {
   const { chainId, address } = useAccount()
   const batch = usePrivyBatch(address)
   const { switchChainAsync } = useSwitchChain()
@@ -129,8 +130,9 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   const report = async (i: number, hash: Hex, r: OpRecord) => {
     set(i, { at: 'confirmed', hash })
     try {
-      // The task's own board records it (a job may be shown on another board's page).
-      await boardApi(boardId).tool('report_transaction', { taskId, txHash: hash })
+      // The task's own board records it (a job may be shown on another board's page). A step that belongs to no job
+      // (staking) is done once the chain confirms it.
+      if (reportToBoard) await boardApi(boardId).tool('report_transaction', { taskId, txHash: hash })
       const next = { ...r, recorded: Object.assign([...r.recorded], { [i]: true }) }
       commit(next)
       set(i, { at: 'recorded', hash })
