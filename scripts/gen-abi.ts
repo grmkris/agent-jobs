@@ -29,7 +29,7 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['IERC8004.sol', 'IERC8004Reputation', 'reputation', 'reputationAbi'],
   ['JobPool.sol', 'JobPool', 'pool', 'jobPoolAbi'],
   ['JobPoolFactory.sol', 'JobPoolFactory', 'poolFactory', 'jobPoolFactoryAbi'],
-  ['IHirelingHolding.sol', 'IHirelingHolding', 'hirelingHolding', 'hirelingHoldingAbi', [ownable()]],
+  ['HirelingHolding.sol', 'HirelingHolding', 'hirelingHolding', 'hirelingHoldingAbi'],
   ['IHirelingEvaluator.sol', 'IHirelingEvaluator', 'hirelingEvaluator', 'hirelingEvaluatorAbi', [ownable()]],
   ['StakeVault.sol', 'StakeVault', 'stakeVault', 'stakeVaultAbi'],
   ['FeeSchedule.sol', 'FeeSchedule', 'feeSchedule', 'feeScheduleAbi'],

@@ -235,6 +235,8 @@ interface IHirelingHolding {
     error NothingToSettle();
     error NotTerminal();
     error NothingOwed();
+    /// @dev A payout push needs `TRANSFER_GAS` left; send the call with more gas.
+    error TransferGasTooLow(uint256 left, uint256 needed);
 
     // ---------------------------------------------------------------------------------------------
     // Creator
@@ -352,6 +354,9 @@ interface IHirelingHolding {
 
     /// @notice Slack added to the windows when checking `expiredAt`.
     function margin() external view returns (uint48);
+
+    /// @notice The gas budget of each payout push; a push that fails within it is recorded in `owed`.
+    function TRANSFER_GAS() external view returns (uint256);
 
     function SELECTION_TYPEHASH() external view returns (bytes32);
     function MIN_REVIEW_WINDOW() external view returns (uint32);
