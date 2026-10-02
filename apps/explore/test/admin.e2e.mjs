@@ -7,27 +7,51 @@ import { createServer } from 'vite';
 
 // The Safe console (U5) against a fixture Safe and Hireling v1 (admin-wagmi.mjs): owner-only gating, accepting
 // ownership, pausing the core, a fee schedule proposal with its 3-day timelock (refused rules, cancel, execute by
-// anyone), a vault Holding proposal refused before 8 days and a revocation, an epoch root and its funding. Every
-// action is reviewed as the decoded call before the wallet opens. Mocked Chromium only: no signing or sends.
+// anyone), a vault Holding proposal refused before 8 days and a revocation, an epoch's funding and root from its
+// epoch file (unfunded, partly, fully, or funded since the run). Every action is reviewed as the decoded call before
+// the wallet opens. Mocked Chromium only: no signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-admin-evidence';
 const base = 'http://127.0.0.1:5196';
 const owner = '0x1111111111111111111111111111111111111111';
 const stranger = '0x5555555555555555555555555555555555555555';
 const deployer = '0x7777777777777777777777777777777777777777';
+// The address of the public anvil test key #0: the price signer epoch files name.
+const anvil0 = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 const c = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const multiSendCallOnly = '0x9641d764fc13c8b624c04430c7356c1c7c8102e2';
 const safeExec = parseAbi(['function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool)']);
 /** An epoch-1.json upload as mining:epoch would write it (D17). */
 const epochFile = (body) => ({ name: 'epoch-1.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(body)) });
+const W = 10n ** 18n;
+const minedRoot = `0x${'ab'.repeat(32)}`;
+const minedDataHash = `0x${'cd'.repeat(32)}`;
+const miningAbi = parseAbi(['function fund(uint256 epoch, uint256 amount)', 'function setRoot(uint256 epoch, bytes32 root, uint256 total, bytes32 dataHash)']);
+/**
+ * Epoch 1 in the pinned shape mining:epoch writes (B8, scripts/mining/README.md): 5,000 FACTORY, `fundedForEpoch` of
+ * it already in when the reserve had funded `totalFunded` in all, so its fund call sends the rest, or is left out.
+ */
+function minedFile(totalFunded, fundedForEpoch) {
+  const total = 5000n * W;
+  const amount = total - fundedForEpoch;
+  const fund = { to: c.miningReserve, data: encodeFunctionData({ abi: miningAbi, functionName: 'fund', args: [1n, amount] }), expect: { totalFunded: totalFunded.toString(), fundedForEpoch: fundedForEpoch.toString() } };
+  const setRoot = { to: c.distributor, data: encodeFunctionData({ abi: miningAbi, functionName: 'setRoot', args: [1n, minedRoot, total, minedDataHash] }) };
+  return {
+    chainId: 10143, epoch: '1', window: { start: 0, end: 1 }, priceList: { message: {}, signer: anvil0.toLowerCase(), signature: '0x' }, budget: (10_000n * W).toString(),
+    feeUsd: '0', factoryUsdPrice: '0', demand: '0', emission: total.toString(), total: total.toString(), root: minedRoot, dataHash: minedDataHash, inputs: {},
+    tree: { values: [{}, {}] }, claims: {}, calls: amount === 0n ? { setRoot } : { fund, setRoot },
+  };
+}
 const preValidatedBy = (account) => `0x${account.slice(2).padStart(64, '0')}${'0'.repeat(64)}01`;
 // The core the page reads from the testnet config, and the pause pair's calldata as the console would build it.
-const coreAddress = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.core;
+const testnet = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment;
+const coreAddress = testnet.core;
 const pauseAbi = parseAbi(['function pause()', 'function unpause()', 'function notePause()']);
 const pauseCall = (functionName) => encodeFunctionData({ abi: pauseAbi, functionName });
 const asSafe = (to, data, operation = 0) => ({ description: 'Core.pause + HirelingEvaluator.notePause as the Safe, in one transaction', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) });
 const multiSendAbi = parseAbi(['function multiSend(bytes transactions) payable']);
 const multiSend = (calls) => encodeFunctionData({ abi: multiSendAbi, functionName: 'multiSend', args: [concatHex(calls.map(([to, data]) => encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, to, 0n, BigInt(size(data)), data])))] });
+const phone = { width: 390, height: 844 };
 const results = [];
 const errors = [];
 
@@ -46,7 +70,7 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft }) => {
+  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded }) => {
     const K = 10n ** 21n;
     window.__hireling = contracts;
     window.__bytecode = bytecode;
@@ -66,9 +90,13 @@ async function fixture(viewport, options = {}) {
       paused: false, pauses: [], safeIsAdmin: true,
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
-      currentEpoch: 2n, totalFunded: 0n, available: 0n, genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
+      currentEpoch: 2n, totalFunded: BigInt(funded), available: BigInt(funded), genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
     };
-  }, { account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: [owner, '0x2222222222222222222222222222222222222222'], previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null });
+  }, {
+    account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
+    previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null,
+    funded: (options.funded ?? 0n).toString(),
+  });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -195,32 +223,34 @@ try {
     await holdings.getByText('Not authorized', { exact: true }).waitFor();
     await capture(page, `${device}-holdings`);
 
-    // Mining: the root for the last ended epoch, then its funding, both from the epoch file mining:epoch wrote (D17),
-    // never typed by hand. A file for another chain is refused; the shape is read loosely until contracts pins it.
+    // Mining: the last ended epoch is funded, then its root posted, both from the epoch file mining:epoch wrote (D17,
+    // B8), never typed by hand. A file for another chain, or naming none, is refused.
     const mining = section(page, 'Mining');
     assert.equal(await mining.getByRole('textbox', { name: 'Epoch', exact: true }).inputValue(), '1');
-    const root = `0x${'ab'.repeat(32)}`;
-    const dataHash = `0x${'cd'.repeat(32)}`;
-    const total = (5000n * 10n ** 18n).toString();
-    const file = { chainId: 10143, epoch: 1, window: { start: 0, end: 1 }, priceList: {}, budget: total, emission: total, total, root, dataHash, inputs: {}, tree: { values: [{}, {}] } };
     assert.equal(await mining.getByRole('textbox', { name: 'Merkle root' }).count(), 0);
-    await mining.getByLabel('Epoch file').setInputFiles(epochFile({ ...file, chainId: 143 }));
+    const total = (5000n * W).toString();
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile({ ...minedFile(0n, 0n), chainId: 143 }));
     await mining.getByText('epoch-1.json: It is for chain 143, not this network (10143).', { exact: true }).waitFor();
-    assert.equal(await mining.getByRole('button', { name: 'Review the root' }).count(), 0);
-    await mining.getByLabel('Epoch file').setInputFiles(epochFile(file));
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile({ ...minedFile(0n, 0n), chainId: undefined }));
+    await mining.getByText('epoch-1.json: It names no chain.', { exact: true }).waitFor();
+    assert.equal(await mining.getByRole('button', { name: /^Review (funding|the root)/ }).count(), 0);
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(0n, 0n)));
     await mining.getByText('epoch-1.json', { exact: true }).waitFor();
-    await mining.getByText(dataHash, { exact: true }).waitFor();
+    await mining.getByText(minedDataHash, { exact: true }).waitFor();
+    // The root waits for its funding: the distributor holds nothing spare yet.
+    await mining.getByText('Fund it first: the root needs 5,000 FACTORY in the distributor, which has 0 FACTORY spare.', { exact: true }).waitFor();
+    assert.equal(await mining.getByRole('button', { name: 'Review the root' }).isDisabled(), true);
     await capture(page, `${device}-mining-file`);
+    await mining.getByRole('button', { name: 'Review funding · 5,000 FACTORY' }).click();
+    await page.getByText('fund(epoch, amount)', { exact: true }).waitFor();
+    await send(page, 'Fund epoch 1');
+    await mining.getByText('Funded: the remaining 5,000 FACTORY has gone in since the file was made.', { exact: true }).waitFor();
     await mining.getByRole('button', { name: 'Review the root' }).click();
     await page.getByText('setRoot(epoch, root, total, dataHash)', { exact: true }).waitFor();
     await page.getByText(total, { exact: true }).first().waitFor();
     await send(page, 'Post the root of epoch 1');
-    await mining.getByRole('button', { name: 'Review the root' }).waitFor({ state: 'hidden' });
-    await mining.getByText(root, { exact: true }).nth(1).waitFor();
-    await mining.getByRole('button', { name: 'Review funding · 5,000 FACTORY' }).click();
-    await page.getByText('fund(epoch, amount)', { exact: true }).waitFor();
-    await send(page, 'Fund epoch 1');
-    await mining.getByText(/^Spare in the distributor\s*5,000 FACTORY$/).waitFor();
+    await mining.getByText('Posted.', { exact: true }).waitFor();
+    await mining.getByText(minedRoot, { exact: true }).nth(1).waitFor();
     // The posted total overstated the leaves: shrink it to their sum, never above the posted total.
     await mining.getByRole('textbox', { name: 'New epoch total' }).fill('6000');
     await mining.getByText('The new total must be below the posted one.', { exact: true }).waitFor();
@@ -230,11 +260,60 @@ try {
     await send(page, 'Shrink the total of epoch 1');
     await mining.getByText('0 FACTORY of 4,200 FACTORY', { exact: true }).waitFor();
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), [
-      'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund', 'safe:resizeRoot',
+      'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:fund', 'safe:setRoot', 'safe:resizeRoot',
     ]);
     await capture(page, `${device}-mining`);
-    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'epoch file from another chain refused', 'setRoot and fund from the epoch file, no typed fields', 'decoded review before every send'], passed: true });
+    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'epoch file from another chain, or naming none, refused', 'fund then setRoot from the epoch file, no typed fields', 'root held until the distributor is funded', 'decoded review before every send'], passed: true });
     await context.close();
+  }
+
+  // Funding is additive (U-DOC-SEC-001): a file's remainder is offered only while the reserve has funded exactly what
+  // the run read. Funded since by that remainder reads as done; by anything else, refused until mining:epoch runs again.
+  {
+    // Partly funded: 2,000 of epoch 1's 5,000 went in before the run, so the file funds the other 3,000.
+    const { context, page } = await fixture(phone, { funded: 2000n * W });
+    await page.goto(`${base}/admin`);
+    const mining = section(page, 'Mining');
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(2000n * W, 2000n * W)));
+    await mining.getByText(/^Funded for it\s*2,000 FACTORY$/).waitFor();
+    await mining.getByText(/^Still to fund\s*3,000 FACTORY$/).waitFor();
+    assert.equal(await mining.getByRole('button', { name: 'Review the root' }).isDisabled(), true);
+    await capture(page, 'mining-partly-funded');
+    await mining.getByRole('button', { name: 'Review funding · 3,000 FACTORY' }).click();
+    await send(page, 'Fund epoch 1');
+    assert.equal(await page.evaluate(() => window.__admin.totalFunded.toString()), (5000n * W).toString());
+    await mining.getByText('Funded: the remaining 3,000 FACTORY has gone in since the file was made.', { exact: true }).waitFor();
+    await mining.getByRole('button', { name: 'Review the root' }).click();
+    await send(page, 'Post the root of epoch 1');
+    assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), ['safe:fund', 'safe:setRoot']);
+    await context.close();
+  }
+  {
+    // The same file after 500 more went in some other way: its remainder may be wrong, so nothing is offered.
+    const { context, page } = await fixture(phone, { funded: 2500n * W });
+    await page.goto(`${base}/admin`);
+    const mining = section(page, 'Mining');
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(2000n * W, 2000n * W)));
+    await mining.getByRole('alert').filter({ hasText: 'The reserve has funded 2,500 FACTORY in all; the file expected 2,000 FACTORY.' }).filter({ hasText: 'Run pnpm mining:epoch 1 again and load the new file.' }).waitFor();
+    assert.equal(await mining.getByRole('button', { name: /^Review funding/ }).count(), 0);
+    assert.equal(await mining.getByRole('button', { name: 'Review the root' }).isDisabled(), true);
+    await capture(page, 'mining-funded-since');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await context.close();
+  }
+  {
+    // Fully funded before the run: the file has no fund call, and the root is all there is to send.
+    const { context, page } = await fixture(phone, { funded: 5000n * W });
+    await page.goto(`${base}/admin`);
+    const mining = section(page, 'Mining');
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(5000n * W, 5000n * W)));
+    await mining.getByText('Fully funded when the file was made: nothing to send.', { exact: true }).waitFor();
+    assert.equal(await mining.getByRole('button', { name: /^Review funding/ }).count(), 0);
+    await mining.getByRole('button', { name: 'Review the root' }).click();
+    await send(page, 'Post the root of epoch 1');
+    assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), ['safe:setRoot']);
+    await context.close();
+    results.push({ checks: ['partly funded: only the remainder offered, then the root', 'funded since the run by another amount: refused, re-run mining:epoch, nothing sent', 'fully funded: no fund call, root only'], passed: true });
   }
 
   // A restored draft is read again from its calldata: one that calls outside the deployment, or is signed for another

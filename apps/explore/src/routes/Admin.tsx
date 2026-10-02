@@ -761,15 +761,20 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
   const forThisEpoch = loaded !== null && epoch !== null && loaded.epoch === epoch
   const choose = async (chosen: File | undefined) => {
     if (chosen === undefined) return
-    const read = readEpochFile(await chosen.text(), chain.id)
+    const read = readEpochFile(await chosen.text(), { chainId: chain.id, reserve: c.miningReserve, distributor: c.distributor })
     setUpload(read.ok ? { name: chosen.name, file: read.file } : { name: chosen.name, problem: read.problem })
     if (read.ok) setPicked(String(read.file.epoch))
   }
   const ended = end !== undefined && Number(end) <= now
   const hasRoot = root !== undefined && root.root !== `0x${'0'.repeat(64)}`
+  // fund is additive (U-DOC-SEC-001): the file's remainder holds only while MiningReserve.totalFunded() is what the run
+  // read. Any funding since moves it; exactly the remainder means this file's funding already went in.
+  const totalFunded = result<bigint>(base.data, 1)
+  const spare = result<bigint>(base.data, 2)
+  const funding = loaded?.fund == null || totalFunded === undefined ? null : totalFunded === loaded.fund.expectTotalFunded ? 'due' : totalFunded - loaded.fund.expectTotalFunded === loaded.fund.amount ? 'done' : 'stale'
 
   return (
-    <Section title="Mining" note="After an epoch ends, the Safe posts its Merkle root (from the epoch's published data) and funds it from the reserve; then anyone claims, and claims are staked.">
+    <Section title="Mining" note="After an epoch ends, the Safe funds it from the reserve and posts its Merkle root, both from the epoch file; then anyone claims, and claims are staked.">
       {base.isError || detail.isError ? (
         <Unavailable retry={() => void Promise.all([base.refetch(), detail.refetch()])} />
       ) : currentEpoch === undefined ? (
@@ -842,8 +847,9 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
                 <KV k="File">{upload?.name}</KV>
                 <KV k="Epoch">{String(loaded.epoch)}</KV>
                 <KV k="Total">{fmt(loaded.total)}</KV>
-                {loaded.emission !== null && <KV k="Emission">{fmt(loaded.emission)}</KV>}
+                <KV k="Emission">{fmt(loaded.emission)}</KV>
                 {loaded.leaves !== null && <KV k="Accounts">{String(loaded.leaves)}</KV>}
+                {loaded.priceSigner !== null && <KV k="Prices signed by"><AddressText value={loaded.priceSigner} /></KV>}
                 <KV k="Root" stack>
                   <code className="font-mono text-[0.78rem] break-all">{loaded.root}</code>
                 </KV>
@@ -858,22 +864,50 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
                 {hasRoot && root.root.toLowerCase() !== loaded.root.toLowerCase() && (
                   <p role="alert" className="rounded-lg bg-warn-bg px-3 py-2 text-[0.85rem] text-warn">A different root is already posted for this epoch. The file is not the one on chain.</p>
                 )}
-                {!ended && end !== undefined && <p className="text-[0.85rem] text-label-2">This epoch has not ended: the distributor refuses its root until it does.</p>}
-                {!hasRoot && (
-                  <Button
-                    disabled={busy}
-                    onClick={() => act(`Post the root of epoch ${loaded.epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [loaded.epoch, loaded.root, loaded.total, loaded.dataHash] }, 'safe')}
-                  >
-                    Review the root
-                  </Button>
+                {!ended && end !== undefined && <p className="text-[0.85rem] text-label-2">This epoch has not ended: the reserve refuses its funding and the distributor its root until it does.</p>}
+                <p className="text-[0.85rem] font-semibold">1. Fund the epoch</p>
+                {loaded.fund === null ? (
+                  <p className="text-[0.85rem] text-label-2">Fully funded when the file was made: nothing to send.</p>
+                ) : funding === null ? (
+                  <LoadingRows rows={1} />
+                ) : funding === 'stale' ? (
+                  <p role="alert" className="rounded-lg bg-bad-bg px-3 py-2 text-[0.85rem] text-bad">
+                    The reserve has funded {fmt(totalFunded ?? 0n)} in all; the file expected {fmt(loaded.fund.expectTotalFunded)}. Something was funded since it was made, so its amount may be wrong. Run <code className="font-mono">pnpm mining:epoch {String(loaded.epoch)}</code> again and load the new file. Nothing is offered from this one.
+                  </p>
+                ) : funding === 'done' ? (
+                  <p className="text-[0.85rem] text-label-2">Funded: the remaining {fmt(loaded.fund.amount)} has gone in since the file was made.</p>
+                ) : (
+                  <>
+                    <Group className="bg-bg">
+                      <KV k="Funded for it">{fmt(loaded.fund.fundedForEpoch)}</KV>
+                      <KV k="Still to fund">{fmt(loaded.fund.amount)}</KV>
+                    </Group>
+                    <Button
+                      variant="tinted"
+                      disabled={busy}
+                      onClick={() => {
+                        const due = loaded.fund
+                        if (due !== null) act(`Fund epoch ${loaded.epoch}`, { contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'fund', args: [loaded.epoch, due.amount] }, 'safe')
+                      }}
+                    >
+                      Review funding · {fmt(loaded.fund.amount)}
+                    </Button>
+                  </>
                 )}
-                <Button
-                  variant="tinted"
-                  disabled={busy}
-                  onClick={() => act(`Fund epoch ${loaded.epoch}`, { contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'fund', args: [loaded.epoch, loaded.total] }, 'safe')}
-                >
-                  Review funding · {fmt(loaded.total)}
-                </Button>
+                <p className="text-[0.85rem] font-semibold">2. Post the root</p>
+                {hasRoot ? (
+                  <p className="text-[0.85rem] text-label-2">Posted.</p>
+                ) : (
+                  <>
+                    {spare !== undefined && spare < loaded.total && <p className="text-[0.85rem] text-label-2">Fund it first: the root needs {fmt(loaded.total)} in the distributor, which has {fmt(spare)} spare.</p>}
+                    <Button
+                      disabled={busy || spare === undefined || spare < loaded.total}
+                      onClick={() => act(`Post the root of epoch ${loaded.epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [loaded.epoch, loaded.root, loaded.total, loaded.dataHash] }, 'safe')}
+                    >
+                      Review the root
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </div>

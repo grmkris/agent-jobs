@@ -3,6 +3,7 @@
  * enforces (so the Safe never sends one that reverts), and the epoch file whose root `EpochDistributor.setRoot` posts.
  * Pure, so they are unit-tested (admin.test.ts).
  */
+import * as sdk from '@agent-jobs/sdk'
 import { type Abi, type Address, type Hex, decodeFunctionData, getAddress, isAddress, isHex, zeroAddress } from 'viem'
 import { MULTI_SEND_CALL_ONLY, describe, preValidated, safeAbi, unpackMultiSend } from './safe.ts'
 import { factoryAmount } from './stake.ts'
@@ -46,29 +47,41 @@ export function scheduleProposal(d: ScheduleDraft, maxBps: number): { thresholds
 
 const BYTES32 = /^0x[0-9a-fA-F]{64}$/
 
-/** What the admin page takes from `pnpm mining:epoch`'s `epoch-<n>.json` (D17) for `setRoot` and `fund`. */
+/** What the admin page takes from `pnpm mining:epoch`'s `epoch-<n>.json` (B8, scripts/mining/README.md). */
 export interface EpochFile {
   epoch: bigint
   root: Hex
-  /** Base units: the sum of the tree's leaves, what `setRoot` posts and `fund` moves. */
+  /** Base units: the sum of the tree's leaves, what `setRoot` posts. */
   total: bigint
   dataHash: Hex
-  /** Shown when the file has them; not used for any call. */
-  emission: bigint | null
+  emission: bigint
   budget: bigint | null
   leaves: number | null
+  /** Who signed the epoch's price list, when the file names them. */
+  priceSigner: string | null
+  /**
+   * What is left to fund, as the run read it: `fund(epoch, amount)`, right only while `MiningReserve.totalFunded()`
+   * is still `expectTotalFunded` (fund is additive). Null when the epoch was fully funded at the run.
+   */
+  fund: { amount: bigint; expectTotalFunded: bigint; fundedForEpoch: bigint } | null
 }
 
-const whole = (x: unknown): bigint | null =>
-  (typeof x === 'string' && /^\d+$/.test(x)) || (typeof x === 'number' && Number.isSafeInteger(x) && x >= 0) ? BigInt(x as string | number) : null
+/** The configured contracts an epoch file's calls must go to. */
+export interface EpochFileContext {
+  chainId: number
+  reserve: string
+  distributor: string
+}
+
+const dec = (x: unknown): bigint | null => (typeof x === 'string' && /^\d+$/.test(x) ? BigInt(x) : null)
 
 /**
- * Reads an epoch file loosely, until the contracts track pins its full shape with B8: only `chainId`, `epoch`, `root`,
- * `total` and `dataHash` are used, and refused unless they are this chain (when the file names one), a whole epoch
- * number, two bytes32 values and a positive total in base units, no more than the file's emission when it has one.
- * Everything else in the file (window, price list, inputs, tree) is ignored here.
+ * Reads an epoch file in the shape B8 pins: `chainId` (this chain), `epoch`, `total` and `emission` as decimal strings,
+ * `root` and `dataHash`, and `calls`. `calls.setRoot` must be the distributor's `setRoot` with exactly the file's
+ * epoch, root, total and data hash; `calls.fund`, when there is one, the reserve's `fund` for this epoch and the
+ * remainder `total - expect.fundedForEpoch`. A file whose epoch counted no fees has no root and nothing to do.
  */
-export function readEpochFile(text: string, chainId: number): { ok: true; file: EpochFile } | { ok: false; problem: string } {
+export function readEpochFile(text: string, ctx: EpochFileContext): { ok: true; file: EpochFile } | { ok: false; problem: string } {
   let j: unknown
   try {
     j = JSON.parse(text)
@@ -77,18 +90,53 @@ export function readEpochFile(text: string, chainId: number): { ok: true; file: 
   }
   if (j === null || typeof j !== 'object' || Array.isArray(j)) return no('The file is not an epoch file.')
   const f = j as Record<string, unknown>
-  if (f.chainId !== undefined && Number(f.chainId) !== chainId) return no(`It is for chain ${String(f.chainId)}, not this network (${chainId}).`)
-  const epoch = whole(f.epoch)
+  if (typeof f.chainId !== 'number') return no('It names no chain.')
+  if (f.chainId !== ctx.chainId) return no(`It is for chain ${f.chainId}, not this network (${ctx.chainId}).`)
+  const epoch = dec(f.epoch)
   if (epoch === null) return no('It has no epoch number.')
+  if (f.root === null) return no(`No fee counted in epoch ${epoch}: there is no root to post and nothing to fund.`)
   if (typeof f.root !== 'string' || !BYTES32.test(f.root)) return no('Its root is not 0x and 64 hex digits.')
-  const total = whole(f.total)
+  const root = f.root as Hex
+  const total = dec(f.total)
   if (total === null || total === 0n) return no('Its total is not a positive whole number of base units.')
   if (typeof f.dataHash !== 'string' || !BYTES32.test(f.dataHash)) return no('Its data hash is not 0x and 64 hex digits.')
-  const emission = whole(f.emission)
-  if (emission !== null && total > emission) return no('Its total is more than its emission.')
+  const dataHash = f.dataHash as Hex
+  const emission = dec(f.emission)
+  if (emission === null) return no('It has no emission.')
+  if (total > emission) return no('Its total is more than its emission.')
+
+  const calls = (f.calls ?? null) as Record<string, { to?: unknown; data?: unknown; expect?: Record<string, unknown> }> | null
+  if (calls === null || typeof calls !== 'object') return no('It has no calls for the Safe.')
+  const decoded = (call: { to?: unknown; data?: unknown } | undefined, to: string, abi: Abi) => {
+    if (call === undefined || typeof call.to !== 'string' || typeof call.data !== 'string' || !isHex(call.data) || !same(call.to, to)) return null
+    try {
+      return decodeFunctionData({ abi, data: call.data })
+    } catch {
+      return null
+    }
+  }
+  const setRoot = decoded(calls.setRoot, ctx.distributor, sdk.epochDistributorAbi as Abi)
+  const [rEpoch, rRoot, rTotal, rHash] = (setRoot?.args ?? []) as readonly [bigint, Hex, bigint, Hex]
+  if (setRoot?.functionName !== 'setRoot' || rEpoch !== epoch || !same(rRoot, root) || rTotal !== total || !same(rHash, dataHash)) {
+    return no('Its setRoot call is not the distributor’s, for this epoch, root, total and data hash.')
+  }
+  let fund: EpochFile['fund'] = null
+  if (calls.fund !== undefined) {
+    const call = decoded(calls.fund, ctx.reserve, sdk.miningReserveAbi as Abi)
+    const [fEpoch, amount] = (call?.args ?? []) as readonly [bigint, bigint]
+    const expectTotalFunded = dec(calls.fund.expect?.totalFunded)
+    const fundedForEpoch = dec(calls.fund.expect?.fundedForEpoch)
+    if (call?.functionName !== 'fund' || fEpoch !== epoch) return no('Its fund call is not the reserve’s, for this epoch.')
+    if (expectTotalFunded === null || fundedForEpoch === null) return no('Its fund call does not say what was funded when it was made.')
+    if (amount === 0n || amount > total || amount !== total - fundedForEpoch) return no('Its fund amount is not what is left of the total.')
+    fund = { amount, expectTotalFunded, fundedForEpoch }
+  }
   const tree = f.tree as { values?: unknown } | undefined
-  const leaves = Array.isArray(tree?.values) ? tree.values.length : null
-  return { ok: true, file: { epoch, root: f.root as Hex, total, dataHash: f.dataHash as Hex, emission, budget: whole(f.budget), leaves } }
+  const priceList = f.priceList as { signer?: unknown } | undefined
+  return {
+    ok: true,
+    file: { epoch, root, total, dataHash, emission, budget: dec(f.budget), leaves: Array.isArray(tree?.values) ? tree.values.length : null, priceSigner: typeof priceList?.signer === 'string' ? priceList.signer : null, fund },
+  }
 }
 
 /**

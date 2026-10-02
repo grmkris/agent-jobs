@@ -27,29 +27,43 @@ describe('a fee schedule proposal', () => {
 const fileProblem = (r: ReturnType<typeof readEpochFile>) => (r.ok ? null : r.problem)
 
 describe('an epoch file', () => {
-  const h = `0x${'ab'.repeat(32)}`
-  const d = `0x${'cd'.repeat(32)}`
-  const total = (5000n * W).toString()
-  // The fields mining:epoch writes (D17); only chainId, epoch, root, total and dataHash are read.
-  const file = { chainId: 10143, epoch: 1, window: { start: 1, end: 2 }, priceList: {}, budget: (10_000n * W).toString(), emission: total, total, root: h, dataHash: d, inputs: {}, tree: { values: [{}, {}, {}] } }
-  const read = (patch: Record<string, unknown>) => readEpochFile(JSON.stringify({ ...file, ...patch }), 10143)
+  const ctx = { chainId: 10143, reserve: '0x00000000000000000000000000000000000000a5', distributor: '0x00000000000000000000000000000000000000d5' }
+  const root = `0x${'ab'.repeat(32)}` as const
+  const dataHash = `0x${'cd'.repeat(32)}` as const
+  const total = 5000n * W
+  const setRoot = { to: ctx.distributor, data: encodeFunctionData({ abi: sdk.epochDistributorAbi as Abi, functionName: 'setRoot', args: [1n, root, total, dataHash] }) }
+  const fund = (amount: bigint, totalFunded: bigint, fundedForEpoch: bigint) => ({ to: ctx.reserve, data: encodeFunctionData({ abi: sdk.miningReserveAbi as Abi, functionName: 'fund', args: [1n, amount] }), expect: { totalFunded: totalFunded.toString(), fundedForEpoch: fundedForEpoch.toString() } })
+  // The shape mining:epoch writes (scripts/mining/README.md): chainId a number, integers as decimal strings.
+  const file = { chainId: 10143, epoch: '1', window: {}, priceList: { message: {}, signer: '0x1111111111111111111111111111111111111111', signature: '0x' }, budget: (10_000n * W).toString(), feeUsd: '0', factoryUsdPrice: '0', demand: '0', emission: total.toString(), total: total.toString(), root, dataHash, inputs: {}, tree: { values: [{}, {}, {}] }, claims: {}, calls: { fund: fund(total, 0n, 0n), setRoot } }
+  const read = (patch: Record<string, unknown>) => readEpochFile(JSON.stringify({ ...file, ...patch }), ctx)
+  const base = { epoch: 1n, root, total, dataHash, emission: total, budget: 10_000n * W, leaves: 3, priceSigner: '0x1111111111111111111111111111111111111111' }
 
-  it('gives setRoot and fund their arguments, with the extras it has', () => {
-    expect(read({})).toEqual({ ok: true, file: { epoch: 1n, root: h, total: 5000n * W, dataHash: d, emission: 5000n * W, budget: 10_000n * W, leaves: 3 } })
-    // Loose until the contracts track pins it: no chainId, no extras, the epoch as a string.
-    expect(readEpochFile(JSON.stringify({ epoch: '2', root: h, total, dataHash: d }), 10143)).toEqual({ ok: true, file: { epoch: 2n, root: h, total: 5000n * W, dataHash: d, emission: null, budget: null, leaves: null } })
+  it('funds the whole total, the remainder, or nothing, as the run computed', () => {
+    expect(read({})).toEqual({ ok: true, file: { ...base, fund: { amount: total, expectTotalFunded: 0n, fundedForEpoch: 0n } } })
+    expect(read({ calls: { fund: fund(3000n * W, 7000n * W, 2000n * W), setRoot } })).toEqual({ ok: true, file: { ...base, fund: { amount: 3000n * W, expectTotalFunded: 7000n * W, fundedForEpoch: 2000n * W } } })
+    expect(read({ calls: { setRoot } })).toEqual({ ok: true, file: { ...base, fund: null } })
   })
 
-  it('refuses a file for another chain, or without a usable root, total or data hash', () => {
-    expect(fileProblem(readEpochFile('not json', 10143))).toMatch(/not JSON/)
-    expect(fileProblem(readEpochFile('[]', 10143))).toMatch(/not an epoch file/)
+  it('refuses a file not in the pinned shape, for another chain, or whose calls do not match it', () => {
+    expect(fileProblem(readEpochFile('not json', ctx))).toMatch(/not JSON/)
+    expect(fileProblem(readEpochFile('[]', ctx))).toMatch(/not an epoch file/)
+    expect(fileProblem(read({ chainId: undefined }))).toMatch(/names no chain/)
+    expect(fileProblem(read({ chainId: '10143' }))).toMatch(/names no chain/)
     expect(fileProblem(read({ chainId: 143 }))).toMatch(/chain 143, not this network/)
-    expect(fileProblem(read({ epoch: -1 }))).toMatch(/epoch number/)
+    expect(fileProblem(read({ epoch: 1 }))).toMatch(/epoch number/)
+    expect(fileProblem(read({ root: null, tree: null, calls: {} }))).toMatch(/No fee counted in epoch 1/)
     expect(fileProblem(read({ root: '0x12' }))).toMatch(/root/)
-    expect(fileProblem(read({ total: '0' }))).toMatch(/total/)
-    expect(fileProblem(read({ total: '5000.5' }))).toMatch(/total/)
+    expect(fileProblem(read({ total: 5000 }))).toMatch(/total/)
     expect(fileProblem(read({ dataHash: undefined }))).toMatch(/data hash/)
     expect(fileProblem(read({ emission: (4000n * W).toString() }))).toMatch(/more than its emission/)
+    expect(fileProblem(read({ calls: undefined }))).toMatch(/no calls/)
+    expect(fileProblem(read({ calls: { fund: file.calls.fund } }))).toMatch(/setRoot call/)
+    expect(fileProblem(read({ calls: { ...file.calls, setRoot: { ...setRoot, to: ctx.reserve } } }))).toMatch(/setRoot call/)
+    expect(fileProblem(read({ total: (4000n * W).toString(), calls: { setRoot } }))).toMatch(/setRoot call/)
+    expect(fileProblem(read({ calls: { setRoot, fund: { ...fund(total, 0n, 0n), to: ctx.distributor } } }))).toMatch(/fund call is not the reserve/)
+    expect(fileProblem(read({ calls: { setRoot, fund: { ...fund(total, 0n, 0n), expect: undefined } } }))).toMatch(/what was funded/)
+    expect(fileProblem(read({ calls: { setRoot, fund: fund(total, 2000n * W, 2000n * W) } }))).toMatch(/not what is left/)
+    expect(fileProblem(read({ calls: { setRoot, fund: fund(total + 1n, 0n, 0n) } }))).toMatch(/not what is left/)
   })
 })
 
