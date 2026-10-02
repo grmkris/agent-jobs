@@ -1,5 +1,5 @@
 /**
- * Gas limits for the Hireling v1 calls that push payouts (ADR-0011 "Gas", decision D4). Their contracts require a
+ * Gas limits for the Hireling v1 calls that push payouts (the ADR-0011 table; decision D4b). Their contracts require a
  * fixed gas reserve per push and revert with `TransferGasTooLow` below it, and an estimate does not know that, so these
  * calls go out with at least the measured limit. Monad charges the gas limit, so the floor applies only to calls to the
  * v1 Holding and Evaluator, never to legacy contracts that share a function name. Pure (gas.test.ts).
@@ -9,7 +9,11 @@ import { type Abi, type Hex, decodeFunctionData } from 'viem'
 
 const FLOORS: ReadonlyArray<{ contract: 'holding' | 'evaluator'; abi: Abi; limits: Record<string, bigint> }> = [
   { contract: 'holding', abi: sdk.hirelingHoldingAbi as Abi, limits: { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n } },
-  { contract: 'evaluator', abi: sdk.hirelingEvaluatorAbi as Abi, limits: { accept: 1_100_000n, completeAfterSilence: 1_100_000n, rule: 1_100_000n, ruleWithSignature: 1_100_000n } },
+  {
+    contract: 'evaluator',
+    abi: sdk.hirelingEvaluatorAbi as Abi,
+    limits: { accept: 1_200_000n, completeAfterSilence: 1_200_000n, rule: 1_200_000n, ruleWithSignature: 1_200_000n, retryDeferred: 300_000n },
+  },
 ]
 
 /** A 7702 batch's own work on top of its calls' limits (the account's `execute` loop). */

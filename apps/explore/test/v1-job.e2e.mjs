@@ -107,13 +107,13 @@ try {
       await send(page, 'Cancelled.');
       assert.deepEqual(await lastSend(page), { to: contracts.holding, gas: '700000' });
 
-      // Approve inside the review window: Evaluator.accept with its 1.1M limit.
+      // Approve inside the review window: Evaluator.accept with its 1.2M limit.
       await page.goto(`${base}/job/81`);
       await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
       await capture(page, `${device}-v1-approve`);
       await page.getByRole('dialog', { name: 'Approve and pay?' }).getByRole('button', { name: 'Approve and pay', exact: true }).click();
       await send(page, 'Paid 5 mUSD');
-      assert.deepEqual(await lastSend(page), { to: contracts.evaluator, gas: '1100000' });
+      assert.deepEqual(await lastSend(page), { to: contracts.evaluator, gas: '1200000' });
 
       // Reject for a named fault: unfloored, so the wallet estimates.
       await page.goto(`${base}/job/82`);
@@ -142,7 +142,7 @@ try {
       assert.deepEqual(state.calls, [{ name: 'dispute', args: { taskId: 'task-83', statement: 'It loads; the creator tested an old build.' } }]);
       await context.close();
     }
-    results.push({ device, checks: ['cancel before activation: Holding.cancel 700k gas', 'approve: Evaluator.accept 1.1M gas', 'reject with violation and reason, wallet estimate', 'worker dispute with statement, wallet estimate'], passed: true });
+    results.push({ device, checks: ['cancel before activation: Holding.cancel 700k gas', 'approve: Evaluator.accept 1.2M gas', 'reject with violation and reason, wallet estimate', 'worker dispute with statement, wallet estimate'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live board, signing or sends', results, errors }, null, 2));

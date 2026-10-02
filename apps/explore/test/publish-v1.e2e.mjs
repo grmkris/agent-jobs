@@ -180,8 +180,8 @@ try {
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
     await page.getByRole('status').filter({ hasText: 'Settled on-chain' }).waitFor();
-    assert.deepEqual(await page.evaluate(() => { const tx = window.__wallet.sends.at(-1); return { to: tx.to.toLowerCase(), gas: String(tx.gas) }; }), { to: contracts.evaluator, gas: '1100000' });
-    results.push({ device, checks: ['fee tier and net before activation', 'no top-up before activation', 'top-up approve then topUp', 'bonus shown after', 'v1 completeAfterSilence sent with 1.1M gas'], passed: true });
+    assert.deepEqual(await page.evaluate(() => { const tx = window.__wallet.sends.at(-1); return { to: tx.to.toLowerCase(), gas: String(tx.gas) }; }), { to: contracts.evaluator, gas: '1200000' });
+    results.push({ device, checks: ['fee tier and net before activation', 'no top-up before activation', 'top-up approve then topUp', 'bonus shown after', 'v1 completeAfterSilence sent with 1.2M gas'], passed: true });
     await context.close();
   }
   assert.deepEqual(errors, []);
