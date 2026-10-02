@@ -19,13 +19,27 @@ export const useSignMessage = () => ({ signMessageAsync: async () => {
 } });
 export const useSignTypedData = () => ({ signTypedDataAsync: async () => { throw new Error('No real signing in UX fixtures'); } });
 export const useSwitchChain = () => ({ switchChainAsync: async () => {} });
-export const useBalance = () => ({ data: { value: 10n ** 24n }, isLoading: false });
-export const useReadContract = ({ functionName }) => ({ data: functionName === 'paused' ? false : 10n ** 24n, isLoading: false });
+/**
+ * Chain reads that arrive late, for the layout-shift audit (shots.mjs --audit): `window.__chainLatency` ms before every
+ * fixture read answers. Off (0) everywhere else, where the synchronous answers below are kept.
+ */
+const late = () => (window.__chainLatency ?? 0) > 0;
+export const chainLatency = () => (late() ? new Promise((resolve) => setTimeout(resolve, window.__chainLatency)) : undefined);
+export const useBalance = () => {
+  const query = useQuery({ queryKey: ['fixture-balance'], queryFn: async () => { await chainLatency(); return { value: 10n ** 24n }; }, enabled: late() });
+  return late() ? query : { data: { value: 10n ** 24n }, isLoading: false };
+};
+export const useReadContract = ({ functionName }) => {
+  const query = useQuery({ queryKey: ['fixture-read', functionName], queryFn: async () => { await chainLatency(); return functionName === 'paused' ? false : 10n ** 24n; }, enabled: late() });
+  return late() ? query : { data: functionName === 'paused' ? false : 10n ** 24n, isLoading: false };
+};
 export const useReadContracts = ({ contracts, query }) => useQuery({ queryKey: ['fixture-token', contracts[0]?.address], queryFn: async () => {
+  await chainLatency();
   const response = await fetch(`/__test/token?address=${contracts[0]?.address}`);
   if (!response.ok) throw new Error('Token metadata unavailable');
   const metadata = await response.json();
-  return contracts.map(({ functionName }) => ({ status: 'success', result: functionName === 'symbol' ? metadata.symbol : metadata.decimals }));
+  // Token metadata only: any other read (a Safe's getOwners on /me, say) fails alone, as it would without a fixture.
+  return contracts.map(({ functionName }) => (functionName === 'symbol' || functionName === 'decimals' ? { status: 'success', result: metadata[functionName] } : { status: 'failure', error: new Error(`No fixture read for ${functionName}`) }));
 }, ...query });
 
 export function sendFixtureTransaction(transaction) {

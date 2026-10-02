@@ -1,7 +1,7 @@
 import { hirelingHoldingAbi } from '@agent-jobs/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { decodeFunctionData } from 'viem';
-import { sendFixtureTransaction, useReadContract as useFixtureReadContract, useReadContracts as useFixtureReadContracts } from './wagmi.mjs';
+import { chainLatency, sendFixtureTransaction, useReadContract as useFixtureReadContract, useReadContracts as useFixtureReadContracts } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
 
@@ -22,7 +22,7 @@ export const useReadContracts = (options) => {
   const v1 = options.contracts.every((c) => V1_READS[c.functionName] !== undefined);
   const reads = useQuery({
     queryKey: ['fixture-v1', JSON.stringify(options.contracts.map((c) => [c.address, c.functionName, c.args]), (_k, v) => (typeof v === 'bigint' ? v.toString() : v))],
-    queryFn: async () => options.contracts.map((c) => ({ status: 'success', result: V1_READS[c.functionName](c) })),
+    queryFn: async () => { await chainLatency(); return options.contracts.map((c) => ({ status: 'success', result: V1_READS[c.functionName](c) })); },
     enabled: v1 && options.query?.enabled !== false,
   });
   const fallback = useFixtureReadContracts(v1 ? { ...options, query: { ...options.query, enabled: false } } : options);

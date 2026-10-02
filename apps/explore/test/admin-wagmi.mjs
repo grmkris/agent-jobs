@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { decodeFunctionData, hexToNumber, recoverTypedDataAddress, size, slice } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { MULTI_SEND_CALL_ONLY, safeAbi, safeTxTypedData, unpackMultiSend } from '../src/safe.ts';
-import { sendFixtureTransaction } from './wagmi.mjs';
+import { chainLatency, sendFixtureTransaction } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
 
@@ -62,7 +62,7 @@ const read = (c) => {
 };
 export const useReadContracts = ({ contracts, query }) => useQuery({
   queryKey: ['fixture-admin', show(contracts.map(({ address, functionName, args }) => [address, functionName, args]))],
-  queryFn: async () => contracts.map(read),
+  queryFn: async () => { await chainLatency(); return contracts.map(read); },
   retry: false,
   ...query,
 });

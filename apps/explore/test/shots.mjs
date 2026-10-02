@@ -1,16 +1,22 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { encodeFunctionData, parseAbi } from 'viem';
-import { createServer } from 'vite';
+import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, parseAbi, toFunctionSelector } from 'viem';
+import { build, createServer, preview } from 'vite';
+import { overflow, shifts, smallTargets, trackShifts, unnamed } from './audit-checks.mjs';
 
-// Screenshots of the v1 pages for a polish pass, each in a realistic state from the e2e fixtures, at phone and desktop
-// width: `<page>-<width>.png` in the output directory. Not a test: it asserts nothing beyond the page rendering, and
-// prints what it wrote. Mocked Chromium only: no live board, signing or sends.
-//   heavy node test/shots.mjs ~/code/agent-jobs.wt/ui-shots [page…]
+// Screenshots of the v1 pages for a polish pass, each in a realistic state from the e2e fixtures, at two phone widths and
+// desktop: `<page>-<width>.png` in the output directory. Mocked Chromium only: no live board, signing or sends.
+//   --prod   serve the production build (vite build with the fixtures, then vite preview) instead of the dev server;
+//   --audit  at 375 and 390 px, with chain reads answering 1.2 s late: touch targets under 44 px, interactive elements
+//            without an accessible name, horizontal scroll and layout shifts (audit-checks.mjs). Writes audit.json and
+//            exits 1 on any finding (U-PERF-A11Y).
+//   heavy node test/shots.mjs ~/code/agent-jobs.wt/ui-shots [--prod] [--audit] [page…]
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-shots';
-const only = process.argv.slice(3);
+const args = process.argv.slice(2);
+const prod = args.includes('--prod');
+const auditing = args.includes('--audit');
+const [output = '/tmp/hireling-shots', ...only] = args.filter((a) => !a.startsWith('--'));
 const base = 'http://127.0.0.1:5202';
 const me = '0x1111111111111111111111111111111111111111';
 const agentWallet = '0x6666666666666666666666666666666666666666';
@@ -19,7 +25,8 @@ const token = config.deployment.rewardTokens[0].toLowerCase();
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const now = Math.floor(Date.now() / 1000);
 const K = 10n ** 18n;
-const widths = [390, 1440];
+const widths = auditing ? [375, 390] : [375, 390, 1440];
+const LATENCY = 1200;
 
 const reply = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: 'Fix the checkout on mobile Safari', brief: 'The checkout button does nothing on iOS 18 Safari. Find out why and fix it; keep the change small.', acceptanceCriteria: ['Checkout completes on iOS 18 Safari', 'No change to desktop behaviour'], mode: 'hire', token, reward: '25000000', creatorBond: (5n * K).toString(), workerBond: (3n * K).toString(), creator: me, approver: me, deliveryDeadline: now + 2 * 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
@@ -51,6 +58,22 @@ function routes(api = {}, jobs = {}) {
 
 const settle = encodeFunctionData({ abi: parseAbi(['function settle(uint256 jobId)']), functionName: 'settle', args: [72n] });
 const miningClaim = encodeFunctionData({ abi: parseAbi(['function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']), functionName: 'claim', args: [0n, me, 1234n * K, []] });
+// The sponsorship sheet's permission, as sponsor_prepare hands it out (onboarding.e2e.mjs): Hireling's contracts only.
+const delegation = JSON.stringify({
+  types: { EIP712Domain: [], Delegation: [{ name: 'delegate', type: 'address' }, { name: 'delegator', type: 'address' }, { name: 'authority', type: 'bytes32' }, { name: 'caveats', type: 'Caveat[]' }, { name: 'salt', type: 'uint256' }], Caveat: [{ name: 'enforcer', type: 'address' }, { name: 'terms', type: 'bytes' }] },
+  primaryType: 'Delegation',
+  domain: { name: 'DelegationManager', version: '1', chainId: 10143, verifyingContract: config.delegation.manager },
+  message: {
+    delegate: config.roles.relay, delegator: me, authority: `0x${'f'.repeat(64)}`, salt: '7',
+    caveats: [
+      { enforcer: config.delegation.enforcers.allowedTargets, terms: concat([contracts.holding, contracts.vault]) },
+      { enforcer: config.delegation.enforcers.allowedMethods, terms: concat(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)', 'function withdraw()'].map((f) => toFunctionSelector(f))) },
+      { enforcer: config.delegation.enforcers.limitedCalls, terms: encodeAbiParameters([{ type: 'uint256' }], [100n]) },
+      { enforcer: config.delegation.enforcers.timestamp, terms: encodePacked(['uint128', 'uint128'], [0n, BigInt(now + 30 * 86400)]) },
+    ],
+  },
+});
+const onboarding = { wagmi: 'onboarding-wagmi.mjs', privy: 'onboarding-privy.mjs' };
 const PAGES = [
   {
     name: 'stake', wagmi: 'stake-wagmi.mjs', path: '/stake',
@@ -100,6 +123,18 @@ const PAGES = [
       await page.locator('#post-worker-bond').fill('3');
     },
   },
+  {
+    name: 'me', ...onboarding, path: '/me',
+    api: { sponsor_status: () => ({ status: 'none', typedData: null, callsUsed: 0 }), telegram_status: () => ({ linked: false, username: null, linkedAt: null }) },
+  },
+  {
+    name: 'sponsorship', ...onboarding, path: '/sponsorship',
+    api: { sponsor_status: () => ({ status: 'none', typedData: null, callsUsed: 0 }), sponsor_prepare: () => ({ sign: { typedData: delegation }, upgrade: { delegator: config.delegation.delegator } }) },
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'Turn on' }).click();
+      await page.getByRole('dialog', { name: 'Let Hireling pay your gas?' }).getByText('Call Holding', { exact: true }).waitFor();
+    },
+  },
   { name: 'job-quote', wagmi: 'v1-wagmi.mjs', path: '/job/70', v1: true, account: '0x5555555555555555555555555555555555555555', jobs: { 70: 'open' } },
   { name: 'job-topup', wagmi: 'v1-wagmi.mjs', path: '/job/71', v1: true, account: '0x5555555555555555555555555555555555555555', jobs: { 71: 'active' }, v1State: { bonus: 2_000_000n, topUp: 0n } },
 ];
@@ -107,38 +142,73 @@ const PAGES = [
 mkdirSync(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
+
+/** The page's fixture modules in place of wagmi and Privy. */
+const fixtures = (p) => ({ name: 'shots-fixtures', enforce: 'pre', resolveId(source) {
+  if (source === 'wagmi') return `${directory}${p.wagmi}`;
+  if (source === 'wagmi/actions') return `${directory}${p.wagmi === 'admin-wagmi.mjs' ? 'admin-wagmi-actions.mjs' : 'wagmi-actions.mjs'}`;
+  if (source.endsWith('/Privy.tsx')) return `${directory}${p.privy ?? 'privy.mjs'}`;
+  if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
+}, transform(source, id) {
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+} });
+const built = new Map();
+/** The dev server, or (--prod) the production build for this page's fixtures, built once per set and previewed. */
+async function serve(p) {
+  if (!prod) {
+    const server = await createServer({ envFile: false, logLevel: 'silent', server: { host: '127.0.0.1', port: 5202, strictPort: true }, plugins: [fixtures(p)] });
+    await server.listen();
+    return server;
+  }
+  const key = `${p.wagmi}-${p.privy ?? 'privy.mjs'}`.replace(/[^a-z0-9]+/gi, '-');
+  const outDir = `/tmp/hireling-prod-build/${key}`;
+  if (!built.has(key)) {
+    await build({ envFile: false, logLevel: 'error', plugins: [fixtures(p)], build: { outDir, emptyOutDir: true } });
+    built.set(key, outDir);
+  }
+  return preview({ envFile: false, logLevel: 'silent', preview: { host: '127.0.0.1', port: 5202, strictPort: true }, build: { outDir } });
+}
+
+const report = [];
 try {
   for (const p of PAGES.filter((x) => only.length === 0 || only.includes(x.name))) {
-    const server = await createServer({ envFile: false, logLevel: 'silent', server: { host: '127.0.0.1', port: 5202, strictPort: true }, plugins: [{ name: 'shots-fixtures', enforce: 'pre', resolveId(source) {
-      if (source === 'wagmi') return `${directory}${p.wagmi}`;
-      if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
-      if (source.endsWith('/Privy.tsx')) return `${directory}${p.privy ?? 'privy.mjs'}`;
-      if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
-    }, transform(source, id) {
-      if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
-    } }] });
-    await server.listen();
+    const server = await serve(p);
     try {
       for (const width of widths) {
-        const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 900 }, hasTouch: width === 390, isMobile: width === 390 });
-        await context.addInitScript(({ account, c, v1State }) => {
+        const phone = width < 600;
+        const context = await browser.newContext({ viewport: { width, height: width === 375 ? 667 : width === 390 ? 844 : 900 }, hasTouch: phone, isMobile: phone });
+        await context.addInitScript(({ account, c, v1State, latency }) => {
           window.__hireling = c;
+          window.__chainLatency = latency;
           window.__wallet = { address: account, connected: true, signatures: [], messages: [], sends: [], upgrades: 0 };
           const extra = Object.fromEntries(Object.entries(v1State ?? {}).map(([k, v]) => [k, BigInt(v)]));
           window.__v1 = { arbiter: '0xa000000000000000000000000000000000000001', free: 2n * 10n ** 18n, quote: [1000, 2500000n, 22500000n], topUp: 0n, bonus: 0n, ...extra };
           localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
           localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-        }, { account: p.account ?? me, c: contracts, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
+        }, { account: p.account ?? me, c: contracts, latency: auditing ? LATENCY : 0, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
         if (p.init !== undefined) await context.addInitScript(p.init, contracts);
+        if (auditing) await context.addInitScript(trackShifts);
         await context.route('**/*', routes(p.api, p.jobs));
         const page = await context.newPage();
+        page.on('pageerror', (error) => console.log(`  page error on ${p.name}@${width}: ${error.message.split('\n')[0]}`));
+        page.on('console', (message) => { if (message.type() === 'error') console.log(`  console error on ${p.name}@${width}: ${message.text().slice(0, 200)}`); });
         await page.goto(`${base}${p.path}`);
         if (p.prepare !== undefined) await p.prepare(page);
         await page.waitForLoadState('networkidle');
-        await page.waitForTimeout(400);
+        await page.waitForTimeout(auditing ? LATENCY * 2 + 600 : 400);
         const file = `${output}/${p.name}-${width}.png`;
         await page.screenshot({ path: file, fullPage: true });
         console.log(file);
+        if (auditing) {
+          const found = { page: p.name, width, small: await smallTargets(page), unnamed: await unnamed(page), overflow: await overflow(page), shifts: await shifts(page) };
+          report.push(found);
+          const shifted = found.shifts.total > 0.01;
+          console.log(`  ${found.small.length} small, ${found.unnamed.length} unnamed, ${found.overflow === null ? 'no' : 'HORIZONTAL'} scroll, layout shift ${found.shifts.total}${shifted ? ' (over 0.01)' : ''}`);
+          for (const t of found.small) console.log(`    small ${t.size} ${t.target}`);
+          for (const u of found.unnamed) console.log(`    unnamed ${u.role} ${u.html}`);
+          if (found.overflow !== null) console.log(`    overflow ${JSON.stringify(found.overflow)}`);
+          if (shifted) for (const sh of found.shifts.list) console.log(`    shift ${sh.value} at ${sh.at} ms: ${sh.sources.join(', ')}`);
+        }
         await context.close();
       }
     } finally {
@@ -147,4 +217,10 @@ try {
   }
 } finally {
   await browser.close();
+}
+if (auditing) {
+  writeFileSync(`${output}/audit.json`, JSON.stringify({ build: prod ? 'production' : 'dev', latency: LATENCY, report }, null, 2));
+  const failing = report.filter((r) => r.small.length > 0 || r.unnamed.length > 0 || r.overflow !== null || r.shifts.total > 0.01);
+  console.log(failing.length === 0 ? `AUDIT PASS: ${report.length} page-widths` : `AUDIT FINDINGS on ${failing.map((r) => `${r.page}@${r.width}`).join(', ')}`);
+  if (failing.length > 0) process.exitCode = 1;
 }

@@ -34,3 +34,8 @@ export async function getBytecode(_config, { address }) {
   chainReady();
   return window.__bytecode?.[address.toLowerCase()];
 }
+// One-shot reads (Admin's funding snapshot) are answered only by admin-wagmi-actions.mjs; a production build of any
+// other fixture set still needs the export to bundle every route.
+export async function readContracts() {
+  throw new Error('This fixture has no one-shot chain reads');
+}

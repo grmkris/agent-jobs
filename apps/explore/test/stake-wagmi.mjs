@@ -1,7 +1,7 @@
 import { stakeVaultAbi } from '@agent-jobs/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { decodeFunctionData } from 'viem';
-import { sendFixtureTransaction } from './wagmi.mjs';
+import { chainLatency, sendFixtureTransaction } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
 
@@ -33,6 +33,7 @@ function answer({ functionName, address, args = [] }) {
 export const useReadContracts = ({ contracts, query }) => useQuery({
   queryKey: ['fixture-stake', contracts.map((c) => c.functionName).join()],
   queryFn: async () => {
+    await chainLatency();
     if (window.__stake.down) throw new Error('Fixture RPC unavailable');
     return contracts.map((c) => ({ status: 'success', result: answer(c) }));
   },
