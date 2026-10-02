@@ -75,7 +75,7 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, nonce, decimals }) => {
+  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, nonce, decimals, safeIsAdmin }) => {
     const K = 10n ** 21n;
     window.__hireling = contracts;
     window.__bytecode = bytecode;
@@ -92,16 +92,16 @@ async function fixture(viewport, options = {}) {
       safe: contracts.safe, owners, threshold: 1n,
       owner: Object.fromEntries([...owned.map((a) => [a, contracts.safe]), [contracts.feeSchedule.toLowerCase(), previousOwner]]),
       pendingOwner: { [contracts.feeSchedule.toLowerCase()]: contracts.safe },
-      paused: false, pauses: [], safeIsAdmin: true,
+      paused: false, pauses: [], safeIsAdmin,
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
-      currentEpoch: 2n, totalFunded: BigInt(funded), available: BigInt(funded), genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
+      currentEpoch: 2n, totalFunded: BigInt(funded), available: BigInt(funded), outstanding: 0n, genesis: Math.floor(Date.now() / 1000) - (3 * 86400 + 604800 + 302400), roots: {}, calls: [], down: false,
       decimals, signWith: 'owner', nonce: BigInt(nonce),
     };
   }, {
     account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
     previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null,
-    funded: (options.funded ?? 0n).toString(), nonce: (options.nonce ?? 7n).toString(), decimals: tokenDecimals,
+    funded: (options.funded ?? 0n).toString(), nonce: (options.nonce ?? 7n).toString(), decimals: tokenDecimals, safeIsAdmin: options.safeIsAdmin ?? true,
   });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -258,6 +258,9 @@ try {
     await send(page, 'Post the root of epoch 1');
     await mining.getByText('Posted.', { exact: true }).waitFor();
     await mining.getByText(minedRoot, { exact: true }).nth(1).waitFor();
+    // As on the real fork: the posted total is owed, and the distributor has nothing spare.
+    await mining.getByText(/^Owed, unclaimed\s*5,000 FACTORY$/).waitFor();
+    await mining.getByText(/^Spare in the distributor\s*0 FACTORY$/).waitFor();
     // The posted total overstated the leaves: shrink it to their sum, never above the posted total.
     await mining.getByRole('textbox', { name: 'New epoch total' }).fill('6000');
     await mining.getByText('The new total must be below the posted one.', { exact: true }).waitFor();
@@ -266,6 +269,7 @@ try {
     await page.getByText('resizeRoot(epoch, newTotal)', { exact: true }).waitFor();
     await send(page, 'Shrink the total of epoch 1');
     await mining.getByText('0 FACTORY of 4,200 FACTORY', { exact: true }).waitFor();
+    await mining.getByText(/^Spare in the distributor\s*800 FACTORY$/).waitFor();
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), [
       'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:fund', 'safe:setRoot', 'safe:resizeRoot',
     ]);
@@ -488,13 +492,21 @@ try {
       await context.close();
     }
 
+    // The Safe without the core's ADMIN_ROLE (testnet's reused core today, U-REAL): pausing is not offered.
+    {
+      const { context, page } = await fixture({ width: 390, height: 844 }, { safeIsAdmin: false });
+      await page.goto(`${base}/admin`);
+      await section(page, 'Core').getByText("The Safe is not the core's admin on this network, so it cannot pause it from here.", { exact: true }).waitFor();
+      assert.equal(await section(page, 'Core').getByRole('button', { name: 'Pause the core' }).count(), 0);
+      await context.close();
+    }
     // Without MultiSendCallOnly on the network, the pause pair is not offered at all.
     const { context, page } = await fixture({ width: 390, height: 844 }, { noMultiSend: true });
     await page.goto(`${base}/admin`);
     await section(page, 'Core').getByText(/Pausing waits for MultiSendCallOnly/).waitFor();
     assert.equal(await section(page, 'Core').getByRole('button', { name: 'Pause the core' }).isDisabled(), true);
     await context.close();
-    results.push({ checks: ['restored draft calling outside the deployment refused, not sent', 'restored draft signed for another owner refused', 'restored standalone pause and unpause refused (U5-SEC-002)', 'restored pause and note as two transactions refused', 'restored atomic pause pair accepted', 'no MultiSendCallOnly code: pause not offered'], passed: true });
+    results.push({ checks: ['restored draft calling outside the deployment refused, not sent', 'restored draft signed for another owner refused', 'restored standalone pause and unpause refused (U5-SEC-002)', 'restored pause and note as two transactions refused', 'restored atomic pause pair accepted', 'no MultiSendCallOnly code: pause not offered', 'Safe without the core’s ADMIN_ROLE: pause not offered'], passed: true });
   }
 
   {

@@ -76,7 +76,9 @@ const PAGES = [
         paused: false, pauses: [], safeIsAdmin: true, schedule: tiers,
         pending: { schedule: { ...tiers, bps: [3000, 800, 300, 100] }, eta: t + 2 * 86400 }, bootstrapped: true,
         pendingHolding: { holding: '0xf000000000000000000000000000000000000009', eta: t + 6 * 86400 }, holdings: [c.holding],
-        currentEpoch: 2n, totalFunded: 5000n * 10n ** 18n, available: 3800n * 10n ** 18n, genesis: t - 3 * 604800,
+        // Epoch 1's 5,000 funded and posted, 1,200 claimed: 3,800 owed and nothing spare, as the contracts keep it.
+        currentEpoch: 2n, totalFunded: 5000n * 10n ** 18n, available: 0n, outstanding: 3800n * 10n ** 18n, genesis: t - (3 * 86400 + 604800 + 302400), nonce: 7n, signWith: 'owner',
+        decimals: { '0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f': 6, '0xdeef53f34fa71c46e7bb6e34d42d4cf36987c44e': 6, '0x130556848511554b181e645309754f265522f3c2': 18 },
         roots: { 1: { root: `0x${'ab'.repeat(32)}`, total: 5000n * 10n ** 18n, claimed: 1200n * 10n ** 18n, dataHash: `0x${'cd'.repeat(32)}` } }, calls: [], down: false,
       };
     },

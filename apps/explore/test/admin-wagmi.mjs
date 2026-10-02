@@ -15,6 +15,7 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 const ZERO32 = `0x${'0'.repeat(64)}`;
 const eq = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
 const key = (a) => a.toLowerCase();
+const epochEnd = (s, epoch) => s.genesis + 3 * 86400 + epoch * 604800;
 export function answer({ address, functionName, args = [] }) {
   const s = window.__admin;
   if (s.down) throw new Error('Fixture RPC unavailable');
@@ -42,10 +43,11 @@ export function answer({ address, functionName, args = [] }) {
     case 'currentEpoch': return s.currentEpoch;
     case 'totalFunded': return s.totalFunded;
     case 'available': return s.available;
-    case 'outstanding': return 0n;
+    case 'outstanding': return s.outstanding;
     case 'budget': return 10n ** 24n;
     case 'cumulativeBudget': return (args[0] + 1n) * 10n ** 24n;
-    case 'epochEnd': return BigInt(s.genesis + (Number(args[0]) + 1) * 604800);
+    // MiningSchedule: epoch 0 runs 72 h from genesis, every later epoch 7 days (the real fork showed the fixture had 7 for all).
+    case 'epochEnd': return BigInt(epochEnd(s, Number(args[0])));
     case 'rootOf': return s.roots[String(args[0])] ?? { root: ZERO32, total: 0n, claimed: 0n, dataHash: ZERO32 };
     default: throw new Error(`Fixture has no read for ${functionName}`);
   }
@@ -55,7 +57,7 @@ const show = (value) => JSON.stringify(value, (_k, v) => (typeof v === 'bigint' 
 const read = (c) => {
   if (c.functionName !== 'decimals') return { status: 'success', result: answer(c) };
   if (window.__admin.down) throw new Error('Fixture RPC unavailable');
-  const decimals = window.__admin.decimals[key(c.address)];
+  const decimals = window.__admin.decimals?.[key(c.address)];
   return decimals === undefined ? { status: 'failure', error: new Error('Fixture: no decimals') } : { status: 'success', result: decimals };
 };
 export const useReadContracts = ({ contracts, query }) => useQuery({
@@ -111,9 +113,22 @@ function applyCall(via, to, data, signatures) {
   if (functionName === 'cancelHoldingProposal') s.pendingHolding = null;
   if (functionName === 'acceptHolding') { s.holdings.push(s.pendingHolding.holding); s.pendingHolding = null; }
   if (functionName === 'revokeHolding') s.holdings = s.holdings.filter((h) => !eq(h, args[0]));
-  if (functionName === 'setRoot') s.roots[String(args[0])] = { root: args[1], total: args[2], claimed: 0n, dataHash: args[3] };
-  if (functionName === 'fund') { s.totalFunded += args[1]; s.available += args[1]; }
-  if (functionName === 'resizeRoot') s.roots[String(args[0])] = { ...s.roots[String(args[0])], total: args[1] };
+  // As the contracts do (checked against the real fork, U-REAL): fund only after the epoch ends; setRoot only when the
+  // distributor's spare covers the total, which then counts as owed; a smaller total returns the difference.
+  if (functionName === 'fund') {
+    if (now < epochEnd(s, Number(args[0]))) throw new Error('Fixture MiningReserve: EpochNotEnded');
+    s.totalFunded += args[1]; s.available += args[1];
+  }
+  if (functionName === 'setRoot') {
+    if (s.available < args[2]) throw new Error('Fixture EpochDistributor: InsufficientFunds');
+    s.roots[String(args[0])] = { root: args[1], total: args[2], claimed: 0n, dataHash: args[3] };
+    s.available -= args[2]; s.outstanding += args[2];
+  }
+  if (functionName === 'resizeRoot') {
+    const freed = s.roots[String(args[0])].total - args[1];
+    s.roots[String(args[0])] = { ...s.roots[String(args[0])], total: args[1] };
+    s.available += freed; s.outstanding -= freed;
+  }
 }
 export const useSendTransaction = () => ({ sendTransactionAsync: async (transaction) => {
   const hash = await sendFixtureTransaction(transaction);
