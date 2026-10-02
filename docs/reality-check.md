@@ -559,3 +559,24 @@ two successful observations and Explore retains both domain owners. Full IDs,
 versions, plan digest, rollback rehearsal and cleanup evidence are in
 `docs/staging-release-2026-10-01.md`. This is testnet evidence only; no mainnet or
 wallet action was performed.
+
+## Hireling v1 testnet Safe (2 Oct 2026)
+
+The v1 owner Safe for testnet: Safe v1.4.1 (L2 singleton `0x29fc…C762`, factory `0x4e1D…ec67`, default fallback
+handler).
+
+| Field | Value |
+| --- | --- |
+| Address | `0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF` |
+| Owners | Kris's wallet `0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471` and a testnet backup key `0x3c29Da5d1e1c9D28AdeFb19fdD0499A8AF71921e` |
+| Threshold | 1 |
+| Creation tx | `0x70a728bade67f46a995995a709deb5f2572df5ea2b61ae7be19061d96b1e6c81` (status 1, gas used 360,000) |
+| Sent by | the deployer `0x6752…ad73` |
+| Read back | `getOwners`, `getThreshold` = 1, `VERSION` = 1.4.1 |
+
+New v1 testnet role keys (addresses only; the keys live in `.env.local`):
+- relay `0x12631a0B54602F2cAceDBE7c6D35C3f2F9743166`
+- attester `0xA4F3Fef6cb36a184f28301DE8C953D71bB0A12Bf`
+- default arbitrator `0x0E616916682E3DB0bFFe188Be07513CbB829ebC5`
+
+Testnet evidence only.
