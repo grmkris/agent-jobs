@@ -9,7 +9,7 @@ const codes = new Set([
   'census-page-short', 'census-pagination-limit', 'census-collection-shape-invalid', 'census-collection-count-mismatch',
   'census-bucket-page-size-invalid', 'census-bucket-page-shape-invalid', 'census-bucket-page-not-advancing',
   'census-bucket-pagination-limit', 'census-namespace-identities-invalid', 'census-deployments-empty',
-  'census-deployment-timestamp-invalid', 'census-deployment-newest-ambiguous', 'census-deployment-order-invalid',
+  'census-deployment-timestamp-invalid', 'census-deployment-identities-invalid', 'census-deployment-newest-ambiguous', 'census-deployment-order-invalid',
   'census-deployment-traffic-invalid', 'census-manifests-missing', 'census-storage-identity-drift',
   'census-domain-ownership-drift', 'census-worker-identity-drift', 'census-worker-ownership-drift', 'census-cron-drift',
   'census-binding-drift', 'census-board-namespace-drift', 'census-secret-binding-missing',

@@ -109,6 +109,9 @@ export async function liveDomains() {
 export async function liveDeployment(name) {
   const deployments = await cloudflarePaged(`/workers/scripts/${name}/deployments`, { items: result => result?.deployments })
   if (deployments.length === 0) throw new StagingReleaseError('census-deployments-empty')
+  const ids = deployments.map(deployment => deployment?.id)
+  if (ids.some(id => typeof id !== 'string' || id === '') || new Set(ids).size !== ids.length)
+    throw new StagingReleaseError('census-deployment-identities-invalid')
   const dated = deployments.map(deployment => {
     const timestamp = typeof deployment?.created_on === 'string' && deployment.created_on !== '' ? Date.parse(deployment.created_on) : NaN
     if (!Number.isFinite(timestamp)) throw new StagingReleaseError('census-deployment-timestamp-invalid')
@@ -117,7 +120,7 @@ export async function liveDeployment(name) {
   const latest = Math.max(...dated.map(row => row.timestamp))
   const newest = dated.filter(row => row.timestamp === latest)
   if (newest.length !== 1) throw new StagingReleaseError('census-deployment-newest-ambiguous')
-  if (newest[0].deployment !== deployments[0] || dated.some((row, i) => i > 0 && row.timestamp > dated[i - 1].timestamp))
+  if (newest[0].deployment !== deployments[0] || dated.some((row, i) => i > 0 && row.timestamp >= dated[i - 1].timestamp))
     throw new StagingReleaseError('census-deployment-order-invalid')
   const active = newest[0].deployment
   if (active.versions?.length !== 1 || active.versions[0].percentage !== 100 || typeof active.versions[0].version_id !== 'string' || active.versions[0].version_id === '')

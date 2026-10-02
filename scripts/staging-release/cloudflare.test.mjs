@@ -99,7 +99,7 @@ test('R2 refuses repeated or malformed pages rather than silently omitting later
 })
 
 
-const deployment = (day, version = `version-${day}`) => ({ created_on: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`, versions: [{ version_id: version, percentage: 100 }] })
+const deployment = (day, version = `version-${day}`) => ({ id: `deployment-${day}-${version}`, created_on: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`, versions: [{ version_id: version, percentage: 100 }] })
 const deploymentPages = rows => async url => {
   const page = Number(new URL(url).searchParams.get('page'))
   const deployments = rows.slice((page - 1) * 2, page * 2)
@@ -139,4 +139,22 @@ test('deployment history refuses an ambiguous newest timestamp, missing/invalid 
     try { await assert.rejects(liveDeployment('test-script'), { message: code }) }
     finally { globalThis.fetch = originalFetch }
   }
+})
+
+test('deployment history refuses duplicate and missing ids across the complete history', async () => {
+  for (const rows of [
+    [deployment(5), deployment(4), deployment(3), { ...deployment(2), id: deployment(4).id }],
+    [deployment(5), { ...deployment(4), id: undefined }],
+    [deployment(5), { ...deployment(4), id: '' }],
+  ]) {
+    globalThis.fetch = deploymentPages(rows)
+    try { await assert.rejects(liveDeployment('test-script'), { message: 'census-deployment-identities-invalid' }) }
+    finally { globalThis.fetch = originalFetch }
+  }
+})
+
+test('deployment history refuses equal older timestamps across a page boundary', async () => {
+  globalThis.fetch = deploymentPages([deployment(5), deployment(4), deployment(4, 'different-version'), deployment(2), deployment(1)])
+  try { await assert.rejects(liveDeployment('test-script'), { message: 'census-deployment-order-invalid' }) }
+  finally { globalThis.fetch = originalFetch }
 })

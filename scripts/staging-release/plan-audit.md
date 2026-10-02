@@ -175,3 +175,8 @@ STAGING-GUARD-G2-001 corrects the earlier domain-list audit conclusion: the
 pinned Workers `listDomains` is a paginated operation. The census now exhausts
 its pages before filtering Hireling's two domains and requires pagination
 metadata. Regressions find a target on page 3 and refuse missing/changed totals.
+
+STAGING-GUARD-G2-002 requires a nonempty unique deployment id across all pages
+and strictly decreasing timestamps, including older equal timestamps. Regressions
+cover a duplicate id on a later page, missing ids and equal older timestamps
+across a page boundary; newest uniqueness and one-version/100% checks remain.
