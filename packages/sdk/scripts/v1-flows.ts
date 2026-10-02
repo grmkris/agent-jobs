@@ -119,6 +119,8 @@ const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deplo
 const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
 const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
 if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')
+if (requested.includes('legacy-contest') && state.values['legacy-contest/done'] !== true && state.sends['legacy-contest/publish'] === undefined)
+  await sdk.requireLegacyContestFactory(ctx, creator)
 const hosted = requested.some(name => (sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name))
 const boardUrl = hosted ? env('V1_BOARD_URL')! : ''
 const clients = new Map<string, ReturnType<typeof sdk.boardClient>>()

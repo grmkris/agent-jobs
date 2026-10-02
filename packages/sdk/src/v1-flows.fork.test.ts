@@ -4,7 +4,7 @@ import { forkEnabled, startHirelingFork } from '../test/hireling-fixture.ts'
 import { registerAgent, stake } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
-import { coreAbi, hirelingHoldingAbi } from './abi/index.ts'
+import { coreAbi, factoryTokenAbi, hirelingHoldingAbi } from './abi/index.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('live matrix runner against real v1 bytecode', () => {
@@ -12,13 +12,25 @@ fork('live matrix runner against real v1 bytecode', () => {
   beforeAll(async () => {
     f = await startHirelingFork(); agentId = await registerAgent(f.ctx, f.worker, 'https://hireling.xyz/live-runner-fork')
     await stake(f.ctx, f.creator, parseEther('1000')); await stake(f.ctx, f.worker, parseEther('1000'))
-    const legacyHolding = await f.deploy('JobHolding', [f.ctx.deployment.core, f.ctx.stack.factory, f.ctx.deployment.identity, 0n, 0n])
+    const legacyFactory = await f.deploy('Factory', ['Legacy Factory', 'FACTORY', [f.admin.account.address], [parseEther('1000000000')]])
+    const legacyHolding = await f.deploy('JobHolding', [f.ctx.deployment.core, legacyFactory, f.ctx.deployment.identity, parseEther('1'), 0n])
     const legacyEvaluator = await f.deploy('JobsEvaluator', [f.ctx.deployment.core, legacyHolding, f.ctx.deployment.reputation, f.arbitrator.account.address, 120, 120, 300, 120])
     await f.send(legacyHolding, hirelingHoldingAbi, 'setEvaluator', [legacyEvaluator])
     await f.send(f.ctx.deployment.core, coreAbi, 'setHookWhitelist', [legacyHolding, true])
-    f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, legacyStacks: { 'test-legacy': { kind: 'legacy', factory: f.ctx.stack.factory, holding: legacyHolding, evaluator: legacyEvaluator, openTokens: true } } } }
+    f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, legacyStacks: { 'test-legacy': { kind: 'legacy', factory: legacyFactory, holding: legacyHolding, evaluator: legacyEvaluator, openTokens: true } } } }
   }, 180_000)
   afterAll(() => f?.close())
+  it('refuses an unfunded legacy contest before any send, even when the creator holds v2 FACTORY', async () => {
+    const state: FlowState = { binding: 'legacy-prerequisite', values: {}, sends: {} }
+    const journal = new FlowJournal(f.ctx, state, () => undefined, () => undefined)
+    const creatorNonce = await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })
+    await expect(runV1CoreFlow({ ...f, relay: f.contributor, journal, agentId, token: f.ctx.stack.factory, reward: 101n, bond: parseEther('10'),
+      waitUntil: async () => undefined, log: () => undefined }, 'legacy-contest')).rejects.toThrow('legacy-contest requires creator to hold at least 1 FACTORY v1')
+    expect(state.sends).toEqual({})
+    expect(await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })).toBe(creatorNonce)
+    // The later legacy flow exercises the same check and real publish with exactly one old token.
+    await f.send(f.ctx.deployment.legacyStacks['test-legacy']!.factory, factoryTokenAbi, 'transfer', [f.creator.account.address, parseEther('1')])
+  }, 120_000)
   for (const flow of V1_CORE_FLOWS) {
     it(`runs ${flow} through the same persisted send path used live`, async () => {
       const state: FlowState = { binding: 'fork', values: {}, sends: {} }

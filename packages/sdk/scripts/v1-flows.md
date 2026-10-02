@@ -14,7 +14,10 @@ passed explicitly at publish; the worker checks the listing and signs a fresh ne
 Optional `TESTNET_AGENT_ID` reuses a registered worker identity. Otherwise registration is journaled.
 `V1_FLOW_REWARD` (default 1 token), `V1_FLOW_BOND` (default 10 FACTORY), and `V1_STAKE_TARGET` (default
 100 FACTORY) are whole-token decimal amounts. Decimals are read on chain. Fund these wallets with testnet
-MON, FACTORY v2 and the configured reward token before running; v2 FACTORY has no faucet.
+MON, FACTORY v2 and the configured reward token before running; v2 FACTORY has no faucet. The `legacy-contest`
+case also requires the creator to hold at least 1 FACTORY v1 from the legacy open-token Holding's `factory()`
+address. The runner reads that address and balance before any setup or flow send and stops with a clear prerequisite
+message when it is missing; do not assume the v2 FACTORY balance satisfies it.
 
 Every signed transaction, including setup/approvals, is saved before broadcast in
 `packages/sdk/scripts/.v1-flows/<V1_FLOW_PROFILE>/journal.json` (profile defaults to `default`). It contains signed authority, so it is ignored by git and

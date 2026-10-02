@@ -17,10 +17,23 @@ export interface V1FlowDeps {
 const eq = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const check = (what: string, actual: bigint | number | string | boolean, expected: bigint | number | string | boolean) => { if (actual !== expected) throw new Error(`${what}: got ${String(actual)}, expected ${String(expected)}`) }
 
+/** Check the legacy open-token pair before the runner performs any setup or publish send. */
+export async function requireLegacyContestFactory(ctx: sdk.Ctx, creator: sdk.Wallet) {
+  const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.openTokens)
+  if (pair === undefined) throw new Error('legacy-contest requires a configured legacy open-token pair')
+  const factory = await ctx.publicClient.readContract({ address: pair.holding, abi: sdk.jobHoldingAbi, functionName: 'factory' })
+  const decimals = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+  const required = 10n ** BigInt(decimals)
+  const held = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [creator.account.address] })
+  if (held < required) throw new Error(`legacy-contest requires creator to hold at least 1 FACTORY v1 (factory ${factory}); creator balance is below 1 token`)
+  return { pair, factory, held, required }
+}
+
 export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flow as string) {
   const { ctx, creator, worker, relay, journal: j } = d, h = ctx.deployment.hireling
   if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'hireling-v1' || h === null) throw new Error('v1 flows require deployed Hireling on chain 10143')
   if (j.state.values[`${scope}/done`] === true) { d.log(`${scope}: already verified; no sends`); return }
+  if (flow === 'legacy-contest' && j.state.sends[`${scope}/publish`] === undefined) await requireLegacyContestFactory(ctx, creator)
   const now = async () => Number((await ctx.publicClient.getBlock()).timestamp)
   const call = (label: string, wallet: sdk.Wallet, target: Address, abi: readonly unknown[], fn: string, args: readonly unknown[], gas?: bigint) => j.contract(`${scope}/${label}`, wallet, target, abi as import('viem').Abi, fn, args, gas)
   const approve = async (label: string, wallet: sdk.Wallet, token: Address, spender: Address, amount: bigint) => {
