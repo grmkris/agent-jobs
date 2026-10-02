@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
 import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
 import {BlocklistUSD, GasBurnerUSD} from "../../src/testnet/OddTokens.sol";
-import {OddTokensRecipe} from "../../script/DeployOddTokens.s.sol";
+import {OddTokensRecipe} from "../../script/OddTokensRecipe.sol";
 import {BaseV1} from "../hireling/BaseV1.t.sol";
 
 /// @dev C11: the testnet odd tokens, and the v1 paths they are meant to show live (M2 deferral, C9-001).

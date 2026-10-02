@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
 import {HirelingOutput} from "../../script/HirelingOutput.sol";
-import {HirelingSafeAccept, ISafe} from "../../script/SafeAccept.s.sol";
+import {HirelingSafeAccept, ISafe} from "../../script/HirelingSafeAccept.sol";
 import {RecipeDriver} from "../hireling/Recipe.t.sol";
 
 interface ISafeOwners {

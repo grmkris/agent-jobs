@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
 import {HirelingOutput} from "../../script/HirelingOutput.sol";
-import {SeedPoolRecipe, IV4PositionManager, IV4PoolManager, V4PriceSetter} from "../../script/SeedPool.s.sol";
+import {SeedPoolRecipe, IV4PositionManager, IV4PoolManager, V4PriceSetter} from "../../script/SeedPoolRecipe.sol";
 import {RecipeDriver} from "../hireling/Recipe.t.sol";
 
 /// @dev C12 rehearsal on a local fork of Monad mainnet (nothing is sent): a fresh v1 deploy gives FACTORY, the
@@ -24,7 +24,9 @@ contract SeedPoolRehearsalForkTest is Test {
             '"permit2":"0x000000000022D473030F116dDEE9F6B43aC78BA3",',
             '"stateView":"0x77395F3b2E73aE90843717371294fa97cC419D64"},',
             '"quote":"0x754704Bc059F8C67012fEd69BC8A327a5aafb603","fee":3000,"tickSpacing":60,',
-            '"factoryAmount":3000000,"quoteAmount":300,"positionOwner":"', vm.toString(owner), '"}'
+            '"factoryAmount":3000000,"quoteAmount":300,"positionOwner":"',
+            vm.toString(owner),
+            '"}'
         );
     }
 
