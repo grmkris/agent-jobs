@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
+import { chmodSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { checkPasswordFile } from './password.ts'
 import { budgetOf } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
 import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
@@ -210,4 +214,67 @@ test('the budget is the cumulative cap less earlier epochs; what this epoch has 
   const fresh = reserveAt(0n, 0n, [])
   expect((await budgetOf(fresh.c, a(1), 0n, 1n, 100n, 1000n)).available).toBe(factory(4_000_000))
   expect(fresh.scans()).toBe(0)
+})
+
+// KEYSTORE-SEC-003: a keystore password file is checked before any signer starts.
+const privateDir = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pw-'))
+  chmodSync(dir, 0o700)
+  return dir
+}
+const passwordIn = (dir: string, mode: number, name = 'password') => {
+  const path = join(dir, name)
+  writeFileSync(path, 'throwaway', { mode })
+  chmodSync(path, mode)
+  return path
+}
+
+test('KEYSTORE-SEC-003: a password file must be yours, 600 or 400, not a symlink, in a directory only you can write', () => {
+  const dir = privateDir()
+  try {
+    expect(() => checkPasswordFile(passwordIn(dir, 0o600, 'a'))).not.toThrow()
+    expect(() => checkPasswordFile(passwordIn(dir, 0o400, 'b'))).not.toThrow()
+    expect(() => checkPasswordFile(passwordIn(dir, 0o644, 'c'))).toThrow('mode 600 or 400')
+    symlinkSync(join(dir, 'a'), join(dir, 'link'))
+    expect(() => checkPasswordFile(join(dir, 'link'))).toThrow('not a symlink')
+    expect(() => checkPasswordFile(join(dir, 'missing'))).toThrow('does not exist')
+    chmodSync(dir, 0o770)
+    expect(() => checkPasswordFile(join(dir, 'a'))).toThrow('writable by nobody else')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('KEYSTORE-SEC-003: sign-prices refuses a loose or symlinked password file before cast starts', () => {
+  const dir = privateDir()
+  try {
+    // A stub cast that only records that it was started.
+    const bin = join(dir, 'bin')
+    const marker = join(dir, 'cast-started')
+    spawnSync('mkdir', [bin])
+    writeFileSync(join(bin, 'cast'), `#!/bin/sh\ntouch ${marker}\nexit 1\n`, { mode: 0o755 })
+    const config = join(dir, 'config.json')
+    writeFileSync(config, JSON.stringify({ chainId: 10143, deployment: { hireling: { distributor: DISTRIBUTOR } } }))
+    const unsigned = join(dir, 'unsigned.json')
+    writeFileSync(unsigned, JSON.stringify({ epoch: '0', tokens: [{ token: USDC, decimals: 6, usdPrice: '1000000000000000000' }], factoryUsdPrice: '100000000000000' }))
+    const env = { ...process.env, NO_COLOR: '1', PATH: `${bin}:${process.env.PATH}` }
+    delete env.FORCE_COLOR
+    const sign = (password: string) => spawnSync('bun', [`${import.meta.dirname}/sign-prices.ts`, unsigned, '--network', 'monad-testnet', '--config', config,
+      '--out', join(dir, 'signed.json'), '--keystore', join(dir, 'keystore'), '--password-file', password], { encoding: 'utf8', env, timeout: 30_000 })
+
+    for (const [password, why] of [[passwordIn(dir, 0o644, 'loose'), 'mode 600 or 400'], [join(dir, 'missing'), 'does not exist']] as const) {
+      const run = sign(password)
+      expect(run.status).not.toBe(0)
+      expect(run.stderr).toContain(why)
+      expect(existsSync(marker)).toBe(false)
+    }
+    symlinkSync(passwordIn(dir, 0o600, 'target'), join(dir, 'link'))
+    expect(sign(join(dir, 'link')).stderr).toContain('not a symlink')
+    expect(existsSync(marker)).toBe(false)
+    // A private 600 file gets as far as cast (the stub then fails).
+    expect(sign(passwordIn(dir, 0o600, 'good')).stderr).toContain('cast wallet sign failed')
+    expect(existsSync(marker)).toBe(true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { checkPasswordFile } from './password.ts'
 import { parsePriceList, recoverPriceListSigner, typedDataJson, type PriceListFile } from './prices.ts'
 import type { Address, Hex } from './viem.ts'
 
@@ -39,6 +40,7 @@ if (keyEnv !== undefined) {
   if ((account === undefined) === (keystore === undefined) || password === undefined) {
     throw new Error('pass --account <name> or --keystore <path>, and --password-file <file>')
   }
+  checkPasswordFile(password)
   signerArgs = [...(account !== undefined ? ['--account', account] : ['--keystore', keystore!]), '--password-file', password]
 }
 

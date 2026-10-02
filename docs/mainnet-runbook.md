@@ -284,8 +284,10 @@ Registry the first time. Record every hash in `docs/reality-check.md` under "v1 
 
 Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch ends:
 1. Compute the epoch with B8 (`scripts/mining/README.md`). A Safe owner signs the epoch's price list (USD per priced
-   token, the FACTORY reference price): `bun scripts/mining/sign-prices.ts <list> --network monad-mainnet --out
-   <signed> --account hireling-safe-owner --password-file …`. Then run `pnpm mining:epoch <n> --network monad-mainnet
+   token, the FACTORY reference price):
+   `pwcheck ~/.config/hireling/safe-owner.password && bun scripts/mining/sign-prices.ts <list> --network monad-mainnet
+   --out <signed> --account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password`. The helper
+   checks the password file the same way before it signs. Then run `pnpm mining:epoch <n> --network monad-mainnet
    --prices <signed> --out <dir>`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
    Safe's two calls.
 2. The Safe sends `MiningReserve.fund(n, total)` and `EpochDistributor.setRoot(n, root, total, dataHash)`. R7 sends them

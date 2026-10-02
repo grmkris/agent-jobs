@@ -77,7 +77,7 @@ contract MainnetRunbookTest is Test {
     }
 
     function test_mainnetSignsFromKeystores() public view {
-        string[11] memory needles = [
+        string[12] memory needles = [
             "cast wallet import hireling-deployer --interactive",
             "--account hireling-deployer --password-file ~/.config/hireling/deployer.password",
             "--account hireling-safe-owner",
@@ -89,7 +89,9 @@ contract MainnetRunbookTest is Test {
             "chmod 600 ~/.config/hireling/deployer.password",
             "pwcheck ~/.config/hireling/deployer.password && bash -c",
             "pwcheck ~/.config/hireling/safe-owner.password && \\",
-            "pwcheck ~/.config/hireling/liquidity.password && \\"
+            "pwcheck ~/.config/hireling/liquidity.password && \\",
+            // KEYSTORE-SEC-003: the mining price list is signed behind the same check.
+            "pwcheck ~/.config/hireling/safe-owner.password && bun scripts/mining/sign-prices.ts"
         ];
         for (uint256 i; i < needles.length; ++i) {
             assertTrue(vm.contains(doc, needles[i]), string.concat("runbook lacks ", needles[i]));
