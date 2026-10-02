@@ -94,6 +94,13 @@
       "jobId": "8"
     }
   },
+  "oddTokens": {
+    "wallets": [
+      "0x675269d710692d4d0d7166da11B76463577aad73",
+      "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471"
+    ],
+    "mint": 10000
+  },
   "deployment": {
     "block": 66169332,
     "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
