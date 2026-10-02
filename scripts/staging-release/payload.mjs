@@ -171,6 +171,25 @@ export async function artifactOf(bundle) {
   return { kind: 'bundle', main: bundle.main ?? files[0].name, providerHash: bundle.hash ?? null, files: files.toSorted((a, b) => a.name.localeCompare(b.name)) }
 }
 
+/**
+ * Every environment input of Explore's Vite build (review B12-003): the `process.env` reads in apps/explore/vite.config.ts
+ * (`payload.test.mjs` scans Explore's build sources so a new read cannot go unlisted), NODE_ENV (Vite's mode), and
+ * any VITE_* variable. Unset and empty commit differently.
+ */
+export const viteBuildEnv = ['AGENT_JOBS_NETWORK', 'HIRELING_PROD_PRIVY_APP_ID', 'NODE_ENV', 'PRIVY_APP_ID']
+
+/** The pin of a Vite Worker, built only during upload: its build environment and Vite's `.env*` files, as keyed
+ *  commitments; its sources are pinned by the tree. */
+export function viteArtifact(key, logicalId, env, envFiles = {}) {
+  const names = [...new Set([...viteBuildEnv, ...Object.keys(env).filter(name => name.startsWith('VITE_'))])].toSorted()
+  return {
+    kind: 'vite',
+    pinnedBy: 'source tree, build environment and Vite env files',
+    buildEnv: Object.fromEntries(names.map(name => [name, commit(key, [logicalId, 'buildEnv', name], env[name] ?? null)])),
+    envFiles: Object.fromEntries(Object.keys(envFiles).toSorted().map(name => [name, commit(key, [logicalId, 'envFile', name], envFiles[name])])),
+  }
+}
+
 // ---- review B12-002: the Durable Object migration the provider would derive ----
 
 const localDurableObjects = (node, workerName) => {

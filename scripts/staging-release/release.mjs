@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseEnv } from 'node:util'
 import * as Effect from 'effect/Effect'
 import { readApprovedChanges } from './approved-changes.mjs'
 import { nativeResource, reviewLivePlan } from './live-plan.mjs'
-import { artifactOf, commit, commitmentKey, durableObjectTransition, keyId, workerPayload } from './payload.mjs'
+import { artifactOf, commitmentKey, durableObjectTransition, keyId, viteArtifact, workerPayload } from './payload.mjs'
 
 const repo = resolve(new URL('../..', import.meta.url).pathname)
 const state = await import('./state.ts')
@@ -95,7 +95,7 @@ function safePlan(snapshot, live, reference) {
  * Review B12-001: the bytes each updated Worker will upload. Rolldown Workers (Api, Indexer): the provider's own build,
  * which it caches per resource in the plan session and reuses for the upload. When the plan's diff returned before
  * building (any metadata change does), the same diff runs again without bindings, which skips that shortcut and builds.
- * Explore (Vite) is built during upload; it is pinned by the source tree and its VITE_* build environment.
+ * Explore (Vite) is built during upload; it is pinned by the source tree, its build environment and Vite env files.
  */
 function* prepareArtifacts(snapshot, key, Artifacts, ArtifactStore, makeScopedArtifacts, InstanceId) {
   const store = yield* Effect.gen(function* () { return yield* ArtifactStore }).pipe(Effect.provide(snapshot.session.context))
@@ -105,9 +105,15 @@ function* prepareArtifacts(snapshot, key, Artifacts, ArtifactStore, makeScopedAr
     const props = node.props ?? node.state?.props ?? {}
     if (node.action === 'noop') { artifacts[id] = { kind: 'unchanged' }; continue }
     if (props.vite || !props.main || props.bundle === false) {
-      const viteEnv = Object.fromEntries(Object.keys(process.env).filter((name) => name.startsWith('VITE_')).toSorted()
-        .map((name) => [name, commit(key, [id, 'viteEnv', name], process.env[name])]))
-      artifacts[id] = { kind: 'vite', pinnedBy: 'source tree and VITE_* environment', viteEnv }
+      // Vite reads .env, .env.local, .env.production and .env.production.local from Explore's root in production mode.
+      const envFiles = {}
+      for (const name of ['.env', '.env.local', '.env.production', '.env.production.local']) {
+        const path = resolve(repo, 'apps/explore', name)
+        if (!existsSync(path)) continue
+        if (lstatSync(path).isSymbolicLink()) fail(`Explore ${name} must not be a symlink`)
+        envFiles[name] = readFileSync(path, 'utf8')
+      }
+      artifacts[id] = viteArtifact(key, id, process.env, envFiles)
       continue
     }
     const fqn = node.resource.FQN

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
-import { lstatSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import { canonicalChange } from './approved-changes.mjs'
-import { artifactOf, commit, commitmentKey, digestOf, keyId, wireBindings, workerPayload } from './payload.mjs'
+import { artifactOf, commit, commitmentKey, digestOf, keyId, viteArtifact, viteBuildEnv, wireBindings, workerPayload } from './payload.mjs'
 
 const key = Buffer.alloc(32, 7)
 const stack = { name: 'AgentJobs', stage: 'staging' }
@@ -116,4 +116,44 @@ test('the commitment key is created once, private, and a symlink or readable key
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ---- review B12-003: Explore's Vite build environment ----
+
+const exploreEnv = { AGENT_JOBS_NETWORK: 'monad-testnet', NODE_ENV: 'production', PRIVY_APP_ID: 'privy-test-marker', VITE_FLAG: 'on' }
+const pin = (env, files = {}) => canonicalChange(viteArtifact(key, 'Explore', env, files))
+
+test('B12-003: every build-time env input of Explore and its Vite env files are pinned, keyed, never printed', () => {
+  const base = pin(exploreEnv)
+  for (const [name, value] of [['AGENT_JOBS_NETWORK', 'monad-mainnet'], ['PRIVY_APP_ID', 'other'], ['HIRELING_PROD_PRIVY_APP_ID', 'prod-app'], ['NODE_ENV', 'development'], ['VITE_FLAG', 'off'], ['VITE_NEW', 'x']]) {
+    assert.notEqual(pin({ ...exploreEnv, [name]: value }), base, name)
+  }
+  assert.notEqual(pin({ ...exploreEnv, PRIVY_APP_ID: '' }), pin({ ...exploreEnv, PRIVY_APP_ID: undefined }), 'unset and empty differ')
+  assert.notEqual(pin(exploreEnv, { '.env.production': 'VITE_X=1' }), base, 'a Vite env file')
+  assert.notEqual(pin(exploreEnv, { '.env.production': 'VITE_X=1' }), pin(exploreEnv, { '.env.production': 'VITE_X=2' }))
+  assert.equal(pin({ ...exploreEnv, UNRELATED: 'x' }), base, 'variables the build does not read do not matter')
+  assert.ok(!base.includes('privy-test-marker'))
+})
+
+const explore = new URL('../../apps/explore/', import.meta.url)
+function buildSources(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === 'e2e' || name === 'test' || name.startsWith('.')) continue
+    const path = new URL(name, dir)
+    if (statSync(path).isDirectory()) buildSources(new URL(`${name}/`, dir), out)
+    else if (/\.(m?[jt]sx?)$/.test(name) && !/\.test\./.test(name)) out.push(path)
+  }
+  return out
+}
+
+test('B12-003: no Explore build source reads an environment variable that the Vite pin leaves out', () => {
+  const reads = new Set()
+  for (const path of buildSources(explore)) {
+    const text = readFileSync(path, 'utf8')
+    for (const match of text.matchAll(/process\.env(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]\s*\])/g)) reads.add(match[1] ?? match[2])
+    assert.ok(!/process\.env\s*\[\s*[^'"\s]/.test(text), `dynamic process.env access in ${path.pathname}`)
+    assert.ok(!/import\.meta\.env\.(?!VITE_|MODE\b|DEV\b|PROD\b|SSR\b|BASE_URL\b)/.test(text), `non-VITE import.meta.env read in ${path.pathname}`)
+  }
+  assert.ok(reads.has('PRIVY_APP_ID') && reads.has('HIRELING_PROD_PRIVY_APP_ID') && reads.has('AGENT_JOBS_NETWORK'), 'the scan sees the known reads')
+  for (const name of reads) assert.ok(viteBuildEnv.includes(name) || name.startsWith('VITE_'), `${name} is read by the Explore build but not pinned`)
 })
