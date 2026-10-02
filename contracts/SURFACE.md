@@ -189,7 +189,15 @@ Two steps, run by the coordinator only (review C8-001). Neither a dry run nor a 
 NETWORK=<network> forge script script/DeployHireling.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast --slow
 # 2. Promote. Sends nothing. Verifies the candidate against live state and forge's receipts, then writes the record.
 NETWORK=<network> forge script script/PromoteHireling.s.sol --rpc-url …
+# 3. The Safe accepts the six handovers (C10), sent by one Safe owner (testnet: the backup owner), then reads back
+#    owner() == safe on all six. Re-running skips what the Safe already owns; --sig "check()" only reads back.
+NETWORK=<network> forge script script/SafeAccept.s.sol --rpc-url … --private-key $SAFE_BACKUP_TESTNET_PRIVATE_KEY --broadcast
 ```
+
+Step 3 sends one `execTransaction` per contract with a pre-validated signature (`r` = the owner, `s` = 0, `v` = 1),
+which a Safe accepts from that owner as sender. It needs a threshold-1 Safe (`ThresholdNotOne` otherwise) and refuses a
+non-owner sender or a handover that is not pending to the Safe. `test/fork/SafeAcceptRehearsal.t.sol` runs it against
+the live testnet Safe on a fork.
 
 Chain 143 also needs `MAINNET_GO=yes` on step 1. Step 2 refuses unless every transaction in
 `broadcast/DeployHireling.s.sol/<chainId>/run-latest.json` has a successful receipt, every candidate contract was
