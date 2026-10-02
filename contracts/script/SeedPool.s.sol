@@ -15,8 +15,9 @@ import {SeedHelper} from "../src/hireling/SeedHelper.sol";
 ///
 ///         Mainnet signs from a keystore, never a raw key (docs/mainnet-runbook.md §2, §3.7).
 ///
-///         Three transactions: deploy the `SeedHelper`, approve it both tokens, `seed()`. Without `--broadcast` it is
-///         a dry run (the simulated `Repaired` event shows what a repair would cost). Then, the authoritative check:
+///         Four transactions: deploy the `SeedHelper`, approve it FACTORY, approve it USDC, `seed()`. Without
+///         `--broadcast` it is a dry run (the simulated `Repaired` event shows what a repair would cost). Then, the
+///         authoritative check:
 ///
 ///         NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url $MONAD_MAINNET_RPC_URL
 ///

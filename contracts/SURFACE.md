@@ -276,12 +276,12 @@ output and the deploy receipt (the script writes no config). Command:
 
 One full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, owned by the protocol Safe. It is created in **one
 transaction** by a one-shot `SeedHelper` (`src/hireling/SeedHelper.sol`; review C12-002). The price is
-`quoteAmount / factoryAmount` ($300 / 3M FACTORY = $0.0001, $100k FDV). The script sends three transactions from the
+`quoteAmount / factoryAmount` ($300 / 3M FACTORY = $0.0001, $100k FDV). The script sends four transactions from the
 seeder (the account holding the liquidity allocation and the USDC):
 
 1. Deploy the helper with the plan.
-2. Approve it, for each token, the seed amount plus the repair cap: 3M FACTORY + 50,000 and $300 + $5.
-3. Call `seed()`. In that one call the helper:
+2. and 3. Approve it, one transaction per token, the seed amount plus the repair cap: 3M FACTORY + 50,000, then $300 + $5.
+4. Call `seed()`. In that one call the helper:
    1. pulls both approvals;
    2. sets the price: it initializes the pool, or, if someone already initialized it at another price, swaps it to the
       target (exact input, limited at the target), trading through anything in the way, in range or out of range, up
@@ -382,8 +382,8 @@ gas price.
 | PromoteHireling | 0 | 0 | 0 | 0 | 0 | — |
 | SafeAccept (6 × execTransaction) | 6 | 797,168 | 607,843 | 0.081 | 0.162 | a Safe owner |
 | SeedPool (helper, 2 approvals, seed) | 4 | 3,888,439 | 2,990,539 | 0.397 | 0.789 | seeder (liquidity holder) |
-| Mining epoch 0 (fund + setRoot via Safe, claim) | 3 | 732,804 | 559,059 | 0.075 | 0.149 | a Safe owner; claimer |
-| **launch total** | **40** | **32,037,851** | | **3.268** | **6.504** | |
+| Mining epoch 0 (ECDSA fund + setRoot via Safe, two claims) | 4 | 977,479 | 747,172 | 0.100 | 0.198 | a Safe owner; claimers |
+| **launch total** | **41** | **32,282,526** | | **3.293** | **6.553** | |
 | one hire (rehearsal only, users pay) | 11 | 4,568,823 | 2,629,362 | 0.466 | 0.928 | creator, worker |
 
 The deployer needs about 3.1 MON charged (Safe + deploy + seed), or 6.2 MON on hand at the 203 gwei max fee (Monad

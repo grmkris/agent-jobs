@@ -97,8 +97,8 @@ column, which covers forge's 203 gwei max fee, not just the charged one.
 | PromoteHireling | 0 | 0 | 0 | 0 | — |
 | SafeAccept, 6 × execTransaction | 6 | 797,168 | 0.081 MON | 0.162 MON | a Safe owner |
 | SeedPool: helper, 2 approvals, seed | 4 | 3,888,439 | 0.397 MON | 0.789 MON | liquidity holder |
-| Mining epoch 0: fund, setRoot, a claim | 3 | 732,804 | 0.075 MON | 0.149 MON | a Safe owner; claimer |
-| **launch total** | **40** | **32,037,851** | **3.27 MON** | **6.50 MON** | |
+| Mining epoch 0: ECDSA fund, setRoot, two claims | 4 | 977,479 | 0.100 MON | 0.198 MON | a Safe owner; claimers |
+| **launch total** | **41** | **32,282,526** | **3.29 MON** | **6.55 MON** | |
 
 Keep the role wallets separate; each has its own key.
 

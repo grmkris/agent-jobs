@@ -190,9 +190,30 @@ contract MainnetRunbookTest is Test {
         return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
+    /// LAUNCH-AUDIT-010: SeedPool sends four transactions, and the script, the runbook budget and SURFACE say so.
+    function test_seedPoolIsFourTransactions() public view {
+        string memory root = vm.projectRoot();
+        assertTrue(
+            vm.contains(
+                vm.readFile(string.concat(root, "/script/SeedPool.s.sol")), "Four transactions: deploy the `SeedHelper`"
+            ),
+            "SeedPool.s.sol does not say four transactions"
+        );
+        assertTrue(
+            vm.contains(doc, "| SeedPool: helper, 2 approvals, seed | 4 |"), "runbook budget: SeedPool is not 4 txs"
+        );
+        string memory surface = vm.readFile(string.concat(root, "/SURFACE.md"));
+        assertTrue(vm.contains(surface, "The script sends four transactions from the"), "SURFACE does not say four");
+        assertTrue(
+            vm.contains(surface, "| SeedPool (helper, 2 approvals, seed) | 4 |"),
+            "SURFACE budget: SeedPool is not 4 txs"
+        );
+        assertFalse(vm.contains(surface, "three transactions from the"), "SURFACE still says three");
+    }
+
     function test_runbookCarriesBudgetFundingAndFallbackKey() public view {
         string[7] memory needles = [
-            "32,037,851", // R7's launch gas limit
+            "32,282,526", // R7's launch gas limit
             "RELAY_FLOOR_MAINNET",
             "| relay |",
             "| liquidity holder",
