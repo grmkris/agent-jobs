@@ -21,7 +21,9 @@ const contracts = { factory: '0xf000000000000000000000000000000000000001', vault
 const now = Math.floor(Date.now() / 1000);
 const holdingAbi = parseAbi(['function cancel(uint256 jobId)']);
 const evaluatorAbi = parseAbi(['function accept(uint256 jobId)', 'function reject(uint256 jobId, uint8 violation, bytes32 reasonHash)', 'function dispute(uint256 jobId)']);
-const jobs = { 80: 'open', 81: 'submitted', 82: 'submitted', 83: 'rejected-pending' };
+const jobs = { 80: 'open', 81: 'submitted', 82: 'submitted', 83: 'rejected-pending', 84: 'completed' };
+// From activation on, the indexer has the job's fee (quoteActivation's terms at 10 %): 0.5 of the 5 mUSD.
+const feeOf = (id) => (jobs[id] === 'open' ? { fee_bps: null, fee: null, net: null } : { fee_bps: 1000, fee: '500000', net: '4500000' });
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
 // A live sponsorship delegation from the creator to the relay (D15: Holding.cancel and Evaluator.accept are in it).
@@ -74,7 +76,7 @@ async function fixture(viewport, account, sponsored = false) {
     const body = () => route.request().postDataJSON();
     if (url.pathname === '/__test/token') return reply({ symbol: 'mUSD', decimals: 6 });
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    const chainJob = (id) => ({ job_id: id, status: jobs[id], mode: 'hire', stack: 'main', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: jobs[id] === 'open' ? null : agentWallet, agent_id: jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: jobs[id] === 'rejected-pending' ? 'Quality' : null, rejection_reason_hash: null });
+    const chainJob = (id) => ({ job_id: id, status: jobs[id], mode: 'hire', stack: 'main', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: jobs[id] === 'open' ? null : agentWallet, agent_id: jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: jobs[id] === 'rejected-pending' ? 'Quality' : null, rejection_reason_hash: null, ...feeOf(id) });
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
@@ -133,8 +135,10 @@ try {
       await send(page, 'Cancelled.');
       assert.deepEqual(await lastSend(page), { to: contracts.holding, gas: '700000' });
 
-      // Approve inside the review window: Evaluator.accept with its 1.2M limit.
+      // Approve inside the review window: Evaluator.accept with its 1.2M limit. The money card says what the agent is
+      // paid: the reward less the fee fixed at activation (D11), not the reward.
       await page.goto(`${base}/job/81`);
+      await page.getByText('Locked in escrow · Agent #7001 gets 4.5 mUSD when the work is accepted, after Hireling’s 10 % fee', { exact: true }).waitFor();
       await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
       await capture(page, `${device}-v1-approve`);
       await page.getByRole('dialog', { name: 'Approve and pay?' }).getByRole('button', { name: 'Approve and pay', exact: true }).click();
@@ -151,6 +155,12 @@ try {
       await send(page, 'Rejected.');
       assert.deepEqual(await lastSend(page), { to: contracts.evaluator, gas: null });
       assert.deepEqual(state.calls.map((c) => c.name), ['cancel_task', 'approve_work', 'reject_work']);
+
+      // Paid: the amount is what reached the agent.
+      await page.goto(`${base}/job/84`);
+      await page.getByText('Paid to Agent #7001: the 5 mUSD reward less Hireling’s 10 % fee', { exact: true }).waitFor();
+      assert.equal(await page.getByText('4.5 mUSD', { exact: true }).count(), 1);
+      await capture(page, `${device}-v1-paid`);
       assert.deepEqual(state.calls[2].args, { taskId: 'task-82', violation: 'Quality', reason: 'The page does not load on a phone.' });
       await context.close();
     }
@@ -168,7 +178,7 @@ try {
       assert.deepEqual(state.calls, [{ name: 'dispute', args: { taskId: 'task-83', statement: 'It loads; the creator tested an old build.' } }]);
       await context.close();
     }
-    results.push({ device, checks: ['cancel before activation: Holding.cancel 700k gas', 'approve: Evaluator.accept 1.2M gas', 'reject with violation and reason, wallet estimate', 'worker dispute with statement, wallet estimate'], passed: true });
+    results.push({ device, checks: ['cancel before activation: Holding.cancel 700k gas', 'approve: Evaluator.accept 1.2M gas', 'money card: the agent is paid the reward less the activation fee', 'reject with violation and reason, wallet estimate', 'worker dispute with statement, wallet estimate'], passed: true });
   }
 
   // Sponsored: the same cancel and approval with gas sponsorship on go through the relay (sponsor_submit, a caller

@@ -19,6 +19,7 @@ import { Address, Badge, Button, Group, ListRow, Row, Section, Skeleton, TxLink,
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
 import { hireling, isV1Stack } from '../hireling.ts'
+import { percent } from '../stake.ts'
 import { useToken } from '../useTokens.ts'
 import { writesOpen } from '../wallet.ts'
 import { useJobs } from './Jobs.tsx'
@@ -44,6 +45,10 @@ interface Detail {
     delivery_deadline: number | null
     selection_deadline: number | null
     published_tx: string | null
+    /** v1 jobs, from activation (quoteActivation's terms): the fee rate, the fee and what the agent is paid. */
+    fee_bps?: number | null
+    fee?: string | null
+    net?: string | null
   }
   submission: { deliverable: string; provider: string; tx_hash: string } | null
   evidence: EvidenceRow[]
@@ -206,7 +211,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         </div>
       </header>
 
-      {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} />}
+      {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} charge={chargeOf(d)} />}
 
       {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-[0.88rem] text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
 
@@ -318,25 +323,41 @@ function JobSkeleton() {
   )
 }
 
-/** Where the reward is: locked in escrow, paid, or back with the creator. */
-function Money({ phase, reward, token, mode, agentId }: { phase: Phase | null; reward: string; token: string | null; mode: 'hire' | 'contest'; agentId: string | null }) {
+/** A v1 job's fee, fixed at activation; null before it, and for legacy jobs, which have none. */
+type Charge = { bps: number; fee: string; net: string } | null
+const chargeOf = (d: Detail | undefined): Charge =>
+  d?.job.fee_bps == null || d.job.fee == null || d.job.net == null ? null : { bps: d.job.fee_bps, fee: d.job.fee, net: d.job.net }
+
+/**
+ * Where the reward is: locked in escrow, paid, or back with the creator. On a v1 job the agent is paid the reward less
+ * Hireling's fee (D11), so once the fee is fixed the paid amount is that net, never the reward.
+ */
+function Money({ phase, reward, token, mode, agentId, charge }: { phase: Phase | null; reward: string; token: string | null; mode: 'hire' | 'contest'; agentId: string | null; charge: Charge }) {
   const terminal = phase?.terminal === true
   const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
   const paid = phase?.key === 'completed'
+  const agent = agentId !== null ? `Agent #${agentId}` : 'the agent'
+  const afterFee = charge === null ? '' : ` less Hireling’s ${percent(charge.bps)} fee`
   const where = draft
     ? 'Not locked yet: publishing locks it in escrow'
     : paid
-      ? `Paid to ${agentId !== null ? `Agent #${agentId}` : 'the agent'}`
+      ? charge === null ? `Paid to ${agent}` : `Paid to ${agent}: the ${amount(reward, token)} reward${afterFee}`
       : terminal
         ? 'Back with the creator'
-        : phase === null ? 'Chain payment status unavailable' : `Locked in escrow · paid ${mode === 'contest' ? 'to the winning entry' : `to ${agentId !== null ? `Agent #${agentId}` : 'the agent'} when the work is accepted`}`
+        : phase === null
+          ? 'Chain payment status unavailable'
+          : mode === 'contest'
+            ? 'Locked in escrow · paid to the winning entry'
+            : charge === null
+              ? `Locked in escrow · paid to ${agent} when the work is accepted`
+              : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Hireling’s ${percent(charge.bps)} fee`
   return (
     <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
       <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2')}>
         {!terminal && !draft ? <Lock aria-hidden className="size-5" /> : <ReceiptText aria-hidden className="size-5" />}
       </span>
       <span className="min-w-0">
-        <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{amount(reward, token)}</span>
+        <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{amount(paid && charge !== null ? charge.net : reward, token)}</span>
         <span className="mt-1 block text-[0.88rem] text-label-2">{where}</span>
         {token !== null && tokenInfo(token).unverified === true && (
           <span className="mt-1 block text-[0.8rem] text-label-3 [overflow-wrap:anywhere]">Unverified token {token}: anyone can deploy a token under any name</span>
