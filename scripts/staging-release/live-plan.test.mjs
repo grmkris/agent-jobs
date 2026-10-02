@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import test from 'node:test'
 import { describePlan } from 'alchemy/Plan'
 import { havePropsChanged } from 'alchemy/Diff'
+import { diffMigrations } from 'alchemy/SQL/Migrations/index'
+import { hashMigrations } from 'alchemy/SQL/SqlFile'
+import * as NodeServices from '@effect/platform-node/NodeServices'
+import * as Effect from 'effect/Effect'
 import { readApprovedChanges } from './approved-changes.mjs'
-import { nativeResource, reviewLivePlan } from './live-plan.mjs'
+import { nativeResource, reviewLivePlan, sameIdentity } from './live-plan.mjs'
 
 const reference = readApprovedChanges().reference
+const runNode = effect => Effect.runPromise(effect.pipe(Effect.provide(NodeServices.layer)))
 const providerNames = ['ALCHEMY_PHASE', 'ALCHEMY_WORKER_NAME', 'ALCHEMY_STACK_NAME', 'ALCHEMY_STAGE', 'ALCHEMY_CLOUDFLARE_ACCOUNT_ID']
 const binding = (sid, data, action = 'noop') => ({ sid, action, data })
 
@@ -21,7 +28,7 @@ function fixture() {
       ],
     },
     Indexer: { name: 'indexer', bindings: [], crons: ['* * * * *'] },
-    Explore: { name: 'explore', bindings: [{ name: 'ASSETS', type: 'assets' }], crons: [] },
+    Explore: { name: 'explore', bindings: [{ name: 'ASSETS', type: 'assets' }, { name: 'API', type: 'service', service: 'api' }], crons: [] },
   }
   for (const worker of Object.values(workers)) worker.bindings.push(...providerNames.map(name => ({ name, type: 'plain_text' })))
   const native = { resources: {}, deletions: {}, actions: {}, actionDeletions: {} }
@@ -32,7 +39,8 @@ function fixture() {
       binding('LegacySecrets', { bindings: [{ name: 'Legacy', type: 'inherit' }] }),
       binding('DirectoryObject', { bindings: [{ name: 'DirectoryObject', type: 'durable_object_namespace', className: 'DirectoryObject' }] }),
       binding('DIRECTORY_DATABASE', { bindings: [{ name: 'DIRECTORY_DATABASE', type: 'd1', databaseId: 'directory-db' }] }),
-    ] : id === 'Indexer' ? [binding('Cron(* * * * *)', { crons: ['* * * * *'] })] : []
+    ] : id === 'Indexer' ? [binding('Cron(* * * * *)', { crons: ['* * * * *'] })]
+      : id === 'Explore' ? [binding('API', { bindings: [{ type: 'service', name: 'API', service: 'api' }] })] : []
     native.resources[`AgentJobs/${id}`] = { resource: { LogicalId: id, FQN: `AgentJobs/${id}`, Type: 'test' }, action: id === 'Database' || id === 'Manifests' ? 'noop' : 'update', props, state: { props }, bindings }
   }
   const live = {
@@ -112,7 +120,7 @@ test('protection blockers identify the logical resource and binding without expo
   const bindingDrift = fixture()
   liveBinding(bindingDrift, 'DirectoryObject').namespace_id = 'secret-namespace-value'
   const bindingResult = review(bindingDrift)
-  assert.ok(bindingResult.blockers.includes('binding-identity-drift(Api.DirectoryObject)'), bindingResult.blockers.join(','))
+  assert.ok(bindingResult.blockers.includes('binding-identity-drift(Api.DirectoryObject: namespaceList)'), bindingResult.blockers.join(','))
   assert.ok(!bindingResult.blockers.some(blocker => blocker.includes('secret-namespace-value')))
 })
 
@@ -170,21 +178,57 @@ test('B12-002: the reviewed transition is pinned: a tag bump with no class migra
 })
 
 test('B12-002: a noop directory binding whose live class, namespace or database drifted is refused', () => {
-  for (const drift of [
-    input => { liveBinding(input, 'DirectoryObject').class_name = 'OldDirectory' },
-    input => { liveBinding(input, 'DirectoryObject').namespace_id = 'ns-elsewhere' },
-    input => { input.live.namespaces = [{ id: 'ns-directory', className: 'DirectoryObject', script: 'other-script' }] },
-    input => { liveBinding(input, 'DirectoryObject').script_name = 'other-script' },
-    input => { liveBinding(input, 'DIRECTORY_DATABASE').id = 'another-db' },
-    input => { liveBinding(input, 'DIRECTORY_DATABASE').type = 'plain_text' },
+  for (const [drift, name, field] of [
+    [input => { liveBinding(input, 'DirectoryObject').class_name = 'OldDirectory' }, 'DirectoryObject', 'className'],
+    [input => { liveBinding(input, 'DirectoryObject').namespace_id = 'ns-elsewhere' }, 'DirectoryObject', 'namespaceList'],
+    [input => { input.live.namespaces = [{ id: 'ns-directory', className: 'DirectoryObject', script: 'other-script' }] }, 'DirectoryObject', 'namespaceList'],
+    [input => { liveBinding(input, 'DirectoryObject').script_name = 'other-script' }, 'DirectoryObject', 'scriptName'],
+    [input => { liveBinding(input, 'DirectoryObject').environment = 'different-environment' }, 'DirectoryObject', 'environment'],
+    [input => { liveBinding(input, 'DIRECTORY_DATABASE').id = 'another-db' }, 'DIRECTORY_DATABASE', 'databaseId'],
+    [input => { liveBinding(input, 'DIRECTORY_DATABASE').type = 'plain_text' }, 'DIRECTORY_DATABASE', undefined],
+    [input => { nativeResource(input.snapshot, 'Api').bindings.find(entry => entry.sid === 'DirectoryObject').data.bindings[0].namespaceId = 'ns-explicit-drift' }, 'DirectoryObject', 'namespaceId'],
   ]) {
     const input = fixture()
     assert.equal(nativeResource(input.snapshot, 'Api').bindings.find(entry => entry.sid === 'DirectoryObject').action, 'noop')
     drift(input)
     const result = review(input)
     assert.equal(result.ok, false)
-    assert.ok(result.blockers.some(blocker => blocker.startsWith('binding-identity-drift(') || blocker.startsWith('binding-type-change-refused(')), result.blockers.join(','))
+    assert.ok(result.blockers.includes(field === undefined ? `binding-type-change-refused(Api.${name})` : `binding-identity-drift(Api.${name}: ${field})`), result.blockers.join(','))
   }
+})
+
+test('service drift reports all differing fields without values and retains existing blank equivalence', () => {
+  const input = fixture()
+  const old = input.live.workers.Explore.bindings.find(item => item.name === 'API')
+  Object.assign(old, { service: 'secret-service-value', environment: 'secret-environment-value', entrypoint: 'secret-entrypoint-value' })
+  const result = review(input)
+  assert.equal(result.ok, false)
+  for (const field of ['service', 'environment', 'entrypoint']) assert.ok(result.blockers.includes(`binding-identity-drift(Explore.API: ${field})`), result.blockers.join(','))
+  assert.ok(!result.blockers.some(blocker => blocker.includes('secret-')))
+  assert.deepEqual(sameIdentity({ type: 'service', service: 'api' }, { service: 'api', environment: '', entrypoint: null }, 'explore', []), [])
+})
+
+test('D21: an unchanged applied migration is noop, but a real new SQL migration is refused with the flag on', async () => {
+  assert.match(readFileSync(new URL('./release.mjs', import.meta.url), 'utf8'), /process\.env\.AGENT_JOBS_APPLY_MIGRATIONS = '1'/)
+  const root = mkdtempSync(new URL('./.migration-test-', import.meta.url).pathname)
+  try {
+    writeFileSync(join(root, '0001_applied.sql'), 'CREATE TABLE applied_fixture (id INTEGER PRIMARY KEY);')
+    const output = { migrationsTable: '__alchemy_migrations', migrationsHashes: await runNode(hashMigrations(root)) }
+    const news = { migrations: root }
+    assert.equal(await runNode(diffMigrations({ news, output })), false)
+    assert.equal(havePropsChanged(news, news), false)
+    const input = fixture()
+    const database = nativeResource(input.snapshot, 'Database')
+    database.props = news; database.state.props = news
+    assert.equal(review(input).ok, true)
+    writeFileSync(join(root, '0002_new.sql'), 'CREATE TABLE new_fixture (id INTEGER PRIMARY KEY);')
+    // The pinned D1 provider maps this exact migration detector result to an update.
+    assert.equal(await runNode(diffMigrations({ news, output })), true)
+    database.action = 'update'
+    const result = review(input)
+    assert.equal(result.ok, false)
+    assert.ok(result.blockers.includes('storage-write-refused(Database: update)'), result.blockers.join(','))
+  } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
 test('B12-002: a class migration the provider would derive from live tags is refused with empty engine actions', () => {

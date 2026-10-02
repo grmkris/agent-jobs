@@ -12,27 +12,40 @@ const jurisdiction = value => (value === 'default' ? undefined : value)
 // Diagnostics contain identifiers only: never dump a binding, property, wire identity or provider error.
 const labelName = value => typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_-]{0,127}$/.test(value) ? value : 'unknown'
 const labelAction = value => ['noop', 'update', 'create', 'delete', 'replace', 'orphaned', 'adopted'].includes(value) ? value : 'unknown'
+const identityField = value => ['databaseId', 'bucketName', 'jurisdiction', 'service', 'environment', 'entrypoint', 'namespaceId', 'className', 'scriptName', 'namespaceList'].includes(value) ? value : 'unknown'
 
 /**
  * Review B12-002: a planned wire binding against the live one of the same name (census, snake_case fields). Resource
  * identities must match exactly, for noop bindings too; a local Durable Object binding must point at the live namespace
  * this script hosts for that class. Text/JSON values are pinned by the payload digest instead (B12-001).
+ * Returns mismatched field names only; an empty list means the identities match.
  */
 export function sameIdentity(wire, old, workerName, namespaces) {
+  const differences = []
   switch (wire.type) {
-    case 'd1': return sameValue(wire.databaseId ?? wire.id, old.id ?? old.database_id)
-    case 'r2_bucket': return sameValue(wire.bucketName, old.bucket_name) && sameValue(jurisdiction(wire.jurisdiction), jurisdiction(old.jurisdiction))
-    case 'service': return sameValue(wire.service, old.service) && sameValue(wire.environment, old.environment) && sameValue(wire.entrypoint, old.entrypoint)
-    case 'kv_namespace': return sameValue(wire.namespaceId ?? wire.namespace_id, old.namespace_id)
+    case 'd1': if (!sameValue(wire.databaseId ?? wire.id, old.id ?? old.database_id)) differences.push('databaseId'); break
+    case 'r2_bucket':
+      if (!sameValue(wire.bucketName, old.bucket_name)) differences.push('bucketName')
+      if (!sameValue(jurisdiction(wire.jurisdiction), jurisdiction(old.jurisdiction))) differences.push('jurisdiction')
+      break
+    case 'service':
+      if (!sameValue(wire.service, old.service)) differences.push('service')
+      if (!sameValue(wire.environment, old.environment)) differences.push('environment')
+      if (!sameValue(wire.entrypoint, old.entrypoint)) differences.push('entrypoint')
+      break
+    case 'kv_namespace': if (!sameValue(wire.namespaceId ?? wire.namespace_id, old.namespace_id)) differences.push('namespaceId'); break
     case 'durable_object_namespace': {
       const host = script => (blank(script) ? workerName : script)
-      if (!sameValue(wire.className, old.class_name) || host(wire.scriptName) !== host(old.script_name) || !sameValue(wire.environment, old.environment)) return false
-      if (!blank(wire.namespaceId) && wire.namespaceId !== old.namespace_id) return false
-      if (host(wire.scriptName) !== workerName) return true
-      return namespaces.some(ns => ns.id === old.namespace_id && ns.script === workerName && ns.className === wire.className)
+      if (!sameValue(wire.className, old.class_name)) differences.push('className')
+      if (host(wire.scriptName) !== host(old.script_name)) differences.push('scriptName')
+      if (!sameValue(wire.environment, old.environment)) differences.push('environment')
+      if (!blank(wire.namespaceId) && wire.namespaceId !== old.namespace_id) differences.push('namespaceId')
+      if (host(wire.scriptName) === workerName && !namespaces.some(ns => ns.id === old.namespace_id && ns.script === workerName && ns.className === wire.className)) differences.push('namespaceList')
+      return differences
     }
-    default: return true
+    default: return differences
   }
+  return differences
 }
 
 // Alchemy keys native plan resources by FQN. The serializable plan exposes
@@ -44,7 +57,7 @@ export const nativeResource = (snapshot, logicalId) => snapshot?.native?.resourc
 /** Review the native provider plan without returning credential-bearing data. Every exception is a name only. */
 export function reviewLivePlan(snapshot, live, reference, sameSecret) {
   const blockers = new Set()
-  const refuse = (code, logicalId, name, action) => blockers.add(`${code}(${labelName(logicalId)}${name === undefined ? '' : `.${labelName(name)}`}${action === undefined ? '' : `: ${labelAction(action)}`})`)
+  const refuse = (code, logicalId, name, action, field) => blockers.add(`${code}(${labelName(logicalId)}${name === undefined ? '' : `.${labelName(name)}`}${field === undefined ? '' : `: ${identityField(field)}`}${action === undefined ? '' : `: ${labelAction(action)}`})`)
   const changes = { migrations: [], secretChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
   const transitions = {}
   const operations = snapshot.resources.map(resource => ({
@@ -92,7 +105,7 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
         const old = observed.bindings.find(item => item.name === wire.name)
         if (old === undefined || wire.type === 'inherit') continue
         if (wire.type !== old.type) refuse('binding-type-change-refused', row.logicalId, wire.name)
-        else if (!sameIdentity(wire, old, observed.name, live.namespaces ?? [])) refuse('binding-identity-drift', row.logicalId, wire.name)
+        else for (const field of sameIdentity(wire, old, observed.name, live.namespaces ?? [])) refuse('binding-identity-drift', row.logicalId, wire.name, undefined, field)
       }
       // The class migration the provider derives during upload from the live tags; engine actions never show it.
       const transition = durableObjectTransition(node, observed, live.namespaces ?? [])

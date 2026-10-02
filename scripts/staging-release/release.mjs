@@ -51,7 +51,7 @@ function preflight() {
   process.env.ALCHEMY_REMOTE_STATE = '0'
   process.env.AGENT_JOBS_STAGE = 'staging'
   process.env.AGENT_JOBS_NETWORK = 'monad-testnet'
-  process.env.AGENT_JOBS_APPLY_MIGRATIONS = '0'
+  process.env.AGENT_JOBS_APPLY_MIGRATIONS = '1'
   process.env.AGENT_JOBS_WITHOUT_EXPLORE = '0'
   process.env.NODE_ENV = 'production'
   process.env.CLOUDFLARE_ACCOUNT_ID = state.accountId
