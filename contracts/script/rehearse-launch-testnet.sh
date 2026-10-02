@@ -11,6 +11,10 @@
 # and removes both on exit; refuses to start if any already exist (a real testnet run's). Needs anvil, forge, cast,
 # jq, bun, bc, perl.
 #   bash script/rehearse-launch-testnet.sh            # RPC=<testnet RPC to fork>, default the public one
+#   KEEP=1 bash script/rehearse-launch-testnet.sh     # stop after the launch, leaving the fork running and the promoted
+#                                                     # scratch config in place (it prints both; fee proposal and Holding
+#                                                     # probe still pending), for a harness to run against
+# The anvil dev accounts' EIP-7702 delegation code (every one has some on Monad testnet) is cleared on the fork first.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -61,24 +65,34 @@ for s in "${SCRIPTS[@]}"; do
 done
 [[ ! -e "$CONFIG" && ! -e "$CANDIDATE" ]] || { echo "refusing: $CONFIG or $CANDIDATE exists" >&2; exit 1; }
 
-ANVIL_PID=
+ANVIL_PID= KEPT=0
 cleanup() {
-  [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
+  [[ $KEPT -eq 0 && -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
   for s in "${SCRIPTS[@]}"; do rm -rf "broadcast/$s.s.sol/$CHAIN" "cache/$s.s.sol/$CHAIN"; done
-  rm -f "$CONFIG" "$CANDIDATE"
+  [[ $KEPT -eq 1 ]] || rm -f "$CONFIG"
+  rm -f "$CANDIDATE"
   rm -rf "$LAUNCH_LOGS" "$KEYSTORES"
 }
 trap cleanup EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok: $*"; }
 
-anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent &
+# No inherited stdout: with KEEP=1 anvil outlives this script, and must not hold a caller's pipe open.
+anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent </dev/null >/dev/null 2>&1 &
 ANVIL_PID=$!
 for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break; sleep 1; done
 [[ "$(cast chain-id --rpc-url "$LOCAL" 2>/dev/null)" == "$CHAIN" ]] || fail "anvil fork of chain $CHAIN not up"
 for a in $DEPLOYER $OWNER1; do
   cast rpc --rpc-url "$LOCAL" anvil_setBalance "$a" 0x3635c9adc5dea00000 >/dev/null 2>&1 # 1,000 MON
 done
+# Every anvil dev account carries someone's EIP-7702 delegation on Monad testnet (a sweeper: it forwards MON it receives
+# and breaks onERC721Received). Clear it on the fork, so they are plain EOAs.
+for i in $(seq 0 9); do
+  a=$(addr "$(devkey "$i")")
+  cast rpc --rpc-url "$LOCAL" anvil_setCode "$a" 0x >/dev/null 2>&1
+  [[ "$(cast code --rpc-url "$LOCAL" "$a" 2>/dev/null)" == 0x ]] || fail "dev account $i $a still has code"
+done
+ok "the dev accounts' EIP-7702 delegation code is cleared on the fork"
 
 # A fresh 1-of-2 Safe from the canonical v1.4.1 contracts (the real testnet Safe's owners' keys are not used here).
 for c in $SAFE_FACTORY $SAFE_L2 $FALLBACK_HANDLER; do
@@ -132,6 +146,14 @@ ok "a chain-143 RPC is refused before anything else"
 grep -q "LAUNCH-TESTNET DONE" "$LAUNCH_LOGS/launch.out" || fail "launch-testnet.sh did not finish"
 cp "$LAUNCH_LOGS/hashes.tsv" "$LAUNCH_LOGS/launch-hashes.tsv" # later runs start their own list
 ok "launch-testnet.sh ran end to end"
+if [[ "${KEEP:-0}" == 1 ]]; then
+  KEPT=1
+  echo "KEEP: fork $LOCAL (chain $CHAIN, anvil pid $ANVIL_PID)"
+  echo "KEEP: config $PWD/$CONFIG (NETWORK=$NETWORK; Safe $SAFE; fee proposal and Holding probe pending)"
+  echo "KEEP: signers are anvil's dev accounts: deployer = index 0, Safe owners = 1 and 2; odd-token wallets $(jq -r '.oddTokens.wallets | join(" ")' "$CONFIG")"
+  echo "KEEP: stop it with: kill $ANVIL_PID; rm $PWD/$CONFIG"
+  exit 0
+fi
 
 refused "already records a v1 deployment" "${LAUNCH[@]}" --yes || fail "a second launch was not refused: $OUT"
 ok "a second launch refuses before sending"

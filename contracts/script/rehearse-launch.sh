@@ -104,6 +104,11 @@ ARBITRATOR=$(addr $K_ARBITRATOR); RELAY=$(addr $K_RELAY); ATTESTER=$(addr $K_ATT
 for k in $K_DEPLOYER $K_OWNER1 $K_OWNER2 $K_RELAY $K_CREATOR $K_WORKER; do
   cast rpc --rpc-url "$LOCAL" anvil_setBalance "$(addr "$k")" 0x21e19e0c9bab2400000 >/dev/null # 10,000 MON
 done
+# The dev keys are public, and on Monad (mainnet and testnet) each carries someone's EIP-7702 delegation; the fork
+# inherits it. Clear it, so they behave as the plain EOAs the real launch signs from.
+for k in $K_DEPLOYER $K_OWNER1 $K_OWNER2 $K_ARBITRATOR $K_RELAY $K_ATTESTER $K_CREATOR $K_WORKER $K_TEAM; do
+  cast rpc --rpc-url "$LOCAL" anvil_setCode "$(addr "$k")" 0x >/dev/null
+done
 
 # 1. The Safe.
 for c in $SAFE_FACTORY $SAFE_L2 $FALLBACK_HANDLER; do

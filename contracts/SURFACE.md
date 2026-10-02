@@ -419,7 +419,10 @@ Every transaction hash is printed and listed again at the end.
 keys, with a fresh 1-of-2 Safe; dev0 stands in for `roles.admin` as the core's admin (granted by an impersonated
 `roles.admin`). It also checks that a missing signer, a loose password file, a chain-143 RPC and a second launch are
 refused, that a re-run from `pauser` sends nothing, and that the proposal can be executed after 3 days and the probe
-accepted after 8. Passed 2 Oct. Gas limits from that run:
+accepted after 8. Every dev account carries someone's EIP-7702 delegation on Monad testnet, so the fork clears that code
+first (R7 does the same on its mainnet fork). `KEEP=1` stops after the launch and leaves the fork running and the
+promoted `config/rehearsal-testnet.json` in place, printing both, for UI's real-chain harness. Passed 2 Oct. Gas limits
+from that run:
 
 | step | txs | gas limit | MON @ 102 gwei | paid by |
 | --- | ---: | ---: | ---: | --- |
