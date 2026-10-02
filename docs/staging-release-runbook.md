@@ -89,7 +89,7 @@ deletions or type changes, and any new grouped or inherited binding. New v1 tabl
 - **`payload`:** for each Worker,
   - keyed commitments to every secret, plain-text and JSON value;
   - the resource identities and Worker settings, in clear;
-  - the upload's build bytes. For Api and Indexer these come from the provider's own build. Explore's Vite build is pinned only by the source tree and its `VITE_*` environment.
+  - the upload's build bytes. For Api and Indexer these come from the provider's own build. Explore's Vite build is built during upload, so it is pinned by the source tree, keyed commitments to every build-time environment input (`AGENT_JOBS_NETWORK`, `PRIVY_APP_ID`, `HIRELING_PROD_PRIVY_APP_ID`, `NODE_ENV`, any `VITE_*`) and Vite's `.env*` files (review B12-003). A source scan in `payload.test.mjs` fails if Explore's build starts reading another variable.
 - **`transitions`:** the Durable Object migration and tag change that the provider would derive from the live script tags at upload time. Any class creation, rename, deletion or transfer refuses the plan.
 - **Live identities:** every planned binding, noop ones included (for example `DirectoryObject` and `DIRECTORY_DATABASE`), is compared to its live identity. Any drift refuses the plan.
 
