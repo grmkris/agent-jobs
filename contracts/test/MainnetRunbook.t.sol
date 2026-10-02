@@ -235,7 +235,8 @@ contract MainnetRunbookTest is Test {
     }
 
     /// LAUNCH-AUDIT-009: R7's post-seed tail in order: hire, mining:epoch, ECDSA fund, setRoot, the two claims; and
-    /// runbook §4's epoch steps in order, with the R2 publication (mining:publish, backend's) before the claims.
+    /// runbook §4's epoch steps in order: mining:publish (validated against rootOf, uploaded, read back) after setRoot and
+    /// before the claims, with its key and digest recorded.
     function test_postSeedOrderAndEpochPublication() public view {
         string[4] memory r7Tail = [
             "MAINNET_GO=yes forge script script/SeedPool.s.sol",
@@ -262,10 +263,31 @@ contract MainnetRunbookTest is Test {
         epoch[0] = "pnpm mining:epoch <n> --network monad-mainnet";
         epoch[1] = "**`calls.fund`**";
         epoch[2] = "**`calls.setRoot`**";
-        epoch[3] = "**TODO (backend): `pnpm mining:publish <n>`.**";
+        epoch[3] = "pnpm mining:publish <dir>/epoch-<n>.json --stage prod";
         epoch[4] = "Each claim stakes the reward";
         _inOrder(doc, epoch, "runbook section 4");
-        assertTrue(vm.contains(doc, "`mining/epoch-<n>.json`"), "runbook does not name the R2 object key");
+        assertTrue(vm.contains(doc, "After `setRoot` and before any claim, publish"), "runbook: publish not placed");
+        assertTrue(vm.contains(doc, "sha256sum <dir>/epoch-<n>.json"), "runbook does not record the file's digest");
+        assertTrue(
+            vm.contains(doc, "Record the key `mining/epoch-<n>.json` and the file's sha256"),
+            "runbook does not record the R2 key and digest"
+        );
+        assertFalse(vm.contains(doc, "TODO (backend)"), "runbook still has the publish TODO");
+        string memory root = vm.projectRoot();
+        assertTrue(
+            vm.contains(
+                vm.readFile(string.concat(root, "/../package.json")),
+                "\"mining:publish\": \"bun scripts/mining/publish.ts\""
+            ),
+            "package.json has no mining:publish"
+        );
+        assertTrue(
+            vm.contains(
+                vm.readFile(string.concat(root, "/../scripts/mining/README.md")),
+                "pnpm mining:publish <epoch-n.json> --stage staging|prod"
+            ),
+            "scripts/mining/README.md documents another mining:publish usage"
+        );
     }
 
     /// LAUNCH-AUDIT-010: SeedPool sends four transactions, and the script, the runbook budget and SURFACE say so.
