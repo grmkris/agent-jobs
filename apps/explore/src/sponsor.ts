@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { type Abi, type Address, type Hex, getAddress, hexToBigInt, isHex, size, slice, toFunctionSelector } from 'viem'
 import { ApiError, type TxRequest, tool } from './api.ts'
 import { hireling } from './hireling.ts'
-import { chain, deployment } from './wallet.ts'
+import { deployment } from './wallet.ts'
 
 /** A delegation's root authority (it derives from no other delegation). */
 const ROOT_AUTHORITY = `0x${'f'.repeat(64)}`
@@ -41,14 +41,18 @@ export interface SponsorRules {
 }
 
 export function sponsorRules(): SponsorRules | null {
-  if (hireling === null) return null
+  return hireling === null ? null : sponsorRulesFor(hireling, deployment)
+}
+
+/** The rules for a given deployment: the same mapping the board's SponsorDesk builds its delegation from. */
+export function sponsorRulesFor(contracts: { holding: string; evaluator: string; vault: string }, d: Pick<sdk.Deployment, 'chainId' | 'core' | 'relay' | 'delegation'>): SponsorRules {
   const targets: SponsorRules['targets'] = {
-    [hireling.holding.toLowerCase()]: { name: 'Holding', abi: sdk.hirelingHoldingAbi as Abi },
-    [hireling.evaluator.toLowerCase()]: { name: 'Evaluator', abi: sdk.hirelingEvaluatorAbi as Abi },
-    [hireling.vault.toLowerCase()]: { name: 'Stake vault', abi: sdk.stakeVaultAbi as Abi },
-    [deployment.core.toLowerCase()]: { name: 'Core', abi: sdk.coreAbi as Abi },
+    [contracts.holding.toLowerCase()]: { name: 'Holding', abi: sdk.hirelingHoldingAbi as Abi },
+    [contracts.evaluator.toLowerCase()]: { name: 'Evaluator', abi: sdk.hirelingEvaluatorAbi as Abi },
+    [contracts.vault.toLowerCase()]: { name: 'Stake vault', abi: sdk.stakeVaultAbi as Abi },
+    [d.core.toLowerCase()]: { name: 'Core', abi: sdk.coreAbi as Abi },
   }
-  return { chainId: chain.id, manager: deployment.delegation.manager, relay: deployment.relay, enforcers: deployment.delegation.enforcers, targets }
+  return { chainId: d.chainId, manager: d.delegation.manager, relay: d.relay, enforcers: d.delegation.enforcers, targets }
 }
 
 type Json = Record<string, unknown>
@@ -188,6 +192,8 @@ export function submitFailure(e: unknown): SubmitFailure {
   if (e.reason === 'simulation') return { kind: 'failed', message: 'Hireling checked these steps against the chain and they would fail, so nothing was sent.' }
   if (e.reason === 'pending') return { kind: 'failed', message: 'Hireling’s relay is finishing an earlier transaction, so nothing was sent. Try again in a moment.' }
   if (e.reason !== undefined && WHY[e.reason] !== undefined) return { kind: 'wallet', why: WHY[e.reason] as string }
+  if (e.code === 'rate-limited') return { kind: 'wallet', why: WHY.rate as string }
+  if (e.code === 'unavailable') return { kind: 'wallet', why: WHY.unavailable as string }
   if (e.code === 'unauthenticated') return { kind: 'wallet', why: 'you are not signed in to Hireling' }
   if (e.code === 'conflict') return { kind: 'wallet', why: 'your gas sponsorship is not active' }
   if (e.code === 'forbidden' || e.code === 'invalid' || e.code === 'not-found') return { kind: 'wallet', why: WHY.policy as string }

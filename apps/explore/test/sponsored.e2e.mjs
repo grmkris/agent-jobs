@@ -97,6 +97,8 @@ async function fixture(viewport, options = {}) {
       const step = state.script.shift() ?? 'ok';
       if (step === 'lose') return route.abort('connectionreset');
       if (['cap', 'floor', 'rate', 'simulation', 'pending'].includes(step)) return reply({ ok: false, code: step === 'simulation' ? 'chain' : 'conflict', reason: step, message: `refused: ${step}` }, 409);
+      // The hosted rate limit answers before the tool runs: a code, no reason, and it cannot see the key.
+      if (step === 'rate-limited') return reply({ ok: false, code: 'rate-limited', message: 'too many requests' }, 429);
       const id = `${body.wallet}:${body.key}`;
       if (!state.operations.has(id)) {
         const n = state.operations.size + 1;
@@ -183,6 +185,24 @@ try {
     assert.equal(await sends(page), 3);
     await page.getByText('Nothing to collect', { exact: true }).waitFor();
     results.push({ device, checks: ['sponsored settle: no wallet prompt, caller key', 'lost answer asked again with the same key, one operation', 'cap refusal: reason shown, wallet sends with D4b gas', 'simulation refusal: nothing sent, reason, try again', 'retry after a refusal uses a new key', 'reverted relay tx: wallet offered with the hash', 'outside the policy: wallet, relay not asked'], passed: true });
+    await context.close();
+  }
+
+  // A refusal after a lost answer proves nothing about the first request (the hosted rate limit cannot see the key):
+  // the step stays unknown and is never sent from the wallet on top; checking again finds the one operation.
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [ACTIONS[1]] });
+    await page.goto(`${base}/collect`);
+    state.collecting = 'claimTopUpRefund';
+    state.script = ['lose', 'rate-limited'];
+    await page.getByRole('button', { name: 'Collect', exact: true }).click();
+    await page.getByText(/Hireling’s relay did not answer/).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Check again' }).click();
+    await page.getByRole('status').filter({ hasText: 'Top-up refunded' }).waitFor();
+    assert.equal(new Set(state.submits.map((x) => x.key)).size, 1);
+    assert.equal(await sends(page), 0);
+    results.push({ checks: ['refusal after a lost answer stays unknown, no wallet fallback', 'check again: same key, done'], passed: true });
     await context.close();
   }
 

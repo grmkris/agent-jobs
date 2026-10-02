@@ -217,12 +217,13 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     sending.current = true
     set(0, { at: 'signing' })
     let r = record
+    // Whether an earlier request for these steps may have reached the relay: then a refusal now proves nothing.
+    let ambiguous = r.sponsor != null
     if (r.sponsor == null) {
       r = { ...r, sponsor: { key: sponsorKey(), operationId: null } }
       commit(r)
     }
     const callerKey = r.sponsor?.key ?? ''
-    const fresh = r.sponsor?.operationId == null
     for (const wait of [0, ...RECHECK_MS]) {
       if (wait > 0) {
         await sleep(wait)
@@ -233,10 +234,14 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
         op = await sponsorApi.submit(address, callerKey, sponsorCalls(txs))
       } catch (e) {
         const failure = submitFailure(e)
-        if (failure.kind === 'lost') continue
+        if (failure.kind === 'lost') {
+          ambiguous = true
+          continue
+        }
         sending.current = false
-        if (!fresh) {
-          // The operation exists; a refusal now (a revoked delegation, say) does not undo it. Ask the chain.
+        if (ambiguous) {
+          // An earlier request may have been sent (the board looks the key up before refusing, but a gateway in front
+          // of it, such as the hosted rate limit, does not): never send from the wallet on top. Check again later.
           set(0, { at: 'uncertain', error: SPONSORED.lost })
           return
         }
