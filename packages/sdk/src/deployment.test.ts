@@ -12,7 +12,7 @@ const v1Config = () => {
   delete d.fast
   d.factory = address(1)
   d.main = { kind: 'hireling-v1', factory: address(1), holding: address(2), evaluator: address(3), openTokens: true }
-  d.hireling = { block: 77_000_000, factory: address(1), vault: address(4), feeSchedule: address(5), distributor: address(6), miningReserve: address(7), teamVesting: address(8), t0: 1_791_500_000 }
+  d.hireling = { block: 77_000_000, safe: address(9), factory: address(1), vault: address(4), feeSchedule: address(5), distributor: address(6), miningReserve: address(7), teamVesting: address(8), t0: 1_791_500_000 }
   return config
 }
 
@@ -72,6 +72,7 @@ describe('deployment config compatibility', () => {
     (c: DeploymentConfig) => { delete c.deployment.hireling },
     (c: DeploymentConfig) => { c.deployment.main!.factory = address(99) },
     (c: DeploymentConfig) => { c.deployment.hireling!.vault = address(0) },
+    (c: DeploymentConfig) => { c.deployment.hireling!.safe = address(0) },
     (c: DeploymentConfig) => { c.deployment.hireling!.t0 = 0 },
     (c: DeploymentConfig) => { c.deployment.hireling!.block = 0.5 },
     (c: DeploymentConfig) => { c.deployment.main!.kind = 'unknown' as never },

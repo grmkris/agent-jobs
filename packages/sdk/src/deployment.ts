@@ -25,6 +25,8 @@ export interface Stack {
 
 export interface HirelingDeployment {
   readonly block: bigint
+  /** Owner Safe for every v1 contract and the core admin roles. */
+  readonly safe: Address
   readonly factory: Address
   readonly vault: Address
   readonly feeSchedule: Address
@@ -108,6 +110,7 @@ export interface DeploymentConfig {
     factory?: string
     hireling?: {
       block: number
+      safe: string
       factory: string
       vault: string
       feeSchedule: string
@@ -175,11 +178,11 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   let hireling: HirelingDeployment | null = null
   if (d.hireling !== undefined) {
     const h = d.hireling
-    for (const name of ['factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
+    for (const name of ['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
       if (!validAddress(h[name])) throw new Error(`Hireling deployment requires ${name}`)
     }
     if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0) throw new Error('Hireling deployment requires block and launch time')
-    hireling = { block: BigInt(h.block), factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
+    hireling = { block: BigInt(h.block), safe: h.safe as Address, factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
       distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0 }
   }
   for (const s of [...Object.values(stacks), ...Object.values(legacyStacks)]) {
