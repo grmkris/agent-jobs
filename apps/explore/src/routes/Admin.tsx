@@ -1,21 +1,24 @@
 import * as sdk from '@agent-jobs/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useMemo, useState } from 'react'
-import { type Abi, type Address, type Hex, isAddress, zeroAddress } from 'viem'
-import { useReadContracts } from 'wagmi'
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { type Abi, type Address, type Hex, erc20Abi, isAddress, recoverTypedDataAddress, zeroAddress } from 'viem'
+import { useReadContracts, useSignTypedData } from 'wagmi'
 import { getBytecode } from 'wagmi/actions'
 import type { TxRequest } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useToast } from '../components/Sheet.tsx'
 import { Countdown, When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
+import { walletRefused } from '../components/txOperation.ts'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
-import { formatNumber } from '../format.ts'
+import { formatNumber, rewardTokenList, subscribeTokens, tokenMeta, tokenRegistryVersion } from '../format.ts'
 import { type AdminContext, type AdminTx, type EpochFile, readAdminOp, readEpochFile, resizeProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
+import { type PriceDraft, priceListFile, priceListOf, priceTypedData } from '../prices.ts'
 import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execTransaction, safeAbi } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
+import { friendlyError } from '../txErrors.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
@@ -262,6 +265,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
       <Core c={c} safe={safe} act={act} busy={busy} atomicReady={atomicReady} />
       <Fees c={c} act={act} busy={busy} />
       <Holdings c={c} act={act} busy={busy} />
+      <Prices c={c} me={me} />
       <Mining c={c} act={act} busy={busy} />
     </>
   )
@@ -724,6 +728,134 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
 // ---------------------------------------------------------------------------------------------------------------
 
 type EpochRoot = { root: Hex; total: bigint; claimed: bigint; dataHash: Hex }
+
+/**
+ * The epoch's price list (B8, U5-PRICES). A Safe owner signs, with their own wallet, exactly the typed data
+ * `pnpm mining:epoch --prices` verifies, and downloads the file it reads. Decimals are read from each token on chain,
+ * as the tool checks them; a signature is offered only once it recovers to this owner, since the tool takes only an
+ * EOA signature from a Safe owner.
+ */
+function Prices({ c, me }: { c: HirelingContracts; me: Address }) {
+  useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
+  const reserve = useReadContracts({ contracts: [{ address: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'currentEpoch', chainId: chain.id }] })
+  const currentEpoch = result<bigint>(reserve.data, 0)
+  const [picked, setPicked] = useState<string | null>(null)
+  // Prices are signed when an epoch has ended: the last one that has.
+  const epochText = picked ?? (currentEpoch === undefined ? '' : String(currentEpoch > 0n ? currentEpoch - 1n : 0n))
+  const [usd, setUsd] = useState<Record<string, string>>({})
+  const [factoryUsd, setFactoryUsd] = useState('')
+  const [added, setAdded] = useState<string[]>([])
+  const [adding, setAdding] = useState('')
+  // The deployment's reward tokens, every board's, and any added here.
+  const tokens = [...new Set([...deployment.rewardTokens.map((a) => a.toLowerCase()), ...rewardTokenList().map(([a]) => a), ...added])]
+  const decimals = useReadContracts({
+    contracts: tokens.map((t) => ({ address: t as Address, abi: erc20Abi, functionName: 'decimals', chainId: chain.id }) as const),
+    query: { enabled: tokens.length > 0, staleTime: Infinity, retry: 1 },
+  })
+  const draft: PriceDraft = { epoch: epochText, factoryUsd, tokens: tokens.map((t, i) => ({ token: t, decimals: result<number>(decimals.data, i) ?? null, usd: usd[t] ?? '' })) }
+  const list = priceListOf(draft)
+  const listKey = typeof list === 'string' ? null : JSON.stringify(priceListFile(chain.id, c.distributor, list, me, '0x').message)
+  const { signTypedDataAsync } = useSignTypedData()
+  const [signing, setSigning] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const [signed, setSigned] = useState<{ key: string; json: string; name: string } | null>(null)
+  // A signature stands only for the list it signed: any change asks for a new one.
+  const shown = signed !== null && signed.key === listKey ? signed : null
+  const json = shown?.json ?? null
+  const href = useMemo(() => (json === null ? null : URL.createObjectURL(new Blob([json], { type: 'application/json' }))), [json])
+  useEffect(() => () => { if (href !== null) URL.revokeObjectURL(href) }, [href])
+  const addProblem = adding.trim() === '' ? null : !isAddress(adding.trim(), { strict: false }) ? 'Not a token address.' : tokens.includes(adding.trim().toLowerCase()) ? 'Already listed.' : null
+  const sign = async () => {
+    if (typeof list === 'string' || listKey === null) return
+    setProblem(null)
+    setSigning(true)
+    try {
+      const typed = priceTypedData(chain.id, c.distributor, list)
+      const signature = await signTypedDataAsync({ ...typed, account: me })
+      const signer = await recoverTypedDataAddress({ ...typed, signature })
+      if (!same(signer, me)) {
+        setProblem(`The signature recovers ${signer}, not your address. The mining tool takes only a plain wallet (EOA) signature from a Safe owner. Nothing to download.`)
+        return
+      }
+      setSigned({ key: listKey, json: `${JSON.stringify(priceListFile(chain.id, c.distributor, list, signer, signature), null, 2)}\n`, name: `prices-epoch-${list.epoch}.json` })
+    } catch (failure) {
+      setProblem(walletRefused(failure) ? 'You declined to sign. Nothing was signed.' : friendlyError(failure))
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  return (
+    <Section title="Mining prices" note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. pnpm mining:epoch --prices takes the file signed here; fees in a token with no price do not count.">
+      {reserve.isError || decimals.isError ? (
+        <Unavailable retry={() => void Promise.all([reserve.refetch(), decimals.refetch()])} />
+      ) : currentEpoch === undefined ? (
+        <LoadingRows rows={2} />
+      ) : (
+        <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+          <label className="grid gap-1">
+            <span className="text-[0.85rem] font-semibold">Epoch</span>
+            <Input aria-label="Price list epoch" value={epochText} inputMode="numeric" className="tabular w-28" onChange={(e) => setPicked(e.target.value)} />
+          </label>
+          <div className="grid gap-2">
+            <p className="text-[0.85rem] font-semibold">USD per whole token</p>
+            {tokens.map((t, i) => {
+              const read = decimals.data?.[i]
+              return (
+                <label key={t} className="grid grid-cols-[1fr_8rem] items-center gap-2">
+                  <span className="min-w-0 text-[0.85rem]">
+                    <span className="font-semibold">{tokenMeta(t)?.symbol ?? 'Token'}</span> <AddressText value={t} />
+                    <span className="block text-[0.78rem] text-label-3">
+                      {read === undefined ? 'Reading decimals…' : read.status === 'success' ? `${String(read.result)} decimals` : 'No decimals on chain: not a token?'}
+                    </span>
+                  </span>
+                  <Input aria-label={`USD price of ${tokenMeta(t)?.symbol ?? t}`} value={usd[t] ?? ''} placeholder="Not priced" inputMode="decimal" className="tabular" onChange={(e) => setUsd({ ...usd, [t]: e.target.value })} />
+                </label>
+              )
+            })}
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <Input aria-label="Another token" value={adding} placeholder="Another token, 0x…" className="font-mono text-[0.85rem]" onChange={(e) => setAdding(e.target.value)} />
+              <Button
+                variant="tinted"
+                disabled={adding.trim() === '' || addProblem !== null}
+                onClick={() => {
+                  setAdded([...added, adding.trim().toLowerCase()])
+                  setAdding('')
+                }}
+              >
+                Add
+              </Button>
+            </div>
+            {addProblem !== null && <ErrorText>{addProblem}</ErrorText>}
+          </div>
+          <label className="grid gap-1">
+            <span className="text-[0.85rem] font-semibold">FACTORY, USD</span>
+            <Input aria-label="FACTORY price in USD" value={factoryUsd} placeholder="0.0001" inputMode="decimal" className="tabular w-40" onChange={(e) => setFactoryUsd(e.target.value)} />
+            <span className="text-[0.78rem] text-label-3">Below $0.0001 the tool counts $0.0001.</span>
+          </label>
+          {typeof list === 'string' && (picked !== null || factoryUsd !== '' || Object.values(usd).some((v) => v !== '')) && <ErrorText>{list}</ErrorText>}
+          {problem !== null && <ErrorText>{problem}</ErrorText>}
+          {shown === null ? (
+            <Button disabled={typeof list === 'string' || signing} onClick={() => void sign()}>
+              {signing ? 'Waiting for your wallet…' : 'Sign the price list'}
+            </Button>
+          ) : (
+            <>
+              <p className="text-[0.85rem] text-label-2">
+                Signed by you for epoch {epochText.trim()} on {chain.name}. Pass it to <code className="font-mono">pnpm mining:epoch {epochText.trim()} --prices {shown.name}</code>.
+              </p>
+              {href !== null && (
+                <a href={href} download={shown.name} className="press flex min-h-11 items-center justify-center rounded-xl bg-tint px-4 text-[0.95rem] font-semibold text-on-tint">
+                  Download {shown.name}
+                </a>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </Section>
+  )
+}
 
 function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean }) {
   const now = useNow()

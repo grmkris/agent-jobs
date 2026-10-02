@@ -8,15 +8,16 @@ import { createServer } from 'vite';
 // The Safe console (U5) against a fixture Safe and Hireling v1 (admin-wagmi.mjs): owner-only gating, accepting
 // ownership, pausing the core, a fee schedule proposal with its 3-day timelock (refused rules, cancel, execute by
 // anyone), a vault Holding proposal refused before 8 days and a revocation, an epoch's funding and root from its
-// epoch file (unfunded, partly, fully, or funded since the run). Every action is reviewed as the decoded call before
-// the wallet opens. Mocked Chromium only: no signing or sends.
+// epoch file (unfunded, partly, fully, or funded since the run), and the epoch price list signed by the owner's wallet
+// and read back by the mining tool's own code. Every action is reviewed as the decoded call before the wallet opens.
+// Mocked Chromium only: no sends; the price list is signed with a public anvil test key.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-admin-evidence';
 const base = 'http://127.0.0.1:5196';
 const owner = '0x1111111111111111111111111111111111111111';
 const stranger = '0x5555555555555555555555555555555555555555';
 const deployer = '0x7777777777777777777777777777777777777777';
-// The address of the public anvil test key #0: the price signer epoch files name.
+// The address of the public anvil test key #0, which the fixture wallet signs typed data with (admin-wagmi.mjs).
 const anvil0 = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 const c = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const multiSendCallOnly = '0x9641d764fc13c8b624c04430c7356c1c7c8102e2';
@@ -46,6 +47,9 @@ const preValidatedBy = (account) => `0x${account.slice(2).padStart(64, '0')}${'0
 // The core the page reads from the testnet config, and the pause pair's calldata as the console would build it.
 const testnet = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment;
 const coreAddress = testnet.core;
+// The deployment's reward tokens, as the chain reports their decimals (mUSD, mEUR, and a third).
+const [mUSD, mEUR, third] = testnet.rewardTokens.map((a) => a.toLowerCase());
+const tokenDecimals = { [mUSD]: 6, [mEUR]: 6, [third]: 18 };
 const pauseAbi = parseAbi(['function pause()', 'function unpause()', 'function notePause()']);
 const pauseCall = (functionName) => encodeFunctionData({ abi: pauseAbi, functionName });
 const asSafe = (to, data, operation = 0) => ({ description: 'Core.pause + HirelingEvaluator.notePause as the Safe, in one transaction', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) });
@@ -70,7 +74,7 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded }) => {
+  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, decimals }) => {
     const K = 10n ** 21n;
     window.__hireling = contracts;
     window.__bytecode = bytecode;
@@ -91,11 +95,12 @@ async function fixture(viewport, options = {}) {
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
       currentEpoch: 2n, totalFunded: BigInt(funded), available: BigInt(funded), genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
+      decimals, signWith: 'owner',
     };
   }, {
     account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
     previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null,
-    funded: (options.funded ?? 0n).toString(),
+    funded: (options.funded ?? 0n).toString(), decimals: tokenDecimals,
   });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -314,6 +319,67 @@ try {
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), ['safe:setRoot']);
     await context.close();
     results.push({ checks: ['partly funded: only the remainder offered, then the root', 'funded since the run by another amount: refused, re-run mining:epoch, nothing sent', 'fully funded: no fund call, root only'], passed: true });
+  }
+
+  // The epoch price list (B8): the owner's own wallet signs the typed data mining:epoch --prices verifies, the file
+  // downloads, and the mining tool's own code reads it back as epoch.ts does. Declined, or a signature recovering to
+  // another address, offers nothing; any change after signing asks for a new signature.
+  {
+    const { context, page } = await fixture(phone, { account: anvil0, owners: [anvil0, '0x2222222222222222222222222222222222222222'] });
+    await page.goto(`${base}/admin`);
+    const prices = section(page, 'Mining prices');
+    assert.equal(await prices.getByRole('textbox', { name: 'Price list epoch' }).inputValue(), '1');
+    const sign = prices.getByRole('button', { name: 'Sign the price list' });
+    assert.equal(await sign.isDisabled(), true);
+    await prices.getByText('6 decimals', { exact: true }).first().waitFor();
+    // Nothing typed yet: no complaint.
+    assert.equal(await prices.getByText('Price at least one token: fees in unpriced tokens do not count.', { exact: true }).count(), 0);
+    await prices.getByRole('textbox', { name: 'USD price of mUSD' }).fill('1');
+    await prices.getByRole('textbox', { name: 'USD price of mEUR' }).fill('1.08');
+    await prices.getByText('Enter the FACTORY price in USD, above 0.', { exact: true }).waitFor();
+    await prices.getByRole('textbox', { name: 'FACTORY price in USD' }).fill('0.0001');
+    // A token added by address answers no decimals on chain: priced, the list cannot be signed.
+    await prices.getByRole('textbox', { name: 'Another token' }).fill('0x12');
+    await prices.getByText('Not a token address.', { exact: true }).waitFor();
+    await prices.getByRole('textbox', { name: 'Another token' }).fill(stranger);
+    await prices.getByRole('button', { name: 'Add', exact: true }).click();
+    await prices.getByText('No decimals on chain: not a token?', { exact: true }).waitFor();
+    await prices.getByRole('textbox', { name: `USD price of ${stranger}` }).fill('2');
+    await prices.getByText(`The decimals of ${stranger} could not be read from the chain.`, { exact: true }).waitFor();
+    assert.equal(await sign.isDisabled(), true);
+    await prices.getByRole('textbox', { name: `USD price of ${stranger}` }).fill('');
+    await page.evaluate(() => { window.__admin.signWith = 'decline'; });
+    await sign.click();
+    await prices.getByText('You declined to sign. Nothing was signed.', { exact: true }).waitFor();
+    await page.evaluate(() => { window.__admin.signWith = 'other'; });
+    await sign.click();
+    await prices.getByText(/^The signature recovers 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, not your address\./).waitFor();
+    assert.equal(await prices.getByRole('link', { name: /^Download/ }).count(), 0);
+    await page.evaluate(() => { window.__admin.signWith = 'owner'; });
+    await sign.click();
+    const link = prices.getByRole('link', { name: 'Download prices-epoch-1.json' });
+    const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
+    assert.equal(download.suggestedFilename(), 'prices-epoch-1.json');
+    const file = JSON.parse(readFileSync(await download.path(), 'utf8'));
+    await capture(page, 'prices-signed');
+    // What `pnpm mining:epoch 1 --prices` checks (scripts/mining/epoch.ts), with its own code; owners and decimals are
+    // the fixture chain's.
+    const tool = await server.ssrLoadModule(fileURLToPath(new URL('../../../scripts/mining/prices.ts', import.meta.url)));
+    const list = tool.parsePriceList(file);
+    assert.equal(list.epoch, 1n);
+    assert.match(file.signature, /^0x[0-9a-fA-F]{130}$/);
+    const signer = await tool.recoverPriceListSigner(list, file.signature, 10143, c.distributor);
+    assert.equal(signer, anvil0.toLowerCase());
+    assert.equal(file.signer, signer);
+    assert.deepEqual(list.tokens.map((t) => [t.token, t.decimals, t.usdPrice]), [[mUSD, 6, W], [mEUR, 6, 108n * 10n ** 16n]]);
+    for (const t of list.tokens) assert.equal(t.decimals, tokenDecimals[t.token]);
+    assert.equal(list.factoryUsdPrice, 10n ** 14n);
+    await prices.getByRole('textbox', { name: 'USD price of mEUR' }).fill('1.09');
+    await link.waitFor({ state: 'detached' });
+    await sign.waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await context.close();
+    results.push({ checks: ['price list epoch defaults to the last ended', 'decimals read from the chain; an address with none cannot be priced', 'declined: nothing signed', 'signature recovering to another address: nothing to download', 'downloaded file read back by scripts/mining/prices.ts: epoch, tokens, decimals, FACTORY price, signer recovered to the owner', 'a change after signing asks for a new signature', 'no transaction sent'], passed: true });
   }
 
   // A restored draft is read again from its calldata: one that calls outside the deployment, or is signed for another

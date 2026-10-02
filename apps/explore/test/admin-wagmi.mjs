@@ -1,6 +1,7 @@
 import { coreAbi, epochDistributorAbi, feeScheduleAbi, miningReserveAbi, stakeVaultAbi, hirelingHoldingAbi, hirelingEvaluatorAbi } from '@agent-jobs/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { decodeFunctionData } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { MULTI_SEND_CALL_ONLY, safeAbi, unpackMultiSend } from '../src/safe.ts';
 import { sendFixtureTransaction } from './wagmi.mjs';
 
@@ -47,9 +48,16 @@ function answer({ address, functionName, args = [] }) {
   }
 }
 const show = (value) => JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
+// A token's decimals answer per call, as wagmi's allowFailure does: an address with none fails alone.
+const read = (c) => {
+  if (c.functionName !== 'decimals') return { status: 'success', result: answer(c) };
+  if (window.__admin.down) throw new Error('Fixture RPC unavailable');
+  const decimals = window.__admin.decimals[key(c.address)];
+  return decimals === undefined ? { status: 'failure', error: new Error('Fixture: no decimals') } : { status: 'success', result: decimals };
+};
 export const useReadContracts = ({ contracts, query }) => useQuery({
   queryKey: ['fixture-admin', show(contracts.map(({ address, functionName, args }) => [address, functionName, args]))],
-  queryFn: async () => contracts.map((c) => ({ status: 'success', result: answer(c) })),
+  queryFn: async () => contracts.map(read),
   retry: false,
   ...query,
 });
@@ -102,4 +110,14 @@ export const useSendTransaction = () => ({ sendTransactionAsync: async (transact
   const hash = await sendFixtureTransaction(transaction);
   apply(transaction);
   return hash;
+} });
+
+// EIP-712 signing (the epoch price list): `window.__admin.signWith` picks the key. Public anvil test keys only, never
+// real ones: #0 is the fixture owner's, #1 stands in for a wallet whose signature does not recover to the owner.
+const KEYS = { owner: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', other: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d' };
+export const useSignTypedData = () => ({ signTypedDataAsync: async (typed) => {
+  const s = window.__admin;
+  if (s.signWith === 'decline') throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
+  const { account: _account, ...data } = typed;
+  return privateKeyToAccount(KEYS[s.signWith]).signTypedData(data);
 } });
