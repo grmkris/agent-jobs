@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Vm} from "forge-std/Vm.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {IERC8004Identity, IERC8004Reputation} from "../src/vendor/erc8004/IERC8004.sol";
 import {Factory} from "../src/hireling/Factory.sol";
@@ -111,23 +112,24 @@ library HirelingRecipe {
         c.reuseCore = vm.parseJsonBool(json, ".hireling.reuseCore");
         c.safe = vm.parseJsonAddress(json, ".hireling.safe");
         c.defaultArbitrator = vm.parseJsonAddress(json, ".hireling.defaultArbitrator");
-        c.margin = uint48(vm.parseJsonUint(json, ".hireling.margin"));
+        // Narrowing casts revert instead of wrapping (C9 MATH-6): a typo like 66536 bps must not load as 1000.
+        c.margin = SafeCast.toUint48(vm.parseJsonUint(json, ".hireling.margin"));
         uint256[] memory thresholds = vm.parseJsonUintArray(json, ".hireling.schedule.thresholds");
         uint256[] memory bps = vm.parseJsonUintArray(json, ".hireling.schedule.bps");
         if (thresholds.length != 4 || bps.length != 4) revert BadConfig("schedule needs 4 tiers");
         for (uint256 i; i < 4; ++i) {
             c.thresholds[i] = thresholds[i];
-            c.bps[i] = uint16(bps[i]);
+            c.bps[i] = SafeCast.toUint16(bps[i]);
         }
         c.feeTreasury = vm.parseJsonAddress(json, ".hireling.schedule.treasury");
         c.treasury = vm.parseJsonAddress(json, ".hireling.allocation.treasury");
         c.ecosystem = vm.parseJsonAddress(json, ".hireling.allocation.ecosystem");
         c.liquidity = vm.parseJsonAddress(json, ".hireling.allocation.liquidity");
         c.vestingBeneficiary = vm.parseJsonAddress(json, ".hireling.vesting.beneficiary");
-        c.vestingStartOffset = uint64(vm.parseJsonUint(json, ".hireling.vesting.startOffset"));
-        c.vestingDuration = uint64(vm.parseJsonUint(json, ".hireling.vesting.duration"));
-        c.vestingCliff = uint64(vm.parseJsonUint(json, ".hireling.vesting.cliff"));
-        c.genesis = uint48(vm.parseJsonUint(json, ".hireling.mining.genesis"));
+        c.vestingStartOffset = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.startOffset"));
+        c.vestingDuration = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.duration"));
+        c.vestingCliff = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.cliff"));
+        c.genesis = SafeCast.toUint48(vm.parseJsonUint(json, ".hireling.mining.genesis"));
     }
 
     function check(Config memory c) internal view {
@@ -149,6 +151,17 @@ library HirelingRecipe {
             revert BadConfig("ERC-8004 registries missing");
         }
         if (c.defaultArbitrator == c.admin) revert BadConfig("arbitrator must not be the deployer");
+        // A fresh core's admin roles move to the Safe in one irreversible step (C9 ACL-6): it must exist here.
+        if (c.safe.code.length == 0) revert BadConfig("safe has no code");
+        // Thresholds are whole FACTORY; a value entered in wei would put every cheaper tier out of reach (C9 MATH-6).
+        for (uint256 i; i < 4; ++i) {
+            if (c.thresholds[i] * 1e18 > HirelingConstants.FACTORY_SUPPLY) revert BadConfig("threshold above supply");
+        }
+        // A past genesis would make several epochs fundable at once; a far one leaves mining unstarted.
+        if (c.genesis != 0 && (uint256(c.genesis) + 1 days < block.timestamp || c.genesis > block.timestamp + 90 days))
+        {
+            revert BadConfig("genesis out of range");
+        }
     }
 
     /// @dev Every step, in order, from the caller's context (under `vm.startBroadcast(admin)`).

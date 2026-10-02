@@ -170,11 +170,30 @@ arbitrator from `holding.termsOf`.
 | `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52). |
 | `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.stakeFor`. |
 
-## Deploy (C8): `script/HirelingRecipe.sol`, `script/DeployHireling.s.sol`
+## Deploy (C8): `script/HirelingRecipe.sol`, `script/DeployHireling.s.sol`, `script/PromoteHireling.s.sol`
 
-Run by the coordinator only: `NETWORK=<network> forge script script/DeployHireling.s.sol --rpc-url … --broadcast`;
-chain 143 also needs `MAINNET_GO=yes`. Input: the `hireling` block of `config/<network>.json` (values are the
-coordinator's):
+Two steps, run by the coordinator only (review C8-001). Neither a dry run nor a failed or partial broadcast can touch
+`config/<network>.json`:
+
+```sh
+# 1. Broadcast. Writes only broadcast/hireling/<network>.candidate.json (gitignored), and only with --broadcast.
+#    Cut off part way? Re-run the same command with --resume.
+NETWORK=<network> forge script script/DeployHireling.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast --slow
+# 2. Promote. Sends nothing. Verifies the candidate against live state and forge's receipts, then writes the record.
+NETWORK=<network> forge script script/PromoteHireling.s.sol --rpc-url …
+```
+
+Chain 143 also needs `MAINNET_GO=yes` on step 1. Step 2 refuses unless every transaction in
+`broadcast/DeployHireling.s.sol/<chainId>/run-latest.json` has a successful receipt, every candidate contract was
+created by that run, and the live readbacks in `script/HirelingVerify.sol` pass: code at every address and at the
+Safe, the wiring, the bootstrap, a 500M reserve with nothing funded or promised, `reserve.genesis == distributor.genesis
+== t0`, a 1e9 supply, the configured fee schedule with nothing queued, the vesting allocation, every owner the Safe or
+pending to it, and on a fresh core both admin roles held by the Safe and renounced by the deployer. Block numbers come
+from the receipts (`hireling.block` = the run's first block, `block` = the fresh core proxy's). Running step 2 again
+after success changes nothing; a different recorded deployment refuses. `script/rehearse-hireling-pipeline.sh` runs the
+whole sequence (dry run, cut-off broadcast, resume, promote twice) against an anvil fork of Monad testnet.
+
+Input: the `hireling` block of `config/<network>.json` (values are the coordinator's):
 
 ```jsonc
 "hireling": {
@@ -206,7 +225,9 @@ Output (`.deployment`, decisions D1 + D5): `factory` = FACTORY v2; `hireling = {
 feeSchedule, distributor, miningReserve, teamVesting, t0 }`; `main = { kind: "hireling-v1", factory, holding,
 evaluator, openTokens: true }`; the previous `main`/`demo` move to the next free `legacy.main-vN`/`legacy.demo-vN` and
 every legacy pair gets an explicit `kind: "legacy"` and `factory`; `core`, `block`, `poolFactory`, `rewardTokens`,
-`stacksBlock` are kept. An unknown key or an existing `hireling` record refuses before anything is broadcast.
+`stacksBlock` are kept. An unknown key or an existing `hireling` record refuses before anything is broadcast. `load`
+narrows every config number with `SafeCast` and `check` refuses a Safe with no code, a threshold above the supply and a
+genesis more than a day in the past or 90 days ahead (C9).
 
 Core admin on a fresh (mainnet) core, held by the Safe: `pause`/`unpause`, `emergencyWithdraw` while paused, the fee
 setters, the hook whitelist and the UUPS upgrade. On testnet the reused core keeps its existing admin.

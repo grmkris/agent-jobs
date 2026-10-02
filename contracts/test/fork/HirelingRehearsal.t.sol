@@ -32,6 +32,7 @@ contract HirelingRehearsalForkTest is Test {
     function _config(string memory network, bool reuseCore) internal returns (HirelingRecipe.Config memory c) {
         (arbitrator, arbitratorPk) = makeAddrAndKey("rehearsal-arbiter");
         c = HirelingRecipe.loadBase(vm, network);
+        vm.etch(safe, hex"00"); // the recipe requires code at the Safe
         c.reuseCore = reuseCore;
         c.safe = safe;
         c.defaultArbitrator = arbitrator;

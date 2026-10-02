@@ -151,8 +151,12 @@ mainnet forks under exactly these limits, but forge prices the EVM schedule even
 Holding, evaluator; wiring; `bootstrapHolding`; distributor, reserve, the 500M; handover), every parameter from the
 `hireling` config block and no predicted address: the deployer receives the mining allocation at genesis and forwards
 it once the reserve exists. Staking stays closed until the bootstrap (C3-001), so nobody can force the launch onto the
-8-day path. A reused core must charge zero fees, since Holding keeps the fee itself. `DeployHireling.s.sol` writes
-`.deployment` in the D1/D5 shape and refuses a config it cannot rewrite faithfully.
+8-day path. A reused core must charge zero fees, since Holding keeps the fee itself. The deploy has two steps (review
+C8-001): `DeployHireling.s.sol` broadcasts and writes only a gitignored candidate, because forge runs it before anything
+is sent; `PromoteHireling.s.sol` then proves the candidate on-chain (`HirelingVerify`: code, wiring, bootstrap, the
+untouched reserve, one genesis, owners and core roles) and against forge's receipts, and only then writes `.deployment`
+in the D1/D5 shape, with receipt block numbers. A dry run or a failed broadcast leaves the config untouched; promotion is
+idempotent and refuses a config it cannot rewrite faithfully.
 
 ## Consequences
 

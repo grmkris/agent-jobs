@@ -13,6 +13,9 @@ import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
 import {IEpochDistributor} from "../../src/hireling/interfaces/IEpochDistributor.sol";
 import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
 import {HirelingOutput} from "../../script/HirelingOutput.sol";
+import {HirelingVerify} from "../../script/HirelingVerify.sol";
+import {HirelingHolding} from "../../src/hireling/HirelingHolding.sol";
+import {StakeVault} from "../../src/hireling/StakeVault.sol";
 import {MockIdentity} from "../mocks/MockIdentity.sol";
 import {MockReputation} from "../mocks/MockReputation.sol";
 
@@ -66,6 +69,7 @@ contract RecipeTest is Test {
 
     function setUp() public {
         vm.warp(1_800_000_000);
+        vm.etch(safe, hex"00"); // the Safe is a contract; the recipe and the promotion check it has code
         (arbitrator, arbitratorPk) = makeAddrAndKey("arbiter");
         c.network = "local";
         c.chainId = block.chainid;
@@ -314,6 +318,18 @@ contract RecipeTest is Test {
         vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.WrongChain.selector, 1, block.chainid));
         driver.configure(bad);
         bad = c;
+        bad.safe = makeAddr("no-code-safe");
+        vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "safe has no code"));
+        driver.configure(bad);
+        bad = c;
+        bad.thresholds[3] = 1_000_000e18;
+        vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "threshold above supply"));
+        driver.configure(bad);
+        bad = c;
+        bad.genesis = uint48(block.timestamp - 2 days);
+        vm.expectRevert(abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "genesis out of range"));
+        driver.configure(bad);
+        bad = c;
         bad.defaultArbitrator = admin;
         vm.expectRevert(
             abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "arbitrator must not be the deployer")
@@ -335,7 +351,7 @@ contract RecipeTest is Test {
         d.coreDeployed = false;
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
         string memory path = _temp("testnet", real);
-        HirelingOutput.write(vm, path, d, safe, 123);
+        HirelingOutput.write(vm, path, d, safe, 0, 123);
         string memory out = vm.readFile(path);
         vm.removeFile(path);
 
@@ -386,11 +402,12 @@ contract RecipeTest is Test {
         HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
         string memory path = _temp("mainnet", real);
-        HirelingOutput.write(vm, path, d, safe, 456);
+        HirelingOutput.write(vm, path, d, safe, 456, 457);
         string memory out = vm.readFile(path);
         vm.removeFile(path);
         assertEq(vm.parseJsonAddress(out, ".deployment.core"), address(d.core));
         assertEq(vm.parseJsonUint(out, ".deployment.block"), 456);
+        assertEq(vm.parseJsonUint(out, ".deployment.hireling.block"), 457);
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "hireling-v1");
         assertFalse(vm.keyExistsJson(out, ".deployment.legacy"));
         assertEq(vm.parseJsonString(out, ".deployment.network"), "monad-mainnet");
@@ -444,6 +461,164 @@ contract RecipeTest is Test {
     }
 
     function writeExternal(string memory path, HirelingRecipe.Deployed memory d) external {
-        HirelingOutput.write(vm, path, d, safe, 1);
+        HirelingOutput.write(vm, path, d, safe, 1, 1);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Promotion (review C8-001): candidate, live verification, receipt blocks, idempotency
+    // ------------------------------------------------------------------------------------------
+
+    function verifyExternal(HirelingRecipe.Config memory cc, HirelingRecipe.Deployed memory d) external view {
+        HirelingVerify.verify(cc, d);
+    }
+
+    function blocksExternal(string memory path, HirelingRecipe.Deployed memory d)
+        external
+        view
+        returns (uint256, uint256)
+    {
+        return HirelingVerify.blocks(vm, path, d);
+    }
+
+    function _expectNotLive(HirelingRecipe.Config memory cc, HirelingRecipe.Deployed memory d, string memory what)
+        internal
+    {
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, what));
+        this.verifyExternal(cc, d);
+    }
+
+    function test_promotion_candidateRoundTrip() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test.candidate.json");
+        HirelingOutput.writeCandidate(vm, path, block.chainid, d, safe);
+        (HirelingRecipe.Deployed memory r, address s, uint256 chainId) = HirelingOutput.readCandidate(vm, path);
+        vm.removeFile(path);
+        assertEq(chainId, block.chainid);
+        assertEq(s, safe);
+        assertEq(r.coreDeployed, d.coreDeployed);
+        assertEq(r.t0, d.t0);
+        assertEq(address(r.core), address(d.core));
+        assertEq(address(r.vesting), address(d.vesting));
+        assertEq(address(r.factory), address(d.factory));
+        assertEq(address(r.fees), address(d.fees));
+        assertEq(address(r.vault), address(d.vault));
+        assertEq(address(r.holding), address(d.holding));
+        assertEq(address(r.evaluator), address(d.evaluator));
+        assertEq(address(r.distributor), address(d.distributor));
+        assertEq(address(r.reserve), address(d.reserve));
+    }
+
+    /// @dev Pending and accepted handovers both verify; every gap the promotion must catch is refused.
+    function test_promotion_verifyLiveState() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        this.verifyExternal(c, d);
+        _accept(d);
+        this.verifyExternal(c, d);
+
+        HirelingRecipe.Deployed memory bad = driver.deployed(); // a fresh copy, not an alias of d
+        bad.holding = HirelingHolding(stranger);
+        _expectNotLive(c, bad, "holding code");
+
+        HirelingRecipe.Config memory cc = c;
+        cc.defaultArbitrator = stranger;
+        _expectNotLive(cc, d, "holding.defaultArbitrator");
+
+        // A deployer-key action in the handover window (review ACL-3) blocks promotion.
+        vm.warp(d.reserve.epochEnd(0) + 1);
+        vm.prank(safe);
+        d.reserve.fund(0, 1);
+        _expectNotLive(c, d, "reserve balance");
+    }
+
+    function test_promotion_refusesAnIncompleteHandover() public {
+        driver.step(0);
+        for (uint256 i = 1; i < 12; ++i) {
+            driver.step(i);
+        }
+        HirelingRecipe.Deployed memory d = driver.deployed();
+        // Step 12 (handover) not sent: the deployer still holds the core roles and every owner.
+        _expectNotLive(c, d, "core admin role: safe");
+    }
+
+    function test_promotion_receiptBlocks() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test-run.json");
+        vm.writeFile(path, _runLog(d, "0x1", false));
+        (uint256 coreBlock, uint256 hirelingBlock) = this.blocksExternal(path, d);
+        assertEq(coreBlock, 0x101);
+        assertEq(hirelingBlock, 0x100);
+
+        vm.writeFile(path, _runLog(d, "0x0", false));
+        vm.expectRevert(
+            abi.encodeWithSelector(HirelingVerify.BadBroadcast.selector, "transaction without a successful receipt")
+        );
+        this.blocksExternal(path, d);
+
+        vm.writeFile(path, _runLog(d, "0x1", true));
+        vm.expectRevert(
+            abi.encodeWithSelector(HirelingVerify.BadBroadcast.selector, "transaction without a successful receipt")
+        );
+        this.blocksExternal(path, d);
+        vm.removeFile(path);
+    }
+
+    /// @dev A minimal forge run log: one CALL, then a CREATE for each deployed contract (the core proxy in block
+    ///      0x101, the rest in 0x102); `dropLast` leaves the last transaction without a receipt.
+    function _runLog(HirelingRecipe.Deployed memory d, string memory status, bool dropLast)
+        internal
+        view
+        returns (string memory)
+    {
+        address[9] memory created = [
+            address(d.core),
+            address(d.vesting),
+            address(d.factory),
+            address(d.fees),
+            address(d.vault),
+            address(d.holding),
+            address(d.evaluator),
+            address(d.distributor),
+            address(d.reserve)
+        ];
+        string memory txs = string.concat(
+            '{"hash":"', vm.toString(bytes32(uint256(1000))), '","transactionType":"CALL","contractAddress":"',
+            vm.toString(address(d.core)), '"}'
+        );
+        string memory receipts = string.concat(
+            '{"transactionHash":"', vm.toString(bytes32(uint256(1000))), '","status":"', status,
+            '","blockNumber":"0x100"}'
+        );
+        for (uint256 i; i < created.length; ++i) {
+            string memory hash = vm.toString(bytes32(uint256(1001 + i)));
+            txs = string.concat(
+                txs, ',{"hash":"', hash, '","transactionType":"CREATE","contractAddress":"', vm.toString(created[i]),
+                '"}'
+            );
+            if (dropLast && i == created.length - 1) continue;
+            receipts = string.concat(
+                receipts, ',{"transactionHash":"', hash, '","status":"0x1","blockNumber":"', i == 0 ? "0x101" : "0x102",
+                '"}'
+            );
+        }
+        return string.concat('{"transactions":[', txs, '],"receipts":[', receipts, '],"pending":[]}');
+    }
+
+    function test_promotion_isIdempotent() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory path =
+            _temp("promote", vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json")));
+        assertFalse(HirelingOutput.isPromoted(vm, vm.readFile(path), d, safe));
+        HirelingOutput.write(vm, path, d, safe, 10, 11);
+        string memory once = vm.readFile(path);
+        assertTrue(HirelingOutput.isPromoted(vm, once, d, safe));
+        HirelingRecipe.Deployed memory other = driver.deployed();
+        other.vault = StakeVault(stranger);
+        vm.expectRevert(HirelingOutput.AlreadyDeployed.selector);
+        this.isPromotedExternal(once, other);
+        vm.removeFile(path);
+    }
+
+    function isPromotedExternal(string memory json, HirelingRecipe.Deployed memory d) external view returns (bool) {
+        return HirelingOutput.isPromoted(vm, json, d, safe);
     }
 }
