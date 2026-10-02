@@ -7,6 +7,7 @@ import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TaskIn
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { BudgetPanel } from '../components/BudgetPanel.tsx'
 import { Delivered, type EvidenceRow } from '../components/job/Deliverables.tsx'
+import { HireAgainLink } from '../components/job/HireAgain.tsx'
 import { type ActionJob, type JobEvent, JobActions } from '../components/job/JobActions.tsx'
 import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
@@ -201,6 +202,13 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} />}
 
       {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-[0.88rem] text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
+
+      {phase?.key === 'completed' && agentId !== null && auth.address !== undefined && (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
+        <div className="grid gap-1.5">
+          <HireAgainLink jobId={jobId} />
+          <p className="px-4 text-[0.85rem] text-label-2">A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.</p>
+        </div>
+      )}
 
       {phase !== null && t !== undefined && taskId !== undefined && (
         <JobActions

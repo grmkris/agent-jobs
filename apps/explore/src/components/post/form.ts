@@ -3,8 +3,8 @@
  * board's `create_task` and `request_quotes` tools receive, and the draft kept in localStorage per board and address.
  * Pure, so the tool arguments are unit-tested (form.test.ts) and never drift from what the board expects.
  */
-import { isAddress, parseUnits } from 'viem'
-import type { DeliverableKind, TxRequest } from '../../api.ts'
+import { formatUnits, isAddress, parseUnits } from 'viem'
+import { DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, type TxRequest } from '../../api.ts'
 import { formatNumber, tokenInfo, tokenMeta } from '../../format.ts'
 import { deployment } from '../../wallet.ts'
 
@@ -65,33 +65,75 @@ export function prefillToken(prefill: Record<string, string>, tokens: TokenList)
   return tokens.find(([, t]) => t.symbol.toLowerCase() === want)?.[0]
 }
 
-/** A fresh form: the defaults, with whatever the embed widget prefilled (title, brief, reward, token, mode). */
+const STACKS: readonly StackName[] = ['main', 'demo', 'fast']
+const KINDS = new Set<string>(DELIVERABLE_KINDS.map((k) => k.kind))
+
+/**
+ * A fresh form: the defaults, with whatever was prefilled. The embed widget names the title, brief, reward, token
+ * and mode; Hire again (`hireAgainPrefill`) also names the rest of a past offer's terms.
+ */
 export function initialForm(prefill: Record<string, string>, tokens: TokenList, mainnet: boolean): PostForm {
   const first = tokens[0]?.[0] ?? ''
+  const accepts = prefill.accepts?.split(',').filter((k): k is DeliverableKind => KINDS.has(k)) ?? []
+  const budget = prefill.budget === 'advance' || prefill.budget === 'call' ? prefill.budget : null
   return {
     mode: prefill.mode === 'contest' || prefill.mode === 'quotes' ? prefill.mode : 'hire',
     title: prefill.title ?? '',
     brief: prefill.brief ?? '',
-    criteria: 'A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.',
+    criteria: prefill.criteria ?? 'A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.',
     token: prefillToken(prefill, tokens) ?? first,
     reward: prefill.reward ?? '10',
     quoteTokens: tokens.map(([a]) => a),
     quoteHours: '6',
-    deliveryHours: '48',
+    deliveryHours: prefill.deliveryHours ?? '48',
     selectionHours: '24',
-    creatorBond: mainnet ? '0' : '2',
-    workerBond: mainnet ? '0' : '1',
-    check: 'test',
-    accepts: ['git'],
-    target: '',
-    stack: 'main',
-    budgetOn: false,
-    budgetKind: 'advance',
-    budgetToken: first,
-    budgetCap: '2',
-    callTarget: mainnet ? '' : NADFUN_TESTNET.target,
-    callFunction: mainnet ? '' : NADFUN_TESTNET.function,
-    callCap: NADFUN_TESTNET.cap,
+    creatorBond: prefill.creatorBond ?? (mainnet ? '0' : '2'),
+    workerBond: prefill.workerBond ?? (mainnet ? '0' : '1'),
+    check: prefill.check ?? 'test',
+    accepts: accepts.length > 0 ? accepts : ['git'],
+    target: prefill.target ?? '',
+    stack: STACKS.find((x) => x === prefill.stack) ?? 'main',
+    budgetOn: budget !== null,
+    budgetKind: budget ?? 'advance',
+    budgetToken: budget === 'advance' && prefill.budgetToken !== undefined ? prefill.budgetToken : first,
+    budgetCap: budget === 'advance' && prefill.budgetCap !== undefined ? prefill.budgetCap : '2',
+    callTarget: budget === 'call' && prefill.callTarget !== undefined ? prefill.callTarget : mainnet ? '' : NADFUN_TESTNET.target,
+    callFunction: budget === 'call' && prefill.callFunction !== undefined ? prefill.callFunction : mainnet ? '' : NADFUN_TESTNET.function,
+    callCap: budget === 'call' && prefill.callCap !== undefined ? prefill.callCap : NADFUN_TESTNET.cap,
+  }
+}
+
+/**
+ * Hire again: a paid job's offer as a prefill for a new hire with the same agent, token, reward and terms (brief,
+ * criteria, deliverable forms, check, bonds, review speed, running-cost budget, and as long to deliver). Amounts come
+ * back in the units people type; `decimals` are the reward token's (and an advance budget's, `budgetDecimals`).
+ */
+export function hireAgainPrefill(job: { jobId: string; agentId: string; worker: string; task: TaskIndexEntry; decimals: number; budgetDecimals?: number }): Record<string, string> {
+  const t = job.task
+  const eb = t.executionBudget
+  return {
+    mode: 'hire',
+    again: job.jobId,
+    agentId: job.agentId,
+    worker: job.worker,
+    title: t.title,
+    brief: t.brief,
+    criteria: t.acceptanceCriteria.join('\n'),
+    token: t.token,
+    reward: formatUnits(BigInt(t.reward), job.decimals),
+    creatorBond: formatUnits(BigInt(t.creatorBond), 18),
+    workerBond: formatUnits(BigInt(t.workerBond), 18),
+    deliveryHours: String(Math.max(1, Math.round((t.deliveryDeadline - t.createdAt) / 3600))),
+    accepts: (t.deliverable?.accepts ?? ['git']).join(','),
+    target: t.deliverable?.target ?? '',
+    check: t.requiredChecks[0] ?? '',
+    // Retired pairs (main-v2…) were the same review speed under an older contract.
+    stack: t.stack.replace(/-v\d+$/, ''),
+    ...(eb === null
+      ? {}
+      : eb.kind === 'advance'
+        ? { budget: 'advance', budgetToken: eb.token, budgetCap: formatUnits(BigInt(eb.cap), job.budgetDecimals ?? job.decimals) }
+        : { budget: 'call', callTarget: eb.target, callFunction: eb.function, callCap: formatUnits(BigInt(eb.cap), 18) }),
   }
 }
 
@@ -249,7 +291,7 @@ export interface Draft {
 }
 
 export const prefillKey = (prefill: Record<string, string>) =>
-  JSON.stringify(Object.fromEntries(['title', 'brief', 'reward', 'token', 'mode'].filter((k) => prefill[k] !== undefined).map((k) => [k, prefill[k]])))
+  JSON.stringify(Object.fromEntries(['title', 'brief', 'reward', 'token', 'mode', 'again', 'agentId'].filter((k) => prefill[k] !== undefined).map((k) => [k, prefill[k]])))
 
 export const draftKey = (boardId: string, address: string | undefined) => `hireling.post-draft:${boardId}:${address?.toLowerCase() ?? 'signed-out'}`
 

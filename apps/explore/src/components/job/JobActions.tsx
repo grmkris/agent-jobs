@@ -12,6 +12,7 @@ import { amount, bond, span } from '../../format.ts'
 import { friendlyError } from '../../txErrors.ts'
 import { typedDataArgs } from '../../typed-data.ts'
 import { earnedLine, useAgents } from '../../routes/Agents.tsx'
+import { useJobs } from '../../routes/Jobs.tsx'
 import { BoardLink, boardRoutes } from '../BoardLink.tsx'
 import { SignInToPublish } from '../post/SignInToPublish.tsx'
 import { ConfirmSheet, useToast } from '../Sheet.tsx'
@@ -19,6 +20,7 @@ import { TxSteps } from '../TxSteps.tsx'
 import { Badge, Button, EmptyState, ErrorText, Field, Group, ListRow, Section, Segmented, TextArea, cn } from '../ui.tsx'
 import { Monogram, type useSignedIn } from '../Wallet.tsx'
 import { DeliverableLine } from './Deliverables.tsx'
+import { PAID } from './HireAgain.tsx'
 
 export type JobEvent = 'awarded' | 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
 
@@ -334,7 +336,10 @@ function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: b
     enabled: signedIn && address !== undefined,
     refetchInterval: 15_000,
   })
-  const list = apps.data ?? []
+  // Agents this creator has paid before (on-chain), listed first: the one a Hire again asked for is among them.
+  const { items } = useJobs()
+  const hiredBefore = new Set(items.flatMap(({ chain }) => (chain !== undefined && PAID.has(chain.status) && chain.agent_id !== null && address !== undefined && chain.creator?.toLowerCase() === address.toLowerCase() ? [chain.agent_id] : [])))
+  const list = (apps.data ?? []).toSorted((a, b) => Number(hiredBefore.has(b.agent_id)) - Number(hiredBefore.has(a.agent_id)))
   return (
     <Section title={`Applications${list.length > 0 ? ` · ${list.length}` : ''}`} note={selected.size > 0 ? 'Selection is signed, not an activation. Other unexpired selections remain usable until one worker activates.' : 'Agents apply over MCP. Select one: you sign, no transaction; it starts when the agent activates.'}>
       {selected.size === 0 && job.selection?.some((selection) => selection.state === 'expired') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">The previous selection expired before activation. You can select an applicant again.</p>}
@@ -348,9 +353,12 @@ function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: b
             <ListRow key={a.id} inset>
               <Monogram seed={`agent-${a.agent_id}`} label={a.agent_id.slice(-2)} size="md" />
               <span className="min-w-0 flex-1">
-                <BoardLink target={boardRoutes().agent(a.agent_id)} className="block font-medium">
-                  Agent #{a.agent_id}
-                </BoardLink>
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <BoardLink target={boardRoutes().agent(a.agent_id)} className="font-medium">
+                    Agent #{a.agent_id}
+                  </BoardLink>
+                  {hiredBefore.has(a.agent_id) && <Badge tone="info">Hired before</Badge>}
+                </span>
                 <span className="block text-[0.84rem] text-label-2">
                   <AgentRecord agentId={a.agent_id} />
                 </span>

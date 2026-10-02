@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { TaskIndexEntry } from '../../api.ts'
 import { registerTokens } from '../../format.ts'
-import { createTaskArgs, fingerprint, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem } from './form.ts'
+import { createTaskArgs, fingerprint, hireAgainPrefill, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem } from './form.ts'
 
 const MUSD = '0x1111111111111111111111111111111111111111'
 const MEUR = '0x2222222222222222222222222222222222222222'
@@ -114,5 +115,36 @@ describe('the Post form', () => {
     expect(humanAmount('1000.50', 'mUSD')).toBe('1,000.5 mUSD')
     expect(humanAmount('abc', 'mUSD')).toBe('abc mUSD')
     expect([hoursText('24'), hoursText('48'), hoursText('168'), hoursText('36'), hoursText('1')]).toEqual(['1 day', '2 days', '1 week', '36 hours', '1 hour'])
+  })
+})
+
+describe('Hire again', () => {
+  const task: TaskIndexEntry = {
+    taskId: 't1', jobId: '58', stack: 'main-v2', title: 'Fix the flaky test', brief: 'It fails one run in ten.', acceptanceCriteria: ['CI is green', 'No retries added'],
+    mode: 'hire', token: MEUR, reward: '12500000', creatorBond: '2000000000000000000', workerBond: '1500000000000000000',
+    creator: MUSD, approver: MUSD, deliveryDeadline: NOW + 72 * 3600, selectionDeadline: null, requiredChecks: ['ci'], quoted: true,
+    executionBudget: { kind: 'advance', token: MUSD, cap: '3000000', expiresAt: NOW + 72 * 3600 }, deliverable: { accepts: ['git', 'url'], target: 'https://example.test' },
+    termsHash: '0x01', manifestUrl: '/offers/0x01.json', screening: { verdict: 'clean', reasons: [] }, createdAt: NOW,
+  }
+  const worker = '0x3333333333333333333333333333333333333333'
+
+  it('prefills a direct hire of the same agent with the same token, reward and terms', () => {
+    const prefill = hireAgainPrefill({ jobId: '58', agentId: '7001', worker, task, decimals: 6 })
+    expect(prefill).toMatchObject({ mode: 'hire', again: '58', agentId: '7001', worker, token: MEUR, reward: '12.5', creatorBond: '2', workerBond: '1.5', deliveryHours: '72', stack: 'main', budget: 'advance', budgetCap: '3' })
+    const f = initialForm(prefill, tokens, false)
+    expect(f).toMatchObject({ mode: 'hire', title: task.title, brief: task.brief, criteria: 'CI is green\nNo retries added', token: MEUR, reward: '12.5', check: 'ci', accepts: ['git', 'url'], target: 'https://example.test', stack: 'main', budgetOn: true, budgetKind: 'advance', budgetToken: MUSD, budgetCap: '3' })
+    const args = createTaskArgs(f, NOW)
+    expect(args).toMatchObject({ mode: 'hire', reward: '12.5', creatorBond: '2', workerBond: '1.5', deliveryDeadline: NOW + 72 * 3600, acceptanceCriteria: ['CI is green', 'No retries added'], requiredChecks: ['ci'], deliverable: { accepts: ['git', 'url'], target: 'https://example.test' }, executionBudget: { kind: 'advance', token: MUSD, cap: '3' }, stack: 'main' })
+    expect(stepProblem(f, 3)).toBeNull()
+    // Another past job, or none, is a different prefill: its draft starts afresh.
+    expect(prefillKey(prefill)).not.toBe(prefillKey({ ...prefill, again: '59' }))
+  })
+
+  it('keeps an offer without criteria, check or budget that way', () => {
+    const { deliverable: _, ...bare } = task
+    const f = initialForm(hireAgainPrefill({ jobId: '1', agentId: '2', worker, task: { ...bare, acceptanceCriteria: [], requiredChecks: [], executionBudget: null }, decimals: 6 }), tokens, false)
+    expect(f).toMatchObject({ criteria: '', check: '', accepts: ['git'], target: '', budgetOn: false })
+    expect(createTaskArgs(f, NOW)).not.toHaveProperty('requiredChecks')
+    expect(createTaskArgs(f, NOW)).not.toHaveProperty('executionBudget')
   })
 })

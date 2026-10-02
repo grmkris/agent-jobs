@@ -3,8 +3,9 @@ import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { isAddress } from 'viem'
-import { type BoardInfo, DELIVERABLE_KINDS, type DeliverableKind, currentBoardId, data, tool } from '../api.ts'
+import { type BoardInfo, DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, boardApi, currentBoardId, data, tool } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
+import { PAID } from '../components/job/HireAgain.tsx'
 import { Preflight } from '../components/post/Preflight.tsx'
 import { ResumeOffer } from '../components/post/Resume.tsx'
 import { ScreeningCard } from '../components/post/Screening.tsx'
@@ -22,6 +23,7 @@ import {
   criteriaList,
   draftKey,
   fingerprint,
+  hireAgainPrefill,
   hoursText,
   initialForm,
   loadDraft,
@@ -37,8 +39,8 @@ import { Chip, Choices, Disclosure, FieldRow, KV, LineRow, Mark, Progress, StepN
 import { useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
-import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, TextArea, cn, rowClass } from '../components/ui.tsx'
-import type { useSignedIn } from '../components/Wallet.tsx'
+import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, Skeleton, TextArea, cn, rowClass } from '../components/ui.tsx'
+import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { rewardTokenList, tokenInfo } from '../format.ts'
 import { useToken } from '../useTokens.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
@@ -114,7 +116,80 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
   const raw = new URLSearchParams(window.location.search).get('resume')
   const resume = raw !== null && /^"[0-9a-f]+"$/.test(raw) ? raw.slice(1, -1) : raw
   if (resume !== null && resume !== '') return <ResumeOffer key={resume} taskId={resume} auth={auth} onPublished={onPublished} />
+  const again = new URLSearchParams(window.location.search).get('again')?.replace(/^"(\d+)"$/, '$1')
+  if (again !== undefined && /^\d+$/.test(again)) return <HireAgain key={again} jobId={again} auth={auth} onPublished={onPublished} />
   return <PostFlow auth={auth} prefill={prefill} onPublished={onPublished} />
+}
+
+/**
+ * `?again=<jobId>`: a paid job's offer, read from the board it was published on, as the prefill of a new direct hire
+ * of the same agent (`hireAgainPrefill`). Only a paid job with an agent can be hired again.
+ */
+function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; onPublished?: ((p: Published) => void) | undefined }) {
+  const detail = useQuery({ queryKey: ['job', jobId], queryFn: () => data<{ job: { status: string; agent_id: string | null; worker: string | null }; board: { boardId: string } | null }>(`jobs/${jobId}`) })
+  const boardId = detail.data?.board?.boardId ?? 'public'
+  const index = useQuery({ queryKey: ['task_index', boardId], queryFn: () => boardApi(boardId).tool<TaskIndexEntry[]>('task_index'), enabled: detail.data !== undefined })
+  const task = index.data?.find((t) => t.jobId === jobId)
+  const reward = useToken(task?.token)
+  const budgetToken = task?.executionBudget?.kind === 'advance' ? task.executionBudget.token : null
+  const budget = useToken(budgetToken)
+  const job = detail.data?.job
+  const failed = detail.isError || index.isError
+  const eligible = job !== undefined && PAID.has(job.status) && job.agent_id !== null && job.worker !== null && task !== undefined
+  if (failed || (detail.data !== undefined && index.data !== undefined && !eligible) || reward === 'none') {
+    return (
+      <>
+        <PageTitle>Hire again</PageTitle>
+        <div className="grid gap-3 rounded-2xl bg-surface p-6 text-center">
+          <p className="font-semibold">{failed ? `Job #${jobId}'s offer is unavailable right now` : `Job #${jobId} cannot be hired again`}</p>
+          <p className="text-[0.9rem] text-label-2">{failed ? 'Its terms could not be read from the board.' : 'Only a paid job, with the agent that did it, can be hired again.'}</p>
+          {failed && <Button variant="tinted" onClick={() => void Promise.all([detail.refetch(), index.refetch()])}>Retry</Button>}
+          <BoardLink target={boardRoutes().publish()} className="text-tint">Post a new job instead</BoardLink>
+        </div>
+      </>
+    )
+  }
+  if (!eligible || typeof reward !== 'object' || (budgetToken !== null && budget === 'reading')) {
+    return (
+      <>
+        <PageTitle>Hire again</PageTitle>
+        <div className="grid gap-3" aria-busy="true">
+          <Skeleton className="h-6 w-2/3" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </div>
+      </>
+    )
+  }
+  const prefill = hireAgainPrefill({
+    jobId,
+    agentId: job.agent_id as string,
+    worker: job.worker as string,
+    task,
+    decimals: reward.decimals,
+    ...(typeof budget === 'object' ? { budgetDecimals: budget.decimals } : {}),
+  })
+  return <PostFlow auth={auth} prefill={prefill} onPublished={onPublished} />
+}
+
+/** Who a Hire again prefill names, and the job it repeats; shown on every step while the offer is still a hire. */
+function HiringAgain({ prefill }: { prefill: Record<string, string> }) {
+  const { agentId, again } = prefill
+  if (agentId === undefined || again === undefined) return null
+  return (
+    <div role="note" className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
+      <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+      <p className="min-w-0 leading-relaxed">
+        <span className="block font-semibold">Hiring Agent #{agentId} again</span>
+        <span className="block text-[0.9rem] text-label-2">
+          The same token, reward and terms as{' '}
+          <BoardLink target={boardRoutes().job(again)} className="text-tint">
+            job #{again}
+          </BoardLink>
+          . Once it is published, Agent #{agentId} applies and you select it, marked as hired before. It starts when it activates.
+        </span>
+      </p>
+    </div>
+  )
 }
 
 function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<string, string>; onPublished?: ((p: Published) => void) | undefined }) {
@@ -361,7 +436,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 
   return (
     <>
-      <PageTitle>Post a job</PageTitle>
+      <PageTitle>{prefill.again !== undefined && f.mode === 'hire' ? 'Hire again' : 'Post a job'}</PageTitle>
+      {f.mode === 'hire' && <HiringAgain prefill={prefill} />}
       {publishedAs !== null && (
         <div role="status" className="grid gap-2 rounded-xl bg-ok-bg px-4 py-3 text-[0.92rem] text-ok">
           <span>This draft was already published, as job #{publishedAs}.</span>

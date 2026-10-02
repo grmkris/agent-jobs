@@ -7,6 +7,7 @@ import { useReadContracts } from 'wagmi'
 import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data, fetchDirectoryAgent } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
+import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Address, Amount, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, Skeleton, cn, rowClass } from '../components/ui.tsx'
@@ -205,6 +206,8 @@ function Profile({ id }: { id: string }) {
   const profile = identity.profile?.kind === 'json' ? identity.profile : null
   const wallet = identity.wallet ?? record.data?.wallets[0]
   const board = currentBoardId()
+  const { address } = useAuth()
+  const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   return (
     <>
       <header className="flex items-center gap-4">
@@ -224,6 +227,12 @@ function Profile({ id }: { id: string }) {
         </div>
       </header>
       {profile?.description !== null && profile?.description !== undefined && <p className="-mt-2 leading-relaxed text-label-2">{profile.description}</p>}
+      {again !== undefined && (
+        <div className="grid gap-1.5">
+          <HireAgainLink jobId={again.job_id} />
+          <p className="px-4 text-[0.85rem] text-label-2">You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.</p>
+        </div>
+      )}
 
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {record.isLoading ? (
