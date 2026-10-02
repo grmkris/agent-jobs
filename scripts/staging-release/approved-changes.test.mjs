@@ -22,6 +22,20 @@ test('a listed rotation is allowed', () => {
   assert.deepEqual(result, { ok: true, blockers: [] })
 })
 
+test('the additional exposed credentials may rotate only on their named Worker', () => {
+  const secretChanges = [
+    { logicalId: 'Api', name: 'AI_GATEWAY_API_KEY', action: 'rotate' },
+    { logicalId: 'Api', name: 'GITHUB_APP_PRIVATE_KEY', action: 'rotate' },
+    { logicalId: 'Indexer', name: 'HYPERSYNC_API_TOKEN', action: 'rotate' },
+  ]
+  assert.deepEqual(validatePlanChanges({ ...empty, secretChanges }, reference), { ok: true, blockers: [] })
+  for (const change of secretChanges) {
+    assert.equal(validatePlanChanges({ ...empty, secretChanges: [{ ...change, action: 'add' }] }, reference).ok, false)
+    assert.equal(validatePlanChanges({ ...empty, secretChanges: [{ ...change, logicalId: change.logicalId === 'Api' ? 'Indexer' : 'Api' }] }, reference).ok, false)
+  }
+  assert.equal(validatePlanChanges({ ...empty, secretChanges: [...secretChanges, { logicalId: 'Api', name: 'MONAD_RPC_URL', action: 'rotate' }] }, reference).ok, false)
+})
+
 test('a migration is still refused with an otherwise listed change', () => {
   const result = validatePlanChanges({ ...empty, migrations: ['0002'], secretChanges: [{ logicalId: 'Api', name: 'ATTESTER_PRIVATE_KEY', action: 'rotate' }] }, reference)
   assert.equal(result.ok, false)

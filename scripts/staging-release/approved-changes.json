@@ -8,7 +8,10 @@
     { "logicalId": "Api", "name": "TELEGRAM_WEBHOOK_SECRET", "action": "add" },
     { "logicalId": "Indexer", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },
     { "logicalId": "Api", "name": "RELAY_PRIVATE_KEY", "action": "rotate" },
-    { "logicalId": "Api", "name": "ATTESTER_PRIVATE_KEY", "action": "rotate" }
+    { "logicalId": "Api", "name": "ATTESTER_PRIVATE_KEY", "action": "rotate" },
+    { "logicalId": "Api", "name": "AI_GATEWAY_API_KEY", "action": "rotate" },
+    { "logicalId": "Api", "name": "GITHUB_APP_PRIVATE_KEY", "action": "rotate" },
+    { "logicalId": "Indexer", "name": "HYPERSYNC_API_TOKEN", "action": "rotate" }
   ],
   "domainChanges": [
     { "logicalId": "Explore", "hostname": "hireling.xyz", "action": "release-alias", "setting": "HIRELING_APEX_REDIRECT", "value": "0" }
