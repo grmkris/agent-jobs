@@ -7,7 +7,7 @@ export const TELEGRAM_BOT = 'hireling_xyz_bot'
 /** What the bot DMs about once linked (B9). */
 export const TELEGRAM_NOTICES = [
   'A delivery is submitted on your job',
-  'A day before silence pays out',
+  'A day before your silence approves a delivery',
   'You are hired or selected',
   'A dispute is ruled',
   'Something is ready to collect',
