@@ -140,7 +140,11 @@ keys are not used here; they live in the production secret sources.
 | Safe owner that sends | from the Safe | 0.5 MON | SafeAccept, and each epoch's fund + setRoot |
 | relay | `roles.relay` (a fresh R2 key) | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it |
 | attester | `roles.attester` (a fresh R2 key) | 1 MON | attaches evidence |
-| arbitrator | `roles.arbitrator` (a fresh R2 key) | 0 | only signs; the relay sends |
+| arbitrator | `roles.arbitrator` (a fresh R2 key) | 0.11 | signs rulings, which the relay sends. It also sends `cancelRuling` itself, to burn a recorded ruling's nonce (arbiter `cancel_ruling`). Bounded reserve: 10 cancellations at 51,848 gas (estimated on a Monad-pricing fork) × 203 gwei = 0.105 MON. Refill when below 0.05; no other use |
+
+The arbiter process (`apps/arbiter`, a separate source from the Worker) refuses to start without both
+`ARBITRATOR_PRIVATE_KEY` (legacy) and `V1_ARBITRATOR_PRIVATE_KEY` (the fresh v1 key above, which holds the cancellation
+reserve). Provision both, even though mainnet has no legacy pair.
 
 If the deployer is also the liquidity holder, send it both rows and use `hireling-deployer` in §3.7. Space out
 transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).

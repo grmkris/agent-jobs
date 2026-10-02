@@ -212,8 +212,9 @@ contract MainnetRunbookTest is Test {
     }
 
     function test_runbookCarriesBudgetFundingAndFallbackKey() public view {
-        string[7] memory needles = [
+        string[8] memory needles = [
             "32,282,526", // R7's launch gas limit
+            "| arbitrator | `roles.arbitrator` (a fresh R2 key) | 0.11 |", // LAUNCH-AUDIT-007: the cancellation reserve
             "RELAY_FLOOR_MAINNET",
             "| relay |",
             "| liquidity holder",
