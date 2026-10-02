@@ -337,3 +337,39 @@ and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY
   "positionOwner": "0x…"                                    // = deployment.hireling.safe (R2); anything else refuses
 }
 ```
+
+## Launch rehearsal (R7): `script/rehearse-launch.sh`
+
+The mainnet launch end to end on a throwaway anvil fork of chain 143 (`--network monad` pricing), in runbook order:
+1. A 1-of-2 Safe from the canonical v1.4.1 SafeProxyFactory `0x4e1D…ec67`, SafeL2 `0x29fc…C762` and fallback handler
+   `0xfd07…Ec99` (code checked first).
+2. `DeployHireling` with a fresh core and `MAINNET_GO`.
+3. `PromoteHireling`, then the D16 launch gate (`apps/api/src/prod-config.ts`), which must **refuse**: all six
+   handovers are only pending.
+4. `SafeAccept` from one owner, then the gate, which must **pass**: Safe custody, both core admin roles with the Safe
+   and none with the deployer, attester verifier, relay above 2 MON.
+5. `SeedPool`, then its receipt-based `--sig "verify()"` against forge's real run log.
+6. One direct hire through the v1 pair (`script/RehearseHireAndMine.s.sol`, `RehearseHire`).
+7. A warp past epoch 0; the Safe funds it and posts a one-leaf root, and the worker's claim stakes (`RehearseMining`).
+
+It signs with anvil's public dev keys only, refuses to start if any chain-143 broadcast log exists, and removes its
+scratch `config/rehearsal-mainnet.json` and logs on exit:
+`RPC=https://rpc.monad.xyz bash script/rehearse-launch.sh`. Passed 2 Oct (fork of mainnet at that day's head).
+
+**Launch budget** from that run. The limits are the ones forge actually sent, which Monad charges; MON is limit ×
+gas price.
+
+| step | txs | gas limit | gas used | MON @ 102 gwei | MON @ 203 gwei (max fee) | paid by |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Safe (1-of-2) | 1 | 319,209 | 315,034 | 0.033 | 0.065 | anyone (deployer) |
+| DeployHireling, fresh core | 26 | 26,300,231 | 20,227,347 | 2.683 | 5.339 | deployer |
+| PromoteHireling | 0 | 0 | 0 | 0 | 0 | — |
+| SafeAccept (6 × execTransaction) | 6 | 797,168 | 607,843 | 0.081 | 0.162 | a Safe owner |
+| SeedPool (helper, 2 approvals, seed) | 4 | 3,888,439 | 2,990,539 | 0.397 | 0.789 | seeder (liquidity holder) |
+| Mining epoch 0 (fund + setRoot via Safe, claim) | 3 | 732,804 | 559,059 | 0.075 | 0.149 | a Safe owner; claimer |
+| **launch total** | **40** | **32,037,851** | | **3.268** | **6.504** | |
+| one hire (rehearsal only, users pay) | 11 | 4,568,823 | 2,629,362 | 0.466 | 0.928 | creator, worker |
+
+The deployer needs about 3.1 MON charged (Safe + deploy + seed), or 6.2 MON on hand at the 203 gwei max fee (Monad
+checks the balance against limit × max fee). A Safe owner needs about 0.15 MON, or 0.3 on hand. The relay must hold
+more than `RELAY_FLOOR_MAINNET` (2 MON, B6) before opening.
