@@ -7,7 +7,7 @@
  */
 import { type DisputeBundle, checkRulingRequest, validateProposal } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
-import type { Hex, LocalAccount } from 'viem'
+import { type Hex, type LocalAccount, encodeFunctionData } from 'viem'
 
 export interface BoardLike {
   call<T = any>(tool: string, args?: Record<string, unknown>): Promise<T>
@@ -26,6 +26,8 @@ export interface ArbiterDeps {
   /** Recorded with a new decision (R114-08). */
   readonly model?: string
   readonly promptVersion?: string
+  /** Only sends a locally rebuilt cancelRuling call from this arbitrator's own wallet. */
+  readonly sendCancellation?: (transaction: sdk.TxRequest) => Promise<void>
 }
 
 export type Outcome =
@@ -79,6 +81,23 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
   // A decision already recorded for this dispute (by this runner before a crash, or by another harness) is final:
   // re-use it and never ask the model again (R114-08). It still passes the same deterministic gate.
   const recorded = d.decision
+  if (recorded !== null && stack.kind === 'hireling-v1') {
+    const cancellation = await deps.board.call<{ resolved: boolean; nonce: string | null; transactions: sdk.TxRequest[] }>('cancel_ruling', { taskId: d.taskId })
+    if (cancellation.resolved) return { taskId: d.taskId, result: 'skipped', why: 'the dispute is already resolved on-chain' }
+    if (cancellation.transactions.length > 0) {
+      if (cancellation.nonce === null || !/^\d+$/.test(cancellation.nonce) || BigInt(cancellation.nonce) >= 2n ** 256n) {
+        return { taskId: d.taskId, result: 'skipped', why: 'invalid ruling cancellation nonce' }
+      }
+      const transaction: sdk.TxRequest = { description: 'Cancel the previous ruling authorization', chainId,
+        to: stack.evaluator, value: '0', data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'cancelRuling', args: [BigInt(cancellation.nonce)] }) }
+      const offered = cancellation.transactions[0]!
+      if (cancellation.transactions.length !== 1 || offered.chainId !== chainId || offered.to.toLowerCase() !== stack.evaluator.toLowerCase() || offered.data !== transaction.data || offered.value !== '0') {
+        return { taskId: d.taskId, result: 'skipped', why: 'ruling cancellation request refused' }
+      }
+      if (!deps.sendCancellation) return { taskId: d.taskId, result: 'skipped', why: 'ruling cancellation needs the arbitrator wallet' }
+      await deps.sendCancellation(transaction)
+    }
+  }
   const raw =
     recorded !== null && recorded.reason !== null
       ? { forWorker: recorded.forWorker, slashLoser: recorded.slashLoser, reason: recorded.reason }

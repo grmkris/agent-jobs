@@ -39,6 +39,10 @@ export function fromNodeSqlite(db: {
 }
 
 const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS ruling_attempts (
+    task_id TEXT NOT NULL, nonce TEXT NOT NULL, record_json TEXT NOT NULL, created_at INTEGER NOT NULL,
+    PRIMARY KEY (task_id, nonce)
+  )`,
   `CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     creator TEXT NOT NULL,

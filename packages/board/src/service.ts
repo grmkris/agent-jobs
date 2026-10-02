@@ -30,6 +30,7 @@ import {
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
+import * as hireling from './hireling.ts'
 import { type DisputeBundle, type ViolationName, bundleHash, rulingRefusal } from './arbitration.ts'
 import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github.ts'
 import type { ModelEndpoint } from './model.ts'
@@ -124,13 +125,7 @@ export interface BoardConfig {
 }
 
 /** An unsigned transaction for the caller's wallet: `cast send <to> <data>`, or `eth_sendTransaction`. */
-export interface TxRequest {
-  readonly description: string
-  readonly chainId: number
-  readonly to: Address
-  readonly data: Hex
-  readonly value: '0'
-}
+export type TxRequest = sdk.TxRequest
 
 /** An EIP-712 message for the caller's wallet: `cast wallet sign --data '<json>'`, or `eth_signTypedData_v4`. */
 export interface SignRequest {
@@ -282,12 +277,13 @@ export class Board {
    * would point at the wrong contracts.
    */
   #taskCtx(task: TaskRow): sdk.Ctx {
-    const holding = parseTerms(task.terms_json).deployment.holding
+    const binding = parseTerms(task.terms_json).deployment
+    const holding = binding.holding
     const current = Object.values(this.#config.contexts).find((c) => c !== undefined && eq(c.stack.holding, holding))
     if (current !== undefined) return current
     const any = Object.values(this.#config.contexts).find((c) => c !== undefined)
-    const legacy = sdk.stackByHolding(sdk.deployment(this.#config.network), holding)
-    if (any !== undefined && legacy !== undefined) return { ...any, stack: legacy[1] }
+    const legacy = sdk.stackByHolding(any?.deployment ?? sdk.deployment(this.#config.network), holding)
+    if (any !== undefined && legacy !== undefined) return { ...any, deployment: { ...any.deployment, core: binding.core }, stack: legacy[1] }
     return this.#ctx(task.stack)
   }
 
@@ -295,22 +291,26 @@ export class Board {
 
   /** The core's pause flag, read at most every 15 s. While paused every core call reverts, so the board hands out none. */
   async paused(stack: sdk.StackName = 'main'): Promise<boolean> {
-    const hit = this.#pausedCache.get(stack)
+    return this.#paused(this.#ctx(stack))
+  }
+
+  async #paused(ctx: sdk.Ctx): Promise<boolean> {
+    const key = ctx.deployment.core.toLowerCase()
+    const hit = this.#pausedCache.get(key)
     if (hit !== undefined && this.#now() - hit.at < 15) return hit.paused
-    const ctx = this.#ctx(stack)
     const paused = await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })
-    this.#pausedCache.set(stack, { at: this.#now(), paused })
+    this.#pausedCache.set(key, { at: this.#now(), paused })
     return paused
   }
 
-  async #requireUnpaused(stack: string): Promise<void> {
-    if (await this.paused(stack as sdk.StackName)) {
+  async #requireUnpaused(stack: string | TaskRow): Promise<void> {
+    if (await this.#paused(typeof stack === 'string' ? this.#ctx(stack) : this.#taskCtx(stack))) {
       throw new BoardError('conflict', 'the core contract is paused by its admin; nothing can move until it is unpaused (README, Trust)')
     }
   }
 
-  #tx(ctx: sdk.Ctx, description: string, to: Address, data: Hex): TxRequest {
-    return { description, chainId: ctx.deployment.chainId, to, data, value: '0' }
+  #tx(ctx: sdk.Ctx, description: string, to: Address, data: Hex, gas?: bigint): TxRequest {
+    return hireling.transaction(ctx, description, to, data, gas)
   }
 
   #requireCaller(caller: Caller): Address {
@@ -450,6 +450,11 @@ export class Board {
       mode: OfferMode
       selectionDeadline?: number
       approver?: string
+      /** V1: review/dispute 1h–14d, arbitration 12h–14d, all in seconds. */
+      windows?: import('./terms.ts').EvaluatorWindows
+      arbitrator?: string
+      /** Shortcut to a pre-created application. The worker still signs and activates. */
+      invite?: { agentId: string }
       /** "main" (real windows) or, on testnet, "demo" (minute windows). */
       stack?: sdk.StackName
       /** GitHub check names evidence must cover; they become the offer's evidence policy. */
@@ -471,13 +476,11 @@ export class Board {
     await this.#requireUnpaused(stack)
     const token = await this.#resolveToken(ctx, input.token)
     const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-    const [review, dispute, arbitration, block] = await Promise.all([
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputeWindow' }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrationWindow' }),
+    const [windows, arbitrator, block] = await Promise.all([
+      hireling.offerWindows(ctx, input.windows),
+      hireling.offerArbitrator(ctx, input.arbitrator),
       ctx.publicClient.getBlockNumber(),
     ])
-    const windows = { reviewSeconds: review, disputeSeconds: dispute, arbitrationSeconds: arbitration }
     const executionBudget = input.executionBudget === undefined ? undefined : await this.#executionBudget(ctx, input.executionBudget, input.deliveryDeadline)
     const taskId = randomId(8)
     const terms: OfferTerms = {
@@ -504,6 +507,7 @@ export class Board {
       selectionDeadline: input.selectionDeadline ?? null,
       creator,
       approver: input.approver === undefined ? creator : getAddress(input.approver),
+      ...(arbitrator === undefined ? {} : { arbitrator }),
       windows,
       eligibility: null,
       evidencePolicy:
@@ -516,12 +520,22 @@ export class Board {
       salt: `0x${randomId(32)}`,
     }
     try {
-      validateOffer(terms, windows, this.#now())
+      const enforced = hireling.isHireling(ctx) ? windows : await hireling.offerWindows(ctx)
+      validateOffer(terms, enforced, this.#now(), ctx.stack.kind)
     } catch (e) {
       throw new BoardError('invalid', (e as Error).message)
     }
     const hash = termsHash(terms)
     const manifest = canonicalJson(terms)
+    let invited: { worker: Address; agentId: string } | undefined
+    if (input.invite !== undefined) {
+      if (!hireling.isHireling(ctx) || input.mode !== 'hire') throw new BoardError('invalid', 'direct hire is available on v1 hires')
+      const agentId = input.invite.agentId
+      if (typeof agentId !== 'string' || !/^[1-9]\d*$/.test(agentId) || BigInt(agentId) >= 2n ** 256n) throw new BoardError('invalid', 'invite.agentId must be a nonzero uint256 decimal string')
+      const worker = await sdk.agentWallet(ctx, BigInt(agentId))
+      if (worker === zeroAddress || [creator, terms.approver, terms.arbitrator].some(a => eq(a, worker))) throw new BoardError('invalid', 'the invited agent must have a registered wallet distinct from creator, approver and arbitrator')
+      invited = { worker, agentId }
+    }
     const symbol = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' })
     // "mEUR"/"mUSD" read as millions to a model; say what the unit is.
     const unit = this.#config.network === 'monad-testnet' ? ` (${symbol} is a testnet mock token worth about 1 ${symbol.replace(/^m/, '')} of play money; "m" means mock, not million)` : ''
@@ -540,6 +554,12 @@ export class Board {
     this.#operation(taskId, 'publish', creator, { termsHash: hash })
     if (executionBudget !== undefined) this.#budget.promise(taskId, creator, executionBudget)
 
+    const applicationId = invited === undefined ? undefined : randomId(8)
+    if (invited !== undefined) this.#sql.run(
+      'INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      applicationId!, taskId, invited.worker, invited.agentId, 'direct hire invitation', this.#now(),
+    )
+
     const transactions = await this.#publishTransactions(ctx, creator, terms, hash as Hex)
     return {
       taskId,
@@ -548,21 +568,23 @@ export class Board {
       manifestUrl: `${this.#config.manifestBaseUrl}/${hash}.json`,
       manifest,
       transactions,
+      ...(applicationId === undefined ? {} : { applicationId }),
       next: 'Send the transactions in order from the creator wallet, then report_transaction with the publish tx hash.',
     }
   }
 
   /** The approvals and the `publish` of one frozen offer, exactly as agreed (terms hash = manifest hash). */
   async #publishTransactions(ctx: sdk.Ctx, creator: Address, terms: OfferTerms, hash: Hex): Promise<TxRequest[]> {
+    if (hireling.isHireling(ctx)) return hireling.publishHireling(ctx, terms, hash)
     const token = terms.token
     const expiredAt =
       terms.deliveryDeadline +
-      Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'settlementWindow' }))
+      Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'settlementWindow' }))
     const transactions: TxRequest[] = []
     transactions.push(
       ...(await this.#approvals(ctx, creator, [
         [token, terms.reward, 'reward token'],
-        [ctx.deployment.factory, terms.creatorBond, 'FACTORY (creator bond)'],
+        [ctx.stack.factory, terms.creatorBond, 'FACTORY (creator bond)'],
       ])),
     )
     transactions.push(
@@ -571,7 +593,7 @@ export class Board {
         'publish: escrows the reward and the creator bond and lists the offer',
         ctx.stack.holding,
         encodeFunctionData({
-          abi: sdk.jobHoldingAbi,
+          abi: hireling.holdingAbi(ctx),
           functionName: 'publish',
           args: [
             {
@@ -601,7 +623,7 @@ export class Board {
   async publishTransactions(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the creator publishes')
     if (task.job_id !== null || (await this.#recoverPublish(task)) !== null) throw new BoardError('conflict', `already published as job ${task.job_id}`)
     return { transactions: await this.#publishTransactions(this.#taskCtx(task), me, parseTerms(task.terms_json), task.terms_hash as Hex) }
@@ -773,7 +795,7 @@ export class Board {
       for (const log of receipt.logs) {
         if (!eq(log.address, ctx.stack.holding)) continue
         try {
-          const event = decodeEventLog({ abi: sdk.jobHoldingAbi, data: log.data, topics: log.topics })
+          const event = decodeEventLog({ abi: hireling.holdingAbi(ctx), data: log.data, topics: log.topics })
           if (event.eventName === 'Published' && eq(event.args.policyHash, task.terms_hash)) {
             this.#sql.run('UPDATE tasks SET job_id = ?, publish_tx = ? WHERE id = ?', event.args.jobId.toString(), input.txHash, task.id)
             this.#sql.run(
@@ -881,7 +903,7 @@ export class Board {
   async cancelTask(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const terms = parseTerms(task.terms_json)
     if (!this.#actsForCreator(task, me)) throw new BoardError('forbidden', 'only the creator (or the pool’s curator) cancels')
     if (terms.mode !== 'hire') throw new BoardError('invalid', 'a published contest cannot be cancelled; it ends by award or expiry')
@@ -890,16 +912,18 @@ export class Board {
     const ctx = this.#taskCtx(task)
     const jobId = this.#jobId(task)
     this.#operation(task.id, 'cancel', me)
+    if (hireling.isHireling(ctx)) return { transactions: [this.#tx(ctx, 'Cancel the unactivated hire and refund its reward', ctx.stack.holding,
+      encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancel', args: [jobId] }), sdk.V1_GAS.cancel)] }
     const pool = task.pool_id === null ? null : this.#poolRow(task.pool_id)
     return {
       transactions: [
         pool === null
           ? this.#tx(ctx, 'cancel: ends the listing before anyone activated it', ctx.stack.holding,
-              encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'cancel', args: [jobId] }))
+              encodeFunctionData({ abi: hireling.holdingAbi(ctx), functionName: 'cancel', args: [jobId] }))
           : this.#tx(ctx, 'cancel: the curator ends the pool’s listing before anyone activated it (forwarded by the pool)', getAddress(pool.pool),
               encodeFunctionData({ abi: sdk.jobPoolAbi, functionName: 'cancel', args: [] })),
         this.#tx(ctx, pool === null ? 'settle: returns the reward and your bond' : 'settle: returns the reward to the pool; pledgers then call pool_refund', ctx.stack.holding,
-          encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })),
+          encodeFunctionData({ abi: hireling.holdingAbi(ctx), functionName: 'settle', args: [jobId] })),
       ],
     }
   }
@@ -941,6 +965,7 @@ export class Board {
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     const factory = ctx.deployment.poolFactory
+    if (hireling.isHireling(ctx)) throw new BoardError('invalid', 'Pools are not supported on Hireling v1')
     if (factory === null) throw new BoardError('invalid', `no JobPoolFactory on ${ctx.deployment.network}`)
     const curator = getAddress(input.curator ?? me)
     const now = this.#now()
@@ -978,9 +1003,9 @@ export class Board {
         ...(typeof terms.selectionDeadline === 'number' ? { selectionDeadline: terms.selectionDeadline } : {}),
       },
     })
-    const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'minHoldToPublish' })
+    const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hireling.holdingAbi(ctx), functionName: 'minHoldToPublish' })
     const transactions: TxRequest[] = [
-      ...(await this.#approvals(ctx, me, [[ctx.deployment.factory, hold, 'FACTORY (the publish hold, held by the pool and returned after)', [factory, 'the pool factory']]])),
+      ...(await this.#approvals(ctx, me, [[ctx.stack.factory, hold, 'FACTORY (the publish hold, held by the pool and returned after)', [factory, 'the pool factory']]])),
       this.#tx(ctx, 'create pool: clones the pool at its predicted address and moves the hold in', factory,
         encodeFunctionData({ abi: sdk.jobPoolFactoryAbi, functionName: 'create', args: [salt, params] })),
     ]
@@ -1108,7 +1133,7 @@ export class Board {
   async approveWork(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver accepts')
     const ctx = this.#taskCtx(task)
@@ -1116,7 +1141,7 @@ export class Board {
     return {
       transactions: [
         this.#tx(ctx, 'accept: pays the reward from escrow, returns both bonds', ctx.stack.evaluator,
-          encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'accept', args: [this.#jobId(task)] })),
+          encodeFunctionData({ abi: hireling.evaluatorAbi(ctx), functionName: 'accept', args: [this.#jobId(task)] }), hireling.isHireling(ctx) ? sdk.V1_GAS.evaluator : undefined),
       ],
     }
   }
@@ -1124,7 +1149,7 @@ export class Board {
   async rejectWork(caller: Caller, input: { taskId: string; violation: sdk.ViolationName; reason: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver rejects')
     if (!(input.violation in sdk.Violation)) throw new BoardError('invalid', 'violation is None, Quality or Falsified')
@@ -1136,7 +1161,7 @@ export class Board {
       reasonHash,
       transactions: [
         this.#tx(ctx, `reject (${input.violation}): nothing moves; the worker may dispute`, ctx.stack.evaluator,
-          encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'reject', args: [this.#jobId(task), sdk.Violation[input.violation], reasonHash] })),
+          encodeFunctionData({ abi: hireling.evaluatorAbi(ctx), functionName: 'reject', args: [this.#jobId(task), sdk.Violation[input.violation], reasonHash] })),
       ],
     }
   }
@@ -1168,6 +1193,8 @@ export class Board {
       stack?: sdk.StackName
       approver?: string
       requiredChecks?: string[]
+      windows?: import('./terms.ts').EvaluatorWindows
+      arbitrator?: string
       /** The deliverable forms accepted (ADR-0006); the picked hire inherits them. */
       deliverable?: DeliverableSpec
     },
@@ -1196,8 +1223,16 @@ export class Board {
       deliveryDeadline: input.deliveryDeadline,
       quoteDeadline: input.quoteDeadline,
       requiredChecks: input.requiredChecks ?? [],
+      ...(hireling.isHireling(ctx) ? { windows: await hireling.offerWindows(ctx, input.windows), arbitrator: await hireling.offerArbitrator(ctx, input.arbitrator) } : {}),
       ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
       salt: `0x${randomId(32)}`,
+    }
+    if (hireling.isHireling(ctx)) {
+      try {
+        validateOffer({ mode: 'hire', windows: request.windows!, arbitrator: request.arbitrator!, creator,
+          approver: request.approver, reward: 1n, creatorBond: parseUnits(input.creatorBond, 18), workerBond: parseUnits(input.workerBond, 18),
+          deliveryDeadline: input.deliveryDeadline, selectionDeadline: null } as OfferTerms, request.windows!, now, 'hireling-v1')
+      } catch (e) { throw new BoardError('invalid', (e as Error).message) }
     }
     const requestJson = canonicalJson(request)
     const requestHash = sdk.hashText(requestJson)
@@ -1343,6 +1378,7 @@ export class Board {
     const r = JSON.parse(req.request_json) as {
       title: string; brief: string; acceptanceCriteria: string[]; creatorBond: string; workerBond: string
       deliveryDeadline: number; approver: Address; requiredChecks: string[]; deliverable?: DeliverableSpec
+      windows?: import('./terms.ts').EvaluatorWindows; arbitrator?: Address
     }
     const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     const created = await this.createTask(
@@ -1359,6 +1395,8 @@ export class Board {
         mode: 'hire',
         stack: req.stack as sdk.StackName,
         approver: r.approver,
+        ...(r.windows === undefined ? {} : { windows: r.windows }),
+        ...(r.arbitrator === undefined ? {} : { arbitrator: r.arbitrator }),
         ...(r.requiredChecks.length === 0 ? {} : { requiredChecks: r.requiredChecks }),
         ...(r.deliverable === undefined ? {} : { deliverable: r.deliverable }),
         ...(input.executionBudget === undefined
@@ -1433,7 +1471,7 @@ export class Board {
   async prepareActivation(caller: Caller, input: { taskId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const sel = this.#liveSelectionFor(task, me)
     await this.#requireListingMatches(task)
     const ctx = this.#taskCtx(task)
@@ -1448,17 +1486,19 @@ export class Board {
       budgetNonce.toString(),
       budgetDeadline,
     )
+    const feeQuote = hireling.isHireling(ctx) ? await hireling.activationQuote(ctx, this.#jobId(task), me, terms) : null
     return {
       selection: this.#selection(task, sel),
       activateBy: sel.activate_by,
-      transactions: await this.#approvals(ctx, me, [[ctx.deployment.factory, terms.workerBond, 'FACTORY (worker bond)']]),
+      transactions: hireling.isHireling(ctx) ? [] : await this.#approvals(ctx, me, [[ctx.stack.factory, terms.workerBond, 'FACTORY (worker bond)']]),
+      ...(feeQuote === null ? {} : { feeQuote: { feeBps: feeQuote.feeBps, fee: feeQuote.fee.toString(), net: feeQuote.net.toString() } }),
       sign: {
-        description: 'SetBudgetAuthorization for exactly the listed reward: sign with your wallet, then build_activation with the signature',
+        description: 'SetBudgetAuthorization for the quoted worker payment: sign with your wallet, then build_activation with the signature',
         typedData: typedDataJson(sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), sdk.setBudgetTypes, 'SetBudgetAuthorization', {
           signer: me,
           jobId: this.#jobId(task),
           token: terms.token,
-          amount: terms.reward,
+          amount: feeQuote?.net ?? terms.reward,
           optParamsHash: sdk.EMPTY_HASH,
           nonce: budgetNonce,
           deadline: BigInt(budgetDeadline),
@@ -1483,7 +1523,7 @@ export class Board {
   async buildActivation(caller: Caller, input: { taskId: string; budgetSignature: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const sel = this.#liveSelectionFor(task, me)
     await this.#requireListingMatches(task)
     const [prep] = this.#sql.all<{ nonce: string; budget_nonce: string; budget_deadline: number }>(
@@ -1494,15 +1534,24 @@ export class Board {
     if (prep === undefined || prep.nonce !== sel.nonce) throw new BoardError('conflict', 'call prepare_activation first')
     const ctx = this.#taskCtx(task)
     const terms = parseTerms(task.terms_json)
+    if (hireling.isHireling(ctx)) {
+      const quote = await hireling.activationQuote(ctx, this.#jobId(task), me, terms)
+      const valid = await ctx.publicClient.verifyTypedData({ address: me,
+        domain: sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), types: sdk.setBudgetTypes, primaryType: 'SetBudgetAuthorization',
+        message: { signer: me, jobId: this.#jobId(task), token: terms.token, amount: quote.net, optParamsHash: sdk.EMPTY_HASH,
+          nonce: BigInt(prep.budget_nonce), deadline: BigInt(prep.budget_deadline) }, signature: input.budgetSignature as Hex,
+      })
+      if (!valid) throw new BoardError('conflict', 'The budget signature does not match the current net quote; call prepare_activation and sign the new quote.')
+    }
     this.#operation(task.id, 'activate', me, { selectionNonce: sel.nonce })
     return {
       transactions: [
         // Any approval not sent yet: a wallet that batches (EIP-7702) signs first and sends approve + activate as
         // one transaction; one that already sent prepare_activation's approval gets none here.
-        ...(await this.#approvals(ctx, me, [[ctx.deployment.factory, terms.workerBond, 'FACTORY (worker bond)']])),
+        ...(hireling.isHireling(ctx) ? [] : await this.#approvals(ctx, me, [[ctx.stack.factory, terms.workerBond, 'FACTORY (worker bond)']])),
         this.#tx(ctx, 'activate: your final confirmation; sets you as provider, posts your bond, funds the job', ctx.stack.holding,
           encodeFunctionData({
-            abi: sdk.jobHoldingAbi,
+            abi: hireling.holdingAbi(ctx),
             functionName: 'activate',
             args: [
               this.#selection(task, sel),
@@ -1519,7 +1568,7 @@ export class Board {
   async submitWork(caller: Caller, input: { taskId: string; deliverable?: unknown; repo?: string; branch?: string; sha?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const ctx = this.#taskCtx(task)
     const job = await sdk.getJob(ctx, this.#jobId(task))
     if (!eq(job.provider, me)) throw new BoardError('forbidden', 'only the activated worker submits')
@@ -1549,7 +1598,7 @@ export class Board {
   async disputeRejection(caller: Caller, input: { taskId: string; statement?: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const ctx = this.#taskCtx(task)
     if (input.statement !== undefined && input.statement.trim() !== '') {
       // Stored under the worker's role only for the job's provider: the bundle's roles are what the arbiter weighs.
@@ -1561,7 +1610,7 @@ export class Board {
     return {
       transactions: [
         this.#tx(ctx, 'dispute: freezes acceptance; only a ruling or the arbitration timeout settles', ctx.stack.evaluator,
-          encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'dispute', args: [this.#jobId(task)] })),
+          encodeFunctionData({ abi: hireling.evaluatorAbi(ctx), functionName: 'dispute', args: [this.#jobId(task)] })),
       ],
     }
   }
@@ -1697,7 +1746,7 @@ export class Board {
   async awardCandidate(caller: Caller, input: { taskId: string; candidateId: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const terms = parseTerms(task.terms_json)
     if (!eq(terms.approver, me)) throw new BoardError('forbidden', 'only the approver awards')
     const c = this.#candidate(task.id, input.candidateId)
@@ -1709,7 +1758,7 @@ export class Board {
       transactions: [
         this.#tx(ctx, 'award: pays this entry and closes the contest in one transaction', ctx.stack.holding,
           encodeFunctionData({
-            abi: sdk.jobHoldingAbi,
+            abi: hireling.holdingAbi(ctx),
             functionName: 'award',
             args: [this.#jobId(task), {
               worker: getAddress(c.worker),
@@ -1738,7 +1787,7 @@ export class Board {
     const cfg = this.#config.evidence
     if (cfg === undefined) throw new BoardError('invalid', 'the attester is not configured on this board (unavailable)')
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const terms = parseTerms(task.terms_json)
     const ctx = this.#taskCtx(task)
     const target =
@@ -1837,19 +1886,35 @@ export class Board {
 
   readonly #arbitrators = new Map<string, Address>()
 
-  async #arbitratorOf(stack: string): Promise<Address> {
-    const known = this.#arbitrators.get(stack)
+  async #arbitratorOf(task: TaskRow): Promise<Address> {
+    const ctx = this.#taskCtx(task)
+    if (hireling.isHireling(ctx)) return (await sdk.termsOf(ctx, this.#jobId(task))).arbitrator
+    const key = ctx.stack.evaluator.toLowerCase()
+    const known = this.#arbitrators.get(key)
     if (known !== undefined) return known
-    const ctx = this.#ctx(stack)
     const a = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })
-    this.#arbitrators.set(stack, a)
+    this.#arbitrators.set(key, a)
     return a
   }
 
-  async #requireArbitrator(caller: Caller, stack: string): Promise<Address> {
+  async #requireArbitrator(caller: Caller, task: TaskRow): Promise<Address> {
     const me = this.#requireCaller(caller)
-    if (!eq(await this.#arbitratorOf(stack), me)) throw new BoardError('forbidden', `only the ${stack} stack's arbitrator`)
+    if (!eq(await this.#arbitratorOf(task), me)) throw new BoardError('forbidden', 'only this job’s named arbitrator')
     return me
+  }
+
+  async #knownArbitrator(me: Address): Promise<boolean> {
+    for (const task of this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE job_id IS NOT NULL')) {
+      if (eq(await this.#arbitratorOf(task), me)) return true
+    }
+    for (const ctx of Object.values(this.#config.contexts)) {
+      if (ctx === undefined) continue
+      const address = hireling.isHireling(ctx)
+        ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'defaultArbitrator' })
+        : await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'arbitrator' })
+      if (eq(address, me)) return true
+    }
+    return false
   }
 
   /**
@@ -1858,9 +1923,7 @@ export class Board {
    */
   async arbiterLease(caller: Caller, input: { runner: string; ttlSeconds?: number; release?: boolean }) {
     const me = this.#requireCaller(caller)
-    const stacks = Object.keys(this.#config.contexts)
-    const mine = await Promise.all(stacks.map(async (st) => eq(await this.#arbitratorOf(st), me)))
-    if (!mine.some(Boolean)) throw new BoardError('forbidden', 'only an arbitrator key holds an arbiter lease')
+    if (!await this.#knownArbitrator(me)) throw new BoardError('forbidden', 'only an arbitrator key holds an arbiter lease')
     const key = me.toLowerCase()
     const now = this.#now()
     const [lease] = this.#sql.all<{ runner: string; expires_at: number }>('SELECT runner, expires_at FROM arbiter_leases WHERE arbitrator = ?', key)
@@ -1889,23 +1952,23 @@ export class Board {
   /** Every open dispute the caller arbitrates, with its deadline and any decision already recorded. */
   async listDisputes(caller: Caller) {
     const me = this.#requireCaller(caller)
-    const stacks = Object.keys(this.#config.contexts)
-    const mine = await Promise.all(stacks.map(async (st) => eq(await this.#arbitratorOf(st), me)))
-    if (!mine.some(Boolean)) throw new BoardError('forbidden', 'arbitrator tools need a session signed in with the arbitrator wallet')
+    if (!await this.#knownArbitrator(me)) throw new BoardError('forbidden', 'arbitrator tools need a session signed in with the arbitrator wallet')
     const out = []
     for (const task of this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE job_id IS NOT NULL ORDER BY created_at')) {
-      if (this.#config.contexts[task.stack as sdk.StackName] === undefined) continue
-      if (!eq(await this.#arbitratorOf(task.stack), me)) continue
+      if (!eq(await this.#arbitratorOf(task), me)) continue
       const ctx = this.#taskCtx(task)
-      const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [this.#jobId(task)] })
+      const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'disputedAt', args: [this.#jobId(task)] })
       if (disputedAt === 0) continue
       const view = await this.#chainView(task)
-      if (view.status !== 'disputed') continue
+      if (view.status !== 'disputed' || view.deferredDecision || (view.outcome !== undefined && view.outcome !== 'None')) continue
       const decision = this.#ruling(task.id, disputedAt)
       out.push({
         taskId: task.id,
         jobId: task.job_id,
         stack: task.stack,
+        arbitrator: me,
+        evaluator: ctx.stack.evaluator,
+        kind: ctx.stack.kind,
         title: parseTerms(task.terms_json).title,
         violation: view.violation,
         arbitrationEndsAt: view.arbitrationEndsAt,
@@ -1955,10 +2018,10 @@ export class Board {
     const jobId = this.#jobId(task)
     const terms = parseTerms(task.terms_json)
     const [disputedAt, reasonHash, view, arbitrator] = await Promise.all([
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [jobId] }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rejectionReasonOf', args: [jobId] }),
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'disputedAt', args: [jobId] }),
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'rejectionReasonOf', args: [jobId] }),
       this.#chainView(task),
-      this.#arbitratorOf(task.stack),
+      this.#arbitratorOf(task),
     ])
     if (disputedAt === 0) throw new BoardError('conflict', 'this job has not been disputed')
     const reason = this.#sql.all<{ text: string }>('SELECT text FROM reasons WHERE hash = ?', reasonHash)[0]
@@ -1984,7 +2047,7 @@ export class Board {
       evaluator: ctx.stack.evaluator,
       arbitrator,
       disputedAt,
-      arbitrationEndsAt: disputedAt + terms.windows.arbitrationSeconds,
+      arbitrationEndsAt: view.arbitrationEndsAt ?? disputedAt + terms.windows.arbitrationSeconds,
       offer: {
         title: terms.title,
         brief: terms.brief,
@@ -2029,11 +2092,11 @@ export class Board {
     },
   ) {
     const task = this.#task(input.taskId)
-    const me = await this.#requireArbitrator(caller, task.stack)
+    const me = await this.#requireArbitrator(caller, task)
     this.#requireLease(me, input.runner)
     const bundle = await this.#bundle(task)
     const view = await this.#chainView(task)
-    if (view.status !== 'disputed') throw new BoardError('conflict', `the task is ${view.status}, not disputed`)
+    if (view.status !== 'disputed' || view.deferredDecision || (view.outcome !== undefined && view.outcome !== 'None')) throw new BoardError('conflict', 'the job no longer has an unresolved dispute')
     const now = this.#now()
     if (now >= bundle.arbitrationEndsAt) throw new BoardError('conflict', 'the arbitration window has closed; only the refund timeout settles')
     const recorded = this.#ruling(task.id, bundle.disputedAt)
@@ -2058,6 +2121,19 @@ export class Board {
       throw new BoardError('conflict', 'this dispute already has a different decision recorded')
     }
     const ctx = this.#taskCtx(task)
+    if (recorded !== undefined && hireling.isHireling(ctx)) {
+      const spent = await hireling.rulingNonceUsed(ctx, me, BigInt(row.nonce))
+      if (spent) {
+        // The case is still unresolved (checked above), so this nonce was cancelled. Preserve the decision,
+        // archive its old authorization, and issue a fresh nonce only after the cancellation is onchain.
+        this.#sql.run('INSERT OR IGNORE INTO ruling_attempts (task_id, nonce, record_json, created_at) VALUES (?, ?, ?, ?)', task.id, row.nonce, JSON.stringify(row), now)
+        this.#sql.run('UPDATE rulings SET nonce = ?, deadline = ?, signature = NULL, tx_hash = NULL WHERE task_id = ? AND disputed_at = ? AND nonce = ?',
+          randomUint(16).toString(), Math.min(bundle.arbitrationEndsAt, now + 3600), task.id, bundle.disputedAt, row.nonce)
+        row = this.#ruling(task.id, bundle.disputedAt)!
+      } else if (row.deadline <= now) {
+        throw new BoardError('conflict', 'cancel_ruling must confirm the old nonce before retrying this decision')
+      }
+    }
     return {
       decision: this.#decisionView(row),
       ruling: this.#rulingMessage(row),
@@ -2128,15 +2204,16 @@ export class Board {
   async submitRuling(caller: Caller, input: { taskId: string; signature: string }) {
     this.#requireCaller(caller)
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
+    await this.#requireUnpaused(task)
     const ctx = this.#taskCtx(task)
-    const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [this.#jobId(task)] })
+    const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'disputedAt', args: [this.#jobId(task)] })
     const row = this.#ruling(task.id, disputedAt)
     if (row === undefined) throw new BoardError('not-found', 'no decision recorded; prepare_ruling first')
     if (row.tx_hash !== null) return { txHash: row.tx_hash, relayed: true, task: await this.getTask(caller, { taskId: task.id }) }
     const ruling = this.#rulingMessage(row)
+    const arbitrator = await this.#arbitratorOf(task)
     const valid = await ctx.publicClient.verifyTypedData({
-      address: await this.#arbitratorOf(task.stack),
+      address: arbitrator,
       domain: sdk.evaluatorDomain(ctx.deployment.chainId, ctx.stack.evaluator),
       types: sdk.rulingTypes,
       primaryType: 'Ruling',
@@ -2146,12 +2223,13 @@ export class Board {
     if (!valid) throw new BoardError('forbidden', 'the signature is not the arbitrator’s over this ruling')
     this.#sql.run('UPDATE rulings SET signature = ? WHERE task_id = ? AND disputed_at = ?', input.signature, task.id, disputedAt)
     const tx = this.#tx(ctx, 'ruleWithSignature: settles the dispute as ruled', ctx.stack.evaluator,
-      encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: 'ruleWithSignature', args: [ruling, input.signature as Hex] }))
+      encodeFunctionData({ abi: hireling.evaluatorAbi(ctx), functionName: 'ruleWithSignature', args: [ruling, input.signature as Hex] }), hireling.isHireling(ctx) ? sdk.V1_GAS.evaluator : undefined)
     const relay = this.#config.relay
-    if (relay === undefined) return { relayed: false, transactions: [tx], next: 'Anyone may send it; then report_transaction.' }
     // A crash after an earlier relay: the nonce is spent, so that ruling is on-chain; never send a second one.
-    const spent = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rulingNonceUsed', args: [ruling.nonce] })
+    const spent = await hireling.rulingNonceUsed(ctx, arbitrator, ruling.nonce)
+    if (spent && hireling.isHireling(ctx) && (await sdk.caseOf(ctx, this.#jobId(task))).outcome === 0) throw new BoardError('conflict', 'the ruling nonce was cancelled; prepare_ruling returns a new nonce for the recorded decision')
     if (spent) return { relayed: true, txHash: null, note: 'this ruling is already on-chain (its nonce is spent)', task: await this.getTask(caller, { taskId: task.id }) }
+    if (relay === undefined) return { relayed: false, transactions: [tx], next: 'Anyone may send it; then report_transaction.' }
     const receipt = await sdk.ruleWithSignature(ctx, sdk.wallet(this.#config.network, relay.account, relay.rpcUrl), ruling, input.signature as Hex)
     this.#sql.run('UPDATE rulings SET tx_hash = ? WHERE task_id = ? AND disputed_at = ?', receipt.transactionHash, task.id, disputedAt)
     this.#sql.run(
@@ -2161,19 +2239,37 @@ export class Board {
     return { txHash: receipt.transactionHash, relayed: true, task: await this.getTask(caller, { taskId: task.id }) }
   }
 
+  /** Voids an unsent v1 ruling before a retry. The decision stays recorded; only its authorization changes. */
+  async cancelRuling(caller: Caller, input: { taskId: string }) {
+    const task = this.#task(input.taskId)
+    const me = await this.#requireArbitrator(caller, task)
+    const ctx = this.#taskCtx(task)
+    if (!hireling.isHireling(ctx)) throw new BoardError('invalid', 'Legacy rulings cannot be cancelled')
+    const decision = await sdk.caseOf(ctx, this.#jobId(task))
+    if (decision.outcome !== 0) return { resolved: true, nonce: null, transactions: [] }
+    const row = this.#ruling(task.id, decision.disputedAt)
+    if (row === undefined) throw new BoardError('not-found', 'no recorded ruling to cancel')
+    if (await hireling.rulingNonceUsed(ctx, me, BigInt(row.nonce))) return { resolved: false, nonce: row.nonce, transactions: [] }
+    this.#operation(task.id, 'cancel-ruling', me, { nonce: row.nonce })
+    return { resolved: false, nonce: row.nonce, transactions: [this.#tx(ctx, 'Cancel the old ruling authorization before retrying', ctx.stack.evaluator,
+      encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'cancelRuling', args: [BigInt(row.nonce)] }))] }
+  }
+
   // -----------------------------------------------------------------------------------------------
   // Anyone
   // -----------------------------------------------------------------------------------------------
 
   /** Whatever permissionless step the chain allows now (timeouts, settlement), as transactions anyone may send. */
-  async settlementActions(_caller: Caller, input: { taskId: string }) {
+  async settlementActions(caller: Caller, input: { taskId: string }) {
     const task = this.#task(input.taskId)
-    await this.#requireUnpaused(task.stack)
     const ctx = this.#taskCtx(task)
+    if (hireling.isHireling(ctx)) return { status: (await this.#chainView(task)).status,
+      transactions: await hireling.settleHireling(ctx, this.#jobId(task), caller.address, this.#now()) }
+    await this.#requireUnpaused(task)
     const view = await this.#chainView(task)
     const jobId = this.#jobId(task)
     const call = (fn: 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline', what: string) =>
-      this.#tx(ctx, what, ctx.stack.evaluator, encodeFunctionData({ abi: sdk.jobsEvaluatorAbi, functionName: fn, args: [jobId] }))
+      this.#tx(ctx, what, ctx.stack.evaluator, encodeFunctionData({ abi: hireling.evaluatorAbi(ctx), functionName: fn, args: [jobId] }))
     const txs: TxRequest[] = []
     const now = this.#now()
     const s = view.status
@@ -2191,22 +2287,22 @@ export class Board {
     }
     if (s === 'selection-closed') {
       txs.push(this.#tx(ctx, 'expireContest: no award by the selection deadline; the prize returns', ctx.stack.holding,
-        encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'expireContest', args: [jobId] })))
+        encodeFunctionData({ abi: hireling.holdingAbi(ctx), functionName: 'expireContest', args: [jobId] })))
     }
     // A timeout that ends in a refund leaves the reward in Holding: offer settle right after it, so a batching
     // wallet sends both as one transaction (a sequential one sends them in order).
     const completes = txs.length === 1 && s === 'submitted' && view.timely
     if (txs.length === 1 && !completes) {
       txs.push(this.#tx(ctx, 'settle: pays out what the timeout left in Holding', ctx.stack.holding,
-        encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })))
+        encodeFunctionData({ abi: hireling.holdingAbi(ctx), functionName: 'settle', args: [jobId] })))
     } else if (['rejected', 'expired', 'cancelled'].includes(s) || (view.coreStatus === 'Expired')) {
       // Offered only while Holding still has something to pay out: a settled job answers NothingToSettle.
       const pending = await ctx.publicClient
-        .simulateContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })
+        .simulateContract({ address: ctx.stack.holding, abi: hireling.holdingAbi(ctx), functionName: 'settle', args: [jobId] })
         .then(() => true, () => false)
       if (pending) {
         txs.push(this.#tx(ctx, 'settle: pays out what is still in Holding', ctx.stack.holding,
-          encodeFunctionData({ abi: sdk.jobHoldingAbi, functionName: 'settle', args: [jobId] })))
+          encodeFunctionData({ abi: hireling.holdingAbi(ctx), functionName: 'settle', args: [jobId] })))
       }
     }
     return { status: s, transactions: txs }
@@ -2274,7 +2370,7 @@ export class Board {
           async (selection) => {
             const ctx = this.#taskCtx(task)
             const [used, wallet, valid] = await Promise.all([
-              ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'selectionNonceUsed', args: [getAddress(task.creator), BigInt(selection.nonce)] }),
+              ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hireling.holdingAbi(ctx), functionName: 'selectionNonceUsed', args: [getAddress(task.creator), BigInt(selection.nonce)] }),
               sdk.agentWallet(ctx, BigInt(selection.agent_id)),
               ctx.publicClient.verifyTypedData({
                 address: getAddress(task.creator),
@@ -2322,12 +2418,15 @@ export class Board {
       title: terms.title,
       mode: terms.mode,
       stack: task.stack,
+      kind: this.#taskCtx(task).stack.kind,
       token: terms.token,
       reward: terms.reward.toString(),
       creatorBond: terms.creatorBond.toString(),
       workerBond: terms.workerBond.toString(),
       creator: terms.creator,
       approver: terms.approver,
+      arbitrator: terms.arbitrator ?? null,
+      windows: terms.windows,
       deliveryDeadline: terms.deliveryDeadline,
       selectionDeadline: terms.selectionDeadline,
       termsHash: task.terms_hash,
@@ -2355,7 +2454,7 @@ export class Board {
             },
       jobId: task.job_id,
       screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),
-      chain: { ...view, paused: await this.paused(task.stack as sdk.StackName) },
+      chain: { ...view, paused: await this.#paused(this.#taskCtx(task)) },
       you: caller.address === undefined
         ? null
         : (() => {
@@ -2381,14 +2480,14 @@ export class Board {
    */
   async #recoverPublish(task: TaskRow): Promise<string | null> {
     const ctx = this.#taskCtx(task)
-    const listed = await ctx.publicClient
-      .readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'policyListed', args: [task.terms_hash as Hex] })
-      .catch(() => false)
+    const listed = hireling.isHireling(ctx)
+      ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'policyListed', args: [getAddress(task.creator), task.terms_hash as Hex] })
+      : await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.jobHoldingAbi, functionName: 'policyListed', args: [task.terms_hash as Hex] }).catch(() => false)
     if (!listed) return null
     const counter = await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'jobCounter' })
     for (let id = counter; id > 0n && id > counter - 64n; id--) {
       const listing = await sdk.getListing(ctx, id).catch(() => undefined)
-      if (listing === undefined || !eq(listing.policyHash, task.terms_hash)) continue
+      if (listing === undefined || !eq(listing.policyHash, task.terms_hash) || !eq(listing.creator, task.creator)) continue
       this.#sql.run('UPDATE tasks SET job_id = ? WHERE id = ? AND job_id IS NULL', id.toString(), task.id)
       this.#sql.run(
         "UPDATE operations SET status = 'confirmed', updated_at = ? WHERE task_id = ? AND kind = 'publish' AND status = 'prepared'",
@@ -2420,12 +2519,13 @@ export class Board {
     if (task.job_id === null && (await this.#recoverPublish(task)) === null) return base
     const ctx = this.#taskCtx(task)
     const jobId = BigInt(task.job_id as string)
+    if (hireling.isHireling(ctx)) return await hireling.hirelingChainView(ctx, jobId, terms, task.terms_hash as Hex, this.#now()) as ChainView
     const [job, listing, rejectedAt, disputedAt, violation] = await Promise.all([
       sdk.getJob(ctx, jobId),
       sdk.getListing(ctx, jobId),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'rejectedAt', args: [jobId] }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputedAt', args: [jobId] }),
-      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'violationOf', args: [jobId] }),
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'rejectedAt', args: [jobId] }),
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'disputedAt', args: [jobId] }),
+      ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'violationOf', args: [jobId] }),
     ])
     const matches = listingMatches(terms, task.terms_hash as Hex, {
       creator: listing.creator,
@@ -2507,4 +2607,12 @@ export interface ChainView {
   disputeEndsAt: number | null
   arbitrationEndsAt: number | null
   violation: string | null
+  outcome?: string
+  deferredDecision?: boolean
+  collectPending?: boolean
+  feeBps?: number
+  fee?: string
+  net?: string
+  bonus?: string
+  paused?: boolean
 }

@@ -4,7 +4,7 @@
  * reward, both bonds, deadlines, approver, criteria, evidence policy, the originating quote when there is one, and
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
-import { type AbiFunction, type Address, type Hex, keccak256, parseAbiItem, stringToHex } from 'viem'
+import { type AbiFunction, type Address, type Hex, isAddress, keccak256, parseAbiItem, stringToHex, zeroAddress } from 'viem'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
 
@@ -103,6 +103,8 @@ export interface OfferTerms {
   selectionDeadline: number | null
   creator: Address
   approver: Address
+  /** The arbitrator frozen into a v1 listing; legacy offers omit this field and use the pair's immutable key. */
+  arbitrator?: Address
   windows: EvaluatorWindows
   eligibility: EligibilityPolicy | null
   evidencePolicy: EvidencePolicy | null
@@ -161,6 +163,9 @@ export class TermsError extends Error {
   constructor(
     readonly code:
       | 'windows-mismatch'
+      | 'windows-bounds'
+      | 'invalid-arbitrator'
+      | 'unsupported-mode'
       | 'listing-mismatch'
       | 'terms-hash-mismatch'
       | 'invalid-deadlines'
@@ -179,8 +184,15 @@ export class TermsError extends Error {
  * publish that must revert, and against the deployed evaluator's windows.
  * @param now Unix seconds.
  */
-export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number): void {
-  if (canonicalJson(offer.windows) !== canonicalJson(evaluator)) {
+export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, kind: 'legacy' | 'hireling-v1' = 'legacy'): void {
+  if (kind === 'hireling-v1') {
+    validateHirelingWindows(offer.windows)
+    if (offer.mode !== 'hire') throw new TermsError('unsupported-mode', 'Hireling v1 supports hires only.')
+    const a = offer.arbitrator
+    if (a === undefined || !isAddress(a) || a.toLowerCase() === zeroAddress || eq(a, offer.creator) || eq(a, offer.approver)) {
+      throw new TermsError('invalid-arbitrator', 'A v1 offer needs a nonzero arbitrator distinct from its creator and approver.')
+    }
+  } else if (canonicalJson(offer.windows) !== canonicalJson(evaluator)) {
     throw new TermsError('windows-mismatch', 'Offer windows must equal the deployed evaluator windows.')
   }
   if (offer.reward <= 0n || offer.creatorBond < 0n || offer.workerBond < 0n) {
@@ -235,6 +247,7 @@ export interface OnChainListing {
   selectionDeadline: number
   mode: number
   policyHash: Hex
+  arbitrator?: Address
 }
 
 /**
@@ -256,5 +269,26 @@ export function listingMatches(offer: OfferTerms, hash: Hex, listing: OnChainLis
     listing.deliveryDeadline === offer.deliveryDeadline &&
     listing.selectionDeadline === (offer.selectionDeadline ?? 0) &&
     listing.mode === (offer.mode === 'hire' ? 0 : 1)
+    && (offer.arbitrator === undefined || (listing.arbitrator !== undefined && eq(listing.arbitrator, offer.arbitrator)))
   )
+}
+
+export interface HirelingWindows {
+  reviewSeconds: number
+  disputeSeconds: number
+  arbitrationSeconds: number
+}
+
+/** Bounds copied from HirelingConstants; v1 freezes these on each listing instead of the evaluator. */
+export function validateHirelingWindows(windows: HirelingWindows): void {
+  const day = 24 * 60 * 60
+  if (!Number.isSafeInteger(windows.reviewSeconds) || windows.reviewSeconds < 60 * 60 || windows.reviewSeconds > 14 * day) {
+    throw new TermsError('windows-bounds', 'review window must be between 1 hour and 14 days')
+  }
+  if (!Number.isSafeInteger(windows.disputeSeconds) || windows.disputeSeconds < 60 * 60 || windows.disputeSeconds > 14 * day) {
+    throw new TermsError('windows-bounds', 'dispute window must be between 1 hour and 14 days')
+  }
+  if (!Number.isSafeInteger(windows.arbitrationSeconds) || windows.arbitrationSeconds < 12 * 60 * 60 || windows.arbitrationSeconds > 14 * day) {
+    throw new TermsError('windows-bounds', 'arbitration window must be between 12 hours and 14 days')
+  }
 }

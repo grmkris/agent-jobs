@@ -8,12 +8,12 @@ export const readOnlyHostedTools = new Set([
 
 export const drainHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'revoke_budget', 'cancel_task', 'pool_refund',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund',
 ])
 
 export const recoveryHostedTools = new Set([
   'submit_work', 'report_transaction', 'approve_work', 'reject_work', 'dispute', 'add_statement',
-  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'revoke_budget', 'cancel_task', 'pool_refund',
+  'request_evidence', 'arbiter_lease', 'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'revoke_budget', 'cancel_task', 'pool_refund',
 ])
 
 export const disabledP0HostedTools = new Set([
@@ -34,7 +34,7 @@ export const hostedToolNames = new Set([
   'revoke_budget', 'report_transaction', 'list_applications', 'select_worker', 'submit_selection', 'publish_transactions',
   'cancel_task', 'approve_work', 'reject_work', 'apply', 'prepare_activation', 'build_activation', 'submit_work',
   'dispute', 'add_statement', 'prepare_entry', 'submit_entry', 'award', 'request_evidence', 'arbiter_lease',
-  'prepare_ruling', 'submit_ruling', 'settlement_actions', 'list_boards', 'get_board', 'create_board', 'update_board',
+  'prepare_ruling', 'submit_ruling', 'cancel_ruling', 'settlement_actions', 'list_boards', 'get_board', 'create_board', 'update_board',
   'prepare_agent_profile', 'prepare_directory_enrollment', 'enroll_directory', 'prepare_heartbeat', 'post_heartbeat',
   'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
   'telegram_status', 'telegram_link_prepare', 'telegram_link_confirm', 'telegram_unlink',

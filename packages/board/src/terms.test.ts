@@ -40,6 +40,21 @@ const offer = (over: Partial<OfferTerms> = {}): OfferTerms => ({
   ...over,
 })
 
+describe('v1 offer windows and arbitrator', () => {
+  const windows = { reviewSeconds: 3600, disputeSeconds: 86400, arbitrationSeconds: 43200 }
+  const v1 = () => offer({ windows, arbitrator: A(8) })
+  it('accepts per-offer windows independently of legacy evaluator defaults', () => {
+    expect(() => validateOffer(v1(), WINDOWS, NOW, 'hireling-v1')).not.toThrow()
+    expect(termsHash(v1())).not.toBe(termsHash({ ...v1(), arbitrator: A(9) }))
+  })
+  it.each([['reviewSeconds', 3599], ['disputeSeconds', 1209601], ['arbitrationSeconds', 43199], ['reviewSeconds', 3600.5]])('refuses out-of-range %s', (key, value) => {
+    expect(() => validateOffer({ ...v1(), windows: { ...windows, [key]: value } }, WINDOWS, NOW, 'hireling-v1')).toThrow('window')
+  })
+  it.each([undefined, A(0), A(6)])('refuses a missing, zero or party arbitrator %s', arbitrator => {
+    expect(() => validateOffer(offer({ windows, ...(arbitrator === undefined ? {} : { arbitrator }) }), WINDOWS, NOW, 'hireling-v1')).toThrow('arbitrator')
+  })
+})
+
 describe('execution budget in the terms (ADR-0009)', () => {
   const budget = { kind: 'advance' as const, token: A(7), cap: 2n * 10n ** 18n, expiresAt: NOW + 300 }
 

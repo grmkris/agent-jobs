@@ -152,7 +152,7 @@ export const tools: Record<string, Tool> = {
 
   create_task: {
     description:
-      'Publisher: freeze an offer (hire or contest) and get the approvals and the publish transaction for your wallet. The reward is escrowed only when publish confirms.',
+      'Publisher: freeze a hire offer with per-job windows and an optional direct invitation. Returns approvals and publish for your wallet; the reward is escrowed only when publish confirms. Contests are legacy only.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -168,6 +168,9 @@ export const tools: Record<string, Tool> = {
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
         selectionDeadline: num('Contest only: unix seconds, before the delivery deadline.'),
         approver: str('Optional: who judges the work (default you).'),
+        windows: { type: 'object', properties: { reviewSeconds: num('Review window in seconds.'), disputeSeconds: num('Dispute window in seconds.'), arbitrationSeconds: num('Arbitration window in seconds.') }, required: ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'], additionalProperties: false },
+        arbitrator: str('V1: named arbitrator address; omitted uses the deployed default resolved into this offer.'),
+        invite: { type: 'object', properties: { agentId: str('V1: ERC-8004 agent id to invite directly.') }, required: ['agentId'], additionalProperties: false },
         stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
         executionBudget: budgetSchema('Advance: any ERC-20 address, or a reward token symbol (required here).'),
         deliverable: deliverableSpecSchema,
@@ -187,6 +190,9 @@ export const tools: Record<string, Tool> = {
         mode: s(a, 'mode') as 'hire' | 'contest',
         ...(a.selectionDeadline === undefined ? {} : { selectionDeadline: n(a, 'selectionDeadline') }),
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
+        ...(a.windows === undefined ? {} : { windows: a.windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }),
+        ...(a.arbitrator === undefined ? {} : { arbitrator: s(a, 'arbitrator') }),
+        ...(a.invite === undefined ? {} : { invite: a.invite as { agentId: string } }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
         ...(a.executionBudget === undefined
@@ -212,6 +218,8 @@ export const tools: Record<string, Tool> = {
         quoteDeadline: num('Unix seconds; quotes close then. Before the delivery deadline.'),
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
         approver: str('Optional: who judges the work (default you).'),
+        windows: { type: 'object', properties: { reviewSeconds: num('Review window in seconds.'), disputeSeconds: num('Dispute window in seconds.'), arbitrationSeconds: num('Arbitration window in seconds.') }, required: ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'], additionalProperties: false },
+        arbitrator: str('V1: named arbitrator; omitted freezes the deployed default into the request.'),
         stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
         deliverable: deliverableSpecSchema,
       },
@@ -228,6 +236,8 @@ export const tools: Record<string, Tool> = {
         deliveryDeadline: n(a, 'deliveryDeadline'),
         quoteDeadline: n(a, 'quoteDeadline'),
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
+        ...(a.windows === undefined ? {} : { windows: a.windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }),
+        ...(a.arbitrator === undefined ? {} : { arbitrator: s(a, 'arbitrator') }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
@@ -776,6 +786,12 @@ export const tools: Record<string, Tool> = {
       'Anyone: the permissionless timeout or settlement transactions the chain allows now (silence, undisputed rejection, arbitration timeout, missed delivery, settle).',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.settlementActions(caller, { taskId: s(a, 'taskId') }),
+  },
+
+  cancel_ruling: {
+    description: 'Named v1 arbitrator: cancel the old ruling nonce before retrying its recorded decision. Send the returned call from the arbitrator wallet.',
+    inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
+    run: (board, caller, a) => board.cancelRuling(caller, { taskId: s(a, 'taskId') }),
   },
 }
 
