@@ -21,6 +21,8 @@ export interface TxRequest {
   readonly to: Hex
   readonly data: Hex
   readonly value: string
+  /** Decimal gas limit, including the explicit v1 payout floors. */
+  readonly gas?: string
 }
 
 export function boardClient(baseUrl: string) {
@@ -74,7 +76,7 @@ export async function sendAll(
 ): Promise<Hex[]> {
   const hashes: Hex[] = []
   for (const tx of txs) {
-    const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, value: BigInt(tx.value) })
+    const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, value: BigInt(tx.value), ...(tx.gas === undefined ? {} : { gas: BigInt(tx.gas) }) })
     const receipt = await publicClient.waitForTransactionReceipt({ hash })
     if (receipt.status !== 'success') throw new Error(`${tx.description}: ${hash} reverted`)
     hashes.push(hash)

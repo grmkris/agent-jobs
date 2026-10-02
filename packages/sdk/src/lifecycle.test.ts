@@ -8,6 +8,37 @@ const WORKER = '0x3333333333333333333333333333333333333333'
 const parties = { creator: CREATOR, approver: APPROVER, worker: WORKER }
 const job = (over: Partial<LifecycleInput>): LifecycleInput => ({ mode: 'hire', status: 'open', deliveryDeadline: NOW + 3600, workerBond: '1000', parties, ...over })
 
+describe('v1 final decisions and collection', () => {
+  it('keeps a worker ruling final while the core call is deferred, even after arbitration expiry', () => {
+    const phase = lifecycle(job({ kind: 'hireling-v1', status: 'disputed', arbitrationEndsAt: NOW - 1,
+      outcome: 'ruled-worker', deferredDecision: true }), WORKER, NOW)
+    expect(phase).toMatchObject({ key: 'payout-deferred', terminal: true, beneficiary: 'worker', timeout: 'retryDeferred', actions: ['settle'] })
+  })
+
+  it('offers terminal collection through a pause, but cannot retry the paused core', () => {
+    const input = job({ kind: 'hireling-v1', status: 'rejected', outcome: 'accepted', collectPending: true, paused: true })
+    expect(lifecycle(input, WORKER, NOW)).toMatchObject({ key: 'collect', beneficiary: 'worker', actions: ['settle'] })
+    expect(lifecycle({ ...input, deferredDecision: true }, WORKER, NOW).actions).toEqual([])
+    expect(lifecycle({ ...input, listingMatchesOffer: false }, WORKER, NOW).actions).toEqual([])
+  })
+
+  it('the recorded worker outcome remains paid after the deferred route finishes as core Rejected', () => {
+    expect(lifecycle(job({ kind: 'hireling-v1', status: 'rejected', outcome: 'silence' }), WORKER, NOW))
+      .toMatchObject({ key: 'completed', beneficiary: 'worker', terminal: true, timeout: null })
+    expect(lifecycle(job({ kind: 'hireling-v1', status: 'rejected', outcome: 'arbitration-timeout', collectPending: true }), CREATOR, NOW).beneficiary).toBe('creator')
+  })
+
+  it('uses the indexed job windows and clears historical deferred flags once settled', () => {
+    const row = { kind: 'hireling-v1' as const, mode: 'hire', status: 'disputed', creator: CREATOR, approver: APPROVER, worker: WORKER,
+      delivery_deadline: NOW + 100, selection_deadline: null, worker_bond: '1000', outcome: 'RuledForWorker', settlement_outcome: 'None',
+      payout_deferred: 1, refund_deferred: 0, submitted_at: NOW - 20, review_window: 3600,
+      rejected_at: NOW - 10, dispute_window: 7200, disputed_at: NOW - 5, arbitration_window: 43200 }
+    const input = lifecycleFromIndexed(row)
+    expect(input).toMatchObject({ reviewEndsAt: NOW + 3580, disputeEndsAt: NOW + 7190, arbitrationEndsAt: NOW + 43195, deferredDecision: true })
+    expect(lifecycle(lifecycleFromIndexed({ ...row, status: 'rejected', settlement_outcome: 'Paid' }), WORKER, NOW).key).toBe('completed')
+  })
+})
+
 describe('lifecycle phases', () => {
   const cases: Array<[string, Partial<LifecycleInput>, string]> = [
     ['board draft', { status: 'awaiting-publish' }, 'draft'],

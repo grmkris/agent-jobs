@@ -33,6 +33,7 @@ export type JobStatusWord =
 export type JobOutcome = 'accepted' | 'silence' | 'awarded' | 'ruled-worker' | 'ruled-creator' | 'arbitration-timeout' | 'missed' | 'rejection-final'
 
 export interface LifecycleInput {
+  kind?: 'legacy' | 'hireling-v1' | null
   mode: 'hire' | 'contest'
   status: JobStatusWord | (string & {})
   deliveryDeadline: number | null
@@ -48,12 +49,18 @@ export interface LifecycleInput {
   outcome?: JobOutcome | null
   /** A terminal job whose reward still sits in Holding (a timeout refunded without `settle`). */
   settlePending?: boolean
+  /** The evaluator decided, but the core still needs the recorded decision retried. */
+  deferredDecision?: boolean
+  /** A terminal reward, fee, bonus, refund or refused push is still available to collect. */
+  collectPending?: boolean
   listingMatchesOffer?: boolean | null
   paused?: boolean
   parties: { creator?: string | null; approver?: string | null; worker?: string | null }
 }
 
 export type PhaseKey =
+  | 'payout-deferred'
+  | 'collect'
   | 'draft'
   | 'draft-stale'
   | 'hire-open'
@@ -84,7 +91,7 @@ export type Role = 'creator' | 'approver' | 'worker'
 export type Actor = Role | 'arbitrator' | 'agents' | 'anyone'
 export type JobAction = 'publish' | 'select' | 'cancel' | 'award' | 'approve' | 'reject' | 'pick' | 'settle'
 /** The permissionless evaluator or holding call a phase waits for (`settlement_actions` returns it with `settle`). */
-export type Timeout = 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline' | 'expireContest'
+export type Timeout = 'completeAfterSilence' | 'rejectAfterWindow' | 'refundAfterArbitrationTimeout' | 'rejectAfterDeliveryDeadline' | 'expireContest' | 'retryDeferred'
 
 /** A sentence as parts, so a surface can render the time as a live countdown; `phaseText` joins it for plain text. */
 export type Segment = string | { time: number }
@@ -175,6 +182,20 @@ function draftOf(input: LifecycleInput, now: number): Draft {
 
   if (s === 'unknown') {
     return { key: 'unknown', label: 'Indexing…', tone: 'neutral', actor: null, deadline: null, next: ['Chain facts appear about a minute after the block is final.'] }
+  }
+
+  if (input.deferredDecision || input.collectPending) {
+    const workerEarned = input.outcome === 'accepted' || input.outcome === 'silence' || input.outcome === 'ruled-worker'
+    return {
+      key: input.deferredDecision ? 'payout-deferred' : 'collect',
+      label: input.deferredDecision ? 'Decision recorded · payment deferred' : 'Ready to collect',
+      tone: 'attention', actor: 'anyone', deadline: null, beneficiary: workerEarned ? 'worker' : 'creator',
+      next: input.deferredDecision
+        ? ['The decision is final. Anyone can retry the deferred core call and settle the Holding; the agreed payee stays the same.']
+        : ['The job is decided. Collect the remaining settlement, refund or refused payout.'],
+      can: { anyone: ['settle'] }, terminal: true,
+      ...(input.deferredDecision ? { timeout: 'retryDeferred' as const } : {}),
+    }
   }
 
   if (input.mode === 'contest' && (s === 'open' || s === 'selection-closed')) {
@@ -300,6 +321,13 @@ function draftOf(input: LifecycleInput, now: number): Draft {
     }
   }
 
+  // A refused core payout may finish as Rejected/Expired while the worker's recorded payment right stays final.
+  if (input.kind === 'hireling-v1' && ['completed', 'rejected', 'expired'].includes(s)
+    && ['accepted', 'silence', 'ruled-worker'].includes(input.outcome ?? '')) {
+    return { key: 'completed', label: 'Paid', tone: 'success', actor: null, deadline: null,
+      next: ['The work was accepted; the worker payment is settled.'], terminal: true, beneficiary: 'worker' }
+  }
+
   const settle: Pick<Draft, 'can' | 'beneficiary'> = input.settlePending ? { can: { anyone: ['settle'] }, beneficiary: 'creator' } : {}
   const pending = input.settlePending ? ' It is still in escrow: anyone can release it.' : ''
 
@@ -349,8 +377,10 @@ export function lifecycle(input: LifecycleInput, viewer?: string | null, now: nu
     actions = []
   }
   if (input.paused) {
-    warnings.push('Paused by the admin: nothing can be sent, and deadlines keep running.')
-    actions = []
+    warnings.push(input.kind === 'hireling-v1'
+      ? 'The core is paused. A delivery deadline inside a recorded pause does not burn the worker bond.'
+      : 'Paused by the admin: nothing can be sent, and deadlines keep running.')
+    if (d.key !== 'collect') actions = []
   }
   if (youAct && d.deadline !== null && d.deadline >= now && d.deadline - now < DEADLINE_MARGIN_SECONDS) {
     warnings.push('Less than two minutes left: a transaction sent now may land too late.')
@@ -414,6 +444,7 @@ export function phaseText(parts: Segment[], time: (t: number) => string = (t) =>
 
 /** A row of the indexer's `jobs` table (Explore's `/data/jobs`), as lifecycle input. */
 export function lifecycleFromIndexed(row: {
+  kind?: 'legacy' | 'hireling-v1' | null
   mode: string | null
   status: string
   creator: string | null
@@ -423,20 +454,40 @@ export function lifecycleFromIndexed(row: {
   selection_deadline: number | null
   worker_bond: string | null
   violation?: string | null
+  outcome?: string | null
+  settlement_outcome?: string | null
+  payout_deferred?: number | null
+  refund_deferred?: number | null
+  submitted_at?: number | null
+  review_window?: number | null
+  rejected_at?: number | null
+  disputed_at?: number | null
+  dispute_window?: number | null
+  arbitration_window?: number | null
 }): LifecycleInput {
+  const decided = row.outcome !== undefined && row.outcome !== null && row.outcome !== 'None'
+  const terminal = ['completed', 'rejected', 'cancelled', 'expired'].includes(row.status)
   return {
+    kind: row.kind ?? 'legacy',
     mode: row.mode === 'contest' ? 'contest' : 'hire',
     status: row.status,
     deliveryDeadline: row.delivery_deadline,
     selectionDeadline: row.selection_deadline || null,
     violation: (row.violation ?? null) as ViolationName | null,
     workerBond: row.worker_bond,
+    outcome: protocolOutcome(row.outcome),
+    deferredDecision: row.kind === 'hireling-v1' && decided && !terminal && (row.payout_deferred === 1 || row.refund_deferred === 1),
+    collectPending: row.kind === 'hireling-v1' && terminal && row.settlement_outcome === 'None',
+    reviewEndsAt: row.submitted_at != null && row.review_window != null ? row.submitted_at + row.review_window : null,
+    disputeEndsAt: row.rejected_at != null && row.dispute_window != null ? row.rejected_at + row.dispute_window : null,
+    arbitrationEndsAt: row.disputed_at != null && row.arbitration_window != null ? row.disputed_at + row.arbitration_window : null,
     parties: { creator: row.creator, approver: row.approver, worker: row.worker },
   }
 }
 
 /** The board's `get_task` result (its summary and `chain` view), as lifecycle input. */
 export function lifecycleFromTask(task: {
+  kind?: 'legacy' | 'hireling-v1' | null
   mode: string
   creator: string
   approver: string
@@ -454,10 +505,14 @@ export function lifecycleFromTask(task: {
     violation: string | null
     listingMatchesOffer: boolean | null
     paused?: boolean
+    outcome?: string | null
+    deferredDecision?: boolean
+    collectPending?: boolean
   }
 }): LifecycleInput {
   const c = task.chain
   return {
+    kind: task.kind ?? 'legacy',
     mode: task.mode === 'contest' ? 'contest' : 'hire',
     status: c.status,
     deliveryDeadline: task.deliveryDeadline,
@@ -470,6 +525,15 @@ export function lifecycleFromTask(task: {
     workerBond: task.workerBond,
     listingMatchesOffer: c.listingMatchesOffer,
     paused: c.paused ?? false,
+    outcome: protocolOutcome(c.outcome),
+    deferredDecision: c.deferredDecision ?? false,
+    collectPending: c.collectPending ?? false,
     parties: { creator: task.creator, approver: task.approver, worker: c.provider },
   }
+}
+
+function protocolOutcome(value: string | null | undefined): JobOutcome | null {
+  const outcomes: Record<string, JobOutcome> = { Accepted: 'accepted', Silence: 'silence', RuledForWorker: 'ruled-worker',
+    RuledForCreator: 'ruled-creator', ArbitrationTimeout: 'arbitration-timeout', DeliveryMissed: 'missed', RejectionFinal: 'rejection-final' }
+  return value === undefined || value === null ? null : outcomes[value] ?? null
 }

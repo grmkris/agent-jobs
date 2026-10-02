@@ -10,7 +10,7 @@
  * the code still points at the delegate. Monad: a delegated account's transaction may not lower its balance below
  * 10 MON by more than the gas fee. Board transactions carry no value, so only gas is spent.
  */
-import { type Address, type Hex, encodeAbiParameters, encodeFunctionData, parseAbi } from 'viem'
+import { type Address, type Hex, type PublicClient, encodeAbiParameters, encodeFunctionData, parseAbi } from 'viem'
 import type { Wallet } from './actions.ts'
 import type { TxRequest } from './board-client.ts'
 
@@ -55,6 +55,7 @@ export function setAuthorizationSigner(wallet: Wallet, signer: AuthorizationSign
 }
 
 interface Reads {
+  estimateGas?: PublicClient['estimateGas']
   getCode(a: { address: Address }): Promise<Hex | undefined>
   getTransactionCount(a: { address: Address; blockTag?: 'pending' }): Promise<number>
   waitForTransactionReceipt(a: { hash: Hex }): Promise<{ status: string }>
@@ -83,19 +84,28 @@ export async function sendBatch(wallet: Wallet, reads: Reads, txs: readonly TxRe
   let hash: Hex
   if (txs.length === 1) {
     const [t] = txs as [TxRequest]
-    hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: BigInt(t.value) })
+    hash = await wallet.sendTransaction({ to: t.to, data: t.data, value: BigInt(t.value), ...(t.gas === undefined ? {} : { gas: BigInt(t.gas) }) })
   } else {
     const data = batchCalldata(txs)
+    // Floors cover each inner call and its forwarding reserve. Estimate the whole batch too: later calls may
+    // depend on earlier ones, and a call without a floor can cost more than a default allowance.
+    const withGas = async (request: Parameters<Wallet['sendTransaction']>[0]) => {
+      if (!txs.some(t => t.gas !== undefined)) return request
+      const floor = txs.reduce((sum, t) => sum + BigInt(t.gas ?? '0'), 200_000n)
+      if (reads.estimateGas === undefined && txs.some(t => t.gas === undefined)) throw new Error('Batch gas estimation is required for calls without a gas limit')
+      const estimate = reads.estimateGas === undefined ? 0n : await reads.estimateGas({ ...request, account: wallet.account } as never)
+      return { ...request, gas: estimate > floor ? estimate : floor }
+    }
     const current = await delegationOf(reads, me)
     if (current !== null && current.toLowerCase() === delegate.toLowerCase()) {
-      hash = await wallet.sendTransaction({ to: me, data })
+      hash = await wallet.sendTransaction(await withGas({ to: me, data }))
     } else {
       const chainId = wallet.chain.id
       const custom = signers.get(wallet)
       const authorization = custom !== undefined
         ? await custom(delegate, chainId, (await reads.getTransactionCount({ address: me, blockTag: 'pending' })) + 1)
         : await wallet.signAuthorization({ account: wallet.account, contractAddress: delegate, executor: 'self' })
-      hash = await wallet.sendTransaction({ to: me, data, authorizationList: [authorization as never] })
+      hash = await wallet.sendTransaction(await withGas({ to: me, data, authorizationList: [authorization as never] }))
     }
   }
   const receipt = await reads.waitForTransactionReceipt({ hash })
