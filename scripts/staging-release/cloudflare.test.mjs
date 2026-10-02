@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cloudflarePaged, liveBuckets, liveNamespaces } from './cloudflare.mjs'
+import { cloudflarePaged, liveBuckets, liveDeployment, liveNamespaces } from './cloudflare.mjs'
 
 const originalFetch = globalThis.fetch
 const response = body => new Response(JSON.stringify({ success: true, ...body }), { headers: { 'content-type': 'application/json' } })
@@ -21,7 +21,7 @@ test('liveNamespaces reads every page when total_pages is absent', async () => {
 
 test('pagination fails closed when a page is short before total_count', async () => {
   globalThis.fetch = async () => response({ result: [{ id: 'first', class: 'Other', script: 'other' }], result_info: { count: 1, page: 1, per_page: 2, total_count: 5 } })
-  try { await assert.rejects(liveNamespaces(), /page ended before total_count/) }
+  try { await assert.rejects(liveNamespaces(), /census-page-short/) }
   finally { globalThis.fetch = originalFetch }
 })
 
@@ -34,7 +34,7 @@ test('pagination refuses wrong pages, totals, counts, missing metadata and overf
     { result: [{ id: 'first' }, { id: 'second' }], result_info: { page: 1, per_page: 1, total_count: 2 } },
   ]) {
     globalThis.fetch = async () => response(body)
-    try { await assert.rejects(cloudflarePaged('/test-list'), /Cloudflare list/) }
+    try { await assert.rejects(cloudflarePaged('/test-list'), /census-/) }
     finally { globalThis.fetch = originalFetch }
   }
 })
@@ -42,14 +42,14 @@ test('pagination refuses wrong pages, totals, counts, missing metadata and overf
 test('pagination refuses a total_count change between pages', async () => {
   let page = 0
   globalThis.fetch = async () => response({ result: [{ id: `item-${++page}` }], result_info: { page, per_page: 1, total_count: page === 1 ? 3 : 4 } })
-  try { await assert.rejects(cloudflarePaged('/test-list'), /total changed/) }
+  try { await assert.rejects(cloudflarePaged('/test-list'), /census-total-changed/) }
   finally { globalThis.fetch = originalFetch }
 })
 
 test('namespace census refuses repeated identities even when raw page counts add up', async () => {
   let page = 0
   globalThis.fetch = async () => response({ result: [{ id: 'repeated', class: 'Other', script: 'other' }], result_info: { page: ++page, per_page: 1, total_count: 2 } })
-  try { await assert.rejects(liveNamespaces(), /duplicate identities/) }
+  try { await assert.rejects(liveNamespaces(), /census-namespace-identities-invalid/) }
   finally { globalThis.fetch = originalFetch }
 })
 
@@ -68,6 +68,49 @@ test('R2 bucket census follows start_after to the final short page without pagin
 
 test('R2 refuses repeated or malformed pages rather than silently omitting later buckets', async () => {
   globalThis.fetch = async () => response({ result: { buckets: [{ name: 'a' }] } })
-  try { await assert.rejects(liveBuckets(1), /page did not advance/) }
+  try { await assert.rejects(liveBuckets(1), /census-bucket-page-not-advancing/) }
   finally { globalThis.fetch = originalFetch }
+})
+
+
+const deployment = (day, version = `version-${day}`) => ({ created_on: `2026-10-${String(day).padStart(2, '0')}T00:00:00.000Z`, versions: [{ version_id: version, percentage: 100 }] })
+const deploymentPages = rows => async url => {
+  const page = Number(new URL(url).searchParams.get('page'))
+  const deployments = rows.slice((page - 1) * 2, page * 2)
+  return response({ result: { deployments }, result_info: { page, per_page: 2, total_count: rows.length, count: deployments.length } })
+}
+
+test('deployments across three pages select the unique newest created_on', async () => {
+  const rows = [5, 4, 3, 2, 1].map(day => deployment(day))
+  const pages = []
+  globalThis.fetch = async url => {
+    pages.push(Number(new URL(url).searchParams.get('page')))
+    return deploymentPages(rows)(url)
+  }
+  try {
+    assert.deepEqual(await liveDeployment('test-script'), rows[0])
+    assert.deepEqual(pages, [1, 2, 3])
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('deployment history refuses a newer later page and any disagreement with newest-first order', async () => {
+  for (const days of [[4, 3, 5, 2, 1], [5, 3, 4, 2, 1]]) {
+    globalThis.fetch = deploymentPages(days.map(day => deployment(day)))
+    try { await assert.rejects(liveDeployment('test-script'), /census-deployment-order-invalid/) }
+    finally { globalThis.fetch = originalFetch }
+  }
+})
+
+test('deployment history refuses an ambiguous newest timestamp, missing/invalid dates and split traffic', async () => {
+  for (const [rows, code] of [
+    [[deployment(5), deployment(5, 'another-version')], 'census-deployment-newest-ambiguous'],
+    [[deployment(5), { ...deployment(4), created_on: undefined }], 'census-deployment-timestamp-invalid'],
+    [[deployment(5), { ...deployment(4), created_on: 'unparsable' }], 'census-deployment-timestamp-invalid'],
+    [[{ ...deployment(5), versions: [{ version_id: 'a', percentage: 50 }, { version_id: 'b', percentage: 50 }] }], 'census-deployment-traffic-invalid'],
+    [[{ ...deployment(5), versions: [{ version_id: 'a', percentage: 99 }] }], 'census-deployment-traffic-invalid'],
+  ]) {
+    globalThis.fetch = deploymentPages(rows)
+    try { await assert.rejects(liveDeployment('test-script'), { message: code }) }
+    finally { globalThis.fetch = originalFetch }
+  }
 })

@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node
 import { resolve } from 'node:path'
 import { parseEnv } from 'node:util'
 import * as Effect from 'effect/Effect'
+import { StagingReleaseError, reportReleaseFailure, runStagingEffect } from './errors.mjs'
 import { readApprovedChanges } from './approved-changes.mjs'
 import { nativeResource, reviewLivePlan } from './live-plan.mjs'
 import { artifactOf, commitmentKey, durableObjectTransition, keyId, readViteEnvFiles, viteArtifact, viteArtifactNow, workerPayload } from './payload.mjs'
@@ -21,10 +22,8 @@ if (!((args[0] === 'plan' && args.length === 1) || (args[0] === 'apply' && args.
   process.exit(1)
 }
 
-function fail(message) {
-  console.error(`staging release refused: ${message}`)
-  process.exitCode = 1
-  throw new Error(message)
+function fail(code) {
+  throw new StagingReleaseError(code)
 }
 
 function canonical(value) {
@@ -38,11 +37,11 @@ function git(...gitArgs) {
 }
 
 function preflight() {
-  if (git('branch', '--show-current') !== 'main') fail('checkout must be main')
-  if (git('diff', '--name-only').length > 0 || git('diff', '--cached', '--name-only').length > 0) fail('tracked checkout changes must be committed')
+  if (git('branch', '--show-current') !== 'main') fail('guard-checkout-not-main')
+  if (git('diff', '--name-only').length > 0 || git('diff', '--cached', '--name-only').length > 0) fail('guard-tracked-changes')
   state.inspectStagingState()
   const unknown = git('ls-files', '--others', '--exclude-standard').split('\n').filter((name) => name && !name.startsWith('.artifact-video/') && !name.startsWith('packages/sdk/scripts/.local/'))
-  if (unknown.length) fail('untracked source files must be reviewed and committed')
+  if (unknown.length) fail('guard-untracked-source')
   const localEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
   // This checkout's deployment credentials are authoritative; a login shell can
   // carry unrelated credentials for another product.
@@ -56,7 +55,7 @@ function preflight() {
   process.env.NODE_ENV = 'production'
   process.env.CLOUDFLARE_ACCOUNT_ID = state.accountId
   for (const name of ['CLOUDFLARE_API_TOKEN', 'MONAD_TESTNET_RPC_URL', 'AI_GATEWAY_API_KEY', 'ATTESTER_PRIVATE_KEY', 'RELAY_PRIVATE_KEY', 'GITHUB_APP_PRIVATE_KEY', 'HYPERSYNC_API_TOKEN']) {
-    if (!process.env[name] || process.env[name] === 'unset') fail(`missing credential: ${name}`)
+    if (!process.env[name] || process.env[name] === 'unset') fail('guard-credential-missing')
   }
   execFileSync(process.execPath, ['scripts/db-generate.mjs', '--check'], { cwd: repo, stdio: 'pipe' })
 }
@@ -72,23 +71,27 @@ function sameSecretAfterNewlineNormalization(logicalId, name) {
 
 function safePlan(snapshot, live, reference) {
   const reviewed = reviewLivePlan(snapshot, live, reference, sameSecretAfterNewlineNormalization)
-  if (!reviewed.ok) fail(`plan protection failed: ${reviewed.blockers.join(', ')}`)
+  if (!reviewed.ok) {
+    // The review builds these contextual labels through fixed field/action/name sanitizers.
+    console.error(`staging release refused: plan protection failed: ${reviewed.blockers.join(', ')}`)
+    fail('guard-plan-protection-failed')
+  }
   const operations = reviewed.operations
   const api = operations.find((row) => row.logicalId === 'Api')
   const directory = api?.bindings.find((binding) => binding.sid === 'DirectoryObject')
   const directoryDb = api?.bindings.find((binding) => binding.sid === 'DIRECTORY_DATABASE')
-  if (snapshot.summary.create !== 0 || snapshot.summary.delete !== 0 || snapshot.summary.replace !== 0 || snapshot.summary.orphaned !== 0 || snapshot.summary.adopted !== 0) fail('plan contains resource creation, deletion, replacement, orphaning, or adoption')
-  if (snapshot.resources.some((resource) => !['noop', 'update'].includes(resource.action))) fail('plan contains an unapproved resource action')
-  if (directory?.action !== 'noop' || directoryDb?.action !== 'noop') fail('existing directory bindings must remain unchanged')
-  if (operations.length !== 5 || Object.keys(state.targets).some((id) => operations.filter((row) => row.logicalId === id && row.fqn === id).length !== 1) || snapshot.actions.length) fail('unexpected resource or action census')
+  if (snapshot.summary.create !== 0 || snapshot.summary.delete !== 0 || snapshot.summary.replace !== 0 || snapshot.summary.orphaned !== 0 || snapshot.summary.adopted !== 0) fail('guard-resource-action-refused')
+  if (snapshot.resources.some((resource) => !['noop', 'update'].includes(resource.action))) fail('guard-resource-action-refused')
+  if (directory?.action !== 'noop' || directoryDb?.action !== 'noop') fail('guard-directory-binding-drift')
+  if (operations.length !== 5 || Object.keys(state.targets).some((id) => operations.filter((row) => row.logicalId === id && row.fqn === id).length !== 1) || snapshot.actions.length) fail('guard-resource-census-invalid')
   for (const id of Object.keys(state.targets)) {
     const node = nativeResource(snapshot, id)
-    if (node === undefined) fail(`native plan resource missing: ${id}`)
+    if (node === undefined) fail('guard-native-resource-missing')
     state.validateStateRecord(node.resource.LogicalId, node.state)
-    if (node.mode !== 'live' || node.renamedFrom?.length) fail('state mode or resource rename drift')
+    if (node.mode !== 'live' || node.renamedFrom?.length) fail('guard-state-mode-drift')
   }
-  if (operations.find((row) => row.logicalId === 'Manifests').action !== 'noop') fail('unexpected manifests bucket update')
-  if (operations.some((row) => row.bindings.some((binding) => binding.action === 'delete'))) fail('binding deletion refused')
+  if (operations.find((row) => row.logicalId === 'Manifests').action !== 'noop') fail('guard-manifests-update-refused')
+  if (operations.some((row) => row.bindings.some((binding) => binding.action === 'delete'))) fail('guard-binding-deletion-refused')
   return { summary: snapshot.summary, operations, approvedChanges: reviewed.approvedChanges, changes: reviewed.changes, transitions: reviewed.transitions, expectedDomains: reviewed.expectedDomains }
 }
 
@@ -123,7 +126,7 @@ function* prepareArtifacts(snapshot, key, Artifacts, ArtifactStore, makeScopedAr
     }
     let build = store.get(fqn)?.get('build')
     if (Effect.isEffect(build)) build = yield* build
-    if (build === undefined) fail(`artifact not built at plan time: ${id}`)
+    if (build === undefined) fail('guard-artifact-not-built')
     artifacts[id] = yield* Effect.promise(() => artifactOf(build))
   }
   return artifacts
@@ -154,7 +157,7 @@ async function run() {
   writeFileSync(lock, `${process.pid}\n`, { flag: 'wx', mode: 0o600 })
   try {
     // Plan and apply share a single Effect scope: the provider session must stay alive.
-    await Effect.runPromise(Effect.gen(function* () {
+    await runStagingEffect(Effect.gen(function* () {
       const snapshot = yield* Alchemist.Stack.plan({
         target: { entrypoint: resolve(repo, 'alchemy.run.ts'), stage: 'staging', envFile: resolve(repo, '.env.local') },
         operation: 'deploy', adopt: false, updateStateStore: false,
@@ -171,10 +174,10 @@ async function run() {
         console.log(JSON.stringify(packet))
         return
       }
-      if (args[1] !== digest) fail('apply requires the digest from the current source, state, and live plan')
-      if (git('rev-parse', 'HEAD') !== source.commit || git('diff', '--name-only')) fail('checkout changed during planning')
-      if (canonical(readApprovedChanges().reference) !== canonical(approvedChanges)) fail('approved-change manifest changed during planning')
-      if (canonical(state.inspectStagingState()) !== canonical(stateDigests) || canonical(yield* Effect.promise(census)) !== canonical(before)) fail('state or live resources changed during planning')
+      if (args[1] !== digest) fail('guard-apply-digest-mismatch')
+      if (git('rev-parse', 'HEAD') !== source.commit || git('diff', '--name-only')) fail('guard-checkout-changed')
+      if (canonical(readApprovedChanges().reference) !== canonical(approvedChanges)) fail('guard-approved-changes-changed')
+      if (canonical(state.inspectStagingState()) !== canonical(stateDigests) || canonical(yield* Effect.promise(census)) !== canonical(before)) fail('guard-live-state-changed')
       const runRoot = resolve(root, `release-${Date.now()}`)
       mkdirSync(runRoot, { mode: 0o700 })
       cpSync(state.stateRoot, resolve(runRoot, 'state'), { recursive: true })
@@ -193,18 +196,18 @@ async function run() {
             const bag = yield* Artifacts
             let build = yield* bag.get('build')
             if (Effect.isEffect(build)) build = yield* build
-            if (build === undefined) fail(`artifact missing before upload: ${id}`)
+            if (build === undefined) fail('guard-artifact-missing')
             artifact = yield* Effect.promise(() => artifactOf(build))
           }
           const again = workerPayload({ key, logicalId: id, workerName: state.targets[id], stack, accountId: state.accountId, node, artifact })
-          if (canonical(again) !== canonical(payload.workers[id])) fail(`upload payload changed before upload: ${id}`)
+          if (canonical(again) !== canonical(payload.workers[id])) fail('guard-upload-payload-changed')
           const fresh = yield* Effect.promise(() => liveWorker(id))
           const namespaces = yield* Effect.promise(liveNamespaces)
-          if (canonical(durableObjectTransition(node, fresh, namespaces)) !== canonical(safe.transitions[id])) fail(`Durable Object transition changed before upload: ${id}`)
+          if (canonical(durableObjectTransition(node, fresh, namespaces)) !== canonical(safe.transitions[id])) fail('guard-do-transition-changed')
         }),
         after: (id, output) => Effect.sync(() => {
           const planned = artifacts[id]
-          if (planned.kind === 'bundle' && planned.providerHash !== null && output?.hash?.bundle !== planned.providerHash) fail(`uploaded bundle differs from the reviewed build: ${id}`)
+          if (planned.kind === 'bundle' && planned.providerHash !== null && output?.hash?.bundle !== planned.providerHash) fail('guard-uploaded-bundle-mismatch')
         }),
       }
       yield* sequenceWorkers(snapshot, verifyWorker, (event) => {
@@ -219,7 +222,7 @@ async function run() {
           if (check) { verified = true; break }
           yield* Effect.sleep('5 seconds')
         }
-        if (!verified) fail(`Post-upload verification failed: ${id}`)
+        if (!verified) fail('guard-post-upload-verification-failed')
       }
       const after = yield* Effect.promise(() => census({ domains: safe.expectedDomains }))
       journal.status = 'verified'
@@ -235,6 +238,6 @@ async function run() {
 
 try { await run() } catch (error) {
   // Provider failures may contain request bodies. Never print a raw Effect cause.
-  console.error('Staging release stopped. Read back Cloudflare versions and the private release journal before retrying.')
+  reportReleaseFailure(error)
   process.exitCode = 1
 }

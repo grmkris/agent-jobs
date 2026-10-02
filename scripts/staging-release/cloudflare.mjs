@@ -1,3 +1,4 @@
+import { StagingReleaseError } from './errors.mjs'
 import { accountId, boardNamespace, targets } from './state.ts'
 
 async function cloudflareEnvelope(path, options = {}) {
@@ -18,7 +19,7 @@ export async function cloudflare(path, options = {}) {
 
 /** Read a Cloudflare list completely. The API does not always return total_pages, so total_count and per_page are authoritative. */
 export async function cloudflarePaged(path, { items = result => result, pageSize = 100 } = {}) {
-  if (!Number.isSafeInteger(pageSize) || pageSize < 1) throw new Error('Cloudflare pagination page size invalid')
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1) throw new StagingReleaseError('census-page-size-invalid')
   const all = []
   let page = 1
   let total
@@ -28,51 +29,51 @@ export async function cloudflarePaged(path, { items = result => result, pageSize
     const body = await cloudflareEnvelope(`${path}${separator}page=${page}&per_page=${pageSize}`)
     const info = body.result_info
     if (!Number.isSafeInteger(info?.total_count) || info.total_count < 0 || !Number.isSafeInteger(info?.per_page) || info.per_page < 1)
-      throw new Error('Cloudflare list pagination metadata missing')
-    if (info.page !== page) throw new Error('Cloudflare list page did not advance')
+      throw new StagingReleaseError('census-pagination-metadata-missing')
+    if (info.page !== page) throw new StagingReleaseError('census-page-not-advancing')
     if (total === undefined) total = info.total_count
-    if (info.total_count !== total) throw new Error('Cloudflare list total changed during census')
+    if (info.total_count !== total) throw new StagingReleaseError('census-total-changed')
     if (perPage === undefined) perPage = info.per_page
-    if (info.per_page !== perPage) throw new Error('Cloudflare list page size changed during census')
+    if (info.per_page !== perPage) throw new StagingReleaseError('census-page-size-changed')
     const pageItems = items(body.result)
     if (!Array.isArray(pageItems) || pageItems.length > info.per_page || (Number.isSafeInteger(info.count) && info.count !== pageItems.length))
-      throw new Error('Cloudflare list page shape invalid')
+      throw new StagingReleaseError('census-page-shape-invalid')
     all.push(...pageItems)
-    if (all.length > total) throw new Error('Cloudflare list exceeds total_count')
+    if (all.length > total) throw new StagingReleaseError('census-total-exceeded')
     if (all.length === total) return all
-    if (pageItems.length !== info.per_page) throw new Error('Cloudflare list page ended before total_count')
+    if (pageItems.length !== info.per_page) throw new StagingReleaseError('census-page-short')
     page++
-    if (page > 10_000) throw new Error('Cloudflare list pagination limit exceeded')
+    if (page > 10_000) throw new StagingReleaseError('census-pagination-limit')
   }
 }
 
-/** These endpoints return a complete collection and have no page/cursor request in the pinned API contract. */
+/** Domains and schedules return complete collections; check returned counts if present. */
 async function cloudflareComplete(path, items = result => result) {
   const body = await cloudflareEnvelope(path)
   const rows = items(body.result)
-  if (!Array.isArray(rows)) throw new Error('Cloudflare collection shape invalid')
+  if (!Array.isArray(rows)) throw new StagingReleaseError('census-collection-shape-invalid')
   const total = body.result_info?.total_count
-  if (total !== undefined && (!Number.isSafeInteger(total) || total !== rows.length)) throw new Error('Cloudflare complete collection count mismatch')
+  if (total !== undefined && (!Number.isSafeInteger(total) || total !== rows.length)) throw new StagingReleaseError('census-collection-count-mismatch')
   return rows
 }
 
 /** R2 omits a continuation token/count: follow lexicographic start_after until a short page, as its provider does. */
 export async function liveBuckets(pageSize = 1000) {
-  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) throw new Error('Cloudflare bucket page size invalid')
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) throw new StagingReleaseError('census-bucket-page-size-invalid')
   const buckets = []
   let after = ''
   for (let page = 0; page < 10_000; page++) {
     const body = await cloudflareEnvelope(`/r2/buckets?order=name&direction=asc&per_page=${pageSize}${after === '' ? '' : `&start_after=${encodeURIComponent(after)}`}`)
     const rows = body.result?.buckets
-    if (!Array.isArray(rows) || rows.length > pageSize) throw new Error('Cloudflare bucket page shape invalid')
+    if (!Array.isArray(rows) || rows.length > pageSize) throw new StagingReleaseError('census-bucket-page-shape-invalid')
     for (const row of rows) {
-      if (typeof row.name !== 'string' || row.name === '' || row.name <= after) throw new Error('Cloudflare bucket page did not advance')
+      if (typeof row.name !== 'string' || row.name === '' || row.name <= after) throw new StagingReleaseError('census-bucket-page-not-advancing')
       after = row.name
       buckets.push(row)
     }
     if (rows.length < pageSize) return buckets
   }
-  throw new Error('Cloudflare bucket pagination limit exceeded')
+  throw new StagingReleaseError('census-bucket-pagination-limit')
 }
 
 const bindingFields = ['type', 'name', 'namespace_id', 'class_name', 'script_name', 'id', 'database_id', 'bucket_name', 'jurisdiction', 'service', 'environment', 'entrypoint']
@@ -93,19 +94,38 @@ export async function liveNamespaces() {
   const namespaces = await cloudflarePaged('/workers/durable_objects/namespaces')
   const ids = namespaces.map(namespace => namespace?.id)
   if (ids.some(id => typeof id !== 'string' || id === '') || new Set(ids).size !== ids.length)
-    throw new Error('Cloudflare namespace census has missing or duplicate identities')
+    throw new StagingReleaseError('census-namespace-identities-invalid')
   return namespaces.filter((namespace) => scripts().includes(namespace.script))
     .map(({ id, class: className, script }) => ({ id, className, script }))
+}
+
+/** Exhaust the history, then prove the API's first row is the unique newest deployment. */
+export async function liveDeployment(name) {
+  const deployments = await cloudflarePaged(`/workers/scripts/${name}/deployments`, { items: result => result?.deployments })
+  if (deployments.length === 0) throw new StagingReleaseError('census-deployments-empty')
+  const dated = deployments.map(deployment => {
+    const timestamp = typeof deployment?.created_on === 'string' && deployment.created_on !== '' ? Date.parse(deployment.created_on) : NaN
+    if (!Number.isFinite(timestamp)) throw new StagingReleaseError('census-deployment-timestamp-invalid')
+    return { deployment, timestamp }
+  })
+  const latest = Math.max(...dated.map(row => row.timestamp))
+  const newest = dated.filter(row => row.timestamp === latest)
+  if (newest.length !== 1) throw new StagingReleaseError('census-deployment-newest-ambiguous')
+  if (newest[0].deployment !== deployments[0] || dated.some((row, i) => i > 0 && row.timestamp > dated[i - 1].timestamp))
+    throw new StagingReleaseError('census-deployment-order-invalid')
+  const active = newest[0].deployment
+  if (active.versions?.length !== 1 || active.versions[0].percentage !== 100 || typeof active.versions[0].version_id !== 'string' || active.versions[0].version_id === '')
+    throw new StagingReleaseError('census-deployment-traffic-invalid')
+  return active
 }
 
 export async function census(options = {}) {
   const workers = {}
   for (const id of ['Api', 'Indexer', 'Explore']) {
     const { name, tags, bindings } = await liveWorker(id)
-    const deployments = await cloudflareComplete(`/workers/scripts/${name}/deployments`, result => result?.deployments)
+    const deployment = await liveDeployment(name)
     const schedules = await cloudflareComplete(`/workers/scripts/${name}/schedules`, result => result?.schedules)
-    const active = deployments[0]?.versions
-    if (active?.length !== 1 || active[0].percentage !== 100) throw new Error(`Expected one fully deployed version: ${id}`)
+    const active = deployment.versions
     workers[id] = {
       name, version: active[0].version_id, tags, bindings,
       crons: schedules.map((schedule) => schedule.cron).toSorted(),
@@ -115,7 +135,7 @@ export async function census(options = {}) {
     .map(({ hostname, service, zone_id }) => ({ hostname, service, zone_id })).toSorted((a, b) => a.hostname.localeCompare(b.hostname))
   const database = await cloudflare(`/d1/database/${targets.Database}`)
   const bucket = (await liveBuckets()).find((item) => item.name === targets.Manifests)
-  if (bucket === undefined) throw new Error('Live manifests bucket missing')
+  if (bucket === undefined) throw new StagingReleaseError('census-manifests-missing')
   const namespaces = await liveNamespaces()
   const result = { workers, domains, databaseId: database.uuid, bucketName: bucket.name, namespaces }
   validateCensus(result, options)
@@ -123,19 +143,19 @@ export async function census(options = {}) {
 }
 
 export function validateCensus(live, options = {}) {
-  if (live.databaseId !== targets.Database || live.bucketName !== targets.Manifests) throw new Error('Live storage identity drift')
+  if (live.databaseId !== targets.Database || live.bucketName !== targets.Manifests) throw new StagingReleaseError('census-storage-identity-drift')
   const domains = options.domains ?? ['hireling.xyz', 'testnet.hireling.xyz']
-  if (live.domains.length !== domains.length || domains.some(hostname => live.domains.filter(domain => domain.hostname === hostname).length !== 1) || live.domains.some((domain) => domain.service !== targets.Explore || domain.zone_id !== 'd4ad1574270cad47f2e33381dba31f84')) throw new Error('Live domain ownership drift')
+  if (live.domains.length !== domains.length || domains.some(hostname => live.domains.filter(domain => domain.hostname === hostname).length !== 1) || live.domains.some((domain) => domain.service !== targets.Explore || domain.zone_id !== 'd4ad1574270cad47f2e33381dba31f84')) throw new StagingReleaseError('census-domain-ownership-drift')
   const get = (worker, name) => live.workers[worker].bindings.find((binding) => binding.name === name)
   for (const id of ['Api', 'Indexer', 'Explore']) {
-    if (live.workers[id].name !== targets[id]) throw new Error(`Live Worker identity drift: ${id}`)
-    if (!live.workers[id].tags.includes('alchemy:stack:AgentJobs') || !live.workers[id].tags.includes('alchemy:stage:staging')) throw new Error(`Live Worker ownership drift: ${id}`)
-    if (JSON.stringify(live.workers[id].crons) !== JSON.stringify(id === 'Indexer' ? ['* * * * *'] : [])) throw new Error(`Live cron drift: ${id}`)
+    if (live.workers[id].name !== targets[id]) throw new StagingReleaseError('census-worker-identity-drift')
+    if (!live.workers[id].tags.includes('alchemy:stack:AgentJobs') || !live.workers[id].tags.includes('alchemy:stage:staging')) throw new StagingReleaseError('census-worker-ownership-drift')
+    if (JSON.stringify(live.workers[id].crons) !== JSON.stringify(id === 'Indexer' ? ['* * * * *'] : [])) throw new StagingReleaseError('census-cron-drift')
   }
-  if (get('Api', 'Database')?.id !== targets.Database || get('Indexer', 'Database')?.id !== targets.Database || get('Api', 'Manifests')?.bucket_name !== targets.Manifests || get('Api', 'Board')?.namespace_id !== boardNamespace || get('Explore', 'API')?.service !== targets.Api) throw new Error('Live resource binding drift')
-  if (!live.namespaces.some((namespace) => namespace.id === boardNamespace && namespace.className === 'Board')) throw new Error('Live Board namespace drift')
+  if (get('Api', 'Database')?.id !== targets.Database || get('Indexer', 'Database')?.id !== targets.Database || get('Api', 'Manifests')?.bucket_name !== targets.Manifests || get('Api', 'Board')?.namespace_id !== boardNamespace || get('Explore', 'API')?.service !== targets.Api) throw new StagingReleaseError('census-binding-drift')
+  if (!live.namespaces.some((namespace) => namespace.id === boardNamespace && namespace.className === 'Board')) throw new StagingReleaseError('census-board-namespace-drift')
   for (const name of ['AI_GATEWAY_API_KEY', 'ATTESTER_PRIVATE_KEY', 'RELAY_PRIVATE_KEY', 'GITHUB_APP_PRIVATE_KEY', 'BUDGET_SIGNER_PRIVATE_KEY', 'PRIVY_APP_SECRET']) {
-    if (get('Api', name)?.type !== 'secret_text') throw new Error(`Missing live secret binding: ${name}`)
+    if (get('Api', name)?.type !== 'secret_text') throw new StagingReleaseError('census-secret-binding-missing')
   }
 }
 
@@ -143,14 +163,14 @@ export async function verifyWorker(id) {
   const subdomain = await cloudflare('/workers/subdomain')
   const origin = `https://${targets[id]}.${subdomain.subdomain}.workers.dev`
   const response = await fetch(`${origin}${id === 'Api' ? '/health' : '/'}`, { signal: AbortSignal.timeout(30_000) })
-  if (!response.ok) throw new Error(`Worker readback failed: ${id}`)
+  if (!response.ok) throw new StagingReleaseError('worker-readback-failed')
   const body = id === 'Explore' ? undefined : await response.json()
-  if (id !== 'Explore' && body?.ok !== true) throw new Error(`Health readback failed: ${id}`)
-  if (id === 'Api' && (body.network !== 'monad-testnet' || body.runtime !== 'Cloudflare-Workers')) throw new Error(`Wrong deployed network/runtime: ${id}`)
+  if (id !== 'Explore' && body?.ok !== true) throw new StagingReleaseError('worker-health-invalid')
+  if (id === 'Api' && (body.network !== 'monad-testnet' || body.runtime !== 'Cloudflare-Workers')) throw new StagingReleaseError('worker-runtime-invalid')
   if (id === 'Api') {
     const directory = await fetch(`${origin}/data/directory`, { signal: AbortSignal.timeout(30_000) })
     const data = await directory.json()
-    if (!directory.ok || data.ok !== true || !Array.isArray(data.agents)) throw new Error(`Directory readback failed: ${id}`)
+    if (!directory.ok || data.ok !== true || !Array.isArray(data.agents)) throw new StagingReleaseError('directory-readback-failed')
   }
   return { id, verifiedAt: new Date().toISOString() }
 }

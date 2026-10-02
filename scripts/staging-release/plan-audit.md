@@ -105,7 +105,8 @@ contracts:
 | Account Durable Object namespaces | Page/total_count traversal, fixed in this WP. Provider upload already uses `listNamespaces.items()` to traverse namespaces. |
 | Account Workers domains | The pinned Workers API declares single-collection mode, with no page request fields. The runner keeps that contract and now checks any returned total_count against the complete array. Provider domain reconciliation uses the same complete collection, filtered by service. |
 | R2 buckets | Supports `per_page` and lexicographic `start_after`, without a response continuation token/count. The runner now traverses sorted full pages until a short page, refusing malformed/repeated pages. This matches the pinned Bucket provider's exhaustive walk. |
-| Worker deployments and schedules | Complete per-script collections with no page request in the pinned API; array shape and any total_count are checked. The deployment reader selects the current first deployment and requires one 100% version. |
+| Worker deployments | The live API is paginated despite the pinned schema: G2-PLAN-4 traverses page/total_count, checks every created_on, and proves page 1's first row is the unique newest in descending order. It requires one 100% version. |
+| Worker schedules | Live responses have no result_info; the complete per-script collection is shape-checked, with any returned total_count checked. |
 | Worker secrets | The runner reads names/types from the per-script settings binding collection, never a separate secrets list or secret values. The secrets-list API is single-collection mode if used by a provider. |
 | Zone Worker routes | No runner list read; the selected stack declares no routes. The pinned route-list API is a complete collection without page parameters. |
 | D1 databases | The runner addresses the owned database by its exact ID; no database list. Storage is noop-only, so database reconciliation/listing never runs in an accepted apply. |
@@ -117,3 +118,19 @@ repeated-page refusal. No provider call, staging plan or apply ran in backend.
 
 The offline directory fixture's source hashes are refreshed for B10's reviewed
 code; its extracted schemas and migration permissions are unchanged.
+
+
+## G2-PLAN-4: deployment history and safe diagnostics
+
+The coordinator's counts-only probe corrected the pinned API contract: deployments
+return 10 per page (Api 39, Indexer 18, Explore 42), with total_count/total_pages.
+Domains returned all 11 rows and schedules had no result_info. The runner now
+exhausts deployment pages using the same fail-closed pagination checks. It validates
+all created_on timestamps, rejects a tied newest timestamp, and requires descending
+order with the unique newest at page 1's first row before accepting one 100% version.
+
+Census checks and release guard failures now use StagingReleaseError with a fixed,
+value-free code allowlist. The release catch renders only those codes; arbitrary
+errors, including provider failures, remain generic. Effect failures preserve our
+own codes without printing raw causes. Contextual plan blocker labels keep their
+existing field/name/action sanitizers and all prior refusals remain enforced.
