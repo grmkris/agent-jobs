@@ -61,8 +61,14 @@ production release; a stray `ALCHEMY_REMOTE_STATE=1` fails before state selectio
 
 ## Hireling v1 approved changes (since 2 Oct 2026)
 
-Since 2 Oct 2026 the runner keeps **migrations off** (`AGENT_JOBS_APPLY_MIGRATIONS=0`). The directory migration and
-its bindings are already live, and the plan must leave them unchanged.
+The runner keeps the migration input **on** (`AGENT_JOBS_APPLY_MIGRATIONS=1`, D21, 3 Oct 2026). The directory
+migration was applied on 1 Oct with this input, so turning it off changes the Database's planned props and the plan
+refuses with `storage-write-refused(Database: update)`. With it on, Database and Manifests must still plan as noop: a
+new migration file is refused like any other storage write. The directory migration and its bindings are already
+live, and the plan must leave them unchanged.
+
+Every refusal names what it refused, by identifier only, for example `binding-identity-drift(Explore.API:
+environment)`. The field after the colon is the identity field that differs.
 
 **Still refused, always:** migrations, resource creates/deletes/replacements/adoptions, schedule changes, binding
 deletions or type changes, and any new grouped or inherited binding. New v1 tables appear only through runtime
