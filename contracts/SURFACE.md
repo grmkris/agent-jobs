@@ -377,9 +377,10 @@ more than `RELAY_FLOOR_MAINNET` (2 MON, B6) before opening.
 ## Testnet launch (G1): `script/launch-testnet.sh`, `script/rehearse-launch-testnet.sh`
 
 The coordinator's G1 run: the runbook sequence on Monad testnet, core reused, no seed. It refuses chain 143 (the
-RPC's chain id and the config) and takes the RPC and both keys from environment variables by name
-(`MONAD_TESTNET_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, `SAFE_BACKUP_TESTNET_PRIVATE_KEY`, each renamable through `*_ENV`).
-It never prints their values, and its output and logs are redacted.
+RPC's chain id and the config). It signs from an encrypted Foundry keystore per role, as mainnet does
+(`DEPLOYER_ACCOUNT`/`SAFE_OWNER_ACCOUNT` plus a mode-600 `*_PASSWORD_FILE`). Raw keys are only an explicit testnet
+fallback: `--private-keys`, read from env vars by name (`DEPLOYER_PRIVATE_KEY`, `SAFE_BACKUP_TESTNET_PRIVATE_KEY`). The
+RPC comes from `MONAD_TESTNET_RPC_URL`. No value is printed, and output and logs are redacted.
 
 1. Checks: the chain, no v1 deployment recorded yet, the deployer is `roles.admin`, the Safe is v1.4.1 with threshold 1
    and the Safe-owner key is an owner, an `oddTokens` block exists, and both senders hold the gas limits at twice the
@@ -400,8 +401,9 @@ Optional flags:
 
 Every transaction hash is printed and listed again at the end.
 
-`rehearse-launch-testnet.sh` runs it unchanged on an anvil fork of testnet, with dev keys and a fresh 1-of-2 Safe. It
-also checks that a chain-143 RPC and a second launch are refused, that a re-read passes, and that the proposal can be
+`rehearse-launch-testnet.sh` runs it unchanged on an anvil fork of testnet, signing from throwaway keystores of dev
+keys, with a fresh 1-of-2 Safe. It also checks that a missing signer, a loose password file, a chain-143 RPC and a
+second launch are refused, that a re-read passes, and that the proposal can be
 executed after 3 days and the probe accepted after 8. Passed 2 Oct. Gas limits from that run:
 
 | step | txs | gas limit | MON @ 102 gwei | paid by |

@@ -2,8 +2,9 @@
 
 The launch sequence for Hireling v1 on Monad mainnet (chain 143), in the order `contracts/script/rehearse-launch.sh`
 (R7) runs it on a fork. Every step that sends a mainnet transaction is marked **[tx]** and runs only on Kris's explicit
-go. Commands run from the repo root unless the step says `contracts/`. Secrets come from `.env.local` with
-`bash -c 'set -a; . ./.env.local; set +a; …'` (or `../.env.local` from `contracts/`) and are never printed.
+go. Commands run from the repo root unless the step says `contracts/`. The RPC URL and API keys come from `.env.local`
+with `bash -c 'set -a; . ./.env.local; set +a; …'` (or `../.env.local` from `contracts/`) and are never printed. Signing
+keys never come from there: every mainnet transaction signs from an encrypted Foundry keystore (§2).
 
 The existing **staging** stack has its own guarded release procedure ([staging-release-runbook.md](staging-release-runbook.md));
 nothing here touches it except the apex handoff in §1.4, which goes through that procedure.
@@ -80,7 +81,22 @@ column, which covers forge's 203 gwei max fee, not just the charged one.
 | Mining epoch 0: fund, setRoot, a claim | 3 | 732,804 | 0.075 MON | 0.149 MON | a Safe owner; claimer |
 | **launch total** | **40** | **32,037,851** | **3.27 MON** | **6.50 MON** | |
 
-Keep the role wallets separate; each has its own key in `.env.local`.
+Keep the role wallets separate; each has its own key.
+
+**Keystores, mandatory on mainnet.** No mainnet key goes on a command line or into `.env.local`; `--private-key` is a
+testnet fallback only. Each key that sends here lives in an encrypted Foundry keystore, unlocked by a password file
+you own with mode 600. Import each one once, on the box that sends: the deployer as `hireling-deployer`, the Safe owner
+as `hireling-safe-owner`, the liquidity holder as `hireling-liquidity`.
+
+```
+mkdir -m 700 -p ~/.config/hireling
+cast wallet import hireling-deployer --interactive   # prompts for the key and a password; nothing reaches the shell
+(umask 077; read -rsp 'keystore password: ' p; printf '%s' "$p" >~/.config/hireling/deployer.password; unset p; echo)
+cast wallet address --account hireling-deployer --password-file ~/.config/hireling/deployer.password   # roles.admin
+```
+
+The keystore is `~/.foundry/keystores/hireling-deployer`. Delete any other copy of the raw key. The relay and attester
+keys are not used here; they live in the production secret sources.
 
 **Fresh keys (R2) first.** The relay and attester keys were exposed on 1 Oct, and the arbitrator key is replaced with them. Generate new relay, attester and arbitrator keys for mainnet, put only their addresses into `roles` in `config/monad-mainnet.json` and the artifact, and store the keys in the dedicated production secret sources. Never fund or configure `0xac72…9e7e`, `0x66b7…963f` or `0xc657…d632` on mainnet.
 
@@ -93,9 +109,8 @@ Keep the role wallets separate; each has its own key in `.env.local`.
 | attester | `roles.attester` (a fresh R2 key) | 1 MON | attaches evidence |
 | arbitrator | `roles.arbitrator` (a fresh R2 key) | 0 | only signs; the relay sends |
 
-If the deployer is also the liquidity holder, send it both rows and use `DEPLOYER_PRIVATE_KEY` in §3.7. Besides the
-role keys in `.env.example`, the commands below read `SAFE_OWNER_PRIVATE_KEY` (the Safe owner that sends) and
-`LIQUIDITY_PRIVATE_KEY`. Space out transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).
+If the deployer is also the liquidity holder, send it both rows and use `hireling-deployer` in §3.7. Space out
+transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).
 Check balances with `bun scripts/reality-check.ts`, row "Mainnet readiness (B7)".
 
 ## 3. Launch sequence
@@ -116,7 +131,8 @@ From `contracts/`. First run it without `--broadcast` as a dry run, then send:
 ```
 bash -c 'set -a; . ../.env.local; set +a; \
   NETWORK=monad-mainnet MAINNET_GO=yes forge script script/DeployHireling.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --broadcast --slow \
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-deployer --password-file ~/.config/hireling/deployer.password \
+  --broadcast --slow \
   --verify --etherscan-api-key "$MONADSCAN_API_KEY"'
 ```
 
@@ -158,7 +174,8 @@ With a threshold-1 Safe, sent by one owner, from `contracts/`:
 
 ```
 bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SafeAccept.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$SAFE_OWNER_PRIVATE_KEY" --broadcast --slow'
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-safe-owner \
+  --password-file ~/.config/hireling/safe-owner.password --broadcast --slow'
 NETWORK=monad-mainnet forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$MONAD_MAINNET_RPC_URL"
 ```
 
@@ -185,7 +202,8 @@ From `contracts/`, sent by the liquidity holder:
 
 ```
 bash -c 'set -a; . ../.env.local; set +a; NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --private-key "$LIQUIDITY_PRIVATE_KEY" --broadcast --slow'
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-liquidity \
+  --password-file ~/.config/hireling/liquidity.password --broadcast --slow'
 NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url "$MONAD_MAINNET_RPC_URL"
 ```
 
@@ -198,8 +216,8 @@ way, up to `maxRepairCost` (5 USDC, or that value in FACTORY at the target price
 liquidity, pool key and ticks, and checks that no allowance is left.
 
 **Fallback pool key.** If the seed reverts with `PriceNotSet` (dust beyond the cap), set `"fee": 10000,
-"tickSpacing": 200` in `liquidity`, revoke the old helper's allowances (`approve(helper, 0)` on both tokens, [tx]), and
-re-run both commands. A second run of a pool that was already seeded is refused (`AlreadySeeded`).
+"tickSpacing": 200` in `liquidity`, revoke the old helper's allowances (`approve(helper, 0)` on both tokens with `cast send`, signed by the same
+keystore, [tx]), and re-run both commands. A second run of a pool that was already seeded is refused (`AlreadySeeded`).
 
 ### 3.8 A drained production deploy (no chain transaction)
 
@@ -251,7 +269,9 @@ Registry the first time. Record every hash in `docs/reality-check.md` under "v1 
 Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch ends:
 1. `pnpm mining:epoch <n>` (the backend's B8 tool) produces the root, total and data hash.
 2. The Safe sends `MiningReserve.fund(n, total)` and `EpochDistributor.setRoot(n, root, total, dataHash)`. R7 sends them
-   as two `execTransaction`s; `/admin`'s mining panel builds them for Safe{Wallet}.
+   as two `execTransaction`s; `/admin`'s mining panel builds them for Safe{Wallet}. From a terminal, send each
+   `execTransaction` with `cast send <safe> … --account hireling-safe-owner --password-file
+   ~/.config/hireling/safe-owner.password`, never `--private-key`.
 3. Each claim stakes the reward into the vault for the claimant.
 
 `fund` works only for an ended epoch and only up to the cumulative schedule (500M in all). A root can be replaced until

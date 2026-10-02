@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # The G1 rehearsal: script/launch-testnet.sh, unchanged, against a throwaway anvil fork of Monad testnet (chain 10143,
-# Monad gas pricing), with anvil's public dev keys and a fresh 1-of-2 Safe in a scratch config. Then, on the fork:
-#   - a run against a chain-143 RPC refuses before it sends anything, and a second launch refuses;
+# Monad gas pricing), signing from throwaway encrypted keystores of anvil's public dev keys (as mainnet signs), with a
+# fresh 1-of-2 Safe in a scratch config. Then, on the fork:
+#   - no signer, or a password file others can read, refuses; a chain-143 RPC refuses before anything is sent (with
+#     the --private-keys fallback); a second launch refuses;
 #   - --from readback --to sdk re-reads cleanly;
 #   - 3 days later anyone executes the proposed fee schedule; 8 days later anyone accepts the probed Holding.
 # Prints the gas limits each sender is charged. Writes config/rehearsal-testnet.json and chain-10143 broadcast logs
@@ -40,8 +42,15 @@ REHEARSAL_SAFE_OWNER_KEY=$(devkey 1)
 K_OWNER2=$(devkey 2)
 DEPLOYER=$(addr "$REHEARSAL_DEPLOYER_KEY"); OWNER1=$(addr "$REHEARSAL_SAFE_OWNER_KEY"); OWNER2=$(addr "$K_OWNER2")
 WALLET_A=$(addr "$(devkey 6)"); WALLET_B=$(addr "$(devkey 7)")
-LAUNCH=(env RPC_ENV=REHEARSAL_RPC DEPLOYER_KEY_ENV=REHEARSAL_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=REHEARSAL_SAFE_OWNER_KEY
-  bash script/launch-testnet.sh)
+# Throwaway keystores for those dev keys, one password file of mode 600, all removed on exit.
+KEYSTORES="$(mktemp -d)"
+chmod 700 "$KEYSTORES"
+PASSWORD_FILE="$KEYSTORES/password"
+(umask 077; printf 'rehearsal-%s%s' "$RANDOM" "$RANDOM" >"$PASSWORD_FILE")
+cast wallet import --keystore-dir "$KEYSTORES" deployer --private-key "$REHEARSAL_DEPLOYER_KEY" --unsafe-password "$(cat "$PASSWORD_FILE")" >/dev/null 2>&1
+cast wallet import --keystore-dir "$KEYSTORES" safe-owner --private-key "$REHEARSAL_SAFE_OWNER_KEY" --unsafe-password "$(cat "$PASSWORD_FILE")" >/dev/null 2>&1
+LAUNCH=(env RPC_ENV=REHEARSAL_RPC DEPLOYER_ACCOUNT="$KEYSTORES/deployer" DEPLOYER_PASSWORD_FILE="$PASSWORD_FILE"
+  SAFE_OWNER_ACCOUNT="$KEYSTORES/safe-owner" SAFE_OWNER_PASSWORD_FILE="$PASSWORD_FILE" bash script/launch-testnet.sh)
 
 for s in "${SCRIPTS[@]}"; do
   if [[ -e "broadcast/$s.s.sol/$CHAIN" || -e "cache/$s.s.sol/$CHAIN" ]]; then
@@ -56,7 +65,7 @@ cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
   for s in "${SCRIPTS[@]}"; do rm -rf "broadcast/$s.s.sol/$CHAIN" "cache/$s.s.sol/$CHAIN"; done
   rm -f "$CONFIG" "$CANDIDATE"
-  rm -rf "$LAUNCH_LOGS"
+  rm -rf "$LAUNCH_LOGS" "$KEYSTORES"
 }
 trap cleanup EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -87,13 +96,19 @@ jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg a "$WALLET_A" --arg b "$WALL
   | .hireling.allocation.ecosystem = $admin | .hireling.allocation.liquidity = $admin
   | .oddTokens = (.oddTokens // { wallets: [$a, $b], mint: 1000 })' config/monad-testnet.json >"$CONFIG"
 
-# Mainnet refused before anything is read beyond the chain id (dev keys; nothing could be sent anyway).
-set +e
-OUT=$(env MAINNET_TEST_RPC="$MAINNET_RPC" RPC_ENV=MAINNET_TEST_RPC DEPLOYER_KEY_ENV=REHEARSAL_DEPLOYER_KEY \
-  SAFE_OWNER_KEY_ENV=REHEARSAL_SAFE_OWNER_KEY bash script/launch-testnet.sh --yes 2>&1)
-CODE=$?
-set -e
-[[ $CODE -ne 0 && "$OUT" == *"refusing: the RPC is chain 143"* ]] || fail "a chain-143 RPC was not refused: $OUT"
+# Signers: none configured refuses; a password file others can read refuses.
+refused() { local want=$1; shift; set +e; OUT=$("$@" 2>&1); CODE=$?; set -e; [[ $CODE -ne 0 && "$OUT" == *"$want"* ]]; }
+refused "set DEPLOYER_ACCOUNT and DEPLOYER_PASSWORD_FILE" env RPC_ENV=REHEARSAL_RPC bash script/launch-testnet.sh --yes \
+  || fail "a run with no signer was not refused: $OUT"
+cp "$PASSWORD_FILE" "$KEYSTORES/loose" && chmod 644 "$KEYSTORES/loose"
+refused "must be a file you own with mode 600" env RPC_ENV=REHEARSAL_RPC DEPLOYER_ACCOUNT="$KEYSTORES/deployer" \
+  DEPLOYER_PASSWORD_FILE="$KEYSTORES/loose" bash script/launch-testnet.sh --yes || fail "a loose password file was not refused: $OUT"
+ok "no signer, or a password file others can read, is refused"
+
+# Mainnet refused before anything is read beyond the chain id (the --private-keys fallback; nothing could be sent).
+refused "refusing: the RPC is chain 143" env MAINNET_TEST_RPC="$MAINNET_RPC" RPC_ENV=MAINNET_TEST_RPC \
+  DEPLOYER_KEY_ENV=REHEARSAL_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=REHEARSAL_SAFE_OWNER_KEY \
+  bash script/launch-testnet.sh --yes --private-keys || fail "a chain-143 RPC was not refused: $OUT"
 ok "a chain-143 RPC is refused before anything else"
 
 # The launch itself, with both optional flags.
@@ -102,11 +117,7 @@ grep -q "LAUNCH-TESTNET DONE" "$LAUNCH_LOGS/launch.out" || fail "launch-testnet.
 cp "$LAUNCH_LOGS/hashes.tsv" "$LAUNCH_LOGS/launch-hashes.tsv" # later runs start their own list
 ok "launch-testnet.sh ran end to end"
 
-set +e
-OUT=$("${LAUNCH[@]}" --yes 2>&1)
-CODE=$?
-set -e
-[[ $CODE -ne 0 && "$OUT" == *"already records a v1 deployment"* ]] || fail "a second launch was not refused: $OUT"
+refused "already records a v1 deployment" "${LAUNCH[@]}" --yes || fail "a second launch was not refused: $OUT"
 ok "a second launch refuses before sending"
 "${LAUNCH[@]}" --from readback --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from readback"; }
 ok "--from readback --to sdk re-reads cleanly"

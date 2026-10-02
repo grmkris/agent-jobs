@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # G1: the Hireling v1 launch on Monad testnet (core reused), the docs/mainnet-runbook.md sequence without the seed, for
-# the coordinator to run once the wallets hold MON. Refuses chain 143. From the repo root:
-#   bash -c 'set -a; . ./.env.local; set +a; bash contracts/script/launch-testnet.sh [flags]'
+# the coordinator to run once the wallets hold MON. Refuses chain 143. From the repo root, with keystores (below):
+#   bash -c 'set -a; . ./.env.local; set +a; DEPLOYER_ACCOUNT=<name> DEPLOYER_PASSWORD_FILE=<file> \
+#     SAFE_OWNER_ACCOUNT=<name> SAFE_OWNER_PASSWORD_FILE=<file> bash contracts/script/launch-testnet.sh [flags]'
+# or, as the explicit testnet fallback, with the raw keys from .env.local: `… launch-testnet.sh --private-keys [flags]`.
 # Steps (any failure stops the run; every transaction hash is printed, and listed again at the end):
 #   0. checks: the RPC's chain is the config's and not 143; no v1 deployment recorded yet; the deployer key is
 #      roles.admin; the Safe is v1.4.1 with threshold 1 and the Safe-owner key is an owner; the oddTokens config
@@ -25,10 +27,15 @@
 #   --dry-run        stop after step 1.      --yes   don't ask before broadcasting.
 #   --from STEP      resume at deploy|promote|accept|readback|sdk|odd|flags (after fixing whatever stopped a run;
 #                    finish a cut-off deploy with forge's --resume first).   --to STEP   stop after STEP.
-# Keys and the RPC come from environment variables, by name; their values are never printed or written, and the
-# output is redacted. Names (each overridable through the *_ENV variable): RPC_ENV=MONAD_TESTNET_RPC_URL,
-# DEPLOYER_KEY_ENV=DEPLOYER_PRIVATE_KEY, SAFE_OWNER_KEY_ENV=SAFE_BACKUP_TESTNET_PRIVATE_KEY. forge and cast take keys as
-# --private-key arguments, which other local users can read in /proc while they run.
+# Signers: an encrypted Foundry keystore per role, as on mainnet (docs/mainnet-runbook.md §2), unlocked by a password
+# file you own with mode 600. One-time: `cast wallet import <name> --interactive` (it prompts, so the key never reaches
+# a command line). DEPLOYER_ACCOUNT and SAFE_OWNER_ACCOUNT name the keystore in ~/.foundry/keystores (or give its
+# path); DEPLOYER_PASSWORD_FILE and SAFE_OWNER_PASSWORD_FILE are the password files.
+#   --private-keys   the explicit testnet fallback: raw keys from env vars, by name (DEPLOYER_KEY_ENV=DEPLOYER_PRIVATE_KEY,
+#                    SAFE_OWNER_KEY_ENV=SAFE_BACKUP_TESTNET_PRIVATE_KEY), passed as --private-key, which other local
+#                    users can read in /proc while forge and cast run.
+# The RPC comes from an env var by name too (RPC_ENV=MONAD_TESTNET_RPC_URL). No value is printed or written, and the
+# output is redacted.
 # NETWORK (default monad-testnet) selects config/<NETWORK>.json; script/rehearse-launch-testnet.sh uses it on a fork.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -48,13 +55,14 @@ STEPS=(deploy promote accept readback sdk odd flags)
 GAS_DEPLOYER=$((24 * 1000000)) # DeployHireling (reused core) + DeployOddTokens
 GAS_SAFE_OWNER=$((2 * 1000000)) # SafeAccept + the two proposals
 
-FEE_PROPOSAL_FLAG=0 HOLDING_PROBE_FLAG=0 DRY_RUN=0 YES=0 FROM=deploy TO=flags
+FEE_PROPOSAL_FLAG=0 HOLDING_PROBE_FLAG=0 DRY_RUN=0 YES=0 FROM=deploy TO=flags PRIVATE_KEYS=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fee-proposal) FEE_PROPOSAL_FLAG=1 ;;
     --holding-probe) HOLDING_PROBE_FLAG=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --yes) YES=1 ;;
+    --private-keys) PRIVATE_KEYS=1 ;;
     --from) FROM="${2:-}"; shift ;;
     --to) TO="${2:-}"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -69,8 +77,28 @@ runs() { local i; i=$(step_index "$1"); [[ $FROM_I -le $i && $i -le $TO_I ]]; }
 # Values by name only. Export them so the redactor (a child process) can read them from its environment.
 need() { [[ -n "${!1:-}" ]] || { echo "set $1 in the environment (its name, from $2)" >&2; exit 2; }; export "${1?}"; }
 need "$RPC_ENV" RPC_ENV
-need "$DEPLOYER_KEY_ENV" DEPLOYER_KEY_ENV
-need "$SAFE_OWNER_KEY_ENV" SAFE_OWNER_KEY_ENV
+# forge/cast signer arguments per role: a keystore and its password file, or (--private-keys) the raw key.
+signer() {
+  local role=$1 key_env account password
+  local -n args="${role}_SIGNER"
+  if [[ $PRIVATE_KEYS -eq 1 ]]; then
+    key_env="${role}_KEY_ENV"
+    local name="${!key_env}"
+    need "$name" "$key_env"
+    args=(--private-key "${!name}")
+    return
+  fi
+  account="${role}_ACCOUNT" password="${role}_PASSWORD_FILE"
+  [[ -n "${!account:-}" && -n "${!password:-}" ]] \
+    || { echo "set $account and $password (an encrypted Foundry keystore), or pass --private-keys on testnet" >&2; exit 2; }
+  [[ -f "${!password}" && -O "${!password}" && "$(stat -c %a "${!password}")" =~ ^[46]00$ ]] \
+    || { echo "$password must be a file you own with mode 600" >&2; exit 2; }
+  if [[ "${!account}" == */* ]]; then args=(--keystore "${!account}" --password-file "${!password}")
+  else args=(--account "${!account}" --password-file "${!password}"); fi
+}
+DEPLOYER_SIGNER=() SAFE_OWNER_SIGNER=()
+signer DEPLOYER
+signer SAFE_OWNER
 RPC="${!RPC_ENV}"
 export REDACT_NAMES="$RPC_ENV $DEPLOYER_KEY_ENV $SAFE_OWNER_KEY_ENV"
 redact() {
@@ -110,7 +138,7 @@ EXEC_SUCCESS=$(cast keccak "ExecutionSuccess(bytes32,uint256)")
 safe_exec() {
   local label=$1 to=$2 data=$3 out h
   local sig="$(cast abi-encode "f(address)" "$SAFE_OWNER")$(printf '%064d' 0)01"
-  if ! out=$(cast send --rpc-url "$RPC" --private-key "${!SAFE_OWNER_KEY_ENV}" --json "$SAFE" "$EXEC_SIG" \
+  if ! out=$(cast send --rpc-url "$RPC" "${SAFE_OWNER_SIGNER[@]}" --json "$SAFE" "$EXEC_SIG" \
     "$to" 0 "$data" 0 0 0 0 $ZERO $ZERO "$sig" 2>"$LOGS/cast.err"); then
     redact <"$LOGS/cast.err" | tail -5 >&2
     fail "$label"
@@ -142,8 +170,8 @@ CHAIN=$(cast chain-id --rpc-url "$RPC" 2>/dev/null) || fail "the RPC in $RPC_ENV
 [[ "$CHAIN" != "$MAINNET" ]] || fail "refusing: the RPC is chain 143 (mainnet)"
 [[ "$(json .chainId)" != "$MAINNET" && "$NETWORK" != *mainnet* ]] || fail "refusing: $CONFIG is a mainnet config"
 [[ "$CHAIN" == "$(json .chainId)" ]] || fail "the RPC is chain $CHAIN, $CONFIG is chain $(json .chainId)"
-DEPLOYER=$(cast wallet address --private-key "${!DEPLOYER_KEY_ENV}" 2>/dev/null)
-SAFE_OWNER=$(cast wallet address --private-key "${!SAFE_OWNER_KEY_ENV}" 2>/dev/null)
+DEPLOYER=$(cast wallet address "${DEPLOYER_SIGNER[@]}" 2>/dev/null) || fail "the deployer keystore does not unlock"
+SAFE_OWNER=$(cast wallet address "${SAFE_OWNER_SIGNER[@]}" 2>/dev/null) || fail "the Safe-owner keystore does not unlock"
 SAFE=$(json .hireling.safe)
 echo "network $NETWORK (chain $CHAIN); deployer $DEPLOYER; Safe $SAFE, sent by owner $SAFE_OWNER; logs $LOGS"
 if runs deploy; then
@@ -169,7 +197,7 @@ ok "checks passed"
 
 # 1–2. DeployHireling.
 if runs deploy; then
-  log 1-dry-run.log forge script script/DeployHireling.s.sol --rpc-url "$RPC" --private-key "${!DEPLOYER_KEY_ENV}" \
+  log 1-dry-run.log forge script script/DeployHireling.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
     || fail "DeployHireling dry run"
   grep -E "Estimated" "$LOGS/1-dry-run.log" | sed 's/^ */  /' || true
   ok "dry run (nothing sent; log $LOGS/1-dry-run.log)"
@@ -178,7 +206,7 @@ if runs deploy; then
     read -r -p "broadcast DeployHireling to chain $CHAIN? [y/N] " answer
     [[ "$answer" == y || "$answer" == Y ]] || { echo "stopped before broadcasting"; exit 0; }
   fi
-  log 2-deploy.log forge script script/DeployHireling.s.sol --rpc-url "$RPC" --private-key "${!DEPLOYER_KEY_ENV}" \
+  log 2-deploy.log forge script script/DeployHireling.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
     --broadcast --slow || fail "DeployHireling broadcast (finish it with --resume, then --from promote)"
   forge_hashes DeployHireling
   ok "DeployHireling broadcast"
@@ -199,7 +227,7 @@ address_of() {
 
 # 4. SafeAccept.
 if runs accept; then
-  log 4-accept.log forge script script/SafeAccept.s.sol --rpc-url "$RPC" --private-key "${!SAFE_OWNER_KEY_ENV}" \
+  log 4-accept.log forge script script/SafeAccept.s.sol --rpc-url "$RPC" "${SAFE_OWNER_SIGNER[@]}" \
     --broadcast --slow || fail "SafeAccept"
   forge_hashes SafeAccept
   log 4-accept-check.log forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$RPC" || fail "SafeAccept check"
@@ -242,7 +270,7 @@ fi
 
 # 7. DeployOddTokens.
 if runs odd; then
-  log 7-odd.log forge script script/DeployOddTokens.s.sol --rpc-url "$RPC" --private-key "${!DEPLOYER_KEY_ENV}" \
+  log 7-odd.log forge script script/DeployOddTokens.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
     --broadcast --slow || fail "DeployOddTokens"
   forge_hashes DeployOddTokens
   grep -E "blocklist|gasBurner" "$LOGS/7-odd.log" | sed 's/^ */  /'

@@ -68,9 +68,24 @@ contract MainnetRunbookTest is Test {
     }
 
     function test_runbookHasNoLegacyPath() public view {
-        string[4] memory banned = ["Deploy.s.sol", "node scripts/preflight-prod", "--adopt", "--force"];
+        // A raw key on a mainnet command line: keystores are mandatory there (--private-key is a testnet fallback).
+        string[5] memory banned =
+            ["Deploy.s.sol", "node scripts/preflight-prod", "--adopt", "--force", "--private-key \"$"];
         for (uint256 i; i < banned.length; ++i) {
             assertFalse(vm.contains(doc, banned[i]), string.concat("runbook still names ", banned[i]));
+        }
+    }
+
+    function test_mainnetSignsFromKeystores() public view {
+        string[5] memory needles = [
+            "cast wallet import hireling-deployer --interactive",
+            "--account hireling-deployer --password-file ~/.config/hireling/deployer.password",
+            "--account hireling-safe-owner",
+            "--account hireling-liquidity",
+            "--password-file ~/.config/hireling/safe-owner.password"
+        ];
+        for (uint256 i; i < needles.length; ++i) {
+            assertTrue(vm.contains(doc, needles[i]), string.concat("runbook lacks ", needles[i]));
         }
     }
 
