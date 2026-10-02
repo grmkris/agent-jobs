@@ -52,6 +52,22 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
         emit RootSet(epoch, root, total, dataHash);
     }
 
+    function resizeRoot(uint256 epoch, uint256 newTotal) external onlyOwner {
+        EpochRoot storage r = _roots[epoch];
+        if (r.root == bytes32(0)) revert NoRoot(epoch);
+        uint256 oldTotal = r.total;
+        if (newTotal < r.claimed) revert InsufficientFunds(newTotal, r.claimed);
+        if (newTotal > oldTotal) {
+            uint256 balance = factory.balanceOf(address(this));
+            uint256 free = balance > outstanding ? balance - outstanding : 0;
+            if (newTotal - oldTotal > free) revert InsufficientFunds(free, newTotal - oldTotal);
+        }
+        // `outstanding` holds this root's unclaimed part, `total - claimed`; only the total moves.
+        outstanding = newTotal >= oldTotal ? outstanding + (newTotal - oldTotal) : outstanding - (oldTotal - newTotal);
+        r.total = newTotal;
+        emit RootResized(epoch, oldTotal, newTotal);
+    }
+
     function claim(uint256 epoch, address account, uint256 amount, bytes32[] calldata proof) external nonReentrant {
         EpochRoot storage r = _roots[epoch];
         if (r.root == bytes32(0)) revert NoRoot(epoch);

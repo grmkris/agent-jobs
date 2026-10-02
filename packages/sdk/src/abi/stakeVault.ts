@@ -125,6 +125,30 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
+    "name": "holdingDenied",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "holding",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isHolding",
     "inputs": [
       {
@@ -312,6 +336,24 @@ export const stakeVaultAbi = [
         "name": "holding",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setHoldingDenied",
+    "inputs": [
+      {
+        "name": "holding",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "denied",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -519,6 +561,31 @@ export const stakeVaultAbi = [
       },
       {
         "name": "bootstrap",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "HoldingDeniedSet",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "holding",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "denied",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
@@ -786,6 +853,16 @@ export const stakeVaultAbi = [
   {
     "type": "error",
     "name": "HoldingAlreadyAuthorized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "HoldingDenied",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "HoldingProposalExpired",
     "inputs": []
   },
   {

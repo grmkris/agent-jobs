@@ -27,6 +27,9 @@ library HirelingConstants {
     uint48 internal constant HOLDING_DELAY = 8 days;
     /// @notice A fee schedule change takes effect this long after it is proposed.
     uint48 internal constant FEE_DELAY = 3 days;
+    /// @dev How long a timelocked proposal stays executable after its eta (C9 ACL-4): a parked proposal cannot be
+    ///      triggered months later without fresh notice.
+    uint48 internal constant PROPOSAL_GRACE = 7 days;
 
     /// @notice FACTORY's fixed supply: 1e9 tokens with 18 decimals, minted once.
     uint256 internal constant FACTORY_SUPPLY = 1_000_000_000e18;

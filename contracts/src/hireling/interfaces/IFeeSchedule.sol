@@ -34,6 +34,8 @@ interface IFeeSchedule {
     error ZeroTreasury();
     error NoPendingSchedule();
     error ScheduleTimelocked(uint48 eta);
+    /// @dev The proposal's execution window (`PROPOSAL_GRACE` after its eta) has passed.
+    error ScheduleExpired(uint48 eta);
 
     /// @notice The fee in basis points for a worker with `stake` FACTORY staked (reservations included).
     function feeBps(uint256 stake) external view returns (uint16);
@@ -47,7 +49,8 @@ interface IFeeSchedule {
     /// @notice The proposed schedule and the time from which anyone may execute it; `eta` is zero when none.
     function pending() external view returns (Schedule memory proposed, uint48 eta);
 
-    /// @notice Owner only. Proposes `s`, replacing any earlier proposal; executable after `DELAY`.
+    /// @notice Owner only. Proposes `s`, replacing (and cancelling) any earlier proposal; executable from `DELAY` until
+    ///         `PROPOSAL_GRACE` after that. An ownership transfer drops it.
     function propose(Schedule calldata s) external;
 
     /// @notice Anyone, once the delay has passed: puts the pending schedule in force.

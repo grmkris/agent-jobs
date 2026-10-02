@@ -98,11 +98,13 @@ contract MiningTest is Test {
         uint256 crossing;
         for (uint256 i; i < 400; ++i) {
             sum += reserve.budget(i);
-            if (sum > 500_000_000e18) {
+            // Budgets are cut at the cap (C9 MATH-4): they reach exactly 500M and never pass it.
+            if (sum >= 500_000_000e18) {
                 crossing = i;
                 break;
             }
         }
+        assertEq(sum, 500_000_000e18);
         assertGt(crossing, 26 * 6, "past six eras");
         assertLt(crossing, 26 * 8, "before eight");
         assertEq(reserve.cumulativeBudget(crossing), 500_000_000e18);
@@ -330,5 +332,57 @@ contract MiningTest is Test {
         distributor.setRoot(0, t.root, t.total, bytes32(0));
         distributor.claim(0, alice, 1e18, _proof(t, 0));
         assertEq(vault.stakeOf(alice), 1e18);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // C9 audit: the budget is cut at the cap; a root's total can be corrected
+    // ---------------------------------------------------------------------------------------------
+
+    /// @dev MATH-4: budgets sum to the capped cumulative schedule, and end where the reserve does.
+    function test_schedule_budgetCutAtTheCap() public view {
+        uint256 sum;
+        for (uint256 e; e <= 200; ++e) {
+            sum += reserve.budget(e);
+            assertEq(sum, reserve.cumulativeBudget(e));
+        }
+        assertEq(reserve.cumulativeBudget(181), 500_000_000e18);
+        assertLt(reserve.cumulativeBudget(180), 500_000_000e18);
+        assertEq(reserve.budget(181), 500_000_000e18 - reserve.cumulativeBudget(180));
+        assertEq(reserve.budget(182), 0);
+        assertEq(reserve.budget(5000), 0);
+    }
+
+    /// @dev MATH-5: a total above the sum of its leaves is released after claims locked the root; an increase needs
+    ///      unpromised funds; never below what was claimed.
+    function test_resizeRoot_releasesAnOverPromise() public {
+        Tree memory t = _tree(0, [uint256(100e18), 200e18, 300e18, 400e18]);
+        _fundEpoch0(1_100e18);
+        vm.prank(safe);
+        distributor.setRoot(0, t.root, t.total + 100e18, bytes32(0));
+        distributor.claim(0, alice, 100e18, _proof(t, 0));
+        assertEq(distributor.available(), 0);
+        vm.prank(safe);
+        distributor.resizeRoot(0, t.total);
+        assertEq(distributor.available(), 100e18, "the over-promise is free again");
+        assertEq(distributor.outstanding(), t.total - 100e18);
+
+        vm.prank(safe);
+        vm.expectRevert(abi.encodeWithSelector(IEpochDistributor.InsufficientFunds.selector, 50e18, 100e18));
+        distributor.resizeRoot(0, 50e18);
+        vm.prank(safe);
+        vm.expectRevert(abi.encodeWithSelector(IEpochDistributor.InsufficientFunds.selector, 100e18, 200e18));
+        distributor.resizeRoot(0, t.total + 200e18);
+        vm.prank(stranger_());
+        vm.expectRevert();
+        distributor.resizeRoot(0, t.total);
+        // Every remaining leaf still claims in full.
+        distributor.claim(0, bob, 200e18, _proof(t, 1));
+        distributor.claim(0, carol, 300e18, _proof(t, 2));
+        distributor.claim(0, dave, 400e18, _proof(t, 3));
+        assertEq(distributor.outstanding(), 0);
+    }
+
+    function stranger_() internal returns (address) {
+        return makeAddr("stranger");
     }
 }

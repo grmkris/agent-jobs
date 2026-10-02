@@ -27,10 +27,11 @@ library MiningSchedule {
         return 1 + (t - zeroEnd) / HirelingConstants.EPOCH_DURATION;
     }
 
+    /// @dev What `fund` can actually add for `epoch`: the schedule's budget, cut at the 500M cap (C9 MATH-4), so the
+    ///      budgets always sum to `cumulativeBudget` and are zero once the reserve is spoken for (epoch 182 on).
     function budget(uint256 epoch) internal pure returns (uint256) {
-        if (epoch == 0) return W * 3 / 7;
-        uint256 era = (epoch - 1) / HALVING;
-        return era >= 256 ? 0 : W >> era;
+        if (epoch == 0) return cumulativeBudget(0);
+        return cumulativeBudget(epoch) - cumulativeBudget(epoch - 1);
     }
 
     /// @dev Closed form per halving era, capped at the reserve: the uncapped series converges to 500M + W · 3/7 and

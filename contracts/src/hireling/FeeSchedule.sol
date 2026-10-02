@@ -46,6 +46,7 @@ contract FeeSchedule is IFeeSchedule, Ownable2Step {
 
     function propose(Schedule calldata s) external onlyOwner {
         _validate(s);
+        _drop();
         _pending = s;
         uint48 eta = uint48(block.timestamp) + DELAY;
         _eta = eta;
@@ -56,6 +57,7 @@ contract FeeSchedule is IFeeSchedule, Ownable2Step {
         uint48 eta = _eta;
         if (eta == 0) revert NoPendingSchedule();
         if (block.timestamp < eta) revert ScheduleTimelocked(eta);
+        if (block.timestamp > uint256(eta) + HirelingConstants.PROPOSAL_GRACE) revert ScheduleExpired(eta);
         Schedule memory s = _pending;
         _schedule = s;
         delete _pending;
@@ -65,6 +67,17 @@ contract FeeSchedule is IFeeSchedule, Ownable2Step {
 
     function cancel() external onlyOwner {
         if (_eta == 0) revert NoPendingSchedule();
+        _drop();
+    }
+
+    /// @dev A proposal never outlives its proposer (C9 ACL-3), and a replaced one is cancelled visibly (C9 ACL-9).
+    function _transferOwnership(address newOwner) internal override {
+        _drop();
+        super._transferOwnership(newOwner);
+    }
+
+    function _drop() private {
+        if (_eta == 0) return;
         delete _pending;
         delete _eta;
         emit ScheduleCancelled();

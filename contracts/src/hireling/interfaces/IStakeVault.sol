@@ -39,6 +39,7 @@ interface IStakeVault {
     event HoldingProposalCancelled(address indexed holding);
     event HoldingAuthorized(address indexed holding, bool bootstrap);
     event HoldingRevoked(address indexed holding);
+    event HoldingDeniedSet(address indexed account, address indexed holding, bool denied);
 
     error ZeroAmount();
     error ZeroAddress();
@@ -53,6 +54,10 @@ interface IStakeVault {
     error BootstrapClosed();
     /// @dev Staking opens when the first Holding is authorized.
     error NotBootstrapped();
+    /// @dev The account vetoed this Holding (`setHoldingDenied`).
+    error HoldingDenied();
+    /// @dev The proposal's acceptance window (`PROPOSAL_GRACE` after its eta) has passed.
+    error HoldingProposalExpired();
 
     // ---------------------------------------------------------------------------------------------
     // Staking
@@ -61,8 +66,10 @@ interface IStakeVault {
     /// @notice Stakes `amount` of the caller's FACTORY (needs an allowance).
     function stake(uint256 amount) external;
 
-    /// @notice Stakes with an EIP-2612 permit instead of an allowance, so a relay can sponsor it. A permit that was
-    ///         already used (front-run) is tolerated as long as the allowance is in place.
+    /// @notice Stakes with an EIP-2612 permit instead of an allowance, saving the `approve` transaction. The permit's
+    ///         owner and the payer are both the caller, so a relay cannot submit it for an EOA (a sponsored 7702/4337
+    ///         call from the holder's own account can). A permit that was already used (front-run) is tolerated as long
+    ///         as the allowance is in place.
     function stakeWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 
     /// @notice Stakes `amount` of the caller's FACTORY for `account`. Used by the mining distributor.
@@ -84,7 +91,17 @@ interface IStakeVault {
 
     /// @notice An authorized Holding reserves `amount` of `account`'s unreserved stake as a bond. A zero amount
     ///         reserves nothing but still requires the caller to be authorized, so a revoked Holding stops publishing.
+    ///         Refused for a Holding the account has denied.
     function reserve(address account, uint256 amount) external;
+
+    /// @notice The caller vetoes (or re-allows) `holding` taking new bonds from its stake (C9 ACL-1). The 8-day delay
+    ///         lets free stake leave before a new Holding goes live; this protects stake that is still bonded when
+    ///         the Holding arrives and is released later, and mining rewards claimed for the caller. Existing
+    ///         reservations still release and slash.
+    function setHoldingDenied(address holding, bool denied) external;
+
+    /// @notice Whether `account` has denied `holding`.
+    function holdingDenied(address account, address holding) external view returns (bool);
 
     /// @notice Releases up to `amount` of the reservation the caller holds on `account` (any Holding, revoked or not).
     /// @return released The amount released: `min(amount, reservedBy(caller, account))`.
@@ -98,7 +115,8 @@ interface IStakeVault {
     // Holding authorization (owner = the Safe)
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice Owner only. Proposes `holding`, replacing any earlier proposal; it can be accepted after `HOLDING_DELAY`.
+    /// @notice Owner only. Proposes `holding`, replacing (and cancelling) any earlier proposal; it can be accepted
+    ///         from `HOLDING_DELAY` until `PROPOSAL_GRACE` after that. An ownership transfer drops it.
     function proposeHolding(address holding) external;
 
     /// @notice Owner only. Drops the pending proposal.
@@ -108,10 +126,11 @@ interface IStakeVault {
     function acceptHolding() external;
 
     /// @notice Owner only, instant. `holding` can no longer reserve; its existing reservations still release and slash.
+    ///         A pending proposal for the same Holding is dropped, so it cannot be re-accepted.
     function revokeHolding(address holding) external;
 
-    /// @notice Owner only, once, and only before any Holding was authorized: authorizes the first Holding without the
-    ///         delay and opens staking.
+    /// @notice Owner only, once, and only before any Holding was authorized and while none is proposed: authorizes
+    ///         the first Holding without the delay and opens staking.
     function bootstrapHolding(address holding) external;
 
     // ---------------------------------------------------------------------------------------------

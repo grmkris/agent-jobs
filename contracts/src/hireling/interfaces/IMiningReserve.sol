@@ -44,7 +44,8 @@ interface IMiningReserve {
     function epochStart(uint256 epoch) external view returns (uint256);
     function epochEnd(uint256 epoch) external view returns (uint256);
 
-    /// @notice The budget of one epoch: W · 3/7 for epoch 0, `W >> ((epoch - 1) / 26)` after.
+    /// @notice The budget of one epoch: W · 3/7 for epoch 0, `W >> ((epoch - 1) / 26)` after, cut where the
+    ///         cumulative budget reaches the 500M cap (epoch 181) and zero after it.
     function budget(uint256 epoch) external view returns (uint256);
 
     /// @notice The sum of `budget(0..epoch)`, capped at the 500M the reserve holds (the uncapped series reaches

@@ -12,7 +12,7 @@ import {HirelingConstants} from "./interfaces/HirelingConstants.sol";
 /// @notice FACTORY v2 (ADR-0011). The whole fixed supply, 1e9 tokens with 18 decimals, is minted once in the
 ///         constructor to the genesis allocation; there is no owner and no way to mint, pause, block or upgrade, so
 ///         nobody can ever freeze stake or bonds. `burn` lets the staking vault destroy slashed bonds; `permit`
-///         (EIP-2612) lets a relay sponsor staking.
+///         (EIP-2612) saves the holder an `approve` before staking.
 contract Factory is ERC20, ERC20Permit, ERC20Burnable, IFactory {
     error LengthMismatch();
     error ZeroRecipient();

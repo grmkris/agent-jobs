@@ -44,6 +44,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
 
     mapping(address account => Account) internal _accounts;
     mapping(address account => Cooldown) internal _cooldowns;
+    mapping(address account => mapping(address holding => bool)) public holdingDenied;
     address internal _pendingHolding;
     uint48 internal _pendingEta;
 
@@ -112,6 +113,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     function reserve(address account, uint256 amount) external nonReentrant {
         if (!isHolding[msg.sender]) revert NotHolding();
         if (amount == 0) return;
+        if (holdingDenied[account][msg.sender]) revert HoldingDenied();
         Account storage a = _accounts[account];
         uint256 available = a.staked - a.reserved;
         if (amount > available) revert InsufficientAvailable(available, amount);
@@ -136,6 +138,11 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         emit Slashed(msg.sender, account, burned);
     }
 
+    function setHoldingDenied(address holding, bool denied) external {
+        holdingDenied[msg.sender][holding] = denied;
+        emit HoldingDeniedSet(msg.sender, holding, denied);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Holding authorization
     // ---------------------------------------------------------------------------------------------
@@ -143,6 +150,7 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     function proposeHolding(address holding) external onlyOwner {
         if (holding == address(0)) revert ZeroAddress();
         if (isHolding[holding]) revert HoldingAlreadyAuthorized();
+        _dropProposal();
         uint48 eta = uint48(block.timestamp) + HOLDING_DELAY;
         _pendingHolding = holding;
         _pendingEta = eta;
@@ -150,17 +158,16 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     }
 
     function cancelHoldingProposal() external onlyOwner {
-        address holding = _pendingHolding;
-        if (holding == address(0)) revert NoHoldingProposed();
-        delete _pendingHolding;
-        delete _pendingEta;
-        emit HoldingProposalCancelled(holding);
+        if (_pendingHolding == address(0)) revert NoHoldingProposed();
+        _dropProposal();
     }
 
     function acceptHolding() external {
         address holding = _pendingHolding;
         if (holding == address(0)) revert NoHoldingProposed();
-        if (block.timestamp < _pendingEta) revert HoldingTimelocked(_pendingEta);
+        uint48 eta = _pendingEta;
+        if (block.timestamp < eta) revert HoldingTimelocked(eta);
+        if (block.timestamp > uint256(eta) + HirelingConstants.PROPOSAL_GRACE) revert HoldingProposalExpired();
         delete _pendingHolding;
         delete _pendingEta;
         isHolding[holding] = true;
@@ -171,17 +178,32 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     function revokeHolding(address holding) external onlyOwner {
         if (!isHolding[holding]) revert NotHolding();
         isHolding[holding] = false;
+        if (_pendingHolding == holding) _dropProposal();
         emit HoldingRevoked(holding);
     }
 
     /// @dev Staking is closed until this (or `acceptHolding`) runs, so nobody can stake first and force the launch onto
     ///      the 8-day path; `totalStaked == 0` is kept as a second guard.
     function bootstrapHolding(address holding) external onlyOwner {
-        if (bootstrapped || totalStaked != 0) revert BootstrapClosed();
+        if (bootstrapped || totalStaked != 0 || _pendingHolding != address(0)) revert BootstrapClosed();
         if (holding == address(0)) revert ZeroAddress();
         bootstrapped = true;
         isHolding[holding] = true;
         emit HoldingAuthorized(holding, true);
+    }
+
+    /// @dev A proposal never outlives its proposer (C9 ACL-3): the deployer's, say, is dropped when the Safe accepts.
+    function _transferOwnership(address newOwner) internal override {
+        _dropProposal();
+        super._transferOwnership(newOwner);
+    }
+
+    function _dropProposal() private {
+        address holding = _pendingHolding;
+        if (holding == address(0)) return;
+        delete _pendingHolding;
+        delete _pendingEta;
+        emit HoldingProposalCancelled(holding);
     }
 
     // ---------------------------------------------------------------------------------------------

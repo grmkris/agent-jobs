@@ -465,4 +465,113 @@ contract StakeVaultTest is Test {
         assertEq(vault.reservedOf(alice), reserved - moved);
         _assertConserved();
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // C9 audit: the per-account veto, proposal expiry, stale proposals, handover
+    // ---------------------------------------------------------------------------------------------
+
+    /// @dev ACL-1: stake still bonded when a new Holding goes live is released later; the account's veto keeps the
+    ///      new Holding from taking it.
+    function test_deny_protectsStakeReleasedAfterANewHoldingArrives() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 60e18);
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        vm.prank(alice);
+        vault.setHoldingDenied(holding2, true);
+        assertTrue(vault.holdingDenied(alice, holding2));
+        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vault.acceptHolding();
+        vm.prank(holding);
+        vault.release(alice, 60e18);
+        vm.prank(holding2);
+        vm.expectRevert(IStakeVault.HoldingDenied.selector);
+        vault.reserve(alice, 60e18);
+        // A zero reservation still only checks authorization; the first Holding is unaffected.
+        _reserve(holding2, alice, 0);
+        _reserve(holding, alice, 10e18);
+        vm.prank(alice);
+        vault.setHoldingDenied(holding2, false);
+        _reserve(holding2, alice, 10e18);
+        _assertConserved();
+    }
+
+    function test_deny_neverStopsExistingReservationsSettling() public {
+        _stake(alice, 100e18);
+        _reserve(holding, alice, 50e18);
+        vm.prank(alice);
+        vault.setHoldingDenied(holding, true);
+        vm.prank(holding);
+        assertEq(vault.slash(alice, 20e18), 20e18);
+        vm.prank(holding);
+        assertEq(vault.release(alice, 30e18), 30e18);
+    }
+
+    function test_holding_proposalExpiresAfterTheGrace() public {
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        vm.warp(vm.getBlockTimestamp() + 8 days + 7 days + 1);
+        vm.expectRevert(IStakeVault.HoldingProposalExpired.selector);
+        vault.acceptHolding();
+    }
+
+    /// @dev ACL-4: propose, bootstrap-style authorization, revoke: the stale proposal cannot re-authorize it.
+    function test_holding_revokeDropsAPendingProposalForTheSameHolding() public {
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vault.acceptHolding();
+        vm.prank(safe);
+        vault.revokeHolding(holding2);
+        // Re-proposed, then revoked again before acceptance: the proposal goes with it.
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        vm.prank(safe);
+        vm.expectRevert(IStakeVault.NotHolding.selector);
+        vault.revokeHolding(holding2);
+        vm.prank(safe);
+        vault.cancelHoldingProposal();
+        (address pending,) = vault.pendingHolding();
+        assertEq(pending, address(0));
+    }
+
+    function test_holding_revokeOfAnAuthorizedHoldingClearsItsProposal() public {
+        StakeVault v = new StakeVault(token);
+        v.proposeHolding(holding2);
+        // Bootstrap is closed while a proposal is pending.
+        vm.expectRevert(IStakeVault.BootstrapClosed.selector);
+        v.bootstrapHolding(holding2);
+        vm.warp(vm.getBlockTimestamp() + 8 days);
+        v.acceptHolding();
+        v.proposeHolding(holding);
+        v.revokeHolding(holding2);
+        (address pending,) = v.pendingHolding();
+        assertEq(pending, holding, "only a proposal for the revoked Holding is dropped");
+    }
+
+    /// @dev ACL-3: a proposal never outlives its proposer.
+    function test_holding_handoverDropsTheOldOwnersProposal() public {
+        StakeVault v = new StakeVault(token);
+        v.bootstrapHolding(holding);
+        v.proposeHolding(holding2);
+        v.transferOwnership(safe);
+        vm.prank(safe);
+        vm.expectEmit(true, false, false, false, address(v));
+        emit IStakeVault.HoldingProposalCancelled(holding2);
+        v.acceptOwnership();
+        (address pending,) = v.pendingHolding();
+        assertEq(pending, address(0));
+        vm.warp(vm.getBlockTimestamp() + 8 days);
+        vm.expectRevert(IStakeVault.NoHoldingProposed.selector);
+        v.acceptHolding();
+    }
+
+    function test_holding_replacedProposalIsCancelledVisibly() public {
+        vm.prank(safe);
+        vault.proposeHolding(holding2);
+        vm.prank(safe);
+        vm.expectEmit(true, false, false, false, address(vault));
+        emit IStakeVault.HoldingProposalCancelled(holding2);
+        vault.proposeHolding(bob);
+    }
 }

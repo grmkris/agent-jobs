@@ -146,4 +146,41 @@ contract FeeScheduleTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IFeeSchedule.FeeTooHigh.selector, uint16(5000), uint16(3000)));
         new FeeSchedule(s);
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // C9 audit: expiry, handover, visible replacement
+    // ---------------------------------------------------------------------------------------------
+
+    function test_propose_expiresAfterTheGrace() public {
+        IFeeSchedule.Schedule memory s = _default(stranger);
+        vm.prank(safe);
+        fees.propose(s);
+        (, uint48 eta) = fees.pending();
+        vm.warp(uint256(eta) + 7 days + 1);
+        vm.expectRevert(abi.encodeWithSelector(IFeeSchedule.ScheduleExpired.selector, eta));
+        fees.execute();
+    }
+
+    function test_handoverDropsTheOldOwnersProposal() public {
+        FeeSchedule f = new FeeSchedule(_default(treasury));
+        f.propose(_default(stranger));
+        f.transferOwnership(safe);
+        vm.prank(safe);
+        f.acceptOwnership();
+        (, uint48 eta) = f.pending();
+        assertEq(eta, 0);
+        vm.warp(vm.getBlockTimestamp() + 3 days);
+        vm.expectRevert(IFeeSchedule.NoPendingSchedule.selector);
+        f.execute();
+        assertEq(f.treasury(), treasury);
+    }
+
+    function test_replacedProposalIsCancelledVisibly() public {
+        vm.prank(safe);
+        fees.propose(_default(stranger));
+        vm.prank(safe);
+        vm.expectEmit(false, false, false, false, address(fees));
+        emit IFeeSchedule.ScheduleCancelled();
+        fees.propose(_default(treasury));
+    }
 }

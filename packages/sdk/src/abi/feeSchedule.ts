@@ -403,6 +403,17 @@ export const feeScheduleAbi = [
   },
   {
     "type": "error",
+    "name": "ScheduleExpired",
+    "inputs": [
+      {
+        "name": "eta",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ScheduleTimelocked",
     "inputs": [
       {
