@@ -80,10 +80,9 @@ describe('finalized Telegram notifications', () => {
     expect((await queueTelegramNotifications(sql, 'monad-testnet', now - 20000)).reminders).toBe(0)
     expect((await queueTelegramNotifications(sql, 'monad-testnet', now, { caughtUp: false })).stale).toBe(true)
     expect((await queueTelegramNotifications(sql, 'monad-testnet', now)).reminders).toBe(1)
-    const send = async () => { throw new Error('must not send') }
-    expect(await drainTelegramOutbox(sql, { sendMessage: send }, now)).toMatchObject({ sent: 0, uncertain: 0 })
+    expect(await drainTelegramOutbox(sql, { sendMessage: neverSend }, now)).toMatchObject({ sent: 0, uncertain: 0 })
     await sql.batch([stmt("UPDATE jobs SET status = 'rejected-pending'")])
-    expect(await drainTelegramOutbox(sql, { sendMessage: send }, now + 60, 20, true)).toMatchObject({ sent: 0, uncertain: 0 })
+    expect(await drainTelegramOutbox(sql, { sendMessage: neverSend }, now + 60, 20, true)).toMatchObject({ sent: 0, uncertain: 0 })
     expect((await sql.all<{ status: string }>('SELECT status FROM telegram_outbox')).every(r => r.status === 'cancelled')).toBe(true)
     await sql.batch([stmt('UPDATE checkpoint SET updated_at = ?', now - 121)])
     expect((await queueTelegramNotifications(sql, 'monad-testnet', now)).stale).toBe(true)
@@ -102,3 +101,5 @@ describe('finalized Telegram notifications', () => {
     } })).reminders).toBe(1)
   })
 })
+
+async function neverSend(): Promise<{ messageId: number }> { throw new Error('must not send') }
