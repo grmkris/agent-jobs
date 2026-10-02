@@ -84,6 +84,15 @@ export interface ChainConfig {
   }
 }
 
+/** LAUNCH-AUDIT-008: the relay, attester and arbitrator of `contracts/config/monad-mainnet.json` as of 1 Oct, when the
+ *  relay and attester keys were exposed and the arbitrator replaced with them. No mainnet role or address may be one. */
+export const RETIRED_ROLE_ADDRESSES = [
+  '0xac7282b6a519665dcb71563317C71d1F357f9e7e',
+  '0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f',
+  '0xc657F023F938BB89de590Ed96f79B775c7dDd632',
+] as const
+const retired = (value: unknown) => typeof value === 'string' && RETIRED_ROLE_ADDRESSES.some(old => old.toLowerCase() === value.toLowerCase())
+
 const address = (value: unknown): value is string => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 const mainnetUrl = (value: string, hyperSync = false) => {
   try {
@@ -155,6 +164,8 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   for (const [name, value] of Object.entries(expected)) {
     check(address(value) && artifact.addresses[name]?.toLowerCase() === value.toLowerCase(), `address:${name}`)
   }
+  for (const [name, value] of Object.entries(config.roles)) check(!retired(value), `role:${name} is a retired 1 Oct key`)
+  for (const [name, value] of Object.entries(artifact.addresses)) check(!retired(value), `address:${name} is a retired 1 Oct key`)
   for (const [binding, source] of Object.entries(prodSecretSources)) {
     check(artifact.secretSources[binding] === source, `secret source:${binding}`)
   }

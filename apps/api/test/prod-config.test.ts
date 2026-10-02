@@ -1,12 +1,14 @@
 import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import proposed from '../../../docs/p0-prod-artifact.json' with { type: 'json' }
-import { validateProdConfig, type ProdArtifact } from '../src/prod-config.ts'
+import { RETIRED_ROLE_ADDRESSES, validateProdConfig, type ProdArtifact } from '../src/prod-config.ts'
 
 const configured = () => {
   const config = structuredClone(mainnet) as Parameters<typeof validateProdConfig>[0]
   const artifact = structuredClone(proposed) as ProdArtifact
   const fixtureAddress = '0x1111111111111111111111111111111111111111'
+  // Fresh R2 role keys (the shipped config still names the retired 1 Oct ones, LAUNCH-AUDIT-008).
+  config.roles = { ...config.roles, relay: '0x8888888888888888888888888888888888888888', attester: '0x9999999999999999999999999999999999999999', arbitrator: '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa' }
   config.deployment = {
     network: 'monad-mainnet', block: 123, core: fixtureAddress, factory: fixtureAddress,
     main: { kind: 'hireling-v1', factory: fixtureAddress, holding: fixtureAddress, evaluator: fixtureAddress, openTokens: true },
@@ -113,4 +115,23 @@ test('LAUNCH-AUDIT-004: the promoted reward list must hold USDC, and the artifac
   c.artifact.deployment.rewardTokens = [mainnet.x402.usdc.toLowerCase()]
   expect(validateProdConfig(c.config, c.artifact)).toEqual([])
   expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining(['rewardTokens:USDC']))
+})
+
+test('LAUNCH-AUDIT-008: the denylist is the shipped config\'s relay, attester and arbitrator; none may be a mainnet role', () => {
+  expect([...RETIRED_ROLE_ADDRESSES].map(a => a.toLowerCase()).sort()).toEqual(
+    [mainnet.roles.relay, mainnet.roles.attester, mainnet.roles.arbitrator].map(a => a.toLowerCase()).sort())
+  expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining([
+    'role:relay is a retired 1 Oct key', 'role:attester is a retired 1 Oct key', 'role:arbitrator is a retired 1 Oct key']))
+  for (const role of ['relay', 'attester', 'arbitrator'] as const) {
+    for (const old of RETIRED_ROLE_ADDRESSES) {
+      const c = configured()
+      c.config.roles[role] = old
+      c.artifact.addresses[role] = old
+      expect(validateProdConfig(c.config, c.artifact)).toEqual([`role:${role} is a retired 1 Oct key`, `address:${role} is a retired 1 Oct key`])
+    }
+  }
+  const c = configured()
+  c.artifact.addresses.holding = RETIRED_ROLE_ADDRESSES[0].toLowerCase()
+  expect(validateProdConfig(c.config, c.artifact)).toEqual(expect.arrayContaining(['address:holding is a retired 1 Oct key']))
+  expect(validateProdConfig(configured().config, configured().artifact)).toEqual([])
 })
