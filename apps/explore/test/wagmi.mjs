@@ -8,7 +8,7 @@ export const WagmiProvider = ({ children }) => children;
 const subscribeAccount = (notify) => { window.addEventListener('fixture-wallet-change', notify); return () => window.removeEventListener('fixture-wallet-change', notify); };
 export const useAccount = () => {
   const address = useSyncExternalStore(subscribeAccount, () => window.__wallet.connected === false ? undefined : window.__wallet.address);
-  return { address, chainId: 10143, isConnected: address !== undefined };
+  return { address, chainId: window.__wallet.chainId ?? 10143, isConnected: address !== undefined };
 };
 export const useDisconnect = () => ({ disconnect: () => {} });
 export const useConnect = () => ({ connectors: [], connect: () => {} });
