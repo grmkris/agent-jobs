@@ -190,6 +190,40 @@ contract MainnetRunbookTest is Test {
         return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
+    /// LAUNCH-AUDIT-009: R7's post-seed tail in order: hire, mining:epoch, ECDSA fund, setRoot, the two claims; and
+    /// runbook §4's epoch steps in order, with the R2 publication (mining:publish, backend's) before the claims.
+    function test_postSeedOrderAndEpochPublication() public view {
+        string[4] memory r7Tail = [
+            "MAINNET_GO=yes forge script script/SeedPool.s.sol",
+            "--tc RehearseHire --rpc-url",
+            "bun ../scripts/mining/epoch.ts 0 --network monad-mainnet",
+            "--tc RehearseMining --rpc-url"
+        ];
+        string[] memory tail = new string[](4);
+        for (uint256 i; i < 4; ++i) {
+            tail[i] = r7Tail[i];
+        }
+        _inOrder(r7, tail, "rehearse-launch.sh post-seed");
+
+        string memory mine = vm.readFile(string.concat(vm.projectRoot(), "/script/RehearseHireAndMine.s.sol"));
+        string[] memory mining = new string[](5);
+        mining[0] = "vm.sign(ownerKey, fundHash)";
+        mining[1] = "safe.execTransaction(address(reserve), 0, fundData";
+        mining[2] = "_exec(safe, vm.addr(ownerKey), address(distributor), vm.envBytes(\"SETROOT_DATA\"))";
+        mining[3] = "distributor.claim(0, worker,";
+        mining[4] = "distributor.claim(0, creator,";
+        _inOrder(mine, mining, "RehearseMining");
+
+        string[] memory epoch = new string[](5);
+        epoch[0] = "pnpm mining:epoch <n> --network monad-mainnet";
+        epoch[1] = "**`calls.fund`**";
+        epoch[2] = "**`calls.setRoot`**";
+        epoch[3] = "**TODO (backend): `pnpm mining:publish <n>`.**";
+        epoch[4] = "Each claim stakes the reward";
+        _inOrder(doc, epoch, "runbook section 4");
+        assertTrue(vm.contains(doc, "`mining/epoch-<n>.json`"), "runbook does not name the R2 object key");
+    }
+
     /// LAUNCH-AUDIT-010: SeedPool sends four transactions, and the script, the runbook budget and SURFACE say so.
     function test_seedPoolIsFourTransactions() public view {
         string memory root = vm.projectRoot();

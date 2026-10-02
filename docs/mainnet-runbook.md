@@ -363,7 +363,12 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
    Send `setRoot` the same way with its own `to` and `data`. It may carry the sending owner's pre-validated signature:
    `$(cast abi-encode 'f(address)' <owner>)$(printf '%064d' 0)01`. Always sign from the keystore, never with
    `--private-key`.
-3. Each claim stakes the reward into the vault for the claimant.
+3. Publish the epoch file for hosted claims. **TODO (backend): `pnpm mining:publish <n>`.** It will upload
+   `epoch-<n>.json` to the production API's Manifests R2 bucket at `mining/epoch-<n>.json`, read it back, and print the
+   key and digest for the launch evidence (LAUNCH-AUDIT-005). Until then hosted `mining_proof` and Collect cannot find
+   the epoch, though a direct claim with the file's proof still works. The R2 object, the chain root and `dataHash`
+   must match.
+4. Each claim stakes the reward into the vault for the claimant.
 
 `fund` works only for an ended epoch and only up to the cumulative schedule (500M in all). A root can be replaced until
 its first claim; `resizeRoot` corrects a total.
