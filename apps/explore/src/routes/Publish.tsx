@@ -882,9 +882,10 @@ function V1Terms({ f, set, defaultArbitrator }: { f: PostForm; set: (p: Partial<
               <Input id="post-arbitrator" value={f.arbitrator} onChange={(e) => set({ arbitrator: e.target.value.trim() })} placeholder="0x…" autoComplete="off" spellCheck={false} className="font-mono text-[0.85rem]" />
             </FieldRow>
           ) : (
-            <KV label="Hireling's arbiter">
-              {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-[0.82rem] [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
-            </KV>
+            <div className={cn(rowClass(), 'flex-col items-start gap-0.5')}>
+              <span>Hireling's arbiter</span>
+              {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-[0.78rem] text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
+            </div>
           )}
         </Group>
         {customArbiter && (
