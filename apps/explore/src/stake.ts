@@ -50,3 +50,16 @@ export function amountProblem(text: string, limit: bigint | undefined, what: 'st
   if (wei > limit) return what === 'stake' ? 'That is more FACTORY than your wallet holds.' : 'That is more than you can unstake: reserved stake stays until its jobs settle.'
   return null
 }
+
+/**
+ * How long after its eta a fee schedule or Holding proposal can still be executed: `HirelingConstants.PROPOSAL_GRACE`.
+ * It is an internal constant with no getter, so this mirrors it; past it the contract refuses (`ScheduleExpired`,
+ * `HoldingProposalExpired`) and the proposal has to be made again.
+ */
+export const PROPOSAL_GRACE = 7 * 86_400
+
+/** A timelocked proposal: still waiting for its eta, executable until the grace window closes, then expired. */
+export function proposalState(eta: number, now: number): 'waiting' | 'open' | 'expired' {
+  if (now < eta) return 'waiting'
+  return now > eta + PROPOSAL_GRACE ? 'expired' : 'open'
+}

@@ -31,14 +31,15 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling, connected, down, open }) => {
+  await context.addInitScript(({ account, hireling, connected, down, open, proposal }) => {
     const K = 10n ** 21n;
     window.__hireling = hireling;
     window.__wallet = { address: account, connected, signatures: [], sends: [] };
-    window.__stake = { wallet: 50n * K, staked: 4n * K, reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open };
+    window.__stake = { wallet: 50n * K, staked: 4n * K, reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open, denied: {} };
+    if (proposal !== null) window.__stake.proposal = proposal;
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true });
+  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true, proposal: options.proposal ?? null });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -141,6 +142,35 @@ try {
     await text(page, '45,000 FACTORY');
     assert.deepEqual(await page.evaluate(() => window.__stake.calls), ['stakeWithPermit', 'requestUnstake', 'cancelUnstake', 'requestUnstake', 'withdraw']);
     results.push({ device, checks: ['amounts and tiers from reads', 'next tier and amount needed', 'over-balance refused', 'declined permit sends nothing', 'permit for exact amount and vault', 'reserved cannot be unstaked', 'cooldown countdown', 'cancel restakes', 'withdraw after cooldown'], passed: true });
+    await context.close();
+  }
+
+  // A Holding the Safe proposed: the staker sees when it can go live and lapse, refuses it, and can allow it again; a
+  // refusal of the Holding in use shows with its undo.
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    const device = viewport.width === 390 ? 'mobile' : 'desktop';
+    const proposed = '0xf000000000000000000000000000000000000009';
+    const { context, page } = await fixture(viewport, { proposal: { holding: proposed, eta: Math.floor(Date.now() / 1000) + 2 * 86400 } });
+    await page.goto(`${base}/stake`);
+    const section = page.locator('section').filter({ has: page.getByRole('heading', { name: 'A new Holding is proposed', exact: true }) });
+    await section.getByText(/^in 1 d 23 h/).waitFor();
+    await section.getByText('Lapses if not accepted by', { exact: true }).waitFor();
+    await capture(page, `${device}-holding-proposed`);
+    await section.getByRole('button', { name: /let it reserve my stake/ }).click();
+    await confirm(page, 'Refused. That Holding can never reserve your stake.');
+    await section.getByText('Refused', { exact: true }).waitFor();
+    await section.getByRole('button', { name: 'Allow it again' }).click();
+    await confirm(page, 'Allowed again. That Holding can reserve your stake for bonds.');
+    await section.getByRole('button', { name: /let it reserve my stake/ }).waitFor();
+    assert.deepEqual(await page.evaluate(() => ({ calls: window.__stake.calls, denied: window.__stake.denied })), { calls: ['setHoldingDenied', 'setHoldingDenied'], denied: { [proposed]: false } });
+
+    await page.evaluate((holding) => { window.__stake.denied[holding] = true; window.dispatchEvent(new Event('visibilitychange')); }, contracts.holding.toLowerCase());
+    await text(page, 'You refused the Holding in use');
+    await capture(page, `${device}-holding-refused`);
+    await page.getByRole('button', { name: 'Allow it again' }).click();
+    await confirm(page, 'Allowed again. That Holding can reserve your stake for bonds.');
+    await page.getByText('You refused the Holding in use', { exact: true }).waitFor({ state: 'hidden' });
+    results.push({ device, checks: ['proposed Holding with go-live and lapse times', 'refuse sends setHoldingDenied(holding, true)', 'allow again', 'refusal of the Holding in use shows its undo'], passed: true });
     await context.close();
   }
 

@@ -1,19 +1,19 @@
 import * as sdk from '@agent-jobs/sdk'
 import { Link } from '@tanstack/react-router'
-import { ChevronLeft, Hourglass, Layers, Lock } from 'lucide-react'
+import { ChevronLeft, Hourglass, Layers, Lock, ShieldX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { type Address, type Hex, encodeFunctionData, parseSignature } from 'viem'
+import { type Address, type Hex, encodeFunctionData, parseSignature, zeroAddress } from 'viem'
 import { useReadContracts, useSignTypedData } from 'wagmi'
 import type { TxRequest } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useToast } from '../components/Sheet.tsx'
 import { Countdown, When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
-import { Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, cn } from '../components/ui.tsx'
+import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, cn } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber, span } from '../format.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
-import { amountProblem, factoryAmount, percent, tierOf } from '../stake.ts'
+import { PROPOSAL_GRACE, amountProblem, factoryAmount, percent, proposalState, tierOf } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain } from '../wallet.ts'
 
@@ -36,12 +36,14 @@ interface Facts {
   domain: { name: string; version: string; chainId: bigint; verifyingContract: Address }
 }
 
-type Op = { kind: 'stake' | 'unstake' | 'cancel' | 'withdraw'; txs: TxRequest[] }
+type Op = { kind: 'stake' | 'unstake' | 'cancel' | 'withdraw' | 'deny' | 'allow'; txs: TxRequest[] }
 const DONE: Record<Op['kind'], string> = {
   stake: 'Staked. Your fee tier counts it now.',
   unstake: 'Unstaking started. The cooldown is running.',
   cancel: 'Unstaking cancelled. It is staked again.',
   withdraw: 'Withdrawn to your wallet.',
+  deny: 'Refused. That Holding can never reserve your stake.',
+  allow: 'Allowed again. That Holding can reserve your stake for bonds.',
 }
 
 /** The operation handed to TxSteps, kept until it is done so a reload resumes it instead of preparing it again. */
@@ -131,6 +133,24 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       domain: { name: domain[1], version: domain[2], chainId: domain[3], verifyingContract: domain[4] },
     }
   }
+  // A Holding the Safe has proposed, and whether this account refused it or the Holding in use (C9: every staker may
+  // refuse a Holding, which then can never reserve their stake).
+  const holdings = useReadContracts({
+    contracts: [
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding', chainId: chain.id },
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'holdingDenied', args: [address, c.holding], chainId: chain.id },
+    ],
+    query: { refetchInterval: 30_000 },
+  })
+  const pendingRead = holdings.data?.[0]?.status === 'success' ? (holdings.data[0].result as readonly [Address, number]) : undefined
+  const proposal = pendingRead !== undefined && pendingRead[0].toLowerCase() !== zeroAddress ? { holding: pendingRead[0], eta: Number(pendingRead[1]) } : null
+  const refusedInUse = holdings.data?.[1]?.status === 'success' ? (holdings.data[1].result as boolean) : undefined
+  const proposalRefusal = useReadContracts({
+    contracts: [{ address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'holdingDenied', args: [address, proposal?.holding ?? zeroAddress], chainId: chain.id }],
+    query: { enabled: proposal !== null, refetchInterval: 30_000 },
+  })
+  const refusedProposal = proposalRefusal.data?.[0]?.status === 'success' ? (proposalRefusal.data[0].result as boolean) : undefined
+
   // The last complete read: shown, marked stale, when a later read fails; never a guessed number.
   const current = parse(reads.data)
   const last = useRef<{ facts: Facts; at: number } | null>(null)
@@ -187,6 +207,12 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       setText('')
     }
   }
+
+  const refuse = (holding: Address, denied: boolean) =>
+    setOp({
+      kind: denied ? 'deny' : 'allow',
+      txs: [tx(denied ? 'Refuse the Holding' : 'Allow the Holding again', encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'setHoldingDenied', args: [holding, denied] }))],
+    })
 
   const tiers = facts === null ? null : tierOf(facts.schedule, facts.staked)
   const unlocked = facts !== null && facts.unstaking > 0n && facts.unlockAt <= now
@@ -315,6 +341,26 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
         </Section>
       )}
 
+      {proposal !== null && (
+        <ProposedHolding proposal={proposal} refused={refusedProposal} now={now} disabled={op !== null} onRefuse={(denied) => refuse(proposal.holding, denied)} />
+      )}
+      {refusedInUse === true && (
+        <Section title="You refused the Holding in use">
+          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+            <Group className="bg-bg">
+              <ListRow>
+                <span className="flex-1">Holding in use</span>
+                <AddressText value={c.holding} />
+              </ListRow>
+            </Group>
+            <p className="text-[0.92rem] leading-relaxed">It cannot reserve your stake, so you cannot publish or take a job that needs a bond from you.</p>
+            <Button variant="tinted" disabled={op !== null} onClick={() => refuse(c.holding, false)}>
+              Allow it again
+            </Button>
+          </div>
+        </Section>
+      )}
+
       {facts !== null && !facts.open && op === null ? (
         <div role="status" className="grid gap-1 rounded-2xl bg-tint/10 px-4 py-3.5">
           <p className="font-semibold">Staking opens at launch</p>
@@ -335,6 +381,8 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
               const kind = op.kind
               setOp(null)
               void reads.refetch()
+              void holdings.refetch()
+              void proposalRefusal.refetch()
               toast(DONE[kind])
             }}
           />
@@ -389,11 +437,59 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
             <span className="font-semibold">Reserved stake.</span> A bond is not sent anywhere: when you publish a job, or activate one as a worker, its bond is reserved from your stake. Reserved stake still counts for your fee tier, but it cannot be unstaked until the job settles, and a ruling against you, or a missed deadline, can burn it.
           </p>
           <p>
-            <span className="font-semibold">Why unstaking waits {days}.</span> So that stake cannot leave just before a bond is reserved or burned, and so that every staker can leave before a new Holding contract is allowed to reserve stake: adding one takes the Safe 8 days, longer than the cooldown.
+            <span className="font-semibold">Why unstaking waits {days}.</span> So that stake cannot leave just before a bond is reserved or burned, and so that every staker can leave before a new Holding contract is allowed to reserve stake: adding one takes the Safe 8 days, longer than the cooldown. You can also stay and refuse it: a Holding you refuse can never reserve your stake.
           </p>
         </div>
       </Section>
     </>
+  )
+}
+
+/** A Holding the Safe proposed: when it can go live, when the proposal lapses, and this staker's refusal. */
+function ProposedHolding({ proposal, refused, now, disabled, onRefuse }: { proposal: { holding: Address; eta: number }; refused: boolean | undefined; now: number; disabled: boolean; onRefuse: (denied: boolean) => void }) {
+  const state = proposalState(proposal.eta, now)
+  const lapses = proposal.eta + PROPOSAL_GRACE
+  return (
+    <Section title="A new Holding is proposed" note="Once live, a Holding can reserve stake for the bonds of jobs on it, like the one in use now.">
+      <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+        <Group className="bg-bg">
+          <ListRow>
+            <span className="flex-1">Holding</span>
+            <AddressText value={proposal.holding} />
+          </ListRow>
+          <ListRow>
+            <span className="shrink-0">Can go live</span>
+            <span className="min-w-0 flex-1 text-right text-label-2">
+              {state === 'waiting' ? <>in <Countdown to={proposal.eta} /> · <When at={proposal.eta} show="time" /></> : state === 'open' ? 'Now, once anyone accepts it' : 'No longer: the proposal lapsed'}
+            </span>
+          </ListRow>
+          <ListRow>
+            <span className="shrink-0">{state === 'expired' ? 'Lapsed' : 'Lapses if not accepted by'}</span>
+            <span className="min-w-0 flex-1 text-right text-label-2"><When at={lapses} show="time" /></span>
+          </ListRow>
+        </Group>
+        {refused === true ? (
+          <>
+            <p className="flex items-start gap-2 text-[0.92rem] leading-relaxed">
+              <ShieldX aria-hidden className="mt-0.5 size-4 shrink-0 text-bad" />
+              <span><Badge tone="danger">Refused</Badge> It can never reserve your stake, even once live.</span>
+            </p>
+            <Button variant="plain" disabled={disabled} onClick={() => onRefuse(false)}>
+              Allow it again
+            </Button>
+          </>
+        ) : state !== 'expired' ? (
+          <>
+            <p className="text-[0.9rem] leading-relaxed text-label-2">
+              If you do not want it to reserve your stake, refuse it now. The Holdings you already allow keep working, and you can still unstake before it goes live.
+            </p>
+            <Button variant="tinted" disabled={disabled || refused === undefined} onClick={() => onRefuse(true)}>
+              Don’t let it reserve my stake
+            </Button>
+          </>
+        ) : null}
+      </div>
+    </Section>
   )
 }
 

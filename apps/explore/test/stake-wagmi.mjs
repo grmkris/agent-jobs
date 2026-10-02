@@ -9,7 +9,7 @@ export * from './wagmi.mjs';
 // the wallet double sends is decoded and applied to it, so the page shows the chain moving. Nothing reaches a chain.
 const K = 10n ** 21n;
 const schedule = { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: '0x9999999999999999999999999999999999999999' };
-function answer({ functionName, address }) {
+function answer({ functionName, address, args = [] }) {
   const s = window.__stake;
   switch (functionName) {
     case 'stakeOf': return s.staked;
@@ -24,6 +24,8 @@ function answer({ functionName, address }) {
     case 'eip712Domain': return ['0x0f', 'Factory', '1', 10143n, address, `0x${'0'.repeat(64)}`, []];
     case 'bootstrapped': return s.open;
     case 'paused': return false;
+    case 'pendingHolding': return s.proposal === undefined ? ['0x0000000000000000000000000000000000000000', 0] : [s.proposal.holding, s.proposal.eta];
+    case 'holdingDenied': return (s.denied ?? {})[args[1].toLowerCase()] === true;
     default: throw new Error(`Fixture has no read for ${functionName}`);
   }
 }
@@ -50,6 +52,7 @@ function apply({ data }) {
   if (functionName === 'requestUnstake') { s.staked -= args[0]; s.unstaking += args[0]; s.unlockAt = Math.floor(Date.now() / 1000) + 604800; }
   if (functionName === 'cancelUnstake') { s.staked += s.unstaking; s.unstaking = 0n; s.unlockAt = 0; }
   if (functionName === 'withdraw') { s.wallet += s.unstaking; s.unstaking = 0n; s.unlockAt = 0; }
+  if (functionName === 'setHoldingDenied') s.denied = { ...s.denied, [args[0].toLowerCase()]: args[1] };
 }
 export const useSendTransaction = () => ({ sendTransactionAsync: async (transaction) => {
   const hash = await sendFixtureTransaction(transaction);
