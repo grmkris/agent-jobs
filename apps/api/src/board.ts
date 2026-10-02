@@ -63,7 +63,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
       for (const name of ['main', 'demo', 'fast'] as const) {
         if (sdk.deployment(env.network).stacks[name] !== undefined) contexts[name] = sdk.context(env.network, name, env.rpcUrl)
       }
-      const board = new BoardService(fromDurableObjectSql(state.storage.sql.raw), {
+      const board = new BoardService(fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write)), {
         network: env.network,
         contexts,
         domain: env.domain,

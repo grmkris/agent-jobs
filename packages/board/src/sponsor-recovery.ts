@@ -1,8 +1,9 @@
 /** Shared sponsorship reconciliation for every sender in the relay nonce queue. */
-import * as sdk from '@agent-jobs/sdk'
+import type * as sdk from '@agent-jobs/sdk'
 import { type Hex, type LocalAccount, type TransactionReceipt, TransactionReceiptNotFoundError, getAddress, keccak256, parseTransaction } from 'viem'
 import { callsMade, isDisabled } from './delegation.ts'
 import type { Sql } from './store.ts'
+import { sponsorRelayFloor } from './sponsor-policy.ts'
 
 export interface SponsorOperation {
   id: string; wallet: string; delegation_hash: string; status: string; raw_tx: string; tx_hash: string;
@@ -35,8 +36,13 @@ export class SponsorRecovery {
     if (this.account?.address.toLowerCase() !== op.relay.toLowerCase()) throw new Error('the saved sponsorship relay is unavailable for nonce recovery')
     const original = parseTransaction(op.raw_tx as Hex), price = await this.ctx.publicClient.getGasPrice()
     // Bump both fee fields above the signed redemption, so a mempool can replace an already accepted original.
-    const maxFeePerGas = max(bump(original.maxFeePerGas ?? 0n), price * 2n)
-    if (await this.ctx.publicClient.getBalance({ address: this.account.address }) < sdk.RELAY_FLOOR_MAINNET + 100_000n * maxFeePerGas)
+    const required = max(bump(original.maxFeePerGas ?? 0n), price)
+    const affordable = BigInt(op.reserved_cost) / 100_000n
+    const preferred = max(required, price * 2n)
+    // The cancellation replaces this operation's reservation. If fee conditions outgrow it, recover
+    // the nonce anyway; the mined receipt (including any overshoot) charges that day's ledger exactly once.
+    const maxFeePerGas = affordable >= required ? (preferred < affordable ? preferred : affordable) : required
+    if (await this.ctx.publicClient.getBalance({ address: this.account.address }) < sponsorRelayFloor(this.ctx.deployment.network) + 100_000n * maxFeePerGas)
       throw new Error('the sponsorship relay is below its balance floor for nonce recovery')
     const raw = await this.account.signTransaction({ type: 'eip1559', chainId: this.ctx.deployment.chainId, nonce: op.nonce,
       to: this.account.address, data: '0x', value: 0n, gas: 100_000n,

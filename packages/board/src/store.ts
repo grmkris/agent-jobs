@@ -12,13 +12,15 @@ export type SqlValue = string | number | null
 export interface Sql {
   all<T>(query: string, ...params: SqlValue[]): T[]
   run(query: string, ...params: SqlValue[]): void
+  atomic?<T>(write: () => T): T
 }
 
 /** Cloudflare's `SqlStorage` (`ctx.storage.sql`). */
 export function fromDurableObjectSql(sql: {
   exec(query: string, ...bindings: unknown[]): { toArray(): unknown[] }
-}): Sql {
+}, atomic?: <T>(write: () => T) => T): Sql {
   return {
+    ...(atomic === undefined ? {} : { atomic }),
     all: <T>(query: string, ...params: SqlValue[]) => sql.exec(query, ...params).toArray() as T[],
     run: (query, ...params) => {
       sql.exec(query, ...params).toArray()
@@ -31,6 +33,11 @@ export function fromNodeSqlite(db: {
   prepare(query: string): { all(...params: SqlValue[]): unknown[]; run(...params: SqlValue[]): unknown }
 }): Sql {
   return {
+    atomic: <T>(write: () => T): T => {
+      db.prepare('SAVEPOINT board_write').run()
+      try { const result = write(); db.prepare('RELEASE board_write').run(); return result }
+      catch (error) { db.prepare('ROLLBACK TO board_write').run(); db.prepare('RELEASE board_write').run(); throw error }
+    },
     all: <T>(query: string, ...params: SqlValue[]) => db.prepare(query).all(...params) as T[],
     run: (query, ...params) => {
       db.prepare(query).run(...params)
@@ -254,6 +261,14 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS mcp_sessions (
     id TEXT PRIMARY KEY,
     session TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS hosted_idempotency (
+    caller TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    action_key TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (caller, operation, action_key)
   )`,
 ]
 

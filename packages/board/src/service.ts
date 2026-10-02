@@ -137,6 +137,12 @@ export interface BoardConfig {
 /** An unsigned transaction for the caller's wallet: `cast send <to> <data>`, or `eth_sendTransaction`. */
 export type TxRequest = sdk.TxRequest
 
+export interface TaskPreparation {
+  taskId: string; termsHash: Hex; screening: Awaited<ReturnType<typeof screenOffer>>
+  manifestUrl: string; manifest: string; transactions: TxRequest[]; applicationId?: string; next: string
+}
+interface QuotePreparation { requestId: string; requestHash: Hex; status: string; next: string }
+
 /** An EIP-712 message for the caller's wallet: `cast wallet sign --data '<json>'`, or `eth_signTypedData_v4`. */
 export interface SignRequest {
   readonly description: string
@@ -156,6 +162,12 @@ function randomId(bytes = 16): string {
 
 function randomUint(bytes: number): bigint {
   return crypto.getRandomValues(new Uint8Array(bytes)).reduce((acc, b) => (acc << 8n) | BigInt(b), 0n)
+}
+
+const idempotencyKey = (key: unknown): string | undefined => {
+  if (key === undefined) return undefined
+  if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new BoardError('invalid', 'idempotencyKey must be 1-128 letters, digits, underscores or hyphens')
+  return key
 }
 
 const eq = (a: string | null | undefined, b: string | null | undefined) =>
@@ -250,6 +262,21 @@ export class Board {
     this.#sponsor ??= new SponsorDesk({ sql: this.#sql, ctx: this.#ctx('main'), now: () => this.#now(),
       ...(this.#config.relay === undefined ? {} : { relay: this.#config.relay }), fail: (code, message) => new BoardError(code, message) })
     return this.#sponsor
+  }
+  #idempotent<T>(caller: Address, operation: string, key: unknown): T | undefined {
+    const actionKey = idempotencyKey(key)
+    if (actionKey === undefined) return undefined
+    const [row] = this.#sql.all<{ result_json: string }>('SELECT result_json FROM hosted_idempotency WHERE caller=? AND operation=? AND action_key=?', caller.toLowerCase(), operation, actionKey)
+    return row === undefined ? undefined : JSON.parse(row.result_json) as T
+  }
+  #remember<T>(caller: Address, operation: string, key: unknown, result: T): T {
+    const actionKey = idempotencyKey(key)
+    if (actionKey !== undefined) this.#sql.run('INSERT OR IGNORE INTO hosted_idempotency (caller,operation,action_key,result_json,created_at) VALUES (?,?,?,?,?)', caller.toLowerCase(), operation, actionKey, JSON.stringify(result), this.#now())
+    return result
+  }
+  #persist<T>(write: () => T): T {
+    if (this.#sql.atomic === undefined) throw new BoardError('chain', 'atomic board storage is unavailable')
+    return this.#sql.atomic(write)
   }
   sponsorStatus(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).status(input.wallet) }
   sponsorPrepare(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).prepare(input.wallet) }
@@ -553,11 +580,16 @@ export class Board {
       executionBudget?: BudgetInput
       /** The deliverable forms accepted (ADR-0006); omitted means git only. Bound into the terms hash. */
       deliverable?: DeliverableSpec
+      /** Stable client key: a retry after losing the response returns this same preparation. */
+      idempotencyKey?: string
     },
     /** Set only by `pickQuote`: the offer carries the request and the picked quote. */
     quote: { requestHash: Hex; quoteHash: Hex } | null = null,
-  ) {
+  ): Promise<TaskPreparation> {
     const creator = this.#requireCaller(caller)
+    const operation = quote === null ? 'create_task' : 'pick_task'
+    const saved = this.#idempotent<TaskPreparation>(creator, operation, input.idempotencyKey)
+    if (saved !== undefined) return saved
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
@@ -627,37 +659,41 @@ export class Board {
     // "mEUR"/"mUSD" read as millions to a model; say what the unit is.
     const unit = this.#config.network === 'monad-testnet' ? ` (${symbol} is a testnet mock token worth about 1 ${symbol.replace(/^m/, '')} of play money; "m" means mock, not million)` : ''
     const screening = await screenOffer(this.#config.screening, terms, `${input.reward} ${symbol}${unit}`, this.#now())
-    this.#sql.run(
-      'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)',
-      taskId,
-      creator,
-      stack,
-      manifest,
-      hash,
-      Number(block),
-      this.#now(),
-      JSON.stringify(screening),
-    )
-    this.#operation(taskId, 'publish', creator, { termsHash: hash })
-    if (executionBudget !== undefined) this.#budget.promise(taskId, creator, executionBudget)
-
-    const applicationId = invited === undefined ? undefined : randomId(8)
-    if (invited !== undefined) this.#sql.run(
-      'INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      applicationId!, taskId, invited.worker, invited.agentId, 'direct hire invitation', this.#now(),
-    )
-
     const transactions = await this.#publishTransactions(ctx, creator, terms, hash as Hex)
-    return {
-      taskId,
-      termsHash: hash,
-      screening,
-      manifestUrl: `${this.#config.manifestBaseUrl}/${hash}.json`,
-      manifest,
-      transactions,
-      ...(applicationId === undefined ? {} : { applicationId }),
-      next: 'Send the transactions in order from the creator wallet, then report_transaction with the publish tx hash.',
-    }
+    return this.#persist(() => {
+      const prepared = this.#idempotent<TaskPreparation>(creator, operation, input.idempotencyKey)
+      if (prepared !== undefined) return prepared
+      this.#sql.run(
+        'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)',
+        taskId,
+        creator,
+        stack,
+        manifest,
+        hash,
+        Number(block),
+        this.#now(),
+        JSON.stringify(screening),
+      )
+      this.#operation(taskId, 'publish', creator, { termsHash: hash })
+      if (executionBudget !== undefined) this.#budget.promise(taskId, creator, executionBudget)
+
+      const applicationId = invited === undefined ? undefined : randomId(8)
+      if (invited !== undefined) this.#sql.run(
+        'INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        applicationId!, taskId, invited.worker, invited.agentId, 'direct hire invitation', this.#now(),
+      )
+
+      return this.#remember(creator, operation, input.idempotencyKey, {
+        taskId,
+        termsHash: hash,
+        screening,
+        manifestUrl: `${this.#config.manifestBaseUrl}/${hash}.json`,
+        manifest,
+        transactions,
+        ...(applicationId === undefined ? {} : { applicationId }),
+        next: 'Send the transactions in order from the creator wallet, then report_transaction with the publish tx hash.',
+      })
+    })
   }
 
   /** The approvals and the `publish` of one frozen offer, exactly as agreed (terms hash = manifest hash). */
@@ -1298,9 +1334,12 @@ export class Board {
       arbitrator?: string
       /** The deliverable forms accepted (ADR-0006); the picked hire inherits them. */
       deliverable?: DeliverableSpec
+      idempotencyKey?: string
     },
   ) {
     const creator = this.#requireCaller(caller)
+    const saved = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
+    if (saved !== undefined) return saved
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     if (input.tokens.length === 0) throw new BoardError('invalid', 'name at least one accepted token')
@@ -1338,11 +1377,15 @@ export class Board {
     const requestJson = canonicalJson(request)
     const requestHash = sdk.hashText(requestJson)
     const id = randomId(8)
-    this.#sql.run(
-      'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
-      id, creator, stack, requestJson, requestHash, input.quoteDeadline, now,
-    )
-    return { requestId: id, requestHash, status: 'Accepting quotes — reward not escrowed', next: 'Wait for quotes; list_quotes, then pick_quote.' }
+    return this.#persist(() => {
+      const prior = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
+      if (prior !== undefined) return prior
+      this.#sql.run(
+        'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
+        id, creator, stack, requestJson, requestHash, input.quoteDeadline, now,
+      )
+      return this.#remember(creator, 'request_quotes', input.idempotencyKey, { requestId: id, requestHash, status: 'Accepting quotes — reward not escrowed', next: 'Wait for quotes; list_quotes, then pick_quote.' })
+    })
   }
 
   #quoteRequest(requestId: string): QuoteRequestRow {
@@ -1467,9 +1510,12 @@ export class Board {
        * defaults to the declared costs' token, else the reward token; the expiry to the delivery deadline.
        */
       executionBudget?: BudgetInput
+      idempotencyKey?: string
     },
   ) {
     const me = this.#requireCaller(caller)
+    const saved = this.#idempotent<TaskPreparation & { applicationId: string }>(me, 'pick_quote', input.idempotencyKey)
+    if (saved !== undefined) return saved
     const req = this.#quoteRequest(input.requestId)
     if (!eq(req.creator, me)) throw new BoardError('forbidden', 'only the requester picks a quote')
     if (req.task_id !== null) throw new BoardError('conflict', `already picked: task ${req.task_id}`)
@@ -1485,6 +1531,7 @@ export class Board {
     const created = await this.createTask(
       caller,
       {
+        ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `pick-${sdk.hashText(input.idempotencyKey).slice(2)}` }),
         title: r.title,
         brief: r.brief,
         acceptanceCriteria: r.acceptanceCriteria,
@@ -1514,13 +1561,17 @@ export class Board {
       },
       { requestHash: req.request_hash as Hex, quoteHash: q.quote_hash as Hex },
     )
-    this.#sql.run('UPDATE quote_requests SET task_id = ? WHERE id = ?', created.taskId, req.id)
-    const applicationId = randomId(8)
-    this.#sql.run(
-      'INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      applicationId, created.taskId, q.worker, q.agent_id, `picked quote ${q.id}`, this.#now(),
-    )
-    return { ...created, applicationId, next: 'Send the transactions, report_transaction with the publish hash, then select_worker({taskId, applicationId}).' }
+    return this.#persist(() => {
+      const picked = this.#idempotent<TaskPreparation & { applicationId: string }>(me, 'pick_quote', input.idempotencyKey)
+      if (picked !== undefined) return picked
+      this.#sql.run('UPDATE quote_requests SET task_id = ? WHERE id = ?', created.taskId, req.id)
+      const applicationId = randomId(8)
+      this.#sql.run(
+        'INSERT INTO applications (id, task_id, worker, agent_id, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        applicationId, created.taskId, q.worker, q.agent_id, `picked quote ${q.id}`, this.#now(),
+      )
+      return this.#remember(me, 'pick_quote', input.idempotencyKey, { ...created, applicationId, next: 'Send the transactions, report_transaction with the publish hash, then select_worker({taskId, applicationId}).' })
+    })
   }
 
   // -----------------------------------------------------------------------------------------------

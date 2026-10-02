@@ -174,6 +174,7 @@ export const tools: Record<string, Tool> = {
         stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
         executionBudget: budgetSchema('Advance: any ERC-20 address, or a reward token symbol (required here).'),
         deliverable: deliverableSpecSchema,
+        idempotencyKey: str('Stable retry key. Reusing it returns the original preparation after a lost response.'),
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline', 'mode'],
     },
@@ -199,6 +200,7 @@ export const tools: Record<string, Tool> = {
           ? {}
           : { executionBudget: a.executionBudget as BudgetInput }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
+        ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
       }),
   },
 
@@ -222,6 +224,7 @@ export const tools: Record<string, Tool> = {
         arbitrator: str('V1: named arbitrator; omitted freezes the deployed default into the request.'),
         stack: { type: 'string', enum: ['main', 'demo', 'fast'], description: 'Testnet: "demo" uses minute-long windows.' },
         deliverable: deliverableSpecSchema,
+        idempotencyKey: str('Stable retry key. Reusing it returns the original quote request after a lost response.'),
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'tokens', 'creatorBond', 'workerBond', 'deliveryDeadline', 'quoteDeadline'],
     },
@@ -241,6 +244,7 @@ export const tools: Record<string, Tool> = {
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
+        ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
       }),
   },
 
@@ -301,6 +305,7 @@ export const tools: Record<string, Tool> = {
         requestId: str('The quote request id.'),
         quoteId: str('From list_quotes.'),
         executionBudget: budgetSchema("Advance token; default the quote's declared cost token, else its reward token."),
+        idempotencyKey: str('Stable retry key. Reusing it returns the original picked task after a lost response.'),
       },
       required: ['requestId', 'quoteId'],
     },
@@ -311,6 +316,7 @@ export const tools: Record<string, Tool> = {
         ...(a.executionBudget === undefined
           ? {}
           : { executionBudget: a.executionBudget as BudgetInput }),
+        ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
       }),
   },
 

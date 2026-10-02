@@ -155,7 +155,10 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
             await call('arm-refusing-token', d.refusingToken.owner, d.token, abi, d.refusingToken.kind === 'blocklist' ? 'setBlocked' : 'setHungry', [worker.account.address, d.refusingToken.kind === 'blocklist' ? true : maxUint256])
           }
           await call('accept', creator, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'accept', [jobId], sdk.V1_GAS.evaluator); paid = true
-          if (d.refusingToken !== undefined) check('refusing payout defers the core payment', (await sdk.caseOf(ctx, jobId)).payoutDeferred, true)
+          if (d.refusingToken !== undefined) await j.once(`${scope}/deferred-verified`, async () => {
+            check('refusing payout defers the core payment', (await sdk.caseOf(ctx, jobId)).payoutDeferred, true)
+            return true
+          })
         }
       }
     }
@@ -171,7 +174,10 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     }
     const bonusFee = (after.bonus * BigInt(after.feeBps) + 9999n) / 10000n
     if (d.refusingToken !== undefined) {
-      check('exact refused reward is owed', await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'owed', args: [d.token, worker.account.address] }), net)
+      await j.once(`${scope}/owed-verified`, async () => {
+        check('exact refused reward is owed', await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'owed', args: [d.token, worker.account.address] }), net)
+        return true
+      })
       const { parseAbi } = await import('viem')
       const abi = parseAbi(['function setBlocked(address,bool)', 'function setHungry(address,uint256)'])
       await call('clear-refusing-token', d.refusingToken.owner, d.token, abi, d.refusingToken.kind === 'blocklist' ? 'setBlocked' : 'setHungry', [worker.account.address, d.refusingToken.kind === 'blocklist' ? false : 0n])

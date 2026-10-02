@@ -57,3 +57,15 @@ describe('ADR-0005 budgets are retired (ADR-0009)', () => {
     expect(sql.all("SELECT name FROM sqlite_master WHERE name IN ('budget_wallets', 'budget_grants', 'budget_spends')")).toEqual([])
   })
 })
+
+it('commits a hosted preparation and retry result together, and rolls both back on an interrupted write', () => {
+  const db = new DatabaseSync(':memory:'), sql = fromNodeSqlite(db)
+  try {
+    migrate(sql)
+    const remember = () => sql.run('INSERT INTO hosted_idempotency VALUES (?,?,?,?,?)', 'wallet', 'create_task', 'key', '{"taskId":"task"}', 1)
+    expect(() => sql.atomic!(() => { remember(); throw new Error('crash before completion') })).toThrow('crash')
+    expect(sql.all('SELECT * FROM hosted_idempotency')).toEqual([])
+    sql.atomic!(remember)
+    expect(sql.all('SELECT action_key,result_json FROM hosted_idempotency')).toEqual([{ action_key: 'key', result_json: '{"taskId":"task"}' }])
+  } finally { db.close() }
+})

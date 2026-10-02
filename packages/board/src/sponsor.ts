@@ -12,15 +12,13 @@ import {
 import type { Sql } from './store.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
 import { type SponsorOperation as Operation, type SponsorResult, SponsorRecovery } from './sponsor-recovery.ts'
+import { SPONSOR_LIMITS, sponsorRelayFloor } from './sponsor-policy.ts'
+export { SPONSOR_LIMITS } from './sponsor-policy.ts'
 export type { SponsorResult } from './sponsor-recovery.ts'
 
 /** One object in the existing Board namespace, shared by every tenant and both transports. */
 export const SPONSOR_OBJECT_NAME = '__hosted_sponsor_v1__'
 export const sponsorToolNames = new Set(['sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation'])
-export const SPONSOR_LIMITS = {
-  calls: 100, validity: 86400, batch: 4, walletCalls: 20, walletWindow: 3600,
-  dailyWei: 10n * 10n ** 18n, relayFloorWei: sdk.RELAY_FLOOR_MAINNET, gas: 6_000_000n,
-} as const
 
 export interface SponsorCall {
   readonly to: string
@@ -219,7 +217,7 @@ export class SponsorDesk {
       if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > SPONSOR_LIMITS.dailyWei) throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
       const recent = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE wallet=? AND created_at > ?', wallet.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
       if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the wallet’s sponsorship rate limit is exhausted')
-      if (await ctx.publicClient.getBalance({ address: relay.account.address }) < SPONSOR_LIMITS.relayFloorWei + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
+      if (await ctx.publicClient.getBalance({ address: relay.account.address }) < sponsorRelayFloor(ctx.deployment.network) + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
       const nonce = await ctx.publicClient.getTransactionCount({ address: relay.account.address, blockTag: 'pending' })
       const raw = await relay.account.signTransaction({ type: 'eip1559', chainId: ctx.deployment.chainId, nonce,
         to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas: gasPrice })

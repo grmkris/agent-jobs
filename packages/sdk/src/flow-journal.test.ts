@@ -58,3 +58,15 @@ describe('durable live flow sends', () => {
     expect(make).toHaveBeenCalledTimes(1)
   })
 })
+
+it('a signed but unmined transaction is not a completion marker; mined success is saved before returning', async () => {
+  const f = fixture()
+  await expect(f.boot().send('one', f.wallet, tx)).rejects.toThrow()
+  const j = f.restart()
+  expect(await j.mined('one')).toBeUndefined()
+  expect(j.state.values['receipt/one']).toBeUndefined()
+  expect(f.pc.sendRawTransaction).not.toHaveBeenCalled()
+  f.pc.getTransactionReceipt.mockResolvedValue(receipt)
+  expect(await j.mined('one')).toBe(receipt)
+  expect(f.state().values['receipt/one']).toEqual(receipt)
+})

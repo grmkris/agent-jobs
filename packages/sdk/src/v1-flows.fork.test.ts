@@ -2,7 +2,7 @@ import { parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, startHirelingFork } from '../test/hireling-fixture.ts'
 import { registerAgent, stake } from './actions.ts'
-import { FlowJournal, type FlowState } from './flow-journal.ts'
+import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
 import { coreAbi, hirelingHoldingAbi } from './abi/index.ts'
 
@@ -35,10 +35,21 @@ fork('live matrix runner against real v1 bytecode', () => {
     it(`a real ${kind} refusal lands the decision and bonds, then collects exact owed funds`, async () => {
       const token = await f.deploy(kind === 'blocklist' ? 'BlocklistUSD' : 'GasBurnerUSD', [f.admin.account.address], 'OddTokens')
       await f.send(token, parseAbi(['function mint(address,uint256)']), 'mint', [f.creator.account.address, 1000n])
-      const state: FlowState = { binding: 'odd-fork', values: {}, sends: {} }
-      await runV1CoreFlow({ ...f, relay: f.contributor, journal: new FlowJournal(f.ctx, state, () => undefined, () => undefined), agentId, token, reward: 101n, bond: parseEther('10'),
+      let durable: FlowState = { binding: 'odd-fork', values: {}, sends: {} }, interrupt = true
+      const scope = `owed-${kind}`, boot = () => new FlowJournal(f.ctx, parseFlowJson(flowJson(durable)), state => {
+        durable = parseFlowJson(flowJson(state))
+        if (interrupt && state.values[`receipt/${scope}/withdraw-owed`]) throw new Error('crash after withdrawal receipt')
+      }, () => undefined)
+      const deps = { ...f, relay: f.contributor, agentId, token, reward: 101n, bond: parseEther('10'),
+        refusingToken: { kind, owner: f.admin }, waitUntil: async () => undefined, log: () => undefined }
+      await expect(runV1CoreFlow({ ...deps, journal: boot() }, 'hire', scope)).rejects.toThrow('crash after withdrawal receipt')
+      expect(durable.values[`${scope}/done`]).toBeUndefined()
+      const nonces = await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))
+      interrupt = false
+      await runV1CoreFlow({ ...f, relay: f.contributor, journal: boot(), agentId, token, reward: 101n, bond: parseEther('10'),
         refusingToken: { kind, owner: f.admin }, waitUntil: async () => undefined, log: () => undefined }, 'hire', `owed-${kind}`)
-      expect(state.values[`owed-${kind}/done`]).toBe(true)
+      expect(durable.values[`owed-${kind}/done`]).toBe(true)
+      expect(await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))).toEqual(nonces)
     }, 120_000)
   }
 })

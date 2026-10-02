@@ -17,6 +17,22 @@ export class FlowJournal {
     try { return await this.ctx.publicClient.getTransactionReceipt({ hash }) }
     catch (e) { if (e instanceof TransactionReceiptNotFoundError) return undefined; throw e }
   }
+  #recordReceipt(key: string, receipt: TransactionReceipt) {
+    if (!Object.hasOwn(this.state.values, `receipt/${key}`)) {
+      this.state.values[`receipt/${key}`] = receipt
+      this.save(this.state)
+    }
+  }
+  /** A saved signed transaction alone is never proof of completion. */
+  async mined(key: string): Promise<TransactionReceipt | undefined> {
+    const saved = this.state.sends[key]
+    if (saved === undefined) return undefined
+    const receipt = await this.#receipt(saved.hash)
+    if (receipt === undefined) return undefined
+    if (receipt.status !== 'success') throw new Error(`${key}: ${saved.hash} reverted`)
+    this.#recordReceipt(key, receipt)
+    return receipt
+  }
   async send(key: string, wallet: Wallet, tx: Pick<TxRequest, 'to' | 'data' | 'gas' | 'value'>, authorizationList?: SignedAuthorization<number>[]): Promise<TransactionReceipt> {
     if (this.ctx.deployment.chainId !== 10143 || await this.ctx.publicClient.getChainId() !== 10143)
       throw new Error('Live flow sends are restricted to Monad testnet (10143)')
@@ -45,6 +61,7 @@ export class FlowJournal {
     }
     this.log(key, saved.hash)
     if (receipt.status !== 'success') throw new Error(`${key}: ${saved.hash} reverted`)
+    this.#recordReceipt(key, receipt)
     return receipt
   }
   contract(key: string, wallet: Wallet, address: Address, abi: Abi, functionName: string, args: readonly unknown[], gas?: bigint) {

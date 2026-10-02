@@ -21,7 +21,8 @@ Every signed transaction, including setup/approvals, is saved before broadcast i
 written with mode 600. Preserve it for retries. A retry reconciles the exact hash and raw transaction;
 an independently consumed nonce refuses another send. Changing deployment, wallets or reward/bond amounts
 requires a separate profile/journal. A process lock prevents concurrent use of one journal; a stale lock is
-reclaimed only when its recorded process no longer exists. Do not reuse the same wallets across two profiles. Flows run sequentially,
+reclaimed only when its recorded process no longer exists. Restart a stale journal from one process only;
+stale-lock reclamation is not atomic between simultaneous restarts. Do not reuse the same wallets across two profiles. Flows run sequentially,
 so the runner remains below the two-flow and 15-rps limits.
 
 | Live matrix row | Case(s) |
@@ -46,12 +47,17 @@ so the runner remains below the two-flow and 15-rps limits.
 
 Hosted cases require `V1_BOARD_URL` pointing to this testnet deployment. Each wallet signs in with SIWE.
 The runner checks `protocol_info` before hosted writes and reports each canonical receipt. Sponsor action keys
-are persisted and reused after a lost response; the relay's hash is printed and polled. Budget call exercises
+are persisted and reused after a lost response; the relay's hash is printed and polled. `create_task`,
+`request_quotes` and `pick_quote` each use a stable `idempotencyKey` derived from the journal's persisted run key.
+Those keys recover the same server preparation after a lost response, scoped to the caller, tool and board.
+A quote retry reads its existing quote before creating one. Budget call exercises
 a real ERC-20 transfer from the creator's DeleGator, with one allowed function and bounded value.
 
 Odd-token cases require the coordinator's promoted `deployment.oddTokens` and `TESTNET_ODD_OWNER_PRIVATE_KEY`.
 They arm the real token after submission, verify deferred payment, settled bonds and exact `owed`, clear the
-refusal and withdraw. A crash while armed resumes those same steps; do not abandon the journal.
+refusal and withdraw. A crash while armed resumes those same steps; do not abandon the journal. Successful
+receipts and intermediate assertions are saved before later steps; final readbacks run again after interruption,
+including after the final withdrawal/cancellation/unpause receipt. Saved unmined bytes are never completion.
 
 Admin cases require `SAFE_BACKUP_TESTNET_PRIVATE_KEY`, an owner of the threshold-1 configured testnet Safe.
 G1 prepares fee and Holding proposals. `admin-fees` consumes that existing proposal after its three-day delay;

@@ -5,11 +5,12 @@
  * restarted process resumes the exact transaction. The runner refuses any chain other than Monad testnet.
  * Required values are read by name from .env.local; no key is ever logged.
  */
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { type Hex, decodeEventLog, parseAbi, parseUnits } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import config from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
+import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 
 const names = [...sdk.V1_CORE_FLOWS, ...sdk.V1_HOSTED_FLOWS, ...sdk.V1_ADMIN_FLOWS, 'owed-blocklist', 'owed-gas']
 if (process.argv[2] === '--list') { console.log(names.join('\n')); process.exit(0) }
@@ -37,7 +38,7 @@ const explorer = 'https://testnet.monadscan.com/tx/'
 const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
 if (!/^[A-Za-z0-9_-]{1,80}$/.test(profile)) throw new Error('V1_FLOW_PROFILE must be a short alphanumeric label')
 const stateDir = new URL(`./.v1-flows/${profile}/`, import.meta.url)
-mkdirSync(stateDir, { recursive: true, mode: 0o700 })
+ensureFlowDirectory(stateDir)
 const stateUrl = new URL('journal.json', stateDir)
 const lockUrl = new URL('runner.lock', stateDir)
 if (existsSync(lockUrl)) {
@@ -60,12 +61,7 @@ const binding = sdk.hashText(sdk.flowJson({ deployment: ctx.deployment, creator:
   relay: relay.account.address, arbitrator: arbitrator.account.address, reward: env('V1_FLOW_REWARD', true) ?? '1', bond: env('V1_FLOW_BOND', true) ?? '10' }))
 if (state.binding !== '' && state.binding !== binding) throw new Error('flow journal belongs to a different testnet deployment or wallet set')
 state.binding = binding
-const save = (next: sdk.FlowState) => {
-  const temporary = new URL('journal.tmp', stateDir)
-  const fd = openSync(temporary, 'w', 0o600)
-  try { writeFileSync(fd, sdk.flowJson(next) + '\n'); fsyncSync(fd) } finally { closeSync(fd) }
-  renameSync(temporary, stateUrl)
-}
+const save = (next: sdk.FlowState) => saveFlowState(stateDir, next)
 const log = (label: string, hash: Hex) => console.log(`[${label}] ${explorer}${hash}`)
 const journal = new sdk.FlowJournal(ctx, state, save, log)
 if (arbitrator.account.address.toLowerCase() !== ctx.deployment.arbitrator.toLowerCase()) throw new Error('v1 arbitrator key does not match the promoted testnet config')

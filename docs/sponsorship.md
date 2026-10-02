@@ -26,7 +26,10 @@ replays the exact saved bytes while the grant is live. If the grant was revoked,
 persists a zero-value relay self-send at the same nonce with increased fees before broadcasting it. If the original
 mines first, its receipt confirms or reverts the action. If the replacement mines first, the original becomes
 `dropped`; its `txHash` remains the original hash. Polling never broadcasts. Replacement gas is charged from its
-receipt toward the same daily cap. Fresh operations can proceed only once the nonce is reconciled.
+receipt toward the same daily cap. Its 100k gas limit uses the original operation's reservation, bounding the
+fee cap within that reservation when current fees and the replacement bump permit. Recovery still sends if
+fees have risen beyond it, even when the daily cap is full: the receipt's overshoot counts against that day,
+so further sponsorships refuse until the budget is available again. Fresh operations can proceed only once the nonce is reconciled.
 
 One reserved object in the existing Board binding stores grants and operation records for all boards. Before
 broadcast, it validates canonical calldata against D15, simulates the whole redemption, reserves caps, and persists
@@ -36,7 +39,9 @@ and unresolved sends reserve their worst-case cost. Gas uses summed ADR-0011 flo
 estimation needs more, with a 6M transaction cap.
 
 `RELAY_FLOOR_MAINNET` is defined once in `packages/sdk/src/relay.ts` (2 MON in native wei). A sponsored send must
-leave at least that balance after its maximum gas cost. The production live launch gate uses the same constant.
+leave at least the network's balance floor after its maximum gas cost. Normal sends and nonce recovery share
+`sponsorRelayFloor` in `packages/board/src/sponsor-policy.ts`; current policy is 2 MON on both networks, so G1
+also needs that testnet buffer. The production live launch gate uses the SDK mainnet constant.
 
 Implementation has unit, local workerd admission and real local Monad fork tests. It is not a live sponsorship
 claim: enabling and redeeming against a deployed v1 pair remains part of the coordinator's testnet flow gate.

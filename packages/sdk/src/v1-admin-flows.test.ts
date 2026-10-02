@@ -1,5 +1,6 @@
-import { decodeFunctionData, slice } from 'viem'
-import { expect, it } from 'vitest'
+import { type Hex, type TransactionReceipt, TransactionReceiptNotFoundError, decodeFunctionData, keccak256, slice, zeroAddress } from 'viem'
+import { expect, it, vi } from 'vitest'
+import * as sdk from './index.ts'
 import { coreAbi, hirelingEvaluatorAbi } from './abi/index.ts'
 import { context } from './client.ts'
 import { flowPauseBatch } from './v1-admin-flows.ts'
@@ -17,4 +18,56 @@ it('pause and notePause are one MultiSendCallOnly payload containing exactly two
     expect(slice(packed, 90, 110).toLowerCase()).toBe(ctx.stack.evaluator.toLowerCase())
     expect(decodeFunctionData({ abi: hirelingEvaluatorAbi, data: slice(packed, 174, 178) }).functionName).toBe('notePause')
   }
+})
+
+it.each(['admin-pause', 'admin-vault-refusal'] as const)('%s resumes after its final receipt before done, with no new signature or broadcast', async flow => {
+  const base = context('monad-testnet', 'main', 'http://127.0.0.1:1')
+  const h = { safe: base.stack.holding, vault: base.stack.evaluator } as NonNullable<sdk.Deployment['hireling']>
+  let paused = false, cancelled = false, nonce = 0, interrupt = true
+  let durable: sdk.FlowState = { binding: 'admin', values: {}, sends: {} }
+  const receipts = new Map<Hex, TransactionReceipt>()
+  const pc = { ...base.publicClient,
+    getChainId: vi.fn(async () => 10143), getCode: vi.fn(async () => '0xab'), getBlock: vi.fn(async () => ({ timestamp: 100n })),
+    readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
+      if (functionName === 'isOwner') return true
+      if (functionName === 'getThreshold') return 1n
+      if (functionName === 'paused') return paused
+      if (functionName === 'pendingHolding') return cancelled ? [zeroAddress, 0] : [base.stack.holding, 200]
+      throw new Error('unexpected read')
+    }),
+    simulateContract: vi.fn(async () => { throw new Error('timelocked') }),
+    estimateGas: vi.fn(async () => 100_000n), getGasPrice: vi.fn(async () => 1n), getTransactionCount: vi.fn(async () => nonce),
+    getTransactionReceipt: vi.fn(async ({ hash }: { hash: Hex }) => {
+      const found = receipts.get(hash)
+      if (found === undefined) throw new TransactionReceiptNotFoundError({ hash })
+      return found
+    }),
+    sendRawTransaction: vi.fn(async ({ serializedTransaction }: { serializedTransaction: Hex }) => {
+      const hash = keccak256(serializedTransaction)
+      if (flow === 'admin-pause') paused = nonce === 0
+      else cancelled = true
+      nonce++
+      receipts.set(hash, { transactionHash: hash, status: 'success', logs: [] } as unknown as TransactionReceipt)
+      return hash
+    }),
+    waitForTransactionReceipt: vi.fn(async ({ hash }: { hash: Hex }) => receipts.get(hash)!),
+  }
+  const ctx = { ...base, stack: { ...base.stack, kind: 'hireling-v1' }, deployment: { ...base.deployment, hireling: h }, publicClient: pc } as unknown as sdk.Ctx
+  const wallet = { account: { address: base.stack.holding }, signTransaction: vi.fn(async () => `0x${nonce.toString(16).padStart(8, '0')}`) } as unknown as sdk.Wallet
+  const final = `${flow}/${flow === 'admin-pause' ? 'unpause-note' : 'cancel-probe'}`
+  const boot = () => new sdk.FlowJournal(ctx, sdk.parseFlowJson(sdk.flowJson(durable)), state => {
+    durable = sdk.parseFlowJson(sdk.flowJson(state))
+    if (interrupt && state.values[`receipt/${final}`]) throw new Error('crash after final receipt')
+  }, () => undefined)
+  const deps = { ctx, creator: wallet, worker: wallet, relay: wallet, arbitrator: wallet, safeOwner: wallet, agentId: 1n, token: base.stack.factory, reward: 1n, bond: 1n, waitUntil: async () => undefined, log: () => undefined }
+  await expect(sdk.runV1AdminFlow({ ...deps, journal: boot() }, flow)).rejects.toThrow('crash after final receipt')
+  expect(durable.values[`${flow}/done`]).toBeUndefined()
+  const signatures = vi.mocked(wallet.signTransaction).mock.calls.length, broadcasts = pc.sendRawTransaction.mock.calls.length
+  interrupt = false
+  await sdk.runV1AdminFlow({ ...deps, journal: boot() }, flow)
+  expect(durable.values[`${flow}/done`]).toBe(true)
+  expect(wallet.signTransaction).toHaveBeenCalledTimes(signatures)
+  expect(pc.sendRawTransaction).toHaveBeenCalledTimes(broadcasts)
+  // Final readbacks remain active on resume.
+  expect(pc.readContract.mock.calls.at(-1)?.[0].functionName).toBe(flow === 'admin-pause' ? 'paused' : 'pendingHolding')
 })

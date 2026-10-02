@@ -41,17 +41,31 @@ export async function runV1AdminFlow(d: V1FlowDeps & { safeOwner: sdk.Wallet }, 
     await j.contract(`${flow}/execute`, d.relay, h.feeSchedule, sdk.feeScheduleAbi, 'execute', [])
     if (sdk.flowJson(await ctx.publicClient.readContract({ address: h.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'schedule' })) !== sdk.flowJson(pending[0])) throw new Error('fee schedule execution readback failed')
   } else if (flow === 'admin-vault-refusal') {
-    const [proposal, eta] = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding' })
-    if (proposal === zeroAddress || eta === 0 || Number((await ctx.publicClient.getBlock()).timestamp) >= eta) throw new Error('G1 must prepare a still-timelocked Holding probe')
-    let refused = false
-    try { await ctx.publicClient.simulateContract({ account: d.relay.account, address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'acceptHolding' }) } catch { refused = true }
-    if (!refused) throw new Error('vault accepted a Holding before its eight-day delay')
+    if (await j.mined(`${flow}/cancel-probe`) === undefined) await j.once(`${flow}/refusal-verified`, async () => {
+      const [proposal, eta] = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding' })
+      if (proposal === zeroAddress || eta === 0 || Number((await ctx.publicClient.getBlock()).timestamp) >= eta) throw new Error('G1 must prepare a still-timelocked Holding probe')
+      let refused = false
+      try { await ctx.publicClient.simulateContract({ account: d.relay.account, address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'acceptHolding' }) } catch { refused = true }
+      if (!refused) throw new Error('vault accepted a Holding before its eight-day delay')
+      return true
+    })
     await execute('cancel-probe', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelHoldingProposal' }))
+    const [proposal, eta] = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding' })
+    if (proposal !== zeroAddress || eta !== 0) throw new Error('Holding probe cancellation readback failed')
   } else {
     if ((await ctx.publicClient.getCode({ address: FLOW_MULTISEND })) === '0x') throw new Error('MultiSendCallOnly is unavailable')
-    await execute('pause-note', FLOW_MULTISEND, flowPauseBatch(ctx, true), 1)
-    if (!await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })) throw new Error('atomic pause failed')
-    await execute('unpause-note', FLOW_MULTISEND, flowPauseBatch(ctx, false), 1)
+    const unpauseAlreadyMined = await j.mined(`${flow}/unpause-note`)
+    if (unpauseAlreadyMined === undefined) {
+      await execute('pause-note', FLOW_MULTISEND, flowPauseBatch(ctx, true), 1)
+      await j.once(`${flow}/pause-verified`, async () => {
+        if (!await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })) throw new Error('atomic pause failed')
+        return true
+      })
+      await execute('unpause-note', FLOW_MULTISEND, flowPauseBatch(ctx, false), 1)
+    } else {
+      // The final receipt proves the paired action completed; rerun the final readback only.
+      d.log(`${flow}: resumed after the final unpause receipt`)
+    }
     if (await ctx.publicClient.readContract({ address: ctx.deployment.core, abi: sdk.coreAbi, functionName: 'paused' })) throw new Error('atomic unpause failed')
   }
   j.state.values[`${flow}/done`] = true; j.save(j.state); d.log(`${flow}: verified`)

@@ -5,6 +5,7 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Board, BoardError } from './service.ts'
 import { SPONSOR_LIMITS, SponsorDesk } from './sponsor.ts'
+import { sponsorRelayFloor } from './sponsor-policy.ts'
 import { fromNodeSqlite } from './store.ts'
 import { delegationManagerAbi } from './delegation.ts'
 import { RelaySender } from './relay.ts'
@@ -13,11 +14,11 @@ import { admissionFailure, hostedToolNames, parseHostedAdmission, readOnlyHosted
 const dbs: DatabaseSync[] = []
 afterEach(() => dbs.splice(0).forEach(db => db.close()))
 const addr = (n: string) => `0x${n.repeat(40)}` as Address
-function fixture() {
+function fixture(network: sdk.Network = 'monad-testnet') {
   const owner = privateKeyToAccount(generatePrivateKey()), relay = privateKeyToAccount(generatePrivateKey())
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
   const stack: sdk.Stack = { ...base.stack, kind: 'hireling-v1', holding: addr('1'), evaluator: addr('2') }
-  const deployment = { ...base.deployment, relay: relay.address, stacks: { main: stack }, hireling: {
+  const deployment = { ...base.deployment, network, chainId: network === 'monad-mainnet' ? 143 : 10143, relay: relay.address, stacks: { main: stack }, hireling: {
     block: 0n, factory: stack.factory, safe: addr('4'), vault: addr('3'), feeSchedule: addr('5'),
     distributor: addr('6'), miningReserve: addr('7'), teamVesting: addr('8'), t0: 1,
   } }
@@ -180,7 +181,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
   })
   it('enforces global cap, balance floor, wallet window, and simulation failure without persisting/broadcasting', async () => {
     const f = fixture(); await f.live()
-    f.setBalance(SPONSOR_LIMITS.relayFloorWei)
+    f.setBalance(sponsorRelayFloor(f.ctx.deployment.network))
     await expect(f.desk.submit(f.owner.address, [f.cancel()], 'floor')).rejects.toMatchObject({ reason: 'floor' })
     f.setBalance(100n * 10n ** 18n)
     f.client.call.mockRejectedValueOnce(new Error('revert'))
@@ -264,6 +265,65 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
       await f.live()
       expect((await f.boot().submit(f.owner.address, [f.cancel(2n)], 'fresh-after-recovery')).status).toBe('confirmed')
     }
+  })
+  it.each(['sponsor', 'relay'])('replacement recovers under a full cap via %s, charges overshoot once and blocks the next sponsorship', async path => {
+    const f = fixture(); await f.live()
+    const charged = await f.desk.submit(f.owner.address, [f.cancel()], 'charged')
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('crash before broadcast'))
+    const pending = await f.desk.submit(f.owner.address, [f.cancel(2n)], 'stranded')
+    const original = f.sql.all<{ reserved_cost: string }>('SELECT reserved_cost FROM sponsor_operations WHERE id=?', pending.operationId)[0]!
+    // The cap fills after reservation; recovery must remain possible and may exceed the old reservation.
+    f.sql.run('UPDATE sponsor_operations SET cost=? WHERE id=?', SPONSOR_LIMITS.dailyWei.toString(), charged.operationId)
+    await f.desk.revoke(f.owner.address)
+    f.client.getGasPrice.mockResolvedValue(500_000_000_000n)
+    const send = f.client.sendRawTransaction.getMockImplementation()!
+    f.client.sendRawTransaction.mockImplementationOnce(async a => {
+      const tx = parseTransaction(a.serializedTransaction)
+      expect(tx.gas).toBe(100_000n)
+      expect(tx.maxFeePerGas).toBe(500_000_000_000n)
+      expect(tx.gas! * tx.maxFeePerGas!).toBeGreaterThan(BigInt(original.reserved_cost))
+      const hash = await send(a)
+      f.receipts.get(hash)!.effectiveGasPrice = 500_000_000_000n
+      return hash
+    })
+    if (path === 'sponsor') expect((await f.boot().submit(f.owner.address, [], 'stranded')).status).toBe('dropped')
+    else await f.relaySender().submit({ key: 'new-evidence', to: f.ctx.stack.evaluator, data: '0x12345678' })
+    const replacement = f.sql.all<{ cost: string; tx_hash: Hex }>('SELECT cost,tx_hash FROM sponsor_replacements WHERE operation_id=?', pending.operationId)[0]!
+    expect(replacement.cost).toBe((21_000n * 500_000_000_000n).toString())
+    const sends = f.client.sendRawTransaction.mock.calls.length
+    await f.boot().submit(f.owner.address, [], 'stranded')
+    expect(f.client.sendRawTransaction).toHaveBeenCalledTimes(sends)
+    expect(f.sql.all('SELECT cost FROM sponsor_replacements')).toEqual([{ cost: replacement.cost }])
+    await f.live()
+    await expect(f.boot().submit(f.owner.address, [f.cancel(3n)], 'after-recovery')).rejects.toMatchObject({ reason: 'cap' })
+    f.advance(86400); await f.live()
+    expect((await f.boot().submit(f.owner.address, [f.cancel(3n)], 'next-day')).status).toBe('confirmed')
+  })
+  it('bounds the replacement fee by the original reservation when the preferred fee exceeds it', async () => {
+    const f = fixture(); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('not sent'))
+    const op = await f.desk.submit(f.owner.address, [f.cancel()], 'bounded')
+    const reservation = 100_000n * 3_000_000_000n
+    f.sql.run('UPDATE sponsor_operations SET reserved_cost=? WHERE id=?', reservation.toString(), op.operationId)
+    await f.desk.revoke(f.owner.address)
+    f.client.getGasPrice.mockResolvedValue(2_000_000_000n)
+    expect((await f.boot().submit(f.owner.address, [], 'bounded')).status).toBe('dropped')
+    const raw = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]!.raw_tx
+    const tx = parseTransaction(raw)
+    expect(tx.maxFeePerGas).toBe(3_000_000_000n)
+    expect(tx.gas! * tx.maxFeePerGas!).toBe(reservation)
+  })
+  it.each(['monad-testnet', 'monad-mainnet'] as const)('uses the shared %s balance floor for recovery', async network => {
+    const f = fixture(network); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('not sent'))
+    await f.desk.submit(f.owner.address, [f.cancel()], 'floor')
+    await f.desk.revoke(f.owner.address)
+    const minimum = sponsorRelayFloor(network) + 100_000n * 2_500_000_001n
+    f.setBalance(minimum - 1n)
+    await expect(f.boot().submit(f.owner.address, [], 'floor')).rejects.toThrow('balance floor')
+    expect(f.sql.all('SELECT * FROM sponsor_replacements')).toHaveLength(0)
+    f.setBalance(minimum)
+    expect((await f.boot().submit(f.owner.address, [], 'floor')).status).toBe('dropped')
   })
   it('records the original receipt when the saved redemption wins the replacement race', async () => {
     const f = fixture(); await f.live()

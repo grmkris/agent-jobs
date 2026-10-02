@@ -100,11 +100,16 @@ export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
     } })
     const budget = flow === 'budget-advance' ? { kind: 'advance', cap: amount, token: d.token }
       : flow === 'budget-call' ? { kind: 'call', cap: '0.000001', target: d.token, function: 'function transfer(address,uint256) returns (bool)' } : undefined
+    const runKey = await once('run-key', async () => sdk.randomNonce().toString())
     const created = await once('created', async () => {
-      if (flow !== 'quotes') return d.call<Created>(creator, 'create_task', { ...offer, mode: 'hire', reward: amount, token: d.token, invite: { agentId: d.agentId.toString() }, ...(budget === undefined ? {} : { executionBudget: budget }) })
-      const request = await once('request', () => d.call<{ requestId: string }>(creator, 'request_quotes', { ...offer, tokens: [d.token] }))
-      const quote = await once('quote', () => d.call<{ quoteId: string }>(worker, 'submit_quote', { requestId: request.requestId, agentId: d.agentId.toString(), token: d.token, amount }))
-      return d.call<Created>(creator, 'pick_quote', { requestId: request.requestId, quoteId: quote.quoteId })
+      if (flow !== 'quotes') return d.call<Created>(creator, 'create_task', { ...offer, mode: 'hire', reward: amount, token: d.token, invite: { agentId: d.agentId.toString() }, idempotencyKey: `${runKey}-${flow}-create`, ...(budget === undefined ? {} : { executionBudget: budget }) })
+      const request = await once('request', () => d.call<{ requestId: string }>(creator, 'request_quotes', { ...offer, tokens: [d.token], idempotencyKey: `${runKey}-${flow}-request` }))
+      const quote = await once('quote', async () => {
+        const existing = await d.call<{ quotes: Array<{ quoteId: string; worker: string }> }>(worker, 'list_quotes', { requestId: request.requestId })
+        return existing.quotes.find(q => q.worker.toLowerCase() === worker.account.address.toLowerCase())
+          ?? d.call<{ quoteId: string }>(worker, 'submit_quote', { requestId: request.requestId, agentId: d.agentId.toString(), token: d.token, amount })
+      })
+      return d.call<Created>(creator, 'pick_quote', { requestId: request.requestId, quoteId: quote.quoteId, idempotencyKey: `${runKey}-${flow}-pick` })
     })
     const taskId = created.taskId
     await send('publish', creator, created, taskId)
