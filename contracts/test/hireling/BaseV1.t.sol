@@ -40,30 +40,30 @@ abstract contract BaseV1 is Test {
     bytes32 internal constant REASON = keccak256("reason");
     uint256 internal policyNonce;
 
-    address internal deployer = makeAddr("deployer");
-    address internal safe = makeAddr("safe");
-    address internal treasury = makeAddr("treasury");
-    address internal stranger = makeAddr("stranger");
-    address internal relayer = makeAddr("relayer");
-    address internal contributor = makeAddr("contributor");
-    address internal arbitrator;
-    uint256 internal arbitratorPk;
-    address internal creator;
-    uint256 internal creatorPk;
-    address internal worker;
-    uint256 internal workerPk;
-    address internal attester;
-    uint256 internal attesterPk;
+    address public deployer = makeAddr("deployer");
+    address public safe = makeAddr("safe");
+    address public treasury = makeAddr("treasury");
+    address public stranger = makeAddr("stranger");
+    address public relayer = makeAddr("relayer");
+    address public contributor = makeAddr("contributor");
+    address public arbitrator;
+    uint256 public arbitratorPk;
+    address public creator;
+    uint256 public creatorPk;
+    address public worker;
+    uint256 public workerPk;
+    address public attester;
+    uint256 public attesterPk;
 
-    Factory internal factory;
-    MockPaymentToken internal pay;
-    ERC8183WithAuthorization internal core;
-    StakeVault internal vault;
-    FeeSchedule internal fees;
-    HirelingHolding internal holding;
-    HirelingEvaluator internal evaluator;
-    MockReputation internal reputation;
-    MockIdentity internal identity;
+    Factory public factory;
+    MockPaymentToken public pay;
+    ERC8183WithAuthorization public core;
+    StakeVault public vault;
+    FeeSchedule public fees;
+    HirelingHolding public holding;
+    HirelingEvaluator public evaluator;
+    MockReputation public reputation;
+    MockIdentity public identity;
 
     /// @dev Override to deploy without an ERC-8004 reputation registry (feedback off).
     function withReputation() internal pure virtual returns (bool) {

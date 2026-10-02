@@ -1,0 +1,176 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
+import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
+import {BaseV1} from "./BaseV1.t.sol";
+
+/// @dev Ports of the legacy Slashing suite to v1: a slash burns the reserved FACTORY in the vault.
+contract V1SlashingTest is BaseV1 {
+    function test_undisputed_noneQualityFalsified() public {
+        IHirelingEvaluator.Violation[3] memory vs = [
+            IHirelingEvaluator.Violation.None,
+            IHirelingEvaluator.Violation.Quality,
+            IHirelingEvaluator.Violation.Falsified
+        ];
+        for (uint256 i; i < 3; ++i) {
+            uint256 before = vault.stakeOf(worker);
+            uint256 jobId = submittedJob();
+            rejectAs(jobId, vs[i]);
+            vm.warp(vm.getBlockTimestamp() + DISPUTE + 1);
+            evaluator.rejectAfterWindow(jobId);
+            assertEq(vault.stakeOf(worker), before - (i == 0 ? 0 : WORKER_BOND));
+            assertEq(vault.stakeOf(creator), CREATOR_STAKE);
+        }
+    }
+
+    function test_disputeRefusedOnUnactivatedOrSettledJobs() public {
+        uint256 open = publish();
+        vm.prank(worker);
+        vm.expectRevert(IHirelingEvaluator.NotProvider.selector);
+        evaluator.dispute(open);
+        uint256 done = submittedJob();
+        vm.prank(creator);
+        evaluator.accept(done);
+        vm.prank(worker);
+        vm.expectRevert(IHirelingEvaluator.AlreadyResolved.selector);
+        evaluator.dispute(done);
+    }
+
+    function test_late_noSilencePaymentNoRejection() public {
+        uint256 jobId = fundedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        submit(jobId);
+        vm.prank(creator);
+        vm.expectRevert(IHirelingEvaluator.LateSubmission.selector);
+        evaluator.reject(jobId, IHirelingEvaluator.Violation.Quality, REASON);
+    }
+
+    function test_late_approverAcceptsBeforeTheBurn() public {
+        uint256 jobId = fundedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        submit(jobId);
+        vm.prank(creator);
+        evaluator.accept(jobId);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        vm.expectRevert(IHirelingEvaluator.AlreadyResolved.selector);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+    }
+
+    function test_late_burnBeforeTheApproverAccepts() public {
+        uint256 jobId = fundedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        submit(jobId);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+        vm.prank(creator);
+        vm.expectRevert(IHirelingEvaluator.AlreadyResolved.selector);
+        evaluator.accept(jobId);
+    }
+
+    function test_timely_submissionCannotBeBurned() public {
+        uint256 jobId = submittedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        vm.expectRevert(IHirelingEvaluator.NotLate.selector);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+    }
+
+    function test_guard_claimRefundThenSettleBurnsNoShow() public {
+        uint256 jobId = fundedJob();
+        vm.warp(core.getJob(jobId).expiredAt);
+        core.claimRefund(jobId);
+        holding.settle(jobId);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+    }
+
+    function test_guard_burnThenClaimRefundRefused() public {
+        uint256 jobId = fundedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        vm.warp(core.getJob(jobId).expiredAt);
+        vm.expectRevert(ERC8183.WrongStatus.selector);
+        core.claimRefund(jobId);
+    }
+
+    function test_guard_lateSubmissionThenClaimRefundStillBurns() public {
+        uint256 jobId = fundedJob();
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        submit(jobId);
+        vm.warp(core.getJob(jobId).expiredAt + 1 hours);
+        core.claimRefund(jobId);
+        holding.settle(jobId);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+        assertEq(pay.balanceOf(creator), 10 * REWARD);
+    }
+
+    function test_guard_pendingMilestoneClaimDoesNotEscapeTheBurn() public {
+        uint256 jobId = fundedJob();
+        vm.prank(worker);
+        core.submitClaim(jobId, 1, keccak256("claim"), "");
+        vm.warp(listing(jobId).deliveryDeadline + 1);
+        evaluator.rejectAfterDeliveryDeadline(jobId);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Signed rulings
+    // ------------------------------------------------------------------------------------------
+
+    function _signed(uint256 jobId, bool forWorker, bool slash, uint256 nonce)
+        internal
+        view
+        returns (IHirelingEvaluator.Ruling memory r, bytes memory sig)
+    {
+        r = IHirelingEvaluator.Ruling(jobId, forWorker, slash, REASON, vm.getBlockTimestamp() + 1 hours, nonce);
+        sig = signRuling(arbitratorPk, r);
+    }
+
+    function test_signedRuling_anyRelayerEqualsRule() public {
+        uint256 jobId = disputedJob();
+        (IHirelingEvaluator.Ruling memory r, bytes memory sig) = _signed(jobId, false, true, 1);
+        vm.prank(relayer);
+        evaluator.ruleWithSignature(r, sig);
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.RuledForCreator));
+        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+    }
+
+    function test_signedRuling_invalidCombinationRefused() public {
+        uint256 jobId = submittedJob();
+        rejectAs(jobId, IHirelingEvaluator.Violation.None);
+        vm.prank(worker);
+        evaluator.dispute(jobId);
+        (IHirelingEvaluator.Ruling memory r, bytes memory sig) = _signed(jobId, false, true, 1);
+        vm.expectRevert(IHirelingEvaluator.InvalidRuling.selector);
+        evaluator.ruleWithSignature(r, sig);
+        assertFalse(evaluator.rulingNonceUsed(arbitrator, 1), "a reverted ruling spends no nonce");
+    }
+
+    function test_signedRuling_sameCutoffAsRule_atExactCutoffBeatsTheTimeout() public {
+        uint256 jobId = disputedJob();
+        uint256 at = evaluator.disputedAt(jobId);
+        vm.warp(at + ARBITRATION);
+        (IHirelingEvaluator.Ruling memory r, bytes memory sig) = _signed(jobId, true, false, 2);
+        evaluator.ruleWithSignature(r, sig);
+        vm.warp(at + ARBITRATION + 1);
+        vm.expectRevert(IHirelingEvaluator.AlreadyRuled.selector);
+        evaluator.refundAfterArbitrationTimeout(jobId);
+
+        uint256 other = disputedJob();
+        at = evaluator.disputedAt(other);
+        vm.warp(at + ARBITRATION + 1);
+        (r, sig) = _signed(other, true, false, 3);
+        vm.expectRevert(IHirelingEvaluator.ArbitrationWindowClosed.selector);
+        evaluator.ruleWithSignature(r, sig);
+    }
+
+    function test_arbitrationTimeout_neverBurnsAndWritesNoFeedback() public {
+        uint256 jobId = disputedJob();
+        uint256 calls = reputation.calls();
+        vm.warp(block.timestamp + ARBITRATION + 1);
+        evaluator.refundAfterArbitrationTimeout(jobId);
+        holding.settle(jobId);
+        assertEq(reputation.calls(), calls);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        assertEq(vault.stakeOf(creator), CREATOR_STAKE);
+    }
+}
