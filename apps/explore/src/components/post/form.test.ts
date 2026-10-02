@@ -18,8 +18,10 @@ registerTokens([
 
 describe('the Post form', () => {
   it('takes the embed prefill: title, brief, reward, a token by symbol or address, and the mode', () => {
-    const f = initialForm({ title: 'T', brief: 'B', reward: '7', token: 'MEUR', mode: 'contest' }, tokens, false)
-    expect(f).toMatchObject({ title: 'T', brief: 'B', reward: '7', token: MEUR, mode: 'contest', creatorBond: '2', workerBond: '1' })
+    const f = initialForm({ title: 'T', brief: 'B', reward: '7', token: 'MEUR', mode: 'quotes' }, tokens, false)
+    expect(f).toMatchObject({ title: 'T', brief: 'B', reward: '7', token: MEUR, mode: 'quotes', creatorBond: '2', workerBond: '1' })
+    // v1 publishes no contests: a host asking for one gets a direct hire.
+    expect(initialForm({ mode: 'contest' }, tokens, false).mode).toBe('hire')
     expect(initialForm({ token: 'CHOMP' }, tokens, false).token).toBe(MUSD)
     expect(initialForm({ token: MEUR }, tokens, false).token).toBe(MEUR)
     // Any ERC-20 by address, listed or not (ADR-0010).
@@ -146,5 +148,20 @@ describe('Hire again', () => {
     expect(f).toMatchObject({ criteria: '', check: '', accepts: ['git'], target: '', budgetOn: false })
     expect(createTaskArgs(f, NOW)).not.toHaveProperty('requiredChecks')
     expect(createTaskArgs(f, NOW)).not.toHaveProperty('executionBudget')
+  })
+})
+
+describe('direct hire', () => {
+  const base = { ...initialForm({ agentId: '1942' }, tokens, false), title: 'T', brief: 'B' }
+  it('names the agent only to a v1 board', () => {
+    expect(base.invite).toBe('1942')
+    expect(createTaskArgs(base, NOW, true)).toMatchObject({ mode: 'hire', invite: { agentId: '1942' } })
+    expect(createTaskArgs(base, NOW, false)).not.toHaveProperty('invite')
+    expect(createTaskArgs({ ...base, invite: '' }, NOW, true)).not.toHaveProperty('invite')
+  })
+  it('wants an agent number in digits', () => {
+    expect(stepProblem({ ...base, invite: 'abc' }, 2)).toBe('An agent number is digits, like 1942.')
+    expect(stepProblem({ ...base, invite: '' }, 2)).toBeNull()
+    expect(initialForm({ agentId: 'x1' }, tokens, false).invite).toBe('')
   })
 })

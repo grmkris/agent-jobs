@@ -6,14 +6,24 @@
 import { formatUnits, isAddress, parseUnits } from 'viem'
 import { DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, type TxRequest } from '../../api.ts'
 import { formatNumber, tokenInfo, tokenMeta } from '../../format.ts'
+import { hireling } from '../../hireling.ts'
 import { deployment } from '../../wallet.ts'
 
+/**
+ * A Hireling v1 board (ADR-0011): v1 is deployed on this network, so offers carry the v1 terms (a named worker, and
+ * later per-offer windows and the arbitrator). Before that the board takes only the legacy arguments.
+ */
+export const V1 = hireling !== null
+
+/** `contest` survives only in drafts and offers frozen before v1; v1 publishing offers a direct hire or quotes. */
 export type Mode = 'hire' | 'contest' | 'quotes'
 export type StackName = 'main' | 'demo' | 'fast'
 export type Step = 1 | 2 | 3 | 4
 
 export interface PostForm {
   mode: Mode
+  /** A direct hire's named agent (ERC-8004 number), or empty for any agent that applies. */
+  invite: string
   title: string
   brief: string
   /** Acceptance criteria, one per line. */
@@ -77,7 +87,9 @@ export function initialForm(prefill: Record<string, string>, tokens: TokenList, 
   const accepts = prefill.accepts?.split(',').filter((k): k is DeliverableKind => KINDS.has(k)) ?? []
   const budget = prefill.budget === 'advance' || prefill.budget === 'call' ? prefill.budget : null
   return {
-    mode: prefill.mode === 'contest' || prefill.mode === 'quotes' ? prefill.mode : 'hire',
+    // v1 publishes no contests: a prefill asking for one gets a direct hire.
+    mode: prefill.mode === 'quotes' ? 'quotes' : 'hire',
+    invite: /^\d+$/.test(prefill.agentId ?? '') ? (prefill.agentId as string) : '',
     title: prefill.title ?? '',
     brief: prefill.brief ?? '',
     criteria: prefill.criteria ?? 'A GitHub check run named "test" completes with conclusion "success" on the submitted SHA.',
@@ -146,8 +158,11 @@ function deliverableArg(f: PostForm) {
 const checksArg = (f: PostForm) => (f.check.trim() === '' || !f.accepts.includes('git') ? {} : { requiredChecks: [f.check.trim()] })
 const hoursFrom = (now: number, hours: string) => now + Math.round(Number(hours) * 3600)
 
-/** `create_task`'s arguments for a hire or a contest, frozen at `now` (unix seconds). */
-export function createTaskArgs(f: PostForm, now: number) {
+/**
+ * `create_task`'s arguments for a hire (or a legacy contest), frozen at `now` (unix seconds). A v1 board also takes
+ * the direct hire's named agent (`invite`, decision D3), so it can be selected at once.
+ */
+export function createTaskArgs(f: PostForm, now: number, v1: boolean = V1) {
   const mode = f.mode === 'contest' ? 'contest' : 'hire'
   return {
     title: f.title,
@@ -170,6 +185,7 @@ export function createTaskArgs(f: PostForm, now: number) {
               : { kind: 'advance', token: f.budgetToken.trim(), cap: f.budgetCap },
         }
       : {}),
+    ...(v1 && mode === 'hire' && f.invite.trim() !== '' ? { invite: { agentId: f.invite.trim() } } : {}),
     stack: f.stack,
   }
 }
@@ -204,6 +220,7 @@ export function stepProblem(f: PostForm, step: Step): string | null {
     if (f.brief.trim() === '') return 'Describe what needs doing.'
     return null
   }
+  if (step === 2) return f.mode === 'hire' && f.invite.trim() !== '' && !/^\d+$/.test(f.invite.trim()) ? 'An agent number is digits, like 1942.' : null
   if (step !== 3) return null
   if (f.mode === 'quotes') {
     if (f.quoteTokens.length === 0) return 'Accept at least one token.'
@@ -302,7 +319,10 @@ export function loadDraft(key: string, defaults: PostForm): Draft | null {
     if (raw === null || raw.v !== 1 || typeof raw.form !== 'object' || raw.form === null) return null
     const step = raw.step === 2 || raw.step === 3 || raw.step === 4 ? raw.step : 1
     const frozen = raw.frozen !== null && typeof raw.frozen === 'object' && typeof raw.frozen.owner === 'string' && typeof raw.frozen.form === 'object' && raw.frozen.form !== null ? raw.frozen as Frozen : null
-    return { v: 1, step, form: { ...defaults, ...raw.form }, prefill: typeof raw.prefill === 'string' ? raw.prefill : '{}', frozen }
+    const form = { ...defaults, ...raw.form }
+    // A contest draft from before v1 that was never frozen continues as a direct hire.
+    if (frozen === null && form.mode === 'contest') form.mode = 'hire'
+    return { v: 1, step, form, prefill: typeof raw.prefill === 'string' ? raw.prefill : '{}', frozen }
   } catch {
     return null
   }

@@ -22,6 +22,7 @@ import {
   createTaskArgs,
   criteriaList,
   draftKey,
+  V1,
   fingerprint,
   hireAgainPrefill,
   hoursText,
@@ -57,21 +58,17 @@ export interface Published {
 const MODES: ReadonlyArray<{ value: Mode; title: string; body: string }> = [
   {
     value: 'hire',
-    title: 'Hire one agent',
-    body: 'Agents apply and you pick one. The reward is locked in escrow when you publish; the agent starts once it posts its bond, and is paid when you accept the work.',
+    title: 'Direct hire',
+    body: 'Name the agent you want, or let agents apply and pick one. The reward is locked in escrow when you publish; the agent starts once it activates and posts its bond, and is paid when you accept the work.',
   },
   {
     value: 'quotes',
-    title: 'Get quotes first',
+    title: 'Request quotes',
     body: 'Agents bid a price. Nothing is locked until you pick a quote; then the job is published at that price and the reward is locked.',
   },
-  {
-    value: 'contest',
-    title: 'Run a contest',
-    body: 'Agents hand in finished work. You pay the entry you like best, in one transaction; the others get nothing. The prize is locked when you publish.',
-  },
 ]
-const MODE_TITLE: Record<Mode, string> = { hire: 'Hire one agent', quotes: 'Get quotes first', contest: 'Run a contest' }
+// `contest` names an offer frozen before v1, still shown while it is published.
+const MODE_TITLE: Record<Mode, string> = { hire: 'Direct hire', quotes: 'Request quotes', contest: 'Contest' }
 
 /** The token control's "Other" choice: any ERC-20, typed as an address (the public board only). */
 const OTHER = 'other'
@@ -185,7 +182,10 @@ function HiringAgain({ prefill }: { prefill: Record<string, string> }) {
           <BoardLink target={boardRoutes().job(again)} className="text-tint">
             job #{again}
           </BoardLink>
-          . Once it is published, Agent #{agentId} applies and you select it, marked as hired before. It starts when it activates.
+          .{' '}
+          {V1
+            ? `Agent #${agentId} is invited: you can select it as soon as the job is published. It starts when it activates.`
+            : `Once it is published, Agent #${agentId} applies and you select it, marked as hired before. It starts when it activates.`}
         </span>
       </p>
     </div>
@@ -488,9 +488,26 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
           )}
 
           {step === 2 && (
-            <Section title="How agents compete">
-              <Choices label="How agents compete" value={f.mode} onChange={(mode) => set({ mode })} options={MODES} />
-            </Section>
+            <>
+              <Section title="How agents compete">
+                <Choices label="How agents compete" value={f.mode} onChange={(mode) => set({ mode })} options={MODES} />
+              </Section>
+              {f.mode === 'hire' && (
+                <Section
+                  note={
+                    V1
+                      ? 'A named agent is invited: you can select it as soon as the job is published. Leave it empty and agents apply.'
+                      : 'Leave it empty and agents apply; you pick one. A named agent applies like any other, and you select it.'
+                  }
+                >
+                  <Group>
+                    <FieldRow label="Agent to hire · optional" htmlFor="post-invite">
+                      <Input id="post-invite" value={f.invite} onChange={(e) => set({ invite: e.target.value.trim() })} inputMode="numeric" placeholder="Agent number, like 1942" autoComplete="off" />
+                    </FieldRow>
+                  </Group>
+                </Section>
+              )}
+            </>
           )}
 
           {step === 3 && (
@@ -598,6 +615,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                     </ListRow>
                   )}
                   <KV label="How agents compete">{MODE_TITLE[f.mode]}</KV>
+                  {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent #{f.invite}{V1 ? ' · invited' : ' · applies, then you select it'}</KV>}
                   {quotes ? (
                     <>
                       <KV label="Accepted tokens">{f.quoteTokens.map((a) => tokenInfo(a).symbol).join(', ')}</KV>

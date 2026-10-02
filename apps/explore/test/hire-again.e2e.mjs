@@ -113,7 +113,8 @@ try {
     assert.equal(await page.locator('#post-criteria').inputValue(), 'CI is green\nNo retries added');
     await capture(page, `${device}-hire-again-prefilled`);
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    assert.equal(await page.getByRole('radio', { name: /Hire one agent/ }).getAttribute('aria-checked'), 'true');
+    assert.equal(await page.getByRole('radio', { name: /Direct hire/ }).getAttribute('aria-checked'), 'true');
+    assert.equal(await page.locator('#post-invite').inputValue(), '7001');
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     assert.equal(await page.locator('#post-reward').inputValue(), '12.5');
     await page.getByRole('button', { name: 'Review', exact: true }).click();

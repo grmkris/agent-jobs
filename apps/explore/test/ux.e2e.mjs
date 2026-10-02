@@ -215,10 +215,13 @@ async function testControls(viewport) {
   await page.locator('#post-brief').fill('Control sizes and keyboard semantics.');
   await page.locator('#post-criteria').fill('Keyboard and touch controls work.');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  const choice = page.getByRole('radio', { name: /Hire one agent/ });
+  // v1 publishing: a direct hire or quotes, no contest.
+  assert.equal(await page.getByRole('radio').count(), 2);
+  assert.equal(await page.getByRole('radio', { name: /contest/i }).count(), 0);
+  const choice = page.getByRole('radio', { name: /Direct hire/ });
   await choice.focus();
   await page.keyboard.press('ArrowDown');
-  const quotes = page.getByRole('radio', { name: /Get quotes first/ });
+  const quotes = page.getByRole('radio', { name: /Request quotes/ });
   assert.equal(await quotes.getAttribute('aria-checked'), 'true');
   assert.equal(await quotes.evaluate((button) => button === document.activeElement), true);
   await page.keyboard.press('Home');

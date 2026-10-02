@@ -149,7 +149,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
               </span>
             </ListRow>
           )}
-          <KV label="How agents compete">{contest ? 'Run a contest' : 'Hire one agent'}</KV>
+          <KV label="How agents compete">{contest ? 'Contest' : 'Direct hire'}</KV>
           <KV label={contest ? 'Prize' : 'Reward'}>
             <span className="tabular font-semibold text-label">{reward}</span>
           </KV>
