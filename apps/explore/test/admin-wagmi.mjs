@@ -21,6 +21,7 @@ function answer({ address, functionName, args = [] }) {
     case 'owner': return s.owner[key(address)] ?? ZERO;
     case 'pendingOwner': return s.pendingOwner[key(address)] ?? ZERO;
     case 'paused': return s.paused;
+    case 'pausedSince': return s.pausedSince;
     case 'balanceOf': return 0n;
     case 'ADMIN_ROLE': return `0x${'a'.repeat(64)}`;
     case 'hasRole': return s.safeIsAdmin;
@@ -68,6 +69,8 @@ function apply({ to, data }) {
   if (functionName === 'acceptOwnership') { s.owner[key(inner.to)] = s.safe; s.pendingOwner[key(inner.to)] = ZERO; }
   if (functionName === 'pause') s.paused = true;
   if (functionName === 'unpause') s.paused = false;
+  // The Evaluator's note of the core pause (D4b): the start while paused, cleared when the core runs again.
+  if (functionName === 'notePause') s.pausedSince = s.paused ? (s.pausedSince || now) : 0;
   if (functionName === 'propose') s.pending = { schedule: args[0], eta: now + 259200 };
   if (functionName === 'cancel') s.pending = null;
   if (functionName === 'execute') { s.schedule = s.pending.schedule; s.pending = null; }

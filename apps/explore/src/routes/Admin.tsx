@@ -36,20 +36,26 @@ export function useSafeOwner(address: string | undefined): boolean | null {
   return list.some((o) => same(o, address))
 }
 
-/** What the page will send, built and decoded before the wallet opens, and kept until it is done. */
-interface Op {
-  title: string
+type Via = 'safe' | 'direct'
+/** One call, built and decoded before the wallet opens. */
+interface Step {
   contract: string
   to: Address
   functionName: string
   args: Array<[string, string]>
-  via: 'safe' | 'direct'
+  via: Via
   tx: TxRequest
+}
+/** What the page will send, kept until it is done: one call, or calls that go together in order. */
+interface Op {
+  title: string
+  steps: Step[]
 }
 const opKey = (me: string) => `hireling.admin-op:${me.toLowerCase()}`
 function loadOp(me: string): Op | null {
   try {
-    return JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as Op | null
+    const op = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as Op | null
+    return op !== null && Array.isArray(op.steps) ? op : null
   } catch {
     return null
   }
@@ -63,8 +69,11 @@ function saveOp(me: string, op: Op | null) {
   }
 }
 
-/** `act(title, call, via)`: show a call for review; `busy` while one is under review or being sent. */
-type Act = (title: string, call: Call, via: 'safe' | 'direct') => void
+/**
+ * `act(title, call, via, ...then)`: show a call for review, with any calls that must follow it in the same send (one
+ * wallet transaction when the wallet batches, else in order); `busy` while one is under review or being sent.
+ */
+type Act = (title: string, call: Call, via: Via, ...then: ReadonlyArray<readonly [Call, Via]>) => void
 
 /**
  * The Safe's console (ADR-0011). Shown only to an owner of the Safe that owns Hireling v1; the Safe's threshold is 1,
@@ -157,13 +166,16 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
     saveOp(me, next)
     setOpState(next)
   }
-  const act: Act = (title, call, via) => {
+  const step = (call: Call, via: Via): Step => {
     const data = calldata(call)
     const { functionName, args } = describe(call.abi, data)
     const tx: TxRequest = via === 'safe'
       ? { description: `${call.contract}.${functionName} as the Safe`, chainId: chain.id, to: safe, data: execTransaction(me, { to: call.to, data }), value: '0' }
       : { description: `${call.contract}.${functionName}`, chainId: chain.id, to: call.to, data, value: '0' }
-    setOp({ title, contract: call.contract, to: call.to, functionName, args, via, tx })
+    return { contract: call.contract, to: call.to, functionName, args, via, tx }
+  }
+  const act: Act = (title, call, via, ...then) => {
+    setOp({ title, steps: [step(call, via), ...then.map(([next, nextVia]) => step(next, nextVia))] })
     window.scrollTo({ top: 0 })
   }
   const busy = op !== null
@@ -175,9 +187,9 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
           <Review op={op} safe={safe} />
           <div className="mt-3">
             <TxSteps
-              key={op.tx.data}
+              key={op.steps.map((x) => x.tx.data).join()}
               taskId={`admin:${me.toLowerCase()}`}
-              txs={[op.tx]}
+              txs={op.steps.map((x) => x.tx)}
               owner={me}
               reportToBoard={false}
               onSafeToRestartChange={setDismissable}
@@ -197,7 +209,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
         </Section>
       )}
       <Ownership c={c} safe={safe} act={act} busy={busy} />
-      <Core safe={safe} act={act} busy={busy} />
+      <Core c={c} safe={safe} act={act} busy={busy} />
       <Fees c={c} act={act} busy={busy} />
       <Holdings c={c} act={act} busy={busy} />
       <Mining c={c} act={act} busy={busy} />
@@ -206,18 +218,30 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
 }
 
 function Review({ op, safe }: { op: Op; safe: Address }) {
-  const outer = op.via === 'safe' ? describe(safeAbi as unknown as Abi, op.tx.data as Hex).args.filter(([name]) => name !== 'data') : null
   return (
     <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
       <p className="font-semibold">{op.title}</p>
+      {op.steps.length > 1 && <p className="text-[0.88rem] text-label-2">{op.steps.length} calls, sent together in this order.</p>}
+      {op.steps.map((step, i) => (
+        <StepReview key={step.tx.data} step={step} safe={safe} n={op.steps.length > 1 ? i + 1 : null} />
+      ))}
+    </div>
+  )
+}
+
+function StepReview({ step, safe, n }: { step: Step; safe: Address; n: number | null }) {
+  const outer = step.via === 'safe' ? describe(safeAbi as unknown as Abi, step.tx.data as Hex).args.filter(([name]) => name !== 'data') : null
+  return (
+    <div className="grid gap-3">
+      {n !== null && <p className="text-[0.8rem] font-semibold tracking-wide text-label-2 uppercase">Call {n}</p>}
       <Group className="bg-bg">
         <KV k="Contract" stack>
-          {op.contract} <code className="font-mono text-[0.82rem] break-all">{op.to}</code>
+          {step.contract} <code className="font-mono text-[0.82rem] break-all">{step.to}</code>
         </KV>
         <KV k="Function" stack>
-          <code className="font-mono text-[0.85rem]">{op.functionName}({op.args.map(([n]) => n).join(', ')})</code>
+          <code className="font-mono text-[0.85rem]">{step.functionName}({step.args.map(([name]) => name).join(', ')})</code>
         </KV>
-        {op.args.map(([name, value]) => (
+        {step.args.map(([name, value]) => (
           <KV key={name} k={name} stack>
             <code className="font-mono text-[0.82rem] break-all">{value}</code>
           </KV>
@@ -335,25 +359,32 @@ function Ownership({ c, safe, act, busy }: { c: HirelingContracts; safe: Address
 // Core: pause and unpause (ADMIN_ROLE). On testnet the core is reused and its admin may not be the Safe.
 // ---------------------------------------------------------------------------------------------------------------
 
-function Core({ safe, act, busy }: { safe: Address; act: Act; busy: boolean }) {
+function Core({ c, safe, act, busy }: { c: HirelingContracts; safe: Address; act: Act; busy: boolean }) {
   const core = deployment.core
   const base = useReadContracts({
     contracts: [
       { address: core, abi: sdk.coreAbi, functionName: 'paused', chainId: chain.id },
       { address: core, abi: sdk.coreAbi, functionName: 'ADMIN_ROLE', chainId: chain.id },
+      { address: c.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'pausedSince', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
   const paused = result<boolean>(base.data, 0)
   const role = result<Hex>(base.data, 1)
+  const since = result<number | bigint>(base.data, 2)
   const admin = useReadContracts({
     contracts: [{ address: core, abi: sdk.coreAbi, functionName: 'hasRole', args: [role ?? `0x${'0'.repeat(64)}`, safe], chainId: chain.id }],
     query: { enabled: role !== undefined },
   })
   const safeIsAdmin = result<boolean>(admin.data, 0)
   const call = (functionName: 'pause' | 'unpause'): Call => ({ contract: 'Core', to: core, abi: sdk.coreAbi as unknown as Abi, functionName })
+  // D4b: the Evaluator records the pause, so a delivery deadline that falls inside it is never slashed. It goes in the
+  // same send as the pause or unpause; anyone may also send it alone when the two have drifted apart.
+  const note: Call = { contract: 'HirelingEvaluator', to: c.evaluator, abi: sdk.hirelingEvaluatorAbi as unknown as Abi, functionName: 'notePause' }
+  const noted = since === undefined ? undefined : BigInt(since) !== 0n
+  const drift = paused !== undefined && noted !== undefined && paused !== noted
   return (
-    <Section title="Core" note="Pausing stops every call on the job core: nothing can be funded, delivered or paid, and deadlines keep running.">
+    <Section title="Core" note="Pausing stops every call on the job core: nothing can be funded, delivered or paid. The Evaluator notes the pause in the same send, so a delivery deadline inside it is never slashed.">
       {base.isError || admin.isError ? (
         <Unavailable retry={() => void Promise.all([base.refetch(), admin.refetch()])} />
       ) : (
@@ -362,13 +393,25 @@ function Core({ safe, act, busy }: { safe: Address; act: Act; busy: boolean }) {
             {paused === undefined ? '—' : paused ? <Badge tone="danger">Paused</Badge> : <Badge tone="success">Running</Badge>}
             <span className="text-[0.85rem] text-label-2"><AddressText value={core} /></span>
           </p>
+          {drift && (
+            <div className="grid gap-2 rounded-xl bg-warn-bg p-3 text-[0.88rem] text-warn">
+              <p>
+                {paused
+                  ? 'The Evaluator has not noted this pause: a worker whose delivery deadline falls inside it could be slashed.'
+                  : 'The Evaluator still counts the core as paused.'}
+              </p>
+              <Button variant="tinted" size="sm" disabled={busy} onClick={() => act(paused ? 'Note the pause on the Evaluator' : 'Note the unpause on the Evaluator', note, 'direct')}>
+                {paused ? 'Note the pause' : 'Note the unpause'}
+              </Button>
+            </div>
+          )}
           {safeIsAdmin === false ? (
             <p className="text-[0.88rem] text-label-2">The Safe is not the core's admin on this network, so it cannot pause it from here.</p>
           ) : (
             <Button
               variant={paused === true ? 'primary' : 'danger'}
               disabled={busy || paused === undefined || safeIsAdmin !== true}
-              onClick={() => act(paused === true ? 'Unpause the core' : 'Pause the core', call(paused === true ? 'unpause' : 'pause'), 'safe')}
+              onClick={() => act(paused === true ? 'Unpause the core' : 'Pause the core', call(paused === true ? 'unpause' : 'pause'), 'safe', [note, 'safe'])}
             >
               {paused === true ? 'Unpause the core' : 'Pause the core'}
             </Button>

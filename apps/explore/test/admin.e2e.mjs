@@ -45,7 +45,7 @@ async function fixture(viewport, options = {}) {
       safe: contracts.safe, owners, threshold: 1n,
       owner: Object.fromEntries([...owned.map((a) => [a, contracts.safe]), [contracts.feeSchedule.toLowerCase(), previousOwner]]),
       pendingOwner: { [contracts.feeSchedule.toLowerCase()]: contracts.safe },
-      paused: false, safeIsAdmin: true,
+      paused: false, pausedSince: 0, safeIsAdmin: true,
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
       currentEpoch: 2n, totalFunded: 0n, available: 0n, genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
@@ -79,6 +79,13 @@ const send = async (page, done) => {
   await page.getByRole('button', { name: 'Confirm fixture' }).click();
   await page.getByRole('status').filter({ hasText: `${done}: done` }).waitFor();
 };
+const sendSteps = async (page, n, done) => {
+  for (let step = 1; step <= n; step++) {
+    await page.getByRole('button', { name: `Confirm step ${step} of ${n}` }).click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+  }
+  await page.getByRole('status').filter({ hasText: `${done}: done` }).waitFor();
+};
 const last = (page) => page.evaluate(() => { const call = window.__admin.calls.at(-1); return { via: call.via, to: call.to.toLowerCase(), functionName: call.functionName, signatures: call.signatures }; });
 const preValidated = `0x${owner.slice(2).padStart(64, '0')}${'0'.repeat(64)}01`;
 
@@ -102,12 +109,30 @@ try {
     assert.deepEqual(await last(page), { via: 'safe', to: c.feeSchedule, functionName: 'acceptOwnership', signatures: preValidated });
     await ownership.getByText('Safe owns it', { exact: true }).nth(5).waitFor();
 
-    // Core: pause, then the button offers unpause.
-    await section(page, 'Core').getByRole('button', { name: 'Pause the core' }).click();
+    // Core: pause and unpause each send two Safe calls in order, the core's and the Evaluator's notePause (D4b), so a
+    // delivery deadline inside the pause is never slashed.
+    const core = section(page, 'Core');
+    await core.getByRole('button', { name: 'Pause the core' }).click();
     await page.getByText('pause()', { exact: true }).waitFor();
-    await send(page, 'Pause the core');
-    await section(page, 'Core').getByText('Paused', { exact: true }).waitFor();
-    await section(page, 'Core').getByRole('button', { name: 'Unpause the core' }).waitFor();
+    await page.getByText('notePause()', { exact: true }).waitFor();
+    await page.getByText('2 calls, sent together in this order.', { exact: true }).waitFor();
+    await capture(page, `${device}-review-pause`);
+    await sendSteps(page, 2, 'Pause the core');
+    await core.getByText('Paused', { exact: true }).waitFor();
+    assert.ok(await page.evaluate(() => window.__admin.pausedSince > 0));
+    await core.getByRole('button', { name: 'Unpause the core' }).click();
+    await sendSteps(page, 2, 'Unpause the core');
+    await core.getByRole('button', { name: 'Pause the core' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__admin.pausedSince), 0);
+    // A pause sent from elsewhere, without the note: the console says so and anyone may send the note alone.
+    await page.evaluate(() => { window.__admin.paused = true; window.dispatchEvent(new Event('visibilitychange')); });
+    await core.getByText(/The Evaluator has not noted this pause/).waitFor();
+    await core.getByRole('button', { name: 'Note the pause' }).click();
+    await send(page, 'Note the pause on the Evaluator');
+    await core.getByText(/The Evaluator has not noted this pause/).waitFor({ state: 'hidden' });
+    assert.deepEqual(await last(page), { via: 'direct', to: c.evaluator, functionName: 'notePause', signatures: null });
+    await page.evaluate(() => { window.__admin.paused = false; window.__admin.pausedSince = 0; window.dispatchEvent(new Event('visibilitychange')); });
+    await core.getByRole('button', { name: 'Pause the core' }).waitFor();
 
     // Fee schedule: a proposal the contract would refuse is refused here; a valid one waits 3 days; cancel; execute.
     const fees = section(page, 'Fee schedule');
@@ -164,10 +189,10 @@ try {
     await send(page, 'Fund epoch 1');
     await mining.getByText(/5,000 FACTORY available/).waitFor();
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), [
-      'safe:acceptOwnership', 'safe:pause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund',
+      'safe:acceptOwnership', 'safe:pause', 'safe:notePause', 'safe:unpause', 'safe:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:setRoot', 'safe:fund',
     ]);
     await capture(page, `${device}-mining`);
-    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'setRoot', 'fund', 'decoded review before every send'], passed: true });
+    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each with Evaluator notePause in order', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'setRoot', 'fund', 'decoded review before every send'], passed: true });
     await context.close();
   }
 
