@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
 import {HirelingOutput} from "../../script/HirelingOutput.sol";
-import {SeedPoolRecipe, IV4PositionManager} from "../../script/SeedPool.s.sol";
+import {SeedPoolRecipe, IV4PositionManager, IV4PoolManager, V4PriceSetter} from "../../script/SeedPool.s.sol";
 import {RecipeDriver} from "../hireling/Recipe.t.sol";
 
 /// @dev C12 rehearsal on a local fork of Monad mainnet (nothing is sent): a fresh v1 deploy gives FACTORY, the
@@ -92,19 +92,78 @@ contract SeedPoolRehearsalForkTest is Test {
         assertEq(IV4PositionManager(address(c.positionManager)).ownerOf(tokenId), safe);
     }
 
-    /// @dev Someone initializes the same pool at another price first: the seed refuses before sending anything, and
-    ///      the mint caps would refuse it anyway.
-    function test_fork_mainnet_refusesAPoolInitializedAtAnotherPrice() public {
-        (bool forked, SeedPoolRecipe.Config memory c) = _setUp("frontrun");
+    /// @dev Someone initializes the same pool at a junk price first (above or below the target) and adds nothing:
+    ///      the seed moves the empty pool's price back for free, then mints at the target.
+    function test_fork_mainnet_recoversAnEmptyPoolInitializedAtAJunkPrice() public {
+        _recoverFrom("junk-up", 4);
+    }
+
+    function test_fork_mainnet_recoversAnEmptyPoolInitializedBelowTheTarget() public {
+        _recoverFrom("junk-down", 0);
+    }
+
+    function _recoverFrom(string memory name, uint256 factor) internal {
+        (bool forked, SeedPoolRecipe.Config memory c) = _setUp(name);
         if (!forked) return vm.skip(true);
         SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
+        uint160 junk = factor == 0 ? p.sqrtPriceX96 / 1000 : p.sqrtPriceX96 * uint160(factor);
         vm.prank(stranger);
-        c.positionManager.initializePool(p.key, p.sqrtPriceX96 * 2);
+        c.positionManager.initializePool(p.key, junk);
+        (uint160 current,,,) = c.stateView.getSlot0(p.poolId);
+        assertEq(current, junk);
         vm.startPrank(seeder, seeder);
-        vm.expectRevert(abi.encodeWithSelector(SeedPoolRecipe.PoolPriceMismatch.selector, p.sqrtPriceX96 * 2, p.sqrtPriceX96));
+        uint256 tokenId = SeedPoolRecipe.seed(c, p);
+        vm.stopPrank();
+        SeedPoolRecipe.verify(c, p, tokenId);
+        uint256 factorySpent = 50_000_000e18 - c.factory.balanceOf(seeder);
+        assertApproxEqRel(factorySpent, 3_000_000e18, 2e14);
+        assertApproxEqRel(300e6 - c.quote.balanceOf(seeder), 300e6, 2e14);
+    }
+
+    /// @dev A junk-priced pool that already holds liquidity is refused: moving it would trade against its owner.
+    function test_fork_mainnet_refusesAJunkPoolWithLiquidity() public {
+        (bool forked, SeedPoolRecipe.Config memory c) = _setUp("junk-liquid");
+        if (!forked) return vm.skip(true);
+        SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
+        uint160 junk = p.sqrtPriceX96 * 2;
+        // The stranger initializes at twice the target sqrt price and seeds a small position there.
+        vm.prank(seeder);
+        c.factory.transfer(stranger, 1_000e18);
+        deal(address(c.quote), stranger, 10e6);
+        SeedPoolRecipe.Config memory sc = c;
+        sc.factoryAmount = 1_000e18;
+        sc.quoteAmount = 10e6;
+        sc.positionOwner = stranger;
+        vm.prank(stranger);
+        c.positionManager.initializePool(p.key, junk);
+        SeedPoolRecipe.Plan memory sp = SeedPoolRecipe.plan(sc);
+        sp.sqrtPriceX96 = junk;
+        sp.liquidity = 1e9;
+        vm.startPrank(stranger, stranger);
+        SeedPoolRecipe.seed(sc, sp);
+        vm.stopPrank();
+        uint128 liquidity = c.stateView.getLiquidity(p.poolId);
+        assertGt(liquidity, 0);
+
+        vm.startPrank(seeder, seeder);
+        vm.expectRevert(abi.encodeWithSelector(SeedPoolRecipe.PoolNotEmpty.selector, junk, liquidity));
         this.seedExt(c, p);
         vm.stopPrank();
-        assertEq(c.factory.balanceOf(seeder), 50_000_000e18, "nothing moved");
+        assertEq(c.factory.balanceOf(seeder), 50_000_000e18 - 1_000e18, "nothing moved");
+    }
+
+    function test_fork_priceSetterCannotTrade() public {
+        (bool forked, SeedPoolRecipe.Config memory c) = _setUp("setter");
+        if (!forked) return vm.skip(true);
+        SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
+        vm.startPrank(seeder, seeder);
+        SeedPoolRecipe.seed(c, p);
+        vm.stopPrank();
+        V4PriceSetter setter = new V4PriceSetter(IV4PoolManager(c.poolManager));
+        vm.expectRevert();
+        setter.setPrice(p.key, p.sqrtPriceX96 / 2, true);
+        vm.expectRevert(V4PriceSetter.NotPoolManager.selector);
+        setter.unlockCallback("");
     }
 
     function seedExt(SeedPoolRecipe.Config memory c, SeedPoolRecipe.Plan memory p) external returns (uint256) {

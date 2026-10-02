@@ -270,8 +270,11 @@ One full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, created in a s
 (`initializePool` at the configured price, then `MINT_POSITION` + `SETTLE_PAIR` paid through Permit2), so nobody can
 initialize the pool at another price in between. The price is `quoteAmount / factoryAmount` ($300 / 3M FACTORY =
 $0.0001, $100k FDV). Liquidity is computed from 99.99% of each amount with the full amounts as caps, so the mint
-refuses a pool whose price is off by more than that; the script also refuses a pool already initialized at another
-price (`PoolPriceMismatch`). Run from the account holding the liquidity allocation and the USDC, with `MAINNET_GO=yes`:
+refuses a pool whose price is off by more than that. Anyone can initialize this pool at a junk price before the seed:
+if it holds no liquidity, the script first deploys `V4PriceSetter`, which moves the empty pool's price to the target
+with a 1-unit swap limited at that price (nothing is exchanged; a nonzero delta reverts, so it can never trade), then
+mints; a junk-priced pool that already holds liquidity is refused (`PoolNotEmpty`). If someone moves the empty pool
+again between those two transactions, the mint caps refuse it and a re-run recovers. Run from the account holding the liquidity allocation and the USDC, with `MAINNET_GO=yes`:
 `NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --private-key … --broadcast`.
 `test/fork/SeedPoolRehearsal.t.sol` seeds on a mainnet fork against the live contracts.
 

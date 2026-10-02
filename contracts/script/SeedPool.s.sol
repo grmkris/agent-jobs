@@ -37,6 +37,46 @@ interface IV4StateView {
         external
         view
         returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
+    function getLiquidity(bytes32 poolId) external view returns (uint128 liquidity);
+}
+
+struct SwapParams {
+    bool zeroForOne;
+    int256 amountSpecified;
+    uint160 sqrtPriceLimitX96;
+}
+
+interface IV4PoolManager {
+    function unlock(bytes calldata data) external returns (bytes memory);
+    /// @dev Returns a `BalanceDelta` (two int128 packed in an int256).
+    function swap(PoolKey memory key, SwapParams memory params, bytes calldata hookData) external returns (int256);
+}
+
+/// @title V4PriceSetter
+/// @notice C12 recovery, deployed by `SeedPoolRecipe.seed` only when needed: moves an *empty* pool's price to a target
+///         with a 1-unit exact-input swap limited at that price. With no liquidity in the way nothing is exchanged, so
+///         the swap must return a zero delta, or it reverts: it can move a price, never trade.
+contract V4PriceSetter {
+    IV4PoolManager public immutable poolManager;
+
+    error NotPoolManager();
+    error PoolNotEmpty(int256 delta);
+
+    constructor(IV4PoolManager poolManager_) {
+        poolManager = poolManager_;
+    }
+
+    function setPrice(PoolKey calldata key, uint160 target, bool zeroForOne) external {
+        poolManager.unlock(abi.encode(key, target, zeroForOne));
+    }
+
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        if (msg.sender != address(poolManager)) revert NotPoolManager();
+        (PoolKey memory key, uint160 target, bool zeroForOne) = abi.decode(data, (PoolKey, uint160, bool));
+        int256 delta = poolManager.swap(key, SwapParams(zeroForOne, -1, target), "");
+        if (delta != 0) revert PoolNotEmpty(delta);
+        return "";
+    }
 }
 
 /// @title SeedPoolRecipe
@@ -84,6 +124,8 @@ library SeedPoolRecipe {
 
     error BadConfig(string what);
     error PoolPriceMismatch(uint160 current, uint160 expected);
+    /// @dev The pool sits at another price and holds liquidity: moving it would trade against someone.
+    error PoolNotEmpty(uint160 current, uint128 liquidity);
 
     function load(Vm vm, string memory json) internal view returns (Config memory c) {
         c.poolManager = vm.parseJsonAddress(json, ".liquidity.uniswapV4.poolManager");
@@ -137,9 +179,20 @@ library SeedPoolRecipe {
 
     /// @notice Approves exactly the two amounts through Permit2 and sends the one `multicall`, from the caller's
     ///         context (the broadcaster, who holds both tokens). Returns the position's token id.
+    ///
+    ///         Recovery: anyone can initialize this pool at a junk price before the seed. If it holds no liquidity, a
+    ///         `V4PriceSetter` moves its price to the target first, for free; if it holds liquidity it is refused.
+    ///         Between the two transactions the mint caps still refuse any other price; re-run if that happens.
     function seed(Config memory c, Plan memory p) internal returns (uint256 tokenId) {
         (uint160 current,,,) = c.stateView.getSlot0(p.poolId);
-        if (current != 0 && current != p.sqrtPriceX96) revert PoolPriceMismatch(current, p.sqrtPriceX96);
+        if (current != 0 && current != p.sqrtPriceX96) {
+            uint128 liquidity = c.stateView.getLiquidity(p.poolId);
+            if (liquidity != 0) revert PoolNotEmpty(current, liquidity);
+            V4PriceSetter setter = new V4PriceSetter(IV4PoolManager(c.poolManager));
+            setter.setPrice(p.key, p.sqrtPriceX96, p.sqrtPriceX96 < current);
+            (current,,,) = c.stateView.getSlot0(p.poolId);
+            if (current != p.sqrtPriceX96) revert PoolPriceMismatch(current, p.sqrtPriceX96);
+        }
         uint48 expiration = uint48(block.timestamp + 1 hours);
         IERC20(p.key.currency0).approve(c.permit2, p.amount0);
         IERC20(p.key.currency1).approve(c.permit2, p.amount1);
