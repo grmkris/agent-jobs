@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
 // Publishing on Hireling v1 (U1): a direct hire with a named agent, window presets and custom windows within the
@@ -36,7 +37,8 @@ const now = Math.floor(Date.now() / 1000);
 const worker = '0x5555555555555555555555555555555555555555';
 const agentWallet = '0x6666666666666666666666666666666666666666';
 const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
-const v1Jobs = { 70: 'open', 71: 'active' };
+const v1Jobs = { 70: 'open', 71: 'active', 72: 'submitted' };
+const silence = encodeFunctionData({ abi: parseAbi(['function completeAfterSilence(uint256 jobId)']), functionName: 'completeAfterSilence', args: [72n] });
 
 async function fixture(viewport, account = creator) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
@@ -69,8 +71,11 @@ async function fixture(viewport, account = creator) {
       const id = /^task-(\d+)$/.exec(taskId)?.[1];
       if (id === undefined || v1Jobs[id] === undefined) return reply({ ok: true, result: { taskId, jobId: null, creator } });
       const open = v1Jobs[id] === 'open';
-      return reply({ ok: true, result: { ...offer(id, v1Jobs[id]), you: account === creator ? ['creator', 'approver'] : [], selection: [], terms: { brief: 'A v1 hire.', acceptanceCriteria: ['Done'], windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status: open ? 'open' : 'active', provider: open ? null : agentWallet, timely: true, submittedAt: null, reviewEndsAt: null, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
+      const submitted = v1Jobs[id] === 'submitted';
+      return reply({ ok: true, result: { ...offer(id, v1Jobs[id]), you: account === creator ? ['creator', 'approver'] : [], selection: [], terms: { brief: 'A v1 hire.', acceptanceCriteria: ['Done'], windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status: v1Jobs[id], provider: open ? null : agentWallet, timely: true, submittedAt: submitted ? now - 90000 : null, reviewEndsAt: submitted ? now - 3600 : null, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
     }
+    if (url.pathname.endsWith('/api/settlement_actions')) return reply({ ok: true, result: { transactions: [{ description: 'Release the payment', chainId: 10143, to: contracts.evaluator, data: silence, value: '0' }] } });
+    if (url.pathname.endsWith('/api/report_transaction')) return reply({ ok: true, result: {} });
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     return route.continue();
   });
@@ -168,7 +173,15 @@ try {
     const sends = await page.evaluate(() => window.__wallet.sends.map((tx) => tx.to.toLowerCase()));
     assert.deepEqual(sends, [token, contracts.holding]);
     await capture(page, `${device}-v1-top-up`);
-    results.push({ device, checks: ['fee tier and net before activation', 'no top-up before activation', 'top-up approve then topUp', 'bonus shown after'], passed: true });
+    // A v1 payout call goes out with its measured gas limit (ADR-0011, D4), not a bare estimate.
+    await page.goto(`${base}/job/72`);
+    await page.getByRole('button', { name: 'Release the payment', exact: true }).click();
+    await page.getByRole('button', { name: 'Release the payment', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('status').filter({ hasText: 'Settled on-chain' }).waitFor();
+    assert.deepEqual(await page.evaluate(() => { const tx = window.__wallet.sends.at(-1); return { to: tx.to.toLowerCase(), gas: String(tx.gas) }; }), { to: contracts.evaluator, gas: '1100000' });
+    results.push({ device, checks: ['fee tier and net before activation', 'no top-up before activation', 'top-up approve then topUp', 'bonus shown after', 'v1 completeAfterSilence sent with 1.1M gas'], passed: true });
     await context.close();
   }
   assert.deepEqual(errors, []);

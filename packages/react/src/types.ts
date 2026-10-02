@@ -8,6 +8,8 @@ export interface TxRequest {
   to: `0x${string}`
   data: `0x${string}`
   value: '0'
+  /** The gas limit to send with, in decimal, when the call needs more than an estimate (Monad charges the limit). */
+  gas?: string
 }
 
 export type DeliverableKind = 'git' | 'patch' | 'artifact' | 'url' | 'onchain'

@@ -5,6 +5,8 @@ import type { Hex } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { getBlock, getBlockNumber, getTransactionCount, waitForTransactionReceipt } from 'wagmi/actions'
 import { type TxRequest, boardApi } from '../api.ts'
+import { batchGasLimit, gasLimit } from '../gas.ts'
+import { hireling } from '../hireling.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig } from '../wallet.ts'
 import { usePrivyBatch } from './Privy.tsx'
@@ -233,10 +235,11 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     try {
       if (record.batch) {
         if (batch === null) throw new Error('This wallet cannot send a batch; send them one at a time.')
-        hash = await batch(txs)
+        hash = await batch(txs, batchGasLimit(txs, hireling))
       } else {
         const tx = txs[i] as TxRequest
-        hash = await sendTransactionAsync({ to: tx.to, data: tx.data, value: 0n, chainId: chain.id })
+        const gas = gasLimit(tx, hireling)
+        hash = await sendTransactionAsync({ to: tx.to, data: tx.data, value: 0n, chainId: chain.id, ...(gas === undefined ? {} : { gas }) })
       }
     } catch (e) {
       sending.current = false

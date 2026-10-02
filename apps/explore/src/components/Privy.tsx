@@ -95,12 +95,12 @@ export function usePrivyLogout(): () => Promise<void> {
  * itself, once the wallet points at the deployment's DeleGator (the first batch upgrades it through the board's
  * relay). All or nothing, one confirmation. Null without Privy or for another wallet.
  */
-export type BatchSend = (txs: TxRequest[]) => Promise<Hex>
+export type BatchSend = (txs: TxRequest[], gas?: bigint) => Promise<Hex>
 
 export function usePrivyBatch(address: string | undefined): BatchSend | null {
   const account = useDelegatorAccount(address)
   if (account === null) return null
-  return (txs) => account.send(sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))))
+  return (txs, gas) => account.send(sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))), gas)
 }
 
 /**
@@ -120,8 +120,8 @@ interface DelegatorAccount {
   delegated(): Promise<boolean>
   /** The DeleGator upgrade when the code is not there yet: the relay's transaction hash, or null. */
   upgrade(): Promise<Hex | null>
-  /** A call to self, after the upgrade when it is still needed. */
-  send(data: Hex): Promise<Hex>
+  /** A call to self, after the upgrade when it is still needed; `gas` when the calls need more than an estimate. */
+  send(data: Hex, gas?: bigint): Promise<Hex>
 }
 
 function useDelegatorAccount(address: string | undefined): DelegatorAccount | null {
@@ -156,10 +156,10 @@ function useDelegatorAccountInner(address: string | undefined): DelegatorAccount
   return {
     delegated,
     upgrade,
-    send: async (data) => {
+    send: async (data, gas) => {
       await upgrade()
       const provider = (await embedded.getEthereumProvider()) as EIP1193Provider
-      const request = { from: me, to: me, data, value: '0x0', chainId: toHex(chain.id) }
+      const request = { from: me, to: me, data, value: '0x0', chainId: toHex(chain.id), ...(gas === undefined ? {} : { gas: toHex(gas) }) }
       return (await provider.request({ method: 'eth_sendTransaction', params: [request as never] })) as Hex
     },
   }
