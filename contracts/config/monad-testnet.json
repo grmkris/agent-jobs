@@ -129,5 +129,40 @@
       "0x130556848511554b181e645309754F265522F3c2"
     ],
     "stacksBlock": 66784609
+  },
+  "hireling": {
+    "reuseCore": true,
+    "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
+    "defaultArbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+    "margin": 3600,
+    "schedule": {
+      "thresholds": [
+        0,
+        10000,
+        100000,
+        1000000
+      ],
+      "bps": [
+        3000,
+        1000,
+        300,
+        100
+      ],
+      "treasury": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF"
+    },
+    "allocation": {
+      "treasury": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
+      "ecosystem": "0x675269d710692d4d0d7166da11B76463577aad73",
+      "liquidity": "0x675269d710692d4d0d7166da11B76463577aad73"
+    },
+    "vesting": {
+      "beneficiary": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "startOffset": 31536000,
+      "duration": 94608000,
+      "cliff": 0
+    },
+    "mining": {
+      "genesis": 0
+    }
   }
 }
