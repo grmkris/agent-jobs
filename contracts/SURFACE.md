@@ -394,15 +394,17 @@ fallback: `--private-keys`, read from env vars by name (`DEPLOYER_PRIVATE_KEY`, 
 RPC comes from `MONAD_TESTNET_RPC_URL`. No value is printed, and output and logs are redacted.
 
 1. Checks: the chain, no v1 deployment recorded yet, the deployer is `roles.admin` and can grant the reused core's
-   `ADMIN_ROLE`, the Safe is v1.4.1 with threshold 1 and the Safe-owner key is an owner, an `oddTokens` block exists,
-   and both senders hold the gas limits at twice the current gas price.
+   `ADMIN_ROLE`, the Safe is v1.4.1 with threshold 1, no module and no guard (the mining fund's nonce guard, D18, needs
+   neither), the Safe-owner key is an owner, an `oddTokens` block exists, and both senders hold the gas limits at twice
+   the current gas price.
 2. `DeployHireling` dry run, then `--broadcast --slow`.
 3. `PromoteHireling`.
 4. `SafeAccept`, then its `check()`.
 5. `pauser`: the deployer grants the Safe the reused core's `ADMIN_ROLE`, which `pause()`/`unpause()` require, so
    /admin's pause works. `ADMIN_ROLE` only, not the upgrade role; the deployer keeps its roles. Skipped if the Safe holds
    it. Mainnet needs no such step: the Recipe deploys that core and hands the Safe both roles in `stepHandover`.
-6. `owner() == Safe` and `pendingOwner() == 0` on the six, and the Safe holds the core's `ADMIN_ROLE`.
+6. `owner() == Safe` and `pendingOwner() == 0` on the six; the Safe holds the core's `ADMIN_ROLE` and still has no
+   module and no guard.
 7. The SDK loads the promoted deployment.
 8. `DeployOddTokens`.
 
@@ -418,7 +420,8 @@ Every transaction hash is printed and listed again at the end.
 `rehearse-launch-testnet.sh` runs it unchanged on an anvil fork of testnet, signing from throwaway keystores of dev
 keys, with a fresh 1-of-2 Safe; dev0 stands in for `roles.admin` as the core's admin (granted by an impersonated
 `roles.admin`). It also checks that a missing signer, a loose password file, a chain-143 RPC and a second launch are
-refused, that a re-run from `pauser` sends nothing, and that the proposal can be executed after 3 days and the probe
+refused, that a re-run from `pauser` sends nothing, that a Safe with a module (enabled through its own
+`execTransaction`) or with a guard is refused, and that the proposal can be executed after 3 days and the probe
 accepted after 8. Every dev account carries someone's EIP-7702 delegation on Monad testnet, so the fork clears that code
 first (R7 does the same on its mainnet fork). `KEEP=1` stops after the launch and leaves the fork running and the
 promoted `config/rehearsal-testnet.json` in place, printing both, for UI's real-chain harness. Passed 2 Oct. Gas limits

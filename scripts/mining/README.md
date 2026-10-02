@@ -134,8 +134,16 @@ Integers are decimal strings, and addresses are lowercase.
 - **`tree`** is `StandardMerkleTree.dump()`, and **`claims`** carries each account's amount and proof for
   `EpochDistributor.claim(epoch, account, amount, proof)`.
 - **`calls`** are for the Safe, in this order:
-  1. `MiningReserve.fund(n, total)`;
-  2. `EpochDistributor.setRoot(n, root, total, dataHash)`.
+  1. `calls.fund`, present only while the epoch still needs funding. It is `MiningReserve.fund(n, amount)`, where
+     `amount` is the remainder (`total` minus what `n` already has), not `total`. Its `expect` records `totalFunded()`
+     and the epoch's funded amount as this run read them.
+  2. `calls.setRoot`: `EpochDistributor.setRoot(n, root, total, dataHash)`.
 
-  Send each as an `execTransaction`, from `/admin` or with `cast send … --account …` (keystores are mandatory on
-  mainnet). With no counted fees there is no tree and no calls.
+  `fund` is additive, so the Safe nonce guards it (D18):
+  - Read `Safe.nonce()` and `MiningReserve.totalFunded()` at one block. `totalFunded` must still equal
+    `calls.fund.expect.totalFunded`; otherwise run the tool again.
+  - An owner signs the SafeTx at exactly that nonce, with ECDSA. Never use a pre-validated (v = 1) signature, which binds
+    no nonce. A retry is recomputed, never re-signed at a later nonce.
+
+  `/admin` does all of this. The terminal path is in `docs/mainnet-runbook.md` §4, and R7 rehearses it. `setRoot` is an
+  ordinary `execTransaction`. Keystores are mandatory on mainnet. With no counted fees there is no tree and no calls.

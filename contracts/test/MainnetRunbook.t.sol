@@ -33,23 +33,59 @@ contract MainnetRunbookTest is Test {
 
     function test_runbookSequenceWithGates() public view {
         string memory live = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live";
-        string[] memory s = new string[](15);
+        string[] memory s = new string[](17);
         s[0] = "MAINNET_GO=yes forge script script/DeployHireling.s.sol";
         s[1] = "forge script script/PromoteHireling.s.sol";
         s[2] = live;
         s[3] = "production launch gate refused";
-        s[4] = "MAINNET_GO=yes forge script script/SafeAccept.s.sol";
-        s[5] = "forge script script/SafeAccept.s.sol --sig \"check()\"";
-        s[6] = live;
-        s[7] = "Hireling v1 production launch gate passed";
-        s[8] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
-        s[9] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
-        s[10] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
-        s[11] = "Post-deploy probes";
-        s[12] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz";
-        s[13] = live;
-        s[14] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
+        // Before the Safe takes ownership: no module and no guard, which the mining fund's nonce guard needs (D18).
+        s[4] = "getModulesPaginated(address,uint256)(address[],address)";
+        s[5] = GUARD_SLOT;
+        s[6] = "MAINNET_GO=yes forge script script/SafeAccept.s.sol";
+        s[7] = "forge script script/SafeAccept.s.sol --sig \"check()\"";
+        s[8] = live;
+        s[9] = "Hireling v1 production launch gate passed";
+        s[10] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
+        s[11] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
+        s[12] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
+        s[13] = "Post-deploy probes";
+        s[14] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz";
+        s[15] = live;
+        s[16] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
         _inOrder(doc, s, "runbook");
+    }
+
+    /// keccak256("guard_manager.guard.address"), Safe v1.4.1's guard storage slot.
+    string internal constant GUARD_SLOT = "0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8";
+
+    /// U-FUND-SEC-001: the terminal fund path is /admin's (D18): the remainder from calls.fund, while its expect still
+    /// matches totalFunded, signed as an ECDSA SafeTx at the nonce read with it, never pre-validated; R7 does the same,
+    /// and the testnet launch refuses a Safe with a module or a guard.
+    function test_fundIsNonceBoundEcdsa() public view {
+        string memory root = vm.projectRoot();
+        string memory readme = vm.readFile(string.concat(root, "/../scripts/mining/README.md"));
+        string memory mine = vm.readFile(string.concat(root, "/script/RehearseHireAndMine.s.sol"));
+        string memory launch = vm.readFile(string.concat(root, "/script/launch-testnet.sh"));
+        string[5] memory runbook = [
+            "calls.fund.expect.totalFunded",
+            "NONCE=$(cast call --block \"$B\"",
+            "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)(bytes32)",
+            "SIG=$(cast wallet sign --no-hash \"$H\" \"${KEY[@]}\")",
+            "Never use a pre-validated (v = 1) signature"
+        ];
+        for (uint256 i; i < runbook.length; ++i) {
+            assertTrue(vm.contains(doc, runbook[i]), string.concat("runbook lacks ", runbook[i]));
+        }
+        assertFalse(vm.contains(doc, "fund(n, total)"), "runbook still funds the total");
+        assertFalse(vm.contains(readme, "fund(n, total)"), "mining README still funds the total");
+        assertTrue(vm.contains(readme, "calls.fund.expect.totalFunded"), "mining README lacks the expect check");
+        assertTrue(vm.contains(readme, "Never use a pre-validated (v = 1) signature"), "mining README allows v = 1");
+        assertTrue(vm.contains(mine, "vm.sign(ownerKey, fundHash)"), "R7 does not ECDSA-sign the fund");
+        assertTrue(vm.contains(mine, "\"GS026\""), "R7 does not show the spent nonce refusing");
+        assertTrue(
+            vm.contains(launch, "getModulesPaginated(address,uint256)(address[],address)"), "launch: no module check"
+        );
+        assertTrue(vm.contains(launch, GUARD_SLOT), "launch: no guard check");
     }
 
     function test_runbookCarriesBudgetFundingAndFallbackKey() public view {

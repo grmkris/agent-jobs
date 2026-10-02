@@ -6,7 +6,8 @@
 # or, as the explicit testnet fallback, with the raw keys from .env.local: `… launch-testnet.sh --private-keys [flags]`.
 # Steps (any failure stops the run; every transaction hash is printed, and listed again at the end):
 #   0. checks: the RPC's chain is the config's and not 143; no v1 deployment recorded yet; the deployer key is
-#      roles.admin; the Safe is v1.4.1 with threshold 1 and the Safe-owner key is an owner; the oddTokens config
+#      roles.admin; the Safe is v1.4.1 with threshold 1, no modules and no guard, and the Safe-owner key is an owner; the
+#      oddTokens config
 #      exists; with the core reused, the deployer may grant its ADMIN_ROLE; both senders hold enough MON for the gas
 #      limits at twice the current gas price;
 #   1. DeployHireling dry run (no --broadcast);
@@ -18,7 +19,8 @@
 #      On mainnet the Recipe deploys the core and hands it ADMIN_ROLE and DEFAULT_ADMIN_ROLE itself. The Safe gets
 #      ADMIN_ROLE only (not the upgrade role); the deployer keeps its roles. Skipped when the Safe holds it already;
 #   6. readback: owner() == Safe and pendingOwner() == 0 on vault, feeSchedule, holding, evaluator, distributor and
-#      miningReserve, and the Safe holds the core's ADMIN_ROLE;
+#      miningReserve; the Safe holds the core's ADMIN_ROLE, and still has no modules and no guard (the mining fund's
+#      nonce guard, D18, holds only while execTransaction is the Safe's one way to act);
 #   7. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a hireling-v1 main pair under this Safe);
 #   8. DeployOddTokens, from the deployer.
 # Flags:
@@ -166,6 +168,17 @@ refuses() {
 }
 
 json() { jq -r "$1" "$CONFIG"; }
+# D18: MiningReserve.fund is bound to the Safe's nonce, which only execTransaction advances. A module acts without it
+# (execTransactionFromModule) and a guard can change what executes, so the Safe must have neither.
+SENTINEL=0x0000000000000000000000000000000000000001
+GUARD_SLOT=0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8 # keccak256("guard_manager.guard.address")
+safe_plain() {
+  local modules guard
+  modules=$(call "$SAFE" "getModulesPaginated(address,uint256)(address[],address)" $SENTINEL 10 | head -1)
+  [[ "$modules" == "[]" ]] || fail "the Safe $SAFE has modules enabled ($modules); the fund nonce guard (D18) needs none"
+  guard=$(cast storage --rpc-url "$RPC" "$SAFE" $GUARD_SLOT 2>/dev/null)
+  [[ "$guard" =~ ^0x0+$ ]] || fail "the Safe $SAFE has a guard ($guard); the fund nonce guard (D18) needs none"
+}
 call() { cast call --rpc-url "$RPC" "$@" 2>/dev/null; }
 mon() { cast from-wei "$1" 2>/dev/null | cut -c1-8; }
 
@@ -199,6 +212,7 @@ fi
 [[ "$(call "$SAFE" "VERSION()(string)")" == '"1.4.1"' ]] || fail "the Safe is not v1.4.1"
 [[ "$(call "$SAFE" "getThreshold()(uint256)")" == "1" ]] || fail "the Safe's threshold is not 1 (SafeAccept needs it)"
 [[ "$(call "$SAFE" "isOwner(address)(bool)" "$SAFE_OWNER")" == "true" ]] || fail "the Safe-owner key is not an owner"
+safe_plain
 PRICE=$(cast gas-price --rpc-url "$RPC" 2>/dev/null)
 for who in DEPLOYER SAFE_OWNER; do
   gas_var="GAS_$who"
@@ -279,6 +293,8 @@ if runs readback; then
       || fail "the Safe does not hold the reused core's ADMIN_ROLE (step pauser)"
     echo "  core $CORE ADMIN_ROLE: Safe"
   fi
+  safe_plain
+  echo "  Safe $SAFE: no modules, no guard"
   ok "owner() == Safe on all six, nothing pending"
 fi
 

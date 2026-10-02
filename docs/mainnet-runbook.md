@@ -184,7 +184,21 @@ relay (§2) and run it again.
 
 ### 3.5 The Safe accepts the six [tx]
 
-With a threshold-1 Safe, sent by one owner, from `contracts/`:
+First, the Safe must have no module and no guard. §4's funding is guarded by the Safe nonce (D18), which only
+`execTransaction` advances: a module acts without it (`execTransactionFromModule`), and a guard can change what
+executes. Stop if either line prints STOP, and never add a module or a guard later while §4 funds through this Safe:
+
+```
+SAFE=<safe>
+[ "$(cast call --rpc-url "$MONAD_MAINNET_RPC_URL" "$SAFE" 'getModulesPaginated(address,uint256)(address[],address)' \
+  0x0000000000000000000000000000000000000001 10 | head -1)" = "[]" ] || echo "STOP: the Safe has a module"
+[ "$(cast storage --rpc-url "$MONAD_MAINNET_RPC_URL" "$SAFE" \
+  0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8)" = "0x$(printf '%064d' 0)" ] \
+  || echo "STOP: the Safe has a guard"
+```
+
+`launch-testnet.sh` refuses the same way, before it sends anything and again at readback. Then, with a threshold-1
+Safe, sent by one owner, from `contracts/`:
 
 ```
 pwcheck ~/.config/hireling/safe-owner.password && \
@@ -290,10 +304,38 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
    checks the password file the same way before it signs. Then run `pnpm mining:epoch <n> --network monad-mainnet
    --prices <signed> --out <dir>`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
    Safe's two calls.
-2. The Safe sends `MiningReserve.fund(n, total)` and `EpochDistributor.setRoot(n, root, total, dataHash)`. R7 sends them
-   as two `execTransaction`s; `/admin`'s mining panel builds them for Safe{Wallet}. From a terminal, run
-   `pwcheck ~/.config/hireling/safe-owner.password`, then send each `execTransaction` with `cast send <safe> …
-   --account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password`, never `--private-key`.
+2. The Safe sends the file's calls. `/admin`'s mining panel is the route to use: it builds both and checks them.
+   - **`calls.fund`**, when present: `MiningReserve.fund(n, amount)` for the remainder the epoch still needs, not the
+     file's `total`. `fund` adds to what is already there, so the Safe nonce guards it (D18):
+     - Read `Safe.nonce()` and `MiningReserve.totalFunded()` at one block.
+     - `totalFunded` must still equal `calls.fund.expect.totalFunded`; if it doesn't, run `pnpm mining:epoch` again.
+     - An owner signs the SafeTx at exactly that nonce, with ECDSA. Never use a pre-validated (v = 1) signature: it
+       binds no nonce. Never re-sign a retry at a later nonce: recompute it.
+
+     A second funding signed for that nonce then reverts (GS026), as R7 shows.
+   - **`calls.setRoot`**: `EpochDistributor.setRoot(n, root, total, dataHash)`, an ordinary `execTransaction`.
+
+   From a terminal instead, with `MONAD_MAINNET_RPC_URL` exported. The script stops at the first failure:
+   ```
+   pwcheck ~/.config/hireling/safe-owner.password && \
+   E=<dir>/epoch-<n>.json SAFE=<safe> bash -euo pipefail <<'FUND'
+   R="$MONAD_MAINNET_RPC_URL" Z=0x0000000000000000000000000000000000000000 TO=$(jq -r .calls.fund.to "$E")
+   KEY=(--account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password)
+   B=$(cast block-number --rpc-url "$R")
+   NONCE=$(cast call --block "$B" --rpc-url "$R" "$SAFE" 'nonce()(uint256)')
+   [ "$(cast call --block "$B" --rpc-url "$R" "$TO" 'totalFunded()(uint256)' | cut -d' ' -f1)" \
+     = "$(jq -r .calls.fund.expect.totalFunded "$E")" ] || { echo "totalFunded moved: run mining:epoch again"; exit 1; }
+   H=$(cast call --rpc-url "$R" "$SAFE" \
+     'getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)(bytes32)' \
+     "$TO" 0 "$(jq -r .calls.fund.data "$E")" 0 0 0 0 $Z $Z "$NONCE")
+   SIG=$(cast wallet sign --no-hash "$H" "${KEY[@]}")
+   cast send --rpc-url "$R" "$SAFE" 'execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)' \
+     "$TO" 0 "$(jq -r .calls.fund.data "$E")" 0 0 0 0 $Z $Z "$SIG" "${KEY[@]}"
+   FUND
+   ```
+   Send `setRoot` the same way with its own `to` and `data`. It may carry the sending owner's pre-validated signature:
+   `$(cast abi-encode 'f(address)' <owner>)$(printf '%064d' 0)01`. Always sign from the keystore, never with
+   `--private-key`.
 3. Each claim stakes the reward into the vault for the claimant.
 
 `fund` works only for an ended epoch and only up to the cumulative schedule (500M in all). A root can be replaced until

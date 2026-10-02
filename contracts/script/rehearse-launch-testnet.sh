@@ -6,6 +6,7 @@
 #   - no signer, or a password file others can read, refuses; a chain-143 RPC refuses before anything is sent (with
 #     the --private-keys fallback); a second launch refuses;
 #   - --from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE: nothing sent);
+#   - a Safe with a module, or with a guard, refuses (the mining fund's nonce guard, D18, needs neither);
 #   - 3 days later anyone executes the proposed fee schedule; 8 days later anyone accepts the probed Holding.
 # Prints the gas limits each sender is charged. Writes config/rehearsal-testnet.json and chain-10143 broadcast logs
 # and removes both on exit; refuses to start if any already exist (a real testnet run's). Needs anvil, forge, cast,
@@ -165,6 +166,25 @@ ok "a second launch refuses before sending"
 "${LAUNCH[@]}" --from pauser --to sdk >"$LAUNCH_LOGS/readback.out" 2>&1 || { cat "$LAUNCH_LOGS/readback.out"; fail "--from pauser"; }
 grep -q "already holds the core's ADMIN_ROLE" "$LAUNCH_LOGS/readback.out" || fail "--from pauser granted ADMIN_ROLE again"
 ok "--from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE; nothing sent)"
+
+# D18 holds only while execTransaction is the Safe's one way to act: a module or a guard is refused.
+SENTINEL=0x0000000000000000000000000000000000000001
+GUARD_SLOT=0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8
+MODULE=0x000000000000000000000000000000000000bEEF
+self_call() { # the Safe calling itself, sent by an owner with a pre-validated signature
+  local sig; sig="$(cast abi-encode "f(address)" "$OWNER1")$(printf '%064d' 0)01"
+  [[ "$(cast send --rpc-url "$LOCAL" --private-key "$REHEARSAL_SAFE_OWNER_KEY" --json "$SAFE" \
+    "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)" \
+    "$SAFE" 0 "$(cast calldata "$@")" 0 0 0 0 $ZERO $ZERO "$sig" 2>/dev/null | jq -r .status)" == 0x1 ]]
+}
+self_call "enableModule(address)" $MODULE || fail "could not enable a module on the fork's Safe"
+refused "has modules enabled" "${LAUNCH[@]}" --from readback --to readback || fail "a Safe with a module was not refused: $OUT"
+self_call "disableModule(address,address)" $SENTINEL $MODULE || fail "could not disable the module again"
+cast rpc --rpc-url "$LOCAL" anvil_setStorageAt "$SAFE" $GUARD_SLOT "$(cast abi-encode "f(address)" $MODULE)" >/dev/null 2>&1
+refused "has a guard" "${LAUNCH[@]}" --from readback --to readback || fail "a Safe with a guard was not refused: $OUT"
+cast rpc --rpc-url "$LOCAL" anvil_setStorageAt "$SAFE" $GUARD_SLOT "0x$(printf '%064d' 0)" >/dev/null 2>&1
+"${LAUNCH[@]}" --from readback --to readback >"$LAUNCH_LOGS/plain.out" 2>&1 || { cat "$LAUNCH_LOGS/plain.out"; fail "readback after clearing"; }
+ok "a Safe with a module, or with a guard, is refused before anything is sent (D18); cleared, it passes again"
 
 # The timelocks, on the fork: 3 days for the fee schedule, 8 for the Holding; anyone executes.
 FEES=$(jq -r .deployment.hireling.feeSchedule "$CONFIG")
