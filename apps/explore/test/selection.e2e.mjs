@@ -96,6 +96,8 @@ try {
     state.selections = [selection(applications[0]), selection(applications[1])];
     await page.reload();
     await page.getByText('Selected — waiting for worker activation', { exact: true }).waitFor();
+    // Both applicants' badges render after the status line: wait for the third before counting.
+    await page.getByText('Selected', { exact: true }).nth(2).waitFor();
     assert.equal(await page.getByText('Selected', { exact: true }).count(), 3);
     state.selections = [selection(applications[0], 'invalid')];
     await page.reload();
