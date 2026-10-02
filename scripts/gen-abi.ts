@@ -30,7 +30,7 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['JobPool.sol', 'JobPool', 'pool', 'jobPoolAbi'],
   ['JobPoolFactory.sol', 'JobPoolFactory', 'poolFactory', 'jobPoolFactoryAbi'],
   ['HirelingHolding.sol', 'HirelingHolding', 'hirelingHolding', 'hirelingHoldingAbi'],
-  ['IHirelingEvaluator.sol', 'IHirelingEvaluator', 'hirelingEvaluator', 'hirelingEvaluatorAbi', [ownable()]],
+  ['HirelingEvaluator.sol', 'HirelingEvaluator', 'hirelingEvaluator', 'hirelingEvaluatorAbi'],
   ['StakeVault.sol', 'StakeVault', 'stakeVault', 'stakeVaultAbi'],
   ['FeeSchedule.sol', 'FeeSchedule', 'feeSchedule', 'feeScheduleAbi'],
   ['Factory.sol', 'Factory', 'factoryV2', 'factoryV2Abi'],
