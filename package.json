@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "vp run -r typecheck && vp run -r test && vp lint",
+    "check": "vp run -r typecheck && vp run -r test && bun test scripts/mining && vp lint",
     "check:fast": "vp run -r typecheck && vp lint",
     "lint": "vp lint",
     "lint:fix": "vp lint --fix",
@@ -23,6 +23,7 @@
     "reality-check": "bun scripts/reality-check.ts",
     "p0:drills": "bun scripts/p0-drills.ts",
     "mining:epoch": "bun scripts/mining/epoch.ts",
+    "mining:test": "bun test scripts/mining",
     "cre:simulate": "pnpm --filter @agent-jobs/ci-evidence run simulate",
     "cre:setup": "pnpm --filter @agent-jobs/ci-evidence run setup",
     "cre:cleanup": "pnpm --filter @agent-jobs/ci-evidence run cleanup",
