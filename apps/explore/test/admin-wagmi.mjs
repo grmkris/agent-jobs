@@ -1,24 +1,27 @@
 import { coreAbi, epochDistributorAbi, feeScheduleAbi, miningReserveAbi, stakeVaultAbi, hirelingHoldingAbi, hirelingEvaluatorAbi } from '@agent-jobs/sdk';
 import { useQuery } from '@tanstack/react-query';
-import { decodeFunctionData } from 'viem';
+import { decodeFunctionData, hexToNumber, recoverTypedDataAddress, size, slice } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { MULTI_SEND_CALL_ONLY, safeAbi, unpackMultiSend } from '../src/safe.ts';
+import { MULTI_SEND_CALL_ONLY, safeAbi, safeTxTypedData, unpackMultiSend } from '../src/safe.ts';
 import { sendFixtureTransaction } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
 
 // A fixture Safe and Hireling v1 in `window.__admin`: reads answer from it, and every call the wallet double sends
-// (through the Safe's execTransaction, or direct) is decoded and applied, so the console shows the chain moving.
+// (through the Safe's execTransaction, or direct) is decoded and applied, so the console shows the chain moving. The
+// Safe keeps a nonce as Safe v1.4.1 does: each Safe transaction moves it, and an ECDSA signature counts only when it
+// recovers to an owner for the transaction at the current nonce (else GS026, and nothing happens).
 const ZERO = '0x0000000000000000000000000000000000000000';
 const ZERO32 = `0x${'0'.repeat(64)}`;
 const eq = (a, b) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
 const key = (a) => a.toLowerCase();
-function answer({ address, functionName, args = [] }) {
+export function answer({ address, functionName, args = [] }) {
   const s = window.__admin;
   if (s.down) throw new Error('Fixture RPC unavailable');
   switch (functionName) {
     case 'getOwners': return s.owners;
     case 'getThreshold': return s.threshold;
+    case 'nonce': return s.nonce;
     case 'owner': return s.owner[key(address)] ?? ZERO;
     case 'pendingOwner': return s.pendingOwner[key(address)] ?? ZERO;
     case 'paused': return s.paused;
@@ -69,11 +72,17 @@ function decode(data) {
   }
   throw new Error('Fixture cannot decode the call');
 }
-function apply({ to, data }) {
+async function apply({ to, data }) {
   const s = window.__admin;
   if (!eq(to, s.safe)) return applyCall('direct', to, data, null);
   const { args } = decodeFunctionData({ abi: safeAbi, data });
   const [innerTo, , innerData, operation, , , , , , signatures] = args;
+  const v = size(signatures) === 65 ? hexToNumber(slice(signatures, 64, 65)) : null;
+  if (v === 27 || v === 28) {
+    const signer = await recoverTypedDataAddress({ ...safeTxTypedData(10143, s.safe, { to: innerTo, data: innerData }, s.nonce), signature: signatures });
+    if (!s.owners.some((o) => eq(o, signer))) throw new Error('Fixture Safe: GS026 (the signature is not an owner\'s for this nonce)');
+  }
+  s.nonce += 1n;
   if (operation === 0) return applyCall('safe', innerTo, innerData, signatures);
   // operation 1: the Safe delegatecalls MultiSendCallOnly, which makes each packed call in order, all in this one send.
   if (!eq(innerTo, MULTI_SEND_CALL_ONLY)) throw new Error('Fixture Safe: delegatecall to an unknown contract');
@@ -108,7 +117,7 @@ function applyCall(via, to, data, signatures) {
 }
 export const useSendTransaction = () => ({ sendTransactionAsync: async (transaction) => {
   const hash = await sendFixtureTransaction(transaction);
-  apply(transaction);
+  await apply(transaction);
   return hash;
 } });
 

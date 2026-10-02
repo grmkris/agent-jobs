@@ -14,10 +14,11 @@ import { createServer } from 'vite';
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-admin-evidence';
 const base = 'http://127.0.0.1:5196';
-const owner = '0x1111111111111111111111111111111111111111';
+// The signed-in Safe owner: the address of the public anvil test key #0, which the fixture wallet signs typed data with
+// (admin-wagmi.mjs), so its Safe transaction and price-list signatures recover to the owner.
+const owner = '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266';
 const stranger = '0x5555555555555555555555555555555555555555';
 const deployer = '0x7777777777777777777777777777777777777777';
-// The address of the public anvil test key #0, which the fixture wallet signs typed data with (admin-wagmi.mjs).
 const anvil0 = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 const c = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const multiSendCallOnly = '0x9641d764fc13c8b624c04430c7356c1c7c8102e2';
@@ -62,7 +63,7 @@ const errors = [];
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
 const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5196, strictPort: true }, plugins: [{ name: 'admin-fixtures', enforce: 'pre', resolveId(source) {
   if (source === 'wagmi') return `${directory}admin-wagmi.mjs`;
-  if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
+  if (source === 'wagmi/actions') return `${directory}admin-wagmi-actions.mjs`;
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
@@ -74,7 +75,7 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, decimals }) => {
+  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, nonce, decimals }) => {
     const K = 10n ** 21n;
     window.__hireling = contracts;
     window.__bytecode = bytecode;
@@ -95,12 +96,12 @@ async function fixture(viewport, options = {}) {
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
       currentEpoch: 2n, totalFunded: BigInt(funded), available: BigInt(funded), genesis: Math.floor(Date.now() / 1000) - 3 * 604800, roots: {}, calls: [], down: false,
-      decimals, signWith: 'owner',
+      decimals, signWith: 'owner', nonce: BigInt(nonce),
     };
   }, {
     account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
     previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null,
-    funded: (options.funded ?? 0n).toString(), decimals: tokenDecimals,
+    funded: (options.funded ?? 0n).toString(), nonce: (options.nonce ?? 7n).toString(), decimals: tokenDecimals,
   });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -248,6 +249,7 @@ try {
     await capture(page, `${device}-mining-file`);
     await mining.getByRole('button', { name: 'Review funding · 5,000 FACTORY' }).click();
     await page.getByText('fund(epoch, amount)', { exact: true }).waitFor();
+    await page.getByText(/with the signature you made for this exact transaction at the Safe’s current nonce/).waitFor();
     await send(page, 'Fund epoch 1');
     await mining.getByText('Funded: the remaining 5,000 FACTORY has gone in since the file was made.', { exact: true }).waitFor();
     await mining.getByRole('button', { name: 'Review the root' }).click();
@@ -268,7 +270,7 @@ try {
       'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:fund', 'safe:setRoot', 'safe:resizeRoot',
     ]);
     await capture(page, `${device}-mining`);
-    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'epoch file from another chain, or naming none, refused', 'fund then setRoot from the epoch file, no typed fields', 'root held until the distributor is funded', 'decoded review before every send'], passed: true });
+    results.push({ device, checks: ['owner sees Admin in Me', 'acceptOwnership via Safe with pre-validated signature', 'pause and unpause each one Safe tx through MultiSendCallOnly with notePause, from an external wallet', 'unnoted pause warned and noted directly', 'fee proposal refused rules', 'fee timelock countdown', 'cancel', 'execute direct by anyone', 'Holding refused before 8 days', 'revoke', 'epoch file from another chain, or naming none, refused', 'fund then setRoot from the epoch file, no typed fields', 'fund signed for the Safe nonce, accepted by the fixture Safe', 'root held until the distributor is funded', 'decoded review before every send'], passed: true });
     await context.close();
   }
 
@@ -321,11 +323,69 @@ try {
     results.push({ checks: ['partly funded: only the remainder offered, then the root', 'funded since the run by another amount: refused, re-run mining:epoch, nothing sent', 'fully funded: no fund call, root only'], passed: true });
   }
 
+  // D18: a funding is signed for the Safe's nonce, read with the reserve's total at one block. Any Safe transaction
+  // first and the Safe would refuse it (GS026), so the page refuses it too, fresh or restored, and offers nothing.
+  {
+    const key = `hireling.admin-op:${owner}`;
+    const { context, page } = await fixture(phone, { funded: 2000n * W });
+    await page.goto(`${base}/admin`);
+    const mining = section(page, 'Mining');
+    await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(2000n * W, 2000n * W)));
+    const review = mining.getByRole('button', { name: 'Review funding · 3,000 FACTORY' });
+    // Declined, or a signature that does not recover to the owner: nothing to review.
+    await page.evaluate(() => { window.__admin.signWith = 'decline'; });
+    await review.click();
+    await mining.getByText('You declined to sign. Nothing was signed.', { exact: true }).waitFor();
+    await page.evaluate(() => { window.__admin.signWith = 'other'; });
+    await review.click();
+    await mining.getByText(/^Your wallet’s signature does not recover to your address/).waitFor();
+    assert.equal(await page.getByText('Review and send', { exact: true }).count(), 0);
+    await page.evaluate(() => { window.__admin.signWith = 'owner'; });
+    await review.click();
+    await page.getByText('fund(epoch, amount)', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).waitFor();
+    const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), key);
+    assert.deepEqual(saved.guard, { nonce: '7', totalFunded: (2000n * W).toString() });
+    await capture(page, 'fund-signed-for-nonce');
+    // Another owner's Safe transaction goes first, funding the same 3,000.
+    await page.evaluate(() => { const s = window.__admin; s.nonce += 1n; s.totalFunded += 3000n * 10n ** 18n; s.available += 3000n * 10n ** 18n; window.dispatchEvent(new Event('visibilitychange')); });
+    await page.getByRole('alert').filter({ hasText: 'This funding can no longer be sent: A Safe transaction has gone through since this funding was signed (Safe nonce 7, now 8), so the Safe would refuse it. Run pnpm mining:epoch 1 again, load the new file and review the funding again.' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).count(), 0);
+    await capture(page, 'fund-stale-refused');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await context.close();
+
+    // The same draft restored after the Safe moved on: refused, nothing offered. Restored before it moved: offered.
+    const restored = [
+      [{ funded: 5000n * W, nonce: 8n }, saved, /A Safe transaction has gone through since this funding was signed \(Safe nonce 7, now 8\)/],
+      [{ funded: 2000n * W, nonce: 8n }, { ...saved, guard: { ...saved.guard, nonce: '8' } }, /It is not signed as you for the Safe’s nonce 8, so the Safe would refuse it\./],
+      [{ funded: 2500n * W }, saved, /The reserve has funded 2,500 FACTORY in all; this funding was signed when it had funded 2,000\./],
+      [{ funded: 2000n * W }, { txs: saved.txs }, /It was saved without the Safe nonce and funding it was signed against\./],
+      [{ funded: 2000n * W }, { txs: [{ ...saved.txs[0], data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [c.miningReserve, 0n, encodeFunctionData({ abi: miningAbi, functionName: 'fund', args: [1n, 3000n * W] }), 0, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) }] }, /MiningReserve\.fund goes out only signed for one Safe nonce/],
+    ];
+    for (const [options, draft, problem] of restored) {
+      const again = await fixture(phone, { ...options, draft });
+      await again.page.goto(`${base}/admin`);
+      await again.page.getByRole('alert').filter({ hasText: problem }).waitFor();
+      assert.equal(await again.page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).count(), 0);
+      assert.equal(await again.page.evaluate(() => window.__wallet.sends.length), 0);
+      await again.context.close();
+    }
+    const fresh = await fixture(phone, { funded: 2000n * W, draft: saved });
+    await fresh.page.goto(`${base}/admin`);
+    await fresh.page.getByText('Review and send', { exact: true }).waitFor();
+    await send(fresh.page, 'MiningReserve.fund as the Safe');
+    assert.equal(await fresh.page.evaluate(() => window.__admin.totalFunded.toString()), (5000n * W).toString());
+    assert.equal(await fresh.page.evaluate(() => window.__admin.nonce.toString()), '8');
+    await fresh.context.close();
+    results.push({ checks: ['fund snapshot: nonce and total read together, saved with the draft', 'declined or non-owner signature: nothing to review', 'another Safe tx after signing: refused, nothing offered', 'restored after the nonce moved: refused', 'restored with its saved nonce rewritten: the signature does not recover at the live nonce, refused', 'restored after the reserve total moved: refused', 'restored without a snapshot: refused', 'pre-validated fund draft: refused', 'restored while fresh: offered, sent, the fixture Safe accepts it at nonce 7'], passed: true });
+  }
+
   // The epoch price list (B8): the owner's own wallet signs the typed data mining:epoch --prices verifies, the file
   // downloads, and the mining tool's own code reads it back as epoch.ts does. Declined, or a signature recovering to
   // another address, offers nothing; any change after signing asks for a new signature.
   {
-    const { context, page } = await fixture(phone, { account: anvil0, owners: [anvil0, '0x2222222222222222222222222222222222222222'] });
+    const { context, page } = await fixture(phone);
     await page.goto(`${base}/admin`);
     const prices = section(page, 'Mining prices');
     assert.equal(await prices.getByRole('textbox', { name: 'Price list epoch' }).inputValue(), '1');

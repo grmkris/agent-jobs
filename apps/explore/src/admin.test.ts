@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, encodeFunctionData } from 'viem'
-import { type AdminContext, bpsOf, readAdminOp, readAdminTx, readEpochFile, resizeProblem, scheduleProposal } from './admin.ts'
-import { MULTI_SEND_CALL_ONLY, atomically, calldata, execTransaction, multiSend, preValidated, safeAbi } from './safe.ts'
+import { privateKeyToAccount } from 'viem/accounts'
+import { type AdminContext, bpsOf, fundProblem, readAdminOp, readAdminTx, readEpochFile, resizeProblem, scheduleProposal } from './admin.ts'
+import { MULTI_SEND_CALL_ONLY, atomically, calldata, execSigned, execTransaction, multiSend, preValidated, safeAbi, safeTxTypedData } from './safe.ts'
 
 const treasury = '0x9999999999999999999999999999999999999999'
 const ok = { thresholds: ['0', '10000', '100000', '1000000'], rates: ['30', '10', '3', '1'], treasury }
@@ -155,5 +156,33 @@ describe('reading an admin transaction back from its calldata', () => {
     expect(readAdminOp([pair], ctx)).toMatchObject([{ ok: true, via: 'atomic' }])
     expect(readAdminOp([noteAsSafe], ctx)).toMatchObject([{ ok: true, via: 'safe', calls: [{ functionName: 'notePause' }] }])
     expect(readAdminOp([tx(evaluator, note)], ctx)).toMatchObject([{ ok: true, via: 'direct' }])
+  })
+
+  it('sends MiningReserve.fund only signed for one Safe nonce (D18), and nothing else that way', async () => {
+    // A public anvil test key, never a real one.
+    const key = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+    const reserve = '0x7777777777777777777777777777777777777777'
+    const fundCtx: AdminContext = { ...ctx, owner: key.address, targets: { ...ctx.targets, [reserve]: { name: 'MiningReserve', abi: sdk.miningReserveAbi as Abi, safe: ['fund'], direct: [] } } }
+    const call = { to: reserve as `0x${string}`, data: encodeFunctionData({ abi: sdk.miningReserveAbi as Abi, functionName: 'fund', args: [1n, 3000n * W] }) }
+    const signature = await key.signTypedData(safeTxTypedData(10143, safe, call, 7n))
+    expect(readAdminTx(tx(safe, execSigned(signature, call)), fundCtx)).toMatchObject({ ok: true, via: 'safe', calls: [{ contract: 'MiningReserve', functionName: 'fund' }], signature })
+    expect(readAdminTx(tx(safe, execTransaction(key.address, call)), fundCtx)).toMatchObject({ ok: false, problem: expect.stringMatching(/fund goes out only signed for one Safe nonce/) })
+    // An ECDSA signature on any other call, or through MultiSend, is not something this console sends.
+    expect(readAdminTx(tx(safe, execSigned(signature, { to: evaluator, data: note })), fundCtx)).toMatchObject({ ok: false, problem: expect.stringMatching(/not signed as you/) })
+    expect(readAdminTx(tx(safe, execSigned(signature, { to: MULTI_SEND_CALL_ONLY, data: multiSend([{ to: core, data: pause }, { to: evaluator, data: note }]), operation: 1 })), fundCtx)).toMatchObject({ ok: false, problem: expect.stringMatching(/not signed as you/) })
+  })
+})
+
+describe('a funding signed for one Safe nonce', () => {
+  const guard = { nonce: '7', totalFunded: (2000n * W).toString() }
+  const me = '0x1111111111111111111111111111111111111111'
+  const live = { nonce: 7n, totalFunded: 2000n * W }
+  it('stands only while the nonce, the reserve total and the signer are what it was signed against', () => {
+    expect(fundProblem(guard, live, me, me, '1')).toBeNull()
+    expect(fundProblem(guard, { ...live, nonce: 8n }, me, me, '1')).toMatch(/Safe nonce 7, now 8\), so the Safe would refuse it\. Run pnpm mining:epoch 1 again/)
+    expect(fundProblem(guard, { ...live, totalFunded: 2500n * W }, me, me, '1')).toMatch(/funded 2,500 FACTORY in all; this funding was signed when it had funded 2,000/)
+    expect(fundProblem(guard, live, '0x2222222222222222222222222222222222222222', me, '1')).toMatch(/not signed as you for the Safe’s nonce 7/)
+    expect(fundProblem(undefined, live, me, me, '1')).toMatch(/saved without the Safe nonce/)
+    expect(fundProblem({ nonce: 'x', totalFunded: '0' }, live, me, me, '1')).toMatch(/saved without the Safe nonce/)
   })
 })

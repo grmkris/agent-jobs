@@ -5,7 +5,8 @@
  */
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, type Address, type Hex, decodeFunctionData, getAddress, isAddress, isHex, zeroAddress } from 'viem'
-import { MULTI_SEND_CALL_ONLY, describe, preValidated, safeAbi, unpackMultiSend } from './safe.ts'
+import { formatNumber } from './format.ts'
+import { MULTI_SEND_CALL_ONLY, describe, ecdsaSignature, preValidated, safeAbi, unpackMultiSend } from './safe.ts'
 import { factoryAmount } from './stake.ts'
 
 export interface ScheduleDraft {
@@ -178,7 +179,14 @@ export interface InnerCall {
 }
 
 export type AdminTx =
-  | { ok: true; via: 'safe' | 'atomic' | 'direct'; calls: InnerCall[]; outer: Array<[string, string]> | null }
+  | {
+      ok: true
+      via: 'safe' | 'atomic' | 'direct'
+      calls: InnerCall[]
+      outer: Array<[string, string]> | null
+      /** An owner's ECDSA signature of this Safe transaction at one nonce (D18): it holds only while that nonce is current. */
+      signature?: Hex
+    }
   | { ok: false; problem: string }
 
 const no = (problem: string) => ({ ok: false as const, problem })
@@ -187,6 +195,11 @@ const no = (problem: string) => ({ ok: false as const, problem })
 const ATOMIC = [['Core', ['pause', 'unpause']], ['HirelingEvaluator', ['notePause']]] as const
 /** The core's pause and unpause go out only inside that pair, never alone (U5-SEC-002); a lone notePause is fine. */
 const pairedOnly = (call: InnerCall) => call.contract === ATOMIC[0][0] && (ATOMIC[0][1] as readonly string[]).includes(call.functionName)
+/**
+ * `MiningReserve.fund` is additive, so it goes out signed for one Safe nonce (D18): a pre-validated signature commits
+ * to nothing but the caller, and two drafts could both land. Every other call keeps the pre-validated signature.
+ */
+const nonceBound = (call: InnerCall) => call.contract === 'MiningReserve' && call.functionName === 'fund'
 
 /**
  * Reads an admin transaction back from its calldata alone, and refuses it unless it is one this console builds for
@@ -228,7 +241,9 @@ export function readAdminTx(tx: { chainId: number; to: string; data: string; val
   if (value !== 0n || safeTxGas !== 0n || baseGas !== 0n || gasPrice !== 0n || !same(gasToken, zeroAddress) || !same(refundReceiver, zeroAddress)) {
     return no('It moves value or pays a refund from the Safe.')
   }
-  if (signatures.toLowerCase() !== preValidated(ctx.owner).toLowerCase()) return no('It is not signed as you, the signed-in Safe owner.')
+  const prevalidated = signatures.toLowerCase() === preValidated(ctx.owner).toLowerCase()
+  const ecdsa = ecdsaSignature(signatures)
+  if (!prevalidated && (ecdsa === null || operation !== 0)) return no('It is not signed as you, the signed-in Safe owner.')
   const outer: Array<[string, string]> = [
     ['to', to],
     ['value', '0'],
@@ -244,7 +259,9 @@ export function readAdminTx(tx: { chainId: number; to: string; data: string; val
     const inner = call(to, data, 'safe')
     if (typeof inner === 'string') return no(inner)
     if (pairedOnly(inner)) return no(`${inner.contract}.${inner.functionName} goes out only with the Evaluator’s notePause, as one MultiSend transaction.`)
-    return { ok: true, via: 'safe', calls: [inner], outer }
+    if (nonceBound(inner) && prevalidated) return no('MiningReserve.fund goes out only signed for one Safe nonce, so a stale funding cannot land (D18). Review the funding again.')
+    if (!nonceBound(inner) && !prevalidated) return no('It is not signed as you, the signed-in Safe owner.')
+    return ecdsa !== null && !prevalidated ? { ok: true, via: 'safe', calls: [inner], outer, signature: ecdsa } : { ok: true, via: 'safe', calls: [inner], outer }
   }
   if (operation !== 1) return no('It uses an unknown Safe operation.')
   if (!same(to, MULTI_SEND_CALL_ONLY)) return no('Its delegatecall is not to MultiSendCallOnly.')
@@ -273,3 +290,23 @@ export function readAdminOp(txs: ReadonlyArray<Parameters<typeof readAdminTx>[0]
 }
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+
+/** What a nonce-bound funding was signed against (D18), kept beside its transaction: the Safe's nonce and the reserve's total. */
+export interface FundGuard {
+  nonce: string
+  totalFunded: string
+}
+
+/**
+ * Whether a funding signed for one Safe nonce may still be offered: refused when no snapshot was kept with it, when any
+ * Safe transaction has gone through since (the nonce moved: the Safe would refuse it), when the reserve's total moved,
+ * or when its signature does not recover to this owner at the current nonce. `signer` is that recovery.
+ */
+export function fundProblem(guard: FundGuard | undefined, live: { nonce: bigint; totalFunded: bigint }, signer: string, owner: string, epoch: string): string | null {
+  const rerun = `Run pnpm mining:epoch ${epoch} again, load the new file and review the funding again.`
+  if (guard === undefined || !/^\d+$/.test(guard.nonce) || !/^\d+$/.test(guard.totalFunded)) return `It was saved without the Safe nonce and funding it was signed against. ${rerun}`
+  if (BigInt(guard.nonce) !== live.nonce) return `A Safe transaction has gone through since this funding was signed (Safe nonce ${guard.nonce}, now ${live.nonce}), so the Safe would refuse it. ${rerun}`
+  if (BigInt(guard.totalFunded) !== live.totalFunded) return `The reserve has funded ${formatNumber(live.totalFunded, 18)} FACTORY in all; this funding was signed when it had funded ${formatNumber(BigInt(guard.totalFunded), 18)}. ${rerun}`
+  if (!same(signer, owner)) return `It is not signed as you for the Safe’s nonce ${live.nonce}, so the Safe would refuse it. ${rerun}`
+  return null
+}

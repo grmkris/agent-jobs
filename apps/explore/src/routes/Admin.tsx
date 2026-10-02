@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type Abi, type Address, type Hex, erc20Abi, isAddress, recoverTypedDataAddress, zeroAddress } from 'viem'
 import { useReadContracts, useSignTypedData } from 'wagmi'
-import { getBytecode } from 'wagmi/actions'
+import { getBlockNumber, getBytecode, readContracts } from 'wagmi/actions'
 import type { TxRequest } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { useToast } from '../components/Sheet.tsx'
@@ -13,10 +13,10 @@ import { walletRefused } from '../components/txOperation.ts'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber, rewardTokenList, subscribeTokens, tokenMeta, tokenRegistryVersion } from '../format.ts'
-import { type AdminContext, type AdminTx, type EpochFile, readAdminOp, readEpochFile, resizeProblem, scheduleProposal } from '../admin.ts'
+import { type AdminContext, type AdminTx, type EpochFile, type FundGuard, fundProblem, readAdminOp, readEpochFile, resizeProblem, scheduleProposal } from '../admin.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
 import { type PriceDraft, priceListFile, priceListOf, priceTypedData } from '../prices.ts'
-import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execTransaction, safeAbi } from '../safe.ts'
+import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execSigned, execTransaction, safeAbi, safeTxTypedData, walletSignature } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
@@ -42,26 +42,31 @@ export function useSafeOwner(address: string | undefined): boolean | null {
 
 type Via = 'safe' | 'direct'
 /**
- * What the page will send: its transactions, kept until they are done. Only the transactions are stored; every call
- * shown or sent is decoded from their calldata and checked again (`readAdminOp`), so a stored draft is never trusted.
+ * What the page will send: its transactions, kept until they are done. Every call shown or sent is decoded from their
+ * calldata and checked again (`readAdminOp`), so a stored draft is never trusted. A nonce-bound funding (D18) also
+ * keeps the Safe nonce and reserve total it was signed against; they can only make the page refuse it, never accept it.
  */
 interface Op {
   title: string
   txs: TxRequest[]
+  guard?: FundGuard
 }
 const opKey = (me: string) => `hireling.admin-op:${me.toLowerCase()}`
-function loadTxs(me: string): TxRequest[] | null {
+function loadOp(me: string): Omit<Op, 'title'> | null {
   try {
-    const saved = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as { txs?: unknown } | null
-    return saved !== null && Array.isArray(saved.txs) ? (saved.txs as TxRequest[]) : null
+    const saved = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as { txs?: unknown; guard?: unknown } | null
+    if (saved === null || !Array.isArray(saved.txs)) return null
+    const g = saved.guard as Partial<FundGuard> | undefined
+    const guard = g !== undefined && typeof g.nonce === 'string' && typeof g.totalFunded === 'string' ? { nonce: g.nonce, totalFunded: g.totalFunded } : undefined
+    return { txs: saved.txs as TxRequest[], ...(guard === undefined ? {} : { guard }) }
   } catch {
     return null
   }
 }
-function saveTxs(me: string, txs: TxRequest[] | null) {
+function saveOp(me: string, op: Op | null) {
   try {
-    if (txs === null) localStorage.removeItem(opKey(me))
-    else localStorage.setItem(opKey(me), JSON.stringify({ txs }))
+    if (op === null) localStorage.removeItem(opKey(me))
+    else localStorage.setItem(opKey(me), JSON.stringify(op.guard === undefined ? { txs: op.txs } : { txs: op.txs, guard: op.guard }))
   } catch {
     // storage blocked: the operation lasts as long as the page
   }
@@ -99,10 +104,17 @@ const titleOf = (reads: AdminTx[]) =>
  * (D13), whatever the wallet; there is no sequential fallback.
  */
 type Act = (title: string, call: Call | readonly Call[], via: Via) => void
+/**
+ * `fund(epoch, amount, expectTotalFunded)`: snapshot the Safe's nonce and the reserve's total at one block, and unless
+ * the total is what the epoch file read, have the owner sign `MiningReserve.fund` for that nonce (D18) and show it for
+ * review. Resolves to why it was not prepared, or null.
+ */
+type Fund = (epoch: bigint, amount: bigint, expectTotalFunded: bigint) => Promise<string | null>
 
 /**
  * The Safe's console (ADR-0011). Shown only to an owner of the Safe that owns Hireling v1; the Safe's threshold is 1,
- * so the owner's wallet calls `execTransaction` itself with a pre-validated signature. Every action shows the exact
+ * so the owner's wallet calls `execTransaction` itself with a pre-validated signature, or, to fund an epoch, with its
+ * signature of that Safe transaction at the current nonce (D18). Every action shows the exact
  * call, decoded from the calldata that will be sent, before the wallet opens. Permissionless steps (executing a fee
  * schedule, accepting a Holding after its delay) go straight from the wallet.
  */
@@ -187,14 +199,15 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
   const toast = useToast()
   const ctx = useMemo(() => adminContext(c, safe, me), [c, safe, me])
   const [op, setOpState] = useState<Op | null>(() => {
-    const txs = loadTxs(me)
-    return txs === null ? null : { title: titleOf(readAdminOp(txs, ctx)), txs }
+    const saved = loadOp(me)
+    return saved === null ? null : { title: titleOf(readAdminOp(saved.txs, ctx)), ...saved }
   })
   const [dismissable, setDismissable] = useState(true)
   const setOp = (next: Op | null) => {
-    saveTxs(me, next === null ? null : next.txs)
+    saveOp(me, next)
     setOpState(next)
   }
+  const { signTypedDataAsync } = useSignTypedData()
   // MultiSendCallOnly must have code here before a pause pair is sent through it (D13).
   const multiSendCode = useQuery({
     queryKey: ['bytecode', chain.id, MULTI_SEND_CALL_ONLY],
@@ -216,11 +229,73 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
     setOp({ title, txs: [tx] })
     window.scrollTo({ top: 0 })
   }
+  const fund: Fund = async (epoch, amount, expectTotalFunded) => {
+    const call = { to: c.miningReserve, data: calldata({ contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi as Abi, functionName: 'fund', args: [epoch, amount] }) }
+    // One block for both reads, so the nonce signed for is the one at which the reserve had funded this much.
+    const blockNumber = await getBlockNumber(wagmiConfig, { chainId: chain.id })
+    const [nonce, totalFunded] = await readContracts(wagmiConfig, {
+      contracts: [
+        { address: safe, abi: safeAbi, functionName: 'nonce', chainId: chain.id },
+        { address: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'totalFunded', chainId: chain.id },
+      ],
+      blockNumber,
+      allowFailure: false,
+    })
+    if (totalFunded !== expectTotalFunded) return `The reserve has funded ${fmt(totalFunded)} in all; the file expected ${fmt(expectTotalFunded)}. Run pnpm mining:epoch ${epoch} again and load the new file.`
+    const typed = safeTxTypedData(chain.id, safe, call, nonce)
+    let signature: Hex | null
+    try {
+      signature = walletSignature(await signTypedDataAsync({ ...typed, account: me }))
+    } catch (failure) {
+      return walletRefused(failure) ? 'You declined to sign. Nothing was signed.' : friendlyError(failure)
+    }
+    if (signature === null || !same(await recoverTypedDataAddress({ ...typed, signature }), me)) {
+      return 'Your wallet’s signature does not recover to your address, so the Safe would refuse it. Funding needs a plain wallet (EOA) signature from a Safe owner.'
+    }
+    setOp({
+      title: `Fund epoch ${epoch}`,
+      txs: [{ description: `MiningReserve.fund as the Safe, signed for Safe nonce ${nonce}`, chainId: chain.id, to: safe, data: execSigned(signature, call), value: '0' }],
+      guard: { nonce: nonce.toString(), totalFunded: totalFunded.toString() },
+    })
+    window.scrollTo({ top: 0 })
+    return null
+  }
   // What is shown and sent is read back from the calldata on every render, the same for a fresh and a restored op.
   const reads = op === null ? [] : readAdminOp(op.txs, ctx)
-  const refused = reads.find((r) => !r.ok)
+  // A funding signed for one Safe nonce (D18) is checked against the chain before it is offered, and again after any
+  // failure: any Safe transaction since, or any change to the reserve's total, and it is refused. Not while it is being
+  // sent: its own transaction moves the nonce.
+  const bound = reads.find((r): r is Extract<AdminTx, { ok: true }> => r.ok && r.signature !== undefined)
+  const boundCall = bound?.calls[0]
+  const live = useReadContracts({
+    contracts: [
+      { address: safe, abi: safeAbi, functionName: 'nonce', chainId: chain.id },
+      { address: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'totalFunded', chainId: chain.id },
+    ],
+    query: { enabled: bound !== undefined, refetchInterval: 10_000 },
+  })
+  const liveNonce = result<bigint>(live.data, 0)
+  const liveFunded = result<bigint>(live.data, 1)
+  const signer = useQuery({
+    queryKey: ['safe-signer', boundCall?.data, bound?.signature, liveNonce?.toString()],
+    queryFn: () => recoverTypedDataAddress({ ...safeTxTypedData(chain.id, safe, { to: boundCall?.to ?? zeroAddress, data: boundCall?.data ?? '0x' }, liveNonce ?? 0n), signature: bound?.signature ?? '0x' }),
+    enabled: bound !== undefined && liveNonce !== undefined,
+    staleTime: Infinity,
+  })
+  const epochOf = boundCall?.args.find(([name]) => name === 'epoch')?.[1] ?? '<n>'
+  const stale =
+    bound === undefined || !dismissable || liveNonce === undefined || liveFunded === undefined || signer.data === undefined
+      ? null
+      : fundProblem(op?.guard, { nonce: liveNonce, totalFunded: liveFunded }, signer.data, me, epochOf)
+  const refused = reads.find((r) => !r.ok) ?? (stale === null ? undefined : { ok: false as const, problem: stale })
   const atomic = reads.some((r) => r.ok && r.via === 'atomic')
-  const blocked = refused !== undefined ? null : atomic && !atomicReady ? (multiSendCode.isLoading ? 'Checking MultiSendCallOnly on this network…' : `MultiSendCallOnly has no code at ${MULTI_SEND_CALL_ONLY} on this network, so these calls cannot go as one transaction. Nothing is sent.`) : null
+  const checking = bound !== undefined && dismissable && (liveNonce === undefined || liveFunded === undefined || signer.data === undefined)
+  const blocked =
+    refused !== undefined
+      ? null
+      : checking
+        ? live.isError ? 'The Safe’s nonce cannot be read right now, so this funding is not offered. Try again in a moment.' : 'Checking the Safe’s nonce…'
+        : atomic && !atomicReady ? (multiSendCode.isLoading ? 'Checking MultiSendCallOnly on this network…' : `MultiSendCallOnly has no code at ${MULTI_SEND_CALL_ONLY} on this network, so these calls cannot go as one transaction. Nothing is sent.`) : null
   const busy = op !== null
   return (
     <>
@@ -228,7 +303,9 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
       {op !== null && refused !== undefined && !refused.ok && (
         <Section title="Saved operation refused">
           <div role="alert" className="grid gap-2 rounded-xl bg-bad-bg p-4 text-[0.9rem] text-bad">
-            <p>A saved admin operation does not read as one this console sends for this Safe and wallet: {refused.problem} It was not sent.</p>
+            <p>
+              {reads.every((r) => r.ok) ? 'This funding can no longer be sent:' : 'A saved admin operation does not read as one this console sends for this Safe and wallet:'} {refused.problem} It was not sent.
+            </p>
             <Button variant="danger" onClick={() => setOp(null)}>Discard it</Button>
           </div>
         </Section>
@@ -266,7 +343,7 @@ function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addre
       <Fees c={c} act={act} busy={busy} />
       <Holdings c={c} act={act} busy={busy} />
       <Prices c={c} me={me} />
-      <Mining c={c} act={act} busy={busy} />
+      <Mining c={c} act={act} fund={fund} busy={busy} />
     </>
   )
 }
@@ -311,9 +388,15 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
       ))}
       {read.outer !== null ? (
         <>
-          <p className="text-[0.88rem] text-label-2">
-            Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with your owner signature (r = you, s = 0, v = 1).
-          </p>
+          {read.signature !== undefined ? (
+            <p className="text-[0.88rem] text-label-2">
+              Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with the signature you made for this exact transaction at the Safe’s current nonce. If any other Safe transaction goes first, the Safe refuses this one, so it can never land twice.
+            </p>
+          ) : (
+            <p className="text-[0.88rem] text-label-2">
+              Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with your owner signature (r = you, s = 0, v = 1).
+            </p>
+          )}
           <Group className="bg-bg">
             {read.outer.map(([name, value]) => (
               <KV key={name} k={name} stack>
@@ -857,7 +940,7 @@ function Prices({ c, me }: { c: HirelingContracts; me: Address }) {
   )
 }
 
-function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean }) {
+function Mining({ c, act, fund, busy }: { c: HirelingContracts; act: Act; fund: Fund; busy: boolean }) {
   const now = useNow()
   const base = useReadContracts({
     contracts: [
@@ -887,6 +970,8 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
   const end = result<bigint>(detail.data, 2)
   const root = result<EpochRoot>(detail.data, 3)
   const [form, setForm] = useState({ resize: '' })
+  const [preparing, setPreparing] = useState(false)
+  const [fundError, setFundError] = useState<string | null>(null)
   // The epoch's mining output (D17): setRoot and fund take their arguments from it, never from typed fields.
   const [upload, setUpload] = useState<{ name: string; file: EpochFile } | { name: string; problem: string } | null>(null)
   const loaded = upload !== null && 'file' in upload ? upload.file : null
@@ -1016,14 +1101,22 @@ function Mining({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolea
                     </Group>
                     <Button
                       variant="tinted"
-                      disabled={busy}
+                      disabled={busy || preparing}
+                      busy={preparing}
                       onClick={() => {
                         const due = loaded.fund
-                        if (due !== null) act(`Fund epoch ${loaded.epoch}`, { contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'fund', args: [loaded.epoch, due.amount] }, 'safe')
+                        if (due === null) return
+                        setPreparing(true)
+                        setFundError(null)
+                        fund(loaded.epoch, due.amount, due.expectTotalFunded)
+                          .then(setFundError, (failure: unknown) => setFundError(friendlyError(failure)))
+                          .finally(() => setPreparing(false))
                       }}
                     >
                       Review funding · {fmt(loaded.fund.amount)}
                     </Button>
+                    <p className="text-[0.82rem] text-label-2">Your wallet signs this funding for the Safe’s current nonce, then sends it: if any other Safe transaction goes first, the Safe refuses it.</p>
+                    {fundError !== null && <ErrorText>{fundError}</ErrorText>}
                   </>
                 )}
                 <p className="text-[0.85rem] font-semibold">2. Post the root</p>
