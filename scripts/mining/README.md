@@ -7,8 +7,9 @@ the computed file for Collect:
 pnpm mining:publish <epoch-n.json> --stage staging|prod
 ```
 
-This checks the selected network config, RPC chain id, every claim/proof, total
-and recomputed `dataHash`, then requires the file's root/total/dataHash to equal
+This checks the selected network config, RPC chain id, every claim/proof, the
+serialized standard-v1 tree (encoding, nodes, values and indexes), total and
+recomputed `dataHash`, then requires the file's root/total/dataHash to equal
 `EpochDistributor.rootOf(epoch)`. It uploads the captured file bytes to
 `mining/epoch-<n>.json` in the existing Manifests bucket and reads them back to
 compare sha256. A failed readback exits unsuccessfully; retry the same file.

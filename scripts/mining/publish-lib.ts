@@ -54,7 +54,31 @@ export function parseEpoch(bytes: Uint8Array, stage: PublishStage) {
     sum += BigInt(amount)
     leaves.push(leaf)
   }
-  if (total === 0n || sum !== total || leaves.length === 0 || buildTree(leaves).tree[0] !== root) return refuse('claims-invalid')
+  if (total === 0n || sum !== total || leaves.length === 0) return refuse('claims-invalid')
+
+  // The serialized StandardMerkleTree dump must reproduce the same claims,
+  // nodes and indexes before the original bytes can be published.
+  const dump = record(file.tree)
+  if (dump.format !== 'standard-v1' || !Array.isArray(dump.leafEncoding)
+    || dump.leafEncoding.length !== 3 || dump.leafEncoding[0] !== 'uint256'
+    || dump.leafEncoding[1] !== 'address' || dump.leafEncoding[2] !== 'uint256'
+    || !Array.isArray(dump.tree) || !Array.isArray(dump.values)) return refuse('artifact-invalid')
+  const rebuilt = buildTree(leaves)
+  if (dump.tree.length !== rebuilt.tree.length || dump.values.length !== leaves.length) return refuse('claims-invalid')
+  const nodes = dump.tree.map(hash)
+  if (nodes.some((node, index) => node !== rebuilt.tree[index])) return refuse('claims-invalid')
+  const expected = new Map(rebuilt.values.map(({ value, treeIndex }) => [`${value[0]}:${value[1]}:${value[2]}`, treeIndex]))
+  const indexes = new Set<number>()
+  for (const raw of dump.values) {
+    const entry = record(raw), value = entry.value, treeIndex = entry.treeIndex
+    if (!Array.isArray(value) || value.length !== 3 || typeof treeIndex !== 'number' || !Number.isSafeInteger(treeIndex)
+      || treeIndex < 0 || treeIndex >= rebuilt.tree.length) return refuse('artifact-invalid')
+    const valueEpoch = uint(value[0]), account = value[1], amount = uint(value[2])
+    if (typeof account !== 'string' || !/^0x[\da-f]{40}$/.test(account) || indexes.has(treeIndex)) return refuse('artifact-invalid')
+    indexes.add(treeIndex)
+    if (expected.get(`${valueEpoch}:${account}:${amount}`) !== treeIndex) return refuse('claims-invalid')
+  }
+  if (indexes.size !== leaves.length || rebuilt.tree[0] !== root) return refuse('claims-invalid')
   return { epoch, root, total, dataHash }
 }
 

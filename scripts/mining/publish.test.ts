@@ -9,11 +9,15 @@ import { buildTree, proofOf } from './tree.ts'
 import { type Hex } from './viem.ts'
 
 const account = `0x${'1'.repeat(40)}` as const
+const account2 = `0x${'2'.repeat(40)}` as const
+const account3 = `0x${'3'.repeat(40)}` as const
 const fileOf = (stage: PublishStage = 'staging') => {
   const chainId = stage === 'staging' ? 10143 : 143
   const inputs = { chainId, epoch: '0', window: { toBlockHash: `0x${'2'.repeat(64)}` }, fees: [] }
-  const tree = buildTree([['0', account, '5']])
-  return { chainId, epoch: '0', inputs, root: tree.tree[0]!, total: '5', dataHash: dataHashOf(inputs), tree, claims: { [account]: { amount: '5', proof: proofOf(tree, 0) } } }
+  const tree = buildTree([['0', account, '5'], ['0', account2, '7'], ['0', account3, '11']])
+  const claims: Record<string, { amount: string; proof: Hex[] }> = {}
+  tree.values.forEach((entry, index) => { claims[entry.value[1]] = { amount: entry.value[2], proof: proofOf(tree, index) } })
+  return { chainId, epoch: '0', inputs, root: tree.tree[0]!, total: '23', dataHash: dataHashOf(inputs), tree, claims }
 }
 const bytesOf = (file: unknown) => Buffer.from(` ${JSON.stringify(file, null, 2)}\n\n`)
 const address = (n: number) => `0x${n.toString(16).padStart(40, '0')}`
@@ -30,7 +34,7 @@ const configOf = (stage: PublishStage = 'staging'): DeploymentConfig => ({
 })
 const fake = (stage: PublishStage = 'staging') => {
   const file = fileOf(stage), puts: { bucket: string; key: string; bytes: Uint8Array }[] = []
-  const live = { root: file.root, total: 5n, dataHash: file.dataHash }
+  const live = { root: file.root, total: BigInt(file.total), dataHash: file.dataHash }
   const reader: EpochReader = { getChainId: async () => file.chainId, readRoot: async () => live }
   const store: ManifestsStore = {
     bucket: async () => 'fixture-bucket',
@@ -69,6 +73,40 @@ test('root, total and dataHash must independently match the current on-chain epo
     await expect(publishEpoch(bytesOf(f.file), 'staging', configOf(), f.reader, f.store)).rejects.toThrow('root-mismatch')
     expect(f.puts).toHaveLength(0)
   }
+})
+
+test('MINING-PUBLISH-001: missing or corrupt serialized dumps refuse before any PUT', async () => {
+  const original = fileOf(), first = original.tree.values[0]!
+  const changedValue = (patch: Record<string, unknown>) => ({ ...original.tree, values: [{ ...first, ...patch }, ...original.tree.values.slice(1)] })
+  const invalidDumps: unknown[] = [
+    undefined, null,
+    { ...original.tree, format: 'other' },
+    { ...original.tree, leafEncoding: ['uint256', 'bytes20', 'uint256'] },
+    { ...original.tree, tree: original.tree.tree.map((node, index) => index === 1 ? `0x${'f'.repeat(64)}` : node) },
+    { ...original.tree, tree: original.tree.tree.map((node, index) => index === 0 ? `0x${'0'.repeat(64)}` : node) },
+    { ...original.tree, tree: original.tree.tree.slice(1) },
+    changedValue({ value: ['1', account, '5'] }),
+    changedValue({ value: ['0', account2, '5'] }),
+    changedValue({ value: ['0', account, '6'] }),
+    changedValue({ treeIndex: original.tree.values[1]!.treeIndex }),
+    changedValue({ treeIndex: first.treeIndex + 0.5 }),
+    { ...original.tree, values: original.tree.values.slice(1) },
+    { ...original.tree, values: [first, first, original.tree.values[2]] },
+  ]
+  for (const tree of invalidDumps) {
+    const f = fake()
+    await expect(publishEpoch(bytesOf({ ...original, tree }), 'staging', configOf(), f.reader, f.store)).rejects.toThrow()
+    expect(f.puts).toHaveLength(0)
+  }
+})
+
+test('MINING-PUBLISH-001: harmless dump value ordering still publishes the original bytes', async () => {
+  const f = fake()
+  f.file.tree.values.reverse()
+  const bytes = bytesOf(f.file)
+  await publishEpoch(bytes, 'staging', configOf(), f.reader, f.store)
+  expect(f.puts).toHaveLength(1)
+  expect(Buffer.from(f.puts[0]!.bytes)).toEqual(bytes)
 })
 
 test('tampered inputs, claim amounts/proofs, duplicate account spellings and noncanonical epochs refuse', () => {
