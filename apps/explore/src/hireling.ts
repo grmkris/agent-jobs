@@ -2,7 +2,7 @@
  * Hireling v1's protocol contracts on this deploy's network (ADR-0011; config `deployment.hireling`, decision D1):
  * FACTORY v2, the stake vault, the fee schedule, mining, the v1 Holding/Evaluator pair (the `main` stack) and the Safe
  * that owns them. Null until v1 is deployed here, and the pages that need them say so; nothing is read from a
- * placeholder. The one place that wires them, so the SDK's typed `hireling` block (B1) is a change to this file only.
+ * placeholder. Read from the SDK's typed `deployment.hireling` (B1) and the v1 `main` stack, in this one place.
  */
 import type { Address } from 'viem'
 import { deployment } from './wallet.ts'
@@ -15,13 +15,14 @@ export interface HirelingContracts {
   miningReserve: Address
   holding: Address
   evaluator: Address
-  /** The owner of every v1 contract; null while the config does not record it. */
+  /** The owner of every v1 contract (the SDK requires it in a v1 config; null is kept for callers' guards). */
   safe: Address | null
 }
 
-type Block = Omit<HirelingContracts, 'holding' | 'evaluator' | 'safe'> & { safe?: Address }
-const block = (deployment as { hireling?: Block | null }).hireling ?? null
+const h = deployment.hireling
 const main = deployment.stacks.main
 
 export const hireling: HirelingContracts | null =
-  block === null || main === undefined ? null : { ...block, holding: main.holding, evaluator: main.evaluator, safe: block.safe ?? null }
+  h === null || main === undefined || main.kind !== 'hireling-v1'
+    ? null
+    : { factory: h.factory, vault: h.vault, feeSchedule: h.feeSchedule, distributor: h.distributor, miningReserve: h.miningReserve, holding: main.holding, evaluator: main.evaluator, safe: h.safe }
