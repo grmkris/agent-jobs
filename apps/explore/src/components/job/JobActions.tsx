@@ -13,10 +13,11 @@ import { friendlyError } from '../../txErrors.ts'
 import { typedDataArgs } from '../../typed-data.ts'
 import { earnedLine, useAgents } from '../../routes/Agents.tsx'
 import { BoardLink, boardRoutes } from '../BoardLink.tsx'
+import { SignInToPublish } from '../post/SignInToPublish.tsx'
 import { ConfirmSheet, useToast } from '../Sheet.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 import { Badge, Button, EmptyState, ErrorText, Field, Group, ListRow, Section, Segmented, TextArea, cn } from '../ui.tsx'
-import { Monogram } from '../Wallet.tsx'
+import { Monogram, type useSignedIn } from '../Wallet.tsx'
 import { DeliverableLine } from './Deliverables.tsx'
 
 export type JobEvent = 'awarded' | 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
@@ -63,7 +64,12 @@ const VIOLATIONS = [
 ] as const
 type Violation = (typeof VIOLATIONS)[number][0]
 
-export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true, onEvent }: { job: ActionJob; phase: Phase; roles: string[]; signedIn: boolean; sourceAvailable?: boolean; onEvent?: ((type: JobEvent, payload: Record<string, unknown>) => void) | undefined }) {
+/**
+ * `afterSignIn` is what the viewer could send once signed in; while they are not, those actions show as a sign-in
+ * action instead (a button that cannot send would only fail silently).
+ */
+export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAvailable = true, onEvent }: { job: ActionJob; phase: Phase; roles: string[]; auth: ReturnType<typeof useSignedIn>; afterSignIn?: JobAction[]; sourceAvailable?: boolean; onEvent?: ((type: JobEvent, payload: Record<string, unknown>) => void) | undefined }) {
+  const signedIn = auth.signedIn
   const qc = useQueryClient()
   const toast = useToast()
   const api = boardApi(job.boardId)
@@ -104,7 +110,9 @@ export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true
   }
 
   const go = async () => {
-    if (pending === null || txs !== null || !sourceAvailable || address === undefined) return
+    if (pending === null || txs !== null) return
+    if (!sourceAvailable) return setError('The job details are unavailable right now, so nothing can be sent. Retry them above.')
+    if (address === undefined || !signedIn) return setError('Sign in first: only a signed-in wallet can send this.')
     setBusy(true)
     setError(null)
     try {
@@ -140,6 +148,8 @@ export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true
 
   const label = (a: JobAction) =>
     a === 'approve' ? `Approve and pay ${reward}` : a === 'reject' ? 'Reject' : a === 'cancel' ? 'Cancel the job' : (SETTLE_LABEL[phase.timeout ?? ''] ?? 'Release what is left in escrow')
+  const settleOnly = afterSignIn.every((a) => a === 'settle')
+  const signInLabel = settleOnly ? `Sign in to ${label('settle').replace(/^./, (c) => c.toLowerCase())}` : 'Sign in to act on this job'
 
   return (
     <>
@@ -167,7 +177,16 @@ export function JobActions({ job, phase, roles, signedIn, sourceAvailable = true
           )}
         </div>
       )}
-      {!signedIn && phase.timeout !== null && <p className="px-4 text-[0.85rem] text-label-2">Anyone signed in can send this step; sign in to do it.</p>}
+      {!signedIn && afterSignIn.length > 0 && (
+        <div className="grid gap-2">
+          <div className="material sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 grid rounded-2xl p-2.5 shadow-float lg:bottom-4">
+            <SignInToPublish auth={auth} label={signInLabel} />
+          </div>
+          <p className="px-4 text-[0.85rem] text-label-2">
+            {settleOnly ? 'Anyone signed in can send this step; sign in to do it.' : 'This wallet has a part in this job. Sign in to see and send what it can do.'}
+          </p>
+        </div>
+      )}
 
       <ConfirmSheet
         open={pending?.kind === 'approve'}

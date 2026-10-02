@@ -12,10 +12,14 @@ const token = '0x2222222222222222222222222222222222222222';
 const transactions = ['Approve reward token', 'Approve FACTORY bond', 'Publish job'].map((description, index) => ({ description, chainId: 10143, to: token, data: `0x0${index}`, value: '0' }));
 const now = Math.floor(Date.now() / 1000);
 const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job', creator, approver: creator, mode: 'hire', stack: 'main', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: '0xabcdef', manifestUrl: '/offers/fixture.json', terms: { brief: `Long URL https://example.test/${'long-segment'.repeat(60)}`, acceptanceCriteria: [`Long criterion ${'unbroken'.repeat(60)}`], evidencePolicy: { checks: [] }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } }, deliverable: { accepts: ['url'] }, screening: { verdict: 'ok', reasons: [] }, executionBudget: null, requiredChecks: [], brief: `https://example.test/${'segment'.repeat(100)}`, acceptanceCriteria: ['Readable on a phone'], status: 'completed' };
+// A Privy app id whatever the runner's shell holds, so sign-in buttons render the same everywhere; Privy itself is a
+// test double (privy.mjs, privy-react-auth.mjs) and nothing reaches Privy.
+process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
 const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5190, strictPort: true }, plugins: [{ name: 'ux-wallet-fixtures', enforce: 'pre', resolveId(source) {
   if (source === 'wagmi') return `${directory}wagmi.mjs`;
   if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
+  if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -24,12 +28,17 @@ const failures = [];
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390, colorScheme: options.dark ? 'dark' : 'light' });
-  await context.addInitScript(({ owner, batch, connected }) => {
+  await context.addInitScript(({ owner, batch, connected, session }) => {
     window.__wallet = { sends: JSON.parse(localStorage.getItem('fixture-wallet-sends') ?? '[]'), connected, batch, address: localStorage.getItem('fixture-wallet-address') ?? owner };
+    if (!session) {
+      // Signed out: the automatic sign-in prompt was already asked (and declined) in this tab.
+      sessionStorage.setItem(`agent-jobs.asked:${window.__wallet.address.toLowerCase()}`, '1');
+      return;
+    }
     if (!localStorage.getItem('agent-jobs.session')) localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     if (!localStorage.getItem('agent-jobs.session-owner')) localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { owner: creator, batch: options.batch ?? false, connected: options.connected ?? true });
-  const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false };
+  }, { owner: options.address ?? creator, batch: options.batch ?? false, connected: options.connected ?? true, session: options.session ?? true });
+  const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false, signIns: 0 };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -43,8 +52,14 @@ async function fixture(viewport, options = {}) {
     if (url.pathname.endsWith('/api/get_task')) {
       if (state.taskError) return reply({ ok: false, message: 'Board unavailable' }, 503);
       const jobId = state.published ? '61' : route.request().frame().url().includes('/job/') ? '60' : null;
-      return reply({ ok: true, result: { ...offer, jobId, you: jobId === null ? [] : ['creator', 'approver'], chain: { status: jobId === null ? 'awaiting-publish' : state.boardStatus, provider: jobId === null ? null : creator, timely: true, submittedAt: jobId === null ? null : now - 10, reviewEndsAt: now + 3600, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
+      return reply({ ok: true, result: { ...offer, jobId, you: jobId === null ? [] : (options.you ?? ['creator', 'approver']), chain: { status: jobId === null ? 'awaiting-publish' : state.boardStatus, provider: jobId === null ? null : creator, timely: true, submittedAt: jobId === null ? null : now - 10, reviewEndsAt: options.reviewEndsAt ?? now + 3600, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
     }
+    if (url.pathname.endsWith('/api/auth_challenge')) return reply({ ok: true, result: { message: 'Fixture sign-in message; no real session' } });
+    if (url.pathname.endsWith('/api/auth_login')) {
+      state.signIns++;
+      return reply({ ok: true, result: { session: 'fixture-only-not-a-real-session', address: options.address ?? creator, expiresAt: now + 86400 } });
+    }
+    if (url.pathname.endsWith('/api/settlement_actions')) return reply({ ok: true, result: { transactions: [{ description: 'Release the payment', chainId: 10143, to: token, data: '0x5e771e', value: '0' }] } });
     if (url.pathname.endsWith('/api/publish_transactions')) return reply({ ok: true, result: { transactions } });
     if (url.pathname.endsWith('/api/get_board')) return reply({ ok: true, result: { board: { id: 'public', name: 'Fixture board', rewardTokens: [], stacks: [] } } });
     if (url.pathname.endsWith('/api/create_task')) return reply({ ok: true, result: { ...offer, transactions } });
@@ -261,6 +276,41 @@ async function testUncertainSend() {
   await context.close();
 }
 
+async function testSignedOutSettle() {
+  const stranger = '0x4444444444444444444444444444444444444444';
+  const due = { jobStatus: 'submitted', boardStatus: 'submitted', reviewEndsAt: now - 600, you: [], session: false };
+  // No wallet yet: the permissionless step is a sign-in, never a button that does nothing.
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 }, { ...due, connected: false });
+    await page.goto(`${base}/job/60`);
+    await page.getByRole('button', { name: 'Sign in to release the payment' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Release the payment', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Sign in to release the payment' }).click();
+    assert.equal(await page.evaluate(() => window.__privyLogins), 1);
+    await snap(page, 'mobile', 'signed-out-settle');
+    await context.close();
+  }
+  // A wallet that has not signed in to the board: sign in, then the real action sends.
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 }, { ...due, address: stranger });
+    await page.goto(`${base}/job/60`);
+    const signIn = page.getByRole('button', { name: 'Sign in to release the payment' });
+    await signIn.waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Release the payment', exact: true }).count(), 0);
+    await page.evaluate(() => { window.__wallet.canSign = true; });
+    await signIn.click();
+    await page.getByRole('button', { name: 'Release the payment', exact: true }).click();
+    assert.equal(state.signIns, 1);
+    await page.getByRole('button', { name: 'Release the payment', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('status').filter({ hasText: 'Settled on-chain' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    results.push({ name: 'signed-out-settle-is-a-sign-in-then-sends', passed: true });
+    await context.close();
+  }
+}
+
 async function testNewPublishOwner() {
   const { context, page } = await fixture({ width: 390, height: 844 });
   await page.goto(`${base}/publish`);
@@ -425,8 +475,10 @@ async function testLongToken() {
 }
 
 try {
-  if (process.argv[3] === 'long-token') {
-    await testLongToken();
+  // One case by name (`node test/ux.e2e.mjs <dir> uncertain-send`), or all of them.
+  const only = { 'long-token': testLongToken, 'signed-out-settle': testSignedOutSettle }[process.argv[3] ?? ''];
+  if (only !== undefined) {
+    await only();
   } else {
     for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) await testPublish(viewport);
     await testPublish({ width: 390, height: 844 }, true);
@@ -438,6 +490,7 @@ try {
     for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) await testControls(viewport);
     await testChainFailure();
     await testUncertainSend();
+    await testSignedOutSettle();
     await testNewPublishOwner();
     await testConflictingActions();
     await testFrozenRecovery();

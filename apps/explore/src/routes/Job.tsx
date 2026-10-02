@@ -1,4 +1,4 @@
-import { type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@agent-jobs/react'
+import { type JobAction, type LifecycleInput, type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@agent-jobs/react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, CircleAlert, Clock, Lock, ReceiptText } from 'lucide-react'
@@ -86,6 +86,8 @@ type Auth = ReturnType<typeof useSignedIn>
 const STACK: Record<string, string> = { main: 'Standard: 3-day review and dispute windows', demo: 'Demo: windows of minutes, for rehearsals', fast: 'Fast: 2-hour review and dispute windows' }
 const VERDICT: Record<string, string> = { clean: 'Looks fine', caution: 'Flagged for a closer look', reject: 'Flagged as risky', unscreened: 'Not screened' }
 const VIOLATION: Record<string, string> = { None: 'no fault named', Quality: 'not good enough', Falsified: 'faked evidence' }
+/** A viewer who is no party to any job: the permissionless steps are exactly what it may send. */
+const STRANGER = '0x0000000000000000000000000000000000000001'
 
 /** How a finished job ended, read from its events, so the phase can say "accepted by silence" or "ruled for…". */
 function outcomeOf(d: Detail | undefined) {
@@ -127,18 +129,22 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
   // Minute resolution is enough for phases (deadlines are minutes apart); the countdowns tick on their own.
   const minute = Math.floor(now / 60) * 60
-  let phase: Phase | null = null
+  let input: LifecycleInput | null = null
   if (t !== undefined && !board.isError) {
     const lifecycleTask = lifecycleFromTask(t)
     if (roles.includes('creator') && auth.address !== undefined && lifecycleTask.parties.creator?.toLowerCase() !== auth.address.toLowerCase()) {
       lifecycleTask.parties = { ...lifecycleTask.parties, creator: auth.address }
     }
-    phase = lifecycle({ ...lifecycleTask, outcome: outcomeOf(d) }, auth.signedIn ? auth.address ?? null : null, minute)
+    input = { ...lifecycleTask, outcome: outcomeOf(d) }
   }
   else if (d !== undefined) {
     const settlePending = ['rejected', 'cancelled', 'expired'].includes(d.job.status) && d.rewards.length === 0
-    phase = lifecycle({ ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }, auth.signedIn ? auth.address ?? null : null, minute)
+    input = { ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }
   }
+  const phase: Phase | null = input === null ? null : lifecycle(input, auth.signedIn ? auth.address ?? null : null, minute)
+  // What this wallet could send once signed in (with no wallet yet, what any signed-in stranger could): offered as a
+  // sign-in action, never as a button that does nothing.
+  const afterSignIn: JobAction[] = input === null || auth.signedIn ? [] : lifecycle(input, auth.address ?? STRANGER, minute).actions
 
   const selection = auth.signedIn ? t?.selection : undefined
   const waitingForActivation = !board.isError && !chain.isError && phase?.key === 'hire-open' && t?.chain.provider === null && selection?.some((record) => record.state === 'signed') === true
@@ -212,7 +218,8 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           }}
           phase={phase}
           roles={roles}
-          signedIn={auth.signedIn}
+          auth={auth}
+          afterSignIn={afterSignIn}
           sourceAvailable={!board.isError && !chain.isError}
           onEvent={onEvent}
         />

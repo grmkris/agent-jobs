@@ -12,7 +12,11 @@ export const useAccount = () => {
 };
 export const useDisconnect = () => ({ disconnect: () => {} });
 export const useConnect = () => ({ connectors: [], connect: () => {} });
-export const useSignMessage = () => ({ signMessageAsync: async () => { throw new Error('No real signing in UX fixtures'); } });
+export const useSignMessage = () => ({ signMessageAsync: async () => {
+  // Opt-in board sign-in double: a fixed fake signature the fixture API accepts; nothing is signed.
+  if (window.__wallet.canSign) return `0x${'22'.repeat(65)}`;
+  throw new Error('No real signing in UX fixtures');
+} });
 export const useSignTypedData = () => ({ signTypedDataAsync: async () => { throw new Error('No real signing in UX fixtures'); } });
 export const useSwitchChain = () => ({ switchChainAsync: async () => {} });
 export const useBalance = () => ({ data: { value: 10n ** 24n }, isLoading: false });
