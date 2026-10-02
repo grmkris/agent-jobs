@@ -11,7 +11,7 @@
 # Every step's gas (the limits actually sent, which Monad charges, and gasUsed) is printed as the launch budget.
 # Sends nothing to a real chain: anvil's public dev keys sign everything, against a local fork. Writes a scratch
 # config/rehearsal-mainnet.json and chain-143 broadcast logs, and removes both on exit; refuses to start if any
-# chain-143 broadcast log already exists (a real deploy's). Needs anvil, forge, cast, jq, node.
+# chain-143 broadcast log already exists (a real deploy's). Needs anvil, forge, cast, jq, bun.
 #   RPC=https://rpc.monad.xyz bash script/rehearse-launch.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -76,18 +76,20 @@ budget_hashes() {
 }
 budget_run() { mapfile -t hashes < <(jq -r '.receipts[].transactionHash' "broadcast/$2.s.sol/$CHAIN/run-latest.json"); budget_hashes "$1" "${hashes[@]}"; }
 
-# D16 launch gate (apps/api/src/prod-config.ts) against the fork, with the scratch config and a 2 MON floor
-# (RELAY_FLOOR_MAINNET from B6). Prints the failure labels; exit 3 when it refuses.
+# D16 launch gate (apps/api/src/prod-config.ts) against the fork, with the scratch config and the shared
+# RELAY_FLOOR_MAINNET (packages/sdk/src/relay.ts). Prints the failure labels; exit 3 when it refuses. Run with bun, as the
+# prod preflight is (the SDK uses TypeScript that node's strip-only mode refuses).
 cat >"$GATE_TS" <<EOF
 import { readFileSync } from 'node:fs'
-import { liveLaunchGate, relayFloorWei } from '$REPO/apps/api/src/prod-config.ts'
+import { RELAY_FLOOR_MAINNET } from '$REPO/packages/sdk/src/relay.ts'
+import { liveLaunchGate } from '$REPO/apps/api/src/prod-config.ts'
 import { rpcReader } from '$REPO/apps/api/src/deploy-preflight.ts'
 const config = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-const failures = await liveLaunchGate(config, rpcReader(process.argv[3]), relayFloorWei('2'))
+const failures = await liveLaunchGate(config, rpcReader(process.argv[3]), RELAY_FLOOR_MAINNET)
 console.log(JSON.stringify(failures))
 process.exit(failures.length > 0 ? 3 : 0)
 EOF
-gate() { node --experimental-strip-types --no-warnings "$GATE_TS" "$CONFIG" "$LOCAL"; }
+gate() { bun "$GATE_TS" "$CONFIG" "$LOCAL"; }
 
 anvil --fork-url "$FORK_RPC" --network monad --port "$PORT" --block-time 1 --silent &
 ANVIL_PID=$!
@@ -149,7 +151,7 @@ log /tmp/r7-accept.log env MAINNET_GO=yes forge script script/SafeAccept.s.sol -
 budget_run "4. SafeAccept (6 execTransactions)" SafeAccept
 log /tmp/r7-accept-check.log forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$LOCAL" || fail "SafeAccept check"
 gate >/tmp/r7-gate.log || fail "D16 gate refused after SafeAccept: $(cat /tmp/r7-gate.log)"
-ok "the Safe owns all six; D16 gate passes (Safe custody, core roles, verifier, relay above 2 MON)"
+ok "the Safe owns all six; D16 gate passes (Safe custody, core roles, verifier, relay above RELAY_FLOOR_MAINNET)"
 
 # 5. SeedPool and its receipt-based verification. The seeder holds the liquidity allocation; USDC is dealt.
 # Monad's USDC is Circle's FiatToken v2 (balances at storage slot 9); anvil_dealERC20 cannot find the slot.
