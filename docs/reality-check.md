@@ -646,3 +646,20 @@ set: `getWebhookInfo` shows no error. The bot is DM-only (D22).
 
 **Flow wallet funding.** Worker 2 MON, tx `0x03be26f5…f654`; relay 5 MON, tx `0xc67f1e0b…7aa0`, both from the backup
 Safe owner. Kris funded the creator directly.
+
+## Testnet SeedPool rehearsal: FACTORY v2 / mUSD on Uniswap v4 (3 Oct 2026)
+
+`contracts/script/seed-pool-testnet.sh` at main a375221 ran the real `SeedPool.s.sol` path against the checked-in
+`liquidity` block, with testnet mUSD standing in for USDC: 10,000 FACTORY v2 + 1 mUSD, 0.30 % fee, tick spacing 60,
+repair cap 1 mUSD. The signer is the liquidity-allocation holder (the deployer). Every receipt is `status 1`:
+
+| Step | Tx | Block |
+| --- | --- | --- |
+| SeedHelper deploy | `0x9d17d181c091035f7b42874506450ffea05cb862f3dd07063ece97a774fcfaea` | 67785599 |
+| FACTORY v2 approval | `0x430ace325c4d5c064ffafe77d5b969d1eb92b8e215c7e5acbad1c949004cee3d` | 67785606 |
+| mUSD approval | `0xe04f571974d712078319e05beb8cf5da2a89a9021b5e8203d0044a577008da1e` | 67785613 |
+| Seed (initialize + mint) | `0x0f1a50ea80c6c13c9b3c02d9ae4285c32774734673a4c45100c3b19a6dfc645d` | 67785618 |
+
+`SeedPool.verify()` passed: position NFT 76, liquidity 99989999999999, pool id
+`0xbb4f00b4a323798896393d76f620260e25fb821678ebf81a45e2a987bfca3a71`. Readback: `PositionManager.ownerOf(76)` is the
+testnet Safe `0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF`.
