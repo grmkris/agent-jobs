@@ -4,10 +4,13 @@ import { FlowJournal, flowJson, parseFlowJson, type FlowState } from '../../pack
 import { epochDistributorAbi } from '../../packages/sdk/src/abi/epochDistributor.ts'
 import { stakeVaultAbi } from '../../packages/sdk/src/abi/stakeVault.ts'
 import { factoryV2Abi } from '../../packages/sdk/src/abi/factoryV2.ts'
-import { reserveAbi } from '../../scripts/mining/chain.ts'
-import { buildTree } from '../../scripts/mining/tree.ts'
+import { holdingLogs, reserveAbi } from '../../scripts/mining/chain.ts'
+import { buildTree, proofOf } from '../../scripts/mining/tree.ts'
+import { computeEpoch } from '../../scripts/mining/compute.ts'
+import { registerAgent, stake } from '../../packages/sdk/src/actions.ts'
+import { runV1CoreFlow } from '../../packages/sdk/src/v1-flows.ts'
 import { decodeEventLog, encodeFunctionData, parseAbi, parseEther, zeroAddress, type Address, type Hex } from '../../scripts/mining/viem.ts'
-import { epochCalls, runEpoch0, safeEpochAbi, safeEpochCall, type Epoch0File } from './epoch0-transactions.ts'
+import { epochCalls, runEpoch, runEpoch0, safeEpochAbi, safeEpochCall, type Epoch0File } from './epoch0-transactions.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)', () => {
@@ -98,5 +101,55 @@ fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)
     await expect(safeEpochCall(f.ctx, j, f.admin, async () => `0x${'0'.repeat(128)}01`, 'fund', fund.to, fund.data, fund.expect)).rejects.toThrow('must be ECDSA')
     expect(j.state.sends).toEqual({})
     expect(() => epochCalls(f.ctx, { ...file, calls: { ...file.calls, fund: { ...fund, to: f.worker.account.address } } })).toThrow('fund calldata mismatch')
+  }, 120_000)
+
+  it('funds and claims a later epoch with separate journal keys and never replays its sends', async () => {
+    const h = f.ctx.deployment.hireling!, epoch = 2n, total = parseEther('17')
+    const end = await f.ctx.publicClient.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochEnd', args: [epoch] })
+    await f.rpc('evm_setNextBlockTimestamp', [Number(end) + 1]); await f.rpc('evm_mine')
+    const tree = buildTree([[epoch.toString(), f.worker.account.address.toLowerCase() as Address, total.toString()]])
+    const later: Epoch0File = { ...file, epoch: epoch.toString(), root: tree.tree[0]!, total: total.toString(),
+      claims: { [f.worker.account.address.toLowerCase()]: { amount: total.toString(), proof: [] } }, calls: {
+        fund: { to: h.miningReserve, data: encodeFunctionData({ abi: reserveAbi, functionName: 'fund', args: [epoch, total] }), expect: { totalFunded: '0', fundedForEpoch: '0' } },
+        setRoot: { to: h.distributor, data: encodeFunctionData({ abi: epochDistributorAbi, functionName: 'setRoot', args: [epoch, tree.tree[0]!, total, file.dataHash] }) },
+      } }
+    const j = journal(), signer = vi.fn(sign), publish = vi.fn(async () => {})
+    await runEpoch(f.ctx, j, f.admin, signer, later, publish, f.worker, epoch)
+    expect(Object.keys(j.state.sends).toSorted()).toEqual(['epoch2/fund', 'epoch2/setRoot', `epoch2/claim/${f.worker.account.address.toLowerCase()}`].toSorted())
+    expect(await f.ctx.publicClient.readContract({ address: h.distributor, abi: epochDistributorAbi, functionName: 'isClaimed', args: [epoch, f.worker.account.address] })).toBe(true)
+    expect(await f.ctx.publicClient.readContract({ address: h.distributor, abi: epochDistributorAbi, functionName: 'isClaimed', args: [0n, f.worker.account.address] })).toBe(false)
+    expect(await f.ctx.publicClient.readContract({ address: h.vault, abi: stakeVaultAbi, functionName: 'stakeOf', args: [f.worker.account.address] })).toBe(total)
+    const saved = flowJson(j.state.sends)
+    await runEpoch(f.ctx, j, f.admin, signer, later, publish, f.worker, epoch)
+    expect(flowJson(j.state.sends)).toBe(saved)
+    expect(signer).toHaveBeenCalledTimes(2)
+    expect(publish).toHaveBeenCalledTimes(2)
+    expect(() => epochCalls(f.ctx, later, 1n)).toThrow('selected epoch')
+    expect(() => epochCalls(f.ctx, { ...later, calls: { ...later.calls, fund: file.calls.fund } }, epoch)).toThrow('fund calldata mismatch')
+  }, 120_000)
+
+  it('mines fees earned after empty epoch 0 and stakes the worker leaf of the later epoch', async () => {
+    const h = f.ctx.deployment.hireling!, epoch = 1n
+    const from = await f.ctx.publicClient.getBlockNumber({ cacheTime: 0 })
+    const agentId = await registerAgent(f.ctx, f.worker, 'https://hireling.xyz/later-epoch-fork')
+    await stake(f.ctx, f.creator, parseEther('100')); await stake(f.ctx, f.worker, parseEther('100'))
+    await runV1CoreFlow({ ...f, journal: journal(), agentId, relay: f.contributor, token: h.factory,
+      reward: parseEther('1'), bond: parseEther('10'), waitUntil: async () => { throw new Error('quick hire must not wait') }, log: () => {} }, 'hire')
+    const to = await f.ctx.publicClient.getBlockNumber({ cacheTime: 0 })
+    const logs = await holdingLogs(f.ctx.publicClient, [f.ctx.stack.holding], from, to, 1000n)
+    const computed = computeEpoch({ ...logs, prices: { epoch, tokens: [{ token: h.factory.toLowerCase() as Address, decimals: 18, usdPrice: parseEther('1') }], factoryUsdPrice: 100000000000000n }, budget: parseEther('1000000') })
+    expect(computed.feeUsd).toBeGreaterThan(0n)
+    expect(computed.leaves).toHaveLength(2)
+    const tree = buildTree(computed.leaves.map(leaf => [epoch.toString(), leaf.account, leaf.amount.toString()]))
+    const claims = Object.fromEntries(tree.values.map(({ value }, index) => [value[1], { amount: value[2], proof: proofOf(tree, index) }]))
+    const later: Epoch0File = { ...file, epoch: '1', root: tree.tree[0]!, total: computed.total.toString(), claims, calls: {
+      fund: { to: h.miningReserve, data: encodeFunctionData({ abi: reserveAbi, functionName: 'fund', args: [epoch, computed.total] }), expect: { totalFunded: '0', fundedForEpoch: '0' } },
+      setRoot: { to: h.distributor, data: encodeFunctionData({ abi: epochDistributorAbi, functionName: 'setRoot', args: [epoch, tree.tree[0]!, computed.total, file.dataHash] }) },
+    } }
+    const end = await f.ctx.publicClient.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochEnd', args: [epoch] })
+    await f.rpc('evm_setNextBlockTimestamp', [Number(end) + 1]); await f.rpc('evm_mine')
+    const before = await f.ctx.publicClient.readContract({ address: h.vault, abi: stakeVaultAbi, functionName: 'stakeOf', args: [f.worker.account.address] })
+    await runEpoch(f.ctx, journal(), f.admin, sign, later, async () => {}, f.worker, epoch)
+    expect(await f.ctx.publicClient.readContract({ address: h.vault, abi: stakeVaultAbi, functionName: 'stakeOf', args: [f.worker.account.address] })).toBe(before + BigInt(claims[f.worker.account.address.toLowerCase()]!.amount))
   }, 120_000)
 })
