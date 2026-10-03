@@ -163,7 +163,12 @@
       "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E",
       "0x130556848511554b181e645309754F265522F3c2"
     ],
-    "stacksBlock": 66784609
+    "stacksBlock": 66784609,
+    "oddTokens": {
+      "blocklist": "0xda3577b998397bf248a82a5744ae179af71821e3",
+      "gasBurner": "0x36b31c45221aa84edb8580f01ac45253feb45bd9",
+      "block": 67773921
+    }
   },
   "hireling": {
     "reuseCore": true,
