@@ -43,3 +43,16 @@ it('a changing checkpoint or a lagging finalized block refuses discovery', async
   f.getBlock.mockResolvedValueOnce({ hash: `0x${'a'.repeat(64)}`, timestamp: 1121n })
   await expect(collectSnapshot(f.sql, f.ctx, wallet, 1000)).rejects.toThrow('behind')
 })
+
+it('excludes retired Holding jobs and owed tokens without deleting their historical rows', async () => {
+  const f = await fixture(), retired = `0x${'d'.repeat(40)}`, holding = f.ctx.stack.holding
+  for (const [id, contract] of [['62', retired], ['80', holding]] as const) {
+    f.db.prepare("INSERT INTO jobs (chain_id,job_id,creator,stack,status,updated_block) VALUES (?,?,?,'main','submitted',1)").run(10143, id, wallet)
+    f.db.prepare('INSERT INTO events VALUES (?,?,1,?,?,?,\'Published\',\'{}\')').run(10143, contract, Number(id), `publish-${id}`, id)
+    f.db.prepare('INSERT INTO events VALUES (?,?,2,?,?,?,\'PayoutOwed\',\'{}\')').run(10143, contract, Number(id), `owed-${id}`, id)
+    f.db.prepare('INSERT INTO payout_owed (chain_id,job_id,block,log_index,recipient,token,amount,tx_hash) VALUES (?,?,2,?,?,?,?,?)').run(10143, id, Number(id), wallet, wallet, '1', `owed-${id}`)
+  }
+  expect(await collectSnapshot(f.sql, f.ctx, wallet, 1000)).toEqual({ jobs: [{ jobId: '80', holding }], tokens: [{ holding, token: wallet }], epochs: [] })
+  expect(f.db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({ n: 2 })
+  expect(f.db.prepare('SELECT COUNT(*) AS n FROM payout_owed').get()).toEqual({ n: 2 })
+})

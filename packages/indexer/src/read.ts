@@ -4,6 +4,29 @@
  * the recorded `JobSubmitted` deliverable and is unexpired now (R114-06); otherwise it is not an on-chain match.
  */
 import type { AsyncSql } from './store.ts'
+import { allStacks, type Deployment } from '@agent-jobs/sdk'
+
+/** Stack names can be reused. Only the original Published contract identifies a job's Holding. */
+export function configuredJobs(deployment: Deployment, alias: 'jobs' | 'j' = 'jobs') {
+  const holdings = allStacks(deployment).map(([, stack]) => stack.holding.toLowerCase())
+  return {
+    clause: holdings.length === 0 ? '0' : `EXISTS (SELECT 1 FROM events published
+      WHERE published.chain_id=${alias}.chain_id AND published.job_id=${alias}.job_id
+        AND published.name='Published' AND lower(published.contract) IN (${holdings.map(() => '?').join(',')}))`,
+    params: holdings,
+  }
+}
+
+export async function jobAvailability(sql: AsyncSql, deployment: Deployment, jobId: string) {
+  const rows = await sql.all<{ holding: string }>(
+    "SELECT DISTINCT lower(contract) AS holding FROM events WHERE chain_id=? AND job_id=? AND name='Published'",
+    deployment.chainId, jobId,
+  )
+  if (rows.length !== 1) return { status: 'unavailable' as const, actionable: false, holding: null }
+  const holding = rows[0]!.holding
+  const configured = allStacks(deployment).some(([, stack]) => stack.holding.toLowerCase() === holding)
+  return { status: configured ? 'active' as const : 'archived' as const, actionable: configured, holding }
+}
 
 export interface JobRow {
   chain_id: number

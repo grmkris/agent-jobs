@@ -5,7 +5,8 @@
  * writer of these tables, the indexer of its own.
  */
 import type { TenantConfig } from '@agent-jobs/board'
-import { type AsyncSql, type JobRow, stmt } from '@agent-jobs/indexer'
+import { type AsyncSql, type JobRow, configuredJobs, jobAvailability, jobDetail, stmt } from '@agent-jobs/indexer'
+import type { Deployment } from '@agent-jobs/sdk'
 
 export const REGISTRY_SCHEMA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS boards (
@@ -98,18 +99,33 @@ export async function boardOfTerms(sql: AsyncSql, termsHash: string): Promise<{ 
 export type JobWithBoard = JobRow & { board_id: string | null }
 
 /** Chain jobs with the board each offer belongs to (null: published outside any hosted board). */
-export async function jobsWithBoards(sql: AsyncSql, chainId: number, limit = 200): Promise<JobWithBoard[]> {
+export async function jobsWithBoards(sql: AsyncSql, deployment: Deployment, limit = 200): Promise<JobWithBoard[]> {
+  const configured = configuredJobs(deployment, 'j')
   return sql.all<JobWithBoard>(
-    'SELECT j.*, o.board_id FROM jobs j LEFT JOIN board_offers o ON lower(j.policy_hash) = o.terms_hash WHERE j.chain_id = ? ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?',
-    chainId, limit,
+    `SELECT j.*, o.board_id FROM jobs j LEFT JOIN board_offers o ON lower(j.policy_hash) = o.terms_hash WHERE j.chain_id = ? AND ${configured.clause} ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?`,
+    deployment.chainId, ...configured.params, limit,
   )
 }
 
-export async function jobsOfBoard(sql: AsyncSql, chainId: number, boardId: string, limit = 200): Promise<JobWithBoard[]> {
+export async function jobsOfBoard(sql: AsyncSql, deployment: Deployment, boardId: string, limit = 200): Promise<JobWithBoard[]> {
+  const configured = configuredJobs(deployment, 'j')
   return sql.all<JobWithBoard>(
-    'SELECT j.*, o.board_id FROM jobs j JOIN board_offers o ON lower(j.policy_hash) = o.terms_hash WHERE j.chain_id = ? AND o.board_id = ? ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?',
-    chainId, boardId, limit,
+    `SELECT j.*, o.board_id FROM jobs j JOIN board_offers o ON lower(j.policy_hash) = o.terms_hash WHERE j.chain_id = ? AND o.board_id = ? AND ${configured.clause} ORDER BY CAST(j.job_id AS INTEGER) DESC LIMIT ?`,
+    deployment.chainId, boardId, ...configured.params, limit,
   )
+}
+
+/** Keep historical evidence readable, with an explicit unavailable result for a retired or unknown Holding. */
+export async function jobWithBoard(sql: AsyncSql, deployment: Deployment, jobId: string, now: number) {
+  const detail = await jobDetail(sql, deployment.chainId, jobId, now)
+  if (detail === undefined) return { ok: false, code: 'not-found', message: 'not indexed (yet)' }
+  const availability = await jobAvailability(sql, deployment, jobId)
+  const board = detail.job.policy_hash === null ? undefined : await boardOfTerms(sql, detail.job.policy_hash)
+  return { ...detail, board: board ?? null, availability, ...(availability.actionable
+    ? { ok: true }
+    : { ok: false, code: 'unavailable', message: availability.status === 'archived'
+      ? 'archived job: its Holding is no longer configured; historical records and evidence are preserved'
+      : 'job Holding is unavailable; historical records and evidence are preserved' }) }
 }
 
 export interface DripRow {

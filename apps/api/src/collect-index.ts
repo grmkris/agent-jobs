@@ -1,7 +1,7 @@
 /** All-board Collect discovery. Normal cron lag is bounded; stale or divergent discovery refuses the whole read. */
 import { BoardError, type CollectSnapshot } from '@agent-jobs/board'
 import { type AsyncSql, indexStatus } from '@agent-jobs/indexer'
-import type * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
 
 /** Two cron intervals, also checked against the canonical block's timestamp. */
@@ -30,5 +30,6 @@ export async function collectSnapshot(sql: AsyncSql, ctx: sdk.Ctx, wallet: Addre
   const epochs = [...new Set(roots.map(r => String((JSON.parse(r.args_json) as { epoch: string }).epoch)))]
   const after = await indexStatus(sql, ctx.deployment.chainId)
   if (after === null || after.next_block !== cp.next_block || after.updated_at !== cp.updated_at) throw new BoardError('chain', 'the collect index changed during discovery; retry shortly')
-  return { jobs, tokens, ...(ctx.deployment.hireling === null ? {} : { epochs }) }
+  const configured = (holding: string) => sdk.stackByHolding(ctx.deployment, holding) !== undefined
+  return { jobs: jobs.filter(job => configured(job.holding)), tokens: tokens.filter(token => configured(token.holding)), ...(ctx.deployment.hireling === null ? {} : { epochs }) }
 }

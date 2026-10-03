@@ -90,7 +90,7 @@ const rlpInt = (x: Hex) => (x === '0x' ? '0' : x)
 
 export class BoardError extends Error {
   constructor(
-    readonly code: 'unauthenticated' | 'forbidden' | 'not-found' | 'invalid' | 'conflict' | 'chain',
+    readonly code: 'unauthenticated' | 'forbidden' | 'not-found' | 'invalid' | 'conflict' | 'chain' | 'unavailable',
     message: string,
   ) {
     super(message)
@@ -390,7 +390,7 @@ export class Board {
    * published on an earlier pair stays there (its listing, bonds and windows live on it), so its stack name alone
    * would point at the wrong contracts.
    */
-  #taskCtx(task: TaskRow): sdk.Ctx {
+  #findTaskCtx(task: TaskRow): sdk.Ctx | undefined {
     const binding = parseTerms(task.terms_json).deployment
     const holding = binding.holding
     const current = Object.values(this.#config.contexts).find((c) => c !== undefined && eq(c.stack.holding, holding))
@@ -398,7 +398,13 @@ export class Board {
     const any = Object.values(this.#config.contexts).find((c) => c !== undefined)
     const legacy = sdk.stackByHolding(any?.deployment ?? sdk.deployment(this.#config.network), holding)
     if (any !== undefined && legacy !== undefined) return { ...any, deployment: { ...any.deployment, core: binding.core }, stack: legacy[1] }
-    return this.#ctx(task.stack)
+    return undefined
+  }
+
+  #taskCtx(task: TaskRow): sdk.Ctx {
+    const ctx = this.#findTaskCtx(task)
+    if (ctx === undefined) throw new BoardError('unavailable', 'archived task: its Holding is no longer configured; records and evidence are preserved, but live reads and actions are unavailable')
+    return ctx
   }
 
   readonly #pausedCache = new Map<string, { at: number; paused: boolean }>()
@@ -437,6 +443,7 @@ export class Board {
   #task(taskId: string): TaskRow {
     const [row] = this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE id = ?', taskId)
     if (row === undefined) throw new BoardError('not-found', `no task ${taskId}`)
+    this.#taskCtx(row)
     return row
   }
 
@@ -2058,6 +2065,7 @@ export class Board {
 
   async #knownArbitrator(me: Address): Promise<boolean> {
     for (const task of this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE job_id IS NOT NULL')) {
+      if (this.#findTaskCtx(task) === undefined) continue
       if (eq(await this.#arbitratorOf(task), me)) return true
     }
     for (const ctx of Object.values(this.#config.contexts)) {
@@ -2108,6 +2116,7 @@ export class Board {
     if (!await this.#knownArbitrator(me)) throw new BoardError('forbidden', 'arbitrator tools need a session signed in with the arbitrator wallet')
     const out = []
     for (const task of this.#sql.all<TaskRow>('SELECT * FROM tasks WHERE job_id IS NOT NULL ORDER BY created_at')) {
+      if (this.#findTaskCtx(task) === undefined) continue
       if (!eq(await this.#arbitratorOf(task), me)) continue
       const ctx = this.#taskCtx(task)
       const disputedAt = await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hireling.evaluatorAbi(ctx), functionName: 'disputedAt', args: [this.#jobId(task)] })
@@ -2468,7 +2477,7 @@ export class Board {
    * D1): the frozen offer's display fields, the job id once published, and Jev's advisory verdict.
    */
   taskIndex(_caller: Caller) {
-    return this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC LIMIT 500').map((t) => {
+    return this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC').filter(t => this.#findTaskCtx(t) !== undefined).slice(0, 500).map((t) => {
       const terms = parseTerms(t.terms_json)
       const screening = t.screening_json === null ? null : (JSON.parse(t.screening_json) as { verdict?: string; reasons?: string[] })
       return {
@@ -2500,7 +2509,7 @@ export class Board {
   }
 
   async listTasks(caller: Caller, input: { limit?: number }) {
-    const rows = this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?', Math.min(input.limit ?? 20, 50))
+    const rows = this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC').filter(t => this.#findTaskCtx(t) !== undefined).slice(0, Math.min(input.limit ?? 20, 50))
     const out = []
     for (const row of rows) out.push(await this.#summary(row, caller))
     return out

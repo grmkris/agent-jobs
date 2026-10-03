@@ -7,7 +7,7 @@ import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
-import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, jobDetail, listAgents, networkStats } from '@agent-jobs/indexer'
+import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
@@ -16,7 +16,7 @@ import { Database } from './database.ts'
 import { dripOnce } from './drip.ts'
 import { Manifests } from './manifests.ts'
 import { rpcUrlForNetwork } from './network.ts'
-import { boardOfTerms, dripState, getBoard, jobsOfBoard, jobsWithBoards, listBoards, migrateRegistry, recordOffer } from './registry.ts'
+import { dripState, getBoard, jobsOfBoard, jobsWithBoards, jobWithBoard, listBoards, migrateRegistry, recordOffer } from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import { tools } from './tools.ts'
 import DirectoryObject, { directoryObjectName } from './directory-object.ts'
@@ -336,16 +336,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
               }
               if (path === '/data/jobs') {
                 const which = url.searchParams.get('board') ?? (boardId === PUBLIC_BOARD_ID ? null : boardId)
-                const jobs = which === null ? await jobsWithBoards(sql, chainId) : await jobsOfBoard(sql, chainId, which)
+                const jobs = which === null ? await jobsWithBoards(sql, deployment) : await jobsOfBoard(sql, deployment, which)
                 return { ok: true, index: await indexStatus(sql, chainId), board: which, jobs }
               }
               const m = /^\/data\/jobs\/(\d+)$/.exec(path)
-              if (m !== null) {
-                const detail = await jobDetail(sql, chainId, m[1] as string, now())
-                if (detail === undefined) return { ok: false, code: 'not-found', message: 'not indexed (yet)' }
-                const board = detail.job.policy_hash === null ? undefined : await boardOfTerms(sql, detail.job.policy_hash)
-                return { ok: true, ...detail, board: board ?? null }
-              }
+              if (m !== null) return await jobWithBoard(sql, deployment, m[1] as string, now())
               // Agents and headline numbers: chain facts across every board (an agent's record is not a board's).
               if (path === '/data/stats') return { ok: true, ...(await networkStats(sql, chainId)) }
               if (path === '/data/agents') {
@@ -368,7 +363,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
               return { ok: false, code: 'unavailable', message: 'the index is not built yet' }
             }
           })
-          return json(body, body.ok ? 200 : 404)
+          return json(body, body.ok ? 200 : 'code' in body && body.code === 'unavailable' ? 503 : 404)
         }
 
         if (path === '/health') {
