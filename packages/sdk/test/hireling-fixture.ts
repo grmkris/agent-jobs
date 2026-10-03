@@ -1,31 +1,35 @@
 /** Real v1 bytecode on a local Monad fork, with the deployed ERC-8004 registries. Never broadcasts remotely. */
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { createServer } from 'node:net'
 import { type Abi, type Address, type Hex, createPublicClient, createWalletClient, encodeFunctionData, http, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { monadTestnet } from 'viem/chains'
 import { coreAbi, factoryV2Abi, hirelingHoldingAbi, stakeVaultAbi } from '../src/abi/index.ts'
 import type { Ctx, Wallet } from '../src/actions.ts'
 import { deployment } from '../src/deployment.ts'
+import { localTestPort } from './fork-port.ts'
 
 export const hasAnvil = (() => { try { execFileSync('anvil', ['--version'], { stdio: 'ignore' }); return true } catch { return false } })()
 export const forkEnabled = !!process.env.MONAD_TESTNET_RPC_URL && hasAnvil
+
+function timeout(name: string, fallback: number) {
+  const value = process.env[name]
+  if (value === undefined) return fallback
+  if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > 600_000) throw new Error(`${name} must be 1..600000 milliseconds`)
+  return Number(value)
+}
+
+/** Keep test hooks longer than readiness plus the fixture's account-funding requests. */
+export const forkSetupTimeout = () => Math.max(180_000, timeout('FORK_STARTUP_TIMEOUT_MS', 90_000) + 5 * timeout('FORK_RPC_TIMEOUT_MS', 30_000) + 90_000)
 
 function artifact(name: string, source = name) {
   return JSON.parse(readFileSync(new URL(`../../../contracts/out/${source}.sol/${name}.json`, import.meta.url), 'utf8')) as { abi: Abi; bytecode: { object: Hex } }
 }
 
 export async function startHirelingFork() {
-  const port = await new Promise<number>((resolve, reject) => {
-    const server = createServer()
-    server.on('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      if (address === null || typeof address === 'string') { server.close(); reject(new Error('No local test port')); return }
-      server.close(() => resolve(address.port))
-    })
-  })
+  const rpcTimeout = timeout('FORK_RPC_TIMEOUT_MS', 30_000)
+  const startupTimeout = timeout('FORK_STARTUP_TIMEOUT_MS', 90_000)
+  const port = await localTestPort()
   const url = `http://127.0.0.1:${port}`
   // The fixture funds its own random accounts. Default dev accounts cause needless genesis RPC reads;
   // throttle each fork as multiple suites and Forge share the provider's request budget.
@@ -40,26 +44,37 @@ export async function startHirelingFork() {
     const detail = (startError?.message ?? stderr).replace(/https?:\/\/[^\s"'<>]+/g, '[redacted RPC URL]').trim()
     return new Error(`${reason} (exit ${node.exitCode ?? 'none'}, signal ${node.signalCode ?? 'none'})${detail ? `: ${detail}` : ''}`)
   }
+  let phase = 'readiness'
   const rpc = async (method: string, params: unknown[] = []) => {
-    const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(2000) })
-    const body = await response.json() as { result?: unknown; error?: { message: string } }
-    if (body.error) throw new Error(body.error.message)
-    return body.result
+    const signal = AbortSignal.timeout(rpcTimeout)
+    try {
+      const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal })
+      const body = await response.json() as { result?: unknown; error?: { message: string } }
+      if (body.error) throw new Error(body.error.message)
+      return body.result
+    } catch (error) {
+      if (signal.aborted || (error instanceof Error && error.name === 'TimeoutError'))
+        throw startupFailure(`Local anvil RPC timed out during ${phase} (${method}; ${rpcTimeout}ms)`)
+      throw error
+    }
   }
   try {
     let ready = false
-    for (let attempt = 0; attempt < 300; attempt++) {
+    const readyBy = Date.now() + startupTimeout
+    while (Date.now() < readyBy) {
       if (startError || node.exitCode !== null || node.signalCode !== null) throw startupFailure('Local anvil exited before readiness')
       if (await rpc('eth_chainId').catch(() => undefined)) { ready = true; break }
       await new Promise(resolve => setTimeout(resolve, 200))
     }
-    if (!ready) throw startupFailure('Local anvil fork did not start')
-    const publicClient = createPublicClient({ chain: monadTestnet, transport: http(url), pollingInterval: 10 })
-    const wallet = () => createWalletClient({ account: privateKeyToAccount(generatePrivateKey()), chain: monadTestnet, transport: http(url) })
+    if (!ready) throw startupFailure(`Local anvil readiness timed out (${startupTimeout}ms)`)
+    const publicClient = createPublicClient({ chain: monadTestnet, transport: http(url, { timeout: rpcTimeout }), pollingInterval: 10 })
+    const wallet = () => createWalletClient({ account: privateKeyToAccount(generatePrivateKey()), chain: monadTestnet, transport: http(url, { timeout: rpcTimeout }) })
     const admin = wallet(), creator = wallet(), worker = wallet(), contributor = wallet(), arbitrator = wallet()
+    phase = 'account funding'
     for (const account of [admin, creator, worker, contributor, arbitrator]) await rpc('anvil_setBalance', [account.account.address, `0x${parseEther('1000').toString(16)}`])
     async function deploy(name: string, args: unknown[] = [], source = name) {
+      phase = `deploy ${name}`
       const a = artifact(name, source)
       const hash = await admin.deployContract({ abi: a.abi, bytecode: a.bytecode.object, args })
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
@@ -67,6 +82,7 @@ export async function startHirelingFork() {
       return receipt.contractAddress
     }
     const send = async (address: Address, abi: Abi, functionName: string, args: unknown[] = []) => {
+      phase = `configure ${functionName}`
       const receipt = await publicClient.waitForTransactionReceipt({ hash: await admin.writeContract({ address, abi, functionName, args }) })
       if (receipt.status !== 'success') throw new Error(`Local fixture ${functionName} failed`)
     }
@@ -89,6 +105,7 @@ export async function startHirelingFork() {
     const stack = { kind: 'hireling-v1' as const, factory, holding, evaluator, openTokens: true }
     const ctx: Ctx = { publicClient, stack, deployment: { ...d, core, factory, stacks: { main: stack },
       hireling: { block: 0n, safe: admin.account.address, factory, vault, feeSchedule, distributor, miningReserve, teamVesting, t0 } } }
+    phase = 'ready'
     return { ctx, admin: admin as Wallet, creator: creator as Wallet, worker: worker as Wallet, contributor: contributor as Wallet,
       arbitrator: arbitrator as Wallet, url, rpc, deploy, send, close: () => { node.kill() } }
   } catch (error) { node.kill(); throw error }

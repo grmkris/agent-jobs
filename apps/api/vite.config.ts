@@ -36,7 +36,7 @@ export default defineConfig({
           { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
           { pattern: '!**/.alchemy/**', base: 'workspace' },
         ],
-        env: ['CI', 'ALCHEMY_STAGE'],
+        env: ['CI', 'ALCHEMY_STAGE', 'MONAD_TESTNET_RPC_URL', 'FORK_RPC_TIMEOUT_MS', 'FORK_STARTUP_TIMEOUT_MS'],
       },
     },
   },

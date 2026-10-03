@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
 import { parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
 import { tools } from '../../../apps/api/src/tools.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
@@ -19,7 +19,7 @@ fork('live hosted runner through the REST/MCP registry on a real local fork', ()
     board = boot()
     agentId = await sdk.registerAgent(ctx, f.worker, 'https://hireling.xyz/hosted-live-runner')
     await sdk.stake(ctx, f.creator, parseEther('100')); await sdk.stake(ctx, f.worker, parseEther('100'))
-  }, 180_000)
+  }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
   for (const lost of ['create_task', 'request_quotes', 'submit_quote', 'pick_quote'] as const) {
     it(`recovers a lost ${lost} response with the same remote IDs and no duplicate draft`, async () => {

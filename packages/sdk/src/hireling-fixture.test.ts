@@ -35,3 +35,34 @@ it('reports anvil spawn errors and cleans up the child', async () => {
   await expect(startHirelingFork()).rejects.toThrow('spawn anvil ENOENT')
   expect(node.kill).toHaveBeenCalledOnce()
 })
+
+it('identifies the funding phase and RPC method when a configurable request timeout expires', async () => {
+  vi.stubEnv('MONAD_TESTNET_RPC_URL', 'https://rpc.invalid')
+  vi.stubEnv('FORK_RPC_TIMEOUT_MS', '1234')
+  const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+    const method = JSON.parse(init.body as string).method
+    if (method === 'eth_chainId') return { json: async () => ({ result: '0x279f' }) }
+    throw new DOMException('aborted', 'TimeoutError')
+  })
+  vi.stubGlobal('fetch', fetch)
+  const node = Object.assign(new EventEmitter(), { stderr: new PassThrough(), exitCode: null, signalCode: null, kill: vi.fn() })
+  spawn.mockReturnValueOnce(node)
+  await expect(startHirelingFork()).rejects.toThrow('RPC timed out during account funding (anvil_setBalance; 1234ms)')
+  expect(node.kill).toHaveBeenCalledOnce()
+})
+
+it('reports a readiness deadline separately from a funding RPC timeout', async () => {
+  vi.stubEnv('MONAD_TESTNET_RPC_URL', 'https://rpc.invalid')
+  vi.stubEnv('FORK_STARTUP_TIMEOUT_MS', '1')
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('not listening') }))
+  const node = Object.assign(new EventEmitter(), { stderr: new PassThrough(), exitCode: null, signalCode: null, kill: vi.fn() })
+  spawn.mockReturnValueOnce(node)
+  await expect(startHirelingFork()).rejects.toThrow('Local anvil readiness timed out (1ms)')
+  expect(node.kill).toHaveBeenCalledOnce()
+})
+
+it.each(['0', '-1', 'NaN', '600001'])('refuses malformed timeout %s before spawning a fork', async timeout => {
+  vi.stubEnv('FORK_RPC_TIMEOUT_MS', timeout)
+  await expect(startHirelingFork()).rejects.toThrow('FORK_RPC_TIMEOUT_MS must be 1..600000 milliseconds')
+  expect(spawn).not.toHaveBeenCalled()
+})

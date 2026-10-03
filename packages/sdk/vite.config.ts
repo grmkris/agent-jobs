@@ -29,7 +29,7 @@ export default defineConfig({
           { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
         ],
         // MONAD_TESTNET_RPC_URL enables the tests that read the deployed contracts; unset, they skip.
-        env: ['MONAD_TESTNET_RPC_URL'],
+        env: ['FORK_RPC_TIMEOUT_MS', 'FORK_STARTUP_TIMEOUT_MS', 'MONAD_TESTNET_RPC_URL'],
       },
     },
   },

@@ -13,6 +13,7 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
+import { localTestPort } from '../../sdk/test/fork-port.ts'
 import { type Hex, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -29,8 +30,7 @@ const hasAnvil = (() => {
   }
 })()
 const fork = rpc === '' || arbitratorKey === '' || !hasAnvil ? describe.skip : describe
-const PORT = 8661
-const url = `http://127.0.0.1:${PORT}`
+let url = ''
 const NET = 'monad-testnet' as const
 const legacyDemo = sdk.deployment(NET).legacyStacks['demo-v2']!
 
@@ -67,7 +67,9 @@ fork('R114-07 on a testnet fork: lost responses and restarts', () => {
   }
 
   beforeAll(async () => {
-    anvil = spawn('anvil', ['--fork-url', rpc, '--port', String(PORT), '--silent'], { stdio: 'ignore' })
+    const port = await localTestPort()
+    url = `http://127.0.0.1:${port}`
+    anvil = spawn('anvil', ['--fork-url', rpc, '--port', String(port), '--silent'], { stdio: 'ignore' })
     for (let i = 0; i < 60; i++) {
       const id = await rpcCall('eth_chainId', []).catch(() => undefined)
       if (id !== undefined) break

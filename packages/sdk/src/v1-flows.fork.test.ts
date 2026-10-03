@@ -1,6 +1,6 @@
 import { parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, startHirelingFork } from '../test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
 import { registerAgent, stake } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
@@ -18,7 +18,7 @@ fork('live matrix runner against real v1 bytecode', () => {
     await f.send(legacyHolding, hirelingHoldingAbi, 'setEvaluator', [legacyEvaluator])
     await f.send(f.ctx.deployment.core, coreAbi, 'setHookWhitelist', [legacyHolding, true])
     f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, legacyStacks: { 'test-legacy': { kind: 'legacy', factory: legacyFactory, holding: legacyHolding, evaluator: legacyEvaluator, openTokens: true } } } }
-  }, 180_000)
+  }, forkSetupTimeout())
   afterAll(() => f?.close())
   it('refuses an unfunded legacy contest before any send, even when the creator holds v2 FACTORY', async () => {
     const state: FlowState = { binding: 'legacy-prerequisite', values: {}, sends: {} }

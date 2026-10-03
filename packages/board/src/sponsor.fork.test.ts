@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
 import { type Hex, decodeFunctionData, encodeFunctionData, parseEther, parseTransaction } from 'viem'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { forkEnabled, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { SPONSOR_LIMITS } from './sponsor.ts'
@@ -30,7 +30,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     f = await startHirelingFork(); db = new DatabaseSync(':memory:'); now = Number((await f.ctx.publicClient.getBlock()).timestamp); board = boot()
     agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/sponsor-fork')
     await sdk.stake(f.ctx, f.creator, parseEther('100')); await sdk.stake(f.ctx, f.worker, parseEther('100'))
-  }, 180_000)
+  }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
 
   it('activates and submits as the worker, then atomically accepts/settles as creator; retries and polling never send twice', async () => {

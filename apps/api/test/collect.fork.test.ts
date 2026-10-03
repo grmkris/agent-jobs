@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { MiningSource } from '@agent-jobs/board'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
 import { collectSnapshot } from '../src/collect-index.ts'
 
 const fork = forkEnabled ? describe : describe.skip
@@ -27,7 +27,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     f = await startHirelingFork(); ctx = f.ctx; db = new DatabaseSync(':memory:'); index = new DatabaseSync(':memory:'); start = await ctx.publicClient.getBlockNumber()
     boardNow = Number((await ctx.publicClient.getBlock()).timestamp)
     board = boot(); await migrate(fromNodeSqlite(index)); agentId = await sdk.registerAgent(ctx, f.worker, 'https://hireling.xyz/b4-fork')
-  }, 180_000)
+  }, forkSetupTimeout())
   afterAll(() => { db?.close(); index?.close(); f?.close() })
   async function indexNow() {
     const block = await ctx.publicClient.getBlock(), contracts = contractsFromDeployment(ctx.deployment)

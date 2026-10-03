@@ -8,6 +8,7 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
+import { localTestPort } from '../../sdk/test/fork-port.ts'
 import { type Address, type Hex, encodeFunctionData, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -23,8 +24,7 @@ const hasAnvil = (() => {
   }
 })()
 const fork = rpc === '' || !hasAnvil ? describe.skip : describe
-const PORT = 8663
-const url = `http://127.0.0.1:${PORT}`
+let url = ''
 const NET = 'monad-testnet' as const
 const legacyDemo = sdk.deployment(NET).legacyStacks['demo-v2']!
 
@@ -75,8 +75,10 @@ fork('permissionless reward tokens on a testnet fork (ADR-0010)', () => {
   }
 
   beforeAll(async () => {
+    const port = await localTestPort()
+    url = `http://127.0.0.1:${port}`
     board = new Board(fromNodeSqlite(db), config())
-    anvil = spawn('anvil', ['--fork-url', rpc, '--port', String(PORT), '--silent'], { stdio: 'ignore' })
+    anvil = spawn('anvil', ['--fork-url', rpc, '--port', String(port), '--silent'], { stdio: 'ignore' })
     for (let i = 0; i < 60; i++) {
       const id = await rpcCall('eth_chainId', []).catch(() => undefined)
       if (id !== undefined) break

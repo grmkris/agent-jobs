@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
 import { decodeFunctionData, encodeFunctionData, erc20Abi, formatEther, getAddress, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { admissionFailure, parseHostedAdmission } from './admission.ts'
@@ -25,7 +25,7 @@ fork('Hireling board on a local Monad fork', () => {
     agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/board-local-fork')
     await sdk.stake(f.ctx, f.creator, parseEther('100'))
     await sdk.stake(f.ctx, f.worker, parseEther('100'))
-  }, 180_000)
+  }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
 
   const offer = () => ({ title: 'Board fork hire', brief: 'Real local bytecode', acceptanceCriteria: ['finished'], token: f.ctx.stack.factory,

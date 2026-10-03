@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, startHirelingFork } from '../test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
 import { activate, balanceOf, cancel, claimTopUpRefund, getJob, getStake, getV1Listing, hashText, publish, quoteActivation,
   registerAgent, requestUnstake, settle, settleDeferred, signSelection, stake, submit, accept, topUp, withdrawStake, type ActivationTerms } from './actions.ts'
 import { coreAbi } from './abi/index.ts'
@@ -19,7 +19,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     agentId = await registerAgent(f.ctx, f.worker, 'https://hireling.xyz/sdk-local-fork-test')
     await stake(f.ctx, f.creator, parseEther('100'))
     await stake(f.ctx, f.worker, parseEther('100'))
-  }, 180_000)
+  }, forkSetupTimeout())
   afterAll(() => f?.close())
 
   async function listed() {
