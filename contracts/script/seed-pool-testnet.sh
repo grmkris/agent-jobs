@@ -1,35 +1,38 @@
 #!/usr/bin/env bash
 # Seed a small FACTORY/mUSD v4 position using the real SeedPool path.
-# The checked-in testnet config deliberately has no liquidity block; this wrapper
-# creates a throwaway config, checks balances before approvals, and removes it.
+# The checked-in testnet config carries the delegated rehearsal liquidity block;
+# this wrapper checks balances before approvals and uses that config directly.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 . script/launch-lock.sh
 take_launch_lock
-ROOT="$(cd .. && pwd)"
 NETWORK="monad-testnet"
+export NETWORK
 RPC_ENV="${RPC_ENV:-MONAD_TESTNET_RPC_URL}"
 RPC="${!RPC_ENV:-}"
 KEY_ENV="${KEY_ENV:-DEPLOYER_PRIVATE_KEY}"
 KEY="${!KEY_ENV:-}"
 [[ -n "$RPC" && -n "$KEY" ]] || { echo "refusing: set $RPC_ENV and $KEY_ENV (values are never printed)" >&2; exit 2; }
-BASE="config/monad-testnet.json"
-TMP="config/.testnet-seed-$$.json"
-trap 'rm -f "$TMP"' EXIT
-QUOTE="0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f" # testnet mUSD (6 decimals)
-POOL_MANAGER="0x451D64ab3b650040d2aE1886602b97ed6eDc643d"
-POSITION_MANAGER="0x3Bb14E3D0Cd50aBe3EdACa06d06c29C78676C31A"
-PERMIT2="0x000000000022D473030F116dDEE9F6B43aC78BA3"
-STATE_VIEW="0xB639209539c61BaF67AC04876315786F8D0b153c"
-FACTORY="$(jq -r .deployment.hireling.factory "$BASE")"
-SAFE="$(jq -r .deployment.hireling.safe "$BASE")"
+CONFIG="config/monad-testnet.json"
+QUOTE="$(jq -r .liquidity.quote "$CONFIG")"
+POOL_MANAGER="$(jq -r .liquidity.uniswapV4.poolManager "$CONFIG")"
+POSITION_MANAGER="$(jq -r .liquidity.uniswapV4.positionManager "$CONFIG")"
+PERMIT2="$(jq -r .liquidity.uniswapV4.permit2 "$CONFIG")"
+STATE_VIEW="$(jq -r .liquidity.uniswapV4.stateView "$CONFIG")"
+FACTORY="$(jq -r .deployment.hireling.factory "$CONFIG")"
+SAFE="$(jq -r .deployment.hireling.safe "$CONFIG")"
 DEPLOYER="$(cast wallet address --private-key "$KEY")"
-FACTORY_AMOUNT="${FACTORY_AMOUNT:-10000}"
-QUOTE_AMOUNT="${QUOTE_AMOUNT:-1}"
-REPAIR_QUOTE="${REPAIR_QUOTE:-1}"
+FACTORY_AMOUNT="$(jq -r .liquidity.factoryAmount "$CONFIG")"
+QUOTE_AMOUNT="$(jq -r .liquidity.quoteAmount "$CONFIG")"
+REPAIR_QUOTE="$(jq -r .liquidity.maxRepairCost "$CONFIG")"
 
 [[ "$(cast chain-id --rpc-url "$RPC")" == 10143 ]] || { echo "refusing: RPC is not Monad testnet" >&2; exit 2; }
+[[ "${DEPLOYER,,}" == "$(jq -r '.hireling.allocation.liquidity | ascii_downcase' "$CONFIG")" ]] || { echo "refusing: signer is not the liquidity holder" >&2; exit 2; }
+[[ "${QUOTE,,}" == 0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f ]] || { echo "refusing: quote is not testnet mUSD" >&2; exit 2; }
+[[ "$FACTORY_AMOUNT" =~ ^[1-9][0-9]*$ && "$QUOTE_AMOUNT" =~ ^[1-9][0-9]*$ && "$REPAIR_QUOTE" =~ ^[1-9][0-9]*$ ]] || { echo "refusing: invalid seed amounts" >&2; exit 2; }
+(( FACTORY_AMOUNT <= 50000000 && QUOTE_AMOUNT <= 10 && REPAIR_QUOTE <= QUOTE_AMOUNT )) || { echo "refusing: outside the small testnet seed bounds" >&2; exit 2; }
+[[ "$(cast call "$FACTORY" 'decimals()(uint8)' --rpc-url "$RPC")" == 18 && "$(cast call "$QUOTE" 'decimals()(uint8)' --rpc-url "$RPC")" == 6 ]] || { echo "refusing: token decimals mismatch" >&2; exit 2; }
 for address in "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$STATE_VIEW" "$FACTORY" "$QUOTE" "$SAFE"; do
   [[ "$(cast code "$address" --rpc-url "$RPC")" != 0x ]] || { echo "refusing: no code at configured address" >&2; exit 2; }
 done
@@ -39,25 +42,24 @@ done
 
 need_factory=$((FACTORY_AMOUNT + REPAIR_QUOTE * FACTORY_AMOUNT / QUOTE_AMOUNT))
 need_quote=$((QUOTE_AMOUNT + REPAIR_QUOTE))
+need_factory_raw="${need_factory}000000000000000000"
+need_quote_raw="${need_quote}000000"
 factory_balance="$(cast call "$FACTORY" 'balanceOf(address)(uint256)' "$DEPLOYER" --rpc-url "$RPC" | awk '{print $1}')"
 quote_balance="$(cast call "$QUOTE" 'balanceOf(address)(uint256)' "$DEPLOYER" --rpc-url "$RPC" | awk '{print $1}')"
-if (( factory_balance < need_factory * 10 ** 18 )); then
+ge_dec() {
+  local left=$1 right=$2
+  [[ "$left" =~ ^(0|[1-9][0-9]*)$ && "$right" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
+  (( ${#left} > ${#right} )) || { (( ${#left} == ${#right} )) && [[ "$left" == "$right" || "$left" > "$right" ]]; }
+}
+if ! ge_dec "$factory_balance" "$need_factory_raw"; then
   echo "NEEDS FACTORY v2: $((need_factory)) whole tokens to $DEPLOYER (balance $factory_balance raw)" >&2
   exit 3
 fi
-if (( quote_balance < need_quote * 10 ** 6 )); then
-  echo "NEEDS testnet USDC: $need_quote whole USDC to $DEPLOYER at $QUOTE (balance $quote_balance raw)" >&2
+if ! ge_dec "$quote_balance" "$need_quote_raw"; then
+  echo "NEEDS mUSD: $need_quote whole mUSD to $DEPLOYER at $QUOTE (balance $quote_balance raw)" >&2
   exit 3
 fi
 echo "SeedPool funding preflight passed: $FACTORY_AMOUNT FACTORY + $QUOTE_AMOUNT mUSD, repair cap $REPAIR_QUOTE mUSD"
-
-jq --arg pm "$POOL_MANAGER" --arg pos "$POSITION_MANAGER" --arg permit "$PERMIT2" --arg state "$STATE_VIEW" \
-  --arg quote "$QUOTE" --arg safe "$SAFE" --argjson fa "$FACTORY_AMOUNT" --argjson qa "$QUOTE_AMOUNT" --argjson repair "$REPAIR_QUOTE" '
-  .liquidity = { uniswapV4: { poolManager: $pm, positionManager: $pos, permit2: $permit, stateView: $state },
-    quote: $quote, fee: 3000, tickSpacing: 60, factoryAmount: $fa, quoteAmount: $qa,
-    maxRepairCost: $repair, positionOwner: $safe }' "$BASE" >"$TMP"
-mv "$TMP" "${TMP}.ready"
-TMP="${TMP}.ready"
 forge script script/SeedPool.s.sol --rpc-url "$RPC" --private-key "$KEY" --broadcast --slow
 RUN="broadcast/SeedPool.s.sol/10143/run-latest.json"
 [[ -f "$RUN" ]] || { echo "refusing: SeedPool run log missing" >&2; exit 1; }
