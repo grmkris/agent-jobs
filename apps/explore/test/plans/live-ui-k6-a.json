@@ -1,0 +1,342 @@
+{
+  "schema": "hireling-live-ui-reviewed-phases/v1",
+  "row": "K6-A",
+  "status": "source-reviewed; execution held for coordinator",
+  "execution": {
+    "origin": "https://testnet.hireling.xyz",
+    "chainId": 10143,
+    "operator": "coordinator",
+    "signingPerformed": false,
+    "transactionsSent": 0,
+    "providerWritesPerformed": false,
+    "instructions": [
+      "This is a phased review document, not a directly executable LIVE_UI_PLAN_JSON. It intentionally has no root steps array.",
+      "Coordinator chooses one phase/conditional branch, fills its dynamic placeholders, and writes a standalone JSON with only its steps array. drivePlan accepts goto/fill/click/wait/capture only; coordinatorChecks are manual checkpoints, not enforced by the helper.",
+      "Compute SHA-256 of that exact standalone plan, fill a separate readyCardTemplate copy with its planSha256 and rows=[phase.row], and obtain explicit coordinator authorization for that phase. Do not put a self-hash inside the plan.",
+      "Preserve one private state directory across phases so signed bytes, nonces, receipts and browser storage reconcile the original operation. Never rerun an earlier money-moving phase to reach a later phase.",
+      "Every target must be a reviewed user call. No admin/Safe actions, sponsorship grants, DeleGator upgrade or unrelated Collect action is authorized by these plans.",
+      "User sends remain coordinator-owned. This agent prepared JSON only and did not open a browser, load a key, sign, send or call a provider."
+    ]
+  },
+  "provenance": {
+    "sourceCommit": "1317560c073083b1b79b5643db72a0e37947014b",
+    "selectorEvidence": "current source at the released commit; no new live DOM or signing run",
+    "configPath": "contracts/config/monad-testnet.json",
+    "configSha256": "4f77f6299c621885bf50492c3d6dc176923af24c5a5697a0b56633ad56095151",
+    "readOnlyArtifact": "/tmp/hireling-live-ui/g1b-current-readonly-ui/results.json",
+    "hostedAsset": "/assets/index-Dy9NJawo.js",
+    "hostedAssetSha256": "7e9f3ea68f29730f8453086e72d50be419e5e1a6b150bcf58dd7ffbd73f974a9",
+    "readyEvidence": "Coordinator announced verified G1b staging release1317560 and new-token funding in this conversation. Revalidate deployment/asset and balances before each authorized phase."
+  },
+  "readyCardTemplate": {
+    "stack": "G1b",
+    "coordinatorReleased": true,
+    "gasFixReleased": true,
+    "newTokenFunded": true,
+    "laterSendAuthorized": false,
+    "sendAuthorization": null,
+    "announcement": "Coordinator: live G1b staging release1317560 verified; coordinator owns every send.",
+    "configSha256": "4f77f6299c621885bf50492c3d6dc176923af24c5a5697a0b56633ad56095151",
+    "assetSha256": "7e9f3ea68f29730f8453086e72d50be419e5e1a6b150bcf58dd7ffbd73f974a9",
+    "wallet": "0xB339Cf6701BB282ABCefA241807E47F395626149",
+    "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
+    "holding": "0x0d02D7dAe6b98cB9904B4F87349b227aec04F4AD",
+    "block": 67856884,
+    "rows": [],
+    "rewardToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "planSha256": null
+  },
+  "readyFieldsToFill": {
+    "laterSendAuthorized": "true only in the separately authorized coordinator READY card",
+    "sendAuthorization": "exact phase-specific coordinator authorization reference",
+    "rows": "single chosen phase.row",
+    "planSha256": "SHA-256 of materialized phase JSON after every placeholder is filled",
+    "assetSha256": "recheck current released asset against recorded read-only hash; stop on drift",
+    "configSha256": "recheck exact promoted config bytes; stop on drift"
+  },
+  "actors": {
+    "creator": {
+      "address": "0xB339Cf6701BB282ABCefA241807E47F395626149",
+      "role": "creator and approver"
+    },
+    "worker": {
+      "agentId": "1943",
+      "address": "0xe63D7f0b107BbAD926cD1CD2E2911423dDf11A2b",
+      "role": "Pixel; external worker handoff only"
+    }
+  },
+  "deployment": {
+    "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
+    "holding": "0x0d02D7dAe6b98cB9904B4F87349b227aec04F4AD",
+    "evaluator": "0x576fCe8dB0a6d1B70C31728aF3742f43719Bed11",
+    "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+    "vault": "0x6e980b0545Be5622f7399E40655aeccB6f56E3FA",
+    "feeSchedule": "0x77504A6a21f6cc9E6d4930D380967c58E9eEaF84",
+    "identity": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    "defaultArbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+    "rewardToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "rewardSymbol": "mUSD",
+    "rewardDecimals": 6,
+    "clocks": {
+      "epochDuration": 3600,
+      "epochZeroDuration": 1800,
+      "feeDelay": 300,
+      "holdingDelay": 900,
+      "minArbitrationWindow": 300,
+      "minDisputeWindow": 120,
+      "minReviewWindow": 120,
+      "proposalGrace": 1800,
+      "unstakeDelay": 600
+    }
+  },
+  "readOnlyFindings": [
+    {
+      "code": "HTTP-503",
+      "evidence": "The coordinator artifact lists four console resource HTTP 503 errors, no endpoint URLs, zero signatures and zero transactions. Five page captures completed, but the harness asserts errors=[] and this artifact is not a clean pass.",
+      "required": "Identify failed resources and verify required board/chain reads before the dependent row; do not label unavailable data as empty."
+    },
+    {
+      "code": "ARCHIVED-JOB-FALLBACK",
+      "evidence": "The artifact visits /job/65. G1 jobs 62-79 were archived; the harness falls back to /job/65 when its job list has no current hireling-v1 job and accepts unavailable/not-indexed copy.",
+      "required": "A current G1b job page is not proven by this artifact. Verify the newly published job through exact Holding/client and indexer readback."
+    },
+    {
+      "code": "PRIVY-UNVERIFIED",
+      "evidence": "The hosted bundle uses the harness injected EIP-1193 boundary; real Privy email/Google login is unverified."
+    },
+    {
+      "code": "RUNNER-LIMITS",
+      "evidence": "drivePlan cannot pause, assert balances/call decoding, select a token option or scope one Collect button to a row. Materialize one phase per checkpoint. Every locator must match exactly one visible control.",
+      "required": "Select/Collect phases require only the reviewed invite/action to expose the matching button; stop on ambiguity. The current helper cannot safely choose an arbitrary first row."
+    },
+    {
+      "code": "AUTO-SEND",
+      "evidence": "Stake button requests a permit signature immediately. Sign the selection signs immediately. Collect autoStart sends as soon as Collect is clicked. App navigation may automatically request board SIWE.",
+      "required": "Coordinator phase authorization must cover these effects before navigation/click. No read-only experiment may click them."
+    }
+  ],
+  "selectorSources": [
+    "apps/explore/src/routes/Stake.tsx",
+    "apps/explore/src/routes/Publish.tsx",
+    "apps/explore/src/components/post/parts.tsx",
+    "apps/explore/src/components/TxSteps.tsx",
+    "apps/explore/src/components/job/JobActions.tsx",
+    "apps/explore/src/components/job/V1Panels.tsx",
+    "apps/explore/src/routes/Collect.tsx",
+    "apps/explore/src/components/Sheet.tsx",
+    "apps/explore/src/components/Wallet.tsx"
+  ],
+  "parameters": {
+    "stakeFACTORY": "20",
+    "rewardMUSD": "1",
+    "topupMUSD": "0.5",
+    "creatorBondFACTORY": "1",
+    "workerBondFACTORY": "1",
+    "funding": "Coordinator last reported UI=1.5 MON/200 new FACTORY; re-read mUSD >=2.5 for A+C together and current MON reserve. Staking 20 FACTORY does not cross the 10000 tier threshold.",
+    "placeholders": {
+      "JOB_A_ID": null,
+      "TASK_A_ID": null,
+      "ACTIVATION_TX_HASH": null,
+      "SUBMISSION_TX_HASH": null,
+      "FEE_BPS_AT_ACTIVATION": null,
+      "REVIEW_END_UTC": null
+    }
+  },
+  "phases": [
+    {
+      "row": "K6-A-stake",
+      "coordinatorChecksBefore": ["Fresh UI FACTORY wallet balance >=20, new vault bootstrapped, sufficient MON, no unresolved stake operation; record starting wallet/stake/reserved/available."],
+      "steps": [
+        {"action": "goto", "path": "/stake"},
+        {"action": "wait", "id": "stake-amount"},
+        {"action": "capture", "name": "k6-a-stake-before"},
+        {"action": "fill", "id": "stake-amount", "value": "20"},
+        {"action": "click", "role": "button", "name": "Stake 20 FACTORY", "exact": true},
+        {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
+        {"action": "wait", "text": "Staked. Your fee tier counts it now.", "exact": true},
+        {"action": "capture", "name": "k6-a-stake-after"}
+      ],
+      "coordinatorChecksAfter": ["stakeOf and availableOf rise by 20 FACTORY; liquid FACTORY falls by 20; reserved unchanged. Record permit domain, spender=vault, value=20000000000000000000, nonce/deadline and successful stakeWithPermit receipt.", "Record TX testnet <hash> K6-A-stake. No fee tier decrease is expected from 20 FACTORY."],
+      "effects": ["One FACTORY Permit typed-data signature when Stake 20 FACTORY is clicked; one wallet-paid stakeWithPermit transaction."]
+    },
+    {
+      "row": "K6-A-prepare",
+      "coordinatorChecksBefore": [
+        "Same creator wallet and the same durable browser/wallet state directory for every phase.",
+        "Start with a new, unfrozen publish draft. If a previous operation is present, reconcile it; do not prepare another offer.",
+        "Board SIWE session must be live for the creator. App navigation can automatically request the SIWE signature in a signing-enabled session.",
+        "Available new-vault stake >= 1 FACTORY; liquid mUSD >= 1; no active creator sponsorship.",
+        "Current Reward token control must expose the single mUSD radio. If token discovery changes it to a select, stop: drivePlan does not implement selectOption.",
+        "Check Git commit is the only selected deliverable kind and Running-cost budget is off; the plan clears the default required GitHub check."
+      ],
+      "steps": [
+        {"action": "goto", "path": "/publish"},
+        {"action": "wait", "role": "link", "name": "Your wallet", "exact": true},
+        {"action": "fill", "id": "post-title", "value": "LIVE-UI G1b A - Pixel 1943"},
+        {"action": "fill", "id": "post-brief", "value": "Write a short Markdown first-use note for Hireling G1b at https://testnet.hireling.xyz. Cover chain 10143, FACTORY v2 transfers versus mUSD/mEUR faucets, creator selection and worker activation. Submit an accessible Git commit with the note; coordinate submission with the creator after activation and the 0.5 mUSD top-up. Do not claim real Privy login was verified."},
+        {"action": "fill", "id": "post-criteria", "value": "The submitted Git commit contains a readable first-use note with the correct G1b network and token-funding distinction.\nIt explains that a named invite still needs creator selection and worker activation.\nIt does not claim Privy login was tested. No GitHub check run is required for this documentation delivery."},
+        {"action": "click", "role": "button", "name": "Continue", "exact": true},
+        {"action": "click", "role": "radio", "name": "Direct hire Name the agent you want, or let agents apply and pick one. The reward is locked in escrow when you publish; the agent starts once it activates and posts its bond, and is paid when you accept the work.", "exact": true},
+        {"action": "fill", "id": "post-invite", "value": "1943"},
+        {"action": "click", "role": "button", "name": "Continue", "exact": true},
+        {"action": "click", "role": "radio", "name": "mUSD", "exact": true},
+        {"action": "fill", "id": "post-reward", "value": "1"},
+        {"action": "click", "role": "radio", "name": "Fast", "exact": true},
+        {"action": "click", "role": "radio", "name": "Hireling's arbiter", "exact": true},
+        {"action": "fill", "id": "post-creator-bond", "value": "1"},
+        {"action": "fill", "id": "post-worker-bond", "value": "1"},
+        {"action": "click", "text": "Advanced", "exact": true},
+        {"action": "fill", "id": "post-check", "value": ""},
+        {"action": "click", "role": "button", "name": "Review", "exact": true},
+        {"action": "wait", "text": "Agent #1943 · invited", "exact": true},
+        {"action": "capture", "name": "k6-a-review"},
+        {"action": "click", "role": "button", "name": "Prepare to publish", "exact": true},
+        {"action": "wait", "text": "Publish the funded hire and reserve your bond from stake", "exact": true},
+        {"action": "capture", "name": "k6-a-prepared"}
+      ],
+      "coordinatorChecksAfter": [
+        "Record taskId, termsHash, manifest, applicationId, creator and the exact returned unsigned transactions before proceeding.",
+        "Read symbol()/decimals() at the pinned reward address: require mUSD/6 (source token metadata alone is not a new chain verification). Pin reward 1000000, creator/worker bonds 1000000000000000000, creator as approver, invite 1943, registered Pixel wallet and live defaultArbitrator.",
+        "Read Holding MIN_* getters and match frozen Fast windows 120/120/300 seconds to the promoted config; do not reuse absolute deadlines from G1.",
+        "Prepared offer must be unexpired and the board must report jobId=null. Choose publish-two or publish-one using the returned call list and live allowance; no guessed count.",
+        "Preparation only creates a board record. No reward is escrowed until publish confirms."
+      ],
+      "effects": ["Board auth_challenge/auth_login may sign SIWE when the session is absent.", "Prepare to publish calls create_task, invokes screening and persists the offer; no chain transaction in this phase."]
+    },
+    {
+      "row": "K6-A-publish-2",
+      "coordinatorChecksBefore": [
+        "Prepare phase succeeded; exactly 2 unsigned publish transactions returned for the saved task.",
+        "If two calls: mUSD.approve(Holding,1000000) followed by Holding.publish with the frozen terms. If one: existing allowance covers reward, so Holding.publish alone.",
+        "Use only the branch matching the current visible confirmation and saved original operation. These are alternatives, never consecutive publish attempts.",
+        "Two-call branch starts with the current injected Privy boundary offering Send them one at a time instead. Do not click Confirm all 2 as one transaction: that path can invoke upgrade_account/relay."
+      ],
+      "steps": [
+        {"action": "goto", "path": "/publish"},
+        {"action": "wait", "text": "Publish the funded hire and reserve your bond from stake", "exact": true},
+        {"action": "capture", "name": "k6-a-publish-review"},
+        {"action": "click", "role": "button", "name": "Send them one at a time instead", "exact": true},
+        {"action": "click", "role": "button", "name": "Confirm step 1 of 2", "exact": true},
+        {"action": "click", "role": "button", "name": "Confirm step 2 of 2", "exact": true},
+        {"action": "wait", "text": "Published · 1 mUSD locked in escrow", "exact": true},
+        {"action": "capture", "name": "k6-a-published"}
+      ],
+      "coordinatorChecksAfter": [
+        "Reconcile successful publish receipt, then fill JOB_A_ID and TASK_A_ID from get_task and the current G1b indexer. Confirm client=Holding, creator=UI wallet, reward=1000000 and funded=false.",
+        "Record every approval/publish receipt as TX testnet <full-hash> <phase-row>. Do not repeat publish if the toast or indexer is late.",
+        "Post the exact job/task IDs to the coordinator/worker handoff; publication does not select or activate Pixel."
+      ],
+      "effects": ["2 wallet-paid creator transaction(s); no EIP-7702 upgrade and no relay/Safe/admin send."]
+    },
+    {
+      "row": "K6-A-publish-1",
+      "coordinatorChecksBefore": [
+        "Prepare phase succeeded; exactly 1 unsigned publish transactions returned for the saved task.",
+        "If two calls: mUSD.approve(Holding,1000000) followed by Holding.publish with the frozen terms. If one: existing allowance covers reward, so Holding.publish alone.",
+        "Use only the branch matching the current visible confirmation and saved original operation. These are alternatives, never consecutive publish attempts.",
+        "Two-call branch starts with the current injected Privy boundary offering Send them one at a time instead. Do not click Confirm all 2 as one transaction: that path can invoke upgrade_account/relay."
+      ],
+      "steps": [
+        {"action": "goto", "path": "/publish"},
+        {"action": "wait", "text": "Publish the funded hire and reserve your bond from stake", "exact": true},
+        {"action": "capture", "name": "k6-a-publish-review"},
+        {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
+        {"action": "wait", "text": "Published · 1 mUSD locked in escrow", "exact": true},
+        {"action": "capture", "name": "k6-a-published"}
+      ],
+      "coordinatorChecksAfter": [
+        "Reconcile successful publish receipt, then fill JOB_A_ID and TASK_A_ID from get_task and the current G1b indexer. Confirm client=Holding, creator=UI wallet, reward=1000000 and funded=false.",
+        "Record every approval/publish receipt as TX testnet <full-hash> <phase-row>. Do not repeat publish if the toast or indexer is late.",
+        "Post the exact job/task IDs to the coordinator/worker handoff; publication does not select or activate Pixel."
+      ],
+      "effects": ["1 wallet-paid creator transaction(s); no EIP-7702 upgrade and no relay/Safe/admin send."]
+    },
+    {
+      "row": "K6-A-select",
+      "coordinatorChecksBefore": ["Fill JOB_A_ID with canonical decimal G1b ID, read get_task and list_applications; exactly the precreated Pixel1943 invite is selectable. Verify registered wallet, one Select button and no already signed/expired selection."],
+      "steps": [
+        {"action": "goto", "path": "/job/__JOB_A_ID__"},
+        {"action": "wait", "role": "button", "name": "Select", "exact": true},
+        {"action": "capture", "name": "k6-a-selection-before"},
+        {"action": "click", "role": "button", "name": "Select", "exact": true},
+        {"action": "wait", "role": "dialog", "name": "Select Agent #1943?", "exact": true},
+        {"action": "click", "role": "button", "name": "Sign the selection", "exact": true},
+        {"action": "wait", "text": "Selected — waiting for worker activation", "exact": true},
+        {"action": "capture", "name": "k6-a-selection-after"}
+      ],
+      "coordinatorChecksAfter": ["Record the signed Selection termsHash, worker, agentId, nonce and activateBy. get_task.selection state must be signed and chain must still be Open/provider unset.", "HANDOFF 1: Coordinator gives Pixel the exact task/job IDs, terms and cutoff. Pixel stakes enough fresh FACTORY, verifies fee_quote and signs/activates through its own worker tooling only after coordinator clearance. Pixel must wait before submitting."],
+      "effects": ["One creator EIP-712 Selection signature; select_worker/submit_selection board records; no creator chain transaction."]
+    },
+    {
+      "row": "K6-A-topup",
+      "coordinatorChecksBefore": ["HANDOFF 1 complete: activation confirmed; get_task chain.status=active and provider=registered Pixel wallet. Record exact activation feeBps and net. Pixel has not submitted yet.", "No unresolved topup operation, no prior UI contribution; live liquid mUSD >=0.5."],
+      "steps": [
+        {"action": "goto", "path": "/job/__JOB_A_ID__"},
+        {"action": "fill", "role": "textbox", "name": "Amount to add", "exact": true, "value": "0.5"},
+        {"action": "click", "role": "button", "name": "Add", "exact": true},
+        {"action": "capture", "name": "k6-a-topup-review"},
+        {"action": "click", "role": "button", "name": "Send them one at a time instead", "exact": true},
+        {"action": "click", "role": "button", "name": "Confirm step 1 of 2", "exact": true},
+        {"action": "click", "role": "button", "name": "Confirm step 2 of 2", "exact": true},
+        {"action": "wait", "text": "Added to the reward", "exact": true},
+        {"action": "capture", "name": "k6-a-topup-after"}
+      ],
+      "coordinatorChecksAfter": [
+        "Approve is mUSD.approve(Holding,500000), then Holding.topUp(JOB_A_ID,500000). bonus and topUpOf(UI) increase by 500000; liquid mUSD falls by 500000. TopUp component always prepares both calls, even with an existing allowance.",
+        "Record both TX testnet <hash> K6-A-topup receipts.",
+        "HANDOFF 2: Pixel completes the agreed note and submits the accessible Git commit only when the coordinator is ready to approve. Record successful submission hash and read submittedAt/reviewEndsAt; do not invent an absolute time. Pixel must leave final Holding settlement for the creator Collect phase."
+      ],
+      "effects": ["Two wallet-paid creator transactions. Separate sends avoid EIP-7702 upgrade/relay."]
+    },
+    {
+      "row": "K6-A-approve",
+      "coordinatorChecksBefore": ["HANDOFF 2 complete: read job/status/submission, verify accepted delivery against frozen criteria and current UI button Approve and pay 1 mUSD. Pixel must not settle this job before creator Collect.", "Creator is the frozen approver; no active creator sponsorship; exact accept call targets the G1b Evaluator. If chain/board moves to another phase, stop and review instead of choosing a timeout button."],
+      "steps": [
+        {"action": "goto", "path": "/job/__JOB_A_ID__"},
+        {"action": "wait", "role": "button", "name": "Approve and pay 1 mUSD", "exact": true},
+        {"action": "capture", "name": "k6-a-submitted"},
+        {"action": "click", "role": "button", "name": "Approve and pay 1 mUSD", "exact": true},
+        {"action": "wait", "role": "dialog", "name": "Approve and pay?", "exact": true},
+        {"action": "capture", "name": "k6-a-approve-review"},
+        {"action": "click", "role": "button", "name": "Approve and pay", "exact": true},
+        {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
+        {"action": "wait", "text": "Paid 1 mUSD to Agent #1943", "exact": true},
+        {"action": "capture", "name": "k6-a-approved"}
+      ],
+      "coordinatorChecksAfter": [
+        "Record TX testnet <hash> K6-A-approve and Evaluator Accepted event. Verify terminal core outcome and both bond reservations released; accept may defer a payout without refunding earned worker rights.",
+        "The toast and action label use the gross 1 mUSD base reward; they do not prove net worker receipts or that the 0.5 bonus has settled. The confirmation sheet currently says Agent #1943 receives 1 mUSD without displaying fee/bonus; record this source-level amount-copy gap.",
+        "Read collect_actions(UI) and Holding getListing. Normal accept completes the core base payment; Holding rewardSettled remains false until Collect settles fee and bonus. Do not look for a creator top-up refund on the paid job."
+      ],
+      "effects": ["One wallet-paid Evaluator.accept transaction; report_transaction board record."]
+    },
+    {
+      "row": "K6-A-collect",
+      "coordinatorChecksBefore": [
+        "Normal branch only: core is terminal; rewardSettled=false; collect_actions(UI) contains exactly one Collect control, kind=settle, jobId=JOB_A_ID, and exactly one transaction Holding.settle(JOB_A_ID). Decode before the click.",
+        "If another Collect action is present, stop: current drivePlan has no row-scoping support. If returned sequence includes retryDeferred then settle, stop: Collect autoStart may batch and invoke an upgrade; review a separate deferred-payout plan first. If already settled externally, skip this send and verify balances/events.",
+        "Pixel must not race this phase. No active creator sponsorship."
+      ],
+      "steps": [
+        {"action": "goto", "path": "/collect"},
+        {"action": "wait", "text": "Settle job #__JOB_A_ID__", "exact": true},
+        {"action": "capture", "name": "k6-a-collect-before"},
+        {"action": "click", "role": "button", "name": "Collect", "exact": true},
+        {"action": "wait", "text": "Settled", "exact": true},
+        {"action": "capture", "name": "k6-a-collect-after"}
+      ],
+      "coordinatorChecksAfter": [
+        "Collect click autoStart sends Holding.settle; there is no additional Confirm in your wallet click in this normal fresh-operation branch. Record TX testnet <hash> K6-A-collect.",
+        "Read rewardSettled=true, outcome=Paid, creatorBondSettled and workerBondSettled true; exact matching settle row disappears. Do not require global Nothing to collect if unrelated actions exist.",
+        "Verify bonus payment and FeeCharged/treasury transfers. Using activation feeBps f: fee=ceil(1000000*f/10000), bonusFee=ceil(500000*f/10000); aggregate Pixel entitlement=1500000-fee-bonusFee. Record actual transfers and any owed balances, never infer payouts from the toast.",
+        "No creator claimTopUpRefund is due on accepted A. A deferred/owed state is a checkpoint, not permission to refund the creator."
+      ],
+      "effects": ["One wallet-paid permissionless Holding.settle transaction sent immediately by Collect autoStart."]
+    }
+  ],
+  "sourceAmountGap": {
+    "component": "apps/explore/src/components/job/JobActions.tsx",
+    "finding": "Approve confirmation says the agent receives the gross base reward and its toast repeats that gross amount; neither includes the activation fee or bonus. Source-level UI mismatch only, no new live reproduction.",
+    "handling": "Coordinator verifies fee quote, actual chain entitlement and transfers; source-only request leaves product code unchanged."
+  }
+}
