@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import testnet from './fixtures/legacy-deployment.json' with { type: 'json' }
 import { type DeploymentConfig, NotDeployedError, allStacks, deployment, deploymentFromConfig, stackByHolding } from './deployment.ts'
 
@@ -51,11 +52,8 @@ describe('deployment config compatibility', () => {
     expect(stackByHolding(d, address(99))).toBeUndefined()
   })
 
-  it('an undeployed network still reports unavailable', () => {
-    const c = currentConfig()
-    c.network = 'monad-mainnet'
-    c.chainId = 143
-    c.deployment = {}
+  it('a synthetic unpromoted mainnet record reports unavailable independently of the shipped config', () => {
+    const c: DeploymentConfig = { ...mainnet, deployment: {} }
     expect(() => deploymentFromConfig('monad-mainnet', c)).toThrow(NotDeployedError)
   })
 
@@ -67,9 +65,13 @@ describe('deployment config compatibility', () => {
     }
   })
 
-  it('parses the shipped testnet record and reports the shipped mainnet record as undeployed', () => {
+  it('parses the shipped testnet record and follows the shipped mainnet promotion state', () => {
     expect(Object.keys(deployment('monad-testnet').stacks)).toContain('main')
-    expect(() => deployment('monad-mainnet')).toThrow(NotDeployedError)
+    if (Object.keys(mainnet.deployment).length === 0) {
+      expect(() => deployment('monad-mainnet')).toThrow(NotDeployedError)
+    } else {
+      expect(deployment('monad-mainnet').stacks.main?.kind).toBe('hireling-v1')
+    }
   })
 
   it('treats null optional stacks as absent', () => {
