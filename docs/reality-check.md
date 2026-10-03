@@ -857,3 +857,40 @@ failed on four HTTP 503 resource errors. The scheduled Indexer is live at
 past G1b deployment before the G1b release and missed the new contract events. A checkpoint-only replay is
 prepared; it has not executed. Hosted UI transactions, the fresh developer crew round, successful replay/two
 cron observations and real Privy login are not established by the above receipts. Mainnet remains untouched.
+
+## G1b archive release and recovery hold (3 Oct 2026)
+
+`c9f924cd55009264759f08d2e48c2f35e6d9109b` closes G1-ARCHIVE-001/002: cached publication preparations refuse a
+retired Holding without changing the original operation, and shared-core refolding preserves archived v1
+terms/outcomes. The backend's exact-tree full `pnpm check` passed both with and without RPC; the new cached
+preparation suite passed 14 cases and the Hireling indexer suite passed 10. Database generation drift check
+and all 157 staging guard tests passed under Node 24.
+
+The guarded release applied successfully with digest
+`984966161b46c0ef07aead70201080595c4341b674efe8b8886dec055f7c6d21` and preserved the existing D1, R2,
+bindings, domains and cron. The plan/apply commands used Node 22.23.2 and emitted the Node >=24 engine warning;
+this is a runtime deviation from the release runbook, despite the successful guarded result.
+
+| Service | Verified version |
+| --- | --- |
+| API | `41995c7f-eda5-4d17-b355-28026134687c` |
+| Indexer | `8c75fae9-987e-4539-bf07-727a3effb55c` |
+| Explore | `acb26030-c50f-49c6-ab53-37b40bc874e7` |
+
+Public checks at 16:39:40 UTC passed health, testnet release flags, G1b FACTORY/Holding, unpaused protocol,
+directory reads, job discovery, all 87 MCP tools, anonymous creation refusal (401), and apex redirect (301).
+Discovery returned only one current v1 job (99), alongside configured legacy history; the checkpoint was
+67878809. This does not prove historical G1b completeness.
+
+The prepared recovery pins the new Indexer version and original D1 identity, verifies the existing private
+859,879-byte backup, acquires only an expired lease after observing a completed invocation, and compares the
+original checkpoint before rewinding chain 10143 to 67856884. Existing events/jobs are preserved. Its current
+script SHA-256 is `a6b099a71a90dc4c5b5c1f8a4fee3981e979829b5f302a7fb3c4812055b12ff3`.
+No lease-intent, checkpoint-intent or checkpoint-updated record exists: premature invocations were stopped in
+the read-only waiting phase. Automatic review explicitly rejected further apply because the user approval
+question remained unanswered. Recovery, post-replay cron observations and dependent live UI/crew work remain held.
+
+Source-only UI preparation `e131200` adds phased A/C plans; the follow-up driver scopes confirmation to a named
+dialog. A local Chromium regression verifies that a scoped click touches only the intended dialog button and
+ambiguous controls or dialogs refuse. This test blocks network requests and loads no wallet. It is not a live
+website transaction or real Privy login.

@@ -1,5 +1,26 @@
 # Testnet parity matrix
 
+## Current G1b evidence (3 Oct 2026)
+
+The active config now names **G1b**, deployed at block 67856884 with a fresh FACTORY,
+vault and Holding. The G1 matrix below is historical; its October 6 mining cutoff
+and uncompleted-epoch statements do not describe G1b. Never reuse a G1 journal,
+token balance or stake reservation for the current deployment.
+
+| Area | Current evidence | Status |
+| --- | --- | --- |
+| Deployment, ownership, policy and liquidity | [G1b receipts](reality-check.md#g1b-fresh-hireling-v1-testnet-3-oct-2026), six Safe handoffs, live D16 readback and seed position 77. The three reused-core role differences remain disclosed. | PASS (testnet) |
+| Contract lifecycle and economics | Jobs 82–99 cover payment, silence, cancellation, disputes/rulings, no-show, top-up/refund, fee tiers, legacy paths and refused reward payouts. Stake cooldown/withdrawal completed. [Public receipt ledger](evidence/testnet-g1b/2026-10-03.json). | PASS (coordinator contract flows) |
+| Mining epoch 0 | G1b cutoff was 3 Oct 15:17:32 UTC. Signed prices, computation, 8,750 FACTORY funding, root, publication/readback and the worker's 5,250 FACTORY stake claim completed. | PASS (live G1b) |
+| Hosted archive fix | `c9f924c` was released with digest `984966161b46c0ef07aead70201080595c4341b674efe8b8886dec055f7c6d21`; health, protocol, directory, discovery, MCP and anonymous refusal pass. | PASS (service release) |
+| Historical index catch-up | G1b was promoted after the existing chain checkpoint passed its deployment. A lease-protected checkpoint replay is prepared and the private backup verified. Explicit recovery approval is pending; no checkpoint write is established. | HELD |
+| Website creator flows | A/C plans and dialog-scoped test driver are prepared. Earlier read-only runs had HTTP 503s; no G1b UI signatures or transactions have been sent. | GAP (live website acceptance) |
+| Developers bringing agents | Fresh round-two briefs are prepared; durable runner work is ongoing. Replay and UI readiness must pass before live execution. | GAP (fresh crew round) |
+| Real Privy login and friends' sessions | [First-use guide](../apps/explore/docs/first-use.md) and K6/K8 checklists exist. An injected test wallet is not evidence of real Privy login or a friend's session. | GAP (human acceptance) |
+| Mainnet | No mainnet action is authorized or implied by the testnet evidence. | HELD for Kris's explicit go |
+
+## Historical G1 matrix
+
 This matrix records what the Monad testnet proves before a mainnet action. A
 testnet fork or a unit test is evidence of implementation; it is not a live
 mainnet deployment. The live deployment and staging records are in
@@ -105,6 +126,6 @@ and changed Safe nonce/prevalidated signatures/altered targets refuse. The live
 cutoff refusal passed on 3 Oct, leaving no output directory. Keystore proof used
 diagnostic epoch 999999 and does not constitute epoch-0 completion.
 
-No mainnet transaction is implied by this document. After CLOCKS-PARAM, the new
-testnet deployment will need a new parity read and an epoch script run against its
-own on-chain cutoff; the dated evidence here belongs to the current G1 stack.
+No mainnet transaction is implied by this document. The preceding matrix and
+command example describe the historical G1 stack. G1b's completed epoch and
+remaining acceptance gates are recorded at the top of this document.
