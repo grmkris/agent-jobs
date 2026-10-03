@@ -447,10 +447,10 @@ the same checkout refuses at once. Forge writes its default `broadcast/` and `ca
 8. `DeployOddTokens`.
 
 Optional flags:
-- `--fee-proposal`: the Safe calls `FeeSchedule.propose` through `execTransaction`. Anyone can execute it 3 days later,
-  within 7; an early `execute` is shown to refuse.
+- `--fee-proposal`: the Safe calls `FeeSchedule.propose` through `execTransaction`. Anyone can execute at its ETA,
+  within `PROPOSAL_GRACE` (production: 3-day notice, 7-day grace); an early `execute` is shown to refuse.
 - `--holding-probe`: the Safe proposes `0x…dEaD` as a vault Holding, and an early `acceptHolding` is shown to refuse.
-  Anyone may accept it from 8 to 15 days later; `cancelHoldingProposal` withdraws it.
+  Anyone may accept it at its ETA within `PROPOSAL_GRACE` (production: days 8–15); `cancelHoldingProposal` withdraws it.
 - `--dry-run`, `--yes`, `--from/--to <step>`.
 
 Every transaction hash is printed and listed again at the end.
@@ -459,8 +459,8 @@ Every transaction hash is printed and listed again at the end.
 keys, with a fresh 1-of-2 Safe; dev0 stands in for `roles.admin` as the core's admin (granted by an impersonated
 `roles.admin`). It also checks that a missing signer, a loose password file, a chain-143 RPC and a second launch are
 refused, that a re-run from `pauser` sends nothing, that a Safe with a module (enabled through its own
-`execTransaction`) or with a guard is refused, and that the proposal can be executed after 3 days and the probe
-accepted after 8. Every dev account carries someone's EIP-7702 delegation on Monad testnet, so the fork clears that code
+`execTransaction`) or with a guard is refused, and that both proposals can execute at their immutable ETAs.
+Every dev account carries someone's EIP-7702 delegation on Monad testnet, so the fork clears that code
 first (R7 does the same on its mainnet fork). `KEEP=1` stops after the launch and leaves the fork running, and the
 promoted scratch config and the run's forge directories in place, printing them, the env that reaches them
 (`NETWORK`, `FOUNDRY_BROADCAST`, `FOUNDRY_CACHE_PATH`) and how to remove them, for UI's real-chain harness; the lock is

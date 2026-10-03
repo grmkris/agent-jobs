@@ -26,11 +26,11 @@
 # Flags:
 #   --fee-proposal   the Safe proposes a fee schedule through execTransaction: FEE_PROPOSAL, as JSON
 #                    {"thresholds":[…],"bps":[…],"treasury":"0x…"} with thresholds in whole FACTORY like the config;
-#                    default the config's hireling.schedule. Anyone can `execute()` it from FeeSchedule.DELAY (3 days)
-#                    later until 7 days after that; an early execute is shown to refuse (eth_call, nothing sent).
+#                    default the config's hireling.schedule. Anyone can `execute()` at FeeSchedule.DELAY later,
+#                    within PROPOSAL_GRACE; an early execute is shown to refuse (eth_call, nothing sent).
 #   --holding-probe  the Safe proposes HOLDING_PROBE (default 0x…dEaD, which nobody controls) as a vault Holding, and an
 #                    early acceptHolding is shown to refuse (eth_call). It stays pending; anyone may accept it from
-#                    8 to 15 days later, and the Safe's cancelHoldingProposal() withdraws it.
+#                    HOLDING_DELAY later within PROPOSAL_GRACE; the Safe's cancelHoldingProposal() withdraws it.
 #   --dry-run        stop after step 1.      --yes   don't ask before broadcasting.
 #   --from STEP      resume at deploy|promote|accept|pauser|readback|sdk|odd|flags (after fixing whatever stopped a run;
 #                    finish a cut-off deploy with forge's --resume first).   --to STEP   stop after STEP.
@@ -352,8 +352,9 @@ if [[ $FEE_PROPOSAL_FLAG -eq 1 ]] && runs flags; then
   safe_exec "fee proposal (Safe → FeeSchedule.propose)" "$FEES" \
     "$(cast calldata "propose((uint256[4],uint16[4],address))" "([$T],[$B],$TREASURY)")"
   ETA=$(call "$FEES" "pending()((uint256[4],uint16[4],address),uint48)" | tail -1 | awk '{print $1}')
+  GRACE=$(call "$FEES" "PROPOSAL_GRACE()(uint48)" | awk '{print $1}')
   refuses "an early FeeSchedule.execute()" "ScheduleTimelocked(uint48)" "$FEES" "execute()"
-  ok "fee schedule proposed (thresholds $(jq -c .thresholds <<<"$SCHEDULE") FACTORY, bps $B, treasury $TREASURY); anyone can execute it from $(date -u -d "@$ETA" '+%Y-%m-%d %H:%M UTC') for 7 days: cast send $FEES 'execute()'"
+  ok "fee schedule proposed (thresholds $(jq -c .thresholds <<<"$SCHEDULE") FACTORY, bps $B, treasury $TREASURY); anyone can execute it from $(date -u -d "@$ETA" '+%Y-%m-%d %H:%M:%S UTC') for $GRACE seconds: cast send $FEES 'execute()'"
 fi
 if [[ $HOLDING_PROBE_FLAG -eq 1 ]] && runs flags; then
   VAULT=$(address_of vault)
@@ -361,8 +362,10 @@ if [[ $HOLDING_PROBE_FLAG -eq 1 ]] && runs flags; then
   [[ "$(call "$VAULT" "isHolding(address)(bool)" "$PROBE")" == "false" ]] || fail "$PROBE is already a Holding"
   safe_exec "holding probe (Safe → StakeVault.proposeHolding $PROBE)" "$VAULT" \
     "$(cast calldata "proposeHolding(address)" "$PROBE")"
+  ETA=$(call "$VAULT" "pendingHolding()(address,uint48)" | tail -1 | awk '{print $1}')
+  GRACE=$(call "$VAULT" "PROPOSAL_GRACE()(uint48)" | awk '{print $1}')
   refuses "an early StakeVault.acceptHolding()" "HoldingTimelocked(uint48)" "$VAULT" "acceptHolding()"
-  ok "Holding $PROBE proposed; acceptable from 8 days on, for 7 days; the Safe's cancelHoldingProposal() withdraws it"
+  ok "Holding $PROBE proposed; acceptable from $(date -u -d "@$ETA" '+%Y-%m-%d %H:%M:%S UTC') for $GRACE seconds; the Safe's cancelHoldingProposal() withdraws it"
 fi
 
 echo

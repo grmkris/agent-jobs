@@ -280,7 +280,7 @@ STRANGER=$(devkey 9)
 cast rpc --rpc-url "$LOCAL" anvil_setBalance "$(addr "$STRANGER")" 0x3635c9adc5dea00000 >/dev/null 2>&1
 advance_to() {
   local eta=$1 now
-  now=$(cast block --rpc-url "$LOCAL" latest --json | jq -r '.timestamp | if type == "string" then . else tostring end')
+  now=$(cast block --rpc-url "$LOCAL" latest --json | jq -r '(.data // .).timestamp')
   now=$(cast to-dec "$now")
   if (( now < eta )); then cast rpc --rpc-url "$LOCAL" evm_setNextBlockTimestamp "$eta" >/dev/null 2>&1; fi
   cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null 2>&1
