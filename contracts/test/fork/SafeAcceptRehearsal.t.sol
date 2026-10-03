@@ -6,6 +6,7 @@ import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
 import {HirelingOutput} from "../../script/HirelingOutput.sol";
 import {HirelingSafeAccept, ISafe} from "../../script/HirelingSafeAccept.sol";
 import {RecipeDriver} from "../hireling/Recipe.t.sol";
+import {UnpromotedTestnet} from "../helpers/UnpromotedTestnet.sol";
 
 interface ISafeOwners {
     function getOwners() external view returns (address[] memory);
@@ -57,7 +58,7 @@ contract SafeAcceptRehearsalForkTest is Test {
 
         // The promoted record, as PromoteHireling writes it, in a scratch copy of the config.
         string memory path = string.concat(vm.projectRoot(), "/config/.test-safeaccept.json");
-        vm.writeFile(path, real);
+        UnpromotedTestnet.write(vm, path, real);
         HirelingOutput.write(vm, path, d, safe, 0, block.number);
         (address recorded, address[6] memory t) = HirelingSafeAccept.targets(vm, vm.readFile(path));
         vm.removeFile(path);

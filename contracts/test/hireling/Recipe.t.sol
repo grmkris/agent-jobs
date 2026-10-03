@@ -19,6 +19,7 @@ import {HirelingHolding} from "../../src/hireling/HirelingHolding.sol";
 import {StakeVault} from "../../src/hireling/StakeVault.sol";
 import {MockIdentity} from "../mocks/MockIdentity.sol";
 import {MockReputation} from "../mocks/MockReputation.sol";
+import {UnpromotedTestnet} from "../helpers/UnpromotedTestnet.sol";
 
 /// @dev Calls the recipe's steps one at a time under the deployer, so the test can act as a third party between them.
 contract RecipeDriver is Test {
@@ -430,8 +431,9 @@ contract RecipeTest is Test {
     function test_output_testnetShape_movesMainAndDemoToLegacy() public {
         HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         d.coreDeployed = false;
-        string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
-        string memory path = _temp("testnet", real);
+        string memory shipped = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
+        string memory path = _temp("testnet", shipped);
+        string memory real = UnpromotedTestnet.write(vm, path, shipped);
         HirelingOutput.write(vm, path, d, safe, 0, 123);
         string memory out = vm.readFile(path);
         vm.removeFile(path);
@@ -476,6 +478,17 @@ contract RecipeTest is Test {
         path = _temp("testnet2", out);
         vm.expectRevert(HirelingOutput.AlreadyDeployed.selector);
         this.writeExternal(path, d);
+        vm.removeFile(path);
+    }
+
+    function test_output_shippedPromotedTestnet_refusesAnotherDeployment() public {
+        string memory shipped = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
+        if (!vm.keyExistsJson(shipped, ".deployment.hireling")) return vm.skip(true);
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory path = _temp("testnet-promoted-guard", shipped);
+        vm.expectRevert(HirelingOutput.AlreadyDeployed.selector);
+        this.writeExternal(path, d);
+        assertEq(vm.readFile(path), shipped, "guard preserves the promoted record");
         vm.removeFile(path);
     }
 
