@@ -621,3 +621,28 @@ Timelocks started:
   `execute()` refuses with ScheduleTimelocked. Anyone may execute it from **2026-10-06 07:49 UTC**, for 7 days.
 - **Vault Holding probe**, `0x69afab1a…e334`: `proposeHolding(0x…dEaD)`. An early `acceptHolding()` refuses with
   HoldingTimelocked. It becomes acceptable from day 8; the Safe's `cancelHoldingProposal()` withdraws it.
+
+## G2: staging release of Hireling v1 (3 Oct 2026)
+
+`pnpm deploy:staging plan`, then `apply <digest>`, at main 5bea545.
+
+**Plan.** Digest `3daadeca2ca5a26e…`, with these actions:
+- Database and Manifests: noop.
+- Api, Indexer and Explore: update.
+- Secrets added: TELEGRAM_BOT_TOKEN on Api and Indexer, TELEGRAM_WEBHOOK_SECRET on Api, both through the approved-change manifest.
+- No creates, no deletes, no migrations.
+
+**Applied.** The post-upload verification passed. Versions:
+- Api `7af7a252-c280-4b43-8b4f-d1365f05fd35`;
+- Indexer `3684432a-7ff8-4965-b6b7-28a1b438b08a`;
+- Explore `bfad0447-a31b-4536-8599-38a1469314ed`.
+
+**Live checks.**
+- `https://testnet.hireling.xyz/release.json` = `{network: monad-testnet, mainnetLive: false, writesOpen: true}`; the apex answers 301.
+- The Api's `/health` returns 200. `/telegram/webhook` without the secret returns 401.
+
+**Telegram.** @hireling_xyz_bot's webhook now points at the staging Api's `/telegram/webhook`, with the secret token
+set: `getWebhookInfo` shows no error. The bot is DM-only (D22).
+
+**Flow wallet funding.** Worker 2 MON, tx `0x03be26f5…f654`; relay 5 MON, tx `0xc67f1e0b…7aa0`, both from the backup
+Safe owner. Kris funded the creator directly.
