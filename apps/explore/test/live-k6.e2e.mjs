@@ -30,7 +30,8 @@ const sendRequested = mode === 'send';
 const allowSend = sendRequested && process.env.LIVE_UI_ALLOW_SEND === '1' && process.env.GAS_FIX_CONFIRMED === '1' &&
   process.env.STAGING_RELEASE_CONFIRMED === '1' && process.env.G1B_RELEASE_CONFIRMED === '1' && process.env.FACTORY_V2_FUNDED === '1' && process.env.LIVE_UI_SEND_AUTHORIZED === '1';
 const repo = fileURLToPath(new URL('../../../', import.meta.url));
-const envPath = `${repo}.env.local`;
+// A coordinator can use the dedicated UI worktree's private test wallet without copying its key.
+const envPath = process.env.LIVE_UI_WALLET_ENV ?? `${repo}.env.local`;
 const envStat = statSync(envPath);
 assert.equal(envStat.mode & 0o777, 0o600, '.env.local must be mode 600');
 const account = loadAccount(envPath);
