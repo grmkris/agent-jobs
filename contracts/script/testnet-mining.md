@@ -27,4 +27,6 @@ an interrupted operation with the same command and directory: saved drafts and
 signed outer bytes are reconciled before any new send. Never delete the journal
 or rewrite cached artifacts to bypass a binding or nonce refusal. A funding
 snapshot change requires reconciliation before deliberately recomputing in a
-new directory. Epoch-0 journal keys and bindings remain compatible.
+new directory. Epoch-0 transaction keys remain compatible. Deployment bindings use
+the BigInt-aware flow-journal serializer; any different saved binding refuses and
+must be reconciled rather than migrated automatically.

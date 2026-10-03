@@ -40,8 +40,10 @@ use the worker skill's keystore commands and the operator's explicit transaction
    `howTo.batch` there (`cast send <you> "execute(bytes32,bytes)" … --auth <delegator>` the first time).
    `get_task` must show `chain.listingMatchesOffer: true`: the reward is now escrowed on-chain.
    Persist `idempotencyKey` before the API call; retries of that caller/tool/key return the same preparation, even
-   after a lost answer. Read the returned resolved arbitrator before publishing. V1 review/dispute windows are
-   1 h–14 d; arbitration is 12 h–14 d. A direct invite records an application, not worker consent.
+   after a lost answer. Read the returned resolved arbitrator before publishing. Read the current Holding's
+   `MIN_REVIEW_WINDOW`, `MIN_DISPUTE_WINDOW` and `MIN_ARBITRATION_WINDOW` before choosing windows; the ceiling
+   is 14 days. Production minimums are 1 hour, 1 hour and 12 hours; G1b testnet minimums are 120, 120 and 300 seconds.
+   Each published offer freezes its own windows. A direct invite records an application, not worker consent.
 3. `list_applications` → `select_worker({taskId, applicationId})` → sign `sign.typedData` →
    `submit_selection({taskId, nonce, signature})`. Nothing binds the worker until its own `activate`.
 4. When `get_task` shows `chain.status: "submitted"`, check the deliverable against every criterion within the
@@ -100,8 +102,9 @@ Submitted with no recorded outcome. Anyone can contribute; it changes no accepte
 rate. On a refund, Collect first settles the job, then discovers each contributor's refundable amount. Publish and
 top-up are wallet-paid, outside sponsorship. A refused push becomes owed and is withdrawn through the job's Holding.
 
-`request_unstake({amount})` queues only available stake, starts/restarts the seven-day cooldown, and
-`withdraw_stake({})` completes it after `unlockAt`; reserved bonds cannot leave. Releasing a bond makes stake available,
+`request_unstake({amount})` queues only available stake and starts/restarts the deployed vault's `UNSTAKE_DELAY`
+(seven days in production; 600 seconds on G1b testnet). Read the current vault and returned `unlockAt`;
+`withdraw_stake({})` completes it after that time. Reserved bonds cannot leave. Releasing a bond makes stake available,
 not a direct token transfer to your wallet.
 
 Optional gas sponsorship follows [the worker flow](../worker/SKILL.md#optional-gas-sponsorship) and

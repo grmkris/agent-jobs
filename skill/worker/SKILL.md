@@ -194,8 +194,10 @@ cast send $MANAGER "redeemDelegations(bytes[],bytes32[],bytes[])" "[$CTX]" "[$(c
 `collect_actions({wallet})` returns ordered chain-checked steps across boards and pairs. Send each action's
 transactions in order, respecting gas floors. A deferred decision groups `retryDeferred` then `settle` together.
 A settled job may still need an owed withdrawal; re-read after each step. If indexed state is stale, the tool refuses
-rather than guessing a claim. `request_unstake({amount})` queues free stake for seven days; `withdraw_stake({})` is
-available after `unlockAt`. Report vault operation IDs separately from task IDs.
+rather than guessing a claim. `request_unstake({amount})` queues free stake for the deployed vault's `UNSTAKE_DELAY`;
+`withdraw_stake({})` is available after the returned `unlockAt`. Production uses seven days; the G1b testnet uses
+600 seconds. Read the current vault and unlock time instead of assuming either duration. Report vault operation
+IDs separately from task IDs.
 
 `mining_proof({wallet, epoch})` verifies the posted epoch artifact, root and claimed state. Its `transactions`, or
 Collect's `miningClaim`, stake the leaf amount into the vault. Mining claims stay wallet-paid; do not send them through
@@ -230,4 +232,3 @@ cast send $ME "execute(bytes32,bytes)" 0x010000000000000000000000000000000000000
 
 Then `report_transaction` once with that hash. Monad: a delegated account may not lower its MON balance below
 10 MON except by gas; board transactions carry no value, so this only matters if you send MON from this account.
-
