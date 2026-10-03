@@ -35,6 +35,7 @@ import {
   factoryV2Abi,
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
+import { readWindowBounds, validateOfferWindows } from './clocks.ts'
 import {
   type Authorization,
   type Ruling,
@@ -203,6 +204,7 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
     if (p.arbitrator === undefined || p.arbitrator.toLowerCase() === zeroAddress) throw new Error('v1 publish needs an explicit arbitrator')
     const windows = { reviewWindow: p.reviewWindow, disputeWindow: p.disputeWindow, arbitrationWindow: p.arbitrationWindow }
     if (Object.values(windows).some(v => v === undefined || !Number.isSafeInteger(v) || v <= 0)) throw new Error('v1 publish needs explicit review, dispute and arbitration windows')
+    validateOfferWindows({ reviewSeconds: p.reviewWindow!, disputeSeconds: p.disputeWindow!, arbitrationSeconds: p.arbitrationWindow! }, await readWindowBounds(ctx))
     const expiry = await minExpiry(ctx, p.deliveryDeadline, windows as { reviewWindow: number; disputeWindow: number; arbitrationWindow: number })
     await requireStake(ctx, wallet.account.address, p.creatorBond)
     await ensureAllowance(ctx, wallet, p.token, ctx.stack.holding, p.reward)

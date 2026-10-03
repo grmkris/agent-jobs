@@ -45,8 +45,9 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
 
 ## What it counts
 
-1. **Window.** From `MiningReserve.epochStart(n)` to `epochEnd(n)`: epoch 0 is 72 h from genesis, later epochs 7
-   days. A log counts when its block timestamp is at or after the start and before the end.
+1. **Window.** From `MiningReserve.epochStart(n)` to `epochEnd(n)`, using the deployed reserve's clock getters.
+   Production epochs are 72 h then 7 days; testnet may use minute-scale constructor clocks. Never infer the window
+   from those production durations. A log counts when its block timestamp is at or after the start and before the end.
    - Everything is read up to the **finalized** head, which must be past the window's end, so a reorg cannot change
      what was counted.
    - The window's last block hash is in `inputs.window.toBlockHash`.

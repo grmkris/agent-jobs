@@ -11,6 +11,43 @@ export type Network = 'monad-testnet' | 'monad-mainnet'
 export type StackName = 'main' | 'demo' | 'fast'
 export type StackKind = 'legacy' | 'hireling-v1'
 
+/** Deploy-time protocol clocks. Values are seconds unless the field name says otherwise. */
+export interface HirelingClocks {
+  readonly minReviewWindow: number
+  readonly minDisputeWindow: number
+  readonly minArbitrationWindow: number
+  readonly unstakeDelay: number
+  readonly holdingDelay: number
+  readonly feeDelay: number
+  readonly proposalGrace: number
+  readonly epochZeroDuration: number
+  readonly epochDuration: number
+}
+
+/** Production values used when an older deployment record has no clocks block. */
+export const PRODUCTION_CLOCKS: HirelingClocks = Object.freeze({
+  minReviewWindow: 3600, minDisputeWindow: 3600, minArbitrationWindow: 43200,
+  unstakeDelay: 604800, holdingDelay: 691200, feeDelay: 259200, proposalGrace: 604800,
+  epochZeroDuration: 259200, epochDuration: 604800,
+})
+
+/** The 14-day window ceilings stay compiled constants (D24). */
+export const MAX_HIRELING_WINDOW = 14 * 86400
+
+export function clocksFromConfig(value: HirelingClocks | undefined, chainId: number): HirelingClocks {
+  if (value !== undefined && (value === null || typeof value !== 'object' || Array.isArray(value))) throw new Error('Invalid Hireling clocks block')
+  const clocks = { ...(value ?? PRODUCTION_CLOCKS) }
+  for (const key of Object.keys(PRODUCTION_CLOCKS) as Array<keyof HirelingClocks>) {
+    const seconds = clocks[key]
+    const minimum = key.startsWith('epoch') ? 600 : key.startsWith('min') ? 1 : 60
+    const maximum = key.startsWith('min') ? MAX_HIRELING_WINDOW : 2 ** 48 - 1
+    if (!Number.isSafeInteger(seconds) || seconds < minimum || seconds > maximum) throw new Error(`Invalid Hireling clock ${key}`)
+    if (chainId === 143 && seconds !== PRODUCTION_CLOCKS[key]) throw new Error(`Mainnet requires production clock ${key}`)
+  }
+  if (clocks.holdingDelay <= clocks.unstakeDelay) throw new Error('Hireling holdingDelay must exceed unstakeDelay')
+  return clocks
+}
+
 export interface Stack {
   readonly kind: StackKind
   readonly factory: Address
@@ -35,6 +72,7 @@ export interface HirelingDeployment {
   readonly teamVesting: Address
   /** Launch time, in Unix seconds, used for the mining epochs. */
   readonly t0: number
+  readonly clocks?: HirelingClocks
 }
 
 /** The caveat enforcers an execution budget is built from (MetaMask's `…Enforcer` contracts, ADR-0009). */
@@ -118,6 +156,7 @@ export interface DeploymentConfig {
       miningReserve: string
       teamVesting: string
       t0: number
+      clocks?: HirelingClocks
     }
     rewardTokens?: string[]
     poolFactory?: string
@@ -185,8 +224,10 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
       if (!validAddress(h[name])) throw new Error(`Hireling deployment requires ${name}`)
     }
     if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0) throw new Error('Hireling deployment requires block and launch time')
+    const clocks = h.clocks === undefined ? undefined : clocksFromConfig(h.clocks, c.chainId)
     hireling = { block: BigInt(h.block), safe: h.safe as Address, factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
-      distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0 }
+      distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0,
+      ...(clocks === undefined ? {} : { clocks }) }
   }
   for (const s of [...Object.values(stacks), ...Object.values(legacyStacks)]) {
     if (s?.kind === 'hireling-v1' && (hireling === null || s.factory.toLowerCase() !== hireling.factory.toLowerCase())) throw new Error('Hireling stack requires its matching v1 deployment')

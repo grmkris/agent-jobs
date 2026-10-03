@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import testnet from './fixtures/legacy-deployment.json' with { type: 'json' }
-import { type DeploymentConfig, NotDeployedError, allStacks, deployment, deploymentFromConfig, stackByHolding } from './deployment.ts'
+import { type DeploymentConfig, NotDeployedError, PRODUCTION_CLOCKS, allStacks, deployment, deploymentFromConfig, stackByHolding } from './deployment.ts'
 
 const address = (n: number) => `0x${n.toString(16).padStart(40, '0')}`
 const currentConfig = () => structuredClone(testnet) as DeploymentConfig
@@ -50,6 +50,18 @@ describe('deployment config compatibility', () => {
     const d = deploymentFromConfig('monad-testnet', config)
     expect(Object.values(d.legacyStacks).every(s => s.factory === testnet.deployment.factory)).toBe(true)
     expect(stackByHolding(d, address(99))).toBeUndefined()
+  })
+
+  it('loads optional deploy-time clocks while preserving older deployment records', () => {
+    const c = v1Config()
+    expect(deploymentFromConfig('monad-testnet', c).hireling?.clocks).toBeUndefined()
+    c.deployment.hireling!.clocks = { ...PRODUCTION_CLOCKS, minReviewWindow: 120, epochDuration: 3600 }
+    expect(deploymentFromConfig('monad-testnet', c).hireling?.clocks).toEqual({ ...PRODUCTION_CLOCKS, minReviewWindow: 120, epochDuration: 3600 })
+    c.deployment.hireling!.clocks = { ...PRODUCTION_CLOCKS, epochDuration: 599 }
+    expect(() => deploymentFromConfig('monad-testnet', c)).toThrow('epochDuration')
+    c.deployment.hireling!.clocks = { ...PRODUCTION_CLOCKS, minReviewWindow: 120 }
+    c.network = 'monad-mainnet'; c.chainId = 143
+    expect(() => deploymentFromConfig('monad-mainnet', c)).toThrow('Mainnet requires production clock')
   })
 
   it('a synthetic unpromoted mainnet record reports unavailable independently of the shipped config', () => {

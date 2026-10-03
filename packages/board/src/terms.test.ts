@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { clocksFromConfig, PRODUCTION_CLOCKS, windowBounds } from '@agent-jobs/sdk'
 import {
   TermsError,
   canonicalJson,
@@ -46,6 +47,16 @@ describe('v1 offer windows and arbitrator', () => {
   it('accepts per-offer windows independently of legacy evaluator defaults', () => {
     expect(() => validateOffer(v1(), WINDOWS, NOW, 'hireling-v1')).not.toThrow()
     expect(termsHash(v1())).not.toBe(termsHash({ ...v1(), arbitrator: A(9) }))
+  })
+  it('accepts testnet minute clocks and refuses the second before each deployed minimum', () => {
+    const fast = { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }
+    const bounds = windowBounds(clocksFromConfig({ ...PRODUCTION_CLOCKS, minReviewWindow: 120, minDisputeWindow: 120, minArbitrationWindow: 300 }, 10143))
+    const terms = offer({ windows: fast, arbitrator: A(8) })
+    expect(() => validateOffer(terms, WINDOWS, NOW, 'hireling-v1', bounds)).not.toThrow()
+    expect(() => validateOffer(terms, WINDOWS, NOW, 'hireling-v1')).toThrow('1 hour')
+    for (const key of ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'] as const)
+      expect(() => validateOffer({ ...terms, windows: { ...fast, [key]: fast[key] - 1 } }, WINDOWS, NOW, 'hireling-v1', bounds)).toThrow(TermsError)
+    expect(() => validateOffer(terms, { ...WINDOWS, reviewSeconds: 3600 }, NOW, 'legacy', bounds)).toThrow('deployed evaluator')
   })
   it.each([['reviewSeconds', 3599], ['disputeSeconds', 1209601], ['arbitrationSeconds', 43199], ['reviewSeconds', 3600.5]])('refuses out-of-range %s', (key, value) => {
     expect(() => validateOffer({ ...v1(), windows: { ...windows, [key]: value } }, WINDOWS, NOW, 'hireling-v1')).toThrow('window')

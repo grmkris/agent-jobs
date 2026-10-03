@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { deploymentFromConfig, type DeploymentConfig, type Network } from '../../packages/sdk/src/deployment.ts'
-import { budgetOf, client, decimalsOf, distributorAbi, firstBlockAtOrAfter, holdingLogs, reserveAbi, safeOwners } from './chain.ts'
+import { budgetOf, client, decimalsOf, distributorAbi, epochWindowOf, firstBlockAtOrAfter, holdingLogs, reserveAbi, safeOwners } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues } from './compute.ts'
 import { parsePriceList, recoverPriceListSigner, type PriceListFile } from './prices.ts'
 import { buildTree, proofOf } from './tree.ts'
@@ -64,8 +64,7 @@ async function main() {
 
   // The window, by block timestamp: [epochStart, epochEnd), read only up to the finalized head (B8-SEC-002), so no
   // reorg can change what it counts; the last window block's hash is committed in the inputs.
-  const start = await c.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochStart', args: [epoch] })
-  const end = await c.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochEnd', args: [epoch] })
+  const { start, end } = await epochWindowOf(c, h.miningReserve, epoch)
   const head = await c.getBlock({ blockTag: 'finalized' })
   if (head.timestamp < end) throw new Error(`epoch ${epoch} ends at ${end}; the finalized head is block ${head.number} at ${head.timestamp}: wait for it`)
   const fromBlock = await firstBlockAtOrAfter(c, start, h.block, head.number)

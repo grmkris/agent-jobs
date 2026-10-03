@@ -21,6 +21,16 @@ const erc20Abi = parseAbi(['function decimals() view returns (uint8)'])
 
 export const client = (rpc: string): PublicClient => createPublicClient({ transport: http(rpc, { retryCount: 3, timeout: 30_000 }) }) as PublicClient
 
+/** Pure contract clock reads: the reserve defines both boundaries, including fast testnet clocks. */
+export async function epochWindowOf(c: PublicClient, reserve: Address, epoch: bigint) {
+  const [start, end] = await Promise.all([
+    c.readContract({ address: reserve, abi: reserveAbi, functionName: 'epochStart', args: [epoch] }),
+    c.readContract({ address: reserve, abi: reserveAbi, functionName: 'epochEnd', args: [epoch] }),
+  ])
+  if (start < 0n || end <= start) throw new Error('invalid deployed mining epoch window')
+  return { start, end }
+}
+
 /** The first block in [lo, hi] whose timestamp is at least `t`, or hi + 1 if none is. */
 export async function firstBlockAtOrAfter(c: PublicClient, t: bigint, lo: bigint, hi: bigint): Promise<bigint> {
   let [left, right] = [lo, hi + 1n]

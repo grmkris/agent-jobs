@@ -52,7 +52,7 @@ export async function runV1AdminFlow(d: V1FlowDeps & { safeOwner: sdk.Wallet }, 
       let refused = false
       try { await ctx.publicClient.simulateContract({ account: d.relay.account, address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'acceptHolding' }) }
       catch (error) { if (!isHoldingTimelockRevert(error, eta)) throw new Error('vault refusal was not the expected HoldingTimelocked error', { cause: error }); refused = true }
-      if (!refused) throw new Error('vault accepted a Holding before its eight-day delay')
+      if (!refused) throw new Error('vault accepted a Holding before its deployed delay')
       return true
     })
     await execute('cancel-probe', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelHoldingProposal' }))

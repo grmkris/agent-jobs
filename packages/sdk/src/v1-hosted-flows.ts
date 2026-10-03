@@ -96,7 +96,7 @@ export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
     const offer = await once('offer', async () => { const now = Number((await ctx.publicClient.getBlock()).timestamp); return {
       title: `Live v1 ${flow}`, brief: 'Testnet verification of the published v1 protocol flow.', acceptanceCriteria: ['A confirmed on-chain result'],
       creatorBond: bond, workerBond: bond, deliveryDeadline: now + 6 * 3600, quoteDeadline: now + 3600,
-      windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 }, arbitrator: d.arbitrator.account.address, deliverable: { accepts: ['onchain'] },
+      windows: sdk.minimumOfferWindows(await sdk.readWindowBounds(ctx)), arbitrator: d.arbitrator.account.address, deliverable: { accepts: ['onchain'] },
     } })
     const budget = flow === 'budget-advance' ? { kind: 'advance', cap: amount, token: d.token }
       : flow === 'budget-call' ? { kind: 'call', cap: '0.000001', target: d.token, function: 'function transfer(address,uint256) returns (bool)' } : undefined

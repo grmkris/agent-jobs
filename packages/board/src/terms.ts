@@ -5,6 +5,7 @@
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
 import { type AbiFunction, type Address, type Hex, isAddress, keccak256, parseAbiItem, stringToHex, zeroAddress } from 'viem'
+import { type WindowBounds, validateOfferWindows, windowBounds } from '@agent-jobs/sdk'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
 
@@ -184,9 +185,9 @@ export class TermsError extends Error {
  * publish that must revert, and against the deployed evaluator's windows.
  * @param now Unix seconds.
  */
-export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, kind: 'legacy' | 'hireling-v1' = 'legacy'): void {
+export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, kind: 'legacy' | 'hireling-v1' = 'legacy', bounds: WindowBounds = windowBounds()): void {
   if (kind === 'hireling-v1') {
-    validateHirelingWindows(offer.windows)
+    validateHirelingWindows(offer.windows, bounds)
     if (offer.mode !== 'hire') throw new TermsError('unsupported-mode', 'Hireling v1 supports hires only.')
     const a = offer.arbitrator
     if (a === undefined || !isAddress(a) || a.toLowerCase() === zeroAddress || eq(a, offer.creator) || eq(a, offer.approver)) {
@@ -279,16 +280,8 @@ export interface HirelingWindows {
   arbitrationSeconds: number
 }
 
-/** Bounds copied from HirelingConstants; v1 freezes these on each listing instead of the evaluator. */
-export function validateHirelingWindows(windows: HirelingWindows): void {
-  const day = 24 * 60 * 60
-  if (!Number.isSafeInteger(windows.reviewSeconds) || windows.reviewSeconds < 60 * 60 || windows.reviewSeconds > 14 * day) {
-    throw new TermsError('windows-bounds', 'review window must be between 1 hour and 14 days')
-  }
-  if (!Number.isSafeInteger(windows.disputeSeconds) || windows.disputeSeconds < 60 * 60 || windows.disputeSeconds > 14 * day) {
-    throw new TermsError('windows-bounds', 'dispute window must be between 1 hour and 14 days')
-  }
-  if (!Number.isSafeInteger(windows.arbitrationSeconds) || windows.arbitrationSeconds < 12 * 60 * 60 || windows.arbitrationSeconds > 14 * day) {
-    throw new TermsError('windows-bounds', 'arbitration window must be between 12 hours and 14 days')
-  }
+/** V1 bounds come from chain/config clocks; production is the fallback for offline legacy records. */
+export function validateHirelingWindows(windows: HirelingWindows, bounds: WindowBounds = windowBounds()): void {
+  try { validateOfferWindows(windows, bounds) }
+  catch (error) { throw new TermsError('windows-bounds', (error as Error).message) }
 }

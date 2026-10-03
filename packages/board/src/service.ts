@@ -564,7 +564,7 @@ export class Board {
       mode: OfferMode
       selectionDeadline?: number
       approver?: string
-      /** V1: review/dispute 1h–14d, arbitration 12h–14d, all in seconds. */
+      /** V1 per-job windows, within the deployed Holding's bounds, in seconds. */
       windows?: import('./terms.ts').EvaluatorWindows
       arbitrator?: string
       /** Shortcut to a pre-created application. The worker still signs and activates. */
@@ -640,7 +640,7 @@ export class Board {
     }
     try {
       const enforced = hireling.isHireling(ctx) ? windows : await hireling.offerWindows(ctx)
-      validateOffer(terms, enforced, this.#now(), ctx.stack.kind)
+      validateOffer(terms, enforced, this.#now(), ctx.stack.kind, hireling.isHireling(ctx) ? await sdk.readWindowBounds(ctx) : undefined)
     } catch (e) {
       throw new BoardError('invalid', (e as Error).message)
     }
@@ -1371,7 +1371,7 @@ export class Board {
       try {
         validateOffer({ mode: 'hire', windows: request.windows!, arbitrator: request.arbitrator!, creator,
           approver: request.approver, reward: 1n, creatorBond: parseUnits(input.creatorBond, 18), workerBond: parseUnits(input.workerBond, 18),
-          deliveryDeadline: input.deliveryDeadline, selectionDeadline: null } as OfferTerms, request.windows!, now, 'hireling-v1')
+          deliveryDeadline: input.deliveryDeadline, selectionDeadline: null } as OfferTerms, request.windows!, now, 'hireling-v1', await sdk.readWindowBounds(ctx))
       } catch (e) { throw new BoardError('invalid', (e as Error).message) }
     }
     const requestJson = canonicalJson(request)

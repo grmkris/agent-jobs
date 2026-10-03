@@ -23,7 +23,7 @@ const check = (what: string, actual: bigint | number | string | boolean, expecte
 
 /** Check the legacy open-token pair before the runner performs any setup or publish send. */
 export async function requireLegacyContestFactory(ctx: sdk.Ctx, creator: sdk.Wallet) {
-  const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.openTokens)
+  const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
   if (pair === undefined) throw new Error('legacy-contest requires a configured legacy open-token pair')
   const factory = await ctx.publicClient.readContract({ address: pair.holding, abi: sdk.jobHoldingAbi, functionName: 'factory' })
   const decimals = await ctx.publicClient.readContract({ address: factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
@@ -58,7 +58,9 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
   const publish = async (pair = ctx) => {
     const p = await j.once(`${scope}/offer`, async () => {
       const t = await now(), deadline = t + (flow === 'missed' ? 120 : 6 * 3600)
-      const windows = { reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200 }
+      const limits = pair.stack.kind === 'hireling-v1' ? sdk.minimumOfferWindows(await sdk.readWindowBounds(pair)) : null
+      const windows = limits === null ? { reviewWindow: 0, disputeWindow: 0, arbitrationWindow: 0 }
+        : { reviewWindow: limits.reviewSeconds, disputeWindow: limits.disputeSeconds, arbitrationWindow: limits.arbitrationSeconds }
       return { token: d.token, reward: d.reward, creatorBond: flow.startsWith('legacy-') ? 0n : d.bond, workerBond: flow.startsWith('legacy-') ? 0n : d.bond,
         approver: creator.account.address, manifestHash: sdk.hashText(`v1 flow ${flow}`), policyHash: sdk.hashText(`${flow}:${t}:${sdk.randomNonce()}`),
         deliveryDeadline: deadline, expiredAt: await sdk.minExpiry(pair, deadline, windows), ...windows, arbitrator: d.arbitrator.account.address }
@@ -111,7 +113,7 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     await call('withdraw', worker, h.vault, sdk.stakeVaultAbi, 'withdraw', [])
     check('cooldown amount withdrawn', (await sdk.getStake(ctx, worker.account.address)).unstaking, 0n)
   } else if (flow.startsWith('legacy-')) {
-    const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.openTokens)
+    const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
     if (pair === undefined) throw new Error(`${flow}: no configured legacy open-token pair`)
     const legacy = { ...ctx, stack: pair }, x = await publish(legacy)
     if (flow === 'legacy-contest') {

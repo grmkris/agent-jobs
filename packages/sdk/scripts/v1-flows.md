@@ -30,14 +30,19 @@ reclaimed only when its recorded process no longer exists. Restart a stale journ
 stale-lock reclamation is not atomic between simultaneous restarts. Do not reuse the same wallets across two profiles. Flows run sequentially,
 so the runner remains below the two-flow and 15-rps limits.
 
+New core and hosted offers use the Holding's deployed minimum review/dispute/arbitration windows. Clock waits
+resume from the job's frozen terms, the vault's `unlockAt`, or the proposal's on-chain ETA. Testnet constructor
+clocks may be minutes; the production 12-hour arbitration and 7-day cooldown are not runner constants. An existing
+journal keeps its original terms and signed bytes through a code update; a redeployment requires a new profile.
+
 | Live matrix row | Case(s) |
 | --- | --- |
 | Hire, silence, cancellation | `hire`, `silence`, `cancel` |
 | Both ruling directions and slash flags | `ruling-worker`, `ruling-worker-slash`, `ruling-creator`, `ruling-creator-slash` |
 | Undisputed violation and missed delivery | `violation`, `missed` |
-| Arbitration timeout | `arbitration-timeout` (12 h) |
+| Arbitration timeout | `arbitration-timeout` (deployed per-job window) |
 | Top-up payment and contributor pull refund | `topup-paid`, `topup-refund` |
-| Stake, reservations, slash, cooldown | Setup, the hire/slash cases, `stake-cooldown` (7 d) |
+| Stake, reservations, slash, cooldown | Setup, the hire/slash cases, `stake-cooldown` (vault unlock time) |
 | Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid FACTORY to reach it) |
 | Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
 | Legacy contracts and immutable key | `legacy-contest`, `legacy-dispute` |

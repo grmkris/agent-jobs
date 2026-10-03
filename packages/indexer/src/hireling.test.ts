@@ -122,6 +122,19 @@ describe('Hireling event indexing', () => {
     expect((await protocolEvents(sql, contracts.chainId, { contract: addr(6), fromBlock: 106 })).map((e) => e.name)).toEqual(['Claimed'])
   })
 
+  it('keeps fast per-job windows and emitted epoch ids without deriving epochs from wall-clock constants', async () => {
+    const sql = await db(), epoch = 17n
+    const logs = [log(holding, addr(2), 'Published', { ...decode(contracts, published())!.args,
+      reviewWindow: 120, disputeWindow: 120, arbitrationWindow: 300 }, 100),
+      log(sdk.miningReserveAbi as Abi, addr(7), 'EpochFunded', { epoch, amount: 500n, totalFunded: 500n }, 101),
+      log(sdk.epochDistributorAbi as Abi, addr(6), 'RootSet', { epoch, root: hash(9), total: 500n, dataHash: hash(10) }, 101, 1),
+      log(sdk.epochDistributorAbi as Abi, addr(6), 'Claimed', { epoch, account: worker, amount: 500n }, 102)]
+    await runOnce(sql, cfg(logs))
+    expect((await jobDetail(sql, contracts.chainId, '1000', 0))?.job).toMatchObject({ review_window: 120, dispute_window: 120, arbitration_window: 300 })
+    const events = await protocolEvents(sql, contracts.chainId)
+    expect(events.map(event => event.args.epoch)).toEqual(['17', '17', '17'])
+  })
+
   it('records creator refunds, top-up claims and permissionless outcomes separately', async () => {
     const sql = await db()
     const logs = [published(), activated(),

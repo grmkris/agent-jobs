@@ -9,6 +9,19 @@ const parties = { creator: CREATOR, approver: APPROVER, worker: WORKER }
 const job = (over: Partial<LifecycleInput>): LifecycleInput => ({ mode: 'hire', status: 'open', deliveryDeadline: NOW + 3600, workerBond: '1000', parties, ...over })
 
 describe('v1 final decisions and collection', () => {
+  it('advances minute-clock phases at the per-job second, independent of production defaults', () => {
+    const row = { kind: 'hireling-v1' as const, mode: 'hire', status: 'submitted', creator: CREATOR, approver: APPROVER, worker: WORKER,
+      delivery_deadline: NOW + 3600, selection_deadline: null, worker_bond: '10', submitted_at: NOW, review_window: 120,
+      rejected_at: NOW + 60, dispute_window: 120, disputed_at: NOW + 120, arbitration_window: 300 }
+    const input = lifecycleFromIndexed(row)
+    expect(input).toMatchObject({ reviewEndsAt: NOW + 120, disputeEndsAt: NOW + 180, arbitrationEndsAt: NOW + 420 })
+    expect(lifecycle(input, WORKER, NOW + 120).key).toBe('in-review')
+    expect(lifecycle(input, WORKER, NOW + 121).key).toBe('accepted-by-silence')
+    expect(lifecycle({ ...input, status: 'rejected-pending' }, WORKER, NOW + 180).key).toBe('rejected-pending')
+    expect(lifecycle({ ...input, status: 'rejected-pending' }, WORKER, NOW + 181).key).toBe('rejection-final')
+    expect(lifecycle({ ...input, status: 'disputed' }, WORKER, NOW + 420).key).toBe('disputed')
+    expect(lifecycle({ ...input, status: 'disputed' }, WORKER, NOW + 421).key).toBe('arbitration-lapsed')
+  })
   it('keeps a worker ruling final while the core call is deferred, even after arbitration expiry', () => {
     const phase = lifecycle(job({ kind: 'hireling-v1', status: 'disputed', arbitrationEndsAt: NOW - 1,
       outcome: 'ruled-worker', deferredDecision: true }), WORKER, NOW)

@@ -14,7 +14,7 @@ export function rulingNonceUsed(ctx: sdk.Ctx, arbitrator: Address, nonce: bigint
 }
 
 export async function offerWindows(ctx: sdk.Ctx, input?: EvaluatorWindows): Promise<EvaluatorWindows> {
-  if (isHireling(ctx)) return input ?? { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 }
+  if (isHireling(ctx)) return input ?? sdk.standardOfferWindows(await sdk.readWindowBounds(ctx))
   const [reviewSeconds, disputeSeconds, arbitrationSeconds] = await Promise.all([
     ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }),
     ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'disputeWindow' }),

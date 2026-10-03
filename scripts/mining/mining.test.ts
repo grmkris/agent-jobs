@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { checkPasswordFile } from './password.ts'
-import { budgetOf } from './chain.ts'
+import { budgetOf, epochWindowOf, firstBlockAtOrAfter } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
 import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
 import { buildTree, leafHash, proofOf, verifyProof, type LeafValue } from './tree.ts'
@@ -16,6 +16,30 @@ const a = (n: number) => `0x${n.toString(16).padStart(40, '0')}` as Address
 const [A, B, C, D, E, TREASURY] = [a(0xa), a(0xb), a(0xc), a(0xd), a(0xe), a(0x7e)]
 const HOLDING = a(0x401d)
 const USDC = a(0x05dc)
+
+test('mining uses deployed fast epoch boundaries and keeps the end timestamp exclusive', async () => {
+  const t0 = 1000n, zero = 1800n, length = 3600n
+  const requests: Array<{ functionName: string; args: bigint[] }> = []
+  const c = { readContract: async (request: { functionName: string; args: bigint[] }) => {
+    requests.push(request)
+    const epoch = request.args[0]!, start = epoch === 0n ? t0 : t0 + zero + (epoch - 1n) * length
+    if (request.functionName === 'epochStart') return start
+    if (request.functionName === 'epochEnd') return start + (epoch === 0n ? zero : length)
+    throw new Error('unexpected contract getter')
+  }, getBlock: async ({ blockNumber }: { blockNumber: bigint }) => ({ timestamp: t0 + blockNumber }) } as unknown as PublicClient
+  const first = await epochWindowOf(c, a(7), 0n)
+  expect(first).toEqual({ start: t0, end: 2800n })
+  expect(await epochWindowOf(c, a(7), 1n)).toEqual({ start: 2800n, end: 6400n })
+  expect(await epochWindowOf(c, a(7), 2n)).toEqual({ start: 6400n, end: 10000n })
+  const from = await firstBlockAtOrAfter(c, first.start, 0n, 10000n)
+  const to = await firstBlockAtOrAfter(c, first.end, 0n, 10000n) - 1n
+  expect([from, to]).toEqual([0n, 1799n])
+  expect(requests.map(r => [r.functionName, r.args[0]])).toEqual([
+    ['epochStart', 0n], ['epochEnd', 0n], ['epochStart', 1n], ['epochEnd', 1n], ['epochStart', 2n], ['epochEnd', 2n],
+  ])
+  const broken = { readContract: async () => 1000n } as unknown as PublicClient
+  await expect(epochWindowOf(broken, a(7), 0n)).rejects.toThrow('invalid deployed mining epoch window')
+})
 const UNPRICED = a(0xbad)
 const usd = (n: number) => BigInt(n) * 10n ** 18n
 const factory = (n: number) => BigInt(n) * 10n ** 18n
