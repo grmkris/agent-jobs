@@ -5,6 +5,7 @@ import proposed from '../../../docs/p0-prod-artifact.json' with { type: 'json' }
 import { MAINNET_LIVE } from '../../explore/src/release.ts'
 import { probeRelease } from '../src/deploy-preflight.ts'
 import { validateExploreRelease, validateReleaseProbe, type ProdArtifact } from '../src/prod-config.ts'
+import { preLaunch } from './pre-launch.ts'
 
 // PROD-GATE-006: Explore's MAINNET_LIVE (apps/explore/src/release.ts) is pinned in the artifact, agrees with the
 // admission mode, and the deployed /release.json is checked against it.
@@ -83,8 +84,14 @@ test.skipIf(!hasBun)('the runbook command starts and judges the artifact (its im
   const { FORCE_COLOR: _, ...env } = process.env
   const run = spawnSync('bun', ['scripts/preflight-prod.ts', 'docs/p0-prod-artifact.json'], { cwd: repo, encoding: 'utf8', timeout: 60_000, env: { ...env, NO_COLOR: '1' } })
   expect(run.stderr).not.toContain('Cannot find module')
-  // The checked-in artifact is the proposal: structurally incomplete on purpose, and its Explore pin is not the reason.
-  expect(run.status).toBe(1)
-  expect(run.stderr).toMatch(/^production preflight rejected: /)
-  expect(run.stderr).not.toContain('explore:')
+  // LAUNCH-AUDIT-FIX-003: once launch has filled the checked-in artifact in, it passes; until then it is rejected only for
+  // what launch still fills in (./pre-launch.ts), never for its Explore pin or a structural label.
+  if (run.status === 0) {
+    expect(run.stdout).toMatch(/^Hireling v1 production structural preflight passed/)
+  } else {
+    expect(run.status).toBe(1)
+    const rejected = /^production preflight rejected: (.+)$/m.exec(run.stderr)
+    expect(rejected).not.toBeNull()
+    expect((rejected?.[1] ?? '').split(', ').filter(label => !preLaunch(label))).toEqual([])
+  }
 })

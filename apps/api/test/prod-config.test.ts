@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import proposed from '../../../docs/p0-prod-artifact.json' with { type: 'json' }
 import { prodSecretSources, RETIRED_ROLE_ADDRESSES, validateProdConfig, type ChainConfig, type ProdArtifact } from '../src/prod-config.ts'
+import { preLaunch } from './pre-launch.ts'
 
 const USDC = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603'
 
@@ -38,15 +39,6 @@ const configured = () => {
   artifact.deployment.hireling.safeThreshold = 1
   return { config, artifact }
 }
-
-/** What the shipped pair may still lack before launch: R2's keys and Safe policy, the deploy and promotion, the Privy
- *  and provider approvals. A structural failure (stage, URLs, faucet, hold gates, known tokens, stacks, legacy pairs,
- *  secret sources, artifact structure) is never one of them. */
-const PRE_LAUNCH = new Set(['chain/providers', 'Privy app/origin approval', 'deployment network/block', 'open-token main Holding metadata',
-  'main v1 kind', 'v1 factory consistency', 'hireling block/T0', 'hireling:safeOwners/safeThreshold', 'rewardTokens:USDC',
-  'artifact rewardTokens', 'hireling.defaultArbitrator is not roles.arbitrator', 'hireling.defaultArbitrator is a retired 1 Oct key'])
-const preLaunch = (label: string) => PRE_LAUNCH.has(label) || /^(hireling|main|address):[A-Za-z]+$/.test(label) ||
-  /^(role|address):[A-Za-z]+ is a retired 1 Oct key$/.test(label)
 
 test('LAUNCH-AUDIT-FIX-002: the shipped config and artifact pass, or fail only on what launch still fills in', () => {
   expect(validateProdConfig(mainnet as unknown as ChainConfig, proposed as ProdArtifact).filter(label => !preLaunch(label))).toEqual([])

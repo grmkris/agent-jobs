@@ -126,15 +126,46 @@ contract MainnetRunbookTest is Test {
     }
 
     /// LAUNCH-AUDIT-001: runbook §1.2's `hireling` table is a complete recipe input. A fixture built only from its rows
-    /// (path and type), spliced into the shipped mainnet config, loads through HirelingRecipe.load; a missing row would
-    /// make load revert on the absent key. On 143 the documented reuseCore is false.
+    /// (path and type) loads through HirelingRecipe.load; without one row it does not. On 143 the documented reuseCore
+    /// is false. FIX-003: the fixture is set as the `hireling` object of a scratch copy of the shipped record, so this
+    /// holds whatever that record holds: no block before R2, R2's own block after (replaced here).
     function test_documentedHirelingInputLoads() public {
+        (string memory json, uint256 rows) = _documentedHireling("");
+        assertEq(rows, 15, "runbook: the hireling table lists the 15 fields load reads");
+
+        string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
+        string memory path_ = string.concat(vm.projectRoot(), "/config/.test-schema.json");
+        vm.writeFile(path_, real);
+        vm.writeJson('{"reuseCore":true,"safe":"0x0000000000000000000000000000000000000bad"}', path_, ".hireling");
+        string[2] memory bases = [real, vm.readFile(path_)]; // as shipped, and with an R2 hireling block
+        for (uint256 i; i < 2; ++i) {
+            vm.writeFile(path_, bases[i]);
+            vm.writeJson(json, path_, ".hireling");
+            HirelingRecipe.Config memory c = HirelingRecipe.load(vm, ".test-schema");
+            assertEq(c.chainId, 143);
+            assertFalse(c.reuseCore);
+            assertEq(c.safe, address(uint160(0xa000 + 2)));
+            assertEq(c.genesis, 1);
+        }
+        (string memory short,) = _documentedHireling("margin");
+        vm.writeFile(path_, real);
+        vm.writeJson(short, path_, ".hireling");
+        vm.expectRevert();
+        this.loadSchema();
+        vm.removeFile(path_);
+    }
+
+    function loadSchema() external view returns (uint256) {
+        return HirelingRecipe.load(vm, ".test-schema").chainId;
+    }
+
+    /// The §1.2 table as a `hireling` object (one fixture value per type), without the field named `skip`.
+    function _documentedHireling(string memory skip) internal view returns (string memory json, uint256 rows) {
         string[] memory lines = vm.split(doc, "\n");
-        string memory json = "{";
+        json = "{";
         string memory group = "";
         bool first = true;
         bool firstInGroup;
-        uint256 rows;
         for (uint256 i; i < lines.length; ++i) {
             string memory line = vm.trim(lines[i]);
             if (vm.indexOf(line, "| `hireling.") != 0) continue;
@@ -142,6 +173,7 @@ contract MainnetRunbookTest is Test {
             string memory path = vm.replace(vm.replace(vm.trim(cells[1]), "`", ""), "hireling.", "");
             string memory kind = vm.trim(cells[2]);
             string memory value = _fixtureValue(kind, ++rows);
+            if (_eq(path, skip)) continue;
             if (_eq(path, "reuseCore")) {
                 assertTrue(vm.contains(cells[3], "`false`"), "runbook: reuseCore must be false on 143");
             }
@@ -164,18 +196,6 @@ contract MainnetRunbookTest is Test {
             first = false;
         }
         json = string.concat(json, bytes(group).length > 0 ? "}}" : "}");
-        assertEq(rows, 15, "runbook: the hireling table lists the 15 fields load reads");
-
-        string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
-        assertFalse(vm.keyExistsJson(real, ".hireling"), "the shipped config gained a hireling block; extend this test");
-        string memory path_ = string.concat(vm.projectRoot(), "/config/.test-schema.json");
-        vm.writeFile(path_, string.concat('{"hireling":', json, ",", string(_tail(bytes(real), 1))));
-        HirelingRecipe.Config memory c = HirelingRecipe.load(vm, ".test-schema");
-        vm.removeFile(path_);
-        assertEq(c.chainId, 143);
-        assertFalse(c.reuseCore);
-        assertEq(c.safe, address(uint160(0xa000 + 2)));
-        assertEq(c.genesis, 1);
     }
 
     function _fixtureValue(string memory kind, uint256 row) internal pure returns (string memory) {

@@ -45,6 +45,7 @@ contract SeedPoolRehearsalForkTest is Test {
         HirelingRecipe.Config memory r = HirelingRecipe.loadBase(vm, "monad-mainnet");
         r.safe = safe;
         r.defaultArbitrator = makeAddr("arbiter");
+        r.arbitrator = r.defaultArbitrator; // the fixture's own role, not the shipped config's (LAUNCH-AUDIT-FIX-001/003)
         r.margin = 1 days;
         r.thresholds = [uint256(0), 10_000, 100_000, 1_000_000];
         r.bps = [uint16(3000), 1000, 300, 100];
@@ -65,6 +66,7 @@ contract SeedPoolRehearsalForkTest is Test {
         // One scratch file per test: tests run in parallel.
         string memory path = string.concat(vm.projectRoot(), "/config/.test-seedpool-", name, ".json");
         vm.writeFile(path, vm.readFile(HirelingRecipe.path(vm, "monad-mainnet")));
+        vm.writeJson("{}", path, ".deployment"); // unpromoted, whatever the shipped record holds (LAUNCH-AUDIT-FIX-003)
         HirelingOutput.write(vm, path, d, safe, block.number, block.number);
         vm.writeJson(_liquidityBlock(safe), path, ".liquidity");
         c = SeedPoolRecipe.load(vm, vm.readFile(path));
