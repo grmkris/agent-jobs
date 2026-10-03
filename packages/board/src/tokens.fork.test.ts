@@ -1,14 +1,14 @@
 /**
  * ADR-0010 on a local anvil fork of Monad testnet: a reward in a token nobody listed, through the board, on the pair
- * whose Holding is safe with any ERC-20, and refused on a pair that predates it. The token is testnet FACTORY, a real
- * ERC-20 with a faucet that the deployment does not list as a reward token.
+ * whose Holding is safe with any ERC-20, and refused on a legacy pair that predates it. The reward is the real
+ * FACTORY v2, funded from the recorded ecosystem holder only on the local fork; it has no faucet.
  *
  * Needs MONAD_TESTNET_RPC_URL and `anvil` on PATH; skipped otherwise.
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
-import { type Address, parseEther } from 'viem'
+import { type Address, type Hex, encodeFunctionData, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Board, type BoardConfig, fromNodeSqlite } from './index.ts'
@@ -26,11 +26,12 @@ const fork = rpc === '' || !hasAnvil ? describe.skip : describe
 const PORT = 8663
 const url = `http://127.0.0.1:${PORT}`
 const NET = 'monad-testnet' as const
+const legacyDemo = sdk.deployment(NET).legacyStacks['demo-v2']!
 
 let anvil: ChildProcess | undefined
-const ctx = (stack: sdk.StackName = 'main') => sdk.context(NET, stack, url)
+const ctx = (stack: 'main' | 'demo' = 'main') => stack === 'main' ? sdk.context(NET, stack, url) : sdk.contextFor(NET, legacyDemo, url)
 
-const token = () => ctx().deployment.factory
+const token = () => ctx().stack.factory
 const config = (): BoardConfig => ({
   network: NET,
   contexts: { main: ctx('main'), demo: ctx('demo') },
@@ -82,8 +83,17 @@ fork('permissionless reward tokens on a testnet fork (ADR-0010)', () => {
       await new Promise((r) => setTimeout(r, 500))
     }
     for (const a of [creator, worker]) await rpcCall('anvil_setBalance', [a.address, `0x${parseEther('100').toString(16)}`])
-    // FACTORY is also the admission token: the worker must hold 1 to activate.
-    for (const a of [creator, worker]) await sdk.faucet(ctx(), w(a), token())
+    // Impersonation is confined to this local anvil URL. The promoted v2 token has no faucet.
+    const c = ctx(), ecosystem = c.deployment.admin
+    await rpcCall('anvil_impersonateAccount', [ecosystem])
+    await rpcCall('anvil_setBalance', [ecosystem, `0x${parseEther('100').toString(16)}`])
+    try {
+      for (const a of [creator, worker]) {
+        const hash = await rpcCall('eth_sendTransaction', [{ from: ecosystem, to: token(),
+          data: encodeFunctionData({ abi: sdk.factoryTokenAbi, functionName: 'transfer', args: [a.address, parseEther('100')] }) }]) as Hex
+        expect((await c.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
+      }
+    } finally { await rpcCall('anvil_stopImpersonatingAccount', [ecosystem]) }
     agentId = (await sdk.registerAgent(ctx(), w(worker), 'https://example.test/agent.json')).toString()
     await signIn(creator)
     await signIn(worker)
@@ -96,7 +106,7 @@ fork('permissionless reward tokens on a testnet fork (ADR-0010)', () => {
   it('the config marks the redeployed main pair, and only it, as safe with any ERC-20', () => {
     const d = ctx().deployment
     expect(d.stacks.main?.openTokens).toBe(true)
-    expect(d.stacks.demo?.openTokens).toBe(false)
+    expect(d.legacyStacks['demo-v2']?.openTokens).toBe(false)
     expect(d.rewardTokens.map((t) => t.toLowerCase())).not.toContain(token().toLowerCase())
   })
 
@@ -128,9 +138,12 @@ fork('permissionless reward tokens on a testnet fork (ADR-0010)', () => {
     await board.reportTransaction({ address: worker.address }, { taskId: created.taskId, txHash: submitted as string })
 
     const before = await sdk.balanceOf(c, token() as Address, worker.address)
+    const [, , net] = await sdk.quoteActivation(c, BigInt(listed.jobId!), worker.address)
     const approve = await board.approveWork({ address: creator.address }, { taskId: created.taskId })
     await sdk.sendAll(w(creator), c.publicClient, approve.transactions)
-    expect((await sdk.balanceOf(c, token() as Address, worker.address)) - before).toBe(parseEther('3'))
+    expect((await sdk.balanceOf(c, token() as Address, worker.address)) - before).toBe(net)
+    const settlement = await board.settlementActions({}, { taskId: created.taskId })
+    await sdk.sendAll(w(worker), c.publicClient, settlement.transactions)
     expect((await board.getTask({ address: creator.address }, { taskId: created.taskId })).chain.status).toBe('completed')
   }, 240_000)
 })

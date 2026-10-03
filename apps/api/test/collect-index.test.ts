@@ -19,7 +19,7 @@ async function fixture() {
 const wallet = `0x${'b'.repeat(40)}` as const
 it('a canonical recent complete index may return an empty list', async () => {
   const f = await fixture()
-  expect(await collectSnapshot(f.sql, f.ctx, wallet, 1000)).toEqual({ jobs: [], tokens: [] })
+  expect(await collectSnapshot(f.sql, f.ctx, wallet, 1000)).toEqual({ jobs: [], tokens: [], epochs: [] })
 })
 it('a partial RPC read fails the entire snapshot', async () => {
   const f = await fixture(); f.getBlock.mockRejectedValueOnce(new Error('RPC unavailable'))

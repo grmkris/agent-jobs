@@ -7,22 +7,26 @@ import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
 import { decodeFunctionData, parseUnits } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { Board, BoardError, fromNodeSqlite } from './index.ts'
 
 const rpc = process.env.MONAD_TESTNET_RPC_URL
 const live = rpc === undefined || rpc === '' ? describe.skip : describe
 
 live('board service on monad-testnet (read-only)', () => {
-  const board = new Board(fromNodeSqlite(new DatabaseSync(':memory:')), {
-    network: 'monad-testnet',
-    contexts: {
-      main: sdk.context('monad-testnet', 'main', rpc ?? ''),
-      demo: sdk.context('monad-testnet', 'demo', rpc ?? ''),
-    },
-    domain: 'board.test',
-    uri: 'https://board.test',
-    manifestBaseUrl: 'https://board.test/offers',
+  let board: Board
+  beforeAll(() => {
+    const legacyDemo = sdk.deployment('monad-testnet').legacyStacks['demo-v2']!
+    board = new Board(fromNodeSqlite(new DatabaseSync(':memory:')), {
+      network: 'monad-testnet',
+      contexts: {
+        main: sdk.context('monad-testnet', 'main', rpc ?? ''),
+        demo: sdk.contextFor('monad-testnet', legacyDemo, rpc ?? ''),
+      },
+      domain: 'board.test',
+      uri: 'https://board.test',
+      manifestBaseUrl: 'https://board.test/offers',
+    })
   })
   const creator = privateKeyToAccount(generatePrivateKey())
 
@@ -91,8 +95,9 @@ live('board service on monad-testnet (read-only)', () => {
       workerBond: '0',
       deliveryDeadline: Math.floor(Date.now() / 1000) + 3600,
       mode: 'hire' as const,
+      stack: 'demo' as const,
     }
-    await expect(board.createTask({ address }, { ...base, token: 'DOGE' })).rejects.toThrow('unknown reward token')
+    await expect(board.createTask({ address }, { ...base, token: 'DOGE' })).rejects.toThrow('not a known token symbol')
     await expect(board.createTask({ address }, { ...base, token: 'mUSD', mode: 'contest', selectionDeadline: 1 })).rejects.toThrow(
       BoardError,
     )

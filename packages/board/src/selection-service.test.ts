@@ -18,7 +18,8 @@ const databases: DatabaseSync[] = []
 afterEach(() => { databases.splice(0).forEach((database) => database.close()); vi.clearAllMocks() })
 
 function fixture(pool = false) {
-  const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
+  // Persisted v2 terms and pool selections belong to a legacy pair after main is promoted.
+  const base = sdk.contextFor('monad-testnet', sdk.deployment('monad-testnet').legacyStacks['main-v3']!, 'http://127.0.0.1:1')
   const verify = vi.fn(async () => true)
   const read = vi.fn(async ({ functionName }: { functionName: string }): Promise<boolean | number> => {
     if (functionName === 'selectionNonceUsed' || functionName === 'paused') return false

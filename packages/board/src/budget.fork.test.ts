@@ -28,9 +28,10 @@ const fork = rpc === '' || !hasAnvil ? describe.skip : describe
 const PORT = 8662
 const url = `http://127.0.0.1:${PORT}`
 const NET = 'monad-testnet' as const
+const legacyDemo = sdk.deployment(NET).legacyStacks['demo-v2']!
 
 let anvil: ChildProcess | undefined
-const ctx = () => sdk.context(NET, 'demo', url)
+const ctx = () => sdk.contextFor(NET, legacyDemo, url)
 const balance = (token: Address, of: Address) => ctx().publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [of] })
 
 async function rpcCall(method: string, params: unknown[]) {
@@ -114,8 +115,8 @@ fork('execution budget on a testnet fork', () => {
     for (const a of [creator, worker, stranger, relayer]) await rpcCall('anvil_setBalance', [a.address, `0x${parseEther('100').toString(16)}`])
     const c = ctx()
     // mUSD and mEUR: later reward tokens (e.g. $CHOMP) are real tokens with no faucet
-    for (const token of [c.deployment.factory, ...c.deployment.rewardTokens.slice(0, 2)]) await sdk.faucet(c, w(creator), token)
-    await sdk.faucet(c, w(worker), c.deployment.factory)
+    for (const token of [c.stack.factory, ...c.deployment.rewardTokens.slice(0, 2)]) await sdk.faucet(c, w(creator), token)
+    await sdk.faucet(c, w(worker), c.stack.factory)
     agentId = (await sdk.registerAgent(c, w(worker), 'https://example.test/agent.json')).toString()
     await signIn(creator)
     await signIn(worker)
@@ -173,7 +174,7 @@ fork('execution budget on a testnet fork', () => {
     ).rejects.toThrow('not an ERC-20')
     // Any ERC-20 works, not only reward tokens: FACTORY is one.
     const open = await board.createTask({ address: creator.address }, {
-      ...base, workerBond: '1', mode: 'hire', deliveryDeadline: t + 3600, executionBudget: { kind: 'advance', token: ctx().deployment.factory, cap: '1' },
+      ...base, workerBond: '1', mode: 'hire', deliveryDeadline: t + 3600, executionBudget: { kind: 'advance', token: ctx().stack.factory, cap: '1' },
     })
     await expect(board.budgetGrantPrepare({ address: creator.address }, { taskId: open.taskId })).rejects.toThrow('once the worker has activated')
   }, 180_000)
@@ -359,4 +360,3 @@ fork('execution budget on a testnet fork', () => {
     expect(await board.upgradeAccount(me, { authorization: json(await sign(delegator, 1)) })).toMatchObject({ upgraded: true, txHash: null })
   }, 120_000)
 })
-

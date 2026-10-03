@@ -12,10 +12,15 @@ const rpc = process.env.MONAD_TESTNET_RPC_URL
 const live = rpc === undefined || rpc === '' ? describe.skip : describe
 
 live('typed data matches the deployed contracts (monad-testnet)', () => {
-  for (const stackName of ['main', 'demo'] as const) {
-    const ctx = context('monad-testnet', stackName, rpc ?? '')
-
+  // describe.skip still evaluates this callback. Resolve contexts only in tests, and enumerate archived
+  // pairs only when live reads are enabled; the promoted deployment has no current demo pair.
+  const stackNames = rpc ? ['main', ...Object.keys(sdk.deployment('monad-testnet').legacyStacks)] : ['main']
+  const ctxFor = (name: string) => name === 'main'
+    ? context('monad-testnet', 'main', rpc ?? '')
+    : sdk.contextFor('monad-testnet', sdk.deployment('monad-testnet').legacyStacks[name]!, rpc ?? '')
+  for (const stackName of stackNames) {
     it(`Selection digest equals JobHolding.selectionDigest (${stackName})`, async () => {
+      const ctx = ctxFor(stackName)
       const sel = {
         jobId: 7n,
         worker: '0x00000000000000000000000000000000000000a1',
@@ -34,6 +39,7 @@ live('typed data matches the deployed contracts (monad-testnet)', () => {
     })
 
     it(`Ruling digest equals JobsEvaluator.rulingDigest (${stackName})`, async () => {
+      const ctx = ctxFor(stackName)
       const r = {
         jobId: 7n,
         forWorker: true,
@@ -57,7 +63,7 @@ live('typed data matches the deployed contracts (monad-testnet)', () => {
     expect(await ctx.publicClient.getChainId()).toBe(10143)
     const listing = await ctx.publicClient.readContract({
       address: ctx.stack.holding,
-      abi: sdk.jobHoldingAbi,
+      abi: ctx.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi,
       functionName: 'evaluator',
     })
     expect(listing).toBe(ctx.stack.evaluator)

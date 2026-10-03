@@ -121,7 +121,7 @@ test.skipIf(!rpcSet)('sign in over MCP, create an offer, and serve its manifest'
         workerBond: '0',
         deliveryDeadline: Math.floor(Date.now() / 1000) + 3600,
         mode: 'hire',
-        stack: 'demo',
+        stack: 'main',
       },
     }, init.session)
     const task = JSON.parse(created.body.result.content[0].text) as { termsHash: string; manifestUrl: string; transactions: unknown[] }
@@ -163,7 +163,7 @@ test.skipIf(!rpcSet)('tenant boards: sign in over REST, create a board, use its 
     const slug = `t-${Math.random().toString(36).slice(2, 8)}`
     const created = yield* rest<{ board: { id: string; owner: string; tokens: Array<{ symbol: string }> } }>(
       'create_board',
-      { slug, name: 'Stack test board', stacks: ['demo'], rewardTokens: ['mUSD'], allowedOrigins: ['https://host.example'], drip: false },
+      { slug, name: 'Stack test board', stacks: ['main'], rewardTokens: ['mUSD'], allowedOrigins: ['https://host.example'], drip: false },
       login.result.session,
     )
     expect(created.ok).toBe(true)

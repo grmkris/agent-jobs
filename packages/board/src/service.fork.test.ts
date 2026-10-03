@@ -32,9 +32,10 @@ const fork = rpc === '' || arbitratorKey === '' || !hasAnvil ? describe.skip : d
 const PORT = 8661
 const url = `http://127.0.0.1:${PORT}`
 const NET = 'monad-testnet' as const
+const legacyDemo = sdk.deployment(NET).legacyStacks['demo-v2']!
 
 let anvil: ChildProcess | undefined
-const ctx = () => sdk.context(NET, 'demo', url)
+const ctx = () => sdk.contextFor(NET, legacyDemo, url)
 
 async function rpcCall(method: string, params: unknown[]) {
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })
@@ -74,8 +75,8 @@ fork('R114-07 on a testnet fork: lost responses and restarts', () => {
     }
     for (const a of [creator, worker, relay]) await rpcCall('anvil_setBalance', [a.address, `0x${parseEther('100').toString(16)}`])
     const c = ctx()
-    for (const token of [c.deployment.factory, c.deployment.rewardTokens[0] as Hex]) await sdk.faucet(c, w(creator), token)
-    await sdk.faucet(c, w(worker), c.deployment.factory)
+    for (const token of [c.stack.factory, c.deployment.rewardTokens[0] as Hex]) await sdk.faucet(c, w(creator), token)
+    await sdk.faucet(c, w(worker), c.stack.factory)
   }, 120_000)
 
   afterAll(() => {

@@ -12,7 +12,7 @@ import { type BoardLike, arbitrateOnce } from './arbiter.ts'
 import { arbiterAccounts, cancellationSender } from './runtime.ts'
 
 const account = privateKeyToAccount(generatePrivateKey())
-const demo = sdk.deployment('monad-testnet').stacks.demo!
+const demo = sdk.deployment('monad-testnet').legacyStacks['demo-v2']!
 const chainId = 10143
 const NOW = 1_000_100
 

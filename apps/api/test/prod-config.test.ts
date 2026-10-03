@@ -149,7 +149,7 @@ test('LAUNCH-AUDIT-008: the denylist is three distinct addresses (the 1 Oct rela
       const c = configured()
       c.config.roles[role] = old
       c.artifact.addresses[role] = old
-      // The v1 default arbitrator follows roles.arbitrator (LAUNCH-AUDIT-FIX-001), so it goes stale with it.
+      // Mainnet is v1-only, so its role arbitrator is also the Holding default; testnet retains a separate legacy role.
       if (role === 'arbitrator') c.config.hireling!.defaultArbitrator = old
       expect(validateProdConfig(c.config, c.artifact)).toEqual([`role:${role} is a retired 1 Oct key`, `address:${role} is a retired 1 Oct key`,
         ...(role === 'arbitrator' ? ['hireling.defaultArbitrator is a retired 1 Oct key'] : [])])
@@ -161,7 +161,7 @@ test('LAUNCH-AUDIT-008: the denylist is three distinct addresses (the 1 Oct rela
   expect(validateProdConfig(configured().config, configured().artifact)).toEqual([])
 })
 
-test('LAUNCH-AUDIT-FIX-001: hireling.defaultArbitrator must be roles.arbitrator and no retired key', () => {
+test('LAUNCH-AUDIT-FIX-001: mainnet hireling.defaultArbitrator matches its v1 role and is not retired', () => {
   const fresh = configured()
   fresh.config.hireling!.defaultArbitrator = fresh.config.roles.arbitrator!.toLowerCase()
   expect(validateProdConfig(fresh.config, fresh.artifact)).toEqual([])

@@ -2,7 +2,7 @@ import * as sdk from '@agent-jobs/sdk'
 import { describe, expect, it } from 'vitest'
 import { type DisputeBundle, bundleHash, checkRulingRequest, rulingRefusal, validateProposal } from './arbitration.ts'
 
-const evaluator = '0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6'
+const evaluator = sdk.deployment('monad-testnet').legacyStacks['demo-v2']!.evaluator
 const bundle = (violation: 'None' | 'Quality' | 'Falsified' = 'Quality'): DisputeBundle => ({
   taskId: 't1',
   jobId: '9',
