@@ -697,3 +697,26 @@ All four jobs are terminal, with zero reservations and zero owed. Key receipts (
 
 The full ledger, 39 receipts, and the reviewed deliverables are in the crew repo, `aj-launch-crew`, at
 `runs/v1-2026-10-03.md` (commit b100136).
+
+## G1b preparation: testnet gas distribution (3 Oct 2026)
+
+Kris authorized distributing the additional testnet funding (5 MON to the deployer and 10 MON to the backup
+Safe owner). These are gas transfers only; they do not prove a G1b deployment or application flow. The sending
+account is the backup-owner EOA `0x3c29Da5d1e1c9D28AdeFb19fdD0499A8AF71921e`, not the Safe contract.
+
+| Recipient | MON | Transaction | Result |
+| --- | --- | --- | --- |
+| UI creator `0xB339Cf6701BB282ABCefA241807E47F395626149` | 0.5 | `0xf6060f065f21a4baa26bd874063aacf0b551c37e99d71eb7d1efc61c126833f0` | status 1, block 67846232 |
+| V1 arbitrator `0x0E616916682E3DB0bFFe188Be07513CbB829ebC5` | 0.3 | `0x79803b60fd308d309e270f72dff2dbdbe001dc732cfb87f03d60dab2dadb3fc1` | status 1, block 67847453 |
+| Legacy arbitrator `0xc657F023F938BB89de590Ed96f79B775c7dDd632` | 0.2 | `0x6888e986e0a7ae143171b6571f1c2fc211652f9c8c0692c1a72f03a73e1b4cd0` | status 1, block 67847455 |
+| Pixel / agent 1943 `0xe63D7f0b107BbAD926cD1CD2E2911423dDf11A2b` | 1 | `0xdc143599affbb7424a033171b4bd5afb772de9404f571778cb36580f36103a42` | status 1, block 67853059 |
+
+The earlier Pixel transfer `0xef41b9ed40a9ede8732488a3e5c643944483ddcd03f01fd6c26e59084552c6ee` reverted
+(status 0, sender nonce 23); no MON value moved. It followed another value transfer too closely while crossing
+the 10 MON reserve. The retry reconciled that receipt, checked the sender was undelegated and had no pending
+transaction or nonce change in the preceding four blocks, and durably recorded its signed bytes and hash before
+broadcast. No additional user deposit was needed to cross below the reserve.
+
+Readback after the successful retry: deployer 5.945212244949797606 MON, backup owner 9.025412576499448627 MON,
+UI creator 1.5 MON, Pixel 1.515714818498244274 MON, v1 arbitrator 0.5 MON, legacy arbitrator 0.297795 MON.
+Operation journals remain private under `/tmp/hireling-testnet-funding-20261003/` (directory 0700, files 0600).
