@@ -162,7 +162,7 @@ function TelegramLink({ wallet }: { wallet: string }) {
       )}
       {error !== null && <ErrorText>{error}</ErrorText>}
 
-      <Section title="What the bot tells you" note={linked ? undefined : 'Only about jobs you are part of. New requests go to the public channel.'}>
+      <Section title="What the bot tells you" note={linked ? undefined : 'Private messages about jobs you are part of.'}>
         <Group>
           {TELEGRAM_NOTICES.map((n) => (
             <ListRow key={n} inset>
