@@ -42,6 +42,8 @@ library HirelingRecipe {
         /// @dev The deployer EOA (`roles.admin`): every CREATE and setup call is its.
         address admin;
         address attester;
+        /// @dev `roles.arbitrator`, when the config has one: on chain 143 the default arbitrator must be it.
+        address arbitrator;
         IERC8004Identity identity;
         IERC8004Reputation reputation;
         /// @dev `hireling.reuseCore`: use `deployment.core` (testnet) instead of deploying a core proxy.
@@ -95,10 +97,27 @@ library HirelingRecipe {
     function guardChain(Vm vm, string memory json, bool sends) internal view returns (uint256 chainId) {
         chainId = vm.parseJsonUint(json, ".chainId");
         if (block.chainid != chainId) revert WrongChain(chainId, block.chainid);
-        if (sends && block.chainid == MAINNET && keccak256(bytes(vm.envOr("MAINNET_GO", string("")))) != keccak256("yes"))
-        {
+        if (
+            sends && block.chainid == MAINNET
+                && keccak256(bytes(vm.envOr("MAINNET_GO", string("")))) != keccak256("yes")
+        ) {
             revert MainnetNotGo();
         }
+    }
+
+    /// @notice The mainnet relay, attester and arbitrator keys retired on 1 Oct (LAUNCH-AUDIT-008), the same three as
+    ///         `RETIRED_ROLE_ADDRESSES` in `apps/api/src/prod-config.ts` (test/hireling/Recipe.t.sol checks both match).
+    function retiredKeys() internal pure returns (address[3] memory) {
+        return [
+            0xac7282b6a519665dcb71563317C71d1F357f9e7e,
+            0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f,
+            0xc657F023F938BB89de590Ed96f79B775c7dDd632
+        ];
+    }
+
+    function retired(address a) internal pure returns (bool) {
+        address[3] memory keys = retiredKeys();
+        return a == keys[0] || a == keys[1] || a == keys[2];
     }
 
     function path(Vm vm, string memory network) internal view returns (string memory) {
@@ -113,6 +132,7 @@ library HirelingRecipe {
         c.chainId = vm.parseJsonUint(json, ".chainId");
         c.admin = vm.parseJsonAddress(json, ".roles.admin");
         c.attester = vm.parseJsonAddress(json, ".roles.attester");
+        if (vm.keyExistsJson(json, ".roles.arbitrator")) c.arbitrator = vm.parseJsonAddress(json, ".roles.arbitrator");
         c.identity = IERC8004Identity(vm.parseJsonAddress(json, ".erc8004.identity"));
         c.reputation = IERC8004Reputation(vm.parseJsonAddress(json, ".erc8004.reputation"));
         if (vm.keyExistsJson(json, ".deployment.core")) c.existingCore = vm.parseJsonAddress(json, ".deployment.core");
@@ -164,6 +184,12 @@ library HirelingRecipe {
             revert BadConfig("ERC-8004 registries missing");
         }
         if (c.defaultArbitrator == c.admin) revert BadConfig("arbitrator must not be the deployer");
+        // LAUNCH-AUDIT-FIX-001: the Holding's default arbitrator rules every offer that names none. On mainnet it is
+        // the configured fresh arbiter, never a key retired on 1 Oct, whatever the API preflight was given.
+        if (c.chainId == MAINNET) {
+            if (retired(c.defaultArbitrator)) revert BadConfig("defaultArbitrator is a retired 1 Oct key");
+            if (c.defaultArbitrator != c.arbitrator) revert BadConfig("defaultArbitrator is not roles.arbitrator");
+        }
         // A fresh core's admin roles move to the Safe in one irreversible step (C9 ACL-6): it must exist here.
         if (c.safe.code.length == 0) revert BadConfig("safe has no code");
         // Thresholds are whole FACTORY; a value entered in wei would put every cheaper tier out of reach (C9 MATH-6).

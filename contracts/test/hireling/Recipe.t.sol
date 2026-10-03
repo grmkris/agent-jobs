@@ -339,6 +339,78 @@ contract RecipeTest is Test {
         driver.configure(bad);
     }
 
+    /// @dev LAUNCH-AUDIT-FIX-001: on chain 143 the v1 default arbitrator is `roles.arbitrator` and no retired 1 Oct key;
+    ///      a fresh pair deploys a Holding whose default arbitrator is that role.
+    function test_recipe_mainnetDefaultArbitratorIsTheFreshRole() public {
+        vm.chainId(143);
+        HirelingRecipe.Config memory m = c;
+        m.chainId = 143;
+        address fresh = makeAddr("fresh-arbiter");
+        address[3] memory old = HirelingRecipe.retiredKeys();
+
+        m.arbitrator = fresh;
+        m.defaultArbitrator = makeAddr("another-fresh-arbiter");
+        vm.expectRevert(
+            abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "defaultArbitrator is not roles.arbitrator")
+        );
+        driver.configure(m);
+        m.arbitrator = address(0); // a config without roles.arbitrator
+        m.defaultArbitrator = fresh;
+        vm.expectRevert(
+            abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "defaultArbitrator is not roles.arbitrator")
+        );
+        driver.configure(m);
+        for (uint256 i; i < 3; ++i) {
+            m.arbitrator = fresh; // a rotated role, a stale default
+            m.defaultArbitrator = old[i];
+            vm.expectRevert(
+                abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "defaultArbitrator is a retired 1 Oct key")
+            );
+            driver.configure(m);
+            m.arbitrator = old[i]; // neither rotated
+            vm.expectRevert(
+                abi.encodeWithSelector(HirelingRecipe.BadConfig.selector, "defaultArbitrator is a retired 1 Oct key")
+            );
+            driver.configure(m);
+        }
+
+        m.arbitrator = fresh;
+        m.defaultArbitrator = fresh;
+        RecipeDriver mainnet = new RecipeDriver();
+        mainnet.configure(m);
+        for (uint256 i; i < 13; ++i) {
+            mainnet.step(i);
+        }
+        assertEq(mainnet.deployed().holding.defaultArbitrator(), fresh);
+    }
+
+    /// @dev Off mainnet the default arbitrator is not tied to roles.arbitrator (testnet keeps its legacy roles).
+    function test_recipe_testnetDefaultArbitratorIsFree() public {
+        HirelingRecipe.Config memory t = c;
+        t.arbitrator = makeAddr("some-role");
+        driver.configure(t);
+        t.defaultArbitrator = HirelingRecipe.retiredKeys()[2];
+        driver.configure(t);
+    }
+
+    /// @dev The recipe's retired keys are the API preflight's RETIRED_ROLE_ADDRESSES, and there are three of each.
+    function test_recipe_retiredKeysMatchTheApiDenylist() public view {
+        string memory api = vm.readFile(string.concat(vm.projectRoot(), "/../apps/api/src/prod-config.ts"));
+        uint256 start = vm.indexOf(api, "export const RETIRED_ROLE_ADDRESSES = [");
+        uint256 end = vm.indexOf(api, "] as const");
+        assertTrue(start < end && end != type(uint256).max, "no RETIRED_ROLE_ADDRESSES in prod-config.ts");
+        bytes memory list = new bytes(end - start);
+        for (uint256 i; i < list.length; ++i) {
+            list[i] = bytes(api)[start + i];
+        }
+        string[] memory quoted = vm.split(string(list), "'");
+        assertEq(quoted.length, 7, "prod-config.ts lists other than three retired keys");
+        address[3] memory keys = HirelingRecipe.retiredKeys();
+        for (uint256 i; i < 3; ++i) {
+            assertEq(vm.parseAddress(quoted[2 * i + 1]), keys[i]);
+        }
+    }
+
     // ------------------------------------------------------------------------------------------
     // The D1 record
     // ------------------------------------------------------------------------------------------

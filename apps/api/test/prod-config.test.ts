@@ -8,7 +8,9 @@ const configured = () => {
   const artifact = structuredClone(proposed) as ProdArtifact
   const fixtureAddress = '0x1111111111111111111111111111111111111111'
   // Fresh R2 role keys (the shipped config still names the retired 1 Oct ones, LAUNCH-AUDIT-008).
-  config.roles = { ...config.roles, relay: '0x8888888888888888888888888888888888888888', attester: '0x9999999999999999999999999999999999999999', arbitrator: '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa' }
+  const arbitrator = '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa'
+  config.roles = { ...config.roles, relay: '0x8888888888888888888888888888888888888888', attester: '0x9999999999999999999999999999999999999999', arbitrator }
+  config.hireling = { ...config.hireling, defaultArbitrator: arbitrator }
   config.deployment = {
     network: 'monad-mainnet', block: 123, core: fixtureAddress, factory: fixtureAddress,
     main: { kind: 'hireling-v1', factory: fixtureAddress, holding: fixtureAddress, evaluator: fixtureAddress, openTokens: true },
@@ -127,11 +129,47 @@ test('LAUNCH-AUDIT-008: the denylist is the shipped config\'s relay, attester an
       const c = configured()
       c.config.roles[role] = old
       c.artifact.addresses[role] = old
-      expect(validateProdConfig(c.config, c.artifact)).toEqual([`role:${role} is a retired 1 Oct key`, `address:${role} is a retired 1 Oct key`])
+      // The v1 default arbitrator follows roles.arbitrator (LAUNCH-AUDIT-FIX-001), so it goes stale with it.
+      if (role === 'arbitrator') c.config.hireling!.defaultArbitrator = old
+      expect(validateProdConfig(c.config, c.artifact)).toEqual([`role:${role} is a retired 1 Oct key`, `address:${role} is a retired 1 Oct key`,
+        ...(role === 'arbitrator' ? ['hireling.defaultArbitrator is a retired 1 Oct key'] : [])])
     }
   }
   const c = configured()
   c.artifact.addresses.holding = RETIRED_ROLE_ADDRESSES[0].toLowerCase()
   expect(validateProdConfig(c.config, c.artifact)).toEqual(expect.arrayContaining(['address:holding is a retired 1 Oct key']))
   expect(validateProdConfig(configured().config, configured().artifact)).toEqual([])
+})
+
+test('LAUNCH-AUDIT-FIX-001: hireling.defaultArbitrator must be roles.arbitrator and no retired key', () => {
+  const fresh = configured()
+  fresh.config.hireling!.defaultArbitrator = fresh.config.roles.arbitrator!.toLowerCase()
+  expect(validateProdConfig(fresh.config, fresh.artifact)).toEqual([])
+  const notRole = 'hireling.defaultArbitrator is not roles.arbitrator'
+  const stale = 'hireling.defaultArbitrator is a retired 1 Oct key'
+  const cases: [string, string | null | undefined, string[]][] = [
+    ['a fresh default that is not the role', '0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB', [notRole]],
+    ['no default', undefined, [notRole]],
+    ['a null default', null, [notRole]],
+    ['a non-address default', 'kris', [notRole]],
+    ['the zero address', '0x0000000000000000000000000000000000000000', [notRole]],
+    ...RETIRED_ROLE_ADDRESSES.map(old => [`retired ${old} beside a fresh role`, old, [notRole, stale]] as [string, string, string[]]),
+  ]
+  for (const [, value, labels] of cases) {
+    const c = configured()
+    if (value === undefined) delete c.config.hireling!.defaultArbitrator
+    else c.config.hireling!.defaultArbitrator = value
+    expect(validateProdConfig(c.config, c.artifact)).toEqual(labels)
+  }
+  const none = configured()
+  none.config.hireling = null
+  expect(validateProdConfig(none.config, none.artifact)).toEqual([notRole])
+  // The role rotated nowhere: the default equals the role, and both are a retired key.
+  for (const old of RETIRED_ROLE_ADDRESSES) {
+    const c = configured()
+    c.config.roles.arbitrator = old
+    c.artifact.addresses.arbitrator = old
+    c.config.hireling!.defaultArbitrator = old
+    expect(validateProdConfig(c.config, c.artifact)).toEqual(['role:arbitrator is a retired 1 Oct key', 'address:arbitrator is a retired 1 Oct key', stale])
+  }
 })

@@ -36,6 +36,7 @@ contract HirelingRehearsalForkTest is Test {
         c.reuseCore = reuseCore;
         c.safe = safe;
         c.defaultArbitrator = arbitrator;
+        c.arbitrator = arbitrator; // the fixture's own role, not the shipped config's (LAUNCH-AUDIT-FIX-001/002)
         c.margin = 1 days;
         c.thresholds = [uint256(0), 10_000, 100_000, 1_000_000];
         c.bps = [uint16(3000), 1000, 300, 100];

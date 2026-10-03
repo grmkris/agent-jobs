@@ -70,6 +70,8 @@ export interface ChainConfig {
   faucetTokens: { names: string[]; symbols: string[] }
   knownTokens: string[]
   stacks: { names: string[] }
+  /** HirelingRecipe's input; the preflight reads only the v1 default arbitrator from it (LAUNCH-AUDIT-FIX-001). */
+  hireling?: { defaultArbitrator?: string | null } | null
   deployment: {
     network?: string
     block?: number
@@ -166,6 +168,12 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   }
   for (const [name, value] of Object.entries(config.roles)) check(!retired(value), `role:${name} is a retired 1 Oct key`)
   for (const [name, value] of Object.entries(artifact.addresses)) check(!retired(value), `address:${name} is a retired 1 Oct key`)
+  // LAUNCH-AUDIT-FIX-001: the recipe deploys the v1 Holding with hireling.defaultArbitrator, and promotion checks the
+  // Holding's defaultArbitrator() against it; so it must be roles.arbitrator, and never a retired key.
+  const defaultArbitrator = config.hireling?.defaultArbitrator
+  check(address(defaultArbitrator) && address(config.roles.arbitrator) &&
+    defaultArbitrator.toLowerCase() === config.roles.arbitrator.toLowerCase(), 'hireling.defaultArbitrator is not roles.arbitrator')
+  check(!retired(defaultArbitrator), 'hireling.defaultArbitrator is a retired 1 Oct key')
   for (const [binding, source] of Object.entries(prodSecretSources)) {
     check(artifact.secretSources[binding] === source, `secret source:${binding}`)
   }

@@ -50,7 +50,7 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
    | --- | --- | --- |
    | `hireling.reuseCore` | bool | `false`: mainnet deploys its own core (`true` is refused on 143) |
    | `hireling.safe` | address | the Safe |
-   | `hireling.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator`; per-offer arbitrators override it |
+   | `hireling.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator` (enforced); per-offer arbitrators override it |
    | `hireling.margin` | uint | seconds added to the windows when checking `expiredAt`; the reviewed default is 3600 |
    | `hireling.schedule.thresholds` | uint[4] | fee tiers in whole FACTORY: `[0, 10000, 100000, 1000000]` |
    | `hireling.schedule.bps` | uint[4] | fee per tier: `[3000, 1000, 300, 100]` |
@@ -139,7 +139,9 @@ The keystore is `~/.foundry/keystores/hireling-deployer`. Delete any other copy 
 keys are not used here; they live in the production secret sources.
 
 **Fresh keys (R2) first.** The relay and attester keys were exposed on 1 Oct, and the arbitrator key is replaced with them. Generate new relay, attester and arbitrator keys for mainnet, put only their addresses into `roles` in `config/monad-mainnet.json` and the artifact, and store the keys in the dedicated production secret sources. Never fund or configure `0xac72…9e7e`, `0x66b7…963f` or `0xc657…d632` on mainnet: the structural preflight refuses
-any of them as a role or artifact address (`RETIRED_ROLE_ADDRESSES`, `apps/api/src/prod-config.ts`).
+any of them as a role or artifact address (`RETIRED_ROLE_ADDRESSES`, `apps/api/src/prod-config.ts`), and as
+`hireling.defaultArbitrator`. It also requires `hireling.defaultArbitrator` to be `roles.arbitrator`, and on chain 143
+DeployHireling refuses either mistake before it sends anything (LAUNCH-AUDIT-FIX-001).
 
 | role | address | send | why |
 | :--- | :--- | :--- | :--- |

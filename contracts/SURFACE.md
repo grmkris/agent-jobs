@@ -221,7 +221,8 @@ and loads (LAUNCH-AUDIT-001):
   "reuseCore": false,                      // chain 143: false, a fresh core (true is refused); testnet: true, reuse
                                            // deployment.core (which must charge 0 fees)
   "safe": "0x…",                           // owner of every v1 contract; mainnet core admin
-  "defaultArbitrator": "0x…",              // the new arbiter key; not the deployer
+  "defaultArbitrator": "0x…",              // = roles.arbitrator, the fresh arbiter key (enforced on 143; never a retired
+                                           // 1 Oct key, LAUNCH-AUDIT-FIX-001); not the deployer
   "margin": 3600,                          // seconds added to the windows when checking expiredAt (reviewed default)
   "schedule": { "thresholds": [0, 10000, 100000, 1000000],   // whole FACTORY
                 "bps": [3000, 1000, 300, 100], "treasury": "0x…" },
