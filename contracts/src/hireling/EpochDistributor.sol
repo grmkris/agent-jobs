@@ -9,6 +9,7 @@ import {IFactory} from "./interfaces/IFactory.sol";
 import {IStakeVault} from "./interfaces/IStakeVault.sol";
 import {IEpochDistributor} from "./interfaces/IEpochDistributor.sol";
 import {MiningSchedule} from "./MiningSchedule.sol";
+import {HirelingClocks} from "./HirelingClocks.sol";
 
 /// @title EpochDistributor
 /// @notice Pays work mining as stake (ADR-0011; the full contract is in `IEpochDistributor`). Each root is backed by
@@ -19,15 +20,22 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
     IFactory public immutable factory;
     IStakeVault public immutable vault;
     uint48 public immutable genesis;
+    uint48 public immutable EPOCH_ZERO_DURATION;
+    uint48 public immutable EPOCH_DURATION;
     uint256 public outstanding;
 
     mapping(uint256 epoch => EpochRoot) internal _roots;
     mapping(uint256 epoch => mapping(address account => bool)) public isClaimed;
 
     /// @param genesis_ Explicit, and equal to the reserve's (the recipe passes one value to both).
-    constructor(IFactory factory_, IStakeVault vault_, uint48 genesis_) Ownable(msg.sender) {
+    constructor(IFactory factory_, IStakeVault vault_, uint48 genesis_, HirelingClocks.Config memory clocks)
+        Ownable(msg.sender)
+    {
         if (address(factory_) == address(0) || address(vault_) == address(0)) revert ZeroAddress();
         if (genesis_ == 0) revert ZeroGenesis();
+        HirelingClocks.validate(clocks);
+        EPOCH_ZERO_DURATION = clocks.epochZeroDuration;
+        EPOCH_DURATION = clocks.epochDuration;
         factory = factory_;
         vault = vault_;
         genesis = genesis_;
@@ -37,7 +45,7 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
 
     function setRoot(uint256 epoch, bytes32 root, uint256 total, bytes32 dataHash) external onlyOwner {
         if (root == bytes32(0)) revert ZeroRoot();
-        uint256 end = MiningSchedule.epochEnd(genesis, epoch);
+        uint256 end = MiningSchedule.epochEnd(genesis, epoch, EPOCH_ZERO_DURATION, EPOCH_DURATION);
         if (block.timestamp < end) revert EpochNotEnded(epoch, end);
         EpochRoot storage r = _roots[epoch];
         if (r.claimed != 0) revert RootLocked(epoch);
@@ -97,6 +105,6 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
     }
 
     function epochEnd(uint256 epoch) external view returns (uint256) {
-        return MiningSchedule.epochEnd(genesis, epoch);
+        return MiningSchedule.epochEnd(genesis, epoch, EPOCH_ZERO_DURATION, EPOCH_DURATION);
     }
 }

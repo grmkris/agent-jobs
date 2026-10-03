@@ -14,7 +14,7 @@ import {IStakeVault} from "./IStakeVault.sol";
 ///         amount))))` (`StandardMerkleTree` with types `["uint256", "address", "uint256"]`). A root can be replaced
 ///         only while nothing has been claimed from it, so a wrong root can be corrected before it pays out.
 ///
-///         The epoch boundaries are the same as `IMiningReserve`'s (same `genesis`).
+///         The epoch boundaries are the same as `IMiningReserve`'s (same `genesis` and immutable epoch lengths).
 ///
 ///         The implementation is `Ownable2Step`; the ownership functions come from OpenZeppelin.
 interface IEpochDistributor {
@@ -72,6 +72,8 @@ interface IEpochDistributor {
 
     function factory() external view returns (IFactory);
     function vault() external view returns (IStakeVault);
+    function EPOCH_ZERO_DURATION() external view returns (uint48);
+    function EPOCH_DURATION() external view returns (uint48);
     function genesis() external view returns (uint48);
     function epochEnd(uint256 epoch) external view returns (uint256);
 }

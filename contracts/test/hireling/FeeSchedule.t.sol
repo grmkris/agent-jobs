@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {HirelingClocks} from "../../src/hireling/HirelingClocks.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {FeeSchedule} from "../../src/hireling/FeeSchedule.sol";
@@ -21,7 +23,7 @@ contract FeeScheduleTest is Test {
 
     function setUp() public {
         t0 = vm.getBlockTimestamp();
-        fees = new FeeSchedule(_default(treasury));
+        fees = new FeeSchedule(_default(treasury), HirelingClocks.production());
         fees.transferOwnership(safe);
         vm.prank(safe);
         fees.acceptOwnership();
@@ -144,7 +146,7 @@ contract FeeScheduleTest is Test {
         IFeeSchedule.Schedule memory s = _default(treasury);
         s.bps[0] = 5000;
         vm.expectRevert(abi.encodeWithSelector(IFeeSchedule.FeeTooHigh.selector, uint16(5000), uint16(3000)));
-        new FeeSchedule(s);
+        new FeeSchedule(s, HirelingClocks.production());
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -163,7 +165,7 @@ contract FeeScheduleTest is Test {
     }
 
     function test_handoverDropsTheOldOwnersProposal() public {
-        FeeSchedule f = new FeeSchedule(_default(treasury));
+        FeeSchedule f = new FeeSchedule(_default(treasury), HirelingClocks.production());
         f.propose(_default(stranger));
         f.transferOwnership(safe);
         vm.prank(safe);

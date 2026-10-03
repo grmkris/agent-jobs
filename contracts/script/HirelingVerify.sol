@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Vm} from "forge-std/Vm.sol";
 import {HirelingRecipe} from "./HirelingRecipe.sol";
+import {HirelingClocks} from "../src/hireling/HirelingClocks.sol";
 import {BroadcastPath} from "./BroadcastPath.sol";
 import {IFeeSchedule} from "../src/hireling/interfaces/IFeeSchedule.sol";
 import {HirelingConstants} from "../src/hireling/interfaces/HirelingConstants.sol";
@@ -26,6 +27,7 @@ library HirelingVerify {
     /// @notice Every check is against chain state, never against what the script believed it sent.
     function verify(HirelingRecipe.Config memory c, HirelingRecipe.Deployed memory d) internal view {
         _require(block.chainid == c.chainId, "chain");
+        HirelingClocks.validate(c.clocks);
         _require(address(d.core).code.length != 0, "core code");
         _require(address(d.vesting).code.length != 0, "vesting code");
         _require(address(d.factory).code.length != 0, "factory code");
@@ -68,6 +70,20 @@ library HirelingVerify {
         _require(address(d.distributor.factory()) == address(d.factory), "distributor.factory");
         _require(address(d.reserve.factory()) == address(d.factory), "miningReserve.factory");
         _require(d.reserve.distributor() == address(d.distributor), "miningReserve.distributor");
+
+        // D24: promotion must prove the immutable clocks from live reads.
+        _require(d.holding.MIN_REVIEW_WINDOW() == c.clocks.minReviewWindow, "holding.MIN_REVIEW_WINDOW");
+        _require(d.holding.MIN_DISPUTE_WINDOW() == c.clocks.minDisputeWindow, "holding.MIN_DISPUTE_WINDOW");
+        _require(d.holding.MIN_ARBITRATION_WINDOW() == c.clocks.minArbitrationWindow, "holding.MIN_ARBITRATION_WINDOW");
+        _require(d.vault.UNSTAKE_DELAY() == c.clocks.unstakeDelay, "vault.UNSTAKE_DELAY");
+        _require(d.vault.HOLDING_DELAY() == c.clocks.holdingDelay, "vault.HOLDING_DELAY");
+        _require(d.vault.PROPOSAL_GRACE() == c.clocks.proposalGrace, "vault.PROPOSAL_GRACE");
+        _require(d.fees.DELAY() == c.clocks.feeDelay, "fees.DELAY");
+        _require(d.fees.PROPOSAL_GRACE() == c.clocks.proposalGrace, "fees.PROPOSAL_GRACE");
+        _require(d.reserve.EPOCH_ZERO_DURATION() == c.clocks.epochZeroDuration, "reserve.EPOCH_ZERO_DURATION");
+        _require(d.reserve.EPOCH_DURATION() == c.clocks.epochDuration, "reserve.EPOCH_DURATION");
+        _require(d.distributor.EPOCH_ZERO_DURATION() == c.clocks.epochZeroDuration, "distributor.EPOCH_ZERO_DURATION");
+        _require(d.distributor.EPOCH_DURATION() == c.clocks.epochDuration, "distributor.EPOCH_DURATION");
 
         // Fee schedule: the configured one, nothing queued.
         IFeeSchedule.Schedule memory s = d.fees.schedule();

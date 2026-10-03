@@ -5,8 +5,9 @@ import {IFactory} from "./IFactory.sol";
 
 /// @title IMiningReserve
 /// @notice Holds the 500M FACTORY mining allocation and releases it to the `IEpochDistributor` one epoch at a time
-///         (ADR-0011). The schedule is fixed: epoch 0 runs 72 h from `genesis` with a budget of W · 3/7, where
-///         W = 500M / 52; epoch k ≥ 1 runs a week and gets `W >> ((k - 1) / 26)`, halving every 26 weeks.
+///         (ADR-0011). The economic schedule is fixed: epoch 0 has budget W · 3/7, where
+///         W = 500M / 52; epoch k ≥ 1 gets `W >> ((k - 1) / 26)`, halving every 26 epochs. Epoch lengths are
+///         constructor immutables: production is 72 h from `genesis`, then one week.
 ///
 ///         `fund` is the owner's (the Safe's) only power: it sends FACTORY to the distributor for an epoch that has
 ///         ended, capped so the total ever funded never exceeds the cumulative budget through that epoch. Unspent

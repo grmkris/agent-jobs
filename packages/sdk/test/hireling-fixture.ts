@@ -90,13 +90,17 @@ export async function startHirelingFork() {
     const implementation = await deploy('ERC8183WithAuthorization')
     const core = await deploy('ERC1967Proxy', [implementation, encodeFunctionData({ abi: coreAbi, functionName: 'initialize', args: [admin.account.address, admin.account.address] })])
     const factory = await deploy('Factory', ['Factory', 'FACTORY', [admin.account.address], [parseEther('1000000000')]])
-    const feeSchedule = await deploy('FeeSchedule', [{ thresholds: [0n, parseEther('10000'), parseEther('100000'), parseEther('1000000')], bps: [3000, 1000, 300, 100], treasury: admin.account.address }])
-    const vault = await deploy('StakeVault', [factory])
-    const holding = await deploy('HirelingHolding', [core, vault, feeSchedule, d.identity, arbitrator.account.address, 120])
+    // Existing fork assertions retain production clocks; G1b's fast tuple is covered by the recipe fork.
+    const clocks = { minReviewWindow: 3600, minDisputeWindow: 3600, minArbitrationWindow: 43200,
+      unstakeDelay: 604800, holdingDelay: 691200, feeDelay: 259200, proposalGrace: 604800,
+      epochZeroDuration: 259200, epochDuration: 604800 }
+    const feeSchedule = await deploy('FeeSchedule', [{ thresholds: [0n, parseEther('10000'), parseEther('100000'), parseEther('1000000')], bps: [3000, 1000, 300, 100], treasury: admin.account.address }, clocks])
+    const vault = await deploy('StakeVault', [factory, clocks])
+    const holding = await deploy('HirelingHolding', [core, vault, feeSchedule, d.identity, arbitrator.account.address, 120, clocks])
     const evaluator = await deploy('HirelingEvaluator', [core, holding, d.reputation])
     const t0 = Number((await publicClient.getBlock()).timestamp)
-    const distributor = await deploy('EpochDistributor', [factory, vault, t0])
-    const miningReserve = await deploy('MiningReserve', [factory, distributor, t0])
+    const distributor = await deploy('EpochDistributor', [factory, vault, t0, clocks])
+    const miningReserve = await deploy('MiningReserve', [factory, distributor, t0, clocks])
     const teamVesting = await deploy('TeamVesting', [admin.account.address, t0 + 86400, 86400 * 365, 86400])
     await send(core, coreAbi, 'setHookWhitelist', [holding, true])
     await send(holding, hirelingHoldingAbi, 'setEvaluator', [evaluator])

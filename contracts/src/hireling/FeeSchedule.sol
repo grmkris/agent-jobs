@@ -4,15 +4,16 @@ pragma solidity ^0.8.28;
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IFeeSchedule} from "./interfaces/IFeeSchedule.sol";
 import {HirelingConstants} from "./interfaces/HirelingConstants.sol";
+import {HirelingClocks} from "./HirelingClocks.sol";
 
 /// @title FeeSchedule
 /// @notice The worker's platform fee by staked FACTORY (ADR-0011; the full contract is in `IFeeSchedule`). The owner
-///         (the Safe) retunes the tiers and the treasury through a 3-day timelock, within fixed bounds. Jobs snapshot
+///         (the Safe) retunes the tiers and the treasury through an immutable timelock (production: 3 days), within fixed bounds. Jobs snapshot
 ///         their rate at activation, so a change never reaches a live job.
 contract FeeSchedule is IFeeSchedule, Ownable2Step {
-    uint48 public constant DELAY = HirelingConstants.FEE_DELAY;
+    uint48 public immutable DELAY;
     uint16 public constant MAX_BPS = HirelingConstants.MAX_FEE_BPS;
-    uint48 public constant PROPOSAL_GRACE = HirelingConstants.PROPOSAL_GRACE;
+    uint48 public immutable PROPOSAL_GRACE;
 
     Schedule internal _schedule;
     Schedule internal _pending;
@@ -20,7 +21,10 @@ contract FeeSchedule is IFeeSchedule, Ownable2Step {
 
     /// @param initial The deploy-time schedule from config (0 / 10k / 100k / 1M FACTORY at 30 / 10 / 3 / 1 %, the
     ///        treasury Safe), held to the same bounds as any proposal.
-    constructor(Schedule memory initial) Ownable(msg.sender) {
+    constructor(Schedule memory initial, HirelingClocks.Config memory clocks) Ownable(msg.sender) {
+        HirelingClocks.validate(clocks);
+        DELAY = clocks.feeDelay;
+        PROPOSAL_GRACE = clocks.proposalGrace;
         _validate(initial);
         _schedule = initial;
         emit ScheduleExecuted(initial.thresholds, initial.bps, initial.treasury);

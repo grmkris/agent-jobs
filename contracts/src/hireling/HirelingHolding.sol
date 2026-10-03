@@ -17,6 +17,7 @@ import {IHirelingEvaluator} from "./interfaces/IHirelingEvaluator.sol";
 import {IStakeVault} from "./interfaces/IStakeVault.sol";
 import {IFeeSchedule} from "./interfaces/IFeeSchedule.sol";
 import {HirelingConstants} from "./interfaces/HirelingConstants.sol";
+import {HirelingClocks} from "./HirelingClocks.sol";
 
 /// @title HirelingHolding
 /// @notice The ERC-8183 client of every Hireling v1 job (ADR-0011). The full contract, including the money table, is
@@ -34,11 +35,11 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
     bytes32 public constant SELECTION_TYPEHASH = keccak256(
         "Selection(uint256 jobId,address worker,uint256 agentId,bytes32 termsHash,uint48 activateBy,uint256 nonce)"
     );
-    uint32 public constant MIN_REVIEW_WINDOW = HirelingConstants.MIN_REVIEW_WINDOW;
+    uint32 public immutable MIN_REVIEW_WINDOW;
     uint32 public constant MAX_REVIEW_WINDOW = HirelingConstants.MAX_REVIEW_WINDOW;
-    uint32 public constant MIN_DISPUTE_WINDOW = HirelingConstants.MIN_DISPUTE_WINDOW;
+    uint32 public immutable MIN_DISPUTE_WINDOW;
     uint32 public constant MAX_DISPUTE_WINDOW = HirelingConstants.MAX_DISPUTE_WINDOW;
-    uint32 public constant MIN_ARBITRATION_WINDOW = HirelingConstants.MIN_ARBITRATION_WINDOW;
+    uint32 public immutable MIN_ARBITRATION_WINDOW;
     uint32 public constant MAX_ARBITRATION_WINDOW = HirelingConstants.MAX_ARBITRATION_WINDOW;
     /// @notice The gas each payout push may use before it falls back to `owed`. Monad charges the gas limit, so this
     ///         is also a cost cap; a token needing more is paid through `withdraw`, which has no cap.
@@ -67,12 +68,17 @@ contract HirelingHolding is IHirelingHolding, EIP712, Ownable2Step, ReentrancyGu
         IFeeSchedule feeSchedule_,
         IERC8004Identity identity_,
         address defaultArbitrator_,
-        uint48 margin_
+        uint48 margin_,
+        HirelingClocks.Config memory clocks
     ) EIP712("AgentJobsHolding", "1") Ownable(msg.sender) {
         if (
             address(core_) == address(0) || address(vault_) == address(0) || address(feeSchedule_) == address(0)
                 || address(identity_) == address(0) || defaultArbitrator_ == address(0)
         ) revert ZeroAddress();
+        HirelingClocks.validate(clocks);
+        MIN_REVIEW_WINDOW = clocks.minReviewWindow;
+        MIN_DISPUTE_WINDOW = clocks.minDisputeWindow;
+        MIN_ARBITRATION_WINDOW = clocks.minArbitrationWindow;
         core = core_;
         vault = vault_;
         feeSchedule = feeSchedule_;

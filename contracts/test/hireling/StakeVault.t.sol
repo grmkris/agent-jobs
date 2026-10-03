@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {HirelingClocks} from "../../src/hireling/HirelingClocks.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Factory} from "../../src/hireling/Factory.sol";
@@ -25,7 +27,7 @@ contract StakeVaultTest is Test {
         uint256[] memory amounts = new uint256[](1);
         (to[0], amounts[0]) = (address(this), SUPPLY);
         token = new Factory("Factory", "FACTORY", to, amounts);
-        vault = new StakeVault(token);
+        vault = new StakeVault(token, HirelingClocks.production());
         vault.bootstrapHolding(holding);
         vault.transferOwnership(safe);
         vm.prank(safe);
@@ -393,7 +395,7 @@ contract StakeVaultTest is Test {
     }
 
     function test_bootstrap_stakingClosedUntilBootstrapThenBootstrapWorks() public {
-        StakeVault fresh = new StakeVault(token);
+        StakeVault fresh = new StakeVault(token, HirelingClocks.production());
         token.approve(address(fresh), type(uint256).max);
         // Nobody can stake 1 wei ahead of the bootstrap to force the 8-day path.
         vm.expectRevert(IStakeVault.NotBootstrapped.selector);
@@ -419,7 +421,7 @@ contract StakeVaultTest is Test {
     }
 
     function test_bootstrap_acceptedHoldingAlsoOpensStakingAndClosesBootstrap() public {
-        StakeVault fresh = new StakeVault(token);
+        StakeVault fresh = new StakeVault(token, HirelingClocks.production());
         fresh.proposeHolding(holding);
         vm.warp(t0 + 8 days);
         fresh.acceptHolding();
@@ -537,7 +539,7 @@ contract StakeVaultTest is Test {
     }
 
     function test_holding_revokeOfAnAuthorizedHoldingClearsItsProposal() public {
-        StakeVault v = new StakeVault(token);
+        StakeVault v = new StakeVault(token, HirelingClocks.production());
         v.proposeHolding(holding2);
         // Bootstrap is closed while a proposal is pending.
         vm.expectRevert(IStakeVault.BootstrapClosed.selector);
@@ -552,7 +554,7 @@ contract StakeVaultTest is Test {
 
     /// @dev ACL-3: a proposal never outlives its proposer.
     function test_holding_handoverDropsTheOldOwnersProposal() public {
-        StakeVault v = new StakeVault(token);
+        StakeVault v = new StakeVault(token, HirelingClocks.production());
         v.bootstrapHolding(holding);
         v.proposeHolding(holding2);
         v.transferOwnership(safe);

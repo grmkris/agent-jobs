@@ -59,6 +59,24 @@ export interface ProdArtifact {
   }
 }
 
+/** D24 deploy-time clocks, in seconds; recipe constructors enforce the same bounds. */
+export interface LaunchClocks {
+  minReviewWindow: number
+  minDisputeWindow: number
+  minArbitrationWindow: number
+  unstakeDelay: number
+  holdingDelay: number
+  feeDelay: number
+  proposalGrace: number
+  epochZeroDuration: number
+  epochDuration: number
+}
+export const productionLaunchClocks: LaunchClocks = {
+  minReviewWindow: 3600, minDisputeWindow: 3600, minArbitrationWindow: 43200,
+  unstakeDelay: 604800, holdingDelay: 691200, feeDelay: 259200,
+  proposalGrace: 604800, epochZeroDuration: 259200, epochDuration: 604800,
+}
+
 export interface ChainConfig {
   network: string
   chainId: number
@@ -70,8 +88,8 @@ export interface ChainConfig {
   faucetTokens: { names: string[]; symbols: string[] }
   knownTokens: string[]
   stacks: { names: string[] }
-  /** HirelingRecipe's input; the preflight reads only the v1 default arbitrator from it (LAUNCH-AUDIT-FIX-001). */
-  hireling?: { defaultArbitrator?: string | null } | null
+  /** HirelingRecipe's input; the preflight reads the default arbitrator and clocks from it (LAUNCH-AUDIT-FIX-001). */
+  hireling?: { defaultArbitrator?: string | null; clocks?: LaunchClocks } | null
   deployment: {
     network?: string
     block?: number
@@ -220,6 +238,18 @@ export interface LaunchReader {
 }
 
 const launchAbi = parseAbi([
+  'function MIN_REVIEW_WINDOW() view returns (uint32)',
+  'function MIN_DISPUTE_WINDOW() view returns (uint32)',
+  'function MIN_ARBITRATION_WINDOW() view returns (uint32)',
+  'function UNSTAKE_DELAY() view returns (uint48)',
+  'function HOLDING_DELAY() view returns (uint48)',
+  'function PROPOSAL_GRACE() view returns (uint48)',
+  'function DELAY() view returns (uint48)',
+  'function EPOCH_ZERO_DURATION() view returns (uint48)',
+  'function EPOCH_DURATION() view returns (uint48)',
+  'function MAX_REVIEW_WINDOW() view returns (uint32)',
+  'function MAX_DISPUTE_WINDOW() view returns (uint32)',
+  'function MAX_ARBITRATION_WINDOW() view returns (uint32)',
   'function owner() view returns (address)',
   'function ADMIN_ROLE() view returns (bytes32)',
   'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
@@ -230,6 +260,21 @@ const launchAbi = parseAbi([
   'function getThreshold() view returns (uint256)',
   'function getModulesPaginated(address start, uint256 pageSize) view returns (address[] array, address next)',
 ])
+
+export const launchClockReads = [
+  ['holding', 'MIN_REVIEW_WINDOW', 'minReviewWindow'],
+  ['holding', 'MIN_DISPUTE_WINDOW', 'minDisputeWindow'],
+  ['holding', 'MIN_ARBITRATION_WINDOW', 'minArbitrationWindow'],
+  ['vault', 'UNSTAKE_DELAY', 'unstakeDelay'],
+  ['vault', 'HOLDING_DELAY', 'holdingDelay'],
+  ['vault', 'PROPOSAL_GRACE', 'proposalGrace'],
+  ['feeSchedule', 'DELAY', 'feeDelay'],
+  ['feeSchedule', 'PROPOSAL_GRACE', 'proposalGrace'],
+  ['miningReserve', 'EPOCH_ZERO_DURATION', 'epochZeroDuration'],
+  ['miningReserve', 'EPOCH_DURATION', 'epochDuration'],
+  ['distributor', 'EPOCH_ZERO_DURATION', 'epochZeroDuration'],
+  ['distributor', 'EPOCH_DURATION', 'epochDuration'],
+] as const
 
 /** The canonical SafeL2 v1.4.1 singleton on Monad (runbook §1.1); a Safe proxy keeps it at storage slot 0. */
 export const SAFE_SINGLETON = '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762'
@@ -334,7 +379,7 @@ export async function liveLaunchGate(
       return undefined
     }
   }
-  type LaunchFunction = 'owner' | 'ADMIN_ROLE' | 'DEFAULT_ADMIN_ROLE' | 'hasRole' | 'verifiers' | 'VERSION' | 'getOwners' | 'getThreshold' | 'getModulesPaginated'
+  type LaunchFunction = (typeof launchClockReads)[number][1] | 'MAX_REVIEW_WINDOW' | 'MAX_DISPUTE_WINDOW' | 'MAX_ARBITRATION_WINDOW' | 'owner' | 'ADMIN_ROLE' | 'DEFAULT_ADMIN_ROLE' | 'hasRole' | 'verifiers' | 'VERSION' | 'getOwners' | 'getThreshold' | 'getModulesPaginated'
   const view = async (to: unknown, functionName: LaunchFunction, args: readonly unknown[] = []) => {
     if (!address(to)) throw new Error('no address')
     const data = encodeFunctionData({ abi: launchAbi, functionName, args } as never)
@@ -377,6 +422,31 @@ export async function liveLaunchGate(
   for (const name of launchOwnedContracts) {
     const owner = await read(`launch:owner:${name}`, () => view(owned[name], 'owner'))
     if (owner !== undefined && (typeof owner !== 'string' || !same(owner, safe))) failures.push(`launch:owner:${name} is not the Safe`)
+  }
+
+  // D24: no config override can relax chain 143. Missing testnet input means production.
+  const clocks = { ...productionLaunchClocks }
+  const input = config.hireling?.clocks
+  if (input !== undefined) {
+    for (const key of Object.keys(clocks) as (keyof LaunchClocks)[]) {
+      const value = input?.[key]
+      const min = key.startsWith('min') ? 1 : key.startsWith('epoch') ? 600 : 60
+      const max = key.startsWith('min') ? 1209600 : 281474976710655
+      if (!Number.isSafeInteger(value) || value < min || value > max || (config.chainId === 143 && value !== productionLaunchClocks[key])) {
+        failures.push(`launch:clocks:${key} config invalid`)
+      } else clocks[key] = value
+    }
+    if (clocks.holdingDelay <= clocks.unstakeDelay) failures.push('launch:clocks holdingDelay must exceed unstakeDelay')
+  }
+  for (const [name, getter, key] of launchClockReads) {
+    const label = `launch:clock:${name}.${getter}`
+    const value = await read(label, () => view(owned[name], getter))
+    if (value !== undefined && value !== BigInt(clocks[key]) && value !== clocks[key]) failures.push(`${label} differs from config`)
+  }
+  for (const getter of ['MAX_REVIEW_WINDOW', 'MAX_DISPUTE_WINDOW', 'MAX_ARBITRATION_WINDOW'] as const) {
+    const label = `launch:clock:holding.${getter}`
+    const value = await read(label, () => view(owned.holding, getter))
+    if (value !== undefined && value !== 1209600) failures.push(`${label} differs from production`)
   }
 
   const deployer = config.roles.admin

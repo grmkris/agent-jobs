@@ -32,6 +32,58 @@ export const hirelingHoldingAbi = [
         "name": "margin_",
         "type": "uint48",
         "internalType": "uint48"
+      },
+      {
+        "name": "clocks",
+        "type": "tuple",
+        "internalType": "struct HirelingClocks.Config",
+        "components": [
+          {
+            "name": "minReviewWindow",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "minDisputeWindow",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "minArbitrationWindow",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "unstakeDelay",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "holdingDelay",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "feeDelay",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "proposalGrace",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "epochZeroDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "epochDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          }
+        ]
       }
     ],
     "stateMutability": "nonpayable"
@@ -1609,6 +1661,22 @@ export const hirelingHoldingAbi = [
       },
       {
         "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidClock",
+    "inputs": [
+      {
+        "name": "clock",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "value",
         "type": "uint256",
         "internalType": "uint256"
       }

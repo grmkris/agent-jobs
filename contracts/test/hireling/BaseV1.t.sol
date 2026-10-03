@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {HirelingClocks} from "../../src/hireling/HirelingClocks.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -76,6 +78,10 @@ abstract contract BaseV1 is Test {
         s.treasury = treasury_;
     }
 
+    function clocks() internal pure virtual returns (HirelingClocks.Config memory) {
+        return HirelingClocks.production();
+    }
+
     function setUp() public virtual {
         (creator, creatorPk) = makeAddrAndKey("creator");
         (worker, workerPk) = makeAddrAndKey("worker");
@@ -95,9 +101,10 @@ abstract contract BaseV1 is Test {
         core.setEvaluatorFee(0);
         identity = new MockIdentity();
         reputation = new MockReputation();
-        vault = new StakeVault(factory);
-        fees = new FeeSchedule(defaultSchedule(treasury));
-        holding = new HirelingHolding(core, vault, fees, IERC8004Identity(address(identity)), arbitrator, MARGIN);
+        vault = new StakeVault(factory, clocks());
+        fees = new FeeSchedule(defaultSchedule(treasury), clocks());
+        holding =
+            new HirelingHolding(core, vault, fees, IERC8004Identity(address(identity)), arbitrator, MARGIN, clocks());
         evaluator = new HirelingEvaluator(
             core, holding, IERC8004Reputation(withReputation() ? address(reputation) : address(0))
         );

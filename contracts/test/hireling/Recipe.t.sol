@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {HirelingClocks} from "../../src/hireling/HirelingClocks.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -44,8 +46,8 @@ contract RecipeDriver is Test {
         if (i == 6) HirelingRecipe.stepEvaluator(cc, dd);
         if (i == 7) HirelingRecipe.stepWire(cc, dd);
         if (i == 8) HirelingRecipe.stepBootstrap(dd);
-        if (i == 9) HirelingRecipe.stepDistributor(dd);
-        if (i == 10) HirelingRecipe.stepReserve(dd);
+        if (i == 9) HirelingRecipe.stepDistributor(cc, dd);
+        if (i == 10) HirelingRecipe.stepReserve(cc, dd);
         if (i == 11) HirelingRecipe.stepFundReserve(dd);
         if (i == 12) HirelingRecipe.stepHandover(cc, dd);
         vm.stopPrank();
@@ -74,6 +76,7 @@ contract RecipeTest is Test {
         vm.etch(safe, hex"00"); // the Safe is a contract; the recipe and the promotion check it has code
         vm.createDir(HirelingOutput.candidateDir(vm), true); // gitignored: absent on a clean checkout
         (arbitrator, arbitratorPk) = makeAddrAndKey("arbiter");
+        c.clocks = HirelingClocks.production();
         c.network = "local";
         c.chainId = block.chainid;
         c.admin = admin;
@@ -573,6 +576,11 @@ contract RecipeTest is Test {
         vm.writeJson(block_, path, ".hireling");
         string memory name = ".test-load";
         HirelingRecipe.Config memory l = HirelingRecipe.load(vm, name);
+        assertEq(
+            keccak256(abi.encode(l.clocks)),
+            keccak256(abi.encode(HirelingClocks.production())),
+            "absent clocks default to production"
+        );
         vm.removeFile(path);
         assertTrue(l.reuseCore);
         assertEq(l.existingCore, vm.parseJsonAddress(base, ".deployment.core"));
@@ -897,5 +905,57 @@ contract RecipeTest is Test {
 
     function isPromotedExternal(string memory json, HirelingRecipe.Deployed memory d) external view returns (bool) {
         return HirelingOutput.isPromoted(vm, json, d, safe);
+    }
+
+    function test_promotion_readsEveryImmutableClock() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        vm.mockCall(address(d.holding), abi.encodeWithSignature("MIN_REVIEW_WINDOW()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "holding.MIN_REVIEW_WINDOW"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.holding), abi.encodeWithSignature("MIN_DISPUTE_WINDOW()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "holding.MIN_DISPUTE_WINDOW"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.holding), abi.encodeWithSignature("MIN_ARBITRATION_WINDOW()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "holding.MIN_ARBITRATION_WINDOW"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.vault), abi.encodeWithSignature("UNSTAKE_DELAY()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "vault.UNSTAKE_DELAY"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.vault), abi.encodeWithSignature("HOLDING_DELAY()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "vault.HOLDING_DELAY"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.vault), abi.encodeWithSignature("PROPOSAL_GRACE()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "vault.PROPOSAL_GRACE"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.fees), abi.encodeWithSignature("DELAY()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "fees.DELAY"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.fees), abi.encodeWithSignature("PROPOSAL_GRACE()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "fees.PROPOSAL_GRACE"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.reserve), abi.encodeWithSignature("EPOCH_ZERO_DURATION()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "reserve.EPOCH_ZERO_DURATION"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.reserve), abi.encodeWithSignature("EPOCH_DURATION()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "reserve.EPOCH_DURATION"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.distributor), abi.encodeWithSignature("EPOCH_ZERO_DURATION()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "distributor.EPOCH_ZERO_DURATION"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
+        vm.mockCall(address(d.distributor), abi.encodeWithSignature("EPOCH_DURATION()"), abi.encode(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(HirelingVerify.NotLive.selector, "distributor.EPOCH_DURATION"));
+        this.verifyExternal(c, d);
+        vm.clearMockedCalls();
     }
 }

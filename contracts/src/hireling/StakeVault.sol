@@ -7,12 +7,13 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 import {IFactory} from "./interfaces/IFactory.sol";
 import {IStakeVault} from "./interfaces/IStakeVault.sol";
 import {HirelingConstants} from "./interfaces/HirelingConstants.sol";
+import {HirelingClocks} from "./HirelingClocks.sol";
 
 /// @title StakeVault
 /// @notice FACTORY staking and every Hireling bond (ADR-0011; the full contract is in `IStakeVault`). A bond is a
 ///         reservation of stake: no token moves when a bond is posted, a slash burns the reserved FACTORY, and a Holding
-///         can only ever release or slash what it reserved itself. Holdings are authorized behind an 8-day timelock,
-///         longer than the 7-day unstake cooldown, and revoked instantly; a revoked Holding still settles its live jobs.
+///         can only ever release or slash what it reserved itself. Holdings are authorized behind an immutable timelock
+///         longer than the immutable unstake cooldown (production: 8 days > 7 days), and revoked instantly; a revoked Holding still settles its live jobs.
 ///
 ///         This contract holds everyone's stake. Its only external calls are to the immutable FACTORY token, which has
 ///         no hooks, and every state-changing entry point is non-reentrant anyway.
@@ -30,9 +31,9 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         uint48 unlockAt;
     }
 
-    uint48 public constant UNSTAKE_DELAY = HirelingConstants.UNSTAKE_DELAY;
-    uint48 public constant HOLDING_DELAY = HirelingConstants.HOLDING_DELAY;
-    uint48 public constant PROPOSAL_GRACE = HirelingConstants.PROPOSAL_GRACE;
+    uint48 public immutable UNSTAKE_DELAY;
+    uint48 public immutable HOLDING_DELAY;
+    uint48 public immutable PROPOSAL_GRACE;
 
     IFactory public immutable factory;
 
@@ -49,8 +50,12 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
     address internal _pendingHolding;
     uint48 internal _pendingEta;
 
-    constructor(IFactory factory_) Ownable(msg.sender) {
+    constructor(IFactory factory_, HirelingClocks.Config memory clocks) Ownable(msg.sender) {
         if (address(factory_) == address(0)) revert ZeroAddress();
+        HirelingClocks.validate(clocks);
+        UNSTAKE_DELAY = clocks.unstakeDelay;
+        HOLDING_DELAY = clocks.holdingDelay;
+        PROPOSAL_GRACE = clocks.proposalGrace;
         factory = factory_;
     }
 

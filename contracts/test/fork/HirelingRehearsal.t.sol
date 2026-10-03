@@ -9,6 +9,8 @@ import {IHirelingHolding} from "../../src/hireling/interfaces/IHirelingHolding.s
 import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
 import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
 import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
+import {HirelingVerify} from "../../script/HirelingVerify.sol";
+import {IMiningReserve} from "../../src/hireling/interfaces/IMiningReserve.sol";
 import {RecipeDriver} from "../hireling/Recipe.t.sol";
 
 /// @dev The C8 rehearsal on a local fork of Monad (nothing is sent). The recipe runs step by step from the configured
@@ -32,6 +34,8 @@ contract HirelingRehearsalForkTest is Test {
     function _config(string memory network, bool reuseCore) internal returns (HirelingRecipe.Config memory c) {
         (arbitrator, arbitratorPk) = makeAddrAndKey("rehearsal-arbiter");
         c = HirelingRecipe.loadBase(vm, network);
+        // G1b uses the checked-in fast tuple; the mainnet fork deliberately keeps production values.
+        if (reuseCore) c.clocks = HirelingRecipe.load(vm, network).clocks;
         vm.etch(safe, hex"00"); // the recipe requires code at the Safe
         c.reuseCore = reuseCore;
         c.safe = safe;
@@ -88,6 +92,7 @@ contract HirelingRehearsalForkTest is Test {
     }
 
     function _assertDeployed(HirelingRecipe.Config memory c, HirelingRecipe.Deployed memory d) internal view {
+        HirelingVerify.verify(c, d);
         assertEq(d.vault.owner(), safe);
         assertEq(d.fees.owner(), safe);
         assertEq(d.holding.owner(), safe);
@@ -102,6 +107,17 @@ contract HirelingRehearsalForkTest is Test {
         assertEq(address(d.evaluator.reputation()), address(c.reputation));
         assertTrue(d.evaluator.verifiers(c.attester));
         assertTrue(d.vault.isHolding(address(d.holding)));
+        assertEq(d.holding.MIN_REVIEW_WINDOW(), c.clocks.minReviewWindow);
+        assertEq(d.holding.MIN_DISPUTE_WINDOW(), c.clocks.minDisputeWindow);
+        assertEq(d.holding.MIN_ARBITRATION_WINDOW(), c.clocks.minArbitrationWindow);
+        assertEq(d.vault.UNSTAKE_DELAY(), c.clocks.unstakeDelay);
+        assertEq(d.vault.HOLDING_DELAY(), c.clocks.holdingDelay);
+        assertEq(d.fees.DELAY(), c.clocks.feeDelay);
+        assertEq(d.fees.PROPOSAL_GRACE(), c.clocks.proposalGrace);
+        assertEq(d.reserve.EPOCH_ZERO_DURATION(), c.clocks.epochZeroDuration);
+        assertEq(d.reserve.EPOCH_DURATION(), c.clocks.epochDuration);
+        assertEq(d.distributor.EPOCH_ZERO_DURATION(), c.clocks.epochZeroDuration);
+        assertEq(d.distributor.EPOCH_DURATION(), c.clocks.epochDuration);
     }
 
     function _budgetAuth(
@@ -158,10 +174,11 @@ contract HirelingRehearsalForkTest is Test {
             creatorBond: 0,
             workerBond: 10e18,
             deliveryDeadline: deadline,
-            expiredAt: deadline + 1 hours + 1 hours + 12 hours + 1 days,
-            reviewWindow: 1 hours,
-            disputeWindow: 1 hours,
-            arbitrationWindow: 12 hours
+            expiredAt: deadline + c.clocks.minReviewWindow + c.clocks.minDisputeWindow + c.clocks.minArbitrationWindow
+                + c.margin,
+            reviewWindow: c.clocks.minReviewWindow,
+            disputeWindow: c.clocks.minDisputeWindow,
+            arbitrationWindow: c.clocks.minArbitrationWindow
         });
         vm.startPrank(creator);
         token.approve(address(d.holding), reward);
@@ -206,6 +223,23 @@ contract HirelingRehearsalForkTest is Test {
         string memory json = vm.readFile(HirelingRecipe.path(vm, "monad-testnet"));
         IERC20 mUsd = IERC20(vm.parseJsonAddressArray(json, ".deployment.rewardTokens")[0]);
         _hire(c, d, mUsd, 25e6);
+        // Fast G1b closes epoch zero in 30 min and claims into the new vault, on real testnet dependencies.
+        assertEq(c.clocks.epochZeroDuration, 1800);
+        assertEq(c.clocks.epochDuration, 3600);
+        uint256 end = d.reserve.epochEnd(0);
+        bytes32 root = d.distributor.leaf(0, stranger, 1e18);
+        vm.warp(end - 1);
+        vm.prank(safe);
+        vm.expectRevert(abi.encodeWithSelector(IMiningReserve.EpochNotEnded.selector, 0, end));
+        d.reserve.fund(0, 1e18);
+        vm.warp(end);
+        vm.startPrank(safe);
+        d.reserve.fund(0, 1e18);
+        d.distributor.setRoot(0, root, 1e18, keccak256("fork-only-epoch"));
+        vm.stopPrank();
+        d.distributor.claim(0, stranger, 1e18, new bytes32[](0));
+        assertEq(d.vault.stakeOf(stranger), 1e18);
+        assertEq(d.reserve.epochEnd(1), end + 3600);
     }
 
     function test_fork_mainnet_freshCore_rolesToSafe_oneHire() public {

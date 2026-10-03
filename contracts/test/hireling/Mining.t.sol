@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {HirelingClocks} from "../../src/hireling/HirelingClocks.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Hashes} from "@openzeppelin/contracts/utils/cryptography/Hashes.sol";
@@ -32,10 +34,10 @@ contract MiningTest is Test {
         uint256[] memory amounts = new uint256[](1);
         (to[0], amounts[0]) = (address(this), 1_000_000_000e18);
         token = new Factory("Factory", "FACTORY", to, amounts);
-        vault = new StakeVault(token);
+        vault = new StakeVault(token, HirelingClocks.production());
         vault.bootstrapHolding(makeAddr("holding"));
-        distributor = new EpochDistributor(token, vault, GENESIS);
-        reserve = new MiningReserve(token, address(distributor), GENESIS);
+        distributor = new EpochDistributor(token, vault, GENESIS, HirelingClocks.production());
+        reserve = new MiningReserve(token, address(distributor), GENESIS, HirelingClocks.production());
         token.transfer(address(reserve), 500_000_000e18);
         reserve.transferOwnership(safe);
         distributor.transferOwnership(safe);
@@ -75,7 +77,7 @@ contract MiningTest is Test {
         vm.warp(GENESIS + 72 hours + 7 days);
         assertEq(reserve.currentEpoch(), 2);
 
-        MiningReserve later = new MiningReserve(token, address(distributor), GENESIS + 1 days);
+        MiningReserve later = new MiningReserve(token, address(distributor), GENESIS + 1 days, HirelingClocks.production());
         vm.warp(GENESIS);
         vm.expectRevert(IMiningReserve.BeforeGenesis.selector);
         later.currentEpoch();
@@ -122,9 +124,9 @@ contract MiningTest is Test {
     /// @dev Review C6-001: no implicit "now", so two contracts deployed in different blocks cannot disagree.
     function test_genesis_mustBeExplicit() public {
         vm.expectRevert(IMiningReserve.ZeroGenesis.selector);
-        new MiningReserve(token, address(distributor), 0);
+        new MiningReserve(token, address(distributor), 0, HirelingClocks.production());
         vm.expectRevert(IEpochDistributor.ZeroGenesis.selector);
-        new EpochDistributor(token, vault, 0);
+        new EpochDistributor(token, vault, 0, HirelingClocks.production());
     }
 
     // ------------------------------------------------------------------------------------------

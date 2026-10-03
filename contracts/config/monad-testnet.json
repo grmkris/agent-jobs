@@ -171,6 +171,17 @@
     }
   },
   "hireling": {
+    "clocks": {
+      "minReviewWindow": 120,
+      "minDisputeWindow": 120,
+      "minArbitrationWindow": 300,
+      "unstakeDelay": 600,
+      "holdingDelay": 900,
+      "feeDelay": 300,
+      "proposalGrace": 1800,
+      "epochZeroDuration": 1800,
+      "epochDuration": 3600
+    },
     "reuseCore": true,
     "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
     "defaultArbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",

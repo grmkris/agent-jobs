@@ -16,6 +16,7 @@ import {EpochDistributor} from "../src/hireling/EpochDistributor.sol";
 import {MiningReserve} from "../src/hireling/MiningReserve.sol";
 import {IFeeSchedule} from "../src/hireling/interfaces/IFeeSchedule.sol";
 import {HirelingConstants} from "../src/hireling/interfaces/HirelingConstants.sol";
+import {HirelingClocks} from "../src/hireling/HirelingClocks.sol";
 
 /// @title HirelingRecipe
 /// @notice The Hireling v1 deployment (ADR-0011), from `config/<network>.json` (`hireling` input block; no address in
@@ -65,6 +66,7 @@ library HirelingRecipe {
         uint64 vestingCliff;
         /// @dev Epoch 0 start; zero means the deploy time.
         uint48 genesis;
+        HirelingClocks.Config clocks;
     }
 
     struct Deployed {
@@ -136,6 +138,7 @@ library HirelingRecipe {
         c.identity = IERC8004Identity(vm.parseJsonAddress(json, ".erc8004.identity"));
         c.reputation = IERC8004Reputation(vm.parseJsonAddress(json, ".erc8004.reputation"));
         if (vm.keyExistsJson(json, ".deployment.core")) c.existingCore = vm.parseJsonAddress(json, ".deployment.core");
+        c.clocks = HirelingClocks.production();
     }
 
     /// @notice The full input: `loadBase` plus the `hireling` block (schema in `contracts/SURFACE.md`).
@@ -163,10 +166,25 @@ library HirelingRecipe {
         c.vestingDuration = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.duration"));
         c.vestingCliff = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.cliff"));
         c.genesis = SafeCast.toUint48(vm.parseJsonUint(json, ".hireling.mining.genesis"));
+        if (vm.keyExistsJson(json, ".hireling.clocks")) {
+            string memory p = ".hireling.clocks";
+            c.clocks.minReviewWindow = SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minReviewWindow")));
+            c.clocks.minDisputeWindow = SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minDisputeWindow")));
+            c.clocks.minArbitrationWindow =
+                SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minArbitrationWindow")));
+            c.clocks.unstakeDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".unstakeDelay")));
+            c.clocks.holdingDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".holdingDelay")));
+            c.clocks.feeDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".feeDelay")));
+            c.clocks.proposalGrace = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".proposalGrace")));
+            c.clocks.epochZeroDuration =
+                SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".epochZeroDuration")));
+            c.clocks.epochDuration = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".epochDuration")));
+        }
     }
 
     function check(Config memory c) internal view {
         if (block.chainid != c.chainId) revert WrongChain(c.chainId, block.chainid);
+        HirelingClocks.validate(c.clocks);
         if (
             c.safe == address(0) || c.defaultArbitrator == address(0) || c.feeTreasury == address(0)
                 || c.treasury == address(0) || c.ecosystem == address(0) || c.liquidity == address(0)
@@ -215,8 +233,8 @@ library HirelingRecipe {
         stepEvaluator(c, d);
         stepWire(c, d);
         stepBootstrap(d);
-        stepDistributor(d);
-        stepReserve(d);
+        stepDistributor(c, d);
+        stepReserve(c, d);
         stepFundReserve(d);
         stepHandover(c, d);
     }
@@ -264,15 +282,15 @@ library HirelingRecipe {
             s.bps[i] = c.bps[i];
         }
         s.treasury = c.feeTreasury;
-        d.fees = new FeeSchedule(s);
+        d.fees = new FeeSchedule(s, c.clocks);
     }
 
-    function stepVault(Config memory, Deployed memory d) internal {
-        d.vault = new StakeVault(d.factory);
+    function stepVault(Config memory c, Deployed memory d) internal {
+        d.vault = new StakeVault(d.factory, c.clocks);
     }
 
     function stepHolding(Config memory c, Deployed memory d) internal {
-        d.holding = new HirelingHolding(d.core, d.vault, d.fees, c.identity, c.defaultArbitrator, c.margin);
+        d.holding = new HirelingHolding(d.core, d.vault, d.fees, c.identity, c.defaultArbitrator, c.margin, c.clocks);
     }
 
     function stepEvaluator(Config memory c, Deployed memory d) internal {
@@ -289,13 +307,13 @@ library HirelingRecipe {
         d.vault.bootstrapHolding(address(d.holding));
     }
 
-    function stepDistributor(Deployed memory d) internal {
-        d.distributor = new EpochDistributor(d.factory, d.vault, d.t0);
+    function stepDistributor(Config memory c, Deployed memory d) internal {
+        d.distributor = new EpochDistributor(d.factory, d.vault, d.t0, c.clocks);
     }
 
     /// @dev Both mining contracts get the one `t0` fixed in `stepCore` (review C6-001).
-    function stepReserve(Deployed memory d) internal {
-        d.reserve = new MiningReserve(d.factory, address(d.distributor), d.t0);
+    function stepReserve(Config memory c, Deployed memory d) internal {
+        d.reserve = new MiningReserve(d.factory, address(d.distributor), d.t0, c.clocks);
         if (d.reserve.genesis() != d.distributor.genesis()) revert BadConfig("mining genesis mismatch");
     }
 

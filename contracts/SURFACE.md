@@ -234,6 +234,30 @@ and loads (LAUNCH-AUDIT-001):
 }
 ```
 
+D24 adds an optional `hireling.clocks` input. If present, every key is required and is a number of seconds;
+if absent, the recipe supplies production values. The approved testnet block prepares G1b and does not describe
+the old G1 deployment's clocks. The same `HirelingClocks.Config` tuple is appended to the constructors of
+StakeVault, FeeSchedule, HirelingHolding, MiningReserve and EpochDistributor. Each constructor validates the whole
+tuple on every chain and stores its relevant fields as immutables; no setter exists.
+
+| Config key | Production (143) | Fast testnet (10143) | Getter and return type |
+| --- | ---: | ---: | --- |
+| minReviewWindow | 3600 | 120 | HirelingHolding.MIN_REVIEW_WINDOW(): uint32 |
+| minDisputeWindow | 3600 | 120 | HirelingHolding.MIN_DISPUTE_WINDOW(): uint32 |
+| minArbitrationWindow | 43200 | 300 | HirelingHolding.MIN_ARBITRATION_WINDOW(): uint32 |
+| unstakeDelay | 604800 | 600 | StakeVault.UNSTAKE_DELAY(): uint48 |
+| holdingDelay | 691200 | 900 | StakeVault.HOLDING_DELAY(): uint48 |
+| feeDelay | 259200 | 300 | FeeSchedule.DELAY(): uint48 |
+| proposalGrace | 604800 | 1800 | StakeVault.PROPOSAL_GRACE(), FeeSchedule.PROPOSAL_GRACE(): uint48 |
+| epochZeroDuration | 259200 | 1800 | MiningReserve.EPOCH_ZERO_DURATION(), EpochDistributor.EPOCH_ZERO_DURATION(): uint48 |
+| epochDuration | 604800 | 3600 | MiningReserve.EPOCH_DURATION(), EpochDistributor.EPOCH_DURATION(): uint48 |
+
+Chain 143 refuses any non-production field. Everywhere, minimum windows must be positive and no greater than
+14 days, notice/cooldown/grace values must be at least 60 seconds, epoch lengths at least 600 seconds, and
+`holdingDelay > unstakeDelay` preserves the staker's exit before a new Holding is admitted. The existing 14-day
+MAX_* getters (uint32), budgets, supply, allocations and halving stay constants. No fee-delay relationship to
+another clock is required. Promotion and D16 read all clock values back; D16 also checks the three fixed maxima.
+
 Steps, one broadcast transaction or a few each: core (reuse, or a proxy initialised inside its CREATE, fees 0 to the
 Safe) → TeamVesting → Factory (mining 500M to the deployer, forwarded below) → FeeSchedule → StakeVault →
 HirelingHolding → HirelingEvaluator → `setEvaluator` + attester verifier → `bootstrapHolding` (staking opens) →

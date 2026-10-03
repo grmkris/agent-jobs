@@ -2,11 +2,23 @@ import { decodeFunctionData, encodeFunctionResult, getAddress, keccak256, parseA
 import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import { assertLaunchGate } from '../src/deploy-preflight.ts'
-import { launchOwnedContracts, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, SAFE_GUARD_SLOT, SAFE_SINGLETON, type ChainConfig, type LaunchReader, type SafePolicy } from '../src/prod-config.ts'
+import { launchOwnedContracts, launchClockReads, productionLaunchClocks, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, SAFE_GUARD_SLOT, SAFE_SINGLETON, type ChainConfig, type LaunchReader, type SafePolicy } from '../src/prod-config.ts'
 import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
 import { parseHostedAdmission } from '@agent-jobs/board'
 
 const abi = parseAbi([
+  'function MIN_REVIEW_WINDOW() view returns (uint32)',
+  'function MIN_DISPUTE_WINDOW() view returns (uint32)',
+  'function MIN_ARBITRATION_WINDOW() view returns (uint32)',
+  'function UNSTAKE_DELAY() view returns (uint48)',
+  'function HOLDING_DELAY() view returns (uint48)',
+  'function PROPOSAL_GRACE() view returns (uint48)',
+  'function DELAY() view returns (uint48)',
+  'function EPOCH_ZERO_DURATION() view returns (uint48)',
+  'function EPOCH_DURATION() view returns (uint48)',
+  'function MAX_REVIEW_WINDOW() view returns (uint32)',
+  'function MAX_DISPUTE_WINDOW() view returns (uint32)',
+  'function MAX_ARBITRATION_WINDOW() view returns (uint32)',
   'function owner() view returns (address)',
   'function ADMIN_ROLE() view returns (bytes32)',
   'function DEFAULT_ADMIN_ROLE() view returns (bytes32)',
@@ -42,6 +54,7 @@ function promoted(): ChainConfig {
 }
 
 interface LiveState {
+  clocks: Record<string, number>
   code: Record<string, Hex>
   owners: Record<string, string>
   roles: Record<string, Set<string>>
@@ -58,6 +71,7 @@ interface LiveState {
 function live(config: ChainConfig): LiveState {
   const owners = Object.fromEntries(Object.values(addresses).filter(value => value !== addresses.core).map(value => [lower(value), SAFE]))
   return {
+    clocks: Object.fromEntries(launchClockReads.map(([name, getter, key]) => [`${lower(addresses[name])}:${getter}`, productionLaunchClocks[key]])),
     code: { [lower(SAFE)]: '0x6080' },
     owners,
     roles: { [DEFAULT_ADMIN]: new Set([lower(SAFE)]), [ADMIN]: new Set([lower(SAFE)]) },
@@ -110,6 +124,9 @@ function reader(state: LiveState): LaunchReader & { reads: string[] } {
         case 'getThreshold': return encode(state.safe.threshold)
         case 'getModulesPaginated': return encode([state.safe.modules, a(1)])
       }
+      if (functionName.startsWith('MAX_')) return encode(1209600)
+      const clock = state.clocks[`${lower(to)}:${functionName}`]
+      if (clock !== undefined) return encode(clock)
       throw new Error('unexpected call')
     },
   }
@@ -279,4 +296,37 @@ test('D16: an opening deploy is refused before anything else when the gate fails
   expect(chain.reads.length).toBe(reads)
   state.owners[lower(addresses.vault)] = SAFE
   await expect(assertLaunchGate(config, '0', chain, FLOOR, POLICY)).resolves.toBeUndefined()
+})
+
+// D24: every constructor clock is independently read and fails closed.
+test.each(launchClockReads)('CLOCKS: %s.%s mismatch and unreadable value refuse', async (name, getter) => {
+  const label = `launch:clock:${name}.${getter}`
+  expect(await gate(state => { state.clocks[`${lower(addresses[name])}:${getter}`] = 1 })).toEqual([`${label} differs from config`])
+  expect(await gate(state => { state.failing.add(`call:${lower(addresses[name])}:${getter}`) })).toEqual([`${label} unreadable`])
+})
+
+test('CLOCKS: testnet fast config passes readback; production cannot be overridden on 143', async () => {
+  const fast = { minReviewWindow: 120, minDisputeWindow: 120, minArbitrationWindow: 300, unstakeDelay: 600,
+    holdingDelay: 900, feeDelay: 300, proposalGrace: 1800, epochZeroDuration: 1800, epochDuration: 3600 }
+  const setup = (state: LiveState, config: ChainConfig) => {
+    config.hireling = { ...config.hireling, clocks: fast }
+    for (const [name, getter, key] of launchClockReads) state.clocks[`${lower(addresses[name])}:${getter}`] = fast[key]
+  }
+  expect(await gate((state, config) => { setup(state, config); config.chainId = 10143 })).toEqual([])
+  const failures = await gate(setup)
+  for (const key of Object.keys(fast)) expect(failures).toContain(`launch:clocks:${key} config invalid`)
+  expect(failures).toContain('launch:clock:vault.HOLDING_DELAY differs from config')
+})
+
+test('CLOCKS: partial, zero, out-of-range and cross-clock-invalid config refuse', async () => {
+  for (const patch of [{ proposalGrace: 0 }, { epochDuration: 0 }, { epochZeroDuration: 599 },
+    { minReviewWindow: 1209601 }, { holdingDelay: 60 }, { feeDelay: 59 }]) {
+    const failures = await gate((_, config) => {
+      config.chainId = 10143
+      config.hireling = { ...config.hireling, clocks: { ...productionLaunchClocks, ...patch } }
+    })
+    expect(failures.length).toBeGreaterThan(0)
+  }
+  const failures = await gate((_, config) => { config.hireling = { clocks: {} as never } })
+  expect(failures).toHaveLength(9)
 })
