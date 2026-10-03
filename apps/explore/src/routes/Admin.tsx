@@ -20,6 +20,7 @@ import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execSigned, exec
 import { factoryAmount, percent, proposalState } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
+import { duration } from '../duration.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
 const same = (a: string | undefined, b: string | undefined) => a !== undefined && b !== undefined && a.toLowerCase() === b.toLowerCase()
@@ -577,7 +578,7 @@ function Core({ c, safe, act, busy, atomicReady }: { c: HirelingContracts; safe:
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// FeeSchedule: propose, then anyone executes after the 3-day delay; the Safe can cancel.
+// FeeSchedule: propose, then anyone executes after the chain's delay; the Safe can cancel.
 // ---------------------------------------------------------------------------------------------------------------
 
 type Schedule = { thresholds: readonly bigint[]; bps: readonly number[]; treasury: Address }
@@ -608,10 +609,10 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
   })
   const proposal = form === null || maxBps === undefined ? null : scheduleProposal(form, Number(maxBps))
   const fee = (call: Omit<Call, 'contract' | 'to' | 'abi'>): Call => ({ contract: 'FeeSchedule', to: c.feeSchedule, abi: sdk.feeScheduleAbi, ...call })
-  const days = delay === undefined ? '3 days' : `${Number(delay) / 86_400} days`
+  const timing = delay === undefined ? 'The fee-change delay cannot be read from the chain right now.' : `A change takes effect ${duration(Number(delay))} after it is proposed, when anyone executes it.`
 
   return (
-    <Section title="Fee schedule" note={`A change takes effect ${days} after it is proposed, when anyone executes it. Jobs keep the rate they were activated with.`}>
+    <Section title="Fee schedule" note={`${timing} Jobs keep the rate they were activated with.`}>
       {reads.isError ? (
         <Unavailable retry={() => void reads.refetch()} />
       ) : current === undefined ? (
@@ -710,7 +711,7 @@ function ScheduleTable({ title, schedule }: { title: string; schedule: Schedule 
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// StakeVault Holdings: the Safe proposes, anyone accepts after 8 days (longer than the unstake cooldown), the Safe
+// StakeVault Holdings: the Safe proposes, anyone accepts after the chain's delay, the Safe
 // revokes instantly.
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -735,11 +736,11 @@ function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: bool
   const [proposed, setProposed] = useState('')
   const [revoked, setRevoked] = useState<string>(c.holding)
   const vault = (call: Omit<Call, 'contract' | 'to' | 'abi'>): Call => ({ contract: 'StakeVault', to: c.vault, abi: sdk.stakeVaultAbi, ...call })
-  const days = delay === undefined ? '8 days' : `${Number(delay) / 86_400} days`
+  const timing = delay === undefined ? 'The Holding admission delay cannot be read from the chain right now.' : `A proposed Holding can be accepted ${duration(Number(delay))} after it is proposed, so every staker can leave or refuse it first.`
   const valid = (a: string) => isAddress(a.trim(), { strict: false }) && !same(a.trim(), zeroAddress)
 
   return (
-    <Section title="Stake vault Holdings" note={`Only an authorized Holding can reserve bonds from stake. A proposed Holding can be accepted ${days} after it is proposed, longer than the unstaking cooldown, so every staker can leave or refuse it first.`}>
+    <Section title="Stake vault Holdings" note={`Only an authorized Holding can reserve bonds from stake. ${timing}`}>
       {reads.isError ? (
         <Unavailable retry={() => void reads.refetch()} />
       ) : bootstrapped === undefined ? (

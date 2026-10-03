@@ -33,12 +33,12 @@ export function answer({ address, functionName, args = [] }) {
     case 'hasRole': return s.safeIsAdmin;
     case 'schedule': return s.schedule;
     case 'pending': return s.pending === null ? [{ thresholds: [0n, 0n, 0n, 0n], bps: [0, 0, 0, 0], treasury: ZERO }, 0] : [s.pending.schedule, s.pending.eta];
-    case 'DELAY': return 259200;
-    case 'PROPOSAL_GRACE': return 604800;
+    case 'DELAY': return s.clocks?.fee ?? 259200;
+    case 'PROPOSAL_GRACE': return s.clocks?.grace ?? 604800;
     case 'MAX_BPS': return 3000;
     case 'bootstrapped': return s.bootstrapped;
     case 'pendingHolding': return s.pendingHolding === null ? [ZERO, 0] : [s.pendingHolding.holding, s.pendingHolding.eta];
-    case 'HOLDING_DELAY': return 691200;
+    case 'HOLDING_DELAY': return s.clocks?.holding ?? 691200;
     case 'isHolding': return s.holdings.some((h) => eq(h, args[0]));
     case 'currentEpoch': return s.currentEpoch;
     case 'totalFunded': return s.totalFunded;
@@ -55,6 +55,7 @@ export function answer({ address, functionName, args = [] }) {
 const show = (value) => JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
 // A token's decimals answer per call, as wagmi's allowFailure does: an address with none fails alone.
 const read = (c) => {
+  if (window.__admin.unreadableClocks?.includes(c.functionName)) return { status: 'failure', error: new Error('Fixture clock unavailable') };
   if (c.functionName !== 'decimals') return { status: 'success', result: answer(c) };
   if (window.__admin.down) throw new Error('Fixture RPC unavailable');
   const decimals = window.__admin.decimals?.[key(c.address)];
@@ -106,10 +107,10 @@ function applyCall(via, to, data, signatures) {
     if (s.paused && !open) s.pauses.push({ start: now, end: 0 });
     if (!s.paused && open) s.pauses.at(-1).end = now;
   }
-  if (functionName === 'propose') s.pending = { schedule: args[0], eta: now + 259200 };
+  if (functionName === 'propose') s.pending = { schedule: args[0], eta: now + (s.clocks?.fee ?? 259200) };
   if (functionName === 'cancel') s.pending = null;
   if (functionName === 'execute') { s.schedule = s.pending.schedule; s.pending = null; }
-  if (functionName === 'proposeHolding') s.pendingHolding = { holding: args[0], eta: now + 691200 };
+  if (functionName === 'proposeHolding') s.pendingHolding = { holding: args[0], eta: now + (s.clocks?.holding ?? 691200) };
   if (functionName === 'cancelHoldingProposal') s.pendingHolding = null;
   if (functionName === 'acceptHolding') { s.holdings.push(s.pendingHolding.holding); s.pendingHolding = null; }
   if (functionName === 'revokeHolding') s.holdings = s.holdings.filter((h) => !eq(h, args[0]));

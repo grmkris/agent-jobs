@@ -31,15 +31,15 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling, connected, down, open, proposal, staked }) => {
+  await context.addInitScript(({ account, hireling, connected, down, open, proposal, staked, clocks, unreadableClocks }) => {
     const K = 10n ** 21n;
     window.__hireling = hireling;
     window.__wallet = { address: account, connected, signatures: [], sends: [] };
-    window.__stake = { wallet: 50n * K, staked: staked === null ? 4n * K : BigInt(staked), reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open, denied: {} };
+    window.__stake = { wallet: 50n * K, staked: staked === null ? 4n * K : BigInt(staked), reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open, denied: {}, clocks, unreadableClocks };
     if (proposal !== null) window.__stake.proposal = proposal;
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true, proposal: options.proposal ?? null, staked: options.staked ?? null });
+  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true, proposal: options.proposal ?? null, staked: options.staked ?? null, clocks: options.clocks, unreadableClocks: options.unreadableClocks });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -238,6 +238,30 @@ try {
     await signedOut.page.getByText('Sign in to stake', { exact: true }).waitFor();
     await signedOut.context.close();
     results.push({ checks: ['not deployed says so', 'signed out asks to sign in'], passed: true });
+  }
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    const { context, page } = await fixture(viewport, { clocks: { unstake: 600, holding: 900, grace: 1800 } });
+    await page.goto(`${base}/stake`);
+    await page.getByText('Why unstaking waits 10 minutes.', { exact: true }).waitFor();
+    await page.getByText(/Adding one takes the Safe 15 minutes, longer than the cooldown\./).waitFor();
+    await page.getByRole('radio', { name: 'Unstake', exact: true }).click();
+    await amount(page).fill('1');
+    await page.getByText('It stops counting for your fee tier now and can be withdrawn after 10 minutes. You can cancel until you withdraw.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Unstake 1 FACTORY', exact: true }).click();
+    await confirm(page, 'Unstaking started. The cooldown is running.');
+    await page.getByText(/Withdrawable in (9|10) min/).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
+    await capture(page, `clocks-${viewport.width}-unstake`);
+    await context.close();
+    results.push({ width: viewport.width, checks: ['chain-derived 10-minute cooldown and 15-minute Holding delay', 'minute countdown; early withdraw disabled'], passed: true });
+  }
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 }, { unreadableClocks: ['HOLDING_DELAY'] });
+    await page.goto(`${base}/stake`);
+    await page.getByText(/The Holding admission delay cannot be read from the chain right now\./).waitFor();
+    assert.equal((await page.locator('body').innerText()).includes('8 days'), false);
+    await context.close();
+    results.push({ checks: ['unreadable Holding delay has no fixed fallback'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live vault, signing or sends', results, errors }, null, 2));

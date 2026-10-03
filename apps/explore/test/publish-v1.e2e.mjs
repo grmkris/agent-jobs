@@ -40,15 +40,15 @@ const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main
 const v1Jobs = { 70: 'open', 71: 'active', 72: 'submitted' };
 const silence = encodeFunctionData({ abi: parseAbi(['function completeAfterSilence(uint256 jobId)']), functionName: 'completeAfterSilence', args: [72n] });
 
-async function fixture(viewport, account = creator) {
+async function fixture(viewport, account = creator, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ viewer, hireling, defaultArbiter }) => {
+  await context.addInitScript(({ viewer, hireling, defaultArbiter, bounds }) => {
     window.__hireling = hireling;
-    window.__v1 = { arbiter: defaultArbiter, free: 2n * 10n ** 18n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
+    window.__v1 = { bounds, arbiter: defaultArbiter, free: 2n * 10n ** 18n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
     window.__wallet = { address: viewer, connected: true, signatures: [], sends: [] };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { viewer: account, hireling: contracts, defaultArbiter: arbiter });
+  }, { viewer: account, hireling: contracts, defaultArbiter: arbiter, bounds: options.bounds });
   const state = { created: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -129,7 +129,7 @@ try {
     await page.locator('#post-worker-bond').fill('3');
     await capture(page, `${device}-v1-terms`);
     await page.getByRole('button', { name: 'Review', exact: true }).click();
-    await page.getByText('review 36 h · dispute 12 h · arbitration 3 d', { exact: true }).waitFor();
+    await page.getByText('review 1 d 12 h · dispute 12 h · arbitration 3 d', { exact: true }).waitFor();
     await page.getByText(`${custom} · yours`, { exact: true }).waitFor();
     await page.getByText('Agent #1942 · invited', { exact: true }).waitFor();
     await page.getByText('5 FACTORY reserved from your stake · at least 3 from the agent\'s', { exact: true }).waitFor();
@@ -146,6 +146,52 @@ try {
     await capture(page, `${device}-v1-review`);
     results.push({ device, checks: ['two modes', 'named agent invited', 'presets', 'custom windows in bounds', 'default arbiter by name', 'custom arbiter warning and not creator', 'bonds from stake', 'free-stake shortfall with Stake link', 'create_task v1 arguments'], passed: true });
     await context.close();
+  }
+  // CLOCKS-UI: minute clocks and tighter bounds affect both displayed terms and create_task, including reload.
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    const { context, page, state } = await fixture(viewport, creator, { bounds: { review: [120, 600], dispute: [120, 900], arbitration: [300, 1800] } });
+    await page.goto(`${base}/publish`);
+    await page.locator('#post-title').fill('Minute-clock hire');
+    await page.locator('#post-brief').fill('Use this deployment’s window bounds.');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByText('review 10 min · dispute 15 min · arbitration 30 min', { exact: true }).waitFor();
+    await page.getByRole('radio', { name: 'Long', exact: true }).click();
+    await page.getByText('review 10 min · dispute 15 min · arbitration 30 min', { exact: true }).waitFor();
+    await page.getByRole('radio', { name: 'Fast', exact: true }).click();
+    await page.getByText('review 2 min · dispute 2 min · arbitration 5 min', { exact: true }).waitFor();
+    await page.getByRole('radio', { name: 'Custom', exact: true }).last().click();
+    await page.getByText('2 minutes to 10 minutes', { exact: true }).waitFor();
+    await page.getByText('5 minutes to 30 minutes', { exact: true }).waitFor();
+    await page.locator('#post-reviewHours').fill('0.01');
+    await page.getByText('The review window must be between 2 minutes and 10 minutes.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Review', exact: true }).isDisabled(), true);
+    await page.getByRole('radio', { name: 'Fast', exact: true }).click();
+    await page.getByRole('button', { name: 'Review', exact: true }).click();
+    await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
+    assert.equal(state.created.length, 1);
+    assert.deepEqual(state.created[0].windows, { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 });
+    await page.reload();
+    await page.getByText('review 2 min · dispute 2 min · arbitration 5 min', { exact: true }).waitFor();
+    await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
+    assert.equal(state.created.length, 1);
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await capture(page, `clocks-${viewport.width}-review`);
+    results.push({ width: viewport.width, checks: ['Standard/Long clamp to deployment bounds', 'Fast uses minimums', 'minute custom bounds and refusal', 'exact minute create_task arguments', 'frozen windows survive reload without a second prepare'], passed: true });
+    await context.close();
+  }
+  {
+    const { context, page, state } = await fixture({ width: 390, height: 844 }, creator, { bounds: null });
+    await page.goto(`${base}/publish`);
+    await page.locator('#post-title').fill('No clocks');
+    await page.locator('#post-brief').fill('The chain does not answer.');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByText('Window limits are unavailable until the chain answers.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Review', exact: true }).isDisabled(), true);
+    assert.equal(state.created.length, 0);
+    await context.close();
+    results.push({ checks: ['unreadable clocks block offer preparation without guessed bounds'], passed: true });
   }
   // The v1 job page: a would-be worker sees its fee and net before activating; anyone tops up an active job.
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {

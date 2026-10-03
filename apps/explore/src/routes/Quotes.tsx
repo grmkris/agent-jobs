@@ -24,7 +24,7 @@ type Request = QuoteRequest & { requiredChecks?: string[]; deliverable?: Deliver
 
 const symbolOf = (address: string) => TOKENS[address.toLowerCase()]?.symbol ?? shortAddress(address)
 const KIND_LABEL: Record<DeliverableKind, string> = { git: 'Git commit', patch: 'Patch', artifact: 'File', url: 'Live URL', onchain: 'On-chain' }
-const STACK_LABEL: Record<string, string> = { main: 'Standard', demo: 'Demo · minutes', fast: 'Fast' }
+const STACK_LABEL: Record<string, string> = { main: 'Standard', demo: 'Demo', fast: 'Fast' }
 
 const useRequests = () => {
   const boardId = currentBoardId()

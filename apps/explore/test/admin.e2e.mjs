@@ -75,7 +75,7 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, nonce, decimals, safeIsAdmin }) => {
+  await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, nonce, decimals, safeIsAdmin, clocks, unreadableClocks }) => {
     const K = 10n ** 21n;
     window.__hireling = contracts;
     window.__bytecode = bytecode;
@@ -92,7 +92,7 @@ async function fixture(viewport, options = {}) {
       safe: contracts.safe, owners, threshold: 1n,
       owner: Object.fromEntries([...owned.map((a) => [a, contracts.safe]), [contracts.feeSchedule.toLowerCase(), previousOwner]]),
       pendingOwner: { [contracts.feeSchedule.toLowerCase()]: contracts.safe },
-      paused: false, pauses: [], safeIsAdmin,
+      paused: false, pauses: [], safeIsAdmin, clocks, unreadableClocks,
       schedule: { thresholds: [0n, 10n * K, 100n * K, 1000n * K], bps: [3000, 1000, 300, 100], treasury: contracts.safe },
       pending: null, bootstrapped: true, pendingHolding: null, holdings: [contracts.holding],
       currentEpoch: 2n, totalFunded: BigInt(funded), available: BigInt(funded), outstanding: 0n, genesis: Math.floor(Date.now() / 1000) - (3 * 86400 + 604800 + 302400), roots: {}, calls: [], down: false,
@@ -101,7 +101,7 @@ async function fixture(viewport, options = {}) {
   }, {
     account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
     previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null,
-    funded: (options.funded ?? 0n).toString(), nonce: (options.nonce ?? 7n).toString(), decimals: tokenDecimals, safeIsAdmin: options.safeIsAdmin ?? true,
+    funded: (options.funded ?? 0n).toString(), nonce: (options.nonce ?? 7n).toString(), decimals: tokenDecimals, safeIsAdmin: options.safeIsAdmin ?? true, clocks: options.clocks, unreadableClocks: options.unreadableClocks,
   });
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -527,6 +527,39 @@ try {
     await none.page.getByText(/Hireling v1 is not on .* yet/).waitFor();
     await none.context.close();
     results.push({ checks: ['non-owner: no Admin link, page refuses', 'Safe not configured', 'v1 not deployed'], passed: true });
+  }
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    const { context, page } = await fixture(viewport, { clocks: { fee: 300, holding: 900, grace: 1800 } });
+    await page.goto(`${base}/admin`);
+    const fees = section(page, 'Fee schedule');
+    const holdings = section(page, 'Stake vault Holdings');
+    await fees.getByText(/A change takes effect 5 minutes after it is proposed/).waitFor();
+    await holdings.getByText(/A proposed Holding can be accepted 15 minutes after it is proposed/).waitFor();
+    await fees.getByRole('button', { name: 'Review the proposal' }).click();
+    await send(page, 'Propose a new fee schedule');
+    await fees.getByText(/Executable in (4|5) min/).waitFor();
+    assert.equal(await fees.getByRole('button', { name: 'Execute', exact: true }).isDisabled(), true);
+    await holdings.getByRole('textbox', { name: 'Holding to propose' }).fill(stranger);
+    await holdings.getByRole('button', { name: 'Review the proposal' }).click();
+    await send(page, 'Propose a Holding');
+    await holdings.getByText(/Acceptable in (14|15) min/).waitFor();
+    assert.equal(await holdings.getByRole('button', { name: 'Accept', exact: true }).isDisabled(), true);
+    await page.evaluate(() => { window.__admin.pendingHolding.eta = Math.floor(Date.now() / 1000) - 1801; window.dispatchEvent(new Event('visibilitychange')); });
+    await holdings.getByText(/^Expired at .*Cancel it, or propose again\.$/).waitFor();
+    await capture(page, `clocks-${viewport.width}-admin`);
+    await context.close();
+    results.push({ width: viewport.width, checks: ['5-minute fee and 15-minute Holding copy', 'minute countdowns refuse early execution', '30-minute grace expires proposal'], passed: true });
+  }
+  {
+    const { context, page } = await fixture(phone, { unreadableClocks: ['DELAY', 'HOLDING_DELAY', 'PROPOSAL_GRACE'] });
+    await page.goto(`${base}/admin`);
+    await page.getByText(/The fee-change delay cannot be read from the chain right now\./).waitFor();
+    await page.getByText(/The Holding admission delay cannot be read from the chain right now\./).waitFor();
+    const body = await page.locator('body').innerText();
+    assert.equal(body.includes('3 days'), false);
+    assert.equal(body.includes('8 days'), false);
+    await context.close();
+    results.push({ checks: ['unreadable fee and Holding delays have no fixed fallback'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live Safe, signing or sends', results, errors }, null, 2));

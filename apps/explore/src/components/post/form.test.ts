@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskIndexEntry } from '../../api.ts'
 import { registerTokens } from '../../format.ts'
-import { createTaskArgs, fingerprint, hireAgainPrefill, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem, v1TermsProblem, windowsOf } from './form.ts'
+import { createTaskArgs, fingerprint, frozenForm, hireAgainPrefill, hoursText, humanAmount, initialForm, prefillKey, requestQuotesArgs, stepProblem, v1TermsProblem, windowForm, windowsOf } from './form.ts'
 
 const MUSD = '0x1111111111111111111111111111111111111111'
 const MEUR = '0x2222222222222222222222222222222222222222'
@@ -172,13 +172,33 @@ describe('v1 windows and arbitrator', () => {
   const me = '0x4444444444444444444444444444444444444444'
   const f = { ...initialForm({}, tokens, false), title: 'T', brief: 'B' }
   it('sends the preset or custom windows, and a custom arbitrator, only to a v1 board', () => {
-    expect(windowsOf({ ...f, windowPreset: 'fast' })).toEqual({ reviewSeconds: H, disputeSeconds: H, arbitrationSeconds: 12 * H })
-    expect(windowsOf({ ...f, windowPreset: 'long' })).toEqual({ reviewSeconds: 72 * H, disputeSeconds: 72 * H, arbitrationSeconds: 168 * H })
+    expect(windowsOf(windowForm({ ...f, windowPreset: 'fast' }, bounds))).toEqual({ reviewSeconds: H, disputeSeconds: H, arbitrationSeconds: 12 * H })
+    expect(windowsOf(windowForm({ ...f, windowPreset: 'long' }, bounds))).toEqual({ reviewSeconds: 72 * H, disputeSeconds: 72 * H, arbitrationSeconds: 168 * H })
     expect(createTaskArgs(f, NOW, true)).toMatchObject({ windows: { reviewSeconds: 24 * H, disputeSeconds: 24 * H, arbitrationSeconds: 48 * H } })
     expect(createTaskArgs(f, NOW, true)).not.toHaveProperty('arbitrator')
     expect(createTaskArgs({ ...f, arbitrator: MEUR }, NOW, true)).toMatchObject({ arbitrator: MEUR })
     expect(createTaskArgs({ ...f, arbitrator: MEUR }, NOW, false)).not.toHaveProperty('windows')
     expect(createTaskArgs({ ...f, arbitrator: MEUR }, NOW, false)).not.toHaveProperty('arbitrator')
+  })
+  it('uses fast deployment minimums, clamps preferences at both bounds, and preserves frozen windows without new reads', () => {
+    const fastBounds = { review: [120, 600], dispute: [120, 900], arbitration: [300, 1800] } as const
+    const fast = windowForm({ ...f, windowPreset: 'fast' }, fastBounds)
+    const expected = { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }
+    expect(createTaskArgs(fast, NOW, true).windows).toEqual(expected)
+    expect(v1TermsProblem(fast, fastBounds, me)).toBeNull()
+    const reloaded = JSON.parse(JSON.stringify(fast))
+    expect(createTaskArgs(reloaded, NOW, true).windows).toEqual(expected)
+    expect(fingerprint(reloaded)).toBe(fingerprint(fast))
+    for (const windowPreset of ['standard', 'long'] as const) {
+      const clamped = windowForm({ ...f, windowPreset }, fastBounds)
+      expect(createTaskArgs(clamped, NOW, true).windows).toEqual({ reviewSeconds: 600, disputeSeconds: 900, arbitrationSeconds: 1800 })
+      expect(v1TermsProblem(clamped, fastBounds, me)).toBeNull()
+    }
+    expect(windowsOf(windowForm(f, { ...bounds, review: [36 * H, 14 * 86400] }))).toMatchObject({ reviewSeconds: 36 * H })
+    const custom = { ...f, windowPreset: 'custom' as const, reviewHours: '0.01' }
+    expect(windowForm(custom, fastBounds)).toBe(custom)
+    expect(v1TermsProblem(custom, fastBounds, me)).toBe('The review window must be between 2 minutes and 10 minutes.')
+    expect(v1TermsProblem(fast, null, me)).toMatch(/Reading the window limits/)
   })
   it('refuses what publish would refuse', () => {
     expect(v1TermsProblem(f, null, me)).toMatch(/Reading the window limits/)
@@ -188,5 +208,12 @@ describe('v1 windows and arbitrator', () => {
     expect(v1TermsProblem({ ...f, windowPreset: 'custom', reviewHours: '24', disputeHours: '400', arbitrationHours: '48' }, bounds, me)).toMatch(/dispute window/)
     expect(v1TermsProblem({ ...f, arbitrator: me.toUpperCase().replace('0X', '0x') }, bounds, me)).toMatch(/cannot arbitrate your own job/)
     expect(v1TermsProblem({ ...f, arbitrator: '0x12' }, bounds, me)).toMatch(/arbitrator’s address/)
+  })
+  it('retains the prepared windows of an older Fast draft whose custom fields still held Standard defaults', () => {
+    const form = { ...f, windowPreset: 'fast' as const }
+    const prepared = { reviewSeconds: H, disputeSeconds: H, arbitrationSeconds: 12 * H }
+    const fp = JSON.stringify({ ...createTaskArgs(form, NOW, true), windows: prepared })
+    expect(windowsOf(frozenForm({ form, fp }))).toEqual(prepared)
+    expect(frozenForm({ form, fp: 'unreadable' })).toBe(form)
   })
 })

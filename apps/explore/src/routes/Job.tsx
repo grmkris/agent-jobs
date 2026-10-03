@@ -94,7 +94,7 @@ interface BoardTask {
 
 type Auth = ReturnType<typeof useSignedIn>
 
-const STACK: Record<string, string> = { main: 'Standard: 3-day review and dispute windows', demo: 'Demo: windows of minutes, for rehearsals', fast: 'Fast: 2-hour review and dispute windows' }
+const STACK: Record<string, string> = { main: 'Standard', demo: 'Demo', fast: 'Fast' }
 const VERDICT: Record<string, string> = { clean: 'Looks fine', caution: 'Flagged for a closer look', reject: 'Flagged as risky', unscreened: 'Not screened' }
 const VIOLATION: Record<string, string> = { None: 'no fault named', Quality: 'not good enough', Falsified: 'faked evidence' }
 /** A viewer who is no party to any job: the permissionless steps are exactly what it may send. */
@@ -138,8 +138,6 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   const mode: 'hire' | 'contest' = (t?.mode ?? d?.job.mode ?? listed?.mode) === 'contest' ? 'contest' : 'hire'
   const roles = auth.signedIn ? t?.you ?? [] : []
 
-  // Minute resolution is enough for phases (deadlines are minutes apart); the countdowns tick on their own.
-  const minute = Math.floor(now / 60) * 60
   let input: LifecycleInput | null = null
   if (t !== undefined && !board.isError) {
     const lifecycleTask = lifecycleFromTask(t)
@@ -152,10 +150,10 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
     const settlePending = ['rejected', 'cancelled', 'expired'].includes(d.job.status) && d.rewards.length === 0
     input = { ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }
   }
-  const phase: Phase | null = input === null ? null : lifecycle(input, auth.signedIn ? auth.address ?? null : null, minute)
+  const phase: Phase | null = input === null ? null : lifecycle(input, auth.signedIn ? auth.address ?? null : null, now)
   // What this wallet could send once signed in (with no wallet yet, what any signed-in stranger could): offered as a
   // sign-in action, never as a button that does nothing.
-  const afterSignIn: JobAction[] = input === null || auth.signedIn ? [] : lifecycle(input, auth.address ?? STRANGER, minute).actions
+  const afterSignIn: JobAction[] = input === null || auth.signedIn ? [] : lifecycle(input, auth.address ?? STRANGER, now).actions
 
   const selection = auth.signedIn ? t?.selection : undefined
   const waitingForActivation = !board.isError && !chain.isError && phase?.key === 'hire-open' && t?.chain.provider === null && selection?.some((record) => record.state === 'signed') === true

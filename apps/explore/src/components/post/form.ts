@@ -8,6 +8,7 @@ import { DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, type TxRe
 import { formatNumber, tokenInfo, tokenMeta } from '../../format.ts'
 import { hireling } from '../../hireling.ts'
 import { deployment } from '../../wallet.ts'
+import { duration } from '../../duration.ts'
 
 /**
  * A Hireling v1 board (ADR-0011): v1 is deployed on this network, so offers carry the v1 terms (a named worker, and
@@ -21,12 +22,12 @@ export type StackName = 'main' | 'demo' | 'fast'
 export type Step = 1 | 2 | 3 | 4
 export type WindowPreset = 'fast' | 'standard' | 'long' | 'custom'
 
-/** v1 window presets, in hours: review, dispute, arbitration (each within the Holding's bounds). */
-export const WINDOW_PRESETS: Record<Exclude<WindowPreset, 'custom'>, readonly [number, number, number]> = {
-  fast: [1, 1, 12],
+/** Preferred spans in hours; deployment bounds clamp them. Fast uses the chain minimums. */
+const WINDOW_PREFERENCES = {
   standard: [24, 24, 48],
   long: [72, 72, 168],
-}
+} as const
+const clampedHours = ([min, max]: readonly [number, number], seconds: number) => String(Math.max(min, Math.min(max, seconds)) / 3600)
 
 /** The Holding's window bounds, in seconds (`MIN_REVIEW_WINDOW` … `MAX_ARBITRATION_WINDOW`), read from the chain. */
 export interface WindowBounds {
@@ -218,13 +219,18 @@ export function createTaskArgs(f: PostForm, now: number, v1: boolean = V1) {
   }
 }
 
-/** The offer's windows in seconds: the preset's, or the custom hours. */
-export function windowsOf(f: Pick<PostForm, 'windowPreset' | 'reviewHours' | 'disputeHours' | 'arbitrationHours'>) {
-  const [review, dispute, arbitration] = f.windowPreset === 'custom' ? [Number(f.reviewHours), Number(f.disputeHours), Number(f.arbitrationHours)] : WINDOW_PRESETS[f.windowPreset]
-  return { reviewSeconds: Math.round(review * 3600), disputeSeconds: Math.round(dispute * 3600), arbitrationSeconds: Math.round(arbitration * 3600) }
+/** Resolve a preset before review/freeze, keeping its actual hours in the saved offer. Custom values stay explicit. */
+export function windowForm(f: PostForm, bounds: WindowBounds | null): PostForm {
+  if (bounds === null || f.windowPreset === 'custom') return f
+  const preferred = f.windowPreset === 'fast' ? [bounds.review[0], bounds.dispute[0], bounds.arbitration[0]] as const : WINDOW_PREFERENCES[f.windowPreset].map((hours) => hours * 3600)
+  return { ...f, reviewHours: clampedHours(bounds.review, preferred[0]!), disputeHours: clampedHours(bounds.dispute, preferred[1]!), arbitrationHours: clampedHours(bounds.arbitration, preferred[2]!) }
 }
 
-const spanText = (seconds: number) => (seconds % 86_400 === 0 ? `${seconds / 86_400} day${seconds === 86_400 ? '' : 's'}` : `${seconds / 3600} hour${seconds === 3600 ? '' : 's'}`)
+/** The resolved offer's windows in seconds, preserved when reloading a frozen offer. */
+export function windowsOf(f: Pick<PostForm, 'windowPreset' | 'reviewHours' | 'disputeHours' | 'arbitrationHours'>) {
+  const [review, dispute, arbitration] = [Number(f.reviewHours), Number(f.disputeHours), Number(f.arbitrationHours)]
+  return { reviewSeconds: Math.round(review * 3600), disputeSeconds: Math.round(dispute * 3600), arbitrationSeconds: Math.round(arbitration * 3600) }
+}
 
 /**
  * Why a v1 offer's windows or arbitrator would be refused at publish, in words; null when they are fine. `bounds` are
@@ -232,14 +238,14 @@ const spanText = (seconds: number) => (seconds % 86_400 === 0 ? `${seconds / 86_
  */
 export function v1TermsProblem(f: PostForm, bounds: WindowBounds | null, me: string | undefined): string | null {
   if (bounds === null) return 'Reading the window limits from the chain…'
-  const w = windowsOf(f)
+  const w = windowsOf(windowForm(f, bounds))
   const checks: Array<[string, number, readonly [number, number]]> = [
     ['review', w.reviewSeconds, bounds.review],
     ['dispute', w.disputeSeconds, bounds.dispute],
     ['arbitration', w.arbitrationSeconds, bounds.arbitration],
   ]
   for (const [name, value, [min, max]] of checks) {
-    if (!Number.isFinite(value) || value < min || value > max) return `The ${name} window must be between ${spanText(min)} and ${spanText(max)}.`
+    if (!Number.isFinite(value) || value < min || value > max) return `The ${name} window must be between ${duration(min)} and ${duration(max)}.`
   }
   const a = f.arbitrator.trim()
   if (a !== '') {
@@ -355,6 +361,17 @@ export interface Frozen {
   deliveryDeadline: number
   selectionDeadline: number | null
   created: Created
+}
+
+/** Older preset drafts kept placeholder hours. Their fingerprint already records the exact prepared windows. */
+export function frozenForm(frozen: Pick<Frozen, 'form' | 'fp'>): PostForm {
+  try {
+    const windows = JSON.parse(frozen.fp).windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } | undefined
+    if (windows === undefined || ![windows.reviewSeconds, windows.disputeSeconds, windows.arbitrationSeconds].every((s) => Number.isSafeInteger(s) && s > 0)) return frozen.form
+    return { ...frozen.form, reviewHours: String(windows.reviewSeconds / 3600), disputeHours: String(windows.disputeSeconds / 3600), arbitrationHours: String(windows.arbitrationSeconds / 3600) }
+  } catch {
+    return frozen.form
+  }
 }
 
 export interface Draft {

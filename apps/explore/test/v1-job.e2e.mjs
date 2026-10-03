@@ -59,15 +59,16 @@ await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
 mkdirSync(output, { recursive: true });
 
-async function fixture(viewport, account, sponsored = false) {
+async function fixture(viewport, account, sponsored = false, clocks = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ viewer, hireling }) => {
+  await context.addInitScript(({ viewer, hireling, fixedNow }) => {
+    if (fixedNow !== undefined) Date.now = () => fixedNow * 1000;
     window.__hireling = hireling;
     window.__v1 = { arbiter: '0xa000000000000000000000000000000000000001', free: 10n ** 21n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
     window.__wallet = { address: viewer, connected: true, signatures: [], sends: [] };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { viewer: account, hireling: contracts });
+  }, { viewer: account, hireling: contracts, fixedNow: clocks.now });
   const state = { calls: [], submits: [], reports: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -88,7 +89,7 @@ async function fixture(viewport, account, sponsored = false) {
       const id = /^task-(\d+)$/.exec(body().taskId)?.[1];
       const status = jobs[id];
       const you = account === creator ? ['creator', 'approver'] : account === agentWallet && status !== 'open' ? ['worker'] : [];
-      return reply({ ok: true, result: { ...offer(id, status), you, selection: [], terms: { brief: 'A v1 hire.', acceptanceCriteria: ['Done'], windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status, provider: status === 'open' ? null : agentWallet, timely: true, submittedAt: status === 'submitted' ? now - 600 : null, reviewEndsAt: status === 'submitted' ? now + 3600 : null, disputeEndsAt: status === 'rejected-pending' ? now + 3600 : null, arbitrationEndsAt: null, violation: status === 'rejected-pending' ? 'Quality' : null, listingMatchesOffer: true, paused: false } } });
+      return reply({ ok: true, result: { ...offer(id, status), you, selection: [], terms: { brief: 'A v1 hire.', acceptanceCriteria: ['Done'], windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status, provider: status === 'open' ? null : agentWallet, timely: true, submittedAt: status === 'submitted' ? now - 600 : null, reviewEndsAt: status === 'submitted' ? (clocks.reviewEndsAt ?? now + 3600) : null, disputeEndsAt: status === 'rejected-pending' ? now + 3600 : null, arbitrationEndsAt: null, violation: status === 'rejected-pending' ? 'Quality' : null, listingMatchesOffer: true, paused: false } } });
     }
     const jobId = BigInt(/^task-(\d+)$/.exec(body()?.taskId ?? '')?.[1] ?? '0');
     if (['cancel_task', 'approve_work', 'reject_work', 'dispute'].includes(name)) state.calls.push({ name, args: body() });
@@ -206,6 +207,18 @@ try {
     assert.deepEqual(state.reports.map((r) => r.txHash), [`0x${'1'.padStart(64, 'b')}`, `0x${'2'.padStart(64, 'b')}`]);
     results.push({ checks: ['sponsored cancel: Holding.cancel through the relay, no wallet prompt', 'sponsored approval: Evaluator.accept through the relay', 'a caller key per action', 'the relay hash reported to the board'], passed: true });
     await context.close();
+  }
+  // CLOCKS-UI: a deadline within the current minute closes actions at the actual second, not the next minute.
+  {
+    const minuteStart = Math.floor(now / 60) * 60;
+    const { context, page } = await fixture({ width: 390, height: 844 }, creator, false, { now: minuteStart + 35, reviewEndsAt: minuteStart + 30 });
+    await page.goto(`${base}/job/81`);
+    await page.getByRole('button', { name: 'Release the payment', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Reject', exact: true }).count(), 0);
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await capture(page, 'clocks-review-closed-within-minute');
+    await context.close();
+    results.push({ checks: ['review actions close at the actual second within a minute', 'release is offered, rejection is removed'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live board, signing or sends', results, errors }, null, 2));

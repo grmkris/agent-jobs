@@ -28,6 +28,7 @@ import {
   draftKey,
   V1,
   fingerprint,
+  frozenForm,
   hireAgainPrefill,
   hoursText,
   initialForm,
@@ -40,6 +41,7 @@ import {
   stepProblem,
   toBase,
   v1TermsProblem,
+  windowForm,
   windowsOf,
 } from '../components/post/form.ts'
 import { Chip, Choices, Disclosure, FieldRow, KV, LineRow, Mark, Progress, StepNav, Switch } from '../components/post/parts.tsx'
@@ -48,10 +50,11 @@ import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, Skeleton, TextArea, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
-import { rewardTokenList, tokenInfo } from '../format.ts'
+import { rewardTokenList, span, tokenInfo } from '../format.ts'
 import { hireling } from '../hireling.ts'
 import { useToken } from '../useTokens.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
+import { duration } from '../duration.ts'
 
 type Auth = ReturnType<typeof useSignedIn>
 
@@ -81,12 +84,7 @@ const MODE_TITLE: Record<Mode, string> = { hire: 'Direct hire', quotes: 'Request
 const OTHER = 'other'
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
 
-const STACK_LABEL: Record<StackName, string> = { main: 'Standard', demo: 'Demo · minutes', fast: 'Fast' }
-const STACK_NOTE: Record<StackName, string> = {
-  main: 'Three days to review the work and to dispute a rejection.',
-  demo: 'Review and dispute windows of minutes, for trying things out.',
-  fast: 'Two hours to review the work and to dispute a rejection.',
-}
+const STACK_LABEL: Record<StackName, string> = { main: 'Standard', demo: 'Demo', fast: 'Fast' }
 
 const DELIVERY: ReadonlyArray<readonly [string, string]> = [
   ['24', '1 day'],
@@ -234,7 +232,9 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const lastPrefill = useRef(pk)
   const tokenTouched = useRef(false)
 
-  const f = runningOffer?.frozen.form ?? draft.form
+  const v1 = useV1Terms()
+  // A prepared offer keeps its signed windows even if the deployment's bounds are unavailable on reload.
+  const f = runningOffer === null ? windowForm(draft.form, v1.bounds) : frozenForm(runningOffer.frozen)
   const step = draft.step
   /** A field the person changed. */
   const set = (patch: Partial<PostForm>) => {
@@ -345,7 +345,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const freeze = async () => {
     const owner = auth.address
     if (owner === undefined || runningOffer !== null) return
-    const form = structuredClone(draft.form)
+    if (V1 && v1TermsProblem(f, v1.bounds, owner) !== null) return
+    const form = structuredClone(f)
     const at = Math.floor(Date.now() / 1000)
     const args = createTaskArgs(form, at)
     setFreezing(true)
@@ -408,7 +409,6 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     else await navigate(jobId !== null ? boardRoutes().job(jobId) : boardRoutes().jobs())
   }
 
-  const v1 = useV1Terms()
   const problem = stepProblem(f, step) ?? (V1 && step === 3 && f.mode === 'hire' ? v1TermsProblem(f, v1.bounds, auth.address) : null)
   const status = saved && dirty.current ? 'Draft saved' : ''
   const contest = f.mode === 'contest'
@@ -596,7 +596,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   </Group>
                 </Section>
               )}
-              {V1 && f.mode === 'hire' && <V1Terms f={f} set={set} defaultArbitrator={v1.defaultArbitrator} />}
+              {V1 && f.mode === 'hire' && <V1Terms f={f} set={set} bounds={v1.bounds} defaultArbitrator={v1.defaultArbitrator} />}
               <Advanced f={f} set={set} stacks={stacks} />
             </>
           )}
@@ -821,39 +821,41 @@ function useV1Terms(): { bounds: WindowBounds | null; defaultArbitrator: Address
   const r = reads.data
   if (r === undefined || r.some((x) => x.status !== 'success')) return { bounds: null, defaultArbitrator: null }
   const n = (i: number) => Number(r[i]?.result)
+  for (const i of [0, 2, 4]) {
+    if (!Number.isSafeInteger(n(i)) || !Number.isSafeInteger(n(i + 1)) || n(i) <= 0 || n(i) > n(i + 1)) return { bounds: null, defaultArbitrator: null }
+  }
   return { bounds: { review: [n(0), n(1)], dispute: [n(2), n(3)], arbitration: [n(4), n(5)] }, defaultArbitrator: r[6]?.result as Address }
 }
 
 const WINDOW_LABEL: Record<WindowPreset, string> = { fast: 'Fast', standard: 'Standard', long: 'Long', custom: 'Custom' }
-const hoursLabel = (h: number) => (h % 24 === 0 ? `${h / 24} d` : `${h} h`)
 const windowsText = (f: PostForm) => {
   const w = windowsOf(f)
-  return `review ${hoursLabel(w.reviewSeconds / 3600)} · dispute ${hoursLabel(w.disputeSeconds / 3600)} · arbitration ${hoursLabel(w.arbitrationSeconds / 3600)}`
+  return `review ${span(w.reviewSeconds)} · dispute ${span(w.disputeSeconds)} · arbitration ${span(w.arbitrationSeconds)}`
 }
 
 /**
  * Hireling v1's terms for a hire (ADR-0011): how long the approver has to review, the agent to dispute and the
  * arbitrator to rule; who arbitrates (Hireling's arbiter by default, by name); and the bonds, reserved from stake.
  */
-function V1Terms({ f, set, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; defaultArbitrator: Address | null }) {
+function V1Terms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; bounds: WindowBounds | null; defaultArbitrator: Address | null }) {
   const [customArbiter, setCustomArbiter] = useState(f.arbitrator !== '')
   return (
     <>
       <Section title="Windows" note="Silence when the review window closes counts as acceptance. A rejection can be disputed within the dispute window; the arbitrator then has the arbitration window to rule.">
         <Group>
-          <LineRow label="Preset" note={windowsText(f)} stack>
+          <LineRow label="Preset" note={bounds === null ? 'Window limits are unavailable until the chain answers.' : windowsText(f)} stack>
             <Segmented
               label="Windows"
               value={f.windowPreset}
               options={(['fast', 'standard', 'long', 'custom'] as const).map((p) => [p, WINDOW_LABEL[p]] as const)}
-              onChange={(windowPreset) => set({ windowPreset })}
+              onChange={(windowPreset) => set({ ...f, windowPreset })}
               className="sm:min-w-[19rem]"
             />
           </LineRow>
           {f.windowPreset === 'custom' && (
             <>
-              {([['reviewHours', 'Review', '1 h to 14 days'], ['disputeHours', 'Dispute', '1 h to 14 days'], ['arbitrationHours', 'Arbitration', '12 h to 14 days']] as const).map(([field, label, bounds]) => (
-                <LineRow key={field} label={label} note={bounds} htmlFor={`post-${field}`}>
+              {([['reviewHours', 'Review', 'review'], ['disputeHours', 'Dispute', 'dispute'], ['arbitrationHours', 'Arbitration', 'arbitration']] as const).map(([field, label, name]) => (
+                <LineRow key={field} label={label} note={bounds === null ? 'Window limits unavailable' : `${duration(bounds[name][0])} to ${duration(bounds[name][1])}`} htmlFor={`post-${field}`}>
                   <Input id={`post-${field}`} value={f[field]} onChange={(e) => set({ [field]: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
                   <span className="w-12 shrink-0 text-label-2">hours</span>
                 </LineRow>
@@ -945,7 +947,7 @@ function Advanced({ f, set, stacks }: { f: PostForm; set: (p: Partial<PostForm>)
     <Section note={V1 && hire ? undefined : 'Bonds are in FACTORY. Both are held by the contracts, never by Hireling.'}>
       <Disclosure title="Advanced" summary={summary}>
         {!V1 && stacks.length > 1 && (
-          <LineRow label="Review speed" note={STACK_NOTE[f.stack]} stack>
+          <LineRow label="Review speed" note="Review and dispute windows are fixed by this deployment's evaluator." stack>
             <Segmented label="Review speed" value={f.stack} options={stacks.map((s) => [s, STACK_LABEL[s]] as const)} onChange={(stack) => set({ stack })} className="sm:min-w-[19rem]" />
           </LineRow>
         )}

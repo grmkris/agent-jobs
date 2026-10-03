@@ -9,9 +9,9 @@ export * from './wagmi.mjs';
 // arbitrator, the vault's free stake for the creator bond, the fee quote and top-ups. Nothing reaches a chain.
 const H = 3600;
 const V1_READS = {
-  MIN_REVIEW_WINDOW: () => H, MAX_REVIEW_WINDOW: () => 14 * 86400,
-  MIN_DISPUTE_WINDOW: () => H, MAX_DISPUTE_WINDOW: () => 14 * 86400,
-  MIN_ARBITRATION_WINDOW: () => 12 * H, MAX_ARBITRATION_WINDOW: () => 14 * 86400,
+  MIN_REVIEW_WINDOW: () => window.__v1.bounds?.review[0] ?? H, MAX_REVIEW_WINDOW: () => window.__v1.bounds?.review[1] ?? 14 * 86400,
+  MIN_DISPUTE_WINDOW: () => window.__v1.bounds?.dispute[0] ?? H, MAX_DISPUTE_WINDOW: () => window.__v1.bounds?.dispute[1] ?? 14 * 86400,
+  MIN_ARBITRATION_WINDOW: () => window.__v1.bounds?.arbitration[0] ?? 12 * H, MAX_ARBITRATION_WINDOW: () => window.__v1.bounds?.arbitration[1] ?? 14 * 86400,
   defaultArbitrator: () => window.__v1.arbiter,
   quoteActivation: () => window.__v1.quote,
   topUpOf: () => window.__v1.topUp,
@@ -22,7 +22,7 @@ export const useReadContracts = (options) => {
   const v1 = options.contracts.every((c) => V1_READS[c.functionName] !== undefined);
   const reads = useQuery({
     queryKey: ['fixture-v1', JSON.stringify(options.contracts.map((c) => [c.address, c.functionName, c.args]), (_k, v) => (typeof v === 'bigint' ? v.toString() : v))],
-    queryFn: async () => { await chainLatency(); return options.contracts.map((c) => ({ status: 'success', result: V1_READS[c.functionName](c) })); },
+    queryFn: async () => { await chainLatency(); return options.contracts.map((c) => (window.__v1.bounds === null && c.functionName.includes('WINDOW') ? { status: 'failure', error: new Error('Fixture clock unavailable') } : { status: 'success', result: V1_READS[c.functionName](c) })); },
     enabled: v1 && options.query?.enabled !== false,
   });
   const fallback = useFixtureReadContracts(v1 ? { ...options, query: { ...options.query, enabled: false } } : options);

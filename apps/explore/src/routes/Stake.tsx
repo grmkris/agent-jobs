@@ -11,7 +11,8 @@ import { Countdown, When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section, Segmented, cn } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
-import { formatNumber, span } from '../format.ts'
+import { formatNumber } from '../format.ts'
+import { duration } from '../duration.ts'
 import { type HirelingContracts, hireling } from '../hireling.ts'
 import { amountProblem, factoryAmount, percent, proposalState, tierOf } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
@@ -65,7 +66,7 @@ function saveOp(address: string, op: Op | null) {
 }
 
 /**
- * Stake FACTORY (ADR-0011): what is staked, what bonds on live jobs hold (reserved), what can be unstaked, the 7-day
+ * Stake FACTORY (ADR-0011): what is staked, what bonds on live jobs hold (reserved), what can be unstaked, the vault's
  * cooldown, and the fee tier the stake earns as a worker, with what the next tier takes. Every number is read from
  * the chain; the tiers come from the FeeSchedule. Staking is one transaction with a permit signature; unstaking
  * starts a cooldown that can be cancelled, then a withdrawal.
@@ -140,6 +141,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding', chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'holdingDenied', args: [address, c.holding], chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'PROPOSAL_GRACE', chainId: chain.id },
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'HOLDING_DELAY', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
@@ -147,6 +149,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
   const proposal = pendingRead !== undefined && pendingRead[0].toLowerCase() !== zeroAddress ? { holding: pendingRead[0], eta: Number(pendingRead[1]) } : null
   const refusedInUse = holdings.data?.[1]?.status === 'success' ? (holdings.data[1].result as boolean) : undefined
   const grace = holdings.data?.[2]?.status === 'success' ? Number(holdings.data[2].result) : undefined
+  const holdingDelay = holdings.data?.[3]?.status === 'success' ? Number(holdings.data[3].result) : undefined
   const proposalRefusal = useReadContracts({
     contracts: [{ address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'holdingDenied', args: [address, proposal?.holding ?? zeroAddress], chainId: chain.id }],
     query: { enabled: proposal !== null, refetchInterval: 30_000 },
@@ -219,7 +222,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
 
   const tiers = facts === null ? null : tierOf(facts.schedule, facts.staked)
   const unlocked = facts !== null && facts.unstaking > 0n && facts.unlockAt <= now
-  const days = facts === null ? '7 days' : duration(facts.cooldown)
+  const cooldownText = facts === null ? 'the vault cooldown' : duration(facts.cooldown)
 
   return (
     <>
@@ -427,8 +430,8 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
                   {mode === 'stake'
                     ? 'One signature and one transaction: the signature lets the vault take exactly this amount, nothing more.'
                     : facts !== null && facts.unstaking > 0n
-                      ? `You are already unstaking ${fmt(facts.unstaking)}. Adding to it restarts the ${days} cooldown for the whole amount.`
-                      : `It stops counting for your fee tier now and can be withdrawn after ${days}. You can cancel until you withdraw.`}
+                      ? `You are already unstaking ${fmt(facts.unstaking)}. Adding to it restarts the ${cooldownText} cooldown for the whole amount.`
+                      : `It stops counting for your fee tier now and can be withdrawn after ${cooldownText}. You can cancel until you withdraw.`}
                 </p>
                 {problem !== null && <ErrorText>{problem}</ErrorText>}
                 {error !== null && <ErrorText>{error}</ErrorText>}
@@ -445,7 +448,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
                 <span className="font-semibold">Reserved stake.</span> A bond is not sent anywhere: when you publish a job, or activate one as a worker, its bond is reserved from your stake. Reserved stake still counts for your fee tier, but it cannot be unstaked until the job settles, and a ruling against you, or a missed deadline, can burn it.
               </p>
               <p>
-                <span className="font-semibold">Why unstaking waits {days}.</span> So that stake cannot leave just before a bond is reserved or burned, and so that every staker can leave before a new Holding contract is allowed to reserve stake: adding one takes the Safe 8 days, longer than the cooldown. You can also stay and refuse it: a Holding you refuse can never reserve your stake.
+                <span className="font-semibold">Why unstaking waits {cooldownText}.</span> So that stake cannot leave just before a bond is reserved or burned, and so that every staker can leave before a new Holding contract is allowed to reserve stake. {holdingDelay === undefined ? 'The Holding admission delay cannot be read from the chain right now.' : `Adding one takes the Safe ${duration(holdingDelay)}, longer than the cooldown.`} You can also stay and refuse it: a Holding you refuse can never reserve your stake.
               </p>
             </div>
           </Section>
@@ -517,12 +520,6 @@ function ProposedHolding({ proposal, grace, refused, now, disabled, onRefuse }: 
   )
 }
 
-/** "7 days" for a whole number of days (the cooldown), else "36 h". */
-function duration(seconds: number): string {
-  const days = seconds / 86_400
-  return Number.isInteger(days) ? `${days} day${days === 1 ? '' : 's'}` : span(seconds)
-}
-
 /** How far `stake` is from `from` to `to`, in percent, for the tier bar. */
 function progress(stake: bigint, from: bigint, to: bigint): number {
   if (to <= from) return 100
@@ -536,4 +533,3 @@ function trim(wei: bigint): string {
   const frac = s.slice(-18).replace(/0+$/, '')
   return frac === '' ? whole : `${whole}.${frac}`
 }
-
