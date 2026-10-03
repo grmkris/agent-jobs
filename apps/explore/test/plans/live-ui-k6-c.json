@@ -431,7 +431,11 @@
           "action": "click",
           "role": "button",
           "name": "Cancel the job",
-          "exact": true
+          "exact": true,
+          "within": {
+            "role": "dialog",
+            "name": "Cancel this job?"
+          }
         },
         {
           "action": "wait",
