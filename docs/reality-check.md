@@ -894,3 +894,12 @@ Source-only UI preparation `e131200` adds phased A/C plans; the follow-up driver
 dialog. A local Chromium regression verifies that a scoped click touches only the intended dialog button and
 ambiguous controls or dialogs refuse. This test blocks network requests and loads no wallet. It is not a live
 website transaction or real Privy login.
+
+The post-archive hosted read-only smoke then passed `/stake`, `/publish`, `/collect`, `/sponsorship` and
+`/job/99`, with zero page errors, blocked origins, signatures or transactions. It used the dedicated UI
+worktree's existing wallet configuration; no key was copied into the main checkout. The hosted asset remained
+`index-Dy9NJawo.js`, SHA-256 `7e9f3ea68f29730f8453086e72d50be419e5e1a6b150bcf58dd7ffbd73f974a9`.
+Live clocks matched the promoted config, and the UI wallet held 1.5 MON, 200 fresh FACTORY and 10 mUSD, with zero
+available stake before its planned staking step. The readiness card remains held: no phase or send is enabled.
+The integrated no-RPC full `pnpm check` passed under Node 24 after the dialog driver/test integration.
+See the [public release and read-only evidence](evidence/testnet-g1b/2026-10-03-archive-release.json).
