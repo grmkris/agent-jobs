@@ -90,7 +90,8 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   // The fork's deployment (launch-testnet.sh's promoted config) in place of testnet's, and the fork as the RPC.
   if (id.endsWith("/contracts/config/monad-testnet.json")) return JSON.stringify(config);
   if (id.endsWith('/src/wallet.ts')) {
-    const next = source.replace('transports: { [chain.id]: http() }', `transports: { [chain.id]: http(${JSON.stringify(state.rpc)}) }`);
+    // The chain's http() transport, wherever the transports line puts it (it is `deployed ? http() : …`).
+    const next = source.replace(/(transports: \{ \[chain\.id\]:[^\n]*?)\bhttp\(\)/, `$1http(${JSON.stringify(state.rpc)})`);
     assert.notEqual(next, source, 'wallet.ts transport not found');
     return next;
   }
@@ -210,6 +211,8 @@ async function stakePage() {
   await page.locator('#stake-amount').fill('1000');
   await page.getByRole('button', { name: 'Unstake 1,000 FACTORY' }).click();
   await confirm(page, 'Unstaking started. The cooldown is running.');
+  // The first unstake's toast may still be up, so wait for this request on chain before moving time past its cooldown.
+  await page.getByText(/Withdrawable in 6 d 23 h/).waitFor({ timeout: 30_000 });
   await warp(7 * 86400 + 60);
   await sync(page);
   await page.getByText('Ready to withdraw', { exact: true }).waitFor({ timeout: 30_000 });
