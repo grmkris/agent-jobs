@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
@@ -6,7 +8,8 @@ import { build, createServer, preview } from 'vite';
 import { overflow, shifts, smallTargets, trackShifts, unnamed } from './audit-checks.mjs';
 
 // Screenshots of the v1 pages for a polish pass, each in a realistic state from the e2e fixtures, at two phone widths and
-// desktop: `<page>-<width>.png` in the output directory. Mocked Chromium only: no live board, signing or sends.
+// desktop: `<page>-<width>.png` in the output directory. Promoted testnet contract addresses; fixture states,
+// board and wallet. These captures are illustrations, not live transactions. Writes capture.json with provenance.
 //   --prod   serve the production build (vite build with the fixtures, then vite preview) instead of the dev server;
 //   --audit  at 375 and 390 px, with chain reads answering 1.2 s late: touch targets under 44 px, interactive elements
 //            without an accessible name, horizontal scroll and layout shifts (audit-checks.mjs). Writes audit.json and
@@ -22,9 +25,12 @@ const [output = '/tmp/hireling-shots', ...only] = args.filter((a) => !a.startsWi
 const base = 'http://127.0.0.1:5202';
 const me = '0x1111111111111111111111111111111111111111';
 const agentWallet = '0x6666666666666666666666666666666666666666';
-const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'));
+const configSource = readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8');
+const config = JSON.parse(configSource);
 const token = config.deployment.rewardTokens[0].toLowerCase();
-const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
+assert.equal(config.deployment.main.kind, 'hireling-v1', 'Submission captures require a promoted v1 testnet deployment');
+const { factory, vault, feeSchedule, distributor, miningReserve, safe } = config.deployment.hireling;
+const contracts = { factory, vault, feeSchedule, distributor, miningReserve, safe, holding: config.deployment.main.holding, evaluator: config.deployment.main.evaluator };
 const now = Math.floor(Date.now() / 1000);
 const K = 10n ** 18n;
 const widths = widthsFlag !== undefined ? widthsFlag.split(',').map(Number) : auditing ? [375, 390] : [375, 390, 1440];
@@ -152,7 +158,7 @@ const lifecycle = (name, status, timeline, ruled = null) => ({
 const PAGES = [
   {
     name: 'stake', wagmi: 'stake-wagmi.mjs', path: '/stake',
-    init: () => { window.__stake = { wallet: 18_400n * 10n ** 18n, staked: 25_000n * 10n ** 18n, reserved: 1500n * 10n ** 18n, unstaking: 2000n * 10n ** 18n, unlockAt: Math.floor(Date.now() / 1000) + 3 * 86400, nonce: 0n, calls: [], open: true, denied: {}, proposal: { holding: '0xf000000000000000000000000000000000000009', eta: Math.floor(Date.now() / 1000) + 5 * 86400 } }; },
+    init: () => { window.__stake = { wallet: 18_400n * 10n ** 18n, staked: 25_000n * 10n ** 18n, reserved: 1500n * 10n ** 18n, unstaking: 2000n * 10n ** 18n, unlockAt: Math.floor(Date.now() / 1000) + 3 * 86400, nonce: 0n, calls: [], open: true, denied: {}, proposal: { holding: '0x000000000000000000000000000000000000dEaD', eta: Math.floor(Date.now() / 1000) + 5 * 86400 } }; },
   },
   {
     name: 'collect', wagmi: 'wagmi.mjs', path: '/collect',
@@ -173,7 +179,7 @@ const PAGES = [
         owner: Object.fromEntries([c.feeSchedule, c.vault, c.holding, c.evaluator, c.miningReserve, c.distributor].map((a) => [a.toLowerCase(), c.safe])), pendingOwner: {},
         paused: false, pauses: [], safeIsAdmin: true, schedule: tiers,
         pending: { schedule: { ...tiers, bps: [3000, 800, 300, 100] }, eta: t + 2 * 86400 }, bootstrapped: true,
-        pendingHolding: { holding: '0xf000000000000000000000000000000000000009', eta: t + 6 * 86400 }, holdings: [c.holding],
+        pendingHolding: { holding: '0x000000000000000000000000000000000000dEaD', eta: t + 6 * 86400 }, holdings: [c.holding],
         // Epoch 1's 5,000 funded and posted, 1,200 claimed: 3,800 owed and nothing spare, as the contracts keep it.
         currentEpoch: 2n, totalFunded: 5000n * 10n ** 18n, available: 0n, outstanding: 3800n * 10n ** 18n, genesis: t - (3 * 86400 + 604800 + 302400), nonce: 7n, signWith: 'owner',
         decimals: { '0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f': 6, '0xdeef53f34fa71c46e7bb6e34d42d4cf36987c44e': 6, '0x130556848511554b181e645309754f265522f3c2': 18 },
@@ -253,8 +259,6 @@ const fixtures = (p) => ({ name: 'shots-fixtures', enforce: 'pre', resolveId(sou
   if (source === 'wagmi/actions') return `${directory}${p.wagmi === 'admin-wagmi.mjs' ? 'admin-wagmi-actions.mjs' : 'wagmi-actions.mjs'}`;
   if (source.endsWith('/Privy.tsx')) return `${directory}${p.privy ?? 'privy.mjs'}`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
-}, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
 } });
 const built = new Map();
 /**
@@ -289,6 +293,8 @@ async function serve(p) {
 }
 
 const report = [];
+const captures = [];
+const pageErrors = [];
 try {
   for (const p of PAGES.filter((x) => only.length === 0 || only.includes(x.name))) {
     const server = await serve(p);
@@ -297,21 +303,21 @@ try {
         const phone = width < 600;
         const context = await browser.newContext({ viewport: { width, height: width === 375 ? 667 : width === 390 ? 844 : 900 }, hasTouch: phone, isMobile: phone });
         // A visitor has no wallet connected and no board session.
-        await context.addInitScript(({ account, c, v1State, latency, visitor }) => {
+        await context.addInitScript(({ account, c, arbiter, v1State, latency, visitor }) => {
           window.__hireling = c;
           window.__chainLatency = latency;
           window.__wallet = { address: account, connected: !visitor, signatures: [], messages: [], sends: [], upgrades: 0 };
           const extra = Object.fromEntries(Object.entries(v1State ?? {}).map(([k, v]) => [k, BigInt(v)]));
-          window.__v1 = { arbiter: '0xa000000000000000000000000000000000000001', free: 2n * 10n ** 18n, quote: [1000, 2500000n, 22500000n], topUp: 0n, bonus: 0n, ...extra };
+          window.__v1 = { arbiter, free: 2n * 10n ** 18n, quote: [1000, 2500000n, 22500000n], topUp: 0n, bonus: 0n, ...extra };
           if (visitor) return;
           localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
           localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-        }, { account: p.account ?? me, c: contracts, latency: auditing ? LATENCY : 0, visitor: p.visitor === true, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
+        }, { account: p.account ?? me, c: contracts, arbiter: config.hireling.defaultArbitrator, latency: auditing ? LATENCY : 0, visitor: p.visitor === true, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
         if (p.init !== undefined) await context.addInitScript(p.init, contracts);
         if (auditing) await context.addInitScript(trackShifts);
         await context.route('**/*', routes(p));
         const page = await context.newPage();
-        page.on('pageerror', (error) => console.log(`  page error on ${p.name}@${width}: ${error.message.split('\n')[0]}`));
+        page.on('pageerror', (error) => { pageErrors.push({ page: p.name, width, message: error.message }); });
         page.on('console', (message) => { if (message.type() === 'error') console.log(`  console error on ${p.name}@${width}: ${message.text().slice(0, 200)}`); });
         await page.goto(`${base}${p.path}`);
         if (p.prepare !== undefined) await p.prepare(page);
@@ -326,6 +332,9 @@ try {
           await page.screenshot({ path: file });
         }
         console.log(file);
+        captures.push({ page: p.name, width, file: `${p.name}-${width}.png`, network: p.network ?? 'monad-testnet',
+          addresses: p.network === undefined ? 'promoted testnet config' : 'current mainnet config',
+          state: p.network === undefined ? 'fixture board, indexer, wallet and contract read results; no live transactions' : 'mainnet launch gate; no fixture modules' });
         if (auditing) {
           const found = { page: p.name, width, small: await smallTargets(page), unnamed: await unnamed(page), overflow: await overflow(page), shifts: await shifts(page) };
           report.push(found);
@@ -345,6 +354,10 @@ try {
 } finally {
   await browser.close();
 }
+writeFileSync(`${output}/capture.json`, JSON.stringify({ build: prod ? 'production' : 'dev', capturedAt: new Date().toISOString(),
+  configSha256: createHash('sha256').update(configSource).digest('hex'), deploymentBlock: config.deployment.hireling.block,
+  contracts, defaultArbitrator: config.hireling.defaultArbitrator, captures, pageErrors }, null, 2));
+assert.deepEqual(pageErrors, [], 'Submission capture contains a page error');
 if (auditing) {
   writeFileSync(`${output}/audit.json`, JSON.stringify({ build: prod ? 'production' : 'dev', latency: LATENCY, report }, null, 2));
   const failing = report.filter((r) => r.small.length > 0 || r.unnamed.length > 0 || r.overflow !== null || r.shifts.total > 0.01);
