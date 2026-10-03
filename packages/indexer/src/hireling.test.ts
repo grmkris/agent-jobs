@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import legacyLogs from '../test/fixtures/testnet-logs.json' with { type: 'json' }
 import {
   type AsyncSql, type IndexerConfig, type RawLog, contractsFromDeployment, decode, fromNodeSqlite,
-  jobDetail, listAgents, migrate, protocolEvents, resetIndex, runOnce, stmt,
+  configuredJobs, jobAvailability, jobDetail, listAgents, migrate, protocolEvents, resetIndex, runOnce, stmt,
 } from './index.ts'
 
 const addr = (n: number): Address => `0x${n.toString(16).padStart(40, '0')}`
@@ -65,10 +65,10 @@ const paidLogs = [
   log(sdk.feeScheduleAbi as Abi, addr(5), 'ScheduleExecuted', { thresholds: [0n, 10_000n, 100_000n, 1_000_000n], bps: [3000, 1000, 300, 100], treasury: addr(9) }, 107),
 ]
 
-function cfg(logs: RawLog[], pageSize = 50): IndexerConfig {
+function cfg(logs: RawLog[], pageSize = 50, finalized = 110, deployment = d): IndexerConfig {
   return {
-    contracts, deployBlock: 100, runner: 'test', now: () => 1_000, maxPages: 20,
-    head: { finalizedBlock: async () => 110, blockHash: async (block) => hash(block), blockTimestamp: async (block) => 10_000 + block },
+    contracts: deployment === d ? contracts : contractsFromDeployment(deployment), deployBlock: 100, runner: 'test', now: () => 1_000, maxPages: 20,
+    head: { finalizedBlock: async () => finalized, blockHash: async (block) => hash(block), blockTimestamp: async (block) => 10_000 + block },
     source: { logs: async ({ fromBlock, toBlock }) => {
       const end = Math.min(fromBlock + pageSize, toBlock)
       return { logs: logs.filter((l) => l.block_number >= fromBlock && l.block_number < end), nextBlock: end }
@@ -95,6 +95,50 @@ describe('Hireling event indexing', () => {
     expect(event.args.reviewWindow).toBeUndefined()
     expect(decode(contracts, { ...captured, address: addr(2) })).toBeUndefined()
     expect(decode(contracts, { ...published(), address: addr(99) })).toBeUndefined()
+  })
+
+  it('keeps archived v1 schema and evidence through a shared-core refold while excluding the retired Holding', async () => {
+    const sql = await db()
+    const submission = log(sdk.coreAbi as Abi, d.core, 'JobSubmitted', { jobId: 1000n, provider: worker, deliverable: hash(22) }, 102)
+    const evidence = log(evaluator, addr(3), 'EvidenceAttached', { jobId: 1000n, verifier: addr(25), digest: hash(21), submissionHash: hash(22), policyHash: hash(2), testedSha: hash(23), conclusion: 1, validUntil: 20_000 }, 102)
+    const captured = (legacyLogs.logs as unknown as RawLog[]).find(l => decode(contracts, l)?.name === 'Published')!
+    const legacyPublication = log(sdk.jobHoldingAbi as Abi, captured.address, 'Published', { ...decode(contracts, captured)!.args, jobId: 1001n }, 100)
+    const initial = [published(), activated(), submission, evidence,
+      log(evaluator, addr(3), 'Accepted', { jobId: 1000n, approver }, 103),
+      log(evaluator, addr(3), 'PayoutDeferred', { jobId: 1000n, refundedToHolding: false }, 103, 1), legacyPublication]
+    await runOnce(sql, cfg(initial))
+    const original = await jobDetail(sql, contracts.chainId, '1000', 0)
+    const promoted: sdk.Deployment = { ...d, stacks: { main: { kind: 'hireling-v1', factory: addr(30), holding: addr(31), evaluator: addr(32), openTokens: true } } }
+    // The paused-core decision still has agreed worker rights when the shared core later expires the job.
+    const expired = log(sdk.coreAbi as Abi, d.core, 'JobExpired', { jobId: 1000n }, 111)
+    const current = { ...published(1002n, 112), address: addr(31) }
+    const legacySubmitted = log(sdk.coreAbi as Abi, d.core, 'JobSubmitted', { jobId: 1001n, provider: worker, deliverable: hash(24) }, 113)
+    const promotedLogs = [...initial, expired, current, legacySubmitted]
+    const nextCfg = cfg(promotedLogs, 50, 120, promoted)
+    expect(decode(nextCfg.contracts, published())).toBeUndefined()
+    expect(decode(nextCfg.contracts, evidence)).toBeUndefined()
+    await runOnce(sql, nextCfg)
+    const detail = await jobDetail(sql, contracts.chainId, '1000', 0)
+    expect(detail?.job).toMatchObject({ kind: 'hireling-v1', arbitrator, review_window: 3600, dispute_window: 7200, arbitration_window: 43_200, expired_at: 60_000,
+      mode: 'hire', outcome: 'Accepted', payout_deferred: 1, fee_bps: 1000, fee: '100', net: '900', status: 'expired' })
+    expect(detail?.evidence).toEqual(original?.evidence)
+    expect(detail?.evidence).toMatchObject([{ submission_hash: hash(22), onchainMatch: true }])
+    expect(detail?.timeline.slice(0, -1)).toEqual(original?.timeline)
+    expect(detail?.timeline.at(-1)).toMatchObject({ name: 'JobExpired', block: 111 })
+    expect(await jobAvailability(sql, promoted, '1000')).toMatchObject({ status: 'archived', actionable: false, holding: addr(2).toLowerCase() })
+    const active = configuredJobs(promoted)
+    expect((await sql.all<{ job_id: string }>(`SELECT job_id FROM jobs WHERE ${active.clause} ORDER BY job_id`, ...active.params)).map(job => job.job_id)).toEqual(['1001', '1002'])
+    expect((await jobDetail(sql, contracts.chainId, '1001', 0))?.job).toMatchObject({ kind: 'legacy', arbitrator: null, review_window: null, outcome: null })
+    expect(await jobAvailability(sql, promoted, '1001')).toMatchObject({ actionable: true })
+    // A canonical-hash mismatch triggers the normal rewind/refold with the retired publication still in storage.
+    await sql.batch([stmt('UPDATE checkpoint SET block_hash=? WHERE chain_id=?', hash(999), contracts.chainId)])
+    expect((await runOnce(sql, { ...nextCfg, rewindBlocks: 10 })).rewound).toBe(true)
+    expect(await jobDetail(sql, contracts.chainId, '1000', 0)).toEqual(detail)
+    // A coordinator-style cursor replay re-decodes only current addresses; archived facts and interpretation survive.
+    await sql.batch([stmt('UPDATE checkpoint SET next_block=100, block_hash=NULL WHERE chain_id=?', contracts.chainId)])
+    await runOnce(sql, cfg(promotedLogs, 1, 120, promoted))
+    expect(await jobDetail(sql, contracts.chainId, '1000', 0)).toEqual(detail)
+    expect(await jobAvailability(sql, promoted, '1000')).toMatchObject({ status: 'archived', actionable: false })
   })
 
   it('folds fees, windows, top-ups, paid rights, deferrals and reserved stake bonds', async () => {

@@ -596,7 +596,13 @@ export class Board {
     const creator = this.#requireCaller(caller)
     const operation = quote === null ? 'create_task' : 'pick_task'
     const saved = this.#idempotent<TaskPreparation>(creator, operation, input.idempotencyKey)
-    if (saved !== undefined) return saved
+    if (saved !== undefined) {
+      // A cached unsigned publication names the original Holding. Revalidate its frozen pair before returning it;
+      // promotion may have retired that Holding since the cache was written. Keep the cache intact and never rebuild
+      // the offer against the new main pair.
+      this.#task(saved.taskId)
+      return saved
+    }
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
@@ -669,7 +675,10 @@ export class Board {
     const transactions = await this.#publishTransactions(ctx, creator, terms, hash as Hex)
     return this.#persist(() => {
       const prepared = this.#idempotent<TaskPreparation>(creator, operation, input.idempotencyKey)
-      if (prepared !== undefined) return prepared
+      if (prepared !== undefined) {
+        this.#task(prepared.taskId)
+        return prepared
+      }
       this.#sql.run(
         'INSERT INTO tasks (id, creator, stack, terms_json, terms_hash, job_id, publish_tx, from_block, created_at, screening_json) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)',
         taskId,
@@ -1522,7 +1531,15 @@ export class Board {
   ) {
     const me = this.#requireCaller(caller)
     const saved = this.#idempotent<TaskPreparation & { applicationId: string }>(me, 'pick_quote', input.idempotencyKey)
-    if (saved !== undefined) return saved
+    if (saved !== undefined) {
+      this.#task(saved.taskId)
+      return saved
+    }
+    const taskKey = input.idempotencyKey === undefined ? undefined : `pick-${sdk.hashText(input.idempotencyKey).slice(2)}`
+    // A crash can leave pick_task committed before pick_quote. Refuse a retired nested preparation before even
+    // reading token metadata for the reused stack name; a configured legacy preparation keeps its original bytes.
+    const taskSaved = this.#idempotent<TaskPreparation>(me, 'pick_task', taskKey)
+    if (taskSaved !== undefined) this.#task(taskSaved.taskId)
     const req = this.#quoteRequest(input.requestId)
     if (!eq(req.creator, me)) throw new BoardError('forbidden', 'only the requester picks a quote')
     if (req.task_id !== null) throw new BoardError('conflict', `already picked: task ${req.task_id}`)
@@ -1538,7 +1555,7 @@ export class Board {
     const created = await this.createTask(
       caller,
       {
-        ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `pick-${sdk.hashText(input.idempotencyKey).slice(2)}` }),
+        ...(taskKey === undefined ? {} : { idempotencyKey: taskKey }),
         title: r.title,
         brief: r.brief,
         acceptanceCriteria: r.acceptanceCriteria,
@@ -1570,7 +1587,10 @@ export class Board {
     )
     return this.#persist(() => {
       const picked = this.#idempotent<TaskPreparation & { applicationId: string }>(me, 'pick_quote', input.idempotencyKey)
-      if (picked !== undefined) return picked
+      if (picked !== undefined) {
+        this.#task(picked.taskId)
+        return picked
+      }
       this.#sql.run('UPDATE quote_requests SET task_id = ? WHERE id = ?', created.taskId, req.id)
       const applicationId = randomId(8)
       this.#sql.run(

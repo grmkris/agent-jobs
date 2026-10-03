@@ -36,9 +36,14 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
     const a = e.args
     switch (e.name) {
       case 'Published':
-        const kind = contracts.roles.get(e.contract)?.kind ?? 'legacy'
+        // A retained event can outlive the active role map after a stack promotion. Its v1 publication schema is
+        // self-describing, so preserve that historical interpretation during shared-core refolds while leaving the
+        // retired Holding out of active discovery (configuredJobs/jobAvailability still use current addresses).
+        const role = contracts.roles.get(e.contract)
+        const publicationIsV1 = a.arbitrator !== undefined && a.reviewWindow !== undefined && a.disputeWindow !== undefined && a.arbitrationWindow !== undefined
+        const kind = publicationIsV1 ? 'hireling-v1' : 'legacy'
         Object.assign(job, {
-          stack: contracts.roles.get(e.contract)?.stack ?? null,
+          stack: role?.stack ?? null,
           kind,
           mode: kind === 'hireling-v1' || Number(a.mode) === 0 ? 'hire' : 'contest',
           creator: a.creator, approver: a.approver, token: a.token, reward: a.reward,
