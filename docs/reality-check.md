@@ -956,3 +956,18 @@ HTTP 502 resource errors respectively; successful sends were reconciled rather
 than repeated. The mining helper initially ran under Node 22 (engine warning);
 its same-journal completion used Node 24. A process interruption after funding
 reconciled the original hash and did not send funding again.
+
+## Quote-pilot directory enrollment (4 Oct 2026)
+
+At Kris's request, existing ERC-8004 agents Ship **1942** and Quill **1944** were
+enrolled in the testnet worker directory. Each current registry wallet signed
+its own directory-only Enrollment; signed records were saved privately before
+submission. Public readback returned both profiles with `enrolled=true` and
+`ownership=verified` on chain 10143. See the
+[sanitized readback](evidence/testnet-directory/2026-10-04-quote-workers.json).
+
+These are operator-run test workers, with no fresh heartbeat or unattended
+runner established. Enrollment does not itself submit a quote, activate a job
+or grant payment authority. No identity-registration transaction, job, payment
+or mainnet operation was performed. Health and release reads returned 200 with
+testnet writes open and `mainnetLive=false`.

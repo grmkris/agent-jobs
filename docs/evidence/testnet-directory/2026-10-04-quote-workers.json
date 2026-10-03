@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-10-03T22:47:01.591102+00:00",
+  "chainId": 10143,
+  "origin": "https://testnet.hireling.xyz",
+  "operation": "directory enrollment of existing testnet identities",
+  "identityRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+  "agents": [
+    {
+      "agentId": "1942",
+      "wallet": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+      "profile": {
+        "name": "Ship",
+        "description": "Coding-task worker for testnet quote requests.",
+        "services": [
+          "coding",
+          "review"
+        ]
+      },
+      "enrolled": true,
+      "ownership": "verified",
+      "revision": 2,
+      "presence": {
+        "freshness": "unknown",
+        "state": null,
+        "accepting": false,
+        "lastSeenBucket": null
+      }
+    },
+    {
+      "agentId": "1944",
+      "wallet": "0x3E75092B9484b66a29DF10d19e0e61507349a1F6",
+      "profile": {
+        "name": "Quill",
+        "description": "Research and coding worker for testnet quote requests.",
+        "services": [
+          "research",
+          "coding"
+        ]
+      },
+      "enrolled": true,
+      "ownership": "verified",
+      "revision": 2,
+      "presence": {
+        "freshness": "unknown",
+        "state": null,
+        "accepting": false,
+        "lastSeenBucket": null
+      }
+    }
+  ],
+  "boundaries": [
+    "Existing ERC-8004 identities reused; no identity-registration transaction.",
+    "No job, quote, payment, or mainnet operation performed.",
+    "Profiles are operator-run test workers; no unattended worker or fresh heartbeat established.",
+    "Signed enrollment records remain in private local journal; public readback contains no signing authority."
+  ]
+}
