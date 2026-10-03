@@ -1,7 +1,8 @@
 /** Testnet live matrix money paths. Every send goes through the persisted journal; this module never deploys. */
-import { type Address, decodeEventLog, encodeFunctionData, parseUnits } from 'viem'
+import { type Address, type Abi, type TransactionReceipt, decodeEventLog, encodeFunctionData, parseUnits } from 'viem'
 import * as sdk from './index.ts'
 import { FlowJournal } from './flow-journal.ts'
+import { verifyJobEconomics, verifyOwedWithdrawal } from './v1-flow-economics.ts'
 
 export const V1_CORE_FLOWS = ['hire', 'silence', 'ruling-worker', 'ruling-worker-slash', 'ruling-creator', 'ruling-creator-slash', 'violation', 'missed', 'cancel', 'arbitration-timeout', 'topup-paid', 'topup-refund', 'stake-cooldown', 'fees', 'legacy-contest', 'legacy-dispute'] as const
 export type V1CoreFlow = typeof V1_CORE_FLOWS[number]
@@ -20,7 +21,6 @@ export interface V1FlowDeps {
 }
 const eq = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 const check = (what: string, actual: bigint | number | string | boolean, expected: bigint | number | string | boolean) => { if (actual !== expected) throw new Error(`${what}: got ${String(actual)}, expected ${String(expected)}`) }
-
 /** Check the legacy open-token pair before the runner performs any setup or publish send. */
 export async function requireLegacyContestFactory(ctx: sdk.Ctx, creator: sdk.Wallet) {
   const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
@@ -39,21 +39,19 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
   if (j.state.values[`${scope}/done`] === true) { d.log(`${scope}: already verified; no sends`); return }
   if (flow === 'legacy-contest' && j.state.sends[`${scope}/publish`] === undefined) await requireLegacyContestFactory(ctx, creator)
   const now = async () => Number((await ctx.publicClient.getBlock()).timestamp)
-  const call = (label: string, wallet: sdk.Wallet, target: Address, abi: readonly unknown[], fn: string, args: readonly unknown[], gas?: bigint) => j.contract(`${scope}/${label}`, wallet, target, abi as import('viem').Abi, fn, args, gas)
+  const receipts = new Map<string, TransactionReceipt>()
+  const call = async (label: string, wallet: sdk.Wallet, target: Address, abi: readonly unknown[], fn: string, args: readonly unknown[], gas?: bigint) => {
+    const key = `${scope}/${label}`
+    const receipt = await j.contract(key, wallet, target, abi as Abi, fn, args, gas)
+    receipts.set(label, receipt)
+    return receipt
+  }
   const approve = async (label: string, wallet: sdk.Wallet, token: Address, spender: Address, amount: bigint) => {
     const needed = await j.once(`${scope}/${label}/needed`, async () => await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet.account.address, spender] }) < amount)
     if (needed) await call(label, wallet, token, sdk.factoryTokenAbi, 'approve', [spender, amount])
   }
-  const balances = async () => ({ creatorReward: await sdk.balanceOf(ctx, d.token, creator.account.address), workerReward: await sdk.balanceOf(ctx, d.token, worker.account.address), creatorStake: (await sdk.getStake(ctx, creator.account.address)).staked, workerStake: (await sdk.getStake(ctx, worker.account.address)).staked })
-  const before = await j.once(`${scope}/before`, balances)
-  let settlementBefore = before
-  let workerRewardBefore = before.workerReward
   const waitForSettlement = async (target: number) => {
     await d.waitUntil(flow, target)
-    // Other cases may complete while this clock runs. Pin the terminal step's baseline before signing it;
-    // on a crash after its receipt, the same baseline is retained for exact burn/payment assertions.
-    settlementBefore = await j.once(`${scope}/settlement-before`, balances)
-    workerRewardBefore = settlementBefore.workerReward
   }
   const publish = async (pair = ctx) => {
     const p = await j.once(`${scope}/offer`, async () => {
@@ -143,7 +141,6 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
       const amount = tiers.thresholds[1] - staked
       await approve('approve-stake', worker, h.factory, h.vault, amount)
       await call('stake-tier', worker, h.vault, sdk.stakeVaultAbi, 'stake', [amount])
-      workerRewardBefore = await j.once(`${scope}/workerReward-before-second`, () => sdk.balanceOf(ctx, d.token, worker.account.address))
     }
     const x = await publish(), jobId = x.jobId
     let net = 0n, paid = false, slashWorker = false, slashCreator = false
@@ -196,11 +193,18 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     check('settlement outcome', after.outcome, paid ? 1 : 2)
     check('creator bond settled', after.creatorBondSettled, true)
     if (flow !== 'cancel') check('worker bond settled', after.workerBondSettled, true)
-    if (flow !== 'fees') {
-      check('creator stake burn', (await sdk.getStake(ctx, creator.account.address)).staked, settlementBefore.creatorStake - (slashCreator ? d.bond : 0n))
-      check('worker stake burn', (await sdk.getStake(ctx, worker.account.address)).staked, settlementBefore.workerStake - (slashWorker ? d.bond : 0n))
-    }
+    check('creator bond burn flag', after.creatorBondBurned, slashCreator)
+    check('worker bond burn flag', after.workerBondBurned, slashWorker)
     const bonusFee = (after.bonus * BigInt(after.feeBps) + 9999n) / 10000n
+    const workerCredit = paid ? net + after.bonus - bonusFee : 0n
+    // Reconcile the original terminal receipts on every resume. Saved wallet-wide baselines from older journals
+    // remain evidence, but cannot prove this job's economics after unrelated cases have changed those balances.
+    const terminal = ['accept', 'rule', 'silence', 'final-rejection', 'missed', 'timeout', 'cancel', 'settle']
+      .flatMap(label => { const receipt = receipts.get(label); return receipt === undefined ? [] : [receipt] })
+    verifyJobEconomics(terminal, { jobId, holding: ctx.stack.holding, core: ctx.deployment.core, vault: h.vault,
+      factory: h.factory, token: x.p.token, creator: creator.account.address, worker: worker.account.address,
+      creatorBond: x.p.creatorBond, workerBond: flow === 'cancel' ? 0n : x.p.workerBond,
+      slashCreator, slashWorker, workerCredit, workerOwed: d.refusingToken === undefined ? 0n : workerCredit })
     if (d.refusingToken !== undefined) {
       await j.once(`${scope}/owed-verified`, async () => {
         check('exact refused reward is owed', await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'owed', args: [d.token, worker.account.address] }), net)
@@ -209,10 +213,10 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
       const { parseAbi } = await import('viem')
       const abi = parseAbi(['function setBlocked(address,bool)', 'function setHungry(address,uint256)'])
       await call('clear-refusing-token', d.refusingToken.owner, d.token, abi, d.refusingToken.kind === 'blocklist' ? 'setBlocked' : 'setHungry', [worker.account.address, d.refusingToken.kind === 'blocklist' ? false : 0n])
-      await call('withdraw-owed', worker, ctx.stack.holding, sdk.hirelingHoldingAbi, 'withdraw', [d.token], sdk.V1_GAS.claimTopUpRefund)
+      const withdrawal = await call('withdraw-owed', worker, ctx.stack.holding, sdk.hirelingHoldingAbi, 'withdraw', [d.token], sdk.V1_GAS.claimTopUpRefund)
+      verifyOwedWithdrawal(withdrawal, ctx.stack.holding, x.p.token, worker.account.address, workerCredit)
       check('owed cleared', await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'owed', args: [d.token, worker.account.address] }), 0n)
     }
-    check('worker exact reward', await sdk.balanceOf(ctx, d.token, worker.account.address) - workerRewardBefore, paid ? net + after.bonus - bonusFee : 0n)
     if (flow === 'fees') { const tiers = await ctx.publicClient.readContract({ address: h.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'schedule' }); check('second fee tier snapshots', after.feeBps, tiers.bps[1]) }
   }
   j.state.values[`${scope}/done`] = true; j.save(j.state); d.log(`${scope}: verified`)
