@@ -698,6 +698,59 @@ All four jobs are terminal, with zero reservations and zero owed. Key receipts (
 The full ledger, 39 receipts, and the reviewed deliverables are in the crew repo, `aj-launch-crew`, at
 `runs/v1-2026-10-03.md` (commit b100136).
 
+## G1b: fresh Hireling v1 testnet (3 Oct 2026)
+
+After the G1 source review signed off `c85b1f6`, `786f6d2` and `533dbc8`, the coordinator archived the G1
+record and ran the documented fresh testnet launch. The old G1 record is retained verbatim at
+`contracts/config/archive/monad-testnet-g1.json`; the active config no longer decodes G1 jobs. The fresh
+deployment uses the same core at `0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D`, a new FACTORY and minute-scale
+immutable clocks. All launch receipts below are status 1 on chain 10143.
+
+| Contract | Address | Deployment receipt |
+| --- | --- | --- |
+| TeamVesting | `0x40f91994eB77821B94FF4548935597af150311d4` | `0xcfe889562c40b8ee1a461a4e8269b90b11e27b6f5b12eca41cf0bfae34bbed4a` |
+| FACTORY v2 | `0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7` | `0x5e9133d71c18c86e599c3fdbdde8da418de62d9d64af8677bd5be8e187598e9a` |
+| FeeSchedule | `0x77504A6a21f6cc9E6d4930D380967c58E9eEaF84` | `0xe5d541131396090079c1823d905f27a37bb72d6736a8ef2b5910fee8c1b65166` |
+| StakeVault | `0x6e980b0545Be5622f7399E40655aeccB6f56E3FA` | `0x2caca521f589f9f08c005709344300b3dda45d51112f9586251c50673f6d8b5b` |
+| HirelingHolding | `0x0d02D7dAe6b98cB9904B4F87349b227aec04F4AD` | `0xf2eb36b4bd6eacb7af174bb21974760934e5633b4025fbbce38ca0dbc4a15d7e` |
+| HirelingEvaluator | `0x576fCe8dB0a6d1B70C31728aF3742f43719Bed11` | `0x1e42e2eed254a3caf2bfb40fce3ab1eb8f2bef971142cb618e19dfea949c20c2` |
+| EpochDistributor | `0xA137bEf2b46B9F63c9Acf9A9EAC1D8dF0eE63CCE` | `0xced1e909e5c7b3cbeb3222d6b7d4482424bf62593e7b04f9c1364daf780906cd` |
+| MiningReserve | `0xBAbAcbCe15Ad9219dCDd6B748A5FC6E63a0Cdc6a` | `0xbb8e946b3e3063fd0b01cd4e75319a2c2dd6c1ea7949de96ee427ca10eb8d5d7` |
+
+The fresh v1 pair is `Holding 0x0d02…F4AD` and `Evaluator 0x576f…ed11`, owned by Safe
+`0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF`. Deployment started at block 67856884 with `t0 = 1791038852`
+(2026-10-03 14:47:32 UTC). The nine promoted clocks are review 120 s, dispute 120 s, arbitration 300 s,
+unstake 600 s, Holding 900 s, fee 300 s, proposal grace 1800 s, epoch 0 1800 s and later epochs 3600 s.
+
+The Safe accepted all six ownership handoffs (`0xdb5d…0180`, `0xfde0…245a`, `0xf099…e088`, `0x9eff…d9cf`,
+`0x7f3d…f0bd`, `0x40ad…5add`). Odd tokens were deployed and minted for refusal tests: blocklist
+`0xb4c7921fca1a4d21c244b1e192585109d606734f` and gas-burner
+`0xaaaee6ae3926a87078e65e16de5103daec60a19a`; their six receipts are recorded in the launch log. The Safe
+fee proposal `0x305460fb465546d90955de5982680172c17d492d8521d27cecba268cb53dbdf8` and Holding probe
+`0x8eb52a09c418af4ecfb9cfb7cbbac8530c15a04452640c6514bcd9a146624ad7` both passed early refusal checks.
+
+G1b is deployed and promoted, but the hosted board release and fresh-vault user flows remain the next evidence
+tier. Existing G1 jobs and G1 FACTORY/stake are archived evidence only and cannot fund G1b jobs.
+
+The coordinator then distributed fresh FACTORY v2 from the G1b deployer allocation, recording each signed
+transaction before broadcast. The new token is `0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7`; these balances are
+for G1b only (the G1 token at `0x669318…ea6b` is not interchangeable):
+
+| Wallet | FACTORY v2 | Receipt |
+| --- | ---: | --- |
+| flow creator `0x9819…c71c` | 1,000 | `0xc67cc4a4d5ef427f9d2bbc76211026c86b4f4b32cc25944b2b3a0ed2f78fe34a` |
+| flow worker `0xD7e3…E571` | 20,000 | `0x1d081700cd13ed7246fc71900a8a29058e176326de6df6211fab96e2510a31c2` |
+| UI creator `0xB339…6149` | 200 | `0x787a361df8767ce3f645bb8038e2bee2f87090cec43a97775ac37ea3ab4fb039` |
+| Pixel / agent 1943 `0xe63D…1A2b` | 100 | `0x85e892dbc843f82c63602e7830f28b7cb5a538a516e7d39134d4cf602fb51a84` |
+| Ship / agent 1942 `0xEABa…661b` | 100 | `0xeda0fa0a24282451aec9f7aa527fc47f3ec1a7d7c2db930555e056d8068032b5` |
+| Quill / agent 1944 `0x3E75…a1F6` | 100 | `0x3ecc944b07de4d1beb00f21352f46e3aa6fa884179459569edab05c0f5eb55d0` |
+| Mint / agent 1948 `0x2FC7…B96e` | 100 | `0x88537af4ffa5c1845f6eb3b49102d42157a733f64812d30bc14fc8100d841608` |
+
+Small gas top-ups to the three crew wallets below were also journaled before broadcast: Ship 0.43 MON
+(`0xf2e4acbaea40646c97487c67f61dacea680ae1eca934bf989b3988090f7c0191`), Quill 0.12 MON
+(`0xc4e5b176f07ef7d29b3ab27e1a7a9b6eb8940e57513dd7916ff7bdbe69cb4dfd`) and Mint 0.58 MON
+(`0xe963dbc61f108d04c73db7272df9ad82c56901d174a96d331e2e64a27f91650d`).
+
 ## G1b preparation: testnet gas distribution (3 Oct 2026)
 
 Kris authorized distributing the additional testnet funding (5 MON to the deployer and 10 MON to the backup

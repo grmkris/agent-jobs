@@ -104,28 +104,17 @@
   "deployment": {
     "block": 66169332,
     "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
-    "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
+    "factory": "0x6693184AA777A30D293B5fAf168B038eF858ea6B",
     "hireling": {
-      "block": 67856884,
-      "clocks": {
-        "epochDuration": 3600,
-        "epochZeroDuration": 1800,
-        "feeDelay": 300,
-        "holdingDelay": 900,
-        "minArbitrationWindow": 300,
-        "minDisputeWindow": 120,
-        "minReviewWindow": 120,
-        "proposalGrace": 1800,
-        "unstakeDelay": 600
-      },
-      "distributor": "0xA137bEf2b46B9F63c9Acf9A9EAC1D8dF0eE63CCE",
-      "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
-      "feeSchedule": "0x77504A6a21f6cc9E6d4930D380967c58E9eEaF84",
-      "miningReserve": "0xBAbAcbCe15Ad9219dCDd6B748A5FC6E63a0Cdc6a",
+      "block": 67773705,
+      "distributor": "0xA6DfBDCb510b4c9A45B979f4d37D80fDa93b0dcb",
+      "factory": "0x6693184AA777A30D293B5fAf168B038eF858ea6B",
+      "feeSchedule": "0x143EBFbB2be971BaBc5679D4826b905aE1876C4B",
+      "miningReserve": "0x1a8b9FbF1Fa9d6dDCE39836D12fca6901547a9CE",
       "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
-      "t0": 1791038852,
-      "teamVesting": "0x40f91994eB77821B94FF4548935597af150311d4",
-      "vault": "0x6e980b0545Be5622f7399E40655aeccB6f56E3FA"
+      "t0": 1791013711,
+      "teamVesting": "0xC677750BE0358a7A3C43Ff92157427159E5012F0",
+      "vault": "0xcc91Fdb6d33d2F074F3c6617265B2d46B755f0Bd"
     },
     "legacy": {
       "demo-v1": {
@@ -161,9 +150,9 @@
       }
     },
     "main": {
-      "evaluator": "0x576fCe8dB0a6d1B70C31728aF3742f43719Bed11",
-      "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
-      "holding": "0x0d02D7dAe6b98cB9904B4F87349b227aec04F4AD",
+      "evaluator": "0x8edc23B454696D8f531cE8f4EA1D1eFf47901d0D",
+      "factory": "0x6693184AA777A30D293B5fAf168B038eF858ea6B",
+      "holding": "0x9BB0B3a6c130d81f6820499bD168C4d910CD502F",
       "kind": "hireling-v1",
       "openTokens": true
     },
@@ -176,9 +165,9 @@
     ],
     "stacksBlock": 66784609,
     "oddTokens": {
-      "blocklist": "0xb4c7921fca1a4d21c244b1e192585109d606734f",
-      "gasBurner": "0xaaaee6ae3926a87078e65e16de5103daec60a19a",
-      "block": 67857064
+      "blocklist": "0xda3577b998397bf248a82a5744ae179af71821e3",
+      "gasBurner": "0x36b31c45221aa84edb8580f01ac45253feb45bd9",
+      "block": 67773921
     }
   },
   "hireling": {
@@ -242,4 +231,10 @@
     "maxRepairCost": 1,
     "positionOwner": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF"
   }
+,
+  "archive": {
+  "reason": "G1 archived for the G1b fast-clock redeploy (D24). G1 is not a legacy stack: legacy Hireling v1 would need its own protocol block. Dated G1 evidence remains in reality-check.md.",
+  "date": "2026-10-03T14:44:22.308231+00:00",
+  "sourceSha256": "e1d25dfbea8278d8984f9b8aae2e0c85b6b45c2057bb4fe1a57da648b957803a"
+}
 }
