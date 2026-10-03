@@ -9,6 +9,7 @@ import { ensureFlowDirectory, saveFlowState } from '../../packages/sdk/scripts/f
 import { parseEpoch } from '../../scripts/mining/publish-lib.ts'
 import { privateKeyToAccount, type Hex } from '../../scripts/mining/viem.ts'
 import { epochCalls, runEpoch, type EpochFile } from './epoch0-transactions.ts'
+import { bindMiningState, miningBinding } from './testnet-mining-binding.ts'
 import { EpochNotEnded, miningOptions, requireEndedEpoch, requirePriceEpoch } from './testnet-mining-options.ts'
 
 // Call only through the shell wrapper, which holds the shared launch lock.
@@ -50,11 +51,8 @@ async function main() {
   ensureFlowDirectory(directory)
   const journalPath = new URL('journal.json', directory)
   const state: FlowState = existsSync(journalPath) ? parseFlowJson(readFileSync(journalPath, 'utf8')) : { binding: '', values: {}, sends: {} }
-  const binding = sha(JSON.stringify(epoch === 0n
-    ? { deployment: ctx.deployment, priceInput: sha(readFileSync(input)), owner: owner.account.address }
-    : { deployment: ctx.deployment, priceInput: sha(readFileSync(input)), owner: owner.account.address, epoch: epoch.toString() }))
-  if (state.binding !== '' && state.binding !== binding) throw new Error('journal deployment, prices or Safe owner differ; reconcile the original operation')
-  state.binding = binding
+  const binding = miningBinding(ctx.deployment, sha(readFileSync(input)), owner.account.address, epoch)
+  bindMiningState(state, binding)
   const j = new FlowJournal(ctx, state, next => saveFlowState(directory, next), (label, hash) => console.log(`TX ${label} ${hash}`))
   const signedPath = resolve(out, `prices-epoch-${epoch}.json`), epochPath = resolve(out, `epoch-${epoch}.json`)
   const signedKey = epoch === 0n ? 'signed-prices' : `signed-prices/${epoch}`
