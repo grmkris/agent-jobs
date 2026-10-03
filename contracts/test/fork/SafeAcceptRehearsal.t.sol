@@ -36,6 +36,7 @@ contract SafeAcceptRehearsalForkTest is Test {
         assertGt(safe.code.length, 0, "the live testnet Safe");
 
         HirelingRecipe.Config memory c = HirelingRecipe.loadBase(vm, "monad-testnet");
+        c.clocks = HirelingRecipe.load(vm, "monad-testnet").clocks;
         c.reuseCore = true;
         c.safe = safe;
         c.defaultArbitrator = makeAddr("arbiter");

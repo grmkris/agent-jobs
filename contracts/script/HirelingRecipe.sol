@@ -166,19 +166,27 @@ library HirelingRecipe {
         c.vestingDuration = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.duration"));
         c.vestingCliff = SafeCast.toUint64(vm.parseJsonUint(json, ".hireling.vesting.cliff"));
         c.genesis = SafeCast.toUint48(vm.parseJsonUint(json, ".hireling.mining.genesis"));
-        if (vm.keyExistsJson(json, ".hireling.clocks")) {
-            string memory p = ".hireling.clocks";
-            c.clocks.minReviewWindow = SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minReviewWindow")));
-            c.clocks.minDisputeWindow = SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minDisputeWindow")));
-            c.clocks.minArbitrationWindow =
+        c.clocks = loadClocks(vm, json, ".hireling.clocks");
+    }
+
+    /// @notice Defaults only for a completely absent block; a partial block refuses.
+    function loadClocks(Vm vm, string memory json, string memory p)
+        internal
+        view
+        returns (HirelingClocks.Config memory clocks)
+    {
+        clocks = HirelingClocks.production();
+        if (vm.keyExistsJson(json, p)) {
+            clocks.minReviewWindow = SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minReviewWindow")));
+            clocks.minDisputeWindow = SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minDisputeWindow")));
+            clocks.minArbitrationWindow =
                 SafeCast.toUint32(vm.parseJsonUint(json, string.concat(p, ".minArbitrationWindow")));
-            c.clocks.unstakeDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".unstakeDelay")));
-            c.clocks.holdingDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".holdingDelay")));
-            c.clocks.feeDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".feeDelay")));
-            c.clocks.proposalGrace = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".proposalGrace")));
-            c.clocks.epochZeroDuration =
-                SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".epochZeroDuration")));
-            c.clocks.epochDuration = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".epochDuration")));
+            clocks.unstakeDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".unstakeDelay")));
+            clocks.holdingDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".holdingDelay")));
+            clocks.feeDelay = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".feeDelay")));
+            clocks.proposalGrace = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".proposalGrace")));
+            clocks.epochZeroDuration = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".epochZeroDuration")));
+            clocks.epochDuration = SafeCast.toUint48(vm.parseJsonUint(json, string.concat(p, ".epochDuration")));
         }
     }
 

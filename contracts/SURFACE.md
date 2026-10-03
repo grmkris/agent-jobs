@@ -518,3 +518,48 @@ sweeper delegation.
 | worker: flows | 83 | 16,401,996 | 1.673 |
 | Safe owner: flows | 3 | 605,595 | 0.062 |
 | odd-token owner (deployer): flows | 4 | 245,389 | 0.025 |
+
+### G1b preparation (D24): archive G1, then deploy with fast clocks
+
+`script/prepare-redeploy-testnet.sh` is coordinator-run. It takes the launch lock, proves the RPC and config are
+chain 10143, and requires the recorded G1 addresses (including Holding `0x9BB0B3a6c130d81f6820499bD168C4d910CD502F`),
+block and t0. It refuses an existing archive or changed G1 identity before modifying the active record.
+`--check` validates the plan without writing either file.
+
+The archive `config/archive/monad-testnet-g1.json` retains the original config bytes, including G1 contracts, roles
+and odd-token receipts, plus `archive.reason`, UTC `archive.date` and `archive.sourceSha256`. The active config loses
+only `deployment.hireling`, `deployment.main` and `deployment.oddTokens`. The last is launch-generated output that
+HirelingOutput does not accept as a fresh input; `launch-testnet.sh` creates new odd-token receipts. All five legacy
+pairs, the reused core, roles, top-level oddTokens, liquidity and approved `hireling.clocks` inputs remain unchanged.
+`main` must be absent: promotion writes the fresh v1 pair directly, preserving the legacy key set. G1 is archived;
+it does not become a legacy Hireling stack.
+
+Promotion writes all nine `deployment.hireling.clocks` fields with the input key names. Values come from the deployed
+Holding/Vault/FeeSchedule/MiningReserve getters, with the repeated grace and epoch clocks checked on
+FeeSchedule/EpochDistributor. Every value must equal the input (an absent input defaults to production). A mismatch
+refuses before any config write. Mainnet promotion additionally requires production clocks. An idempotent promotion
+checks recorded clocks against getters and input again. The SDK's synchronous consumers read this promoted block.
+
+After CLOCKS-PARAM and G1B-PREP review/merge, the coordinator runs from the repository root:
+
+```bash
+set -a
+. /home/kristjan/code/agent-jobs/.env.local
+set +a
+bash contracts/script/prepare-redeploy-testnet.sh --check
+bash contracts/script/prepare-redeploy-testnet.sh
+heavy bash contracts/script/launch-testnet.sh --private-keys --fee-proposal --holding-probe --dry-run
+heavy bash contracts/script/launch-testnet.sh --private-keys --fee-proposal --holding-probe --yes
+```
+
+Stop if any command fails. A `heavy` exit 75 means capacity contention: retry that same command. After preparation,
+retry launch without re-running preparation; if a broadcast fails, reconcile its receipts and use the launch
+script's documented resume step. The coordinator commits the actual archive/promoted config and dated live evidence.
+
+`heavy bash contracts/script/rehearse-redeploy-testnet.sh` proves the sequence on an owned local fork with disposable
+dev keys and a fresh Safe. It archives/prepares a scratch G1 copy, runs the exact raw-key launch dry run without
+config/nonce changes, deploys/promotes/accepts the fast recipe, verifies every promoted clock against twelve getters,
+and loads all nine clocks synchronously through the SDK. It also checks signer/chain/lock/relaunch/Safe-policy
+refusals and executes the fee and Holding proposals at their immutable ETAs. Owned config/archive/Forge directories
+and anvil are removed afterward; real launch logs and the checked-in config are untouched. The production-values
+mainnet fork remains covered by `test/fork/HirelingRehearsal.t.sol`.

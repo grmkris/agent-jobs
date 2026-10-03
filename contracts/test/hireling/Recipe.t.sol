@@ -432,6 +432,8 @@ contract RecipeTest is Test {
     }
 
     function test_output_testnetShape_movesMainAndDemoToLegacy() public {
+        c.clocks = HirelingClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        driver.configure(c);
         HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         d.coreDeployed = false;
         string memory shipped = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-testnet.json"));
@@ -450,6 +452,7 @@ contract RecipeTest is Test {
         assertEq(vm.parseJsonUint(out, ".deployment.hireling.t0"), d.t0);
         assertEq(vm.parseJsonUint(out, ".deployment.hireling.block"), 123);
         assertEq(vm.parseJsonAddress(out, ".deployment.hireling.safe"), safe, "D5");
+        _assertOutputClocks(out, c.clocks);
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "hireling-v1");
         assertEq(vm.parseJsonAddress(out, ".deployment.main.holding"), address(d.holding));
         assertTrue(vm.parseJsonBool(out, ".deployment.main.openTokens"));
@@ -508,11 +511,82 @@ contract RecipeTest is Test {
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "hireling-v1");
         assertFalse(vm.keyExistsJson(out, ".deployment.legacy"));
         assertEq(vm.parseJsonString(out, ".deployment.network"), "monad-mainnet");
+        _assertOutputClocks(out, HirelingClocks.production());
         // LAUNCH-AUDIT-004: an unpromoted config has knownTokens only; the record carries USDC as its reward token.
         address[] memory rewards = vm.parseJsonAddressArray(out, ".deployment.rewardTokens");
         assertEq(rewards.length, 1);
         assertEq(rewards[0], vm.parseJsonAddress(real, ".x402.usdc"));
         assertEq(rewards[0], vm.parseJsonAddressArray(real, ".knownTokens")[0]);
+    }
+
+    function _assertOutputClocks(string memory out, HirelingClocks.Config memory clocks) internal pure {
+        string memory p = ".deployment.hireling.clocks";
+        assertEq(vm.parseJsonKeys(out, p).length, 9, "complete promoted clock tuple");
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".minReviewWindow")), clocks.minReviewWindow);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".minDisputeWindow")), clocks.minDisputeWindow);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".minArbitrationWindow")), clocks.minArbitrationWindow);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".unstakeDelay")), clocks.unstakeDelay);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".holdingDelay")), clocks.holdingDelay);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".feeDelay")), clocks.feeDelay);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".proposalGrace")), clocks.proposalGrace);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".epochZeroDuration")), clocks.epochZeroDuration);
+        assertEq(vm.parseJsonUint(out, string.concat(p, ".epochDuration")), clocks.epochDuration);
+    }
+
+    /// @dev Each changed input must refuse before writing. A copied input would silently pass all nine cases.
+    function test_output_eachInputClockMismatch_preservesConfig() public {
+        c.clocks = HirelingClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        driver.configure(c);
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory shipped = vm.readFile(HirelingRecipe.path(vm, "monad-testnet"));
+        string memory path = _temp("clock-mismatch", shipped);
+        string memory fixture = UnpromotedTestnet.write(vm, path, shipped);
+        string[] memory names = vm.parseJsonKeys(fixture, ".hireling.clocks");
+        assertEq(names.length, 9);
+        for (uint256 i; i < names.length; ++i) {
+            vm.writeFile(path, fixture);
+            string memory p = string.concat(".hireling.clocks.", names[i]);
+            vm.writeJson(vm.toString(vm.parseJsonUint(fixture, p) + 1), path, p);
+            string memory before = vm.readFile(path);
+            vm.expectRevert(HirelingOutput.ClockMismatch.selector);
+            this.writeExternal(path, d);
+            assertEq(vm.readFile(path), before, "mismatched clocks must not mutate config");
+        }
+        vm.removeFile(path);
+    }
+
+    /// @dev The clocks repeated on FeeSchedule/Distributor must agree with Vault/Reserve before promotion.
+    function test_output_duplicateGetterMismatch_preservesConfig() public {
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory path = _mainnetTemp("clock-duplicates");
+        string memory before = vm.readFile(path);
+        address[3] memory targets = [address(d.fees), address(d.distributor), address(d.distributor)];
+        string[3] memory getters = ["PROPOSAL_GRACE()", "EPOCH_ZERO_DURATION()", "EPOCH_DURATION()"];
+        for (uint256 i; i < targets.length; ++i) {
+            vm.mockCall(targets[i], abi.encodeWithSignature(getters[i]), abi.encode(uint256(123)));
+            vm.expectRevert(HirelingOutput.ClockMismatch.selector);
+            this.writeExternal(path, d);
+            assertEq(vm.readFile(path), before);
+            vm.clearMockedCalls();
+        }
+        vm.removeFile(path);
+    }
+
+    function test_output_mainnetShape_refusesFastClocksEvenWhenInputMatches() public {
+        c.clocks = HirelingClocks.Config(120, 120, 300, 600, 900, 300, 1800, 1800, 3600);
+        driver.configure(c);
+        HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
+        string memory path = _mainnetTemp("clock-mainnet-fast");
+        vm.writeJson(
+            '{"minReviewWindow":120,"minDisputeWindow":120,"minArbitrationWindow":300,"unstakeDelay":600,"holdingDelay":900,"feeDelay":300,"proposalGrace":1800,"epochZeroDuration":1800,"epochDuration":3600}',
+            path,
+            ".hireling.clocks"
+        );
+        string memory before = vm.readFile(path);
+        vm.expectRevert(HirelingOutput.ClockMismatch.selector);
+        this.writeExternal(path, d);
+        assertEq(vm.readFile(path), before);
+        vm.removeFile(path);
     }
 
     /// @dev LAUNCH-AUDIT-004: on mainnet a reward list without USDC, or no list and not exactly one known token, refuses
@@ -900,6 +974,17 @@ contract RecipeTest is Test {
         other.vault = StakeVault(stranger);
         vm.expectRevert(HirelingOutput.AlreadyDeployed.selector);
         this.isPromotedExternal(once, other);
+        vm.writeJson("604801", path, ".deployment.hireling.clocks.epochDuration");
+        vm.expectRevert(HirelingOutput.AlreadyDeployed.selector);
+        this.isPromotedExternal(vm.readFile(path), d);
+        vm.writeFile(path, once);
+        vm.writeJson(
+            '{"minReviewWindow":3600,"minDisputeWindow":3600,"minArbitrationWindow":43200,"unstakeDelay":604800,"holdingDelay":691200,"feeDelay":259200,"proposalGrace":604800,"epochZeroDuration":259200,"epochDuration":604801}',
+            path,
+            ".hireling.clocks"
+        );
+        vm.expectRevert(HirelingOutput.AlreadyDeployed.selector);
+        this.isPromotedExternal(vm.readFile(path), d);
         vm.removeFile(path);
     }
 

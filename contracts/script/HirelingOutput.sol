@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Vm} from "forge-std/Vm.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {HirelingClocks} from "../src/hireling/HirelingClocks.sol";
 import {HirelingRecipe} from "./HirelingRecipe.sol";
 import {BroadcastPath} from "./BroadcastPath.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
@@ -27,6 +28,7 @@ import {MiningReserve} from "../src/hireling/MiningReserve.sol";
 library HirelingOutput {
     error UnknownKey(string where, string key);
     error AlreadyDeployed();
+    error ClockMismatch();
     /// @dev Mainnet: no `rewardTokens` and not exactly one `knownTokens` entry, or a reward list without `x402.usdc`.
     error MainnetRewardTokens();
 
@@ -118,6 +120,12 @@ library HirelingOutput {
     ) internal {
         string memory json = vm.readFile(path);
         preflight(vm, json);
+        HirelingClocks.Config memory clocks = readClocks(d);
+        HirelingClocks.Config memory input = HirelingRecipe.loadClocks(vm, json, ".hireling.clocks");
+        if (keccak256(abi.encode(clocks)) != keccak256(abi.encode(input))) revert ClockMismatch();
+        if (_mainnet(vm, json) && keccak256(abi.encode(clocks)) != keccak256(abi.encode(HirelingClocks.production()))) {
+            revert ClockMismatch();
+        }
         string memory o = "deployment";
         string[] memory keys = _keys(vm, json, ".deployment");
 
@@ -148,6 +156,16 @@ library HirelingOutput {
         vm.serializeAddress(h, "distributor", address(d.distributor));
         vm.serializeAddress(h, "miningReserve", address(d.reserve));
         vm.serializeAddress(h, "teamVesting", address(d.vesting));
+        string memory clockKey = "deployment.hireling.clocks";
+        vm.serializeUint(clockKey, "minReviewWindow", clocks.minReviewWindow);
+        vm.serializeUint(clockKey, "minDisputeWindow", clocks.minDisputeWindow);
+        vm.serializeUint(clockKey, "minArbitrationWindow", clocks.minArbitrationWindow);
+        vm.serializeUint(clockKey, "unstakeDelay", clocks.unstakeDelay);
+        vm.serializeUint(clockKey, "holdingDelay", clocks.holdingDelay);
+        vm.serializeUint(clockKey, "feeDelay", clocks.feeDelay);
+        vm.serializeUint(clockKey, "proposalGrace", clocks.proposalGrace);
+        vm.serializeUint(clockKey, "epochZeroDuration", clocks.epochZeroDuration);
+        vm.serializeString(h, "clocks", vm.serializeUint(clockKey, "epochDuration", clocks.epochDuration));
         vm.serializeString(o, "hireling", vm.serializeUint(h, "t0", d.t0));
 
         string memory m = "deployment.main";
@@ -175,6 +193,24 @@ library HirelingOutput {
         vm.writeJson(result, path, ".deployment");
     }
 
+    /// @notice The promoted clock tuple is derived from live getters, including duplicated clocks on both targets.
+    function readClocks(HirelingRecipe.Deployed memory d) internal view returns (HirelingClocks.Config memory c) {
+        c.minReviewWindow = d.holding.MIN_REVIEW_WINDOW();
+        c.minDisputeWindow = d.holding.MIN_DISPUTE_WINDOW();
+        c.minArbitrationWindow = d.holding.MIN_ARBITRATION_WINDOW();
+        c.unstakeDelay = d.vault.UNSTAKE_DELAY();
+        c.holdingDelay = d.vault.HOLDING_DELAY();
+        c.feeDelay = d.fees.DELAY();
+        c.proposalGrace = d.vault.PROPOSAL_GRACE();
+        c.epochZeroDuration = d.reserve.EPOCH_ZERO_DURATION();
+        c.epochDuration = d.reserve.EPOCH_DURATION();
+        if (
+            d.fees.PROPOSAL_GRACE() != c.proposalGrace || d.distributor.EPOCH_ZERO_DURATION() != c.epochZeroDuration
+                || d.distributor.EPOCH_DURATION() != c.epochDuration
+        ) revert ClockMismatch();
+        HirelingClocks.validate(c);
+    }
+
     /// @notice True when the config already records exactly this deployment (promotion ran before); reverts
     ///         `AlreadyDeployed` when it records a different one.
     function isPromoted(Vm vm, string memory json, HirelingRecipe.Deployed memory d, address safe)
@@ -195,7 +231,14 @@ library HirelingOutput {
             && vm.parseJsonAddress(json, ".deployment.main.holding") == address(d.holding)
             && vm.parseJsonAddress(json, ".deployment.main.evaluator") == address(d.evaluator)
             && vm.parseJsonAddress(json, ".deployment.core") == address(d.core);
-        if (!same) revert AlreadyDeployed();
+        if (!same || !vm.keyExistsJson(json, ".deployment.hireling.clocks")) revert AlreadyDeployed();
+        HirelingClocks.Config memory recorded = HirelingRecipe.loadClocks(vm, json, ".deployment.hireling.clocks");
+        bytes32 clockHash = keccak256(abi.encode(recorded));
+        if (
+            clockHash != keccak256(abi.encode(readClocks(d)))
+                || clockHash != keccak256(abi.encode(HirelingRecipe.loadClocks(vm, json, ".hireling.clocks")))
+                || (_mainnet(vm, json) && clockHash != keccak256(abi.encode(HirelingClocks.production())))
+        ) revert AlreadyDeployed();
         return true;
     }
 

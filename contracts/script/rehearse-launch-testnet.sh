@@ -8,7 +8,7 @@
 #     a second launch refuses;
 #   - --from pauser --to sdk re-reads cleanly (the Safe already holds ADMIN_ROLE: nothing sent);
 #   - a Safe with a module, or with a guard, refuses (the mining fund's nonce guard, D18, needs neither);
-#   - 3 days later anyone executes the proposed fee schedule; 8 days later anyone accepts the probed Holding.
+#   - at their immutable ETAs anyone executes the fee schedule and accepts the probed Holding.
 # Prints the gas limits each sender is charged. Holds the launch lock (script/launch-lock.sh), so it refuses while
 # another launch or rehearsal runs in this checkout. Writes only its own scratch config/rehearsal-<pid>-<random>.json
 # and forge logs under broadcast/ and cache/rehearsal-<pid>-<random> (script/rehearse-owned.sh), never a real launch's
@@ -26,7 +26,7 @@ cd "$(dirname "$0")/.."
 take_launch_lock
 . script/rehearse-owned.sh
 
-FORK_RPC="${RPC:-https://testnet-rpc.monad.xyz}"
+FORK_RPC="${RPC:-${MONAD_TESTNET_RPC_URL:-https://testnet-rpc.monad.xyz}}"
 MAINNET_RPC="${MAINNET_RPC:-https://rpc.monad.xyz}"
 PORT="${PORT:-8599}"
 export REHEARSAL_RPC="http://127.0.0.1:$PORT"
@@ -59,13 +59,21 @@ PASSWORD_FILE="$KEYSTORES/password"
 cast wallet import --keystore-dir "$KEYSTORES" deployer --private-key "$REHEARSAL_DEPLOYER_KEY" --unsafe-password "$(cat "$PASSWORD_FILE")" >/dev/null 2>&1
 cast wallet import --keystore-dir "$KEYSTORES" safe-owner --private-key "$REHEARSAL_SAFE_OWNER_KEY" --unsafe-password "$(cat "$PASSWORD_FILE")" >/dev/null 2>&1
 LAUNCH=(env RPC_ENV=REHEARSAL_RPC DEPLOYER_ACCOUNT="$KEYSTORES/deployer" DEPLOYER_PASSWORD_FILE="$PASSWORD_FILE"
+  DEPLOYER_KEY_ENV=REHEARSAL_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=REHEARSAL_SAFE_OWNER_KEY
   SAFE_OWNER_ACCOUNT="$KEYSTORES/safe-owner" SAFE_OWNER_PASSWORD_FILE="$PASSWORD_FILE" bash script/launch-testnet.sh)
 
 ANVIL_PID= KEPT=0 SAFE= CONFIG=
 # Only what this run created, and still owns.
 cleanup() {
   [[ $KEPT -eq 0 && -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  [[ $KEPT -eq 1 ]] || { owned_file "$CONFIG" .hireling.safe "$SAFE"; owned_run_dirs; }
+  [[ $KEPT -eq 1 ]] || {
+    # Preparation may fail before the Safe override. The unique scratch path and unchanged run marker still own it.
+    if [[ -n "${RUN_ID:-}" && "$CONFIG" == "config/rehearsal-$RUN_ID.json" &&
+      "$(cat "${FOUNDRY_BROADCAST:-}/.rehearsal-run" 2>/dev/null)" == "$RUN_ID" ]]; then
+      rm -f -- "$CONFIG" "$CONFIG.next"
+    fi
+    owned_run_dirs
+  }
   rm -rf "$LAUNCH_LOGS" "$KEYSTORES"
 }
 trap cleanup EXIT
@@ -121,12 +129,27 @@ cast send --rpc-url "$LOCAL" --unlocked --from "$REAL_ADMIN" "$CORE" "grantRole(
 cast rpc --rpc-url "$LOCAL" anvil_stopImpersonatingAccount "$REAL_ADMIN" >/dev/null 2>&1
 ok "dev0 stands in for roles.admin as the core's admin (DEFAULT_ADMIN_ROLE, granted by an impersonated roles.admin)"
 
-# The scratch config: testnet's, with the fork's deployer, the fresh Safe and odd-token wallets.
+# The G1b rehearsal prepares a verbatim G1 copy before replacing signers/Safe with local fork stand-ins.
+cp config/monad-testnet.json "$CONFIG"
+if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
+  ARCHIVE="$FOUNDRY_BROADCAST/monad-testnet-g1.json"
+  RPC_ENV=REHEARSAL_RPC bash script/prepare-redeploy-testnet.sh --config "$CONFIG" --archive "$ARCHIVE"
+  jq -e --slurpfile original config/monad-testnet.json '
+    del(.archive) == $original[0] and (.archive.reason | length > 0) and (.archive.date | length > 0)' "$ARCHIVE" >/dev/null \
+    || fail "G1 archive differs from the original record"
+  jq -e --slurpfile original config/monad-testnet.json '
+    . == ($original[0] | del(.deployment.hireling, .deployment.main, .deployment.oddTokens))' "$CONFIG" >/dev/null \
+    || fail "preparation changed more than the G1 deployment output"
+  ok "G1 archived verbatim; main absent; legacy pairs, core, roles, oddTokens/liquidity/fast inputs preserved"
+fi
+
+# The scratch config: testnet's prepared input, with the fork's deployer, fresh Safe and odd-token wallets.
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg a "$WALLET_A" --arg b "$WALLET_B" '
   .roles.admin = $admin
   | .hireling.safe = $safe | .hireling.schedule.treasury = $safe | .hireling.allocation.treasury = $safe
   | .hireling.allocation.ecosystem = $admin | .hireling.allocation.liquidity = $admin
-  | .oddTokens = (.oddTokens // { wallets: [$a, $b], mint: 1000 })' config/monad-testnet.json >"$CONFIG"
+  | .oddTokens = (.oddTokens // { wallets: [$a, $b], mint: 1000 })' "$CONFIG" >"$CONFIG.next"
+mv "$CONFIG.next" "$CONFIG"
 
 # Signers: none configured refuses; a password file others can read refuses.
 refused() { local want=$1; shift; set +e; OUT=$("$@" 2>&1); CODE=$?; set -e; [[ $CODE -ne 0 && "$OUT" == *"$want"* ]]; }
@@ -149,10 +172,70 @@ refused "refusing: another launch or rehearsal is running" "${LAUNCH[@]}" --yes 
 ok "a launch started while this rehearsal runs refuses (the launch lock); this rehearsal's own runs inherit the lock"
 
 # The launch itself, with both optional flags.
-"${LAUNCH[@]}" --yes --fee-proposal --holding-probe | tee "$LAUNCH_LOGS/launch.out"
+if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
+  PRE_DRY=$(sha256sum "$CONFIG")
+  PRE_NONCE=$(cast nonce --rpc-url "$LOCAL" "$DEPLOYER")
+  "${LAUNCH[@]}" --private-keys --fee-proposal --holding-probe --dry-run \
+    >"$LAUNCH_LOGS/prepared-dry.out" 2>&1 || { cat "$LAUNCH_LOGS/prepared-dry.out"; fail "prepared launch dry run"; }
+  [[ "$(sha256sum "$CONFIG")" == "$PRE_DRY" && "$(cast nonce --rpc-url "$LOCAL" "$DEPLOYER")" == "$PRE_NONCE" ]] \
+    || fail "prepared launch dry run mutated config or chain"
+  ok "prepare -> launch-testnet.sh --dry-run passed; config and chain unchanged"
+fi
+LAUNCH_FLAGS=(--yes --fee-proposal --holding-probe)
+[[ "${PREP_REDEPLOY:-0}" != 1 ]] || LAUNCH_FLAGS+=(--private-keys)
+"${LAUNCH[@]}" "${LAUNCH_FLAGS[@]}" | tee "$LAUNCH_LOGS/launch.out"
 grep -q "LAUNCH-TESTNET DONE" "$LAUNCH_LOGS/launch.out" || fail "launch-testnet.sh did not finish"
 cp "$LAUNCH_LOGS/hashes.tsv" "$LAUNCH_LOGS/launch-hashes.tsv" # later runs start their own list
 ok "launch-testnet.sh ran end to end"
+if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
+  jq -e --slurpfile old "$ARCHIVE" '
+    (.deployment.legacy | keys) == ($old[0].deployment.legacy | keys)
+    and all(.deployment.legacy[]; .kind == "legacy")
+    and .deployment.main.kind == "hireling-v1"
+    and .deployment.main.holding != $old[0].deployment.main.holding
+    and .deployment.factory != $old[0].deployment.factory
+    and .deployment.hireling.clocks == .hireling.clocks
+    and (.deployment.hireling.clocks | keys | length) == 9' "$CONFIG" >/dev/null \
+    || fail "G1b promotion kept G1 as legacy or reused its FACTORY/pair"
+  # The nine promoted values and all duplicated clocks must match deployed getters, not just the input file.
+  H=$(jq -r .deployment.main.holding "$CONFIG")
+  V=$(jq -r .deployment.hireling.vault "$CONFIG")
+  F=$(jq -r .deployment.hireling.feeSchedule "$CONFIG")
+  R=$(jq -r .deployment.hireling.miningReserve "$CONFIG")
+  D=$(jq -r .deployment.hireling.distributor "$CONFIG")
+  while read -r target getter key; do
+    actual=$(cast call --rpc-url "$LOCAL" "$target" "$getter" | cut -d ' ' -f1)
+    [[ "$actual" == "$(jq -r ".deployment.hireling.clocks.$key" "$CONFIG")" ]] || fail "promoted clock $key differs from $getter"
+  done <<EOF
+$H MIN_REVIEW_WINDOW()(uint32) minReviewWindow
+$H MIN_DISPUTE_WINDOW()(uint32) minDisputeWindow
+$H MIN_ARBITRATION_WINDOW()(uint32) minArbitrationWindow
+$V UNSTAKE_DELAY()(uint48) unstakeDelay
+$V HOLDING_DELAY()(uint48) holdingDelay
+$V PROPOSAL_GRACE()(uint48) proposalGrace
+$F DELAY()(uint48) feeDelay
+$F PROPOSAL_GRACE()(uint48) proposalGrace
+$R EPOCH_ZERO_DURATION()(uint48) epochZeroDuration
+$R EPOCH_DURATION()(uint48) epochDuration
+$D EPOCH_ZERO_DURATION()(uint48) epochZeroDuration
+$D EPOCH_DURATION()(uint48) epochDuration
+EOF
+  SDK_CLOCKS="$LAUNCH_LOGS/sdk-clocks.ts"
+  cat >"$SDK_CLOCKS" <<EOF
+import { readFileSync } from 'node:fs'
+import { deploymentFromConfig } from '$PWD/../packages/sdk/src/deployment.ts'
+const config = JSON.parse(readFileSync(process.argv[2], 'utf8'))
+const d = deploymentFromConfig('monad-testnet', config)
+const loaded = Object.entries(d.hireling?.clocks ?? {})
+if (loaded.length !== 9) throw new Error('SDK did not load all nine promoted clocks')
+for (const [key, value] of loaded) {
+  if (config.hireling.clocks[key] !== value) throw new Error('SDK clock differs: ' + key)
+}
+console.log('sdk: all nine fast promoted clocks loaded synchronously')
+EOF
+  bun --no-env-file "$SDK_CLOCKS" "$PWD/$CONFIG" || fail "SDK promoted clocks"
+  ok "full fast recipe -> promotion -> SDK passed; G1 never enters legacy; nine clocks match twelve getters"
+fi
 if [[ "${KEEP:-0}" == 1 ]]; then
   [[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside this run's directories changed"
   ok "no chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH was touched"
@@ -190,22 +273,29 @@ cast rpc --rpc-url "$LOCAL" anvil_setStorageAt "$SAFE" $GUARD_SLOT "0x$(printf '
 "${LAUNCH[@]}" --from readback --to readback >"$LAUNCH_LOGS/plain.out" 2>&1 || { cat "$LAUNCH_LOGS/plain.out"; fail "readback after clearing"; }
 ok "a Safe with a module, or with a guard, is refused before anything is sent (D18); cleared, it passes again"
 
-# The timelocks, on the fork: 3 days for the fee schedule, 8 for the Holding; anyone executes.
+# The immutable timelocks, on the fork; anyone executes at each pending ETA.
 FEES=$(jq -r .deployment.hireling.feeSchedule "$CONFIG")
 VAULT=$(jq -r .deployment.hireling.vault "$CONFIG")
 STRANGER=$(devkey 9)
 cast rpc --rpc-url "$LOCAL" anvil_setBalance "$(addr "$STRANGER")" 0x3635c9adc5dea00000 >/dev/null 2>&1
-cast rpc --rpc-url "$LOCAL" evm_increaseTime $((3 * 86400 + 60)) >/dev/null 2>&1
-cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null 2>&1
+advance_to() {
+  local eta=$1 now
+  now=$(cast block --rpc-url "$LOCAL" latest --json | jq -r '.timestamp | if type == "string" then . else tostring end')
+  now=$(cast to-dec "$now")
+  if (( now < eta )); then cast rpc --rpc-url "$LOCAL" evm_setNextBlockTimestamp "$eta" >/dev/null 2>&1; fi
+  cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null 2>&1
+}
+FEE_ETA=$(cast call --rpc-url "$LOCAL" "$FEES" "pending()((uint256[4],uint16[4],address),uint48)" | tail -1 | cut -d ' ' -f1)
+advance_to "$FEE_ETA"
 [[ "$(cast send --rpc-url "$LOCAL" --private-key "$STRANGER" --json "$FEES" "execute()" 2>/dev/null | jq -r .status)" == 0x1 ]] \
-  || fail "the fee schedule did not execute after 3 days"
-ok "3 days later, anyone executes the proposed fee schedule"
-cast rpc --rpc-url "$LOCAL" evm_increaseTime $((5 * 86400)) >/dev/null 2>&1
-cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null 2>&1
+  || fail "the fee schedule did not execute at its immutable delay"
+ok "at the fee ETA, anyone executes the proposed fee schedule"
+HOLDING_ETA=$(cast call --rpc-url "$LOCAL" "$VAULT" "pendingHolding()(address,uint48)" | tail -1 | cut -d ' ' -f1)
+advance_to "$HOLDING_ETA"
 [[ "$(cast send --rpc-url "$LOCAL" --private-key "$STRANGER" --json "$VAULT" "acceptHolding()" 2>/dev/null | jq -r .status)" == 0x1 ]] \
-  || fail "the probed Holding was not acceptable after 8 days"
+  || fail "the probed Holding was not acceptable at its immutable delay"
 [[ "$(cast call --rpc-url "$LOCAL" "$VAULT" "isHolding(address)(bool)" "$PROBE" 2>/dev/null)" == true ]] || fail "isHolding($PROBE)"
-ok "8 days later, anyone accepts the probed Holding"
+ok "at the Holding ETA, anyone accepts the probed Holding"
 
 # What each sender was charged: the gas limits of the hashes launch-testnet.sh printed.
 echo
