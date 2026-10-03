@@ -108,6 +108,7 @@ await context.route('**/*', async (route) => {
   return route.continue();
 });
 const page = await context.newPage();
+page.setDefaultTimeout(90_000); // Hosted advisory screening can take up to a minute.
 page.on('pageerror', (error) => errors.push(error.message));
 page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
 
@@ -143,9 +144,12 @@ try {
   assert.ok(results.some((r) => r.asset), 'Privy boundary was not patched');
   console.log(`PASS: hosted staging ${mode}; injected wallet only, Privy login unverified`);
 } finally {
+  await page.screenshot({ path: `${output}/${row}-final.png`, fullPage: true }).catch(() => {});
   if (allowSend) atomic(browserState, await context.storageState());
-  atomic(`${output}/results.json`, { mode, account: account.address, protocolContracts: protocol.contracts,
-    results, errors, blocked, transactions: wallet.publicTransactions(), signatures: wallet.signatures() });
+  const evidence = { mode, account: account.address, protocolContracts: protocol.contracts,
+    results, errors, blocked, transactions: wallet.publicTransactions(), signatures: wallet.signatures() };
+  atomic(`${output}/${row}-results.json`, evidence);
+  atomic(`${output}/results.json`, evidence);
   wallet.close();
   await browser.close();
 }

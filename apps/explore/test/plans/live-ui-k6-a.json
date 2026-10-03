@@ -153,7 +153,7 @@
         {"action": "fill", "id": "stake-amount", "value": "20"},
         {"action": "click", "role": "button", "name": "Stake 20 FACTORY", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
-        {"action": "wait", "text": "Staked. Your fee tier counts it now.", "exact": true},
+        {"action": "wait", "text": "Staked. Your fee tier counts it now.", "exact": false},
         {"action": "capture", "name": "k6-a-stake-after"}
       ],
       "coordinatorChecksAfter": ["stakeOf and availableOf rise by 20 FACTORY; liquid FACTORY falls by 20; reserved unchanged. Record permit domain, spender=vault, value=20000000000000000000, nonce/deadline and successful stakeWithPermit receipt.", "Record TX testnet <hash> K6-A-stake. No fee tier decrease is expected from 20 FACTORY."],
@@ -190,7 +190,6 @@
         {"action": "click", "role": "button", "name": "Review", "exact": true},
         {"action": "wait", "text": "Agent #1943 · invited", "exact": true},
         {"action": "capture", "name": "k6-a-review"},
-        {"action": "click", "role": "button", "name": "Prepare to publish", "exact": true},
         {"action": "wait", "text": "Publish the funded hire and reserve your bond from stake", "exact": true},
         {"action": "capture", "name": "k6-a-prepared"}
       ],
@@ -201,7 +200,7 @@
         "Prepared offer must be unexpired and the board must report jobId=null. Choose publish-two or publish-one using the returned call list and live allowance; no guessed count.",
         "Preparation only creates a board record. No reward is escrowed until publish confirms."
       ],
-      "effects": ["Board auth_challenge/auth_login may sign SIWE when the session is absent.", "Prepare to publish calls create_task, invokes screening and persists the offer; no chain transaction in this phase."]
+      "effects": ["Board auth_challenge/auth_login may sign SIWE when the session is absent.", "Review automatically calls create_task, invokes screening and persists the offer; no chain transaction in this phase."]
     },
     {
       "row": "K6-A-publish-2",
@@ -218,7 +217,7 @@
         {"action": "click", "role": "button", "name": "Send them one at a time instead", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm step 1 of 2", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm step 2 of 2", "exact": true},
-        {"action": "wait", "text": "Published · 1 mUSD locked in escrow", "exact": true},
+        {"action": "wait", "text": "Published · 1 mUSD locked in escrow", "exact": false},
         {"action": "capture", "name": "k6-a-published"}
       ],
       "coordinatorChecksAfter": [
@@ -241,7 +240,7 @@
         {"action": "wait", "text": "Publish the funded hire and reserve your bond from stake", "exact": true},
         {"action": "capture", "name": "k6-a-publish-review"},
         {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
-        {"action": "wait", "text": "Published · 1 mUSD locked in escrow", "exact": true},
+        {"action": "wait", "text": "Published · 1 mUSD locked in escrow", "exact": false},
         {"action": "capture", "name": "k6-a-published"}
       ],
       "coordinatorChecksAfter": [
@@ -278,7 +277,7 @@
         {"action": "click", "role": "button", "name": "Send them one at a time instead", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm step 1 of 2", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm step 2 of 2", "exact": true},
-        {"action": "wait", "text": "Added to the reward", "exact": true},
+        {"action": "wait", "text": "Added to the reward", "exact": false},
         {"action": "capture", "name": "k6-a-topup-after"}
       ],
       "coordinatorChecksAfter": [
@@ -300,7 +299,7 @@
         {"action": "capture", "name": "k6-a-approve-review"},
         {"action": "click", "role": "button", "name": "Approve and pay", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
-        {"action": "wait", "text": "Paid 1 mUSD to Agent #1943", "exact": true},
+        {"action": "wait", "text": "Paid 1 mUSD to Agent #1943", "exact": false},
         {"action": "capture", "name": "k6-a-approved"}
       ],
       "coordinatorChecksAfter": [
@@ -322,7 +321,7 @@
         {"action": "wait", "text": "Settle job #__JOB_A_ID__", "exact": true},
         {"action": "capture", "name": "k6-a-collect-before"},
         {"action": "click", "role": "button", "name": "Collect", "exact": true},
-        {"action": "wait", "text": "Settled", "exact": true},
+        {"action": "wait", "text": "Settled", "exact": false},
         {"action": "capture", "name": "k6-a-collect-after"}
       ],
       "coordinatorChecksAfter": [

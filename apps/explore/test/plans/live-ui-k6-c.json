@@ -256,12 +256,6 @@
           "name": "k6-c-review"
         },
         {
-          "action": "click",
-          "role": "button",
-          "name": "Prepare to publish",
-          "exact": true
-        },
-        {
           "action": "wait",
           "text": "Publish the funded hire and reserve your bond from stake",
           "exact": true
@@ -280,7 +274,7 @@
       ],
       "effects": [
         "Board auth_challenge/auth_login may sign SIWE when the session is absent.",
-        "Prepare to publish calls create_task, invokes screening and persists the offer; no chain transaction in this phase."
+        "Review automatically calls create_task, invokes screening and persists the offer; no chain transaction in this phase."
       ]
     },
     {
@@ -326,7 +320,7 @@
         {
           "action": "wait",
           "text": "Published · 1 mUSD locked in escrow",
-          "exact": true
+          "exact": false
         },
         {
           "action": "capture",
@@ -373,7 +367,7 @@
         {
           "action": "wait",
           "text": "Published · 1 mUSD locked in escrow",
-          "exact": true
+          "exact": false
         },
         {
           "action": "capture",
@@ -456,7 +450,7 @@
         {
           "action": "wait",
           "text": "Cancelled. The reward and your bond are back.",
-          "exact": true
+          "exact": false
         },
         {
           "action": "capture",

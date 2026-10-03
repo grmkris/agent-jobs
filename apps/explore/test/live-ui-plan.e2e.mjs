@@ -23,6 +23,9 @@ try {
   await assert.rejects(run([{ ...click, within: { role: 'main', name: 'Cancel this job?' } }]), /only a named dialog/);
   await page.locator('section').evaluate(node => node.after(node.cloneNode(true)));
   await assert.rejects(run([{ ...click, within: { role: 'dialog', name: 'Cancel this job?' } }]), /strict mode violation|exactly one dialog/);
+  await page.setContent('<div role="status"><div><span>✓</span>Staked. Your fee tier counts it now.</div></div>');
+  assert.equal(await page.getByText('Staked. Your fee tier counts it now.', { exact: true }).count(), 0);
+  await run([{ action: 'wait', text: 'Staked. Your fee tier counts it now.', exact: false }]);
   console.log('PASS: scoped confirmation clicks only its dialog; ambiguous controls/dialogs refuse');
 } finally {
   await browser.close();
