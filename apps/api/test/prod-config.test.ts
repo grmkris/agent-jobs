@@ -1,36 +1,71 @@
 import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import proposed from '../../../docs/p0-prod-artifact.json' with { type: 'json' }
-import { RETIRED_ROLE_ADDRESSES, validateProdConfig, type ProdArtifact } from '../src/prod-config.ts'
+import { prodSecretSources, RETIRED_ROLE_ADDRESSES, validateProdConfig, type ChainConfig, type ProdArtifact } from '../src/prod-config.ts'
 
+const USDC = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603'
+
+/** A complete, consistent mainnet record. Every field the validator reads is set here, so it holds whatever the shipped
+ *  config and artifact contain (LAUNCH-AUDIT-FIX-002): only their shape is borrowed. */
 const configured = () => {
-  const config = structuredClone(mainnet) as Parameters<typeof validateProdConfig>[0]
+  const config = structuredClone(mainnet) as unknown as ChainConfig
   const artifact = structuredClone(proposed) as ProdArtifact
   const fixtureAddress = '0x1111111111111111111111111111111111111111'
-  // Fresh R2 role keys (the shipped config still names the retired 1 Oct ones, LAUNCH-AUDIT-008).
   const arbitrator = '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa'
-  config.roles = { ...config.roles, relay: '0x8888888888888888888888888888888888888888', attester: '0x9999999999999999999999999999999999999999', arbitrator }
+  Object.assign(config, {
+    network: 'monad-mainnet', chainId: 143,
+    roles: { admin: '0x7777777777777777777777777777777777777777', relay: '0x8888888888888888888888888888888888888888', attester: '0x9999999999999999999999999999999999999999', arbitrator },
+    erc8004: { identity: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432', reputation: '0x8004BAa17C55a88189AE136b182e5fdA19dE9b63' },
+    x402: { usdc: USDC }, factory: { faucet: false }, holdGates: { minHoldToPublish: 0, minHoldToClaim: 0 },
+    faucetTokens: { names: [], symbols: [] }, knownTokens: [USDC], stacks: { names: ['main'] },
+  })
   config.hireling = { ...config.hireling, defaultArbitrator: arbitrator }
   config.deployment = {
     network: 'monad-mainnet', block: 123, core: fixtureAddress, factory: fixtureAddress,
     main: { kind: 'hireling-v1', factory: fixtureAddress, holding: fixtureAddress, evaluator: fixtureAddress, openTokens: true },
     hireling: { block: 123, safe: fixtureAddress, factory: fixtureAddress, vault: fixtureAddress, feeSchedule: fixtureAddress, distributor: fixtureAddress, miningReserve: fixtureAddress, teamVesting: fixtureAddress, t0: 1_791_500_000 },
-    rewardTokens: [mainnet.x402.usdc],
+    rewardTokens: [USDC],
   }
+  Object.assign(artifact, {
+    stage: 'prod', network: 'monad-mainnet', chainId: 143,
+    rpc: { url: 'https://rpc.monad.xyz', chainId: 143 }, hyperSync: { url: 'https://monad.hypersync.xyz', chainId: 143 },
+    privy: { appId: 'synthetic-approved-app', origins: ['https://hireling.xyz'], approved: true },
+    remoteState: true, admission: { drain: true }, explore: { mainnetLive: false }, secretSources: { ...prodSecretSources },
+    addresses: { ...config.roles, identity: config.erc8004.identity, reputation: config.erc8004.reputation, usdc: USDC, core: fixtureAddress, factory: fixtureAddress, holding: fixtureAddress, evaluator: fixtureAddress },
+  })
   artifact.deployment = structuredClone({ main: config.deployment.main!, hireling: config.deployment.hireling!, rewardTokens: config.deployment.rewardTokens! })
   artifact.deployment.hireling.safeOwners = ['0x5555555555555555555555555555555555555555', '0x6666666666666666666666666666666666666666']
   artifact.deployment.hireling.safeThreshold = 1
-  for (const [name, value] of Object.entries(config.roles)) artifact.addresses[name] = value
-  for (const name of ['core', 'factory', 'holding', 'evaluator']) artifact.addresses[name] = fixtureAddress
-  artifact.rpc.chainId = 143
-  artifact.hyperSync.chainId = 143
-  artifact.privy.appId = 'synthetic-approved-app'
-  artifact.privy.approved = true
   return { config, artifact }
 }
 
-test('the real proposed recipe is correctly rejected before deployment and mapping approval', () => {
-  expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining(['chain/providers', 'Privy app/origin approval', 'deployment network/block', 'open-token main Holding metadata', 'address:core']))
+/** What the shipped pair may still lack before launch: R2's keys and Safe policy, the deploy and promotion, the Privy
+ *  and provider approvals. A structural failure (stage, URLs, faucet, hold gates, known tokens, stacks, legacy pairs,
+ *  secret sources, artifact structure) is never one of them. */
+const PRE_LAUNCH = new Set(['chain/providers', 'Privy app/origin approval', 'deployment network/block', 'open-token main Holding metadata',
+  'main v1 kind', 'v1 factory consistency', 'hireling block/T0', 'hireling:safeOwners/safeThreshold', 'rewardTokens:USDC',
+  'artifact rewardTokens', 'hireling.defaultArbitrator is not roles.arbitrator', 'hireling.defaultArbitrator is a retired 1 Oct key'])
+const preLaunch = (label: string) => PRE_LAUNCH.has(label) || /^(hireling|main|address):[A-Za-z]+$/.test(label) ||
+  /^(role|address):[A-Za-z]+ is a retired 1 Oct key$/.test(label)
+
+test('LAUNCH-AUDIT-FIX-002: the shipped config and artifact pass, or fail only on what launch still fills in', () => {
+  expect(validateProdConfig(mainnet as unknown as ChainConfig, proposed as ProdArtifact).filter(label => !preLaunch(label))).toEqual([])
+})
+
+test('LAUNCH-AUDIT-FIX-002: a synthetic pre-R2 record (retired keys, unpinned Safe) refuses with exactly those labels', () => {
+  const { config, artifact } = configured()
+  const [relay, attester, arbitrator] = RETIRED_ROLE_ADDRESSES
+  Object.assign(config.roles, { relay, attester, arbitrator })
+  Object.assign(artifact.addresses, { relay, attester, arbitrator })
+  config.hireling!.defaultArbitrator = arbitrator
+  artifact.deployment.hireling.safeOwners = []
+  artifact.deployment.hireling.safeThreshold = null
+  const failures = validateProdConfig(config, artifact)
+  expect(failures.toSorted()).toEqual([
+    'hireling:safeOwners/safeThreshold', 'hireling.defaultArbitrator is a retired 1 Oct key',
+    ...['relay', 'attester', 'arbitrator'].flatMap(name => [`role:${name} is a retired 1 Oct key`, `address:${name} is a retired 1 Oct key`]),
+  ].toSorted())
+  expect(failures.every(preLaunch)).toBe(true)
 })
 
 test('a consistent synthetic complete artifact passes structural validation only', () => {
@@ -68,7 +103,7 @@ test.each(['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningRese
 })
 
 test.each([null, {}, { rpc: null }, { privy: { origins: 'bad' } }])('malformed artifact fails closed without echoing input', input => {
-  expect(validateProdConfig(mainnet, input as unknown as ProdArtifact)).toEqual(['artifact structure'])
+  expect(validateProdConfig(configured().config, input as unknown as ProdArtifact)).toEqual(['artifact structure'])
 })
 
 test('D16 / PROD-GATE-001: the Safe must be recorded and match between config and artifact', () => {
@@ -96,17 +131,12 @@ test.each([
   expect(validateProdConfig(config, artifact)).toEqual(['hireling:safeOwners/safeThreshold'])
 })
 
-test('LAUNCH-AUDIT-003: the shipped artifact has the Safe policy fields, still unpinned', () => {
-  expect(proposed.deployment.hireling).toMatchObject({ safeOwners: [], safeThreshold: null })
-  expect(validateProdConfig(mainnet, proposed)).toContain('hireling:safeOwners/safeThreshold')
-})
-
 test('LAUNCH-AUDIT-004: the promoted reward list must hold USDC, and the artifact must pin the same list', () => {
   const cases: [string, (c: ReturnType<typeof configured>) => void, string][] = [
     ['no promoted list', c => { delete c.config.deployment.rewardTokens }, 'rewardTokens:USDC'],
     ['a list without USDC', c => { c.config.deployment.rewardTokens = ['0x7777777777777777777777777777777777777777']; c.artifact.deployment.rewardTokens = ['0x7777777777777777777777777777777777777777'] }, 'rewardTokens:USDC'],
     ['an artifact without the list', c => { delete c.artifact.deployment.rewardTokens }, 'artifact rewardTokens'],
-    ['an artifact list that differs', c => { c.artifact.deployment.rewardTokens = [mainnet.x402.usdc, '0x7777777777777777777777777777777777777777'] }, 'artifact rewardTokens'],
+    ['an artifact list that differs', c => { c.artifact.deployment.rewardTokens = [USDC, '0x7777777777777777777777777777777777777777'] }, 'artifact rewardTokens'],
   ]
   for (const [, mutate, label] of cases) {
     const c = configured()
@@ -114,16 +144,14 @@ test('LAUNCH-AUDIT-004: the promoted reward list must hold USDC, and the artifac
     expect(validateProdConfig(c.config, c.artifact)).toEqual([label])
   }
   const c = configured()
-  c.artifact.deployment.rewardTokens = [mainnet.x402.usdc.toLowerCase()]
+  c.artifact.deployment.rewardTokens = [USDC.toLowerCase()]
   expect(validateProdConfig(c.config, c.artifact)).toEqual([])
-  expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining(['rewardTokens:USDC']))
 })
 
-test('LAUNCH-AUDIT-008: the denylist is the shipped config\'s relay, attester and arbitrator; none may be a mainnet role', () => {
-  expect([...RETIRED_ROLE_ADDRESSES].map(a => a.toLowerCase()).toSorted()).toEqual(
-    [mainnet.roles.relay, mainnet.roles.attester, mainnet.roles.arbitrator].map(a => a.toLowerCase()).toSorted())
-  expect(validateProdConfig(mainnet, proposed)).toEqual(expect.arrayContaining([
-    'role:relay is a retired 1 Oct key', 'role:attester is a retired 1 Oct key', 'role:arbitrator is a retired 1 Oct key']))
+test('LAUNCH-AUDIT-008: the denylist is three distinct addresses (the 1 Oct relay, attester and arbitrator); none may be a mainnet role', () => {
+  expect(RETIRED_ROLE_ADDRESSES).toHaveLength(3)
+  expect(RETIRED_ROLE_ADDRESSES.every(a => /^0x[0-9a-fA-F]{40}$/.test(a))).toBe(true)
+  expect(new Set(RETIRED_ROLE_ADDRESSES.map(a => a.toLowerCase())).size).toBe(3)
   for (const role of ['relay', 'attester', 'arbitrator'] as const) {
     for (const old of RETIRED_ROLE_ADDRESSES) {
       const c = configured()

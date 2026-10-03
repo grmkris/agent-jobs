@@ -420,6 +420,13 @@ contract RecipeTest is Test {
         vm.writeFile(path, json);
     }
 
+    /// @dev The shipped mainnet config as an unpromoted record (`.deployment` reset to `{}`), so these tests hold before
+    ///      and after the coordinator fills R2 and commits the real promotion (LAUNCH-AUDIT-FIX-002).
+    function _mainnetTemp(string memory name) internal returns (string memory path) {
+        path = _temp(name, vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json")));
+        vm.writeJson("{}", path, ".deployment");
+    }
+
     function test_output_testnetShape_movesMainAndDemoToLegacy() public {
         HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         d.coreDeployed = false;
@@ -475,7 +482,7 @@ contract RecipeTest is Test {
     function test_output_mainnetShape_noLegacy() public {
         HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
-        string memory path = _temp("mainnet", real);
+        string memory path = _mainnetTemp("mainnet");
         HirelingOutput.write(vm, path, d, safe, 456, 457);
         string memory out = vm.readFile(path);
         vm.removeFile(path);
@@ -485,7 +492,7 @@ contract RecipeTest is Test {
         assertEq(vm.parseJsonString(out, ".deployment.main.kind"), "hireling-v1");
         assertFalse(vm.keyExistsJson(out, ".deployment.legacy"));
         assertEq(vm.parseJsonString(out, ".deployment.network"), "monad-mainnet");
-        // LAUNCH-AUDIT-004: the shipped config has knownTokens only; the record carries USDC as its reward token.
+        // LAUNCH-AUDIT-004: an unpromoted config has knownTokens only; the record carries USDC as its reward token.
         address[] memory rewards = vm.parseJsonAddressArray(out, ".deployment.rewardTokens");
         assertEq(rewards.length, 1);
         assertEq(rewards[0], vm.parseJsonAddress(real, ".x402.usdc"));
@@ -499,19 +506,19 @@ contract RecipeTest is Test {
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
         string memory usdc = vm.toString(vm.parseJsonAddress(real, ".x402.usdc"));
 
-        string memory path = _temp("rewards-no-usdc", real);
+        string memory path = _mainnetTemp("rewards-no-usdc");
         vm.writeJson('{"rewardTokens":["0x0000000000000000000000000000000000000Bad"]}', path, ".deployment");
         vm.expectRevert(HirelingOutput.MainnetRewardTokens.selector);
         this.writeExternal(path, d);
         vm.removeFile(path);
 
-        path = _temp("rewards-two-known", real);
+        path = _mainnetTemp("rewards-two-known");
         vm.writeJson(string.concat('["', usdc, '","0x0000000000000000000000000000000000000Bad"]'), path, ".knownTokens");
         vm.expectRevert(HirelingOutput.MainnetRewardTokens.selector);
         this.writeExternal(path, d);
         vm.removeFile(path);
 
-        path = _temp("rewards-kept", real);
+        path = _mainnetTemp("rewards-kept");
         vm.writeJson(
             string.concat('{"rewardTokens":["0x0000000000000000000000000000000000000Bad","', usdc, '"]}'),
             path,
@@ -863,8 +870,7 @@ contract RecipeTest is Test {
 
     function test_promotion_isIdempotent() public {
         HirelingRecipe.Deployed memory d = _runWithThirdPartyBetweenSteps();
-        string memory path =
-            _temp("promote", vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json")));
+        string memory path = _mainnetTemp("promote");
         assertFalse(HirelingOutput.isPromoted(vm, vm.readFile(path), d, safe));
         HirelingOutput.write(vm, path, d, safe, 10, 11);
         string memory once = vm.readFile(path);
