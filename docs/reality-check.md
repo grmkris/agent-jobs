@@ -921,3 +921,38 @@ Two subsequent successful cron runs at 17:53:00 and 17:55:00 UTC advanced the ch
 `67894108`, each with `lease=true`. This proves recovery and scheduled progress, not permanent freshness.
 The [sanitized replay evidence](evidence/testnet-g1b/2026-10-03-indexer-replay.json) records these reads without
 backup contents or signing authority. UI and crew transactions have not been executed by this recovery.
+
+## G1b round-two acceptance and epoch 5 (3 Oct 2026)
+
+The fresh G1b acceptance run used Monad testnet `10143` and hosted release
+`release1317560`. The public receipt ledger is
+[`evidence/testnet-g1b/2026-10-03-acceptance.json`](evidence/testnet-g1b/2026-10-03-acceptance.json).
+
+Website jobs 100/101 completed the Pixel paid and cancellation/refund paths.
+Ship 102 and Quill 103 settled with net worker payments; Mint 104's prepared
+independent ruling missed its signed cutoff while sandbox network access could not resolve testnet hosts,
+so the permissionless arbitration-timeout refund was recorded explicitly.
+Separate job 105 completed the independent `meta/muse-spark-1.3` creator-win,
+no-slash ruling and refund using the same real weak artifact. The original job
+104 ruling was never replaced or falsely reported as signed.
+
+Three epoch-5 fee events (jobs 100, 102 and 103) totaled 1.2 mUSD and produced
+6,000 FACTORY. Safe fund `0x83070162105f11628b521d57914bf1cafaf5ad92bf86c222f78c377e2aa7c5f7`
+and Safe setRoot
+`0x1879fb86330409cfd01bf7a0c71b1701db3c4f9832ef058d29c53e39572c8c00`
+both emitted `ExecutionSuccess`. Staging publication readback passed; Ship's
+claim was `0x8a076a7f500e05d3fb10b9929a0de6b823a32516e046de7fd0445f19343aeb19`.
+The claim raised Ship's vault stake by exactly 1,350 FACTORY, and a repeat claim
+was refused by `AlreadyClaimed`.
+
+This evidence is testnet-only. It does not prove real Privy authentication,
+human friend sessions, production deployment, or mainnet readiness. The
+released approval copy still needs to distinguish gross reward from net worker
+receipt before a friends' pilot.
+
+Final read-only hosted Chromium smoke passed five pages with zero errors, blocked
+origins, signatures or sends. Earlier C publish/cancel reports retain one/two
+HTTP 502 resource errors respectively; successful sends were reconciled rather
+than repeated. The mining helper initially ran under Node 22 (engine warning);
+its same-journal completion used Node 24. A process interruption after funding
+reconciled the original hash and did not send funding again.

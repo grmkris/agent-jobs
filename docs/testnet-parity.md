@@ -11,11 +11,11 @@ token balance or stake reservation for the current deployment.
 | --- | --- | --- |
 | Deployment, ownership, policy and liquidity | [G1b receipts](reality-check.md#g1b-fresh-hireling-v1-testnet-3-oct-2026), six Safe handoffs, live D16 readback and seed position 77. The three reused-core role differences remain disclosed. | PASS (testnet) |
 | Contract lifecycle and economics | Jobs 82–99 cover payment, silence, cancellation, disputes/rulings, no-show, top-up/refund, fee tiers, legacy paths and refused reward payouts. Stake cooldown/withdrawal completed. [Public receipt ledger](evidence/testnet-g1b/2026-10-03.json). | PASS (coordinator contract flows) |
-| Mining epoch 0 | G1b cutoff was 3 Oct 15:17:32 UTC. Signed prices, computation, 8,750 FACTORY funding, root, publication/readback and the worker's 5,250 FACTORY stake claim completed. | PASS (live G1b) |
+| Mining epochs 0 and 5 | Historical epoch 0 paid 5,250 FACTORY into worker stake. Fresh acceptance epoch 5 counted three actual fees, funded/published 6,000 FACTORY and paid Ship's 1,350 FACTORY claim. | PASS (live G1b) |
 | Hosted archive fix | `c9f924c` was released with digest `984966161b46c0ef07aead70201080595c4341b674efe8b8886dec055f7c6d21`; health, protocol, directory, discovery, MCP and anonymous refusal pass. | PASS (service release) |
 | Historical index catch-up | Approved checkpoint-only replay completed. All 16 G1b publications/settlements, both legacy flow jobs, mining events and archived G1 v1 history were verified. Two successful post-replay cron runs advanced the checkpoint. [Evidence](evidence/testnet-g1b/2026-10-03-indexer-replay.json). | PASS (live recovery) |
-| Website creator flows | A/C plans and dialog-scoped test driver are prepared. The post-archive read-only smoke passes Stake, Post, Collect, Sponsorship and job 99 with zero errors/signatures/transactions. Live UI sends remain held. | PASS (read-only); GAP (paid website flows) |
-| Developers bringing agents | Fresh round-two briefs are prepared; durable runner work is ongoing. Replay and UI readiness must pass before live execution. | GAP (fresh crew round) |
+| Website creator flows | Jobs 100/101 completed stake, publish, selection, top-up, approve, Collect and cancellation/refund. Exact payouts verified. Final read-only smoke passed; earlier transient 502 errors retained in the ledger. | PASS (test wallet); GAP (real Privy login and approval copy) |
+| Developers bringing agents | Real Ship/Codex and Quill/Grok artifacts paid and collected; Mint weak artifact tested through timeout 104 and separate independent ruling 105. Ship matured withdrawal and earned epoch-5 claim completed. | PASS (crew paths); GAP (human developer pilot) |
 | Real Privy login and friends' sessions | [First-use guide](../apps/explore/docs/first-use.md) and K6/K8 checklists exist. An injected test wallet is not evidence of real Privy login or a friend's session. | GAP (human acceptance) |
 | Mainnet | No mainnet action is authorized or implied by the testnet evidence. | HELD for Kris's explicit go |
 
@@ -129,3 +129,40 @@ diagnostic epoch 999999 and does not constitute epoch-0 completion.
 No mainnet transaction is implied by this document. The preceding matrix and
 command example describe the historical G1 stack. G1b's completed epoch and
 remaining acceptance gates are recorded at the top of this document.
+
+## G1b round-two acceptance (3 Oct 2026)
+
+The fresh G1b acceptance run completed on Monad testnet 10143 under hosted
+release `release1317560`. Pixel job 100 passed the website stake/publish/select,
+top-up, approve and Collect path; job 101 passed cancellation and creator
+refund. Ship job 102 and Quill job 103 were paid and settled. Mint job 104's
+prepared independent ruling missed its cutoff while sandbox network access could not resolve testnet hosts; the explicit
+arbitration-timeout path refunded the creator and released both bonds. Separate
+job 105 then completed the independent Muse proposal, deterministic typed-data
+check, signed ruling and creator-win/no-slash settlement using the same real weak
+artifact.
+
+The final sanitized ledger is
+[`2026-10-03-acceptance.json`](evidence/testnet-g1b/2026-10-03-acceptance.json).
+Receipt reads prove 2.8 mUSD worker payouts, 1.2 mUSD treasury fees, 3 mUSD
+refunds, zero owed balances and zero job bond reservations. Ship's one FACTORY
+cooldown matured and withdrew before mining; no worker bond was burned in the
+round-two weak-delivery cases.
+
+Epoch 5 ended at `1791058652`. Three counted `FeeCharged` events produced a
+6,000 FACTORY root (`0x5677c0bb9cd35b767201b6bd6abd47ae3c5cda02f712e5e6dbfef6032f1b8ea8`,
+data hash `0x3d635c013f884d51e77ed51e3c095efe103b88b0b765080df141de0a60eb420f`).
+The Safe fund and setRoot calls emitted `ExecutionSuccess`; the staging object
+was uploaded and read back byte-for-byte; Ship claimed 1,350 FACTORY in
+`0x8a076a7f500e05d3fb10b9929a0de6b823a32516e046de7fd0445f19343aeb19`, increasing
+stake from 19 to 1,369 FACTORY. A repeated claim simulation refused with
+`AlreadyClaimed`.
+
+The final browser Collect phase and fresh read-only smoke have zero errors and
+blocked origins. Earlier C publish/cancel phases recorded transient HTTP 502
+resource errors; their transactions mined once and later reads passed. The
+harness uses an injected EIP-1193 provider at the released Privy boundary. Real Privy
+login and human friend sessions remain unverified. The approval sheet still
+labels the gross reward as the agent's receipt; exact net transfers are verified
+in the ledger and this copy must be corrected before a friends' pilot. Mainnet
+remains untouched.
