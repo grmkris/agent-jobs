@@ -125,6 +125,24 @@ contract SeedPoolRehearsalForkTest is Test {
 
     // ---- the plain seed ----
 
+    /// @dev SEED-TESTNET-001: the mainnet path approves fractional raw FACTORY and seeds successfully at that cap.
+    function test_fork_mainnet_nonDivisibleRepairRatio_approvesExactRawAmounts() public {
+        (bool forked, SeedPoolRecipe.Config memory c) = _setUp("fractional-repair");
+        if (!forked) return vm.skip(true);
+        c.factoryAmount = 1e18;
+        c.quoteAmount = 3e6;
+        c.maxRepairCost = 2e6;
+        SeedPoolRecipe.check(c);
+        SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
+        SeedHelper h = _helper(c, p);
+        assertEq(c.factory.allowance(seeder, address(h)), 1666666666666666666);
+        assertEq(c.quote.allowance(seeder, address(h)), 5e6);
+        (, VmSafe.Log[] memory logs) = _seed(h);
+        _verify(c, p, logs, h);
+        assertEq(c.factory.allowance(seeder, address(h)), 0);
+        assertEq(c.quote.allowance(seeder, address(h)), 0);
+    }
+
     function test_fork_mainnet_seedsTheFullRangePosition() public {
         (bool forked, SeedPoolRecipe.Config memory c) = _setUp("seed");
         if (!forked) return vm.skip(true);
