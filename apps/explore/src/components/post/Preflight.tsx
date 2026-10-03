@@ -52,7 +52,9 @@ export function Preflight({
     query: { ...q, enabled: on && token !== undefined && token !== '' },
   })
 
-  const note = isMainnet ? 'Read live from your wallet.' : 'Read live from your wallet. Testnet MON, FACTORY and reward tokens come from the faucets under Me → Wallet.'
+  const note = isMainnet
+    ? 'Read live from your wallet.'
+    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; FACTORY v2 is transferred by the ecosystem/coordinator, and mUSD/mEUR each have an on-chain faucet().'
   if (!on) {
     return (
       <Section title="Ready to publish" note={token === undefined ? 'Sign in, and this checks your wallet has the gas and the bond.' : 'Sign in, and this checks your wallet has the gas, the reward and the bond.'}>

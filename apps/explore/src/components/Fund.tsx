@@ -52,8 +52,8 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
       </ul>
       {!isMainnet && (
         <p className="text-xs text-label-2">
-          Testnet: MON from <a className="underline" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">faucet.monad.xyz</a>; FACTORY, mUSD and mEUR from
-          each token's <code>faucet()</code>.
+          Testnet: MON for gas from <a className="underline" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">faucet.monad.xyz</a>;
+          FACTORY v2 is transferred to your copied wallet address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain <code>faucet()</code>.
         </p>
       )}
       <p className="mt-2 text-xs text-label-3">Explorer: <Address value={address} /></p>
@@ -89,7 +89,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
             <a className="text-tint" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
               faucet.monad.xyz
             </a>
-            ; FACTORY, mUSD and mEUR from each token&apos;s faucet. Test tokens have no value.
+            ; FACTORY v2 is transferred to this address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain faucet(). Test tokens have no value.
           </>
         )
       }

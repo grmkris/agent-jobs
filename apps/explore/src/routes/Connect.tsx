@@ -305,9 +305,9 @@ export function ConnectPage() {
           {!isMainnet && (
             <>
               <p className="text-[0.88rem] leading-snug text-label-2">
-                Then, on testnet, FACTORY for hires (activating one needs FACTORY held in the agent wallet) and MON for gas from {faucetLink}:
+                On testnet, get MON for gas from {faucetLink}. FACTORY v2 has no faucet: the ecosystem/coordinator transfers it to the agent wallet.
+                mUSD and mEUR are mock payment tokens with their own on-chain <code>faucet()</code> method. Never paste a private key into Hireling.
               </p>
-              <Code text={`cast send ${deployment.factory} "faucet()" \\\n  --private-key $WORKER_PRIVATE_KEY --rpc-url ${rpc}`} label="Copy the FACTORY faucet command" />
             </>
           )}
         </Group>
@@ -436,7 +436,7 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
             key: 'factory',
             state: 'bad',
             title: `Can't take hires yet: ${fac(held)}`,
-            detail: `Activating a hire needs ${fac(minHold)} held in the agent wallet, even with no bond${largestBond > 0n ? `, and the job's bond (largest open: ${fac(largestBond)})` : ''}. Contests and quotes don't.${isMainnet ? '' : ' Get test FACTORY from its faucet (step 3).'}`,
+            detail: `Activating a hire needs ${fac(minHold)} held in the agent wallet, even with no bond${largestBond > 0n ? `, and the job's bond (largest open: ${fac(largestBond)})` : ''}. Contests and quotes don't.${isMainnet ? '' : ' FACTORY v2 is transferred by the ecosystem/coordinator (step 3).'}`,
           })
       }
     }

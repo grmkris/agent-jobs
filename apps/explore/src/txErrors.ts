@@ -12,7 +12,7 @@ const ABIS = [
 ] as unknown as Abi[]
 
 const PLAIN: Record<string, string> = {
-  InsufficientFactoryHeld: 'Your wallet must hold more FACTORY to do this. Get some from the FACTORY faucet (Me → Wallet).',
+  InsufficientFactoryHeld: 'Your wallet must hold more FACTORY v2 to do this. Ask the ecosystem/coordinator to transfer it to your wallet (Me → Wallet).',
   ReviewWindowClosed: 'The review window has closed: the work now counts as accepted, and anyone can release the payment.',
   LateSubmission: 'The work arrived after the deadline, so it cannot be rejected; accept it, or let it close as missed.',
   WindowClosed: 'That window has closed.',
