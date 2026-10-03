@@ -29,9 +29,9 @@ describe('the Post form', () => {
     expect(initialForm({ mode: 'nonsense' }, tokens, true)).toMatchObject({ mode: 'hire', creatorBond: '0', workerBond: '0', callTarget: '' })
   })
 
-  it('sends create_task the same arguments as before for a default hire', () => {
+  it('keeps legacy hire arguments when the caller selects the legacy protocol', () => {
     const f = { ...initialForm({}, tokens, false), title: 'Fix it', brief: 'Fix the bug', criteria: ' one \n\n two ' }
-    expect(createTaskArgs(f, NOW)).toEqual({
+    expect(createTaskArgs(f, NOW, false)).toEqual({
       title: 'Fix it',
       brief: 'Fix the bug',
       acceptanceCriteria: ['one', 'two'],
