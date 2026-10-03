@@ -601,23 +601,23 @@ tx `0xeb6f6fb2…2289`.
 | HirelingHolding | `0x9bb0b3a6c130d81f6820499bd168c4d910cd502f` | `0x919dc7cb…6154` |
 | HirelingEvaluator | `0x8edc23b454696d8f531ce8f4ea1d1eff47901d0d` | `0x7f7da620…0cb5` |
 | EpochDistributor | `0xa6dfbdcb510b4c9a45b979f4d37d80fda93b0dcb` | `0x4a5e20ab…da56` |
-| MiningReserve | `0x1a8b9fbf1fa9d6ddce39836d12fca6901547a9ce` | `0x3ee67b22…7217` |
+| MiningReserve | `0x1a8b9fbf1fa9d6ddce39836d12fca6901547a9ce` | `0x3ee67b22…5217` |
 
 Setup calls:
 - `setEvaluator` `0xd6ab0846…61d5`;
 - `setVerifier` `0xc13e1d1c…b2c9`;
-- `bootstrapHolding` `0xa9245707…d7b8`;
+- `bootstrapHolding` `0xa9245707…b8d7`;
 - `Factory.transfer` `0x875a8b28…d629`.
 
 Ownership:
-- The six `transferOwnership` calls: `0xdc861003…5cda`, `0x451bae30…6666`, `0x1aa4092d…59d2`, `0xc61be279…e5a`,
+- The six `transferOwnership` calls: `0xdc861003…5cda`, `0x451bae30…6666`, `0x1aa4092d…a9d2`, `0xc61be279…e5a`,
   `0xe20953d5…0132`, `0xd848575b…62bb`.
-- The Safe accepted all six through `execTransaction`: `0x5578e203…523c`, `0x5274d474…c7551`, `0xab8a461b…cdc3cf`,
+- The Safe accepted all six through `execTransaction`: `0x5578e203…661c`, `0x5274d474…7551`, `0xab8a461b…c3cf`,
   `0x7b84f5e2…df63`, `0x987a771b…19eb`, `0x78a9615f…de71`.
 - The pauser step: the deployer grants the Safe ADMIN_ROLE on the core, `0x21719ede…523c`.
 
 Timelocks started:
-- **Fee schedule proposal**, `0x8318c345…9c9341`: 30/10/3/1 % at 0/10k/100k/1M FACTORY, treasury the Safe. An early
+- **Fee schedule proposal**, `0x8318c345…9341`: 30/10/3/1 % at 0/10k/100k/1M FACTORY, treasury the Safe. An early
   `execute()` refuses with ScheduleTimelocked. Anyone may execute it from **2026-10-06 07:49 UTC**, for 7 days.
 - **Vault Holding probe**, `0x69afab1a…e334`: `proposeHolding(0x…dEaD)`. An early `acceptHolding()` refuses with
   HoldingTimelocked. It becomes acceptable from day 8; the Safe's `cancelHoldingProposal()` withdraws it.
