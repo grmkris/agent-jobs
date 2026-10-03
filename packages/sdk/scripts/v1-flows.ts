@@ -36,6 +36,7 @@ const arbiters = v1FlowArbitrators(config, process.env)
 const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
 const legacyArbitrator = arbiters.legacy === undefined ? undefined : sdk.wallet(network, arbiters.legacy, rpc)
 const explorer = 'https://testnet.monadscan.com/tx/'
+const yieldBeforeChainTime = process.env.V1_FLOW_YIELD === '1'
 const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
 if (!/^[A-Za-z0-9_-]{1,80}$/.test(profile)) throw new Error('V1_FLOW_PROFILE must be a short alphanumeric label')
 const stateDir = new URL(`./.v1-flows/${profile}/`, import.meta.url)
@@ -71,6 +72,11 @@ async function waitUntil(label: string, target: number) {
   for (;;) {
     const current = Number((await ctx.publicClient.getBlock()).timestamp)
     if (current >= target) return
+    if (yieldBeforeChainTime) {
+      state.values[`wait/${label}`] = target
+      save(state)
+      throw new sdk.FlowWaiting(label, target)
+    }
     console.log(`[${label}] waiting ${target - current}s of chain time`)
     await new Promise(resolve => setTimeout(resolve, Math.min(30, target - current) * 1000))
   }
@@ -137,25 +143,31 @@ if (hosted) {
 }
 const agentId = await setupAgent()
 await setupStake()
+const waiting: string[] = []
 for (const name of requested) {
   const deps = { ctx, journal, creator, worker, relay, arbitrator, ...(legacyArbitrator === undefined ? {} : { legacyArbitrator }), agentId, token: rewardToken,
     reward, bond, waitUntil, log: (text: string) => console.log(`[${name}] ${text}`) }
-  if ((sdk.V1_CORE_FLOWS as readonly string[]).includes(name)) await sdk.runV1CoreFlow(deps, name as sdk.V1CoreFlow)
-  else if ((sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name)) await sdk.runV1HostedFlow({ ...deps, call }, name as sdk.V1HostedFlow)
-  else if ((sdk.V1_ADMIN_FLOWS as readonly string[]).includes(name)) {
-    const safeOwner = sdk.wallet(network, privateKeyToAccount(env('SAFE_BACKUP_TESTNET_PRIVATE_KEY') as Hex), rpc)
-    await sdk.runV1AdminFlow({ ...deps, safeOwner }, name as sdk.V1AdminFlow)
-  } else if (name.startsWith('owed-')) {
-    const kind = name === 'owed-gas' ? 'gasBurner' as const : 'blocklist' as const
-    const record = config as unknown as { deployment: { oddTokens?: { blocklist: Hex; gasBurner: Hex } } }
-    const token = record.deployment.oddTokens?.[kind]
-    if (token === undefined) throw new Error('G1 must promote the real testnet OddTokens addresses')
-    const owner = sdk.wallet(network, privateKeyToAccount(env('TESTNET_ODD_OWNER_PRIVATE_KEY') as Hex), rpc)
-    const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-    await sdk.runV1CoreFlow({ ...deps, token, reward: parseUnits(env('V1_FLOW_REWARD', true) ?? '1', decimals), refusingToken: { kind, owner } }, 'hire', name)
+  try {
+    if ((sdk.V1_CORE_FLOWS as readonly string[]).includes(name)) await sdk.runV1CoreFlow(deps, name as sdk.V1CoreFlow)
+    else if ((sdk.V1_HOSTED_FLOWS as readonly string[]).includes(name)) await sdk.runV1HostedFlow({ ...deps, call }, name as sdk.V1HostedFlow)
+    else if ((sdk.V1_ADMIN_FLOWS as readonly string[]).includes(name)) {
+      const safeOwner = sdk.wallet(network, privateKeyToAccount(env('SAFE_BACKUP_TESTNET_PRIVATE_KEY') as Hex), rpc)
+      await sdk.runV1AdminFlow({ ...deps, safeOwner }, name as sdk.V1AdminFlow)
+    } else if (name.startsWith('owed-')) {
+      const kind = name === 'owed-gas' ? 'gasBurner' as const : 'blocklist' as const
+      const record = config as unknown as { deployment: { oddTokens?: { blocklist: Hex; gasBurner: Hex } } }
+      const token = record.deployment.oddTokens?.[kind]
+      if (token === undefined) throw new Error('G1 must promote the real testnet OddTokens addresses')
+      const owner = sdk.wallet(network, privateKeyToAccount(env('TESTNET_ODD_OWNER_PRIVATE_KEY') as Hex), rpc)
+      const decimals = await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+      await sdk.runV1CoreFlow({ ...deps, token, reward: parseUnits(env('V1_FLOW_REWARD', true) ?? '1', decimals), refusingToken: { kind, owner } }, 'hire', name)
+    } else throw new Error(`unknown v1 flow ${name}`)
+  } catch (error) {
+    if (error instanceof sdk.FlowWaiting) { waiting.push(name); continue }
+    throw error
   }
-  else throw new Error(`unknown v1 flow ${name}`)
 }
+if (waiting.length > 0) console.log(`[pending] resume after chain time: ${waiting.join(',')}`)
 
 }
 try { await main() } catch (error) {

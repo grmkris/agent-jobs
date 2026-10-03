@@ -5,6 +5,10 @@ import { FlowJournal } from './flow-journal.ts'
 
 export const V1_CORE_FLOWS = ['hire', 'silence', 'ruling-worker', 'ruling-worker-slash', 'ruling-creator', 'ruling-creator-slash', 'violation', 'missed', 'cancel', 'arbitration-timeout', 'topup-paid', 'topup-refund', 'stake-cooldown', 'fees', 'legacy-contest', 'legacy-dispute'] as const
 export type V1CoreFlow = typeof V1_CORE_FLOWS[number]
+/** A scheduled chain wait leaves the same case resumable without claiming it completed. */
+export class FlowWaiting extends Error {
+  constructor(readonly label: string, readonly timestamp: number) { super(`${label} is waiting for chain time ${timestamp}`) }
+}
 export interface V1FlowDeps {
   ctx: sdk.Ctx; journal: FlowJournal
   creator: sdk.Wallet; worker: sdk.Wallet; relay: sdk.Wallet; arbitrator: sdk.Wallet
@@ -40,8 +44,17 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     const needed = await j.once(`${scope}/${label}/needed`, async () => await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet.account.address, spender] }) < amount)
     if (needed) await call(label, wallet, token, sdk.factoryTokenAbi, 'approve', [spender, amount])
   }
-  const before = await j.once(`${scope}/before`, async () => ({ creatorReward: await sdk.balanceOf(ctx, d.token, creator.account.address), workerReward: await sdk.balanceOf(ctx, d.token, worker.account.address), creatorStake: (await sdk.getStake(ctx, creator.account.address)).staked, workerStake: (await sdk.getStake(ctx, worker.account.address)).staked }))
+  const balances = async () => ({ creatorReward: await sdk.balanceOf(ctx, d.token, creator.account.address), workerReward: await sdk.balanceOf(ctx, d.token, worker.account.address), creatorStake: (await sdk.getStake(ctx, creator.account.address)).staked, workerStake: (await sdk.getStake(ctx, worker.account.address)).staked })
+  const before = await j.once(`${scope}/before`, balances)
+  let settlementBefore = before
   let workerRewardBefore = before.workerReward
+  const waitForSettlement = async (target: number) => {
+    await d.waitUntil(flow, target)
+    // Other cases may complete while this clock runs. Pin the terminal step's baseline before signing it;
+    // on a crash after its receipt, the same baseline is retained for exact burn/payment assertions.
+    settlementBefore = await j.once(`${scope}/settlement-before`, balances)
+    workerRewardBefore = settlementBefore.workerReward
+  }
   const publish = async (pair = ctx) => {
     const p = await j.once(`${scope}/offer`, async () => {
       const t = await now(), deadline = t + (flow === 'missed' ? 120 : 6 * 3600)
@@ -136,7 +149,7 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     else {
       net = await activate(x)
       if (flow === 'topup-paid' || flow === 'topup-refund') { await approve('approve-topup', creator, x.p.token, ctx.stack.holding, d.reward / 2n); await call('topup', creator, ctx.stack.holding, sdk.hirelingHoldingAbi, 'topUp', [jobId, d.reward / 2n]) }
-      if (flow === 'missed') { await d.waitUntil(flow, x.p.deliveryDeadline + 1); await call('missed', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'rejectAfterDeliveryDeadline', [jobId], sdk.V1_GAS.evaluator); slashWorker = true }
+      if (flow === 'missed') { await waitForSettlement(x.p.deliveryDeadline + 1); await call('missed', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'rejectAfterDeliveryDeadline', [jobId], sdk.V1_GAS.evaluator); slashWorker = true }
       else {
         await submit(jobId)
         if (flow.startsWith('ruling-') || ['violation','arbitration-timeout','topup-refund'].includes(flow)) {
@@ -144,13 +157,13 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
           await call('reject', creator, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'reject', [jobId, violation, sdk.hashText(`rejected:${flow}`)])
           if (flow === 'violation' || flow === 'topup-refund') {
             const at = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'rejectedAt', args: [jobId] }))
-            await d.waitUntil(flow, at + x.p.disputeWindow + 1); await call('final-rejection', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'rejectAfterWindow', [jobId], sdk.V1_GAS.evaluator)
+            await waitForSettlement(at + x.p.disputeWindow + 1); await call('final-rejection', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'rejectAfterWindow', [jobId], sdk.V1_GAS.evaluator)
             slashWorker = violation !== 0
           } else {
             await call('dispute', worker, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'dispute', [jobId])
             if (flow === 'arbitration-timeout') {
               const at = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'disputedAt', args: [jobId] }))
-              await d.waitUntil(flow, at + x.p.arbitrationWindow + 1); await call('timeout', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'refundAfterArbitrationTimeout', [jobId], sdk.V1_GAS.evaluator)
+              await waitForSettlement(at + x.p.arbitrationWindow + 1); await call('timeout', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'refundAfterArbitrationTimeout', [jobId], sdk.V1_GAS.evaluator)
             } else {
               paid = flow.startsWith('ruling-worker'); slashWorker = !paid && flow.endsWith('-slash'); slashCreator = paid && flow.endsWith('-slash')
               const r = await j.once(`${scope}/ruling`, async () => { const ruling = { jobId, forWorker: paid, slashLoser: slashWorker || slashCreator, reasonHash: sdk.hashText(`ruling:${flow}`), deadline: BigInt((await now()) + 3600), nonce: sdk.randomNonce() }; return { ruling, signature: await sdk.signRuling(ctx, d.arbitrator, ruling) } })
@@ -159,7 +172,7 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
           }
         } else if (flow === 'silence') {
           const submittedAt = Number((await sdk.getJob(ctx, jobId)).submittedAt)
-          await d.waitUntil(flow, submittedAt + x.p.reviewWindow + 1); await call('silence', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'completeAfterSilence', [jobId], sdk.V1_GAS.evaluator); paid = true
+          await waitForSettlement(submittedAt + x.p.reviewWindow + 1); await call('silence', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'completeAfterSilence', [jobId], sdk.V1_GAS.evaluator); paid = true
         } else {
           if (d.refusingToken !== undefined) {
             const { parseAbi, maxUint256 } = await import('viem')
@@ -182,8 +195,8 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     check('creator bond settled', after.creatorBondSettled, true)
     if (flow !== 'cancel') check('worker bond settled', after.workerBondSettled, true)
     if (flow !== 'fees') {
-      check('creator stake burn', (await sdk.getStake(ctx, creator.account.address)).staked, before.creatorStake - (slashCreator ? d.bond : 0n))
-      check('worker stake burn', (await sdk.getStake(ctx, worker.account.address)).staked, before.workerStake - (slashWorker ? d.bond : 0n))
+      check('creator stake burn', (await sdk.getStake(ctx, creator.account.address)).staked, settlementBefore.creatorStake - (slashCreator ? d.bond : 0n))
+      check('worker stake burn', (await sdk.getStake(ctx, worker.account.address)).staked, settlementBefore.workerStake - (slashWorker ? d.bond : 0n))
     }
     const bonusFee = (after.bonus * BigInt(after.feeBps) + 9999n) / 10000n
     if (d.refusingToken !== undefined) {

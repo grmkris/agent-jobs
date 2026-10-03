@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, startHirelingFork } from '../test/hireling-fixture.ts'
 import { registerAgent, stake } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
-import { V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
+import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
 import { coreAbi, factoryTokenAbi, hirelingHoldingAbi } from './abi/index.ts'
 
 const fork = forkEnabled ? describe : describe.skip
@@ -30,6 +30,39 @@ fork('live matrix runner against real v1 bytecode', () => {
     expect(await f.ctx.publicClient.getTransactionCount({ address: f.creator.account.address })).toBe(creatorNonce)
     // The later legacy flow exercises the same check and real publish with exactly one old token.
     await f.send(f.ctx.deployment.legacyStacks['test-legacy']!.factory, factoryTokenAbi, 'transfer', [f.creator.account.address, parseEther('1')])
+  }, 120_000)
+  it('starts both clocks in one journal, interleaves payment/slash, and resumes after a terminal receipt crash', async () => {
+    const snapshot = await f.rpc('evm_snapshot')
+    try {
+      let durable: FlowState = { binding: 'scheduled', values: {}, sends: {} }, interrupt = false
+      const boot = () => new FlowJournal(f.ctx, parseFlowJson(flowJson(durable)), state => {
+        durable = parseFlowJson(flowJson(state))
+        if (interrupt && state.values['receipt/arbitration-timeout/timeout']) throw new Error('crash after timeout receipt')
+      }, () => undefined)
+      const deps = { ...f, relay: f.contributor, agentId, token: f.ctx.stack.factory, reward: 101n, bond: parseEther('10'),
+        log: () => undefined, waitUntil: async (label: string, timestamp: number) => {
+          if (Number((await f.ctx.publicClient.getBlock()).timestamp) < timestamp) throw new FlowWaiting(label, timestamp)
+        } }
+      await expect(runV1CoreFlow({ ...deps, journal: boot() }, 'stake-cooldown')).rejects.toBeInstanceOf(FlowWaiting)
+      await expect(runV1CoreFlow({ ...deps, journal: boot() }, 'arbitration-timeout')).rejects.toBeInstanceOf(FlowWaiting)
+      expect(durable.values['stake-cooldown/done']).toBeUndefined()
+      expect(durable.values['arbitration-timeout/done']).toBeUndefined()
+      await runV1CoreFlow({ ...deps, journal: boot() }, 'hire')
+      await runV1CoreFlow({ ...deps, journal: boot() }, 'ruling-creator-slash')
+      const timeoutId = durable.values['arbitration-timeout/jobId'] as bigint
+      const disputedAt = Number(await f.ctx.publicClient.readContract({ address: f.ctx.stack.evaluator, abi: (await import('./abi/index.ts')).hirelingEvaluatorAbi, functionName: 'disputedAt', args: [timeoutId] }))
+      await f.rpc('evm_setNextBlockTimestamp', [disputedAt + 43201]); await f.rpc('evm_mine')
+      interrupt = true
+      await expect(runV1CoreFlow({ ...deps, journal: boot() }, 'arbitration-timeout')).rejects.toThrow('crash after timeout receipt')
+      const timeoutHash = durable.sends['arbitration-timeout/timeout']!.hash
+      interrupt = false
+      await runV1CoreFlow({ ...deps, journal: boot() }, 'arbitration-timeout')
+      expect(durable.values['arbitration-timeout/done']).toBe(true)
+      expect(durable.sends['arbitration-timeout/timeout']!.hash).toBe(timeoutHash)
+      await f.rpc('evm_setNextBlockTimestamp', [durable.values['stake-cooldown/unlock']]); await f.rpc('evm_mine')
+      await runV1CoreFlow({ ...deps, journal: boot() }, 'stake-cooldown')
+      expect(durable.values['stake-cooldown/done']).toBe(true)
+    } finally { await f.rpc('evm_revert', [snapshot]) }
   }, 120_000)
   for (const flow of V1_CORE_FLOWS) {
     it(`runs ${flow} through the same persisted send path used live`, async () => {

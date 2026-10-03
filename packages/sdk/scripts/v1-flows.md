@@ -73,6 +73,8 @@ Long cases print their chain-time wait and resume from the saved journal after i
 12-hour arbitration row in time for G3; start the seven-day cooldown immediately after G1. Use at most two
 isolated wallet sets when running long cases in parallel. Mining waits for B8/B8b and a published/funded root;
 Telegram waits for the real bot and wallet links. Missing dependencies error rather than count as evidence.
+Set `V1_FLOW_YIELD=1` when starting several long cases together: each case journals its pending chain timestamp,
+releases the runner after its prerequisite sends, and resumes on the same journal once that timestamp is reached.
 
 The runner prints every signed hash before broadcast and after receipt. Local fork tests run the same journal,
 core lifecycle and hosted registry code with real bytecode. Those tests establish local integration only;
