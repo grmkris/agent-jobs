@@ -1,4 +1,5 @@
 import type { Account, Address, Hex, PublicClient, SignedAuthorization } from 'viem'
+import type { Ctx } from './actions.ts'
 
 const GWEI = 1_000_000_000n
 const min = (a: bigint, b: bigint) => a < b ? a : b
@@ -20,13 +21,33 @@ export async function transactionFees(client: Pick<PublicClient, 'getGasPrice' |
 }
 
 type GasRequest = { account: Account; to: Address; data: Hex; value?: bigint; authorizationList?: SignedAuthorization<number>[] }
-/** Monad charges the full limit. Explicit protocol limits are validated fallbacks, not minimum estimates. */
-export async function transactionGas(client: Pick<PublicClient, 'estimateGas' | 'call'>, request: GasRequest, fallback?: bigint) {
+export interface GasSizing {
+  /** Used when estimation or its exact-limit simulation is unavailable. */
+  fallback?: bigint
+  /** A payout floor: successful estimates are raised to this limit before simulation. */
+  floor?: bigint
+}
+/** A shared journal/relay can call archived legacy pairs from its current v1 context. */
+export function stackGasSizing(ctx: Ctx, target: Address, fallback?: bigint): GasSizing {
+  const address = target.toLowerCase()
+  const stacks = [ctx.stack, ...Object.values(ctx.deployment.stacks ?? {}), ...Object.values(ctx.deployment.legacyStacks ?? {})]
+  const pair = stacks.find(s => s !== undefined && (s.holding.toLowerCase() === address || s.evaluator.toLowerCase() === address))
+  if (fallback === undefined) return {}
+  return pair?.kind === 'legacy' ? { fallback, floor: fallback } : { fallback }
+}
+
+/** Monad charges the full limit. A legacy payout floor is a minimum; v1 protocol limits remain fallbacks. */
+export async function transactionGas(client: Pick<PublicClient, 'estimateGas' | 'call'>, request: GasRequest, sizing?: bigint | GasSizing) {
+  const options: GasSizing = typeof sizing === 'bigint' ? { fallback: sizing } : (sizing ?? {})
+  const floor = options.floor
+  if (floor !== undefined && floor <= 0n) throw new Error('Gas floor is invalid')
+  const fallback = floor === undefined ? options.fallback : max(floor, options.fallback ?? 0n)
   let gas: bigint
   try {
     const estimated = await client.estimateGas(request)
     if (estimated <= 0n) throw new Error('Gas estimate is invalid')
     gas = (estimated * 125n + 99n) / 100n + 10_000n
+    if (floor !== undefined && gas < floor) gas = floor
   } catch (error) {
     if (fallback === undefined || fallback <= 0n) throw error
     await client.call({ ...request, gas: fallback })

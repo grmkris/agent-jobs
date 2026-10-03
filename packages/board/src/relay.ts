@@ -37,8 +37,10 @@ export class RelaySender {
       if (row === undefined) {
         await this.checkPendingLocked()
         const nonce = await this.ctx.publicClient.getTransactionCount({ address: this.account.address, blockTag: 'pending' })
+        const explicitGas = request.gas === undefined ? 100_000n : BigInt(request.gas)
+        const sizing = sdk.stackGasSizing(this.ctx, request.to, explicitGas)
         const gas = await sdk.transactionGas(this.ctx.publicClient, { account: this.account, to: request.to, data: request.data, value: 0n,
-          ...(request.authorizationList === undefined ? {} : { authorizationList: request.authorizationList }) }, request.gas === undefined ? 100_000n : BigInt(request.gas))
+          ...(request.authorizationList === undefined ? {} : { authorizationList: request.authorizationList }) }, sizing)
         const { maxFeePerGas, maxPriorityFeePerGas } = await sdk.transactionFees(this.ctx.publicClient)
         const tx = { chainId: this.ctx.deployment.chainId, to: request.to, data: request.data, value: 0n, nonce, gas, maxFeePerGas, maxPriorityFeePerGas }
         const raw = request.authorizationList === undefined

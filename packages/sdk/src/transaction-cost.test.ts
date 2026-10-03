@@ -40,6 +40,11 @@ it('sizes a successful estimate by 1.25 plus 10k, ignoring a larger fallback', a
   expect(await transactionGas(client as unknown as PublicClient, request, 1_200_000n)).toBe(135_002n)
   expect(client.call).toHaveBeenCalledExactlyOnceWith({ ...request, gas: 135_002n })
 })
+it('raises a legacy payout estimate to its explicit floor before simulation', async () => {
+  const client = gas()
+  expect(await transactionGas(client as unknown as PublicClient, request, { fallback: 1_200_000n, floor: 1_200_000n })).toBe(1_200_000n)
+  expect(client.call).toHaveBeenCalledExactlyOnceWith({ ...request, gas: 1_200_000n })
+})
 it.each(['unavailable', 'underestimated'])('uses a separately simulated protocol fallback when estimation is %s', async kind => {
   const client = gas()
   if (kind === 'unavailable') client.estimateGas.mockRejectedValue(new Error('unsupported estimate'))
@@ -51,4 +56,12 @@ it('a real revert fails both estimates and cannot authorize a send through the f
   const client = gas(); client.estimateGas.mockRejectedValue(new Error('wrong caller')); client.call.mockRejectedValue(new Error('wrong caller'))
   await expect(transactionGas(client as unknown as PublicClient, request, 1_200_000n)).rejects.toThrow('wrong caller')
   await expect(transactionGas(client as unknown as PublicClient, request)).rejects.toThrow('wrong caller')
+})
+
+it('keeps the larger estimate when an explicit payout floor is smaller, and honors the floor when estimation fails', async () => {
+  const client = gas()
+  expect(await transactionGas(client as unknown as PublicClient, request, { floor: 100_000n })).toBe(135_002n)
+  client.estimateGas.mockRejectedValue(new Error('unsupported estimate'))
+  expect(await transactionGas(client as unknown as PublicClient, request, { floor: 1_200_000n, fallback: 100_000n })).toBe(1_200_000n)
+  expect(client.call).toHaveBeenLastCalledWith({ ...request, gas: 1_200_000n })
 })
