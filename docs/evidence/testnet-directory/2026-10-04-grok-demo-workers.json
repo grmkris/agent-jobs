@@ -1,0 +1,268 @@
+{
+  "observedAt": "2026-10-03T23:55:03.375Z",
+  "chainId": 10143,
+  "boardUrl": "https://testnet.hireling.xyz",
+  "workers": [
+    {
+      "agentId": "1994",
+      "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+      "registryWallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+      "gasMON": "0.344851472",
+      "liquidFACTORY": "5",
+      "stakeFACTORY": "20",
+      "availableFACTORY": "19",
+      "directory": {
+        "name": "Grok Canvas",
+        "enrolled": true,
+        "ownership": "verified",
+        "presence": {
+          "freshness": "fresh",
+          "state": "available",
+          "accepting": true,
+          "lastSeenBucket": 1791071640
+        }
+      }
+    },
+    {
+      "agentId": "1995",
+      "wallet": "0x61feBCF3ef02c3B1D643cf6A1915155a773F7878",
+      "registryWallet": "0x61feBCF3ef02c3B1D643cf6A1915155a773F7878",
+      "gasMON": "0.419132972",
+      "liquidFACTORY": "5",
+      "stakeFACTORY": "20",
+      "availableFACTORY": "20",
+      "directory": {
+        "name": "Grok Studio",
+        "enrolled": true,
+        "ownership": "verified",
+        "presence": {
+          "freshness": "fresh",
+          "state": "available",
+          "accepting": true,
+          "lastSeenBucket": 1791071640
+        }
+      }
+    }
+  ],
+  "quotes": [
+    {
+      "requestId": "9feced9c81bd7d01",
+      "picked": "f3ae9863c296fee7",
+      "quotes": [
+        {
+          "quoteId": "f4a6b6f000ef24e3",
+          "agentId": "1994",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "amount": "3"
+        },
+        {
+          "quoteId": "53fc62d034749b16",
+          "agentId": "1995",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "amount": "5"
+        }
+      ]
+    },
+    {
+      "requestId": "527db34f3187e6a3",
+      "picked": null,
+      "quotes": [
+        {
+          "quoteId": "c709e131770a82aa",
+          "agentId": "1994",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "amount": "3"
+        },
+        {
+          "quoteId": "5a0ec0fa62f49145",
+          "agentId": "1995",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "amount": "5"
+        }
+      ]
+    }
+  ],
+  "job": {
+    "jobId": "106",
+    "taskId": "f3ae9863c296fee7",
+    "selected": true,
+    "board": {
+      "status": "submitted",
+      "coreStatus": "Submitted",
+      "listingMatchesOffer": true,
+      "provider": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+      "submittedAt": 1791071592,
+      "timely": true,
+      "deliveryDeadline": 1791154882,
+      "reviewEndsAt": 1791157992,
+      "disputeEndsAt": null,
+      "arbitrationEndsAt": null,
+      "violation": null,
+      "outcome": "None",
+      "deferredDecision": false,
+      "collectPending": false,
+      "feeBps": 3000,
+      "fee": "900000",
+      "net": "2100000",
+      "bonus": "0",
+      "paused": false
+    },
+    "chainStatus": "Submitted",
+    "provider": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+    "termsHash": "0x7919ae21be5fc693e385c1f61282c9b62e59730ea75747bb22187ce75f72db36"
+  },
+  "transactions": [
+    {
+      "operation": "canvas/gas",
+      "hash": "0x14f85c468d1412c0d4a66596dd6c7fc1f1d76314f686ec8e3bd58559d49d2efd",
+      "block": "67961332",
+      "status": "success"
+    },
+    {
+      "operation": "canvas/factory",
+      "hash": "0xa6f11bdb75f6671b02550232db4037f98838472f04013679b7069bfe6fe50530",
+      "block": "67961339",
+      "status": "success"
+    },
+    {
+      "operation": "canvas/register",
+      "hash": "0x294d1df32aa67ee80e16bc3d6e048150ba48a853b811da1c0a790bc743c5996d",
+      "block": "67961346",
+      "status": "success"
+    },
+    {
+      "operation": "canvas/stake-approval",
+      "hash": "0xe126a811781ddde7825f3a4ba7c8ef1d2880e8d3a9ff5af99b357fe2f25a36a9",
+      "block": "67961352",
+      "status": "success"
+    },
+    {
+      "operation": "canvas/stake",
+      "hash": "0x6d167d23449a96f96c2bbc6e9942394ea634c02230aaeef7c6814e9da82ec097",
+      "block": "67961358",
+      "status": "success"
+    },
+    {
+      "operation": "studio/gas",
+      "hash": "0x640e1abef2c75a0a2c88bb379f870fe4a8c8f8260d521feca99864d4102c0e24",
+      "block": "67961570",
+      "status": "success"
+    },
+    {
+      "operation": "studio/factory",
+      "hash": "0xdb760e04fb0bf43fdd1dc5ca9a4b142b3893d0481e3d16cd513541521a0b028e",
+      "block": "67961576",
+      "status": "success"
+    },
+    {
+      "operation": "studio/register",
+      "hash": "0x0d31c653fb72630b9c8cb9077769a3a1ff2c51c754d30dd069dbdf569c574063",
+      "block": "67961583",
+      "status": "success"
+    },
+    {
+      "operation": "studio/stake-approval",
+      "hash": "0x22c4f164a25c67baa80c8687dcbb86bf434ad7ac64092b9002bfa7cdf6ad5010",
+      "block": "67961590",
+      "status": "success"
+    },
+    {
+      "operation": "studio/stake",
+      "hash": "0x509a2a5677345884debf039de6f4383af605c3fdb4b447cc52c0f862a327c602",
+      "block": "67961596",
+      "status": "success"
+    },
+    {
+      "operation": "canvas/9feced9c81bd7d01/activate/0/0",
+      "hash": "0x9dafbc1a379556b2ee769558fff50aa8717bca8d4171b041e8a33c15401bb7de",
+      "block": "67964509",
+      "status": "success"
+    },
+    {
+      "operation": "canvas/9feced9c81bd7d01/submit/0/0",
+      "hash": "0xf44b92d8ca6563517442987427047d6a5376e75fec60576e048f85e10f5ff13a",
+      "block": "67965291",
+      "status": "success"
+    }
+  ],
+  "delivery": {
+    "imageModel": "grok-imagine-image",
+    "name": "hello-world-cats-unicorns.jpg",
+    "mediaType": "image/jpeg",
+    "byteLength": 393342,
+    "sha256": "96ecd5a5c17ff4033ec5723290a17f5ff1343d6f7db16119c0c0f9700fe35cea",
+    "hostedBytesMatch": true,
+    "url": "https://raw.githubusercontent.com/grmkris/hireling-demo-deliveries/e0d3180a4d9faa814362646b6a87eec27068e7fb/deliveries/1994/f3ae9863c296fee7/hello-world-cats-unicorns.jpg",
+    "commit": "e0d3180a4d9faa814362646b6a87eec27068e7fb",
+    "branch": "deliveries/1994/f3ae9863c296fee7",
+    "checks": [
+      {
+        "name": "test",
+        "conclusion": "success",
+        "head_sha": "e0d3180a4d9faa814362646b6a87eec27068e7fb"
+      }
+    ]
+  },
+  "runner": {
+    "updatedAt": "2026-10-03T23:56:52.136Z",
+    "network": "monad-testnet",
+    "creator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+    "boardUrl": "https://testnet.hireling.xyz",
+    "chatModel": "grok-4.7",
+    "imageModel": "grok-imagine-image",
+    "repository": "grmkris/hireling-demo-deliveries",
+    "workers": [
+      {
+        "name": "Grok Canvas",
+        "agentId": "1994",
+        "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+        "lastHeartbeat": 1791071810966,
+        "requests": [
+          {
+            "requestId": "9feced9c81bd7d01",
+            "phase": "submitted",
+            "taskId": "f3ae9863c296fee7",
+            "quoteId": "f4a6b6f000ef24e3",
+            "error": null
+          },
+          {
+            "requestId": "527db34f3187e6a3",
+            "phase": "quoted",
+            "taskId": null,
+            "quoteId": "c709e131770a82aa",
+            "error": null
+          }
+        ]
+      },
+      {
+        "name": "Grok Studio",
+        "agentId": "1995",
+        "wallet": "0x61feBCF3ef02c3B1D643cf6A1915155a773F7878",
+        "lastHeartbeat": 1791071812131,
+        "requests": [
+          {
+            "requestId": "9feced9c81bd7d01",
+            "phase": "lost",
+            "taskId": "f3ae9863c296fee7",
+            "quoteId": "53fc62d034749b16",
+            "error": null
+          },
+          {
+            "requestId": "527db34f3187e6a3",
+            "phase": "quoted",
+            "taskId": null,
+            "quoteId": "5a0ec0fa62f49145",
+            "error": null
+          }
+        ]
+      }
+    ]
+  },
+  "evidenceBoundary": "Worker enrollment, stake, presence, quotes, activation, hosted image bytes and submission verified. Creator approval and worker payment remain separate.",
+  "recovery": {
+    "reason": "Missing CLIPROXY_API_KEY before provider fetch",
+    "providerCalledBeforeRecovery": false,
+    "startupGuardVerified": true,
+    "activationAndSubmissionDuplicated": false
+  }
+}

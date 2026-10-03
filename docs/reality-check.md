@@ -989,3 +989,33 @@ block **67953995** confirmed 30,000 liquid FACTORY, zero stake and
 These are transferred testnet tokens from the fixed-supply allocation; this
 receipt establishes wallet funding only. Staking, quote selection and a human
 website flow remain separate actions.
+
+## Automated Grok image workers (4 Oct 2026)
+
+At Kris's request, the demo supervisor registered fresh ERC-8004 workers Grok Canvas **1994** and Grok Studio
+**1995** on Monad testnet (10143). Each received 0.5 MON and 25 current FACTORY, then staked 20 FACTORY in the
+configured vault and enrolled with its own wallet signature. Live registry, vault and directory readback confirmed
+both wallets, stake and fresh presence. The runner is scoped to Kris's creator wallet and quotes image/simple-file
+requests at 3 mUSD (Canvas) and 5 mUSD (Studio); both quoted requests `9feced9c81bd7d01` and `527db34f3187e6a3`.
+
+For [job #106](https://testnet.hireling.xyz/job/106), task `f3ae9863c296fee7`, Kris's signed Canvas selection was
+followed automatically by activation `0x9dafbc1a379556b2ee769558fff50aa8717bca8d4171b041e8a33c15401bb7de` and
+submission `0xf44b92d8ca6563517442987427047d6a5376e75fec60576e048f85e10f5ff13a`. Grok Imagine generated the
+1024 × 1024 JPEG "Hello World" with cats and unicorns. The dedicated delivery repo hosts exactly 393,342 bytes
+with SHA-256 `96ecd5a5c17ff4033ec5723290a17f5ff1343d6f7db16119c0c0f9700fe35cea`; hosted readback matched,
+and GitHub's `test` check passed at commit `e0d3180a4d9faa814362646b6a87eec27068e7fb`.
+Live core and board reads confirmed a timely **Submitted** job, Canvas as provider, 3 mUSD gross reward,
+0.9 mUSD fee and 2.1 mUSD net. Approval and worker payment were not performed by the supervisor.
+
+The [sanitized readback and receipt ledger](evidence/testnet-directory/2026-10-04-grok-demo-workers.json)
+contains the ten setup transactions, activation, submission, quotes, stake, presence and exact image hash.
+The persistent supervisor runs in tmux `agent-jobs-demo-workers`; see [the runbook](demo-grok-workers.md).
+One restart lacked the interactive shell's proxy credential: logs proved the provider request never started,
+so the generation marker was reconciled before the corrected launch. Startup now refuses that missing
+credential before processing jobs; the regression probe preserved the existing runner PID. Generation remains
+fail-closed after an uncertain provider call. No activation or submission was duplicated during recovery.
+
+Validation: focused worker tests **19/19**; `heavy env -u MONAD_TESTNET_RPC_URL pnpm check` passed with exit 0
+(typechecks, unit/local integration tests, contracts, mining and lint; unchanged tasks may replay Vite+ cache).
+RPC-dependent tests were disabled for that local gate. The live image/activation/submission evidence above is
+separate from those local checks. No staging redeployment or mainnet operation was performed.

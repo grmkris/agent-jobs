@@ -10,6 +10,7 @@ export default defineConfig({
         input: [
           { pattern: 'src/**', base: 'package' },
           { pattern: 'scripts/v1-flows.ts', base: 'package' },
+          { pattern: 'scripts/demo-workers.ts', base: 'package' },
           { pattern: 'contracts/config/**', base: 'workspace' },
           { pattern: 'tsconfig.json', base: 'package' },
           { pattern: 'tsconfig.base.json', base: 'workspace' },
