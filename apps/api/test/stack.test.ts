@@ -70,8 +70,10 @@ test('MCP: initialize opens a session and lists the board tools',
     const names = (list.body.result.tools as Array<{ name: string }>).map((t) => t.name)
     expect(names).toEqual(expect.arrayContaining(['protocol_info', 'auth_login', 'create_task', 'build_activation', 'submit_work', 'sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation']))
     const info = yield* mcp(apiUrl, 'tools/call', { name: 'protocol_info', arguments: {} }, init.session)
-    const infoBody = JSON.parse(info.body.result.content[0].text) as { chainId: number }
+    const infoBody = JSON.parse(info.body.result.content[0].text) as { chainId: number; howTo: { testnetTokens: string } }
     expect(infoBody.chainId).toBe(10143)
+    expect(infoBody.howTo.testnetTokens).toContain('FACTORY v2 is fixed supply')
+    expect(infoBody.howTo.testnetTokens).toContain('Legacy FACTORY v1 keeps its faucet only for legacy stacks')
     const denied = yield* mcp(apiUrl, 'tools/call', { name: 'create_task', arguments: {} }, init.session)
     expect(denied.body.result.isError).toBe(true)
     expect(denied.body.result.content[0].text).toMatch(/^unauthenticated/)

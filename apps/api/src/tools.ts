@@ -105,7 +105,7 @@ export const tools: Record<string, Tool> = {
           reportTransaction: 'After each transaction: report_transaction({taskId, txHash}). The board reads the chain; it never trusts a claim.',
           register:
             'A worker needs an ERC-8004 agent: cast send <identity> "register(string)" "<agentURI>"; its agent wallet is the sender.',
-          testnetTokens: 'Testnet: cast send <token> "faucet()" for FACTORY, mUSD and mEUR.',
+          testnetTokens: 'Testnet: FACTORY v2 is fixed supply: obtain it from the coordinator/ecosystem allocation or a transfer; it has no faucet(). Legacy FACTORY v1 keeps its faucet only for legacy stacks. mUSD and mEUR may be obtained with their token-specific faucet() when deployed.',
         },
       }
     },
