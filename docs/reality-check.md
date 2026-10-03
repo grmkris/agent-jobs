@@ -790,3 +790,70 @@ broadcast. No additional user deposit was needed to cross below the reserve.
 Readback after the successful retry: deployer 5.945212244949797606 MON, backup owner 9.025412576499448627 MON,
 UI creator 1.5 MON, Pixel 1.515714818498244274 MON, v1 arbitrator 0.5 MON, legacy arbitrator 0.297795 MON.
 Operation journals remain private under `/tmp/hireling-testnet-funding-20261003/` (directory 0700, files 0600).
+
+## G1b hosted release, core matrix and mining (3 Oct 2026)
+
+The guarded staging release of `1317560` passed with digest
+`cb7ab5e52ce73ada051ec54bfc2b23bc6af5e825f2e88a051c6f8555b9f64258`.
+Only API, Indexer and Explore changed; storage, bindings, domains and cron were preserved.
+API version `edfe73e1-cd41-4ac5-884c-a994e6f23577`, Indexer
+`f2df7fe8-834c-42f4-954d-727e7e9963ba`, Explore `74cc03e0-040e-4c61-aea2-01070b883989`.
+Live release, health, directory and MCP enumeration passed. `protocol_info` reports chain 10143 and the
+promoted G1b addresses. Send a User-Agent when probing MCP; a bare probe received a Cloudflare 403.
+
+The coordinator's durable `g1b-core` journal completed 21 top-level cases plus the first fee-tier comparison:
+
+| Cases | Jobs / evidence |
+| --- | --- |
+| Hire, silence, cancellation | 82, 84, 88 |
+| Arbitration timeout, undisputed violation, missed delivery | 83, 85, 86 |
+| Worker/creator ruling, each with and without slashing | 89–92 |
+| Paid top-up and contributor pull refund | 93, 87 |
+| Two activation fee tiers | 94–95 |
+| Legacy contest and legacy dispute | 96–97 |
+| Blocklist and gas-consuming reward tokens: deferred pay, settlement, owed withdrawal | 98–99 |
+| Stake cooldown and withdrawal | request `0x82fba84e…fed2d`, withdrawal below |
+| Safe ownership, fee execution, atomic pause/unpause | original journal receipts |
+
+The run used 1-token rewards and 1 FACTORY bonds. The public
+[receipt ledger](evidence/testnet-g1b/2026-10-03.json) contains 137 flow transaction hashes and three mining
+hashes, without signed authority. Earlier receipt evidence is retained from the original journal; the final
+owed balances, withdrawal receipts, mining root/claim and worker stake were read back live at the ledger's
+recorded finalized block. This is coordinator contract-flow evidence, not a completed hosted UI or friend session.
+
+The original job-98 harness assertion compared a stale wallet-wide stake baseline with two unrelated legitimate
+slashes. Fix `c710881` instead verifies that job's confirmed Holding/Vault events, FACTORY burn and actual reward
+token transfers. The same journal resumed without republishing or paying twice. Focused tests passed 24/24,
+including real local-fork failed-funding/interleaved-slash/crash recovery. The integrated no-RPC `pnpm check`
+passed after the mining integration; the backend also recorded its full RPC check for the flow fix.
+
+| Final operation | Receipt | Block |
+| --- | --- | ---: |
+| Job 98 owed withdrawal: 0.7 blocklist token | `0xda5f012ed1f193b0bbaf8782ecaf3347ac23857249789bcd5ef12975e50be70b` | 67873693 |
+| Job 99 owed withdrawal: 0.9 gas-consuming token | `0xdaade1afcedc6d5782f9750bffb68b8dfc847b6276960d9cc1085f55dcc325a5` | 67873764 |
+| Matured 1 FACTORY stake withdrawal | `0xa932a9e87d81cc62c1f7dfd17b2bbe8e6d843724c588c3fd09cb1405dcc7f8ba` | 67873771 |
+
+G1b epoch 0 ended at 15:17:32 UTC. Six actual paid fee events counted, totaling 1.75 mUSD at the test price;
+the computed emission was 8,750 FACTORY across creator (3,500) and worker (5,250) leaves. The reviewed helper
+(`8499e2b`, `f6ba7fc`; source review in `agent-jobs.wt/review/mining-helper-f6ba7fc.md`) completed the full
+signed-prices → computation → Safe fund → Safe setRoot → staging publication/readback → worker claim sequence.
+Both Safe transactions emitted the required `ExecutionSuccess`; all three outer receipts succeeded.
+
+| Mining operation | Receipt | Block |
+| --- | --- | ---: |
+| Safe funds 8,750 FACTORY | `0x70acb754c49eae2697e60550adbf79c672308bceb8fb417568b42ffa0c28a45e` | 67873204 |
+| Safe posts epoch-0 root | `0xe6659cccf8d076d550499bfdc3b5d4be76ecabc78e3a7912338a398de2bf16e9` | 67873579 |
+| Worker claims 5,250 FACTORY into stake | `0x108ad4ca3f13174932bbad65efc2e53416496cf16b2fcde096a1180cfc1966b0` | 67873596 |
+
+Root: `0xf5b269a676686709244feccef4882bf8724878938e95c893b1de35670cb3f8fc`.
+Data hash: `0x2b1c18be6349c1fb62b0d1cdb0497b7f5290f1f2d03d92d7fa40c123a7278f7e`.
+Published artifact SHA-256: `c6e6813ab8d4dc4e8268bbba57d87cee53353c3716f3dc0d16c500d9478d8993`.
+The worker's live stake is 15,248 FACTORY, all available, with zero reservations and zero unstaking;
+both refusal-test token owed balances are zero. The creator's mining leaf remains claimable.
+
+Remaining evidence boundary: the read-only hosted UI harness reached five pages with zero signatures/sends but
+failed on four HTTP 503 resource errors. The scheduled Indexer is live at
+`https://agentjobs-indexer-staging-2unhvhpefxd7n2wb.kristjan-grm11775.workers.dev/status`, but its cursor advanced
+past G1b deployment before the G1b release and missed the new contract events. A checkpoint-only replay is
+prepared; it has not executed. Hosted UI transactions, the fresh developer crew round, successful replay/two
+cron observations and real Privy login are not established by the above receipts. Mainnet remains untouched.
