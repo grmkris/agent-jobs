@@ -1,4 +1,4 @@
-import type * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, type LocalAccount, type SignedAuthorization, type TransactionReceipt, TransactionReceiptNotFoundError, keccak256 } from 'viem'
 import type { Sql } from './store.ts'
 import { SponsorRecovery } from './sponsor-recovery.ts'
@@ -37,12 +37,10 @@ export class RelaySender {
       if (row === undefined) {
         await this.checkPendingLocked()
         const nonce = await this.ctx.publicClient.getTransactionCount({ address: this.account.address, blockTag: 'pending' })
-        const estimated = await this.ctx.publicClient.estimateGas({ account: this.account, to: request.to, data: request.data, value: 0n,
-          ...(request.authorizationList === undefined ? {} : { authorizationList: request.authorizationList }) })
-        const floor = request.gas === undefined ? 100_000n : BigInt(request.gas)
-        const gas = estimated * 120n / 100n > floor ? estimated * 120n / 100n : floor
-        const price = await this.ctx.publicClient.getGasPrice()
-        const tx = { chainId: this.ctx.deployment.chainId, to: request.to, data: request.data, value: 0n, nonce, gas, maxFeePerGas: price * 2n, maxPriorityFeePerGas: price }
+        const gas = await sdk.transactionGas(this.ctx.publicClient, { account: this.account, to: request.to, data: request.data, value: 0n,
+          ...(request.authorizationList === undefined ? {} : { authorizationList: request.authorizationList }) }, request.gas === undefined ? 100_000n : BigInt(request.gas))
+        const { maxFeePerGas, maxPriorityFeePerGas } = await sdk.transactionFees(this.ctx.publicClient)
+        const tx = { chainId: this.ctx.deployment.chainId, to: request.to, data: request.data, value: 0n, nonce, gas, maxFeePerGas, maxPriorityFeePerGas }
         const raw = request.authorizationList === undefined
           ? await this.account.signTransaction({ ...tx, type: 'eip1559' })
           : await this.account.signTransaction({ ...tx, type: 'eip7702', authorizationList: request.authorizationList })

@@ -36,9 +36,10 @@ function fixture(network: sdk.Network = 'monad-testnet') {
     getCode: vi.fn(async () => upgraded ? `0xef0100${deployment.delegation.delegator.slice(2)}` : '0x'),
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => functionName === 'callCounts' ? used : disabled),
     getTransactionReceipt: vi.fn(receipt), waitForTransactionReceipt: vi.fn(receipt),
-    getBlock: vi.fn(async () => ({ timestamp: BigInt(now) })),
+    getBlock: vi.fn(async () => ({ timestamp: BigInt(now), baseFeePerGas: 1_000_000_000n })),
     getTransactionCount: vi.fn(async ({ blockTag }: { blockTag: string }) => !visible && blockTag === 'latest' ? Math.max(0, nonce - 1) : nonce), getBalance: vi.fn(async () => balance),
-    estimateGas: vi.fn(async () => 100_000n), call: vi.fn(async () => ({ data: '0x' })), getGasPrice: vi.fn(async () => 1_000_000_000n),
+    estimateGas: vi.fn(async () => 100_000n), call: vi.fn(async () => ({ data: '0x' })), getGasPrice: vi.fn(async () => 2_000_000_000n),
+    estimateMaxPriorityFeePerGas: vi.fn(async () => 1_000_000_000n),
     sendRawTransaction: vi.fn(async ({ serializedTransaction }: { serializedTransaction: Hex }) => {
       const hash = keccak256(serializedTransaction)
       const tx = parseTransaction(serializedTransaction)
@@ -166,7 +167,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     expect(f.client.estimateGas).not.toHaveBeenCalled()
     expect(f.client.sendRawTransaction).not.toHaveBeenCalled()
   })
-  it('uses summed ADR gas floors and receipt gas cost, reserving only the prospective send', async () => {
+  it('uses estimated gas, a small priority fee and receipt cost, reserving gas times the full max fee', async () => {
     const f = fixture(); await f.live()
     const calls = [
       { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },
@@ -174,18 +175,43 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     ]
     const op = await f.desk.submit(f.owner.address, calls, 'deferred')
     const raw = f.sql.all<{ raw_tx: Hex; cost: string; reserved_cost: string }>('SELECT * FROM sponsor_operations WHERE id=?', op.operationId)[0]!
-    expect(parseTransaction(raw.raw_tx).gas).toBe(sdk.V1_GAS.retryDeferred + sdk.V1_GAS.settle + 100_000n)
+    const tx = parseTransaction(raw.raw_tx)
+    expect(tx.gas).toBe(135_000n)
+    expect(tx.maxPriorityFeePerGas).toBeLessThan(await f.client.getGasPrice())
+    expect(tx.maxFeePerGas).toBe(2_000_000_000n)
+    expect(BigInt(raw.reserved_cost)).toBe(tx.gas! * tx.maxFeePerGas!)
     expect(BigInt(raw.cost)).toBe(100_000n * 1_000_000_000n)
     expect(BigInt(raw.reserved_cost)).toBeGreaterThan(BigInt(raw.cost))
     expect(op.callsUsed).toBe(2)
+  })
+  it('uses the summed inner gas limits and manager overhead only for an unreliable estimate', async () => {
+    const f = fixture(); await f.live()
+    const calls = [
+      { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },
+      { to: f.ctx.stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [1n] }) },
+    ]
+    f.client.call.mockRejectedValueOnce(new Error('CoreGasTooLow'))
+    const op = await f.desk.submit(f.owner.address, calls, 'fallback')
+    const raw = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_operations WHERE id=?', op.operationId)[0]!
+    expect(parseTransaction(raw.raw_tx).gas).toBe(sdk.V1_GAS.retryDeferred + sdk.V1_GAS.settle + 100_000n)
+  })
+  it('relay evidence uses the shared small priority fee and the successful gas estimate', async () => {
+    const f = fixture()
+    await f.relaySender().submit({ key: 'evidence-fees', to: f.ctx.stack.evaluator, data: '0x12345678', gas: '1200000' })
+    const raw = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM relay_operations WHERE id=?', 'evidence-fees')[0]!
+    const tx = parseTransaction(raw.raw_tx)
+    expect(tx.gas).toBe(135_000n)
+    expect(tx.maxPriorityFeePerGas).toBeLessThan(await f.client.getGasPrice())
+    expect(tx.maxFeePerGas).toBe(2n * (await f.client.getBlock()).baseFeePerGas)
   })
   it('enforces global cap, balance floor, wallet window, and simulation failure without persisting/broadcasting', async () => {
     const f = fixture(); await f.live()
     f.setBalance(sponsorRelayFloor(f.ctx.deployment.network))
     await expect(f.desk.submit(f.owner.address, [f.cancel()], 'floor')).rejects.toMatchObject({ reason: 'floor' })
     f.setBalance(100n * 10n ** 18n)
-    f.client.call.mockRejectedValueOnce(new Error('revert'))
+    f.client.call.mockRejectedValue(new Error('revert'))
     await expect(f.desk.submit(f.owner.address, [f.cancel()], 'simulation')).rejects.toMatchObject({ reason: 'simulation' })
+    f.client.call.mockResolvedValue({ data: '0x' })
     expect(f.sql.all('SELECT * FROM sponsor_operations')).toHaveLength(0)
     const op = await f.desk.submit(f.owner.address, [f.cancel()], 'initial')
     f.sql.run('UPDATE sponsor_operations SET cost=? WHERE id=?', SPONSOR_LIMITS.dailyWei.toString(), op.operationId)
@@ -259,6 +285,8 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
       const original = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_operations WHERE id=?', op.operationId)[0]!
       expect(parseTransaction(saved.raw_tx).nonce).toBe(parseTransaction(original.raw_tx).nonce)
       expect(parseTransaction(saved.raw_tx).maxFeePerGas).toBeGreaterThan(parseTransaction(original.raw_tx).maxFeePerGas!)
+      expect(parseTransaction(saved.raw_tx).maxPriorityFeePerGas).toBeGreaterThan(parseTransaction(original.raw_tx).maxPriorityFeePerGas!)
+      expect(parseTransaction(saved.raw_tx).maxPriorityFeePerGas).toBeLessThan(await f.client.getGasPrice())
       expect(BigInt(saved.cost)).toBe(21_000n * 1_000_000_000n)
       expect(saved.charged_day).toBeGreaterThan(0)
       expect(f.client.sendRawTransaction.mock.calls.slice(sends).some(([a]) => a.serializedTransaction === original.raw_tx)).toBe(false)
@@ -276,11 +304,12 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     f.sql.run('UPDATE sponsor_operations SET cost=? WHERE id=?', SPONSOR_LIMITS.dailyWei.toString(), charged.operationId)
     await f.desk.revoke(f.owner.address)
     f.client.getGasPrice.mockResolvedValue(500_000_000_000n)
+    f.client.getBlock.mockResolvedValue({ timestamp: 1_800_000_000n, baseFeePerGas: 499_000_000_000n })
     const send = f.client.sendRawTransaction.getMockImplementation()!
     f.client.sendRawTransaction.mockImplementationOnce(async a => {
       const tx = parseTransaction(a.serializedTransaction)
       expect(tx.gas).toBe(100_000n)
-      expect(tx.maxFeePerGas).toBe(500_000_000_000n)
+      expect(tx.maxFeePerGas).toBe(500_250_000_001n)
       expect(tx.gas! * tx.maxFeePerGas!).toBeGreaterThan(BigInt(original.reserved_cost))
       const hash = await send(a)
       f.receipts.get(hash)!.effectiveGasPrice = 500_000_000_000n
@@ -306,12 +335,32 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     const reservation = 100_000n * 3_000_000_000n
     f.sql.run('UPDATE sponsor_operations SET reserved_cost=? WHERE id=?', reservation.toString(), op.operationId)
     await f.desk.revoke(f.owner.address)
-    f.client.getGasPrice.mockResolvedValue(2_000_000_000n)
+    f.client.getGasPrice.mockResolvedValue(2_600_000_000n)
+    f.client.getBlock.mockResolvedValue({ timestamp: 1_800_000_000n, baseFeePerGas: 1_600_000_000n })
     expect((await f.boot().submit(f.owner.address, [], 'bounded')).status).toBe('dropped')
     const raw = f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]!.raw_tx
     const tx = parseTransaction(raw)
     expect(tx.maxFeePerGas).toBe(3_000_000_000n)
     expect(tx.gas! * tx.maxFeePerGas!).toBe(reservation)
+  })
+  it('an old high-tip redemption still bumps both signed fee fields on same-nonce recovery', async () => {
+    const f = fixture(); await f.live()
+    f.client.sendRawTransaction.mockRejectedValueOnce(new Error('not sent'))
+    const op = await f.desk.submit(f.owner.address, [f.cancel()], 'old-fees')
+    const original = parseTransaction(f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_operations WHERE id=?', op.operationId)[0]!.raw_tx)
+    const raw = await f.relay.signTransaction({ type: 'eip1559', chainId: 10143, nonce: original.nonce!,
+      to: original.to, data: original.data, value: 0n, gas: original.gas!, maxFeePerGas: 204_000_000_000n, maxPriorityFeePerGas: 102_000_000_000n })
+    f.sql.run('UPDATE sponsor_operations SET raw_tx=?,tx_hash=?,reserved_cost=? WHERE id=?', raw, keccak256(raw),
+      (original.gas! * 204_000_000_000n).toString(), op.operationId)
+    f.client.getGasPrice.mockResolvedValue(102_000_000_000n)
+    f.client.getBlock.mockResolvedValue({ timestamp: 1_800_000_000n, baseFeePerGas: 100_000_000_000n })
+    f.client.estimateMaxPriorityFeePerGas.mockResolvedValue(2_000_000_000n)
+    await f.desk.revoke(f.owner.address)
+    expect((await f.boot().submit(f.owner.address, [], 'old-fees')).status).toBe('dropped')
+    const replacement = parseTransaction(f.sql.all<{ raw_tx: Hex }>('SELECT raw_tx FROM sponsor_replacements WHERE operation_id=?', op.operationId)[0]!.raw_tx)
+    expect(replacement.nonce).toBe(original.nonce)
+    expect(replacement.maxPriorityFeePerGas).toBe(127_500_000_001n)
+    expect(replacement.maxFeePerGas).toBe(255_000_000_001n)
   })
   it.each(['monad-testnet', 'monad-mainnet'] as const)('uses the shared %s balance floor for recovery', async network => {
     const f = fixture(network); await f.live()

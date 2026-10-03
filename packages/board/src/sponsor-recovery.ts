@@ -1,5 +1,5 @@
 /** Shared sponsorship reconciliation for every sender in the relay nonce queue. */
-import type * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@agent-jobs/sdk'
 import { type Hex, type LocalAccount, type TransactionReceipt, TransactionReceiptNotFoundError, getAddress, keccak256, parseTransaction } from 'viem'
 import { callsMade, isDisabled } from './delegation.ts'
 import type { Sql } from './store.ts'
@@ -34,11 +34,12 @@ export class SponsorRecovery {
     const [saved] = this.sql.all<Replacement>('SELECT * FROM sponsor_replacements WHERE operation_id=?', op.id)
     if (saved !== undefined) return saved
     if (this.account?.address.toLowerCase() !== op.relay.toLowerCase()) throw new Error('the saved sponsorship relay is unavailable for nonce recovery')
-    const original = parseTransaction(op.raw_tx as Hex), price = await this.ctx.publicClient.getGasPrice()
+    const original = parseTransaction(op.raw_tx as Hex), fees = await sdk.transactionFees(this.ctx.publicClient)
     // Bump both fee fields above the signed redemption, so a mempool can replace an already accepted original.
-    const required = max(bump(original.maxFeePerGas ?? 0n), price)
+    const maxPriorityFeePerGas = max(bump(original.maxPriorityFeePerGas ?? 0n), fees.maxPriorityFeePerGas)
+    const required = max(bump(original.maxFeePerGas ?? 0n), fees.baseFeePerGas + maxPriorityFeePerGas)
     const affordable = BigInt(op.reserved_cost) / 100_000n
-    const preferred = max(required, price * 2n)
+    const preferred = max(required, fees.maxFeePerGas)
     // The cancellation replaces this operation's reservation. If fee conditions outgrow it, recover
     // the nonce anyway; the mined receipt (including any overshoot) charges that day's ledger exactly once.
     const maxFeePerGas = affordable >= required ? (preferred < affordable ? preferred : affordable) : required
@@ -46,7 +47,7 @@ export class SponsorRecovery {
       throw new Error('the sponsorship relay is below its balance floor for nonce recovery')
     const raw = await this.account.signTransaction({ type: 'eip1559', chainId: this.ctx.deployment.chainId, nonce: op.nonce,
       to: this.account.address, data: '0x', value: 0n, gas: 100_000n,
-      maxFeePerGas, maxPriorityFeePerGas: max(bump(original.maxPriorityFeePerGas ?? 0n), price) })
+      maxFeePerGas, maxPriorityFeePerGas })
     const hash = keccak256(raw)
     this.sql.run("INSERT INTO sponsor_replacements (operation_id,raw_tx,tx_hash,nonce,status) VALUES (?,?,?,?,'pending')", op.id, raw, hash, op.nonce)
     return { operation_id: op.id, raw_tx: raw, tx_hash: hash, nonce: op.nonce, status: 'pending' }

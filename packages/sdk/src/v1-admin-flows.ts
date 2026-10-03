@@ -1,5 +1,5 @@
 /** Live testnet administration through the configured Safe. No deploys, no mainnet, no new proposals. */
-import { type Address, type Hex, concat, encodeFunctionData, encodePacked, pad, parseAbi, zeroAddress } from 'viem'
+import { type Address, type Hex, BaseError, ContractFunctionRevertedError, concat, encodeFunctionData, encodePacked, pad, parseAbi, zeroAddress } from 'viem'
 import * as sdk from './index.ts'
 import type { V1FlowDeps } from './v1-flows.ts'
 
@@ -8,6 +8,11 @@ export type V1AdminFlow = typeof V1_ADMIN_FLOWS[number]
 export const flowSafeAbi = parseAbi(['function isOwner(address) view returns (bool)', 'function getThreshold() view returns (uint256)',
   'function execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes) payable returns (bool)'])
 const ownable = parseAbi(['function owner() view returns (address)', 'function pendingOwner() view returns (address)', 'function acceptOwnership()'])
+export function isHoldingTimelockRevert(error: unknown, eta: number): boolean {
+  if (!(error instanceof BaseError)) return false
+  const revert = error.walk(cause => cause instanceof ContractFunctionRevertedError)
+  return revert instanceof ContractFunctionRevertedError && revert.data?.errorName === 'HoldingTimelocked' && revert.data.args?.[0] === eta
+}
 // D13's canonical MultiSendCallOnly v1.4.1 deployment on both Monad chains.
 export const FLOW_MULTISEND: Address = '0x9641d764fc13c8B624c04430C7356C1C7C8102e2'
 export function flowPauseBatch(ctx: sdk.Ctx, paused: boolean): Hex {
@@ -45,7 +50,8 @@ export async function runV1AdminFlow(d: V1FlowDeps & { safeOwner: sdk.Wallet }, 
       const [proposal, eta] = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'pendingHolding' })
       if (proposal === zeroAddress || eta === 0 || Number((await ctx.publicClient.getBlock()).timestamp) >= eta) throw new Error('G1 must prepare a still-timelocked Holding probe')
       let refused = false
-      try { await ctx.publicClient.simulateContract({ account: d.relay.account, address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'acceptHolding' }) } catch { refused = true }
+      try { await ctx.publicClient.simulateContract({ account: d.relay.account, address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'acceptHolding' }) }
+      catch (error) { if (!isHoldingTimelockRevert(error, eta)) throw new Error('vault refusal was not the expected HoldingTimelocked error', { cause: error }); refused = true }
       if (!refused) throw new Error('vault accepted a Holding before its eight-day delay')
       return true
     })

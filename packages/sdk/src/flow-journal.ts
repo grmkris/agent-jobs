@@ -2,6 +2,7 @@
 import { type Abi, type Address, type Hex, type SignedAuthorization, type TransactionReceipt, TransactionReceiptNotFoundError, encodeFunctionData, keccak256 } from 'viem'
 import type { Ctx, Wallet } from './actions.ts'
 import type { TxRequest } from './board-client.ts'
+import { transactionFees, transactionGas } from './transaction-cost.ts'
 
 export interface FlowState { binding: string; values: Record<string, unknown>; sends: Record<string, { raw: Hex; hash: Hex; nonce: number; wallet: Address }> }
 export const flowJson = (value: unknown) => JSON.stringify(value, (_key, v) => typeof v === 'bigint' ? { $bigint: v.toString() } : v, 2)
@@ -40,11 +41,11 @@ export class FlowJournal {
     if (saved !== undefined && saved.wallet.toLowerCase() !== wallet.account.address.toLowerCase()) throw new Error(`${key}: journal wallet mismatch`)
     if (saved === undefined) {
       const client = this.ctx.publicClient
-      const estimated = await client.estimateGas({ account: wallet.account, to: tx.to, data: tx.data, value: BigInt(tx.value),
-        ...(authorizationList === undefined ? {} : { authorizationList }) })
-      const floor = tx.gas === undefined ? 0n : BigInt(tx.gas), gas = estimated * 120n / 100n > floor ? estimated * 120n / 100n : floor
-      const price = await client.getGasPrice(), nonce = await client.getTransactionCount({ address: wallet.account.address, blockTag: 'pending' })
-      const request = { chainId: this.ctx.deployment.chainId, to: tx.to, data: tx.data, value: BigInt(tx.value), gas, nonce, maxFeePerGas: price * 2n, maxPriorityFeePerGas: price }
+      const gas = await transactionGas(client, { account: wallet.account, to: tx.to, data: tx.data, value: BigInt(tx.value),
+        ...(authorizationList === undefined ? {} : { authorizationList }) }, tx.gas === undefined ? undefined : BigInt(tx.gas))
+      const { maxFeePerGas, maxPriorityFeePerGas } = await transactionFees(client)
+      const nonce = await client.getTransactionCount({ address: wallet.account.address, blockTag: 'pending' })
+      const request = { chainId: this.ctx.deployment.chainId, to: tx.to, data: tx.data, value: BigInt(tx.value), gas, nonce, maxFeePerGas, maxPriorityFeePerGas }
       const raw = authorizationList === undefined
         ? await wallet.signTransaction({ ...request, type: 'eip1559' })
         : await wallet.signTransaction({ ...request, type: 'eip7702', authorizationList })

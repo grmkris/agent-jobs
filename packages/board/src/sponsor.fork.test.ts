@@ -76,7 +76,9 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     expect(await board.reportTransaction(caller(f.worker), { taskId: created.taskId, txHash: paid.txHash })).toMatchObject({ operations: paidReport.operations })
     const receipt = await f.ctx.publicClient.getTransactionReceipt({ hash: paid.txHash })
     const op = db.prepare('SELECT raw_tx, cost, baseline_calls FROM sponsor_operations WHERE id=?').get(paid.operationId) as { raw_tx: Hex; cost: string; baseline_calls: number }
-    expect(parseTransaction(op.raw_tx).gas).toBeGreaterThanOrEqual(sdk.V1_GAS.evaluator + sdk.V1_GAS.settle + 100_000n)
+    const signed = parseTransaction(op.raw_tx)
+    expect(signed.gas).toBeGreaterThanOrEqual(receipt.gasUsed)
+    expect(signed.maxPriorityFeePerGas).toBeLessThan(signed.maxFeePerGas!)
     expect(BigInt(op.cost)).toBe(receipt.gasUsed * receipt.effectiveGasPrice)
     expect(op.baseline_calls).toBe(0)
     expect((await sdk.getJob(f.ctx, BigInt(task.jobId!))).statusName).toBe('Completed')

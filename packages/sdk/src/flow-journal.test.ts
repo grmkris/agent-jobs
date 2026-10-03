@@ -9,7 +9,9 @@ const tx = { to: address, data: '0xab' as Hex, value: '0', gas: '1000000' }
 function fixture() {
   let durable: FlowState = { binding: 'testnet', values: {}, sends: {} }, crashed = true
   const save = vi.fn((state: FlowState) => { durable = parseFlowJson(flowJson(state)); if (crashed && state.sends.one) throw new Error('process stopped after save') })
-  const pc = { getChainId: vi.fn(async () => 10143), estimateGas: vi.fn(async () => 100n), getGasPrice: vi.fn(async () => 2n),
+  const pc = { getChainId: vi.fn(async () => 10143), estimateGas: vi.fn(async () => 100_000n), getGasPrice: vi.fn(async () => 102_000_000_000n),
+    getBlock: vi.fn(async () => ({ baseFeePerGas: 100_000_000_000n })), estimateMaxPriorityFeePerGas: vi.fn(async () => 2_000_000_000n),
+    call: vi.fn(async () => ({ data: '0x' })),
     getTransactionCount: vi.fn(async () => 7), getTransactionReceipt: vi.fn(async (): Promise<TransactionReceipt> => { throw new TransactionReceiptNotFoundError({ hash }) }),
     sendRawTransaction: vi.fn(async () => hash), waitForTransactionReceipt: vi.fn(async () => receipt) }
   const wallet = { account: { address }, signTransaction: vi.fn(async () => raw) } as unknown as Wallet
@@ -23,10 +25,13 @@ describe('durable live flow sends', () => {
     await expect(f.boot().send('one', f.wallet, tx)).rejects.toThrow('process stopped')
     expect(f.pc.sendRawTransaction).not.toHaveBeenCalled()
     expect(f.state().sends.one).toEqual({ raw, hash, nonce: 7, wallet: address })
+    f.pc.getGasPrice.mockResolvedValue(500_000_000_000n)
     await f.restart().send('one', f.wallet, tx)
     expect(f.wallet.signTransaction).toHaveBeenCalledTimes(1)
+    expect(f.pc.getGasPrice).toHaveBeenCalledTimes(1)
     expect(f.pc.sendRawTransaction).toHaveBeenCalledExactlyOnceWith({ serializedTransaction: raw })
-    expect(f.wallet.signTransaction).toHaveBeenCalledWith(expect.objectContaining({ gas: 1_000_000n, nonce: 7, chainId: 10143 }))
+    expect(f.wallet.signTransaction).toHaveBeenCalledWith(expect.objectContaining({ gas: 135_000n, nonce: 7, chainId: 10143,
+      maxFeePerGas: 200_000_000_000n, maxPriorityFeePerGas: 2_000_000_000n }))
   })
   it('reconciles a mined transaction after a lost response without signing or broadcasting again', async () => {
     const f = fixture()

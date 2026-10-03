@@ -202,15 +202,13 @@ export class SponsorDesk {
       if (current.callsUsed + parsed.length > SPONSOR_LIMITS.calls) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
       const signed = this.#current(row)
       const data = redeemCallsCalldata(signed, parsed)
-      // ADR-0011 inner floors plus manager overhead. The full redemption estimate can raise this floor further.
+      // ADR-0011 inner limits plus manager overhead are used only if estimation is unreliable.
       const floor = parsed.reduce((sum, c) => sum + c.floor, 100_000n)
-      const estimated = await ctx.publicClient.estimateGas({ account: relay.account, to: ctx.deployment.delegation.manager, data }).catch(() => { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') })
-      const gas = estimated * 120n / 100n > floor ? estimated * 120n / 100n : floor
+      const gas = await sdk.transactionGas(ctx.publicClient, { account: relay.account, to: ctx.deployment.delegation.manager, data }, floor)
+        .catch(() => { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') })
       if (gas > SPONSOR_LIMITS.gas) throw this.#refuse('cap', 'the sponsored transaction exceeds the gas cap')
-      try { await ctx.publicClient.call({ account: relay.account, to: ctx.deployment.delegation.manager, data, gas }) }
-      catch { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') }
-      const gasPrice = await ctx.publicClient.getGasPrice()
-      const maxFeePerGas = gasPrice * 2n, cost = gas * maxFeePerGas
+      const { maxFeePerGas, maxPriorityFeePerGas } = await sdk.transactionFees(ctx.publicClient)
+      const cost = gas * maxFeePerGas
       const day = Math.floor(this.#d.now() / 86400) * 86400
       const daily = this.#d.sql.all<{ cost: string }>('SELECT cost FROM sponsor_operations WHERE charged_day=? AND cost IS NOT NULL UNION ALL SELECT cost FROM sponsor_replacements WHERE charged_day=? AND cost IS NOT NULL', day, day)
       // Charge only receipts. All unresolved sends were reconciled above; this send reserves its maximum cost.
@@ -220,7 +218,7 @@ export class SponsorDesk {
       if (await ctx.publicClient.getBalance({ address: relay.account.address }) < sponsorRelayFloor(ctx.deployment.network) + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
       const nonce = await ctx.publicClient.getTransactionCount({ address: relay.account.address, blockTag: 'pending' })
       const raw = await relay.account.signTransaction({ type: 'eip1559', chainId: ctx.deployment.chainId, nonce,
-        to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas: gasPrice })
+        to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas })
       const hash = keccak256(raw)
       // A single synchronous reservation persists the operation and the exact signed bytes before any money moves.
       this.#d.sql.run("INSERT INTO sponsor_operations (id,wallet,delegation_hash,status,raw_tx,tx_hash,relay,nonce,reserved_cost,calls,baseline_calls,created_at,action_key,payload_hash) VALUES (?,?,?,'pending',?,?,?,?,?,?,?,?,?,?)",

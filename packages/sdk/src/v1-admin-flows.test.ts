@@ -1,9 +1,21 @@
-import { type Hex, type TransactionReceipt, TransactionReceiptNotFoundError, decodeFunctionData, keccak256, slice, zeroAddress } from 'viem'
+import { type Hex, type TransactionReceipt, BaseError, ContractFunctionRevertedError, TransactionReceiptNotFoundError, decodeFunctionData, encodeErrorResult, keccak256, slice, zeroAddress } from 'viem'
 import { expect, it, vi } from 'vitest'
 import * as sdk from './index.ts'
-import { coreAbi, hirelingEvaluatorAbi } from './abi/index.ts'
+import { coreAbi, hirelingEvaluatorAbi, stakeVaultAbi } from './abi/index.ts'
 import { context } from './client.ts'
-import { flowPauseBatch } from './v1-admin-flows.ts'
+import { flowPauseBatch, isHoldingTimelockRevert } from './v1-admin-flows.ts'
+
+const timelockError = (eta: number) => new BaseError('simulation refused', { cause: new ContractFunctionRevertedError({
+  abi: stakeVaultAbi, data: encodeErrorResult({ abi: stakeVaultAbi, errorName: 'HoldingTimelocked', args: [eta] }), functionName: 'acceptHolding',
+}) })
+it('only accepts the decoded vault timelock selector with the proposal ETA', () => {
+  expect(isHoldingTimelockRevert(timelockError(200), 200)).toBe(true)
+  expect(isHoldingTimelockRevert(timelockError(201), 200)).toBe(false)
+  for (const error of [new Error('HoldingTimelocked'), new BaseError('RPC unavailable'),
+    new ContractFunctionRevertedError({ abi: stakeVaultAbi, data: encodeErrorResult({ abi: stakeVaultAbi, errorName: 'NoHoldingProposed' }), functionName: 'acceptHolding' }),
+    new ContractFunctionRevertedError({ abi: coreAbi, data: encodeErrorResult({ abi: coreAbi, errorName: 'EnforcedPause' }), functionName: 'acceptHolding' }),
+  ]) expect(isHoldingTimelockRevert(error, 200)).toBe(false)
+})
 
 it('pause and notePause are one MultiSendCallOnly payload containing exactly two ordinary calls', () => {
   const ctx = context('monad-testnet', 'main', 'http://127.0.0.1:1')
@@ -27,7 +39,7 @@ it.each(['admin-pause', 'admin-vault-refusal'] as const)('%s resumes after its f
   let durable: sdk.FlowState = { binding: 'admin', values: {}, sends: {} }
   const receipts = new Map<Hex, TransactionReceipt>()
   const pc = { ...base.publicClient,
-    getChainId: vi.fn(async () => 10143), getCode: vi.fn(async () => '0xab'), getBlock: vi.fn(async () => ({ timestamp: 100n })),
+    getChainId: vi.fn(async () => 10143), getCode: vi.fn(async () => '0xab'), getBlock: vi.fn(async () => ({ timestamp: 100n, baseFeePerGas: 100_000_000_000n })),
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => {
       if (functionName === 'isOwner') return true
       if (functionName === 'getThreshold') return 1n
@@ -35,8 +47,9 @@ it.each(['admin-pause', 'admin-vault-refusal'] as const)('%s resumes after its f
       if (functionName === 'pendingHolding') return cancelled ? [zeroAddress, 0] : [base.stack.holding, 200]
       throw new Error('unexpected read')
     }),
-    simulateContract: vi.fn(async () => { throw new Error('timelocked') }),
-    estimateGas: vi.fn(async () => 100_000n), getGasPrice: vi.fn(async () => 1n), getTransactionCount: vi.fn(async () => nonce),
+    simulateContract: vi.fn(async () => { throw timelockError(200) }),
+    estimateGas: vi.fn(async () => 100_000n), getGasPrice: vi.fn(async () => 102_000_000_000n), getTransactionCount: vi.fn(async () => nonce),
+    estimateMaxPriorityFeePerGas: vi.fn(async () => 2_000_000_000n), call: vi.fn(async () => ({ data: '0x' })),
     getTransactionReceipt: vi.fn(async ({ hash }: { hash: Hex }) => {
       const found = receipts.get(hash)
       if (found === undefined) throw new TransactionReceiptNotFoundError({ hash })
