@@ -580,3 +580,44 @@ New v1 testnet role keys (addresses only; the keys live in `.env.local`):
 - default arbitrator `0x0E616916682E3DB0bFFe188Be07513CbB829ebC5`
 
 Testnet evidence only.
+
+## G1: Hireling v1 on Monad testnet (3 Oct 2026)
+
+`contracts/script/launch-testnet.sh --private-keys --fee-proposal --holding-probe`. The core is reused
+(`0x8BFF…be9D`). The testnet Safe `0x1006…D5bF` (1-of-2, v1.4.1, no module, no guard) owns all six v1 contracts. The
+v1 deployment starts at block 67773705; t0 is 1791013711. `config/monad-testnet.json` records it, with `main`
+of kind `hireling-v1`. The run finished at 09:49 CEST, and the read-back passed: `owner() == Safe` on all six,
+nothing pending, the Safe holds the core's ADMIN_ROLE, and the SDK loads the deployment.
+
+Funding from Kris: 5 MON to the deployer, tx `0x30b4149a…c999`; 5 MON to the backup Safe owner `0x3c29…921e`,
+tx `0xeb6f6fb2…2289`.
+
+| Contract | Address | Created in |
+| :--- | :--- | :--- |
+| Factory (FACTORY v2) | `0x6693184aa777a30d293b5faf168b038ef858ea6b` | `0xf73c3ba2…755e` |
+| TeamVesting | `0xc677750be0358a7a3c43ff92157427159e5012f0` | `0x13c4d653…d1db` |
+| FeeSchedule | `0x143ebfbb2be971babc5679d4826b905ae1876c4b` | `0x11ef1a70…14de` |
+| StakeVault | `0xcc91fdb6d33d2f074f3c6617265b2d46b755f0bd` | `0x4ed32af0…7f04` |
+| HirelingHolding | `0x9bb0b3a6c130d81f6820499bd168c4d910cd502f` | `0x919dc7cb…6154` |
+| HirelingEvaluator | `0x8edc23b454696d8f531ce8f4ea1d1eff47901d0d` | `0x7f7da620…0cb5` |
+| EpochDistributor | `0xa6dfbdcb510b4c9a45b979f4d37d80fda93b0dcb` | `0x4a5e20ab…da56` |
+| MiningReserve | `0x1a8b9fbf1fa9d6ddce39836d12fca6901547a9ce` | `0x3ee67b22…7217` |
+
+Setup calls:
+- `setEvaluator` `0xd6ab0846…61d5`;
+- `setVerifier` `0xc13e1d1c…b2c9`;
+- `bootstrapHolding` `0xa9245707…d7b8`;
+- `Factory.transfer` `0x875a8b28…d629`.
+
+Ownership:
+- The six `transferOwnership` calls: `0xdc861003…5cda`, `0x451bae30…6666`, `0x1aa4092d…59d2`, `0xc61be279…e5a`,
+  `0xe20953d5…0132`, `0xd848575b…62bb`.
+- The Safe accepted all six through `execTransaction`: `0x5578e203…523c`, `0x5274d474…c7551`, `0xab8a461b…cdc3cf`,
+  `0x7b84f5e2…df63`, `0x987a771b…19eb`, `0x78a9615f…de71`.
+- The pauser step: the deployer grants the Safe ADMIN_ROLE on the core, `0x21719ede…523c`.
+
+Timelocks started:
+- **Fee schedule proposal**, `0x8318c345…9c9341`: 30/10/3/1 % at 0/10k/100k/1M FACTORY, treasury the Safe. An early
+  `execute()` refuses with ScheduleTimelocked. Anyone may execute it from **2026-10-06 07:49 UTC**, for 7 days.
+- **Vault Holding probe**, `0x69afab1a…e334`: `proposeHolding(0x…dEaD)`. An early `acceptHolding()` refuses with
+  HoldingTimelocked. It becomes acceptable from day 8; the Safe's `cancelHoldingProposal()` withdraws it.

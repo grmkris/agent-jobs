@@ -104,28 +104,56 @@
   "deployment": {
     "block": 66169332,
     "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
-    "demo": {
-      "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
-      "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2"
+    "factory": "0x6693184AA777A30D293B5fAf168B038eF858ea6B",
+    "hireling": {
+      "block": 67773705,
+      "distributor": "0xA6DfBDCb510b4c9A45B979f4d37D80fDa93b0dcb",
+      "factory": "0x6693184AA777A30D293B5fAf168B038eF858ea6B",
+      "feeSchedule": "0x143EBFbB2be971BaBc5679D4826b905aE1876C4B",
+      "miningReserve": "0x1a8b9FbF1Fa9d6dDCE39836D12fca6901547a9CE",
+      "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
+      "t0": 1791013711,
+      "teamVesting": "0xC677750BE0358a7A3C43Ff92157427159E5012F0",
+      "vault": "0xcc91Fdb6d33d2F074F3c6617265B2d46B755f0Bd"
     },
-    "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
     "legacy": {
       "demo-v1": {
         "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
-        "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3"
+        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+        "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3",
+        "kind": "legacy"
+      },
+      "demo-v2": {
+        "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+        "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+        "kind": "legacy"
       },
       "main-v1": {
         "evaluator": "0x0445e425ff4092Dd1a862aa793d5277d42CfD4e8",
-        "holding": "0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC"
+        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+        "holding": "0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC",
+        "kind": "legacy"
       },
       "main-v2": {
         "evaluator": "0x04562342Ef68ECdFcDc24B552e6C8E180dd6b908",
-        "holding": "0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73"
+        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+        "holding": "0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73",
+        "kind": "legacy"
+      },
+      "main-v3": {
+        "evaluator": "0xc0c8A4D4bDE3f6B0Ab3A3741ba555523B37D90D3",
+        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+        "holding": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+        "kind": "legacy",
+        "openTokens": true
       }
     },
     "main": {
-      "evaluator": "0xc0c8A4D4bDE3f6B0Ab3A3741ba555523B37D90D3",
-      "holding": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+      "evaluator": "0x8edc23B454696D8f531cE8f4EA1D1eFf47901d0D",
+      "factory": "0x6693184AA777A30D293B5fAf168B038eF858ea6B",
+      "holding": "0x9BB0B3a6c130d81f6820499bD168C4d910CD502F",
+      "kind": "hireling-v1",
       "openTokens": true
     },
     "network": "monad-testnet",
