@@ -1,0 +1,302 @@
+{
+  "observedAt": "2026-10-03T17:54:55.442Z",
+  "chainId": 10143,
+  "checkpoint": [
+    {
+      "chain_id": 10143,
+      "next_block": 67893711,
+      "updated_at": 1791049977
+    }
+  ],
+  "holdingEvents": [
+    {
+      "name": "Activated",
+      "count": 15,
+      "firstBlock": 67861551,
+      "lastBlock": 67873723
+    },
+    {
+      "name": "BondReleased",
+      "count": 27,
+      "firstBlock": 67861566,
+      "lastBlock": 67873746
+    },
+    {
+      "name": "BondSlashed",
+      "count": 4,
+      "firstBlock": 67862290,
+      "lastBlock": 67863343
+    },
+    {
+      "name": "Cancelled",
+      "count": 1,
+      "firstBlock": 67862156,
+      "lastBlock": 67862156
+    },
+    {
+      "name": "FeeCharged",
+      "count": 9,
+      "firstBlock": 67861572,
+      "lastBlock": 67873752
+    },
+    {
+      "name": "PayoutOwed",
+      "count": 2,
+      "firstBlock": 67863439,
+      "lastBlock": 67873752
+    },
+    {
+      "name": "Published",
+      "count": 16,
+      "firstBlock": 67861543,
+      "lastBlock": 67873714
+    },
+    {
+      "name": "RewardSettled",
+      "count": 16,
+      "firstBlock": 67861572,
+      "lastBlock": 67873752
+    },
+    {
+      "name": "TopUpRefunded",
+      "count": 1,
+      "firstBlock": 67863388,
+      "lastBlock": 67863388
+    },
+    {
+      "name": "ToppedUp",
+      "count": 2,
+      "firstBlock": 67862110,
+      "lastBlock": 67862487
+    }
+  ],
+  "g1bJobs": [
+    {
+      "job_id": "82",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "83",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "84",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "85",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "86",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "87",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "88",
+      "kind": "hireling-v1",
+      "status": "cancelled",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "89",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "90",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "91",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "92",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "93",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "94",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "95",
+      "kind": "hireling-v1",
+      "status": "completed",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "96",
+      "kind": "legacy",
+      "status": "completed",
+      "arbitrator": null,
+      "review_window": null,
+      "dispute_window": null,
+      "arbitration_window": null
+    },
+    {
+      "job_id": "97",
+      "kind": "legacy",
+      "status": "completed",
+      "arbitrator": null,
+      "review_window": null,
+      "dispute_window": null,
+      "arbitration_window": null
+    },
+    {
+      "job_id": "98",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    },
+    {
+      "job_id": "99",
+      "kind": "hireling-v1",
+      "status": "rejected",
+      "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+      "review_window": 120,
+      "dispute_window": 120,
+      "arbitration_window": 300
+    }
+  ],
+  "archivedHistory": [
+    {
+      "kind": "hireling-v1",
+      "count": 18
+    }
+  ],
+  "miningEvents": [
+    {
+      "name": "Claimed",
+      "count": 1
+    },
+    {
+      "name": "OwnershipTransferStarted",
+      "count": 1
+    },
+    {
+      "name": "OwnershipTransferred",
+      "count": 2
+    },
+    {
+      "name": "RootSet",
+      "count": 1
+    }
+  ],
+  "publicV1Ids": [
+    "99",
+    "98",
+    "95",
+    "94",
+    "93",
+    "92",
+    "91",
+    "90",
+    "89",
+    "88",
+    "87",
+    "86",
+    "85",
+    "84",
+    "83",
+    "82"
+  ],
+  "replayLeaseReleased": true,
+  "privateBackupVerified": true,
+  "checkpointFrom": 67892518,
+  "checkpointRewoundTo": 67856884,
+  "mutatedTables": [
+    "lease",
+    "checkpoint"
+  ],
+  "chainTransactions": 0,
+  "postReplayCron": [
+    {
+      "at": 1791049980,
+      "ok": true,
+      "lease": true,
+      "nextBlock": 67893711
+    },
+    {
+      "at": 1791050100,
+      "ok": true,
+      "lease": true,
+      "nextBlock": 67894108
+    }
+  ]
+}

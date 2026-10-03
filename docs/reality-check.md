@@ -903,3 +903,21 @@ Live clocks matched the promoted config, and the UI wallet held 1.5 MON, 200 fre
 available stake before its planned staking step. The readiness card remains held: no phase or send is enabled.
 The integrated no-RPC full `pnpm check` passed under Node 24 after the dialog driver/test integration.
 See the [public release and read-only evidence](evidence/testnet-g1b/2026-10-03-archive-release.json).
+
+## G1b indexer replay completed (3 Oct 2026)
+
+After explicit approval, the lease-protected recovery rewound only chain 10143's indexer checkpoint from
+`67892518` to G1b deployment block `67856884`; no chain transaction, event deletion or job deletion occurred.
+The private 859,879-byte D1 backup was verified before the compare-and-swap. The replay operation released its
+own temporary lease.
+
+Read-only verification found all 16 G1b publications (jobs 82–95 and 98–99) on the fresh Holding, with
+16 `Published`, 16 `RewardSettled`, 15 `Activated`, 9 `FeeCharged`, 2 `PayoutOwed`, 1 `Cancelled` and 1
+`TopUpRefunded` event. The G1b rows retain `kind=hireling-v1`, their arbitrator and 120/120/300-second windows;
+jobs 96–97 remain genuine legacy rows. All 18 archived G1 jobs 62–79 retain their v1 kind. Public discovery
+returns all 16 current v1 jobs. The new distributor's mining events include one `Claimed` and one `RootSet`.
+
+Two subsequent successful cron runs at 17:53:00 and 17:55:00 UTC advanced the checkpoint from `67893711` to
+`67894108`, each with `lease=true`. This proves recovery and scheduled progress, not permanent freshness.
+The [sanitized replay evidence](evidence/testnet-g1b/2026-10-03-indexer-replay.json) records these reads without
+backup contents or signing authority. UI and crew transactions have not been executed by this recovery.
