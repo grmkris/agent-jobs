@@ -971,3 +971,21 @@ runner established. Enrollment does not itself submit a quote, activate a job
 or grant payment authority. No identity-registration transaction, job, payment
 or mainnet operation was performed. Health and release reads returned 200 with
 testnet writes open and `mainnetLive=false`.
+
+## Kris's FACTORY test funding (4 Oct 2026)
+
+At Kris's request, the configured ecosystem allocation wallet transferred
+30,000 current G1b FACTORY v2 to
+`0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471` on Monad testnet (chain 10143).
+The operation and signed bytes were durably journaled before broadcast.
+Transaction
+`0x50f36e5aab30ffb738e27fa8e372553c18834c5fc5244bda909c2cfd854720b1`
+succeeded at block **67953955**, with exactly one matching ERC-20 Transfer event
+and a recipient balance increase from 0 to 30,000 FACTORY. A subsequent read at
+block **67953995** confirmed 30,000 liquid FACTORY, zero stake and
+20.208493454 MON. See the
+[sanitized receipt](evidence/testnet-funding/2026-10-04-kris-factory.json).
+
+These are transferred testnet tokens from the fixed-supply allocation; this
+receipt establishes wallet funding only. Staking, quote selection and a human
+website flow remain separate actions.
