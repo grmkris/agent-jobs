@@ -11,6 +11,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import config from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
+import { v1FlowArbitrators } from './v1-flow-keys.ts'
 
 const names = [...sdk.V1_CORE_FLOWS, ...sdk.V1_HOSTED_FLOWS, ...sdk.V1_ADMIN_FLOWS, 'owed-blocklist', 'owed-gas']
 if (process.argv[2] === '--list') { console.log(names.join('\n')); process.exit(0) }
@@ -31,9 +32,9 @@ if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'hireling-v1' || ctx.
 const creator = sdk.wallet(network, privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex), rpc)
 const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex), rpc)
 const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
-const arbitrator = sdk.wallet(network, privateKeyToAccount((env('V1_ARBITRATOR_PRIVATE_KEY', true) ?? env('ARBITRATOR_PRIVATE_KEY')) as Hex), rpc)
-const legacyKey = env('LEGACY_ARBITRATOR_PRIVATE_KEY', true)
-const legacyArbitrator = legacyKey === undefined ? undefined : sdk.wallet(network, privateKeyToAccount(legacyKey as Hex), rpc)
+const arbiters = v1FlowArbitrators(config, process.env)
+const arbitrator = sdk.wallet(network, arbiters.v1, rpc)
+const legacyArbitrator = arbiters.legacy === undefined ? undefined : sdk.wallet(network, arbiters.legacy, rpc)
 const explorer = 'https://testnet.monadscan.com/tx/'
 const profile = env('V1_FLOW_PROFILE', true) ?? 'default'
 if (!/^[A-Za-z0-9_-]{1,80}$/.test(profile)) throw new Error('V1_FLOW_PROFILE must be a short alphanumeric label')
@@ -64,7 +65,6 @@ state.binding = binding
 const save = (next: sdk.FlowState) => saveFlowState(stateDir, next)
 const log = (label: string, hash: Hex) => console.log(`[${label}] ${explorer}${hash}`)
 const journal = new sdk.FlowJournal(ctx, state, save, log)
-if (arbitrator.account.address.toLowerCase() !== ctx.deployment.arbitrator.toLowerCase()) throw new Error('v1 arbitrator key does not match the promoted testnet config')
 if (relay.account.address.toLowerCase() !== ctx.deployment.relay.toLowerCase()) throw new Error('relay key does not match the promoted testnet config')
 
 async function waitUntil(label: string, target: number) {

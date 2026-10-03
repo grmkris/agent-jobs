@@ -8,7 +8,9 @@ a promoted v1 `main` pair. The runner never deploys or edits the deployment conf
 Run from the backend worktree. Bun loads its testnet-only `.env.local`. Required names:
 `MONAD_TESTNET_RPC_URL`, `TESTNET_CREATOR_PRIVATE_KEY`, `TESTNET_WORKER_PRIVATE_KEY`, `RELAY_PRIVATE_KEY`,
 `V1_ARBITRATOR_PRIVATE_KEY`. `ARBITRATOR_PRIVATE_KEY` is a fallback for the v1 signer only when that is the
-configured v1 key. `LEGACY_ARBITRATOR_PRIVATE_KEY` is needed for `legacy-dispute`. The named arbitrator is
+configured v1 key (`hireling.defaultArbitrator`, not the legacy `roles.arbitrator`). `legacy-dispute` uses
+`LEGACY_ARBITRATOR_PRIVATE_KEY` or the legacy `ARBITRATOR_PRIVATE_KEY`; its address is checked against the
+legacy evaluator before activation. The named arbitrator is
 passed explicitly at publish; the worker checks the listing and signs a fresh net quote before activation.
 
 Optional `TESTNET_AGENT_ID` reuses a registered worker identity. Otherwise registration is journaled.
