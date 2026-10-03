@@ -50,6 +50,30 @@ test('directory submits cannot bypass the real shared wallet counter with a forg
   expect(yield* post(open, { name: 'rate-denied', call })).toMatchObject({ ok: false, code: 'rate-limited', retryAfter: expect.any(Number) })
 }))
 
+test('direct directory RPC canonicalizes host origins and refuses alternate objects and signed audiences', Effect.gen(function* () {
+  const { testnet } = yield* stack
+  const config = sdk.deployment('monad-testnet')
+  const audience = `https://${crypto.randomUUID()}.test.invalid`
+  const rawAudience = `${audience.toUpperCase()}:443`
+  const name = directoryObjectName(config.chainId, config.identity, audience, '7')
+  const call = request({ network: 'monad-testnet', audience: rawAudience, action: 'read' })
+  expect(yield* post(testnet, { name, call })).toMatchObject({ ok: true, result: { agentId: '7', revision: 0 } })
+  // A second spelling must use the same stored scope; storing the raw first value would refuse this read.
+  expect(yield* post(testnet, { name, call: { ...call, audience } })).toMatchObject({ ok: true, result: { agentId: '7', revision: 0 } })
+  const rawName = `${config.chainId}:${config.identity.toLowerCase()}:${rawAudience}:7`
+  expect(yield* post(testnet, { name: rawName, call })).toMatchObject({ ok: false, code: 'forbidden', message: 'directory object identity mismatch' })
+  for (const invalid of ['ftp://test.invalid', 'blob:https://test.invalid/id', 'not a URL']) {
+    expect(yield* post(testnet, { name, call: { ...call, audience: invalid } })).toMatchObject({ ok: false, code: 'invalid', message: 'directory audience must be an HTTP(S) origin' })
+  }
+  const now = Math.floor(Date.now() / 1000)
+  const record: sdk.DirectoryEnvelope = {
+    version: 1, kind: 'Enrollment', chainId: config.chainId, identityRegistry: config.identity,
+    audience: rawAudience, agentId: '7', wallet: zeroAddress, generation: 1, nonce: 1, issuedAt: now, expiresAt: now + 300,
+    payload: { profile: { name: 'Origin probe', description: '', services: [] }, enrolled: true, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0 },
+  }
+  expect(yield* post(testnet, { name, call: { ...call, action: 'submit', record, signature: '0x00' } })).toMatchObject({ ok: false, code: 'forbidden', message: 'wrong chain, registry, audience, or agent' })
+}))
+
 let fork: Awaited<ReturnType<typeof startHirelingFork>> | undefined
 hookBeforeAll(async () => { if (forkEnabled) fork = await startHirelingFork() }, 180_000)
 afterAll(() => fork?.close())

@@ -26,8 +26,16 @@ export interface DirectoryCall {
 
 const URI_ABI = parseAbi(['function tokenURI(uint256 agentId) view returns (string)'])
 
+export function directoryAudience(audience: string): string {
+  try {
+    const url = new URL(audience)
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.origin
+  } catch { /* Refuse malformed URLs without exposing supplied audience values. */ }
+  throw new DirectoryError('invalid', 'directory audience must be an HTTP(S) origin')
+}
+
 export const directoryObjectName = (chainId: number, registry: string, audience: string, agentId: string) =>
-  `${chainId}:${registry.toLowerCase()}:${audience}:${directoryAgentId(agentId)}`
+  `${chainId}:${registry.toLowerCase()}:${directoryAudience(audience)}:${directoryAgentId(agentId)}`
 
 export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryObject>()(
   'DirectoryObject',
@@ -48,7 +56,7 @@ export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryO
         const config = sdk.deployment(request.network)
         const reads = request.rpcUrl === '' ? undefined : sdk.context(request.network, 'main', request.rpcUrl).publicClient
         return new DirectoryService({
-          sql: storage, chainId: config.chainId, identityRegistry: config.identity, audience: request.audience, agentId: request.agentId,
+          sql: storage, chainId: config.chainId, identityRegistry: config.identity, audience: directoryAudience(request.audience), agentId: request.agentId,
           now: () => Math.floor(Date.now() / 1000),
           readIdentity: async (id) => {
             if (reads === undefined) throw new Error('identity RPC unavailable')
@@ -75,6 +83,8 @@ export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryO
           let service: DirectoryService | undefined
           let flush = true
           try {
+            // Canonicalize host metadata only. Signed records keep their exact audience.
+            request = { ...request, audience: directoryAudience(request.audience) }
             const bindings = environment as Record<string, unknown>
             const denied = await directoryAdmission(bindings, request)
             if (denied !== undefined) return toJson(denied)

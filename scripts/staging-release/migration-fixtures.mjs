@@ -25,7 +25,7 @@ export const migrationManifest = Object.freeze({
 })
 
 export const sourceHashes = Object.freeze({
-  'apps/api/src/directory-object.ts': 'aa6fffbc6b56edd0bae13c3517953bb1d4d02316753ca916f5ba6a14e023863d',
+  'apps/api/src/directory-object.ts': '33908ef80092362753b6603d7d469426801fb9dd5797e16959133cc8fce63d7b',
   'apps/api/src/directory.ts': 'd58f1a143f56362f161fb1aaba37c3d6f4a20e8490151b7d3f5001eb8079c0d8',
   'apps/api/src/directory-projection.ts': '0f0fdea6424480291fd6f80cfa19a7d1e2591a0c5e15146c1175414b364de430',
   'packages/board/src/directory.ts': 'd1ddb3b19aa648565ddbc4cc007f0f60da9312ee8e5326bc5052ae71b1218802',
