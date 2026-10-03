@@ -27,7 +27,19 @@ export async function startHirelingFork() {
     })
   })
   const url = `http://127.0.0.1:${port}`
-  const node: ChildProcess = spawn('anvil', ['--fork-url', process.env.MONAD_TESTNET_RPC_URL!, '--network', 'monad', '--chain-id', '10143', '--port', String(port), '--silent'], { stdio: 'ignore' })
+  // The fixture funds its own random accounts. Default dev accounts cause needless genesis RPC reads;
+  // throttle each fork as multiple suites and Forge share the provider's request budget.
+  const node: ChildProcess = spawn('anvil', ['--fork-url', process.env.MONAD_TESTNET_RPC_URL!, '--network', 'monad', '--chain-id', '10143',
+    '--accounts', '0', '--compute-units-per-second', '100', '--fork-retry-backoff', '1000', '--no-fork-node-info',
+    '--port', String(port), '--silent'], { stdio: ['ignore', 'ignore', 'pipe'] })
+  let stderr = '', startError: Error | undefined
+  node.stderr?.on('data', (data: Buffer) => { stderr = (stderr + data.toString()).slice(-8192) })
+  node.on('error', (error: Error) => { startError = error })
+  const startupFailure = (reason: string) => {
+    // Anvil can include its fork URL in RPC errors. Keep provider credentials out of gate logs.
+    const detail = (startError?.message ?? stderr).replace(/https?:\/\/[^\s"'<>]+/g, '[redacted RPC URL]').trim()
+    return new Error(`${reason} (exit ${node.exitCode ?? 'none'}, signal ${node.signalCode ?? 'none'})${detail ? `: ${detail}` : ''}`)
+  }
   const rpc = async (method: string, params: unknown[] = []) => {
     const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(2000) })
@@ -37,12 +49,12 @@ export async function startHirelingFork() {
   }
   try {
     let ready = false
-    for (let attempt = 0; attempt < 100; attempt++) {
-      if (node.exitCode !== null) throw new Error('Local anvil exited before readiness')
+    for (let attempt = 0; attempt < 300; attempt++) {
+      if (startError || node.exitCode !== null || node.signalCode !== null) throw startupFailure('Local anvil exited before readiness')
       if (await rpc('eth_chainId').catch(() => undefined)) { ready = true; break }
       await new Promise(resolve => setTimeout(resolve, 200))
     }
-    if (!ready) throw new Error('Local anvil fork did not start')
+    if (!ready) throw startupFailure('Local anvil fork did not start')
     const publicClient = createPublicClient({ chain: monadTestnet, transport: http(url), pollingInterval: 10 })
     const wallet = () => createWalletClient({ account: privateKeyToAccount(generatePrivateKey()), chain: monadTestnet, transport: http(url) })
     const admin = wallet(), creator = wallet(), worker = wallet(), contributor = wallet(), arbitrator = wallet()

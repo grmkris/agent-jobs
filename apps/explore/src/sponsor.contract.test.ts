@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import * as sdk from '@agent-jobs/sdk'
-import { type Address, type Hex, encodeFunctionData, erc20Abi, keccak256 } from 'viem'
+import { type Address, type Hex, encodeFunctionData, erc20Abi, keccak256, parseTransaction } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type TxRequest } from './api.ts'
@@ -57,17 +57,18 @@ function board() {
     readContract: vi.fn(async ({ functionName }: { functionName: string }) => (functionName === 'callCounts' ? used : false)),
     getTransactionReceipt: vi.fn(receipt),
     waitForTransactionReceipt: vi.fn(receipt),
-    getBlock: vi.fn(async () => ({ timestamp: 1_800_000_000n })),
+    getBlock: vi.fn(async () => ({ timestamp: 1_800_000_000n, baseFeePerGas: 100_000_000_000n })),
     getTransactionCount: vi.fn(async () => nonce),
     getBalance: vi.fn(async () => balance),
     estimateGas: vi.fn(async () => 100_000n),
     call: vi.fn(async () => ({ data: '0x' })),
-    getGasPrice: vi.fn(async () => 1_000_000_000n),
+    getGasPrice: vi.fn(async () => 102_000_000_000n),
+    estimateMaxPriorityFeePerGas: vi.fn(async () => 2_000_000_000n),
     sendRawTransaction: vi.fn(async ({ serializedTransaction }: { serializedTransaction: Hex }) => {
       const hash = keccak256(serializedTransaction)
       used += 1n
       nonce += 1
-      receipts.set(hash, { transactionHash: hash, status: 'success', blockNumber: 5n, gasUsed: 100_000n, effectiveGasPrice: 1_000_000_000n })
+      receipts.set(hash, { transactionHash: hash, status: 'success', blockNumber: 5n, gasUsed: 100_000n, effectiveGasPrice: 102_000_000_000n })
       return hash
     }),
   }
@@ -76,7 +77,7 @@ function board() {
   const sign = (typedData: string) => sdk.signTypedDataJson({ account: owner, signTypedData: (args: Parameters<typeof owner.signTypedData>[0]) => owner.signTypedData(args) } as never, typedData)
   const rules = sponsorRulesFor({ holding: stack.holding, evaluator: stack.evaluator, vault: hireling.vault }, deployment)
   const tx = (to: Address, data: Hex): TxRequest => ({ description: 'step', chainId: deployment.chainId, to, data, value: '0' })
-  return { desk, owner, relay, stack, hireling, deployment, rules, sign, tx, setBalance: (n: bigint) => (balance = n) }
+  return { desk, owner, relay, stack, hireling, deployment, rules, sign, tx, client, setBalance: (n: bigint) => (balance = n) }
 }
 
 describe('Explore against the board’s real sponsorship desk', () => {
@@ -124,6 +125,12 @@ describe('Explore against the board’s real sponsorship desk', () => {
     const key = sponsorKey()
     const op = await b.desk.submit(b.owner.address, [call], key)
     expect(op).toEqual({ operationId: expect.stringMatching(/^0x[0-9a-f]{64}$/), status: 'confirmed', txHash: expect.stringMatching(/^0x[0-9a-f]{64}$/), callsUsed: 1 })
+    const sent = b.client.sendRawTransaction.mock.calls.at(0)?.[0]
+    if (sent === undefined) throw new Error('sponsorship did not send a transaction')
+    const signed = parseTransaction(sent.serializedTransaction)
+    expect(signed.maxPriorityFeePerGas).toBe(2_000_000_000n)
+    expect(signed.maxPriorityFeePerGas).toBeLessThan(await b.client.getGasPrice())
+    expect(signed.maxFeePerGas).toBe(2n * (await b.client.getBlock()).baseFeePerGas)
     // A retry after a lost answer: same key, same operation, nothing new sent.
     expect(await b.desk.submit(b.owner.address, [call], key)).toEqual(op)
     // The same calls as a new action, with a new key, go again.
