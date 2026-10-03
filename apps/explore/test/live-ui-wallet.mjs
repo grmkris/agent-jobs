@@ -240,11 +240,21 @@ export function liveWallet({ account, config, stateDir, enabled, onTransaction =
     if (method === 'eth_signTypedData_v4') {
       signing();
       assert.equal(lower(params[0]), lower(account.address), 'another signing account');
-      const typed = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
+      const supplied = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
+      // Browser JSON commonly serializes uints as decimal strings. viem only includes
+      // EIP-712 domain chainId when it is a number/bigint, so normalize the browser
+      // payload before hashing or the signature silently omits chainId from the domain.
+      const typed = structuredClone(supplied);
+      if (typed.domain?.chainId !== undefined) typed.domain.chainId = Number(typed.domain.chainId);
+      const fields = typed.types[typed.primaryType] ?? [];
+      for (const field of fields) {
+        if (/^u?int\d*$/.test(field.type) && typeof typed.message?.[field.name] === 'string') {
+          typed.message[field.name] = BigInt(typed.message[field.name]);
+        }
+      }
       assert.equal(Number(typed.domain.chainId), 10143, 'another typed-data chain');
       assert.ok(targets.has(lower(typed.domain.verifyingContract)), 'unexpected typed-data contract');
-      const types = { ...typed.types }; delete types.EIP712Domain;
-      return signed('typed', typed, () => account.signTypedData({ ...typed, types }));
+      return signed('typed', typed, () => account.signTypedData(typed));
     }
     if (method === 'eth_sendTransaction') return send(params[0]);
     if (readMethods.has(method)) return reads.request({ method, params });
