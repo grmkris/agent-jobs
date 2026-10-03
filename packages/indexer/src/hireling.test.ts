@@ -16,7 +16,7 @@ const legacy = sdk.deployment('monad-testnet')
 const d: sdk.Deployment = {
   ...legacy,
   stacks: { main: { kind: 'hireling-v1', factory: addr(1), holding: addr(2), evaluator: addr(3), openTokens: true } },
-  legacyStacks: Object.fromEntries(sdk.allStacks(legacy).map(([name, s]) => [`legacy-${name}`, s])),
+  legacyStacks: { ...legacy.legacyStacks },
   hireling: { block: 100n, safe: addr(9), factory: addr(1), vault: addr(4), feeSchedule: addr(5), distributor: addr(6), miningReserve: addr(7), teamVesting: addr(8), t0: 1_000 },
 }
 const contracts = contractsFromDeployment(d)
@@ -88,7 +88,7 @@ async function snapshot(sql: AsyncSql) {
 describe('Hireling event indexing', () => {
   it('chooses each address ABI and keeps the captured legacy logs readable beside v1', () => {
     expect(decode(contracts, published())?.args.reviewWindow).toBe(3600)
-    expect(decode(contracts, { ...published(), address: legacy.stacks.main!.holding })).toBeUndefined()
+    expect(decode(contracts, { ...published(), address: legacy.legacyStacks['main-v3']!.holding })).toBeUndefined()
     const captured = (legacyLogs.logs as unknown as RawLog[]).find((l) => decode(contracts, l)?.name === 'Published')!
     const event = decode(contracts, captured)!
     expect(event.args.mode).toBeDefined()
