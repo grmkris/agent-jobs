@@ -732,6 +732,23 @@ fee proposal `0x305460fb465546d90955de5982680172c17d492d8521d27cecba268cb53dbdf8
 G1b is deployed and promoted, but the hosted board release and fresh-vault user flows remain the next evidence
 tier. Existing G1 jobs and G1 FACTORY/stake are archived evidence only and cannot fund G1b jobs.
 
+The production D16 readback passed at block 67858399 with exactly the three declared reused-core role
+differences: deployer still has ADMIN_ROLE and DEFAULT_ADMIN_ROLE, and the Safe does not have the latter.
+All six pending owners are zero; Safe policy, verifier, wiring and clocks passed. Relay reserve was
+8.252096556499937 MON, above the 2 MON floor. These results do not imply a trustless core or mainnet readiness.
+
+The fresh FACTORY/mUSD SeedPool dry run and broadcast both passed. Position NFT **77** belongs to the Safe,
+with liquidity `99989999999999` and pool ID
+`0x23b9d0c1f1df9e465e82cde50abaaa5608ae849a42efc27fbc8ca71d4f270c18`.
+The seed used 10,000 FACTORY and 1 mUSD with a 1 mUSD repair cap; receipt-based `verify()` passed.
+
+| Seed step | Receipt | Block |
+| --- | --- | ---: |
+| helper deployment | `0xafca4f2b662543ea5ebc3b0a5cb0774d04539be9ea3570d9d79cf4a3b587a3e2` | 67860227 |
+| FACTORY approval | `0x37b249249228a7cbf774d99066b4c7c44ab74daaebfed68a820f870fd4fbbb12` | 67860233 |
+| mUSD approval | `0xcca0215427ff18c9d989499f665f3a40f0b2104b46368105bace5280998ba741` | 67860239 |
+| seed | `0x5d45eccdf8a90e95082e971c5d009039a735742809b5a6060a320d27769a2553` | 67860240 |
+
 The coordinator then distributed fresh FACTORY v2 from the G1b deployer allocation, recording each signed
 transaction before broadcast. The new token is `0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7`; these balances are
 for G1b only (the G1 token at `0x669318…ea6b` is not interchangeable):
