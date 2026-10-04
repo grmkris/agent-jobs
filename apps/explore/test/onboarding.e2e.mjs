@@ -150,7 +150,14 @@ try {
       // An embedded wallet's in-page prompt must stay pressable while the sheet waits for it.
       await page.evaluate(() => { window.__wallet.signPrompt = true; });
       await sheet.getByRole('button', { name: 'Sign', exact: true }).click();
-      await page.getByRole('dialog', { name: 'Wallet signature fixture' }).getByRole('button', { name: 'Sign fixture' }).click({ timeout: 5000 });
+      const prompt = page.getByRole('dialog', { name: 'Wallet signature fixture' });
+      await prompt.waitFor();
+      // Closing the review would not cancel the pending request, so nothing in the sheet dismisses it meanwhile.
+      assert.equal(await sheet.getByRole('button', { name: 'Cancel', exact: true }).isDisabled(), true);
+      assert.equal(await sheet.getByRole('button', { name: 'Close', exact: true }).isDisabled(), true);
+      await page.keyboard.press('Escape');
+      await sheet.getByRole('button', { name: 'Sign', exact: true }).waitFor();
+      await prompt.getByRole('button', { name: 'Sign fixture' }).click({ timeout: 5000 });
       await page.evaluate(() => { window.__wallet.signPrompt = false; });
       const open = page.getByRole('link', { name: 'Open @hireling_xyz_bot' });
       await open.waitFor();

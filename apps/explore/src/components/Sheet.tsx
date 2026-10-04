@@ -13,7 +13,8 @@ const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 100
 /**
  * `walletPrompt`: a wallet request started from the sheet is pending. An embedded wallet (Privy) draws its own prompt in
  * the page, which sits below the top layer and is inert behind a modal dialog, so its Sign button could not be pressed.
- * While one is pending the sheet stays on screen as a non-modal dialog and cannot be dismissed by its backdrop.
+ * While one is pending the sheet stays on screen as a non-modal dialog, and nothing in it dismisses it: closing the sheet
+ * would not cancel the request, which could still be confirmed after the review had gone.
  */
 export function Sheet({ open, onClose, title, children, className, walletPrompt = false }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; className?: string; walletPrompt?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -21,6 +22,9 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
   const drag = useRef<{ start: number; y: number; t: number; v: number } | null>(null)
   const [dy, setDy] = useState(0)
   const titleId = useId()
+  const dismiss = () => {
+    if (!walletPrompt) onClose()
+  }
 
   const modal = useRef(false)
 
@@ -62,7 +66,7 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
     if (g === null) return
     const height = panel.current?.offsetHeight ?? 400
     const rest = g.y - g.start + project(g.v)
-    if (rest > height * 0.45) onClose()
+    if (rest > height * 0.45) dismiss()
     else setDy(0)
   }
 
@@ -76,11 +80,11 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
       }}
       onCancel={(e) => {
         e.preventDefault()
-        onClose()
+        dismiss()
       }}
       onClick={(e) => {
         // A click on the dialog itself (not its panel) is a click on the backdrop.
-        if (e.target === ref.current && !walletPrompt) onClose()
+        if (e.target === ref.current) dismiss()
       }}
       className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-scrim sm:open:grid sm:open:place-items-center"
     >
@@ -101,7 +105,7 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
         </div>
         <div className="flex items-start justify-between gap-3">
           <h2 id={titleId} className="font-display text-[1.3rem] leading-tight font-bold tracking-[-0.015em]">{title}</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2">
+          <button type="button" aria-label="Close" disabled={walletPrompt} onClick={dismiss} className="grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2 disabled:opacity-40">
             <X className="size-4" />
           </button>
         </div>
@@ -148,7 +152,7 @@ export function ConfirmSheet({
         <Button size="lg" variant={tone === 'destructive' ? 'destructive' : 'primary'} busy={busy} disabled={disabled} onClick={onConfirm}>
           {confirm}
         </Button>
-        <Button size="lg" variant="gray" onClick={onClose}>
+        <Button size="lg" variant="gray" disabled={busy === true} onClick={onClose}>
           {cancelLabel}
         </Button>
       </div>
