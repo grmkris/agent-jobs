@@ -2,7 +2,7 @@ import { createPrivateKey, createPublicKey } from 'node:crypto'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { PrivyApi, PrivyApiError } from './client.ts'
 import { adminEnv, adminEnvPath, appendEnv, envPath, localEnv, required } from './env.ts'
-import { generateAuthorizationKey } from './p256.ts'
+import { generateAuthorizationKey } from '../../src/p256.ts'
 import { authorityPolicy } from './policy.ts'
 
 const stateDirectory = new URL('./.local/', import.meta.url)

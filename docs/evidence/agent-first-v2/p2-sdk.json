@@ -1,0 +1,83 @@
+{
+  "status": "pass",
+  "fixture": true,
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "observedAt": "2026-10-04T22:01:12.352Z",
+  "baseCommit": "53baaca9e9cd2a7a7de701ce74f585939c8894a2",
+  "sourceHashes": {
+    "packages/sdk/src/privy-server.ts": "0f61d9d4806ff9f9c5c1d95dd69ee421e453bbfd44feb0d61b2a51b9936e30e2",
+    "packages/sdk/src/p256.ts": "b6ea97d540c47bcbb6aecf0414146a4dec1f5cd56715e9d0a6e439e39d06249f",
+    "packages/sdk/src/delegation/grants.ts": "895cbc58c6178cd227e744870ed47244bf1f454d32cb5211e3be470c1fbeb8f4",
+    "packages/sdk/src/registry.ts": "f085d5a14833ddb958b3be2c799d0850ee3025af13c4520066fe152ccab9c299"
+  },
+  "wallet": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+  "walletAuthorityVerified": true,
+  "productionSdkRpcSignatureRecovered": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+  "grantHash": "0x4d3096affb07ea75a050f6998cf66d3c3ad8848c0c06ee5fc8cb8075aae89ceb",
+  "grant": {
+    "kind": "agent-work",
+    "chainId": 10143,
+    "delegator": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+    "delegate": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
+    "targets": [
+      {
+        "address": "0x0d02D7dAe6b98cB9904B4F87349b227aec04F4AD",
+        "methods": [
+          "activate",
+          "cancel",
+          "cancelSelection",
+          "claimTopUpRefund",
+          "settle",
+          "withdraw",
+          "publish"
+        ]
+      },
+      {
+        "address": "0x576fCe8dB0a6d1B70C31728aF3742f43719Bed11",
+        "methods": [
+          "accept",
+          "reject",
+          "dispute",
+          "completeAfterSilence",
+          "rejectAfterDeliveryDeadline",
+          "rejectAfterWindow",
+          "refundAfterArbitrationTimeout",
+          "retryDeferred"
+        ]
+      },
+      {
+        "address": "0x6e980b0545Be5622f7399E40655aeccB6f56E3FA",
+        "methods": [
+          "cancelUnstake",
+          "withdraw"
+        ]
+      },
+      {
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "methods": [
+          "submit",
+          "submitClaim",
+          "claimRefund"
+        ]
+      },
+      {
+        "address": "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3",
+        "methods": [
+          "redeemDelegations",
+          "disableDelegation"
+        ]
+      }
+    ],
+    "validAfter": 1791151271,
+    "expiresAt": 1791237671,
+    "calls": 100,
+    "nativeValue": "0",
+    "recipient": null,
+    "token": null,
+    "amount": null,
+    "periodSeconds": null
+  },
+  "transactions": [],
+  "note": "Retained API-created P0 fixture; genuine browser ownership and recovery remain P8 acceptance gates."
+}
