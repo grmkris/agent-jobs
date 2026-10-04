@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path'
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { executeCompanionWalletOperation } from '../src/companion-wallet.ts'
+import { childEnvironment } from '../src/companion-process.ts'
 
 const VERSION = '0.1.0'
 const DEFAULT_API = process.env.HIRELING_API ?? 'https://testnet.hireling.xyz'
@@ -67,7 +68,9 @@ async function run(prompt: string, command = process.env.HIRELING_AGENT_COMMAND 
   state.firstPromptHash = promptHash(firstPrompt); save(state)
   const mcpConfig = { mcpServers: { hireling: { type: 'http', url: `${state.apiOrigin}/mcp` }, 'hireling-wallet': { command: process.execPath, args: [process.argv[1] ?? fatal('companion entry path unavailable'), 'mcp'], env: { HIRELING_STATE: statePath } } } }
   const configPath = `${statePath}.${state.launchId}.mcp.json`; durableWrite(configPath, mcpConfig)
-  const child = spawn(command, ['--print', '--verbose', '--output-format', 'stream-json', '--mcp-config', configPath, firstPrompt], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HIRELING_MANAGED_AGENT_ID: state.managedId ?? '', HIRELING_API: state.apiOrigin } })
+  // Only the runtime values needed by Claude and the MCP config cross the process boundary. Provider/API keys and
+  // private keys in the interactive shell are intentionally absent.
+  const child = spawn(command, ['--print', '--verbose', '--output-format', 'stream-json', '--mcp-config', configPath, firstPrompt], { stdio: ['ignore', 'pipe', 'pipe'], env: childEnvironment(process.env, state.managedId ?? '', state.apiOrigin) })
   const completion = new Promise<number>((resolve) => { child.once('error', (e) => { console.error(`worker launch failed: ${e.message}`); resolve(1) }); child.once('exit', (c) => resolve(c ?? 1)) })
   const launched = load(); if (child.pid !== undefined) launched.pid = child.pid; save(launched)
   try { if (child.pid === undefined) fatal('worker did not start; check Claude Code installation'); await health('launched', true) } catch (error) { child.kill('SIGTERM'); if (existsSync(configPath)) unlinkSync(configPath); throw error }
@@ -75,14 +78,15 @@ async function run(prompt: string, command = process.env.HIRELING_AGENT_COMMAND 
   const stop = () => { if (stopping) return; stopping = true; if (heartbeat !== undefined) clearInterval(heartbeat); child.kill('SIGTERM') }
   process.once('SIGINT', stop); process.once('SIGTERM', stop)
   const lines = createInterface({ input: child.stdout ?? fatal('Claude stdout unavailable') })
-  void (async () => { for await (const line of lines) { process.stdout.write(`${line}\n`); let event: Record<string, unknown>; try { event = JSON.parse(line) as Record<string, unknown> } catch { continue }
+  void (async () => { for await (const line of lines) { let event: Record<string, unknown>; try { event = JSON.parse(line) as Record<string, unknown> } catch { continue }
     // Claude's system init is actual process output after its MCP handshake. A spawn event is insufficient.
     if (!ready && event.type === 'system' && event.subtype === 'init') {
       const servers = event.mcp_servers as Array<{ name?: string; status?: string }> | undefined
       if (servers?.some(s => s.name === 'hireling-wallet' && s.status === 'connected')) { ready = true; await health('ready', true).catch(stop); heartbeat = setInterval(() => { if (!stopping) void health('healthy', true).catch(stop) }, 25_000) }
     }
   } })().catch(stop)
-  child.stderr?.pipe(process.stderr)
+  // Do not forward model/tool output or stderr: either can contain inherited credentials or prompt data.
+  child.stderr?.resume()
   const code = await completion
   if (heartbeat !== undefined) clearInterval(heartbeat); process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop)
   await health('stopped', true).catch(() => {}); if (existsSync(configPath)) unlinkSync(configPath); process.exitCode = code
