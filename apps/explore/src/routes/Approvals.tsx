@@ -8,6 +8,7 @@ import { approvalSendError, approvalSigner, approvalTypedData, frozenOperation, 
 import { useAgentWallets } from '../components/Privy.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
+import { initializeTxJournal } from '../components/txJournal.ts'
 import { Address, Badge, Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, TxLink } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { humanAction, type Approval, fleetRequest, operatorSession, useFleet } from '../fleet.ts'
@@ -306,6 +307,8 @@ function ExecutionPanel({
   const selected = account.address?.toLowerCase() === operation.from.toLowerCase() && account.chainId === chain.id
   const commit = (next: Journal) => {
     // A failed durable write stops before a wallet prompt or a follow-up request.
+    if (next.transactions !== undefined && record?.transactions === undefined)
+      initializeTxJournal(localStorage, `approval:${approval.id}`, next.transactions)
     localStorage.setItem(key, JSON.stringify(next))
     setRecord(next)
     return next
@@ -464,6 +467,7 @@ function ExecutionPanel({
                 retainRecord
                 allowBatch={false}
                 allowSponsorship={false}
+                requireJournal
                 sendGuard={() => approvalSendError(approval.expiresAt)}
                 canSend={selected && auth.signedIn && !busy && approval.expiresAt > now}
                 onDone={(hashes) => {

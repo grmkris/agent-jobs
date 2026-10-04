@@ -1,0 +1,53 @@
+import type { Hex } from 'viem'
+import type { TxRequest } from '../api.ts'
+import type { SendSnapshot } from './txOperation.ts'
+
+export interface OpRecord {
+  batch: boolean
+  hashes: Array<Hex | null>
+  recorded: boolean[]
+  pending: number | null
+  snapshot?: SendSnapshot | null
+  from?: Hex | null
+  sponsored?: boolean
+  sponsor?: { key: string; operationId: Hex | null } | null
+}
+export interface JournalStorage {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+}
+export const emptyJournal = (): OpRecord => ({ batch: false, hashes: [], recorded: [], pending: null })
+export function txJournalKey(taskId: string, txs: TxRequest[]): string {
+  let hash = 0x811c9dc5
+  for (const char of txs.map(tx => `${tx.to}:${tx.data}`).join('|')) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193)
+  return `hireling.op:${taskId}:${(hash >>> 0).toString(36)}`
+}
+export function readTxJournal(storage: JournalStorage, key: string, requireExisting = false): OpRecord | null {
+  let raw: string | null
+  try { raw = storage.getItem(key) } catch { throw new Error('Transaction journal is unreadable. Wallet outcome is unknown; reconcile before continuing.') }
+  if (raw === null) {
+    if (requireExisting) throw new Error('The saved transaction journal is missing. Wallet outcome is unknown; reconcile before continuing.')
+    return null
+  }
+  let value: OpRecord
+  try { value = JSON.parse(raw) as OpRecord } catch { throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.') }
+  if (!value || typeof value.batch !== 'boolean' || !Array.isArray(value.hashes) || !value.hashes.every(hash => hash === null || typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) || !Array.isArray(value.recorded) || !value.recorded.every(recorded => recorded === null || typeof recorded === 'boolean') || value.pending !== null && (!Number.isSafeInteger(value.pending) || value.pending < 0) || value.snapshot != null && (!Number.isSafeInteger(value.snapshot.nonce) || !/^\d+$/.test(value.snapshot.block)) || value.from != null && !/^0x[0-9a-f]{40}$/i.test(value.from))
+    throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.')
+  return value
+}
+export function writeTxJournal(storage: JournalStorage, key: string, record: OpRecord | null): void {
+  try {
+    if (record === null) storage.removeItem(key)
+    else {
+      const bytes = JSON.stringify(record)
+      storage.setItem(key, bytes)
+      if (storage.getItem(key) !== bytes) throw new Error('write not durable')
+    }
+  } catch { throw new Error('Transaction journal could not be saved. No new wallet prompt is allowed; reconcile any existing broadcast.') }
+}
+/** Persist the inner journal before an outer approval record can advertise executable transactions. */
+export function initializeTxJournal(storage: JournalStorage, taskId: string, txs: TxRequest[]): void {
+  const key = txJournalKey(taskId, txs)
+  if (readTxJournal(storage, key) === null) writeTxJournal(storage, key, emptyJournal())
+}
