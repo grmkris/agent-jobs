@@ -220,8 +220,10 @@ try {
     const dropped = state.submits[0].key;
     state.dropExisting = true;
     state.receiptDown = false;
+    const submitsBeforeCheck = state.submits.length;
     await page.getByRole('button', { name: 'Check again' }).click();
     await page.getByRole('status').filter({ hasText: 'Hireling’s relay transaction was replaced before it was mined, so nothing happened.' }).waitFor();
+    assert.equal(state.submits.length, submitsBeforeCheck + 1, 'recheck asks the relay about the saved operation before following its hash');
     await capture(page, 'sponsor-dropped');
     assert.equal(state.submits.at(-1).key, dropped);
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();

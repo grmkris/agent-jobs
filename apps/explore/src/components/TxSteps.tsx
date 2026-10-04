@@ -284,7 +284,6 @@ export function TxSteps({
       address === undefined ||
       (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) ||
       at === 'signing' ||
-      at === 'sent' ||
       at === 'confirmed' ||
       at === 'recorded'
     )
@@ -465,16 +464,18 @@ export function TxSteps({
     // Another tab may have broadcast while this mounted instance still showed idle.
     const authoritative = load(key, requireJournal) ?? record
     syncRecord(authoritative)
+    // A relay retry asks about the same saved operation before following its hash. Its nonce may have been
+    // consumed by a replacement, in which case receipt-only polling would never discover the safe fallback.
+    if (authoritative.sponsored === true) {
+      if (authoritative.recorded[0] !== true) await runSponsored(authoritative)
+      return
+    }
     if (authoritative.hashes[i] != null) {
       await settle(i, authoritative.hashes[i]!, authoritative)
       return
     }
     if (authoritative.pending !== null) {
       if (authoritative.snapshot != null && authoritative.from != null) await reconcile(authoritative.pending, authoritative)
-      return
-    }
-    if (authoritative.sponsored === true) {
-      await runSponsored(authoritative)
       return
     }
     if (
