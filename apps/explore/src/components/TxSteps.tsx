@@ -197,7 +197,7 @@ export function TxSteps({
         const reverted = [...(latest.reverted ?? [])]
         if (!reverted.some(previous => previous.toLowerCase() === hash.toLowerCase())) reverted.push(hash)
         const hashes = [...latest.hashes]; hashes[i] = null
-        commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
+        commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot ?? null, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
         set(i, {
           at: 'failed',
           hash,
