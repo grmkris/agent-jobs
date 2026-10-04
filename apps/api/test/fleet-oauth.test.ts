@@ -9,6 +9,24 @@ const sqlOf = (db: DatabaseSync): FleetSql => ({
 })
 
 describe('fleet OAuth', () => {
+  it('AF-007 uses only additive creates and leaves legacy token schema and grants untouched', async () => {
+    const db = new DatabaseSync(':memory:'), sql = sqlOf(db)
+    db.exec("CREATE TABLE oauth_tokens (token_hash TEXT PRIMARY KEY,client_id TEXT NOT NULL,owner TEXT NOT NULL,scope TEXT NOT NULL,resource TEXT NOT NULL,agent_ids_json TEXT NOT NULL,agent_generations_json TEXT NOT NULL DEFAULT '{}',expires_at INTEGER NOT NULL,refresh_hash TEXT,revoked INTEGER NOT NULL DEFAULT 0)")
+    const token = 'legacy-access', refresh = 'legacy-refresh', origin = 'https://hireling.test'
+    db.prepare('INSERT INTO oauth_tokens VALUES (?,?,?,?,?,?,?,?,?,?)').run(await fleetHash(token), 'legacy-client', 'legacy-owner', 'hireling:read', `${origin}/mcp`, '[]', '{}', 10000, await fleetHash(refresh), 0)
+    const oldSchema = db.prepare("SELECT sql FROM sqlite_master WHERE name='oauth_tokens'").get()
+    const oldRows = db.prepare('SELECT * FROM oauth_tokens').all()
+    const queries: string[] = []
+    const tracked: FleetSql = { ...sql, batch: async statements => { queries.push(...statements.map(statement => statement.query)); await sql.batch(statements) } }
+    await migrateFleet(tracked); await migrateFleet(tracked)
+    expect(queries.every(query => /^CREATE (TABLE|INDEX) IF NOT EXISTS /.test(query))).toBe(true)
+    expect(db.prepare("SELECT sql FROM sqlite_master WHERE name='oauth_tokens'").get()).toEqual(oldSchema)
+    expect(db.prepare('SELECT * FROM oauth_tokens').all()).toEqual(oldRows)
+    expect(await resolveOAuth(sql, token, `${origin}/mcp`, 100)).toBeUndefined()
+    const result = await oauthRoute({ sql, method: 'POST', path: '/oauth/token', query: new URLSearchParams(), origin, siteOrigin: origin, now: 100, body: { grant_type: 'refresh_token', refresh_token: refresh, client_id: 'legacy-client', resource: `${origin}/mcp` } })
+    expect(result?.status).toBe(400)
+    expect(db.prepare('SELECT * FROM oauth_tokens').all()).toEqual(oldRows)
+  })
   it('registers, authorizes with PKCE and rotates an audience-scoped token', async () => {
     const sql = sqlOf(new DatabaseSync(':memory:')); await migrateFleet(sql)
     const origin = 'https://hireling.test', redirectUri = 'http://localhost:49321/callback', verifier = 'a'.repeat(64)
@@ -53,7 +71,7 @@ describe('fleet OAuth', () => {
     expect((await route('/oauth/token',refresh,106))?.status).toBe(400)
     // Reusing the old refresh token revokes the whole family, including the active descendant.
     expect(await resolveOAuth(sql,current.access_token,`${origin}/mcp`,107)).toBeUndefined()
-    expect((await sql.all<{ revoked: number }>('SELECT revoked FROM oauth_tokens WHERE family_id=(SELECT family_id FROM oauth_tokens WHERE refresh_hash=?)', await fleetHash(current.refresh_token))).every(row => row.revoked === 1)).toBe(true)
+    expect((await sql.all<{ revoked: number }>('SELECT revoked FROM oauth_tokens_v2 WHERE family_id=(SELECT family_id FROM oauth_tokens_v2 WHERE refresh_hash=?)', await fleetHash(current.refresh_token))).every(row => row.revoked === 1)).toBe(true)
     await sql.batch([{query:'UPDATE managed_agents SET generation=generation+1 WHERE id=?',params:[agent.id]}])
     expect(await resolveOAuth(sql,current.access_token,`${origin}/mcp`,107)).toBeUndefined()
   })
@@ -70,7 +88,7 @@ describe('fleet OAuth', () => {
     const agent=await createManagedAgent(sql,{owner,name:'worker',walletAddress:'0x0000000000000000000000000000000000000002',now:100})
     let beforeInsert: (() => Promise<void>) | undefined
     const interleaved: FleetSql = { ...sql, batch: async statements => {
-      if (beforeInsert !== undefined && statements.some(statement => statement.query.startsWith('INSERT INTO oauth_tokens'))) {
+      if (beforeInsert !== undefined && statements.some(statement => statement.query.startsWith('INSERT INTO oauth_tokens_v2'))) {
         const run = beforeInsert; beforeInsert = undefined; await run()
       }
       await sql.batch(statements)
