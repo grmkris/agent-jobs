@@ -4,7 +4,7 @@ import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { fromD1, migrate, stmt } from '@agent-jobs/indexer'
-import { drainTelegramOutbox, handleTelegramWebhook, migrateTelegram, telegramLinkConfirm, telegramLinkPrepare, telegramStatus } from '../src/telegram.ts'
+import { drainTelegramOutbox, handleTelegramWebhook, migrateTelegram, telegramLinkConfirm, telegramLinkPrepare, telegramStatus, telegramTransport } from '../src/telegram.ts'
 import { queueTelegramNotifications } from '../src/telegram-notifications.ts'
 
 const Database = Cloudflare.D1.Database('HirelingTelegramLocalDatabase')
@@ -35,8 +35,13 @@ export default class TelegramDrill extends Cloudflare.Worker<TelegramDrill>()('H
       const transport = { sendMessage: async () => ({ messageId: ++sent }) }
       const drained = await Promise.all([drainTelegramOutbox(sql, transport, 104), drainTelegramOutbox(sql, transport, 104)])
       const receipts = await sql.all<{ status: string; telegram_message_id: number }>('SELECT status, telegram_message_id FROM telegram_outbox')
+      // workerd's own Request validates the real transport's init, as its fetch does before sending.
+      const delivered = await telegramTransport('fixture-token', (async (input: string, init: RequestInit) => {
+        new Request(input, init)
+        return Response.json({ ok: true, result: { message_id: 9 } })
+      }) as typeof fetch).sendMessage('42', 'fixture').then((r) => r.messageId, () => 0)
       return { runtime: navigator.userAgent, linked: linked.queued && (await telegramStatus(sql, 'monad-testnet', account.address)).linked, duplicate: duplicate.queued,
-        queued: queued.processed, sent, counted: drained.reduce((n, r) => n + r.sent, 0), receipts }
+        queued: queued.processed, sent, counted: drained.reduce((n, r) => n + r.sent, 0), receipts, delivered }
     })
     return HttpServerResponse.jsonUnsafe(result)
   }).pipe(Effect.orDie) }

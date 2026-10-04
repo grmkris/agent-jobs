@@ -168,7 +168,7 @@ export async function handleTelegramWebhook(sql: AsyncSql, network: Network, bod
       stmt(`DELETE FROM telegram_links WHERE chat_id = ? AND ${gate}`, chatId, webhook.id, webhook.claim),
     )
     reply = 'Hireling notifications are off. Link your wallet again in Hireling to turn them on.'
-  } else if (text.startsWith('/')) reply = `Link your wallet in Hireling:\n${telegramSite(network)}/telegram\nOr send /stop to turn off notifications.`
+  } else if (text !== '') reply = `Link your wallet in Hireling:\n${telegramSite(network)}/telegram\nOr send /stop to turn off notifications.`
   else return { ok: true, queued: false }
   if (linkNonce === undefined) statements.push(outboxStatement({ id: `telegram:reply:${webhook.id}`, chatId, text: reply, now }, webhook))
   else statements.push(stmt(`INSERT OR IGNORE INTO telegram_outbox (id, chat_id, text, status, due_at, created_at)
@@ -190,11 +190,13 @@ export function telegramTransport(token: string, transport: typeof fetch = fetch
     if (token === '') throw new DeliveryFailure('failed')
     let response: Response
     try {
+      // workerd rejects redirect 'error' before sending; 'manual' plus the 3xx check below refuses redirects instead.
       response = await transport(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' },
+        method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }), signal: AbortSignal.timeout(15_000),
       })
     } catch { throw new DeliveryFailure('uncertain') }
+    if (response.status >= 300 && response.status < 400) throw new DeliveryFailure('failed')
     let payload: { ok?: boolean; result?: { message_id?: number }; parameters?: { retry_after?: number } }
     try { payload = await response.json() as typeof payload } catch { throw new DeliveryFailure('uncertain') }
     if (response.status === 429 && payload.ok === false) throw new DeliveryFailure('retry', Math.max(1, Math.min(payload.parameters?.retry_after ?? 60, 86_400)))

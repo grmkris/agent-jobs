@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
-import { type AsyncSql, fromNodeSqlite } from '@agent-jobs/indexer'
+import { type AsyncSql, fromNodeSqlite, stmt } from '@agent-jobs/indexer'
 import {
   drainTelegramOutbox, handleTelegramWebhook, migrateTelegram, telegramLinkConfirm, telegramLinkPrepare,
   telegramPublicChannel, telegramStatus,
@@ -109,6 +109,20 @@ describe('link security and delivery reconciliation', () => {
     await drainTelegramOutbox(sql, fail, 999)
     expect(sends).toBe(1)
     expect(await sql.all('SELECT status, last_error FROM telegram_outbox')).toEqual([{ status: 'uncertain', last_error: 'delivery-uncertain' }])
+  })
+
+  it('answers plain text with link help and refuses redirects without resending', async () => {
+    const { enqueueTelegram, telegramTransport } = await import('../src/telegram.ts')
+    const sql = await db()
+    expect(await handleTelegramWebhook(sql, 'monad-testnet', { update_id: 5, message: { chat: { id: chat, type: 'private' }, from: { id: chat }, text: 'hello' } }, 'secret', 'secret', 100))
+      .toEqual({ ok: true, queued: true })
+    expect((await sql.all<{ text: string }>('SELECT text FROM telegram_outbox'))[0]?.text).toContain('https://testnet.hireling.xyz/telegram')
+    await sql.batch([stmt("UPDATE telegram_outbox SET status = 'sent'")])
+    await enqueueTelegram(sql, { id: 'moved', chatId: String(chat), text: 'notice', now: 100 })
+    let redirect: RequestRedirect | undefined
+    const moved = telegramTransport('fake-token', async (_input, init) => { redirect = init?.redirect; return new Response(null, { status: 302, headers: { location: 'https://example.com' } }) })
+    expect(await drainTelegramOutbox(sql, moved, 101)).toEqual({ sent: 0, failed: 1, uncertain: 0 })
+    expect(redirect).toBe('manual')
   })
 
   it('claims concurrent drains once and cancels linked messages after /stop', async () => {

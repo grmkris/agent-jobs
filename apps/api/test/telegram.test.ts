@@ -15,8 +15,9 @@ const stack = beforeAll(deploy(Stack))
 test('real local workerd D1 verifies a signature, consumes the webhook once and claims concurrent sends once', Effect.gen(function* () {
   const { url } = yield* stack
   const response = yield* HttpClient.get(url as string)
-  const result = (yield* response.json) as { runtime: string; linked: boolean; duplicate: boolean; queued: number; sent: number; counted: number; receipts: Array<{ status: string; telegram_message_id: number }> }
+  const result = (yield* response.json) as { runtime: string; linked: boolean; duplicate: boolean; queued: number; sent: number; counted: number; receipts: Array<{ status: string; telegram_message_id: number }>; delivered: number }
   expect(result.runtime).toBe('Cloudflare-Workers')
+  expect(result.delivered).toBe(9)
   expect(result.linked).toBe(true)
   expect(result.duplicate).toBe(false)
   expect(result.queued).toBe(1)
