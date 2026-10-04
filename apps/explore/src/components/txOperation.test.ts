@@ -1,10 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { guardedSnapshot, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
+import { guardedSnapshot, reconcileSend, retryAction, walletRefused, withWalletStepLock, type StepLocks } from './txOperation.ts'
 import { approvalSendError } from '../approval-operation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
 
 describe('wallet step retry reconciliation', () => {
+  it('serializes stale tabs and rereads the shared pending/hash journal before a second prompt', async () => {
+    let queue = Promise.resolve()
+    const locks: StepLocks = { request: async (_name, fn) => {
+      const previous = queue
+      let release!: () => void
+      queue = new Promise<void>(resolve => { release = resolve })
+      await previous
+      try { return await fn() } finally { release() }
+    } }
+    let journal: 'idle' | 'pending' | 'sent' = 'idle'
+    let prompts = 0
+    const staleTab = () => withWalletStepLock(locks, 'same-operation', async () => {
+      // The read happens inside the lock, not at component mount.
+      if (journal !== 'idle') return
+      journal = 'pending'
+      prompts++
+      await Promise.resolve()
+      journal = 'sent'
+    })
+    await Promise.all([staleTab(), staleTab()])
+    expect(prompts).toBe(1)
+    expect(journal).toBe('sent')
+    await expect(withWalletStepLock(undefined, 'same-operation', staleTab)).rejects.toThrow(/Web Locks/)
+    expect(prompts).toBe(1)
+  })
   it('refuses unsent approval steps after expiry, including expiry during chain reads', async () => {
     let now = 99
     let readCount = 0

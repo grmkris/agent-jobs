@@ -13,7 +13,7 @@ import { chain, wagmiConfig, writesOpen } from '../wallet.ts'
 import { LaunchNotice } from './LaunchGate.tsx'
 import { usePrivyBatch } from './Privy.tsx'
 import { useAuth } from './Wallet.tsx'
-import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, guardedSnapshot, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
+import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, guardedSnapshot, reconcileSend, retryAction, walletRefused, withWalletStepLock } from './txOperation.ts'
 import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
 
 type Status = TxStatus
@@ -186,6 +186,14 @@ export function TxSteps({
   const commit = (r: OpRecord) => {
     setRecord(r)
     save(key, r)
+  }
+  const syncRecord = (r: OpRecord) => {
+    setRecord(r)
+    setStatus((r.batch || r.sponsored === true ? [txs[0] as TxRequest] : txs).map((_, i): Status => {
+      const hash = r.hashes[i]
+      if (hash != null) return r.recorded[i] === true ? { at: 'recorded', hash } : { at: 'sent', hash }
+      return r.pending === i ? { at: 'uncertain', error: UNCERTAIN.unknown } : { at: 'idle' }
+    }))
   }
   const set = (i: number, s: Status) => setStatus((all) => all.map((x, j) => (j === i ? s : x)))
 
@@ -444,9 +452,20 @@ export function TxSteps({
     onDone(status.flatMap((s) => (s.at === 'recorded' ? [s.hash] : [])))
   }, [allDone])
 
-  const run = async (i: number) => {
+  const runLocked = async (i: number) => {
     if (!writesOpen) return
-    if (record.sponsored === true) {
+    // Another tab may have broadcast while this mounted instance still showed idle.
+    const authoritative = load(key) ?? record
+    syncRecord(authoritative)
+    if (authoritative.hashes[i] != null) {
+      await settle(i, authoritative.hashes[i]!, authoritative)
+      return
+    }
+    if (authoritative.pending !== null) {
+      if (authoritative.snapshot != null && authoritative.from != null) await reconcile(authoritative.pending, authoritative)
+      return
+    }
+    if (authoritative.sponsored === true) {
       await runSponsored()
       return
     }
@@ -455,11 +474,11 @@ export function TxSteps({
       !canSend ||
       address === undefined ||
       (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) ||
-      record.pending !== null ||
+      authoritative.pending !== null ||
       retryAction(status[i] ?? { at: 'signing' }) !== 'send'
     )
       return
-    if (record.batch && batch === null) {
+    if (authoritative.batch && batch === null) {
       set(i, { at: 'failed', error: 'This wallet cannot send a batch; send them one at a time.' })
       return
     }
@@ -491,11 +510,11 @@ export function TxSteps({
       sending.current = false
       return
     }
-    const withPending = { ...record, pending: i, snapshot, from }
+    const withPending = { ...authoritative, pending: i, snapshot, from }
     commit(withPending)
     let hash: Hex
     try {
-      if (record.batch) {
+      if (authoritative.batch) {
         if (batch === null) throw new Error('This wallet cannot send a batch; send them one at a time.')
         hash = await batch(txs, batchGasLimit(txs, hireling))
       } else {
@@ -524,12 +543,21 @@ export function TxSteps({
       ...withPending,
       pending: null,
       snapshot: null,
-      hashes: Object.assign([...record.hashes], { [i]: hash }),
+      hashes: Object.assign([...authoritative.hashes], { [i]: hash }),
     }
     commit(sent)
     set(i, { at: 'sent', hash })
     await settle(i, hash, sent)
     sending.current = false
+  }
+
+  const run = async (i: number) => {
+    try {
+      await withWalletStepLock(navigator.locks, key, () => runLocked(i))
+    } catch (failure) {
+      sending.current = false
+      set(i, { at: 'failed', error: friendlyError(failure) })
+    }
   }
 
   const next = status.findIndex((s) => s.at !== 'recorded')
