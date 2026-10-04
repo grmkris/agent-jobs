@@ -15,6 +15,14 @@ export interface PrivyWalletConfig {
   readonly appSecret: string
   readonly walletId: string
   readonly address: Address
+  /** Optional P-256 authorization signer. The key is held by the caller; Privy still signs as the wallet. */
+  readonly authorization?: PrivyAuthorization
+}
+
+export interface PrivyAuthorization {
+  readonly sign: (payload: string) => Promise<string>
+  readonly expiresInMs?: number
+  readonly idempotencyKey?: string
 }
 
 const PRIVY_API = 'https://api.privy.io/v1'
@@ -22,19 +30,68 @@ const PRIVY_API = 'https://api.privy.io/v1'
 export class PrivyError extends Error {}
 
 /** One call to Privy's wallet RPC; returns its `data`. */
-async function privyRpc(cfg: PrivyWalletConfig, body: Record<string, unknown>): Promise<Record<string, string>> {
-  const res = await fetch(`${PRIVY_API}/wallets/${cfg.walletId}/rpc`, {
-    method: 'POST',
-    headers: {
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
+  if (typeof value === 'number' && Number.isFinite(value)) return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (typeof value === 'object' && value !== null) return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`).join(',')}}`
+  throw new Error('Privy request contains a non-JSON value')
+}
+
+/** RFC-8785-compatible request payload used by Privy's authorization-signature header. */
+export function formatPrivyAuthorizationPayload(input: { method: string; url: string; body: Record<string, unknown>; headers: Record<string, string> }): string {
+  return canonicalJson({ version: 1, method: input.method.toUpperCase(), url: input.url, body: input.body, headers: input.headers })
+}
+
+async function privyRpc(cfg: PrivyWalletConfig, body: Record<string, unknown>, operation = randomOperation()): Promise<Record<string, string>> {
+  const url = `${PRIVY_API}/wallets/${cfg.walletId}/rpc`
+  // Match JSON.stringify's omission of optional undefined fields in ordinary viem transactions.
+  const cleanBody = JSON.parse(JSON.stringify(body)) as Record<string, unknown>
+  const serialized = canonicalJson(cleanBody)
+  const expiry = String(Date.now() + (cfg.authorization?.expiresInMs ?? 60_000))
+  const idempotencyKey = cfg.authorization?.idempotencyKey ?? operation
+  const authHeaders = { 'privy-app-id': cfg.appId, 'privy-idempotency-key': idempotencyKey, 'privy-request-expiry': expiry }
+  const signed: Record<string, string> = cfg.authorization === undefined ? {} : { 'privy-authorization-signature': await cfg.authorization.sign(formatPrivyAuthorizationPayload({ method: 'POST', url, body: cleanBody, headers: authHeaders })) }
+  const headers: Record<string, string> = {
       authorization: `Basic ${btoa(`${cfg.appId}:${cfg.appSecret}`)}`,
       'privy-app-id': cfg.appId,
       'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
+      'privy-idempotency-key': idempotencyKey,
+      'privy-request-expiry': expiry,
+      ...signed,
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: serialized,
   })
   const json = (await res.json().catch(() => ({}))) as { data?: Record<string, string>; error?: string; message?: string }
   if (!res.ok || json.data === undefined) throw new PrivyError(`privy ${String(body.method)}: HTTP ${res.status} ${json.error ?? json.message ?? ''}`)
   return json.data
+}
+
+function randomOperation(): string {
+  // Browser-safe UUID; operation records should normally supply a stable idempotency key through config.
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+export async function privySignTransaction(cfg: PrivyWalletConfig, transaction: Record<string, unknown>): Promise<Hex> {
+  const providerTransaction = {
+    type: Number(transaction.type ?? 2),
+    chain_id: Number(transaction.chain_id ?? transaction.chainId ?? 10143),
+    to: transaction.to,
+    data: transaction.data ?? '0x',
+    value: transaction.value ?? '0x0',
+    nonce: Number(transaction.nonce),
+    gas_limit: transaction.gas_limit ?? transaction.gas,
+    max_fee_per_gas: transaction.max_fee_per_gas ?? transaction.maxFeePerGas,
+    max_priority_fee_per_gas: transaction.max_priority_fee_per_gas ?? transaction.maxPriorityFeePerGas,
+  }
+  if (providerTransaction.type !== 2 || transaction.authorizationList !== undefined || transaction.authorization_list !== undefined) throw new PrivyError('sign-only adapter supports direct EIP-1559 transactions')
+  const data = await privyRpc(cfg, { method: 'eth_signTransaction', params: { transaction: providerTransaction } })
+  const raw = data.signed_transaction ?? data.raw_transaction ?? data.rawTransaction
+  if (typeof raw !== 'string' || !raw.startsWith('0x')) throw new PrivyError('privy eth_signTransaction returned no serialized transaction')
+  return raw as Hex
 }
 
 export function privyWallet(network: Network, cfg: PrivyWalletConfig, rpcUrl: string): Wallet {
@@ -97,6 +154,10 @@ export function privyWallet(network: Network, cfg: PrivyWalletConfig, rpcUrl: st
             },
           })
           return data.hash
+        }
+        case 'eth_signTransaction': {
+          const tx = (p[0] ?? {}) as Record<string, unknown>
+          return (await privySignTransaction(cfg, tx)) as string
         }
         default:
           return reads.request({ method, params } as never)
