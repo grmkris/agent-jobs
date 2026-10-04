@@ -459,6 +459,8 @@ function ExecutionPanel({
                 boardId={operation.boardId}
                 reportToBoard={false}
                 retainRecord
+                allowBatch={false}
+                allowSponsorship={false}
                 canSend={selected && auth.signedIn && !busy}
                 onDone={(hashes) => {
                   try {

@@ -123,6 +123,8 @@ export function TxSteps({
   reportToBoard = true,
   autoStart = false,
   retainRecord = false,
+  allowBatch = true,
+  allowSponsorship = true,
 }: {
   taskId: string
   txs: TxRequest[]
@@ -135,14 +137,17 @@ export function TxSteps({
   reportToBoard?: boolean
   autoStart?: boolean
   retainRecord?: boolean
+  allowBatch?: boolean
+  allowSponsorship?: boolean
 }) {
   const { chainId, address } = useAccount()
   const currentAccount = useRef({ chainId, address, canSend })
   currentAccount.current = { chainId, address, canSend }
   const auth = useAuth()
-  const batch = usePrivyBatch(address)
-  const sponsorship = useLiveSponsorship(address, auth.signedIn && auth.address?.toLowerCase() === address?.toLowerCase())
-  const canSponsor = sponsorship.live !== null && sponsorable(txs, sponsorship.live, chain.id)
+  const walletBatch = usePrivyBatch(address)
+  const batch = allowBatch ? walletBatch : null
+  const sponsorship = useLiveSponsorship(address, allowSponsorship && auth.signedIn && auth.address?.toLowerCase() === address?.toLowerCase())
+  const canSponsor = allowSponsorship && sponsorship.live !== null && sponsorable(txs, sponsorship.live, chain.id)
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const key = keyOf(taskId, txs)
