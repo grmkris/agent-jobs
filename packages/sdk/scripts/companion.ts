@@ -68,8 +68,8 @@ async function run(prompt: string, command = process.env.HIRELING_AGENT_COMMAND 
   state.firstPromptHash = promptHash(firstPrompt); save(state)
   const mcpConfig = { mcpServers: { hireling: { type: 'http', url: `${state.apiOrigin}/mcp` }, 'hireling-wallet': { command: process.execPath, args: [process.argv[1] ?? fatal('companion entry path unavailable'), 'mcp'], env: { HIRELING_STATE: statePath } } } }
   const configPath = `${statePath}.${state.launchId}.mcp.json`; durableWrite(configPath, mcpConfig)
-  // Only the runtime values needed by Claude and the MCP config cross the process boundary. Provider/API keys and
-  // private keys in the interactive shell are intentionally absent.
+  // Only Claude's runtime/provider configuration and the MCP identity cross this boundary. Wallet private keys,
+  // Hireling credentials and other launcher secrets are excluded. Provider-bearing child output is suppressed.
   const child = spawn(command, ['--print', '--verbose', '--output-format', 'stream-json', '--mcp-config', configPath, firstPrompt], { stdio: ['ignore', 'pipe', 'pipe'], env: childEnvironment(process.env, state.managedId ?? '', state.apiOrigin) })
   const completion = new Promise<number>((resolve) => { child.once('error', (e) => { console.error(`worker launch failed: ${e.message}`); resolve(1) }); child.once('exit', (c) => resolve(c ?? 1)) })
   const launched = load(); if (child.pid !== undefined) launched.pid = child.pid; save(launched)
