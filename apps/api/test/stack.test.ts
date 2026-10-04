@@ -29,15 +29,15 @@ const rpcSet = (process.env.MONAD_TESTNET_RPC_URL ?? '') !== ''
 const postJson = (url: string, body: unknown, headers: Record<string, string> = {}) =>
   HttpClient.post(url, { body: HttpBody.text(JSON.stringify(body), 'application/json'), headers })
 
-const mcp = (apiUrl: string | undefined, method: string, params: unknown, session?: string | undefined) =>
+const mcp = (apiUrl: string | undefined, method: string, params: unknown, token?: string | undefined) =>
   Effect.gen(function* () {
     const response = yield* postJson(
       `${apiUrl}/mcp`,
       { jsonrpc: '2.0', id: 1, method, params },
-      session === undefined ? {} : { 'mcp-session-id': session },
+      token === undefined ? {} : { authorization: `Bearer ${token}` },
     )
     const body = (yield* response.json) as { result?: any; error?: any }
-    return { body, session: response.headers['mcp-session-id'] }
+    return { body, status: response.status, authenticate: response.headers['www-authenticate'] }
   })
 
 test('the worker answers from workerd',
@@ -60,23 +60,35 @@ test('there is no unauthenticated manifest write (the S0 PUT is gone)',
     expect(get.status).toBe(404)
   }))
 
-test('MCP: initialize opens a session and lists the board tools',
+test('hosted MCP requires OAuth and exposes resource discovery; REST reads stay public',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
-    const init = yield* mcp(apiUrl, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } })
-    expect(init.body.result.protocolVersion).toBe('2025-06-18')
-    expect(init.session).toBeTypeOf('string')
-    const list = yield* mcp(apiUrl, 'tools/list', {}, init.session)
-    const names = (list.body.result.tools as Array<{ name: string }>).map((t) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['protocol_info', 'auth_login', 'create_task', 'build_activation', 'submit_work', 'sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation']))
-    const info = yield* mcp(apiUrl, 'tools/call', { name: 'protocol_info', arguments: {} }, init.session)
-    const infoBody = JSON.parse(info.body.result.content[0].text) as { chainId: number; howTo: { testnetTokens: string } }
-    expect(infoBody.chainId).toBe(10143)
-    expect(infoBody.howTo.testnetTokens).toContain('FACTORY v2 is fixed supply')
-    expect(infoBody.howTo.testnetTokens).toContain('Legacy FACTORY v1 keeps its faucet only for legacy stacks')
-    const denied = yield* mcp(apiUrl, 'tools/call', { name: 'create_task', arguments: {} }, init.session)
-    expect(denied.body.result.isError).toBe(true)
-    expect(denied.body.result.content[0].text).toMatch(/^unauthenticated/)
+    for (const method of ['initialize', 'tools/list', 'tools/call']) {
+      const denied = yield* mcp(apiUrl, method, {})
+      expect(denied.status).toBe(401)
+      expect(denied.authenticate).toContain('/.well-known/oauth-protected-resource')
+    }
+    const resource = (yield* (yield* HttpClient.get(`${apiUrl}/.well-known/oauth-protected-resource`)).json) as { resource: string; authorization_servers: string[] }
+    expect(resource.resource).toBe(`${apiUrl}/mcp`)
+    expect(resource.authorization_servers).toEqual([apiUrl])
+    const tenantMcp = yield* postJson(`${apiUrl}/b/public/mcp`, { jsonrpc: '2.0', id: 1, method: 'initialize' })
+    expect(tenantMcp.status).toBe(401)
+    expect(tenantMcp.headers['www-authenticate']).toContain('/.well-known/oauth-protected-resource/b/public/mcp')
+    const tenantResource = (yield* (yield* HttpClient.get(`${apiUrl}/.well-known/oauth-protected-resource/b/public/mcp`)).json) as { resource: string }
+    expect(tenantResource.resource).toBe(`${apiUrl}/b/public/mcp`)
+    const registration = (yield* (yield* postJson(`${apiUrl}/oauth/register`, { redirect_uris: ['http://localhost:49181/callback'] })).json) as { client_id: string }
+    const authorization = yield* Effect.promise(() => fetch(`${apiUrl}/oauth/authorize?${new URLSearchParams({ client_id: registration.client_id, redirect_uri: 'http://localhost:49181/callback', response_type: 'code', resource: `${apiUrl}/mcp`, code_challenge_method: 'S256', code_challenge: 'a'.repeat(43) })}`, { headers: { origin: 'https://evil.example' }, redirect: 'manual' }))
+    expect(authorization.status).toBe(302)
+    expect(authorization.headers.get('location')).toContain(`${apiUrl}/connect?oauth_request=`)
+    const server = (yield* (yield* HttpClient.get(`${apiUrl}/.well-known/oauth-authorization-server`)).json) as { code_challenge_methods_supported: string[]; token_endpoint: string }
+    expect(server.code_challenge_methods_supported).toEqual(['S256'])
+    expect(server.token_endpoint).toBe(`${apiUrl}/oauth/token`)
+    const info = yield* postJson(`${apiUrl}/api/protocol_info`, {})
+    const result = (yield* info.json) as { ok: boolean; result: { chainId: number; howTo: { testnetTokens: string } } }
+    expect(result.ok).toBe(true)
+    expect(result.result.chainId).toBe(10143)
+    expect(result.result.howTo.testnetTokens).toContain('FACTORY v2 is fixed supply')
+    expect(result.result.howTo.testnetTokens).toContain('Legacy FACTORY v1 keeps its faucet only for legacy stacks')
   }))
 
 test('directory discovery and its Durable Object work without a job or wallet transaction',
@@ -90,45 +102,29 @@ test('directory discovery and its Durable Object work without a job or wallet tr
     expect(page.nextCursor).toBeNull()
     const missing = yield* HttpClient.get(`${apiUrl}/data/directory/7001`)
     expect(missing.status).toBe(404)
-    const init = yield* mcp(apiUrl, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'directory-test', version: '1' } })
-    const list = yield* mcp(apiUrl, 'tools/list', {}, init.session)
-    expect((list.body.result.tools as Array<{ name: string }>).map((entry) => entry.name)).toEqual(expect.arrayContaining(['list_directory', 'get_directory_agent', 'prepare_agent_profile', 'enroll_directory', 'post_heartbeat', 'publish_service_ad']))
-    const read = yield* mcp(apiUrl, 'tools/call', { name: 'list_directory', arguments: {} }, init.session)
-    expect(read.body.result.isError).not.toBe(true)
-    expect(JSON.parse(read.body.result.content[0].text).agents).toEqual([])
+    const read = yield* postJson(`${apiUrl}/api/list_directory`, {})
+    expect(read.status).toBe(200)
+    expect(yield* read.json).toMatchObject({ ok: true, result: { agents: [] } })
   }))
 
-test.skipIf(!rpcSet)('sign in over MCP, create an offer, and serve its manifest',
+test.skipIf(!rpcSet)('website SIWE prepares an offer and serves its manifest, but is not a hosted MCP grant',
   Effect.gen(function* () {
     const { apiUrl } = yield* stack
     const account = privateKeyToAccount(generatePrivateKey())
-    const init = yield* mcp(apiUrl, 'initialize', { protocolVersion: '2025-06-18' })
-    const challenge = yield* mcp(apiUrl, 'tools/call', { name: 'auth_challenge', arguments: { address: account.address } }, init.session)
-    const { message } = JSON.parse(challenge.body.result.content[0].text) as { message: string }
-    const signature = yield* Effect.promise(() => account.signMessage({ message }))
-    const login = yield* mcp(apiUrl, 'tools/call', { name: 'auth_login', arguments: { message, signature } }, init.session)
-    expect(login.body.result.isError).toBeUndefined()
-    const who = yield* mcp(apiUrl, 'tools/call', { name: 'whoami', arguments: {} }, init.session)
-    expect(JSON.parse(who.body.result.content[0].text)).toMatchObject({ address: account.address, boardId: 'public' })
-
-    const created = yield* mcp(apiUrl, 'tools/call', {
-      name: 'create_task',
-      arguments: {
-        title: 'stack test',
-        brief: 'nothing is published',
-        acceptanceCriteria: [],
-        token: 'mUSD',
-        reward: '1',
-        creatorBond: '0',
-        workerBond: '0',
-        deliveryDeadline: Math.floor(Date.now() / 1000) + 3600,
-        mode: 'hire',
-        stack: 'main',
-      },
-    }, init.session)
-    const task = JSON.parse(created.body.result.content[0].text) as { termsHash: string; manifestUrl: string; transactions: unknown[] }
-    expect(task.transactions.length).toBeGreaterThan(0)
-    const manifest = yield* HttpClient.get(`${apiUrl}/offers/${task.termsHash}.json`)
+    const challenge = (yield* (yield* postJson(`${apiUrl}/api/auth_challenge`, { address: account.address })).json) as { result: { message: string } }
+    const signature = yield* Effect.promise(() => account.signMessage({ message: challenge.result.message }))
+    const login = (yield* (yield* postJson(`${apiUrl}/api/auth_login`, { message: challenge.result.message, signature })).json) as { ok: boolean; result: { session: string } }
+    expect(login.ok).toBe(true)
+    const token = login.result.session
+    expect((yield* mcp(apiUrl, 'initialize', {}, token)).status).toBe(401)
+    const created = yield* postJson(`${apiUrl}/api/create_task`, {
+      title: 'stack test', brief: 'nothing is published', acceptanceCriteria: [], token: 'mUSD', reward: '1', creatorBond: '0', workerBond: '0',
+      deliveryDeadline: Math.floor(Date.now() / 1000) + 3600, mode: 'hire', stack: 'main',
+    }, { authorization: `Bearer ${token}` })
+    const body = (yield* created.json) as { ok: boolean; result: { termsHash: string; transactions: unknown[] } }
+    expect(body.ok).toBe(true)
+    expect(body.result.transactions.length).toBeGreaterThan(0)
+    const manifest = yield* HttpClient.get(`${apiUrl}/offers/${body.result.termsHash}.json`)
     expect(manifest.status).toBe(200)
     expect(((yield* manifest.json) as { title: string }).title).toBe('stack test')
   }))

@@ -97,6 +97,15 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     }
 
     return Effect.succeed({
+        /** Management SQL is private to the Worker and uses a reserved instance of the existing class. */
+        fleet: (req: { kind: 'all'; query: string; params: readonly (string | number | null)[] } | { kind: 'batch'; statements: readonly { query: string; params: readonly (string | number | null)[] }[] }) => Effect.sync(() => {
+          const bindings = runtimeEnv as Record<string, unknown>
+          const namespace = bindings.Board as { idFromName(name: string): { toString(): string } } | undefined
+          if (namespace?.idFromName('__hireling_fleet_v1__').toString() !== state.id.toString()) throw new Error('fleet object identity mismatch')
+          if (req.kind === 'all') return toJson(state.storage.sql.raw.exec(req.query, ...req.params).toArray())
+          state.raw.storage.transactionSync(() => { for (const statement of req.statements) state.storage.sql.raw.exec(statement.query, ...statement.params).toArray() })
+          return 'null'
+        }),
         /** Internal relay RPC shares the reserved object's queue and durable nonce ledger with sponsorship. */
         relay: (req: { env: BoardCall['env']; request: RelayRequest }) => Effect.promise(() => {
           const result = callQueue.then(async (): Promise<string> => {
