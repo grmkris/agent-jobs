@@ -1067,8 +1067,9 @@ deletions, binding changes, domain changes or schedule changes. Existing Board a
 `65895124-8c52-4195-944f-0bd432f22c19`.
 
 The local release gate passed after the final correction: migration generation was clean; the repository gate covered
-195 contract tests (45 skipped), 6 SDK tests, 21 indexer tests (1 skipped), 34 mining tests, 190 API tests (11
-skipped), 117 Explore tests, and the 30 staging guard tests. Actual-component Chromium regression covered approval
+482 contract tests (45 skipped), 203 SDK tests (28 skipped), 195 board tests (45 skipped), 6 React package tests,
+21 indexer tests (1 skipped), 34 CI-evidence tests, 15 arbiter tests, 190 API tests (11 skipped), 117 Explore tests,
+30 mining tests, and 157 staging guard tests. Actual-component Chromium regression covered approval
 expiry, cross-tab and journal safety, reconciliation, funding and the AF-010 manual-hash binding. Separate mocked
 Chromium suites passed onboarding, v1 job, v1 flows, stake, Collect, sponsored sends, publish-v1, selection and
 directory. These are local fixture checks; no wallet transaction was broadcast.
