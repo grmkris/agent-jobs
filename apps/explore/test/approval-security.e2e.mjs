@@ -43,14 +43,14 @@ export const createConfig=()=>({}); export const http=()=>({}); export const cus
 import {useSyncExternalStore} from 'react';const subscribe=fn=>{window.addEventListener('fixture-wallet-change',fn);return()=>window.removeEventListener('fixture-wallet-change',fn)};
 export const useReadContract=()=>({data:false}); export const useAccount=()=>({address:useSyncExternalStore(subscribe,()=>window.__walletAddress),chainId:10143});
 export const useSwitchChain=()=>({switchChainAsync:async()=>{}});
-export const useSendTransaction=()=>({sendTransactionAsync:async(tx)=>{const r=await fetch('/__security/wallet',{method:'POST',body:JSON.stringify(tx,(_,v)=>typeof v==='bigint'?v.toString():v)}); return (await r.json()).hash;}});
+export const useSendTransaction=()=>({sendTransactionAsync:async(tx)=>{const r=await fetch('/__security/wallet',{method:'POST',body:JSON.stringify(tx,(_,v)=>typeof v==='bigint'?v.toString():v)});const body=await r.json();if(window.__walletLoseReply)throw new Error('Fixture lost wallet reply');return body.hash;}});
 `,
   'security-actions': `
 export const getTransactionCount=async()=>{await new Promise(r=>setTimeout(r,window.__readDelay??0));return 0};
 export const getBlockNumber=async()=>{await new Promise(r=>setTimeout(r,window.__readDelay??0)); if(window.__expireDuringRead)window.__expiresAt=0;return 100n};
 export const getBlock=async()=>({transactions:[]});
 export const getTransaction=async(_config,{hash})=>{const transaction=await(await fetch('/__security/transaction?hash='+hash)).json();return {...transaction,value:BigInt(transaction.value)}};
-export const waitForTransactionReceipt=async()=>{const response=await fetch('/__security/receipt');if(!response.ok)throw new Error('Receipt unavailable');return {status:'success'}};
+export const waitForTransactionReceipt=async(_config,{hash})=>{const response=await fetch('/__security/receipt?hash='+hash);if(!response.ok)throw new Error('Receipt unavailable');return {status:'success'}};
 `,
 };
 const server = await createServer({ root, configFile: false, envDir: false, define: { __AGENT_JOBS_NETWORK__: JSON.stringify('monad-testnet'), __PRIVY_APP_ID__: '""' }, plugins: [react(), {
@@ -85,7 +85,7 @@ const fixture = async () => {
       getGasPrice:async()=>100n,estimateGas:async()=>21000n,
     };
   }, {operatorWallet:wallet});
-  const state = { prompts: 0, receiptDown: false, transactionMismatch: false, delayWallet: 0, transactions: [] };
+  const state = { prompts: 0, receiptDown: false, transactionMismatch: false, delayWallet: 0, transactions: [], releaseReceipt: null, signalReceiptHeld: null };
   await context.route('**/__security/*', async route => {
     if (route.request().url().endsWith('/wallet')) {
       state.prompts++;
@@ -96,6 +96,9 @@ const fixture = async () => {
     if (route.request().url().includes('/transaction?')) {
       const tx = state.transactions[Number(BigInt(new URL(route.request().url()).searchParams.get('hash'))) - 1];
       return route.fulfill({json:{from:tx.account,to:tx.to,input:tx.data,value:state.transactionMismatch?'1':tx.value}});
+    }
+    if (route.request().frame().url().includes('lag') && new URL(route.request().url()).searchParams.get('hash') === `0x${'1'.padStart(64,'0')}`) {
+      await new Promise(resolve => {state.releaseReceipt=resolve;state.signalReceiptHeld?.()});
     }
     return route.fulfill({status:state.receiptDown?503:200,json:{status:'success'}});
   });
@@ -164,6 +167,30 @@ try {
     await a.waitForFunction(()=>window.__done);await b.waitForFunction(()=>window.__done);assert.equal(state.prompts,1);
     await context.close();
   }
+  // AF-002: a delayed receipt reconciliation in another tab must not overwrite the next step's journal.
+  {
+    const {context,state}=await fixture();const a=await context.newPage(),b=await context.newPage();
+    await a.goto(`${origin}/security?funding`);await a.getByLabel('MON to send',{exact:true}).fill('0.5');await a.getByLabel('mUSD to send',{exact:true}).fill('2.1');
+    await a.getByRole('button',{name:'Review funding'}).click();await a.getByRole('button',{name:'Confirm step 1 of 2'}).click();await a.getByRole('button',{name:'Confirm step 2 of 2'}).waitFor();
+    // Restore the durable state just after the first hash was saved, before its receipt was recorded.
+    await a.evaluate(()=>{const key=Object.keys(localStorage).find(value=>value.startsWith('hireling.op-value:'));const record=JSON.parse(localStorage.getItem(key));record.recorded[0]=false;localStorage.setItem(key,JSON.stringify(record))});
+    const held=new Promise(resolve=>{state.signalReceiptHeld=resolve});
+    await b.goto(`${origin}/security?funding&lag`);await held;
+    await a.getByRole('button',{name:'Confirm step 2 of 2'}).click();
+    await new Promise(resolve=>setTimeout(resolve,500));
+    state.releaseReceipt();await b.getByRole('button',{name:'Confirm step 2 of 2'}).waitFor();
+    await b.getByRole('button',{name:'Confirm step 2 of 2'}).click();await b.getByRole('status').getByText(/Funding confirmed/).waitFor();assert.equal(state.prompts,2);
+    await context.close();
+  }
+  // AF-004: quota failure before the wallet call, then missing/corrupt/unreadable state on restoration.
+  {
+    const {context,state}=await fixture();const page=await context.newPage();
+    await page.goto(`${origin}/security?seed`);await page.evaluate(()=>{window.__walletLoseReply=true});
+    await page.getByRole('button',{name:'Confirm in your wallet'}).click();await page.getByText(/returned an error without a transaction hash/).waitFor();
+    const locks=await page.evaluate(()=>navigator.locks.query());assert.equal(locks.held.length,1,'AF-006: the wallet operation lock must remain held during ambiguous reconciliation');
+    await page.getByText(/nothing left your account/).waitFor();assert.equal(state.prompts,1);
+    await context.close();
+  }
   // AF-004: quota failure before the wallet call, then missing/corrupt/unreadable state on restoration.
   {
     const {context,state}=await fixture();const page=await context.newPage();
@@ -179,4 +206,7 @@ try {
   }
   assert.deepEqual(errors,[]);
   console.log('PASS: AF-001, AF-002, AF-004 and reviewed native/token funding with reload; actual components, wallet and chain fixtures, zero live sends');
+} catch (failure) {
+  for (const context of browser.contexts()) for (const page of context.pages()) console.error('Fixture failure:', page.url(), await page.locator('body').innerText(), await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage))));
+  throw failure;
 } finally {await browser.close();await server.close();}
