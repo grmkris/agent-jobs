@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -98,10 +98,13 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
 
     return Effect.succeed({
         /** Private management storage remains in the existing reserved object. */
-        management: (req: { kind: 'migrate' }) => Effect.sync(() => {
+        management: (req: { kind: 'migrate' | 'retire' }) => Effect.sync(() => {
           const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName(name: string): { toString(): string } } | undefined
-          if (namespace?.idFromName('__hireling_fleet_v1__').toString() !== state.id.toString()) throw new Error('management object identity mismatch')
-          if (req.kind === 'migrate') migrateAgentSchema(fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write)))
+          const objectName = req.kind === 'retire' ? '__hireling_fleet_v1__' : SPONSOR_OBJECT_NAME
+          if (namespace?.idFromName(objectName).toString() !== state.id.toString()) throw new Error('management object identity mismatch')
+          const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+          if (req.kind === 'retire') retireFleetSchema(sql)
+          else migrateAgentSchema(sql)
           return 'null'
         }),
         /** Internal relay RPC shares the reserved object's queue and durable nonce ledger with sponsorship. */

@@ -2,8 +2,9 @@
 import { type Address, type Hex, keccak256, stringToHex } from 'viem'
 import { migrateAgentSchema } from './agent-schema.ts'
 import type { Sql } from './store.ts'
+import { SPONSOR_OBJECT_NAME } from './sponsor.ts'
 
-export const AGENTS_OBJECT_NAME = '__hireling_fleet_v1__'
+export const AGENTS_OBJECT_NAME = SPONSOR_OBJECT_NAME
 export type AgentState = 'created' | 'upgraded' | 'grants-live' | 'registered' | 'active' | 'revoked'
 export interface AgentRow {
   id: string

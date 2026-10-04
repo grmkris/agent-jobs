@@ -85,3 +85,8 @@ export function migrateAgentSchema(sql: Sql): void {
     )`)
   })
 }
+
+/** The former fleet object retires its authority records without receiving any new management tables. */
+export function retireFleetSchema(sql: Sql): void {
+  transition(sql, 'agents', RETIRED_FLEET_TABLES, () => {})
+}

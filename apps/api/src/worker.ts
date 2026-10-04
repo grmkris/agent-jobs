@@ -160,7 +160,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
           await migrateTelegram(sql)
         })()
         yield* Effect.promise(() => migrated as Promise<void>)
-        yield* boards.getByName('__hireling_fleet_v1__').management({ kind: 'migrate' })
+        yield* boards.getByName('__hireling_fleet_v1__').management({ kind: 'retire' })
+        yield* boards.getByName(SPONSOR_OBJECT_NAME).management({ kind: 'migrate' })
 
         const tenant = yield* Effect.promise(async (): Promise<TenantConfig | undefined> => {
           if (boardId === PUBLIC_BOARD_ID) return publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))

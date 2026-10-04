@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { migrateAgentSchema, RETIRED_FLEET_TABLES } from './agent-schema.ts'
+import { migrateAgentSchema, retireFleetSchema, RETIRED_FLEET_TABLES } from './agent-schema.ts'
 import { fromNodeSqlite } from './store.ts'
 
 describe('agent-first clean break', () => {
@@ -31,6 +31,16 @@ describe('agent-first clean break', () => {
     expect(() => migrateAgentSchema(sql)).toThrow()
     expect(db.prepare('SELECT id FROM sponsor_grants').all()).toEqual([{ id: 'original' }])
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name='schema_versions'").get()).toBeUndefined()
+    db.close()
+  })
+
+  it('retires the old fleet object without creating a second management store', () => {
+    const db = new DatabaseSync(':memory:')
+    const sql = fromNodeSqlite(db)
+    for (const table of RETIRED_FLEET_TABLES) db.exec(`CREATE TABLE ${table} (id TEXT)`)
+    retireFleetSchema(sql)
+    retireFleetSchema(sql)
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).toEqual([{ name: 'schema_versions' }])
     db.close()
   })
 })
