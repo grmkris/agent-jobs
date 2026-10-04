@@ -105,7 +105,7 @@ export function AgentFundingReview({ agent }: { agent: ManagedAgent }) {
     const innerKey = txJournalKey(record.id, steps)
     await withWalletStepLock(navigator.locks, key, () => withWalletStepLock(navigator.locks, innerKey, async () => {
       const inner = readTxJournal(localStorage, txJournalKey(record.id, steps), true)!
-      if (inner.pending !== null || inner.hashes.some(hash => hash !== null)) throw new Error('Funding has started. Reconcile the saved operation before making another review.')
+      if (inner.pending !== null || inner.hashes.some(hash => hash !== null) || (inner.reverted?.length ?? 0) > 0) throw new Error('Funding has started. Reconcile the saved operation before making another review.')
       // Invalidate the inner record first: a stale mounted tab must not send an edited review.
       localStorage.removeItem(innerKey)
       if (localStorage.getItem(innerKey) !== null) throw new Error('The unsent funding review could not be cancelled. Nothing was sent.')

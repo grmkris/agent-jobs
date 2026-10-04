@@ -181,6 +181,11 @@ export function TxSteps({
     try {
       const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       if (receipt.status !== 'success') {
+        const latest = load(key, requireJournal) ?? r
+        const reverted = [...(latest.reverted ?? [])]
+        if (!reverted.some(previous => previous.toLowerCase() === hash.toLowerCase())) reverted.push(hash)
+        const hashes = [...latest.hashes]; hashes[i] = null
+        commit({ ...latest, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
         set(i, {
           at: 'failed',
           hash,

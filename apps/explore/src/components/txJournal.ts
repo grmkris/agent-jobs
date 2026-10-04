@@ -10,6 +10,8 @@ export interface OpRecord {
   from?: Hex | null
   sponsored?: boolean
   sponsor?: { key: string; operationId: Hex | null } | null
+  /** Proven reverted receipts are retained for audit while their step becomes sendable again. */
+  reverted?: Hex[]
 }
 export interface JournalStorage {
   getItem(key: string): string | null
@@ -32,7 +34,7 @@ export function readTxJournal(storage: JournalStorage, key: string, requireExist
   }
   let value: OpRecord
   try { value = JSON.parse(raw) as OpRecord } catch { throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.') }
-  if (!value || typeof value.batch !== 'boolean' || !Array.isArray(value.hashes) || !value.hashes.every(hash => hash === null || typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) || !Array.isArray(value.recorded) || !value.recorded.every(recorded => recorded === null || typeof recorded === 'boolean') || value.pending !== null && (!Number.isSafeInteger(value.pending) || value.pending < 0) || value.snapshot != null && (!Number.isSafeInteger(value.snapshot.nonce) || !/^\d+$/.test(value.snapshot.block)) || value.from != null && !/^0x[0-9a-f]{40}$/i.test(value.from))
+  if (!value || typeof value.batch !== 'boolean' || !Array.isArray(value.hashes) || !value.hashes.every(hash => hash === null || typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) || !Array.isArray(value.recorded) || !value.recorded.every(recorded => recorded === null || typeof recorded === 'boolean') || value.reverted !== undefined && (!Array.isArray(value.reverted) || !value.reverted.every(hash => typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash))) || value.pending !== null && (!Number.isSafeInteger(value.pending) || value.pending < 0) || value.snapshot != null && (!Number.isSafeInteger(value.snapshot.nonce) || !/^\d+$/.test(value.snapshot.block)) || value.from != null && !/^0x[0-9a-f]{40}$/i.test(value.from))
     throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.')
   return value
 }

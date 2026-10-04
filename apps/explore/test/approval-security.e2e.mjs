@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { chromium } from 'playwright-core';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { decodeFunctionData, parseAbi } from 'viem';
 
 // Actual TxSteps component, browser Web Locks and browser localStorage; wallet/chain are test doubles.
@@ -50,10 +52,11 @@ export const getTransactionCount=async()=>{await new Promise(r=>setTimeout(r,win
 export const getBlockNumber=async()=>{await new Promise(r=>setTimeout(r,window.__readDelay??0)); if(window.__expireDuringRead)window.__expiresAt=0;return 100n};
 export const getBlock=async()=>({transactions:[]});
 export const getTransaction=async(_config,{hash})=>{const transaction=await(await fetch('/__security/transaction?hash='+hash)).json();return {...transaction,value:BigInt(transaction.value)}};
-export const waitForTransactionReceipt=async(_config,{hash})=>{const response=await fetch('/__security/receipt?hash='+hash);if(!response.ok)throw new Error('Receipt unavailable');return {status:'success'}};
+export const waitForTransactionReceipt=async(_config,{hash})=>{const response=await fetch('/__security/receipt?hash='+hash);if(!response.ok)throw new Error('Receipt unavailable');return {status:window.__receiptStatus??'success'}};
 `,
 };
-const server = await createServer({ root, configFile: false, envDir: false, define: { __AGENT_JOBS_NETWORK__: JSON.stringify('monad-testnet'), __PRIVY_APP_ID__: '""' }, plugins: [react(), {
+const cacheDir = mkdtempSync(join(tmpdir(), 'hireling-security-vite-'));
+const server = await createServer({ root, cacheDir, configFile: false, envDir: false, define: { __AGENT_JOBS_NETWORK__: JSON.stringify('monad-testnet'), __PRIVY_APP_ID__: '""' }, plugins: [react(), {
   name: 'security-fixtures', enforce: 'pre',
   resolveId(id) {
     if (id === '/security-entry.tsx') return '\0security-entry';
@@ -97,8 +100,9 @@ const fixture = async () => {
       const tx = state.transactions[Number(BigInt(new URL(route.request().url()).searchParams.get('hash'))) - 1];
       return route.fulfill({json:{from:tx.account,to:tx.to,input:tx.data,value:state.transactionMismatch?'1':tx.value}});
     }
-    if (route.request().frame().url().includes('lag') && new URL(route.request().url()).searchParams.get('hash') === `0x${'1'.padStart(64,'0')}`) {
-      await new Promise(resolve => {state.releaseReceipt=resolve;state.signalReceiptHeld?.()});
+    if (state.signalReceiptHeld && route.request().frame().url().includes('lag') && new URL(route.request().url()).searchParams.get('hash') === `0x${'1'.padStart(64,'0')}`) {
+      const signal=state.signalReceiptHeld;state.signalReceiptHeld=null;
+      await new Promise(resolve => {state.releaseReceipt=resolve;signal()});
     }
     return route.fulfill({status:state.receiptDown?503:200,json:{status:'success'}});
   });
@@ -182,7 +186,18 @@ try {
     await b.getByRole('button',{name:'Confirm step 2 of 2'}).click();await b.getByRole('status').getByText(/Funding confirmed/).waitFor();assert.equal(state.prompts,2);
     await context.close();
   }
-  // AF-004: quota failure before the wallet call, then missing/corrupt/unreadable state on restoration.
+  // AF-009: a proved revert preserves the old receipt and opens exactly one fresh send.
+  {
+    const {context,state}=await fixture();const page=await context.newPage();
+    await page.goto(`${origin}/security?seed`);await page.evaluate(()=>{window.__receiptStatus='reverted'});
+    await page.getByRole('button',{name:'Confirm in your wallet'}).click();await page.getByText(/transaction reverted/).waitFor();assert.equal(state.prompts,1);
+    const reverted=await page.evaluate(()=>JSON.parse(localStorage.getItem(window.__key)));assert.equal(reverted.hashes[0],null);assert.equal(reverted.reverted[0],`0x${'1'.padStart(64,'0')}`);
+    await page.evaluate(()=>{window.__expiresAt=0});await page.getByRole('button',{name:'Try again'}).click();await page.getByText(/approval expired/).waitFor();assert.equal(state.prompts,1);
+    await page.evaluate(()=>{window.__expiresAt=Math.floor(Date.now()/1000)+600});
+    await page.evaluate(()=>{window.__receiptStatus='success'});await page.getByRole('button',{name:'Try again'}).click();await page.waitForFunction(()=>window.__done);assert.equal(state.prompts,2);
+    await context.close();
+  }
+  // AF-006: ambiguous reconciliation keeps the lock until its chain checks finish.
   {
     const {context,state}=await fixture();const page=await context.newPage();
     await page.goto(`${origin}/security?seed`);await page.evaluate(()=>{window.__walletLoseReply=true});
@@ -205,8 +220,8 @@ try {
     await context.close();
   }
   assert.deepEqual(errors,[]);
-  console.log('PASS: AF-001, AF-002, AF-004 and reviewed native/token funding with reload; actual components, wallet and chain fixtures, zero live sends');
+  console.log('PASS: AF-001, AF-002, AF-004, AF-006, AF-009 and reviewed native/token funding with reload; actual components, wallet and chain fixtures, zero live sends');
 } catch (failure) {
   for (const context of browser.contexts()) for (const page of context.pages()) console.error('Fixture failure:', page.url(), await page.locator('body').innerText(), await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage))));
   throw failure;
-} finally {await browser.close();await server.close();}
+} finally {await browser.close();await server.close();rmSync(cacheDir,{recursive:true,force:true});}
