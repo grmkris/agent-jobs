@@ -1020,3 +1020,36 @@ Validation: focused worker tests **19/19**; `heavy env -u MONAD_TESTNET_RPC_URL 
 (typechecks, unit/local integration tests, contracts, mining and lint; unchanged tasks may replay Vite+ cache).
 RPC-dependent tests were disabled for that local gate. The live image/activation/submission evidence above is
 separate from those local checks. No staging redeployment or mainnet operation was performed.
+
+## Agent-first release on testnet (4 Oct 2026)
+
+The agent-first connector, hosted OAuth MCP, named-agent workspace, companion bootstrap, signed health checkpoint,
+live overview and website approval inbox were released to the existing staging stack from commit
+`92e551842020f2c833abc5c8b7f6434e6af861da`. The guarded plan digest was
+`10cbaecddb5ad221173fecb47062523c82aabd72edddd01a5bc66e68627b0125`.
+The plan was testnet-only and contained three existing Worker updates, two storage no-ops, zero migrations,
+resource creates, replacements, deletions, binding changes, secret changes or domain changes. The existing
+`hireling.xyz` and `testnet.hireling.xyz` domains, Board and DirectoryObject namespaces, D1, R2 and Indexer
+`* * * * *` schedule were preserved. Applied versions were API `b9aab4a7-a473-43b8-ba41-17c59d268ff9`,
+Indexer `4c77d309-6d33-4baa-9c90-37f7ba0670bf`, and Explore `30d2961b-86a1-4f1d-96a5-cf27c3dd2ab3`.
+
+The complete local release gate passed with exit 0: 482 contract tests passed (45 skipped), 202 SDK tests passed
+(28 skipped), 109 Explore tests passed, 188 API tests passed (11 skipped), 30 mining tests passed, and lint was
+clean. The staging release guard passed all 157 tests. A read-only live testnet readback returned `/health` 200,
+`monad-testnet`, `writesOpen=true`, OAuth discovery with S256 PKCE, 401 for anonymous MCP and owner APIs, and
+chain ID 10143. The published Node companion is version 0.1.0, 837,045 bytes, SHA-256
+`ff6f1dc13a5895c5d44f826b691ed826f9634506e1a08c89877be9325e83403e`; connector, worker, publisher and arbitrator
+skills all returned 200 with Markdown content. Live discovery returned 88 jobs including job 106 and four
+directory agents. The Indexer status endpoint showed a successful cron run and checkpoint `68092066` after two successful lease-owning cron observations.
+
+Anonymous Chromium smoke at 390x844 and 1440x900 loaded `/`, `/connect`, `/workspace`, `/workspace/new` and
+`/approvals` with HTTP 200, no page errors and no horizontal overflow. See the
+[sanitized release and browser evidence](evidence/agent-first/2026-10-04-testnet-release.json).
+This proves deployed anonymous UI and release readback only; it does not prove a human Privy login,
+browser-owned consent, worker pairing on a user's machine or automatic signing.
+
+The [real Privy sign-only fixture](evidence/agent-first/2026-10-04-privy-sign-only.json) verified restricted requests,
+signature recovery, owner policy updates and signer revocation without broadcasting. It used a key-owned fixture,
+so it does not prove genuine browser-user consent. `AUTONOMOUS_SIGNING_VERIFIED` remains false and users approve
+wallet actions on the website. No wallet transaction was sent by this release; mainnet, Telegram additions and
+MCP Apps were outside this implementation. See [ADR-0012](decisions/0012-agent-first-onboarding.md).

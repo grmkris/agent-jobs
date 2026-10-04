@@ -1,0 +1,435 @@
+{
+  "at": "2026-10-04T10:22:59.619Z",
+  "tier": "live-testnet-release-readback",
+  "source": {
+    "commit": "92e551842020f2c833abc5c8b7f6434e6af861da",
+    "tree": "0766cb7c6e22ed5d081e7c9ab71586df540ec87f"
+  },
+  "digest": "10cbaecddb5ad221173fecb47062523c82aabd72edddd01a5bc66e68627b0125",
+  "versions": {
+    "Api": "b9aab4a7-a473-43b8-ba41-17c59d268ff9",
+    "Indexer": "4c77d309-6d33-4baa-9c90-37f7ba0670bf",
+    "Explore": "30d2961b-86a1-4f1d-96a5-cf27c3dd2ab3"
+  },
+  "checks": [
+    {
+      "name": "health",
+      "status": 200,
+      "network": "monad-testnet"
+    },
+    {
+      "name": "release",
+      "network": "monad-testnet",
+      "mainnetLive": false,
+      "writesOpen": true
+    },
+    {
+      "name": "OAuth discovery",
+      "issuer": "https://testnet.hireling.xyz",
+      "scopes": [
+        "hireling:read",
+        "hireling:hire",
+        "hireling:work"
+      ]
+    },
+    {
+      "name": "resource-scoped anonymous MCP refusal",
+      "resource": "/mcp",
+      "status": 401
+    },
+    {
+      "name": "resource-scoped anonymous MCP refusal",
+      "resource": "/b/public/mcp",
+      "status": 401
+    },
+    {
+      "name": "owner API anonymous refusal",
+      "path": "/api/agents",
+      "status": 401
+    },
+    {
+      "name": "owner API anonymous refusal",
+      "path": "/api/approvals",
+      "status": 401
+    },
+    {
+      "name": "companion artifact",
+      "version": "0.1.0",
+      "file": "/companion/hireling-0.1.0-ff6f1dc13a5895c5.mjs",
+      "sha256": "ff6f1dc13a5895c5d44f826b691ed826f9634506e1a08c89877be9325e83403e",
+      "bytes": 837045
+    },
+    {
+      "name": "published skill",
+      "role": "connector",
+      "sha256": "90e82c8d74f2fb42be1910bfbd0bd527f0d342e30a25fd01f652f2b475acacd8"
+    },
+    {
+      "name": "published skill",
+      "role": "worker",
+      "sha256": "c41906e8bb5d4936f1469967791d790e7bddf50f0156398be870b308805c302c"
+    },
+    {
+      "name": "published skill",
+      "role": "publisher",
+      "sha256": "718ba5ead1f4db8caff67382a5f67722e33c9d9ca5a705c0621b8f67c018a268"
+    },
+    {
+      "name": "published skill",
+      "role": "arbitrator",
+      "sha256": "ec6499fad81a0c3608874c3a6efabef09569120f54bd5fc25b04a3f395614133"
+    },
+    {
+      "name": "protocol chain",
+      "chainId": 10143
+    },
+    {
+      "name": "live job discovery",
+      "jobs": 88,
+      "index": {
+        "next_block": 68090066,
+        "updated_at": 1791109276
+      },
+      "job106": true
+    },
+    {
+      "name": "live directory",
+      "agents": 4
+    },
+    {
+      "name": "SPA route",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/connect",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/workspace",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/workspace/new",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/approvals",
+      "status": 200
+    },
+    {
+      "name": "apex redirect",
+      "status": 301,
+      "location": "https://testnet.hireling.xyz/connect"
+    }
+  ],
+  "limits": [
+    "No wallet transaction or automated signing authority exercised.",
+    "Human browser-owned Privy consent and end-to-end onboarding remain acceptance checks."
+  ],
+  "plan": {
+    "summary": {
+      "create": 0,
+      "update": 3,
+      "adopted": 0,
+      "replace": 0,
+      "delete": 0,
+      "orphaned": 0,
+      "noop": 2
+    },
+    "changes": {
+      "migrations": [],
+      "secretChanges": [],
+      "resourceCreates": [],
+      "domainChanges": [],
+      "scheduleChanges": []
+    },
+    "expectedDomains": [
+      "hireling.xyz",
+      "testnet.hireling.xyz"
+    ],
+    "resourceIdentities": {
+      "databaseId": "1b2ddfdd-650e-4846-8b55-fca07872efec",
+      "bucketName": "agentjobs-manifests-staging-4yyroq65le7dnxbm",
+      "namespaces": [
+        {
+          "id": "eab5801c233a4d1f952a457050958175",
+          "className": "Board",
+          "script": "agentjobs-api-staging-ba2zqmaom6el4lws"
+        },
+        {
+          "id": "8ae279bb120d4a1ca4dfbcb87ba3f97c",
+          "className": "DirectoryObject",
+          "script": "agentjobs-api-staging-ba2zqmaom6el4lws"
+        }
+      ]
+    }
+  },
+  "validation": {
+    "repositoryGate": {
+      "exit": 0,
+      "source": "f0a77d1a49d2ce59cc36790264fe468f9d76ef17",
+      "log": "/tmp/hireling-agent-first-verified-check.log"
+    },
+    "migrationCheck": {
+      "exit": 0
+    },
+    "stagingGuard": {
+      "exit": 0,
+      "passed": 157,
+      "source": "92e551842020f2c833abc5c8b7f6434e6af861da"
+    }
+  },
+  "browser": {
+    "at": "2026-10-04T10:23:48.338Z",
+    "tier": "live-testnet-anonymous-browser",
+    "results": [
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "path": "/",
+        "status": 200,
+        "heading": "Good agents.Real work.One workspace.",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "path": "/connect",
+        "status": 200,
+        "heading": "Run your agent",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "path": "/workspace",
+        "status": 200,
+        "heading": "Agent workspace",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "path": "/workspace/new",
+        "status": 200,
+        "heading": "Create your agent",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "path": "/approvals",
+        "status": 200,
+        "heading": "Approvals",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "path": "/",
+        "status": 200,
+        "heading": "Good agents.Real work.One workspace.",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "path": "/connect",
+        "status": 200,
+        "heading": "Run your agent",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "path": "/workspace",
+        "status": 200,
+        "heading": "Agent workspace",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "path": "/workspace/new",
+        "status": 200,
+        "heading": "Create your agent",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "path": "/approvals",
+        "status": 200,
+        "heading": "Approvals",
+        "overflow": false,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          },
+          {
+            "url": "https://testnet.hireling.xyz",
+            "error": "net::ERR_ABORTED"
+          }
+        ]
+      }
+    ]
+  },
+  "indexerCron": {
+    "url": "https://agentjobs-indexer-staging-2unhvhpefxd7n2wb.kristjan-grm11775.workers.dev/",
+    "afterReleaseAt": "2026-10-04T10:21:03.070Z",
+    "samples": [
+      {
+        "observedAt": "2026-10-04T10:28:56.002Z",
+        "at": 1791109735,
+        "ok": 1,
+        "nextBlock": 68091586,
+        "updatedAt": 1791109734,
+        "lease": true
+      },
+      {
+        "observedAt": "2026-10-04T10:31:28.198Z",
+        "at": 1791109880,
+        "ok": 1,
+        "nextBlock": 68092066,
+        "updatedAt": 1791109880,
+        "lease": true
+      }
+    ]
+  }
+}
