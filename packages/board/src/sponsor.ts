@@ -10,7 +10,7 @@ import {
   delegationTypedData, disableCalldata, isDisabled, parseDelegation, redeemCallsCalldata,
 } from '@agent-jobs/sdk'
 import type { Sql } from './store.ts'
-import { migrateGrantSchema } from './agent-schema.ts'
+import { migrateAgentSchema } from './agent-schema.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
 import { type SponsorOperation as Operation, type SponsorResult, SponsorRecovery } from './sponsor-recovery.ts'
 import { SPONSOR_LIMITS, sponsorRelayFloor } from './sponsor-policy.ts'
@@ -51,7 +51,7 @@ export class SponsorDesk {
   #queue: Promise<unknown> = Promise.resolve()
   constructor(deps: SponsorDeps) {
     this.#d = deps
-    migrateGrantSchema(deps.sql)
+    migrateAgentSchema(deps.sql)
     deps.sql.run(`CREATE TABLE IF NOT EXISTS sponsor_operations (
       id TEXT PRIMARY KEY, wallet TEXT NOT NULL, delegation_hash TEXT NOT NULL, status TEXT NOT NULL,
       raw_tx TEXT NOT NULL, tx_hash TEXT NOT NULL UNIQUE, relay TEXT NOT NULL, nonce INTEGER NOT NULL,

@@ -6,6 +6,7 @@ export const RETIRED_FLEET_TABLES = [
   'oauth_clients', 'oauth_requests', 'oauth_codes', 'oauth_tokens',
   'oauth_tokens_v2', 'oauth_token_families_v2', 'oauth_token_families',
   'agent_gateway_operations', 'approval_execution', 'agent_challenges', 'agent_runtime',
+  'sponsor_grants',
 ] as const
 
 function transition(sql: Sql, name: string, tables: readonly string[], create: () => void): void {
@@ -22,16 +23,65 @@ function transition(sql: Sql, name: string, tables: readonly string[], create: (
 }
 
 export function migrateAgentSchema(sql: Sql): void {
-  transition(sql, 'agents', RETIRED_FLEET_TABLES, () => {})
-}
-
-export function migrateGrantSchema(sql: Sql): void {
-  transition(sql, 'grants', ['sponsor_grants'], () => {
+  transition(sql, 'agents', RETIRED_FLEET_TABLES, () => {
+    sql.run(`CREATE TABLE agents (
+      id TEXT PRIMARY KEY, operator TEXT NOT NULL, privy_user_id TEXT NOT NULL,
+      privy_wallet_id TEXT UNIQUE, address TEXT UNIQUE, name TEXT NOT NULL,
+      registry TEXT NOT NULL, agent_id TEXT, chain_id INTEGER NOT NULL,
+      state TEXT NOT NULL, last_activity_at INTEGER,
+      permissions_json TEXT NOT NULL, onboarding_json TEXT NOT NULL,
+      revoke_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    )`)
+    sql.run('CREATE INDEX agents_operator ON agents(operator,created_at)')
     sql.run(`CREATE TABLE grants (
       delegation_hash TEXT PRIMARY KEY, kind TEXT NOT NULL,
       delegator TEXT NOT NULL, delegate TEXT NOT NULL, owner TEXT NOT NULL,
       delegation_json TEXT NOT NULL, signature TEXT, status TEXT NOT NULL, expires_at INTEGER NOT NULL
     )`)
     sql.run('CREATE INDEX grants_delegator_kind ON grants(delegator,kind,expires_at)')
+    sql.run('CREATE TABLE grant_templates (delegation_hash TEXT PRIMARY KEY, spec_json TEXT NOT NULL)')
+    sql.run(`CREATE TABLE sponsor_entry_grants (
+      operation_id TEXT NOT NULL, delegation_hash TEXT NOT NULL,
+      baseline_calls INTEGER NOT NULL, calls INTEGER NOT NULL,
+      PRIMARY KEY(operation_id,delegation_hash)
+    )`)
+    sql.run(`CREATE TABLE sponsor_operator_usage (
+      operation_id TEXT PRIMARY KEY, owner TEXT NOT NULL,
+      calls INTEGER NOT NULL, publishes INTEGER NOT NULL, created_at INTEGER NOT NULL
+    )`)
+    sql.run('CREATE INDEX sponsor_operator_usage_owner ON sponsor_operator_usage(owner,created_at)')
+    sql.run(`CREATE TABLE agent_operations (
+      id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, action_key TEXT NOT NULL,
+      board_id TEXT NOT NULL, tool TEXT NOT NULL, args_hash TEXT NOT NULL,
+      stage TEXT NOT NULL, intent_json TEXT NOT NULL, prepared_json TEXT,
+      signatures_json TEXT NOT NULL, sponsor_operation_id TEXT, result_json TEXT,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      UNIQUE(agent_id,action_key)
+    )`)
+    sql.run(`CREATE TABLE approvals (
+      id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, operation_id TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL, status TEXT NOT NULL, request_json TEXT NOT NULL,
+      decision_json TEXT, created_at INTEGER NOT NULL, decided_at INTEGER
+    )`)
+    sql.run(`CREATE TABLE agent_oauth_clients (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, redirect_uris_json TEXT NOT NULL, created_at INTEGER NOT NULL
+    )`)
+    sql.run(`CREATE TABLE agent_oauth_requests (
+      id TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect_uri TEXT NOT NULL,
+      code_challenge TEXT NOT NULL, state TEXT NOT NULL, board_id TEXT NOT NULL,
+      scopes_json TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL
+    )`)
+    sql.run(`CREATE TABLE agent_oauth_codes (
+      hash TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, agent_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, consumed_at INTEGER
+    )`)
+    sql.run(`CREATE TABLE agent_oauth_families (
+      id TEXT PRIMARY KEY, client_id TEXT NOT NULL, agent_id TEXT NOT NULL,
+      board_id TEXT NOT NULL, scopes_json TEXT NOT NULL, revoked_at INTEGER, created_at INTEGER NOT NULL
+    )`)
+    sql.run(`CREATE TABLE agent_oauth_tokens (
+      hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, kind TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, consumed_at INTEGER
+    )`)
   })
 }
