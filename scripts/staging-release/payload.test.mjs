@@ -140,7 +140,8 @@ test('B12-003: every build-time env input of Explore and its Vite env files are 
 const explore = new URL('../../apps/explore/', import.meta.url)
 function buildSources(dir, out = []) {
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === 'e2e' || name === 'test' || name.startsWith('.')) continue
+    // Generated companion modules retain runtime environment reads; only sources drive the Vite build.
+    if (name === 'node_modules' || name === 'dist' || name === 'e2e' || name === 'test' || name.startsWith('.')) continue
     const path = new URL(name, dir)
     if (statSync(path).isDirectory()) buildSources(new URL(`${name}/`, dir), out)
     else if (/\.(m?[jt]sx?)$/.test(name) && !/\.test\./.test(name)) out.push(path)
