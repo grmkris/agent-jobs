@@ -14,7 +14,7 @@ export const pkceChallenge=async(verifier:string)=>base64url(await crypto.subtle
 
 export async function resolveOAuth(sql:FleetSql,token:string|undefined,resource:string,now:number):Promise<OAuthGrant|undefined>{
  if(!token)return undefined
- const [r]=await sql.all<{owner:string;scope:string;agent_ids_json:string;agent_generations_json:string;resource:string;client_id:string}>('SELECT owner,scope,agent_ids_json,agent_generations_json,resource,client_id FROM oauth_tokens WHERE token_hash=? AND revoked=0 AND expires_at>?',await fleetHash(token),now)
+ const [r]=await sql.all<{owner:string;scope:string;agent_ids_json:string;agent_generations_json:string;resource:string;client_id:string}>('SELECT t.owner,t.scope,t.agent_ids_json,t.agent_generations_json,t.resource,t.client_id FROM oauth_tokens t JOIN oauth_token_families f ON f.id=t.family_id WHERE t.token_hash=? AND t.revoked=0 AND f.revoked=0 AND t.expires_at>?',await fleetHash(token),now)
  if(!r||r.resource!==resource)return undefined
  const agentIds=JSON.parse(r.agent_ids_json) as string[], agentGenerations=JSON.parse(r.agent_generations_json) as Record<string,number>
  for(const id of agentIds){const agent=await getManagedAgent(sql,id,r.owner);if(!agent||agent.generation!==agentGenerations[id])return undefined}
@@ -59,20 +59,30 @@ export async function oauthRoute(input:{sql:FleetSql;method:string;path:string;q
  if(path==='/oauth/token'&&method==='POST'){
   const resource=body.resource,clientId=body.client_id;if(typeof clientId!=='string'||!validResource(resource,origin))return failure('invalid_request','Require client_id and resource')
   let grant:OAuthGrant
+  let familyId:string
   if(body.grant_type==='authorization_code'){
    const code=typeof body.code==='string'?body.code:'',verifier=typeof body.code_verifier==='string'?body.code_verifier:''
    if(!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))return failure('invalid_grant','Invalid PKCE verifier')
    const [r]=await sql.all<{owner:string;scope:string;resource:string;agent_ids_json:string;agent_generations_json:string;code_challenge:string;redirect_uri:string}>('SELECT c.*,r.owner,r.resource FROM oauth_codes c JOIN oauth_requests r ON r.id=c.request_id WHERE c.code_hash=? AND c.client_id=? AND c.used=0 AND c.expires_at>?',await fleetHash(code),clientId,now)
    if(!r||r.redirect_uri!==body.redirect_uri||r.resource!==resource||r.code_challenge!==await pkceChallenge(verifier))return failure('invalid_grant','Code, resource, redirect or verifier does not match')
    const consumed=await sql.all<{code_hash:string}>('UPDATE oauth_codes SET used=1 WHERE code_hash=? AND used=0 AND expires_at>? RETURNING code_hash',await fleetHash(code),now);if(!consumed[0])return failure('invalid_grant','Code already used')
+   familyId=`family_${fleetRandom(16)}`
+   await sql.batch([{query:'INSERT INTO oauth_token_families (id) VALUES (?)',params:[familyId]}])
    grant={owner:r.owner,scope:r.scope,resource:r.resource,agentIds:JSON.parse(r.agent_ids_json) as string[],agentGenerations:JSON.parse(r.agent_generations_json) as Record<string,number>,clientId}
   }else if(body.grant_type==='refresh_token'){
-   const hash=await fleetHash(String(body.refresh_token??''));const [r]=await sql.all<{owner:string;scope:string;resource:string;agent_ids_json:string;agent_generations_json:string}>('UPDATE oauth_tokens SET revoked=1 WHERE refresh_hash=? AND client_id=? AND resource=? AND revoked=0 AND expires_at>? RETURNING owner,scope,resource,agent_ids_json,agent_generations_json',hash,clientId,resource,now-86400*7)
-   if(!r)return failure('invalid_grant','Refresh token expired or was already rotated')
+   const hash=await fleetHash(String(body.refresh_token??''));const [r]=await sql.all<{owner:string;scope:string;resource:string;agent_ids_json:string;agent_generations_json:string;family_id:string}>('UPDATE oauth_tokens SET revoked=1 WHERE refresh_hash=? AND client_id=? AND resource=? AND revoked=0 AND expires_at>? AND family_id IN (SELECT id FROM oauth_token_families WHERE revoked=0) RETURNING owner,scope,resource,agent_ids_json,agent_generations_json,family_id',hash,clientId,resource,now-86400*7)
+   if(!r){
+    const [reused]=await sql.all<{family_id:string|null}>('SELECT family_id FROM oauth_tokens WHERE refresh_hash=? AND client_id=? AND resource=? AND expires_at>? LIMIT 1',hash,clientId,resource,now-86400*7)
+    if(reused?.family_id) await sql.batch([{query:'UPDATE oauth_token_families SET revoked=1 WHERE id=?',params:[reused.family_id]},{query:'UPDATE oauth_tokens SET revoked=1 WHERE family_id=?',params:[reused.family_id]}])
+    return failure('invalid_grant','Refresh token expired or was already rotated')
+   }
+   familyId=r.family_id
    grant={owner:r.owner,scope:r.scope,resource:r.resource,agentIds:JSON.parse(r.agent_ids_json) as string[],agentGenerations:JSON.parse(r.agent_generations_json) as Record<string,number>,clientId}
   }else return failure('unsupported_grant_type','Supported grants: authorization_code and refresh_token')
-  const token=fleetRandom(32),refresh=fleetRandom(32);await sql.batch([{query:'INSERT INTO oauth_tokens (token_hash,client_id,owner,scope,resource,agent_ids_json,agent_generations_json,expires_at,refresh_hash) VALUES (?,?,?,?,?,?,?,?,?)',params:[await fleetHash(token),clientId,grant.owner,grant.scope,grant.resource,JSON.stringify(grant.agentIds),JSON.stringify(grant.agentGenerations),now+3600,await fleetHash(refresh)]}]);return good({access_token:token,token_type:'Bearer',expires_in:3600,refresh_token:refresh,scope:grant.scope})
+  const token=fleetRandom(32),refresh=fleetRandom(32),tokenHash=await fleetHash(token);await sql.batch([{query:'INSERT INTO oauth_tokens (token_hash,client_id,owner,scope,resource,agent_ids_json,agent_generations_json,expires_at,refresh_hash,family_id) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM oauth_token_families WHERE id=? AND revoked=0)',params:[tokenHash,clientId,grant.owner,grant.scope,grant.resource,JSON.stringify(grant.agentIds),JSON.stringify(grant.agentGenerations),now+3600,await fleetHash(refresh),familyId,familyId]}])
+  if(!(await sql.all('SELECT t.token_hash FROM oauth_tokens t JOIN oauth_token_families f ON f.id=t.family_id WHERE t.token_hash=? AND t.revoked=0 AND f.revoked=0',tokenHash))[0])return failure('invalid_grant','Token family was revoked during rotation')
+  return good({access_token:token,token_type:'Bearer',expires_in:3600,refresh_token:refresh,scope:grant.scope})
  }
- if(path==='/oauth/revoke'&&method==='POST'){if(typeof body.token==='string')await sql.batch([{query:'UPDATE oauth_tokens SET revoked=1 WHERE (token_hash=? OR refresh_hash=?) AND client_id=?',params:[await fleetHash(body.token),await fleetHash(body.token),String(body.client_id??'')]}]);return good({})}
+ if(path==='/oauth/revoke'&&method==='POST'){if(typeof body.token==='string'){const hash=await fleetHash(body.token),clientId=String(body.client_id??'');await sql.batch([{query:'UPDATE oauth_token_families SET revoked=1 WHERE id IN (SELECT family_id FROM oauth_tokens WHERE (token_hash=? OR refresh_hash=?) AND client_id=?)',params:[hash,hash,clientId]},{query:'UPDATE oauth_tokens SET revoked=1 WHERE family_id IN (SELECT family_id FROM oauth_tokens WHERE (token_hash=? OR refresh_hash=?) AND client_id=?)',params:[hash,hash,clientId]}])}return good({})}
  return undefined
 }

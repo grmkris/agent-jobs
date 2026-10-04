@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { createManagedAgent, migrateFleet, type FleetSql } from '@agent-jobs/board'
+import { createManagedAgent, fleetHash, migrateFleet, type FleetSql } from '@agent-jobs/board'
 import { oauthRoute, pkceChallenge, resolveOAuth } from '../src/oauth.ts'
 
 const sqlOf = (db: DatabaseSync): FleetSql => ({
@@ -48,8 +48,12 @@ describe('fleet OAuth', () => {
     const refresh={grant_type:'refresh_token',client_id:clientId,resource:`${origin}/mcp`,refresh_token:token.refresh_token}
     const rotated=await route('/oauth/token',refresh,105);expect(rotated?.status).toBe(200)
     expect(await resolveOAuth(sql,token.access_token,`${origin}/mcp`,106)).toBeUndefined()
-    expect((await route('/oauth/token',refresh,106))?.status).toBe(400)
     const current=rotated!.body as {access_token:string;refresh_token:string}
+    expect((await resolveOAuth(sql,current.access_token,`${origin}/mcp`,106))?.agentIds).toEqual([agent.id])
+    expect((await route('/oauth/token',refresh,106))?.status).toBe(400)
+    // Reusing the old refresh token revokes the whole family, including the active descendant.
+    expect(await resolveOAuth(sql,current.access_token,`${origin}/mcp`,107)).toBeUndefined()
+    expect((await sql.all<{ revoked: number }>('SELECT revoked FROM oauth_tokens WHERE family_id=(SELECT family_id FROM oauth_tokens WHERE refresh_hash=?)', await fleetHash(current.refresh_token))).every(row => row.revoked === 1)).toBe(true)
     await sql.batch([{query:'UPDATE managed_agents SET generation=generation+1 WHERE id=?',params:[agent.id]}])
     expect(await resolveOAuth(sql,current.access_token,`${origin}/mcp`,107)).toBeUndefined()
   })
@@ -59,5 +63,43 @@ describe('fleet OAuth', () => {
     expect((await oauthRoute({...input,body:{redirect_uris:['http://public.example/callback']}}))?.status).toBe(400)
     expect((await oauthRoute({...input,body:{redirect_uris:['https://public.example/callback#frag']}}))?.status).toBe(400)
     expect((await oauthRoute({...input,body:{redirect_uris:['https://public.example/callback'],token_endpoint_auth_method:'client_secret_basic'}}))?.status).toBe(400)
+  })
+  it('revokes descendants on replay, preserves unrelated grants, and fences an insertion racing with replay', async () => {
+    const sql = sqlOf(new DatabaseSync(':memory:')); await migrateFleet(sql)
+    const owner='0x0000000000000000000000000000000000000001',origin='https://hireling.test',redirectUri='http://127.0.0.1:38112/callback',verifier='c'.repeat(64)
+    const agent=await createManagedAgent(sql,{owner,name:'worker',walletAddress:'0x0000000000000000000000000000000000000002',now:100})
+    let beforeInsert: (() => Promise<void>) | undefined
+    const interleaved: FleetSql = { ...sql, batch: async statements => {
+      if (beforeInsert !== undefined && statements.some(statement => statement.query.startsWith('INSERT INTO oauth_tokens'))) {
+        const run = beforeInsert; beforeInsert = undefined; await run()
+      }
+      await sql.batch(statements)
+    } }
+    const route=(path:string,body:Record<string,unknown>,now=100,method='POST',query=new URLSearchParams())=>oauthRoute({sql:interleaved,path,body,now,method,query,origin,siteOrigin:origin,owner})
+    const registered=await route('/oauth/register',{redirect_uris:[redirectUri]});const clientId=(registered!.body as {client_id:string}).client_id
+    const issue = async () => {
+      const authorization=await route('/oauth/authorize',{},101,'GET',new URLSearchParams({client_id:clientId,redirect_uri:redirectUri,response_type:'code',scope:'hireling:read',resource:`${origin}/mcp`,code_challenge:await pkceChallenge(verifier),code_challenge_method:'S256'}))
+      const requestId=new URL(authorization!.headers!.location!).searchParams.get('oauth_request')!
+      const consent=await route(`/oauth/requests/${requestId}/approve`,{decision:'approve',agentIds:[agent.id]},102)
+      const target=new URL((consent!.body as {result:{redirectUrl:string}}).result.redirectUrl)
+      return (await route('/oauth/token',{grant_type:'authorization_code',client_id:clientId,redirect_uri:redirectUri,resource:`${origin}/mcp`,code:target.searchParams.get('code'),code_verifier:verifier},103))!.body as {access_token:string;refresh_token:string}
+    }
+    const victim = await issue(), unrelated = await issue()
+    const refresh = { grant_type: 'refresh_token', client_id: clientId, resource: `${origin}/mcp`, refresh_token: victim.refresh_token }
+    const child = (await route('/oauth/token', refresh, 104))!.body as {access_token:string;refresh_token:string}
+    const grandchild = (await route('/oauth/token', { ...refresh, refresh_token: child.refresh_token }, 105))!.body as {access_token:string;refresh_token:string}
+    expect((await route('/oauth/token', { ...refresh, client_id: 'other-client' }, 106))?.status).toBe(400)
+    expect(await resolveOAuth(sql, grandchild.access_token, `${origin}/mcp`, 106)).toBeDefined()
+    expect((await route('/oauth/token', refresh, 106))?.status).toBe(400)
+    expect(await resolveOAuth(sql, grandchild.access_token, `${origin}/mcp`, 107)).toBeUndefined()
+    expect((await route('/oauth/token', { ...refresh, refresh_token: grandchild.refresh_token }, 107))?.status).toBe(400)
+    expect(await resolveOAuth(sql, unrelated.access_token, `${origin}/mcp`, 107)).toBeDefined()
+    const raced = await issue(), raceRefresh = { ...refresh, refresh_token: raced.refresh_token }
+    beforeInsert = async () => { expect((await route('/oauth/token', raceRefresh, 104))?.status).toBe(400) }
+    expect((await route('/oauth/token', raceRefresh, 104))?.status).toBe(400)
+    expect(await resolveOAuth(sql, raced.access_token, `${origin}/mcp`, 105)).toBeUndefined()
+    expect(await resolveOAuth(sql, unrelated.access_token, `${origin}/mcp`, 105)).toBeDefined()
+    await route('/oauth/revoke', { token: unrelated.refresh_token, client_id: clientId }, 106)
+    expect(await resolveOAuth(sql, unrelated.access_token, `${origin}/mcp`, 107)).toBeUndefined()
   })
 })

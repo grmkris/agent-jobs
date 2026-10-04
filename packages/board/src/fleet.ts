@@ -25,7 +25,8 @@ export const FLEET_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS oauth_clients (client_id TEXT PRIMARY KEY,client_name TEXT NOT NULL,redirect_uris_json TEXT NOT NULL,created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS oauth_requests (id TEXT PRIMARY KEY,client_id TEXT NOT NULL,redirect_uri TEXT NOT NULL,state TEXT,code_challenge TEXT NOT NULL,scope TEXT NOT NULL,resource TEXT NOT NULL,owner TEXT,expires_at INTEGER NOT NULL,used INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS oauth_codes (code_hash TEXT PRIMARY KEY,request_id TEXT NOT NULL,client_id TEXT NOT NULL,redirect_uri TEXT NOT NULL,code_challenge TEXT NOT NULL,scope TEXT NOT NULL,agent_ids_json TEXT NOT NULL,agent_generations_json TEXT NOT NULL DEFAULT '{}',expires_at INTEGER NOT NULL,used INTEGER NOT NULL DEFAULT 0)`,
-  `CREATE TABLE IF NOT EXISTS oauth_tokens (token_hash TEXT PRIMARY KEY,client_id TEXT NOT NULL,owner TEXT NOT NULL,scope TEXT NOT NULL,resource TEXT NOT NULL,agent_ids_json TEXT NOT NULL,agent_generations_json TEXT NOT NULL DEFAULT '{}',expires_at INTEGER NOT NULL,refresh_hash TEXT,revoked INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS oauth_tokens (token_hash TEXT PRIMARY KEY,client_id TEXT NOT NULL,owner TEXT NOT NULL,scope TEXT NOT NULL,resource TEXT NOT NULL,agent_ids_json TEXT NOT NULL,agent_generations_json TEXT NOT NULL DEFAULT '{}',expires_at INTEGER NOT NULL,refresh_hash TEXT,family_id TEXT,revoked INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS oauth_token_families (id TEXT PRIMARY KEY,revoked INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS agent_gateway_operations (operation_id TEXT PRIMARY KEY,request_hash TEXT NOT NULL,state TEXT NOT NULL,provider_json TEXT,raw_transaction TEXT,transaction_hash TEXT,created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS approval_execution (approval_id TEXT PRIMARY KEY,claim_id TEXT NOT NULL,state TEXT NOT NULL,transaction_hashes_json TEXT,continuation_json TEXT,created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS agent_challenges (id TEXT PRIMARY KEY,owner TEXT NOT NULL,wallet_address TEXT NOT NULL,message TEXT NOT NULL,expires_at INTEGER NOT NULL,used INTEGER NOT NULL DEFAULT 0)`,
@@ -44,7 +45,20 @@ const fromRow = (r: Record<string, unknown>): ManagedAgent => ({
   kind: r.kind === 'external' ? 'external' : 'privy', status: String(r.status), ...(r.policy_id ? { policyId: String(r.policy_id) } : {}),
   generation: Number(r.generation), createdAt: Number(r.created_at), ...(r.last_heartbeat_at ? { lastHeartbeatAt: Number(r.last_heartbeat_at) } : {}), ...(r.companion_version ? { companionVersion: String(r.companion_version) } : {}), ...(r.device_fingerprint ? { deviceFingerprint: String(r.device_fingerprint) } : {}), ...(r.launch_json ? JSON.parse(String(r.launch_json)) as {launchId:string;firstPromptHash:string;pid:number} : {}),
 })
-export async function migrateFleet(sql: FleetSql): Promise<void> { await sql.batch(FLEET_SCHEMA.map(query => ({ query, params: [] }))) }
+export async function migrateFleet(sql: FleetSql): Promise<void> {
+  await sql.batch(FLEET_SCHEMA.map(query => ({ query, params: [] })))
+  const columns = new Set((await sql.all<{ name: string }>('PRAGMA table_info(oauth_tokens)')).map(column => column.name))
+  if (!columns.has('family_id')) {
+    try { await sql.batch([{ query: 'ALTER TABLE oauth_tokens ADD COLUMN family_id TEXT', params: [] }]) } catch (failure) {
+      if (!(await sql.all<{ name: string }>('PRAGMA table_info(oauth_tokens)')).some(column => column.name === 'family_id')) throw failure
+    }
+  }
+  await sql.batch([
+    // Old rows have no recoverable lineage. Require fresh consent instead of retaining an unrevocable descendant.
+    { query: 'UPDATE oauth_tokens SET family_id=token_hash,revoked=1 WHERE family_id IS NULL', params: [] },
+    { query: 'INSERT OR IGNORE INTO oauth_token_families (id) SELECT DISTINCT family_id FROM oauth_tokens WHERE family_id IS NOT NULL', params: [] },
+  ])
+}
 export async function listManagedAgents(sql: FleetSql, owner: string): Promise<ManagedAgent[]> { return (await sql.all<Record<string,unknown>>('SELECT a.*,r.device_fingerprint FROM managed_agents a LEFT JOIN agent_runtime r ON r.agent_id=a.id AND r.generation=a.generation WHERE a.owner = ? ORDER BY a.created_at DESC', owner)).map(fromRow) }
 export async function getManagedAgent(sql: FleetSql, id: string, owner?: string): Promise<ManagedAgent|undefined> { const rows = await sql.all<Record<string,unknown>>(`SELECT a.*,r.device_fingerprint FROM managed_agents a LEFT JOIN agent_runtime r ON r.agent_id=a.id AND r.generation=a.generation WHERE a.id = ?${owner === undefined ? '' : ' AND a.owner = ?'}`, ...(owner === undefined ? [id] : [id,owner])); return rows[0] ? fromRow(rows[0]) : undefined }
 export async function createManagedAgent(sql: FleetSql, input: { owner:string; name:string; walletAddress:string; privyWalletId?:string; privyAppId?:string; agentId?:string; kind?:'privy'|'external'; now:number }): Promise<ManagedAgent> {
