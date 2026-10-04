@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { guardedSnapshot, reconcileSend, retryAction, walletRefused, walletStepRequest, withWalletStepLock, type StepLocks } from './txOperation.ts'
-import { approvalSendError } from '../approval-operation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
 
@@ -33,7 +32,7 @@ describe('wallet step retry reconciliation', () => {
   it('refuses unsent approval steps after expiry, including expiry during chain reads', async () => {
     let now = 99
     let readCount = 0
-    const guard = () => approvalSendError(100, now)
+    const guard = () => now >= 100 ? 'The operation expired.' : null
     const reads = { nonce: async () => { readCount++; return 5 }, blockNumber: async () => 10n }
     expect(await guardedSnapshot(reads, guard)).toEqual({ nonce: 5, block: '10' })
     now = 100

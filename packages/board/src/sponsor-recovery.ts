@@ -70,7 +70,7 @@ export class SponsorRecovery {
             if (replacement !== undefined) this.sql.run("UPDATE sponsor_replacements SET status='dropped' WHERE operation_id=?", op.id)
           }
         } else if (broadcast) {
-          const [grant] = this.sql.all<{ status: string; delegation_hash: string; expires_at: number }>('SELECT status,delegation_hash,expires_at FROM sponsor_grants WHERE wallet=?', op.wallet.toLowerCase())
+          const [grant] = this.sql.all<{ status: string; delegation_hash: string; expires_at: number }>('SELECT status,delegation_hash,expires_at FROM grants WHERE delegation_hash=?', op.delegation_hash)
           const live = replacement === undefined && grant?.status === 'live' && grant.delegation_hash === op.delegation_hash && grant.expires_at > this.now()
             && !await isDisabled(this.ctx, op.delegation_hash as Hex)
           // A changed grant/counter must never cause a fresh redemption of saved calls. Once a replacement is

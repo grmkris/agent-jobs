@@ -4,6 +4,26 @@
   "network": "monad-testnet",
   "classification": "sanitized-pre-clean-break-inventory",
   "sources": {
+    "knownTestAgent": {
+      "wallet": "0x1e6a8d761D9e64d09eb073A41fD3a402BF567C0d",
+      "registryAgentId": "unknown-live",
+      "observedAtBlock": "68224648",
+      "balances": {
+        "MON": "1000000000000000000",
+        "FACTORY": "100000000000000000000",
+        "mUSD": "2000000"
+      },
+      "stake": "0",
+      "availableStake": "0",
+      "openJobs": [],
+      "note": "Direct read-only Monad testnet reads. The public index contains no job row for this wallet; registry ownership/agentId was not inferable from the public jobs index."
+    },
+    "operatorSponsorStatus": {
+      "wallet": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "result": "refused",
+      "httpStatus": 401,
+      "note": "The public sponsor_status tool requires the operator's authenticated board session; no session token is copied into evidence."
+    },
     "fleetDurableObject": {
       "binding": "Board",
       "objectName": "__hireling_fleet_v1__",

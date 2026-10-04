@@ -10,6 +10,7 @@ import {
   delegationTypedData, disableCalldata, isDisabled, parseDelegation, redeemCallsCalldata,
 } from './delegation.ts'
 import type { Sql } from './store.ts'
+import { migrateGrantSchema } from './agent-schema.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
 import { type SponsorOperation as Operation, type SponsorResult, SponsorRecovery } from './sponsor-recovery.ts'
 import { SPONSOR_LIMITS, sponsorRelayFloor } from './sponsor-policy.ts'
@@ -34,7 +35,7 @@ export interface SponsorDeps {
   readonly fail: (code: 'unauthenticated' | 'forbidden' | 'not-found' | 'invalid' | 'conflict' | 'chain', message: string) => Error
 }
 interface Grant {
-  wallet: string; delegation_json: string; delegation_hash: string; signature: string | null; status: string; expires_at: number
+  delegator: string; delegation_json: string; delegation_hash: string; signature: string | null; status: string; expires_at: number
 }
 interface Target { address: Address; abi: Abi; methods: readonly string[] }
 type NormalCall = { target: Address; callData: Hex; value: bigint; floor: bigint }
@@ -50,10 +51,7 @@ export class SponsorDesk {
   #queue: Promise<unknown> = Promise.resolve()
   constructor(deps: SponsorDeps) {
     this.#d = deps
-    deps.sql.run(`CREATE TABLE IF NOT EXISTS sponsor_grants (
-      wallet TEXT PRIMARY KEY, delegation_json TEXT NOT NULL, delegation_hash TEXT NOT NULL,
-      signature TEXT, status TEXT NOT NULL, expires_at INTEGER NOT NULL
-    )`)
+    migrateGrantSchema(deps.sql)
     deps.sql.run(`CREATE TABLE IF NOT EXISTS sponsor_operations (
       id TEXT PRIMARY KEY, wallet TEXT NOT NULL, delegation_hash TEXT NOT NULL, status TEXT NOT NULL,
       raw_tx TEXT NOT NULL, tx_hash TEXT NOT NULL UNIQUE, relay TEXT NOT NULL, nonce INTEGER NOT NULL,
@@ -87,7 +85,7 @@ export class SponsorDesk {
   #refuse(reason: 'policy' | 'simulation' | 'cap' | 'floor' | 'rate' | 'unavailable' | 'pending', message: string): Error {
     return Object.assign(this.#d.fail(reason === 'policy' ? 'forbidden' : reason === 'simulation' ? 'chain' : 'conflict', message), { reason })
   }
-  #row(wallet: string): Grant | undefined { return this.#d.sql.all<Grant>('SELECT * FROM sponsor_grants WHERE wallet = ?', wallet.toLowerCase())[0] }
+  #row(wallet: string): Grant | undefined { return this.#d.sql.all<Grant>("SELECT * FROM grants WHERE delegator = ? AND kind='operator' ORDER BY expires_at DESC, rowid DESC LIMIT 1", wallet.toLowerCase())[0] }
   #targets(): Target[] {
     const c = this.#ctx()
     return [
@@ -111,7 +109,7 @@ export class SponsorDesk {
   }
   #current(row: Grant): Delegation {
     const x = parseDelegation(row.delegation_json)
-    if (delegationHash(this.#delegation(this.#wallet(row.wallet), x.salt, row.expires_at)) !== row.delegation_hash) throw this.#d.fail('conflict', 'sponsorship policy changed; revoke and prepare a new delegation')
+    if (delegationHash(this.#delegation(this.#wallet(row.delegator), x.salt, row.expires_at)) !== row.delegation_hash) throw this.#d.fail('conflict', 'sponsorship policy changed; revoke and prepare a new delegation')
     return { ...x, signature: row.signature as Hex }
   }
   async #status(wallet: Address): Promise<SponsorStatus> {
@@ -130,9 +128,9 @@ export class SponsorDesk {
     const salt = BigInt(`0x${[...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('')}`)
     const expires = this.#d.now() + SPONSOR_LIMITS.validity
     const x = this.#delegation(wallet, salt, expires)
-    this.#d.sql.run(`INSERT INTO sponsor_grants (wallet,delegation_json,delegation_hash,signature,status,expires_at) VALUES (?,?,?,NULL,'prepared',?)
-        ON CONFLICT(wallet) DO UPDATE SET delegation_json=excluded.delegation_json, delegation_hash=excluded.delegation_hash, signature=NULL, status='prepared', expires_at=excluded.expires_at`,
-      wallet.toLowerCase(), delegationJson(x), delegationHash(x), expires)
+    this.#d.sql.run(`INSERT INTO grants (delegation_hash,kind,delegator,delegate,owner,delegation_json,signature,status,expires_at)
+      VALUES (?,'operator',?,?,?,?,NULL,'prepared',?)`,
+      delegationHash(x), wallet.toLowerCase(), x.delegate.toLowerCase(), wallet.toLowerCase(), delegationJson(x), expires)
     const current = await sdk.delegationOf(ctx.publicClient, wallet)
     return { sign: { typedData: delegationTypedData(ctx.deployment, x) }, upgrade: eq(current, ctx.deployment.delegation.delegator) ? null : { delegator: ctx.deployment.delegation.delegator } }
   }) }
@@ -146,12 +144,12 @@ export class SponsorDesk {
     if (!eq(signer, wallet)) throw this.#d.fail('forbidden', 'the signature is not the wallet’s over the prepared delegation')
     if (!eq(await sdk.delegationOf(ctx.publicClient, wallet), ctx.deployment.delegation.delegator)) throw this.#d.fail('conflict', 'upgrade the wallet to the DeleGator before confirming sponsorship')
     if (await isDisabled(ctx, row.delegation_hash as Hex)) throw this.#d.fail('conflict', 'this delegation is disabled on-chain')
-    this.#d.sql.run("UPDATE sponsor_grants SET signature=?, status='live' WHERE wallet=?", signature, wallet.toLowerCase())
+    this.#d.sql.run("UPDATE grants SET signature=?, status='live' WHERE delegation_hash=?", signature, row.delegation_hash)
     return this.#status(wallet)
   }) }
   revoke(walletText: string) { return this.#grantSerial(async () => {
     const wallet = this.#wallet(walletText), ctx = this.#ctx(), row = this.#row(wallet)
-    this.#d.sql.run("UPDATE sponsor_grants SET status='revoked' WHERE wallet=?", wallet.toLowerCase())
+    this.#d.sql.run("UPDATE grants SET status='revoked' WHERE delegator=? AND kind='operator'", wallet.toLowerCase())
     const transactions: sdk.TxRequest[] = []
     if (row !== undefined && row.signature !== null && !await isDisabled(ctx, row.delegation_hash as Hex)) transactions.push({
       description: 'Disable the sponsorship delegation', chainId: ctx.deployment.chainId,

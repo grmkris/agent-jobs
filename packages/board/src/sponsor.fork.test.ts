@@ -128,7 +128,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
   }, 120_000)
 
   it('the chain enforcers refuse unsafe D15 methods, an outside target, native value, and a non-relay redeemer', async () => {
-    const row = db.prepare('SELECT delegation_json, signature FROM sponsor_grants WHERE wallet=?').get(f.worker.account.address.toLowerCase()) as { delegation_json: string; signature: Hex }
+    const row = db.prepare("SELECT delegation_json, signature FROM grants WHERE delegator=? AND kind='operator'").get(f.worker.account.address.toLowerCase()) as { delegation_json: string; signature: Hex }
     const signed: Delegation = { ...parseDelegation(row.delegation_json), signature: row.signature }
     const data = encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [parseEther('1')] })
     await expect(f.ctx.publicClient.call({ account: f.admin.account, to: f.ctx.deployment.delegation.manager,

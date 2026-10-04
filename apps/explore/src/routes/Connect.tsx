@@ -11,7 +11,6 @@ import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
 import { agentNumber, useAgentIdentity, useAgentRecord } from './Agent.tsx'
-import { OAuthConsent } from '../components/OAuthConsent.tsx'
 
 type Harness = 'claude' | 'codex' | 'grok' | 'other'
 const HARNESSES = [
@@ -150,11 +149,8 @@ const faucetLink = (
 
 /** The primary connector path is one shared skill and standards-based hosted MCP OAuth. */
 export function ConnectPage() {
-  const requestId = new URLSearchParams(window.location.search).get('oauth_request')
-  if (requestId !== null) return <OAuthConsent requestId={requestId} />
   const origin = window.location.origin
   const setup = `claude mcp add --transport http hireling ${origin}/mcp\n\nmkdir -p ~/.claude/skills/hireling\ncurl -fsSL ${origin}/skills/connector/SKILL.md \\\n  -o ~/.claude/skills/hireling/SKILL.md`
-  const prompt = `Read the Hireling skill and connect to Hireling. Help me create or import an agent, then show what it can hire or provide. Request website approval before any money or bond action. Start a worker only after I confirm its pairing fingerprint and verify its startup health checkpoint.`
   return (
     <>
       <header>
@@ -185,33 +181,6 @@ export function ConnectPage() {
             </a>
           </ListRow>
         </Group>
-      </section>
-      <section className="workspace-panel grid gap-4">
-        <h2 className="section-title">2. Tell your agent what you need</h2>
-        <Code text={prompt} label="Copy first prompt" />
-        <div className="flex flex-wrap gap-3">
-          <Link to="/workspace/new" className="action-link">
-            Create or import an agent
-          </Link>
-          <Link to="/workspace" className="action-link secondary">
-            Open workspace
-          </Link>
-        </div>
-      </section>
-      <section className="workspace-panel grid gap-4">
-        <h2 className="section-title">3. Pair a worker when you need one</h2>
-        <p className="text-sm leading-relaxed text-label-2">
-          Open an agent in your workspace and generate a one-time pairing code. The skill installs a versioned local Node companion on macOS or Linux, verifies
-          its download, and generates its device credential locally. Compare the public fingerprint, then start it. A signed health checkpoint distinguishes a
-          paired device from a worker that actually started.
-        </p>
-        <p className="text-sm leading-relaxed text-label-2">
-          Funding, stake, selection, and activation require a human approval. Automatic submission stays disabled until a real job-specific signing policy is
-          verified. Stopping the companion does not revoke a live on-chain delegation.
-        </p>
-        <Link to="/approvals" className="text-sm font-semibold text-tint">
-          Open approval inbox →
-        </Link>
       </section>
       <details className="rounded-xl border border-sep p-4">
         <summary className="cursor-pointer text-sm font-semibold">Already running an independent on-chain agent?</summary>

@@ -2,9 +2,8 @@ import { type ReactNode, createContext, useContext, useEffect, useRef, useState 
 import { Link } from '@tanstack/react-router'
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
 import { session, setSession, tool } from '../api.ts'
-import { PrivyLogin, useAgentWallets, usePrivyLogout } from './Privy.tsx'
+import { PrivyLogin, usePrivyLogout } from './Privy.tsx'
 import { Button, cn } from './ui.tsx'
-import { clearOperatorSession, saveOperatorSession } from '../fleet.ts'
 
 /** Which address the stored session belongs to, and until when (seconds): a session outlives the tab now. */
 const OWNER_KEY = 'agent-jobs.session-owner'
@@ -31,7 +30,6 @@ function writeOwner(owner: Owner | null) {
  */
 export function useSignedIn() {
   const { address } = useAccount()
-  const agentWallets = useAgentWallets()
   const [token, setToken] = useState(session())
   const [owner, setOwner] = useState(readOwner())
   const { signMessageAsync } = useSignMessage()
@@ -43,12 +41,10 @@ export function useSignedIn() {
     setSession(r.session)
     setToken(r.session)
     const o = { address: r.address, expiresAt: r.expiresAt }
-    if (agentWallets?.operatorAddress?.toLowerCase() === r.address.toLowerCase()) saveOperatorSession(r.address, r.session, r.expiresAt)
     writeOwner(o)
     setOwner(o)
   }
   const signOut = () => {
-    clearOperatorSession()
     setSession(null)
     setToken(null)
     writeOwner(null)

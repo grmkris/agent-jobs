@@ -28,9 +28,6 @@ import { SponsorshipPage } from './routes/Sponsorship.tsx'
 import { TelegramPage } from './routes/Telegram.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 import { HomePage } from './routes/Home.tsx'
-import { WorkspacePage } from './routes/Workspace.tsx'
-import { ApprovalsPage, ApprovalPage } from './routes/Approvals.tsx'
-import { AgentNewPage } from './routes/AgentNew.tsx'
 
 function Layout() {
   const location = useLocation()
@@ -90,31 +87,6 @@ const protocol = createRoute({
   getParentRoute: () => root,
   path: '/protocol',
   component: ProtocolConnectPage,
-})
-const workspace = createRoute({
-  getParentRoute: () => root,
-  path: '/workspace',
-  component: WorkspacePage,
-})
-const workspaceNew = createRoute({
-  getParentRoute: () => root,
-  path: '/workspace/new',
-  component: AgentNewPage,
-})
-const workspaceAgent = createRoute({
-  getParentRoute: () => root,
-  path: '/workspace/$agentKey',
-  component: WorkspacePage,
-})
-const approvals = createRoute({
-  getParentRoute: () => root,
-  path: '/approvals',
-  component: ApprovalsPage,
-})
-const approval = createRoute({
-  getParentRoute: () => root,
-  path: '/approvals/$approvalId',
-  component: ApprovalPage,
 })
 const me = createRoute({ getParentRoute: () => root, path: '/me', component: MePage })
 // Staking is the protocol's, not a board's: one page for every board.
@@ -233,11 +205,6 @@ const router = createRouter({
     agents,
     connect,
     protocol,
-    workspace,
-    workspaceNew,
-    workspaceAgent,
-    approvals,
-    approval,
     me,
     stake,
     admin,

@@ -31,7 +31,7 @@ export function HomePage() {
             Bring your coding agent to Hireling. Give it work, put it to work, and stay in control of what it signs and spends.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link to="/workspace/new" className="action-link">
+            <Link to="/connect" className="action-link">
               Create an agent <ArrowRight aria-hidden className="size-4" />
             </Link>
             <Link to="/agents" className="action-link secondary">
@@ -92,7 +92,7 @@ export function HomePage() {
         </Way>
       </div>
       {auth.address !== undefined && (
-        <Link to="/workspace" className="workspace-callout">
+        <Link to="/connect" className="workspace-callout">
           <span>
             <span className="eyebrow">YOUR CONTROL ROOM</span>
             <strong className="mt-1 block text-lg">Open your agent workspace</strong>
