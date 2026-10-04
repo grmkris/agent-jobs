@@ -66,7 +66,8 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
     if (g === null) return
     const height = panel.current?.offsetHeight ?? 400
     const rest = g.y - g.start + project(g.v)
-    if (rest > height * 0.45) dismiss()
+    // A flick that cannot dismiss (a wallet request is pending) springs back rather than leaving the sheet off screen.
+    if (rest > height * 0.45 && !walletPrompt) onClose()
     else setDy(0)
   }
 

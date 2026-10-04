@@ -157,6 +157,20 @@ try {
       assert.equal(await sheet.getByRole('button', { name: 'Close', exact: true }).isDisabled(), true);
       await page.keyboard.press('Escape');
       await sheet.getByRole('button', { name: 'Sign', exact: true }).waitFor();
+      if (viewport.width < 640) {
+        // A downward flick past the dismissal point springs back instead of hiding the pending review.
+        // The fixture prompt may cover the grab handle; let the drag reach the sheet.
+        await prompt.evaluate((el) => { el.style.pointerEvents = 'none'; });
+        const handle = await sheet.locator('.cursor-grab').boundingBox();
+        await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(handle.x + handle.width / 2, handle.y + 600, { steps: 8 });
+        assert.match(await sheet.locator('.cursor-grab').evaluate((el) => el.parentElement.style.transform), /translateY\(\d/);
+        await page.mouse.up();
+        await page.waitForFunction(() => [...document.querySelectorAll('dialog[open] > div')].every((d) => d.style.transform === ''), null, { timeout: 5000 });
+        await prompt.evaluate((el) => { el.style.pointerEvents = ''; });
+        await sheet.getByRole('button', { name: 'Sign', exact: true }).waitFor();
+      }
       await prompt.getByRole('button', { name: 'Sign fixture' }).click({ timeout: 5000 });
       await page.evaluate(() => { window.__wallet.signPrompt = false; });
       const open = page.getByRole('link', { name: 'Open @hireling_xyz_bot' });
