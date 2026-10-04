@@ -1,0 +1,753 @@
+{
+  "at": "2026-10-04T13:21:25.175814+00:00",
+  "tier": "local-pre-release-QA",
+  "source": {
+    "commit": "27eb6fd876551e5a19d2758a4fcccaf0d8e44c35",
+    "tree": "bf4d35d101e4f250ae52c2656b97cd5cb4f129b6"
+  },
+  "repositoryGates": {
+    "source": {
+      "commit": "2ecc772f80320fd23ee0acec103dad795d5b4c56",
+      "tree": "76e673a1d28ccb404e6714eeb3ae683db0c29a64"
+    },
+    "checks": [
+      {
+        "name": "migrations",
+        "args": [
+          "db:generate",
+          "--check"
+        ],
+        "startedAt": "2026-10-04T13:18:17.309Z",
+        "finishedAt": "2026-10-04T13:18:17.928Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-final-followup-migrations.log"
+      },
+      {
+        "name": "repository",
+        "args": [
+          "check"
+        ],
+        "startedAt": "2026-10-04T13:18:17.933Z",
+        "finishedAt": "2026-10-04T13:18:34.817Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-final-followup-repository.log"
+      },
+      {
+        "name": "staging-guard",
+        "args": [
+          "staging:test"
+        ],
+        "startedAt": "2026-10-04T13:18:34.818Z",
+        "finishedAt": "2026-10-04T13:18:48.350Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-final-followup-staging-guard.log"
+      }
+    ],
+    "testedWorkingTree": {
+      "commit": "27eb6fd876551e5a19d2758a4fcccaf0d8e44c35",
+      "tree": "bf4d35d101e4f250ae52c2656b97cd5cb4f129b6"
+    },
+    "uncommittedCorrectionCommittedAs": "27eb6fd876551e5a19d2758a4fcccaf0d8e44c35",
+    "note": "The successful gate ran at 2ecc772 with the one-line exact-optional snapshot correction later committed as 27eb6fd. No other source edits intervened."
+  },
+  "componentSecurity": {
+    "exitCode": 0,
+    "findings": [
+      "AF-001",
+      "AF-002",
+      "AF-004",
+      "AF-006",
+      "AF-009",
+      "AF-010"
+    ],
+    "tier": "actual-components-with-wallet-and-chain-fixtures",
+    "logSha256": "801d3371dcfb40f713dad70ecdd47b93ccc1c973fbed72a240a658346f5c66a6",
+    "checks": [
+      "expiry at click and during chain reads",
+      "cross-tab serialization",
+      "journal read/write failure refusal",
+      "locked reload/manual/ambiguous reconciliation",
+      "known revert history and fresh guarded retry",
+      "unrelated reverted manual hash cannot clear pending or enable retry; sender, chain, nonce, recipient, calldata and value checked",
+      "bound reverted manual hash permits one fresh attempt",
+      "reviewed native/token funding with reload"
+    ]
+  },
+  "browserSuites": [
+    {
+      "suite": "onboarding",
+      "tier": "mocked Chromium only; no live board, bot, signing or sends",
+      "evidenceRecords": 5,
+      "evidenceSha256": "fa97388ec9523dcc0d3a1caa4e5e1b3b05537f7b445cb124b2cc19e7bef5ae91",
+      "results": [
+        {
+          "device": "mobile",
+          "flow": "telegram",
+          "checks": [
+            "Me row",
+            "signed text names wallet and code",
+            "t.me deep link with code",
+            "waits across reload",
+            "linked by the bot",
+            "Me badge",
+            "unlink",
+            "foreign text refused",
+            "decline links nothing"
+          ],
+          "passed": true
+        },
+        {
+          "device": "mobile",
+          "flow": "sponsorship",
+          "checks": [
+            "Me row",
+            "limits read from caveats",
+            "upgrade then sign",
+            "delegate is the relay",
+            "on with calls used",
+            "Me badge",
+            "turn off sends disableDelegation",
+            "foreign target refused"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "flow": "telegram",
+          "checks": [
+            "Me row",
+            "signed text names wallet and code",
+            "t.me deep link with code",
+            "waits across reload",
+            "linked by the bot",
+            "Me badge",
+            "unlink",
+            "foreign text refused",
+            "decline links nothing"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "flow": "sponsorship",
+          "checks": [
+            "Me row",
+            "limits read from caveats",
+            "upgrade then sign",
+            "delegate is the relay",
+            "on with calls used",
+            "Me badge",
+            "turn off sends disableDelegation",
+            "foreign target refused"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "telegram unavailable is not unlinked",
+            "sponsorship unavailable is not off",
+            "no v1: sponsorship says not yet, Me hides it"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "v1-job",
+      "tier": "mocked Chromium only; no live board, signing or sends",
+      "evidenceRecords": 4,
+      "evidenceSha256": "2451c83b22ddf56583f72571188524bc31744e3881d853cf76c02329ac658e8e",
+      "results": [
+        {
+          "device": "mobile",
+          "checks": [
+            "cancel before activation: Holding.cancel 700k gas",
+            "approve: Evaluator.accept 1.2M gas",
+            "money card: the agent is paid the reward less the activation fee",
+            "reject with violation and reason, wallet estimate",
+            "worker dispute with statement, wallet estimate"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "cancel before activation: Holding.cancel 700k gas",
+            "approve: Evaluator.accept 1.2M gas",
+            "money card: the agent is paid the reward less the activation fee",
+            "reject with violation and reason, wallet estimate",
+            "worker dispute with statement, wallet estimate"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "sponsored cancel: Holding.cancel through the relay, no wallet prompt",
+            "sponsored approval: Evaluator.accept through the relay",
+            "a caller key per action",
+            "the relay hash reported to the board"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "review actions close at the actual second within a minute",
+            "release is offered, rejection is removed"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "v1-flows",
+      "tier": "mocked Chromium only; no live board, signing or sends",
+      "evidenceRecords": 7,
+      "evidenceSha256": "2a535350a58bd9438b0b3599774698325bd9b64f3742ba81af9624374e707711",
+      "results": [
+        {
+          "device": "mobile",
+          "flow": "direct hire, publish to payment",
+          "checks": [
+            "named agent",
+            "create_task invite",
+            "approve + publish",
+            "lands on the job page",
+            "agent delivers",
+            "approve via Evaluator.accept 1.2M gas",
+            "paid toast"
+          ],
+          "note": "activation is the agent\u2019s own transaction over MCP; the creator\u2019s sponsored actions are in v1-job.e2e",
+          "passed": true
+        },
+        {
+          "device": "mobile",
+          "flow": "request \u2192 quote \u2192 hire",
+          "checks": [
+            "request_quotes on the v1 stack, nothing sent",
+            "quotes compared, lowest marked",
+            "pick_quote with the picked quote",
+            "approve + publish",
+            "lands on the job with the quoted price"
+          ],
+          "passed": true
+        },
+        {
+          "device": "mobile",
+          "flow": "ruling for the worker",
+          "checks": [
+            "for the agent",
+            "creator\u2019s bond burned when slashed",
+            "no burn badge without slash",
+            "reason and statement to a party"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "flow": "direct hire, publish to payment",
+          "checks": [
+            "named agent",
+            "create_task invite",
+            "approve + publish",
+            "lands on the job page",
+            "agent delivers",
+            "approve via Evaluator.accept 1.2M gas",
+            "paid toast"
+          ],
+          "note": "activation is the agent\u2019s own transaction over MCP; the creator\u2019s sponsored actions are in v1-job.e2e",
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "flow": "request \u2192 quote \u2192 hire",
+          "checks": [
+            "request_quotes on the v1 stack, nothing sent",
+            "quotes compared, lowest marked",
+            "pick_quote with the picked quote",
+            "approve + publish",
+            "lands on the job with the quoted price"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "flow": "ruling for the worker",
+          "checks": [
+            "for the agent",
+            "creator\u2019s bond burned when slashed",
+            "no burn badge without slash",
+            "reason and statement to a party"
+          ],
+          "passed": true
+        },
+        {
+          "flow": "each fee tier",
+          "checks": [
+            "30 %",
+            "10 %",
+            "3 %",
+            "1 %",
+            "fee and net as quoteActivation returns them"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "stake",
+      "tier": "mocked Chromium only; no live vault, signing or sends",
+      "evidenceRecords": 11,
+      "evidenceSha256": "8ef1353a7dbd435271fed3ba561c93f7a65f78f3c5344ea0f92f2f8f64e6b6f0",
+      "results": [
+        {
+          "device": "mobile",
+          "checks": [
+            "amounts and tiers from reads",
+            "next tier and amount needed",
+            "over-balance refused",
+            "declined permit sends nothing",
+            "permit for exact amount and vault",
+            "reserved cannot be unstaked",
+            "cooldown countdown",
+            "cancel restakes",
+            "withdraw after cooldown",
+            "a burned bond leaves stake and reservation both down"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "amounts and tiers from reads",
+            "next tier and amount needed",
+            "over-balance refused",
+            "declined permit sends nothing",
+            "permit for exact amount and vault",
+            "reserved cannot be unstaked",
+            "cooldown countdown",
+            "cancel restakes",
+            "withdraw after cooldown",
+            "a burned bond leaves stake and reservation both down"
+          ],
+          "passed": true
+        },
+        {
+          "device": "mobile",
+          "checks": [
+            "proposed Holding with go-live and lapse times",
+            "refuse sends setHoldingDenied(holding, true)",
+            "allow again",
+            "refusal of the Holding in use shows its undo"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "proposed Holding with go-live and lapse times",
+            "refuse sends setHoldingDenied(holding, true)",
+            "allow again",
+            "refusal of the Holding in use shows its undo"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "30 % tier",
+            "10 % tier",
+            "3 % tier",
+            "1 % tier (lowest)",
+            "next tier and amount needed"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "unavailable chain shows no numbers, then retry"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "vault not bootstrapped: staking opens at launch, no form"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "not deployed says so",
+            "signed out asks to sign in"
+          ],
+          "passed": true
+        },
+        {
+          "width": 390,
+          "checks": [
+            "chain-derived 10-minute cooldown and 15-minute Holding delay",
+            "minute countdown; early withdraw disabled"
+          ],
+          "passed": true
+        },
+        {
+          "width": 1440,
+          "checks": [
+            "chain-derived 10-minute cooldown and 15-minute Holding delay",
+            "minute countdown; early withdraw disabled"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "unreadable Holding delay has no fixed fallback"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "collect",
+      "tier": "mocked Chromium only; no live board, signing or sends",
+      "evidenceRecords": 4,
+      "evidenceSha256": "75bf9ecc34b29f431a97ae58072e35471fdfaa6a07b8d0a9527c8d668d8ce905",
+      "results": [
+        {
+          "device": "mobile",
+          "checks": [
+            "five primary tabs at least 44 px",
+            "Me -> Collect with count and 44 px target",
+            "count badge updates after collection",
+            "list from collect_actions",
+            "one tap opens the wallet",
+            "settle 1M gas",
+            "top-up refund 450k gas",
+            "decline then retry",
+            "empty after collecting"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "five primary tabs at least 44 px",
+            "secondary Collect link with count",
+            "count badge updates after collection",
+            "list from collect_actions",
+            "one tap opens the wallet",
+            "settle 1M gas",
+            "top-up refund 450k gas",
+            "decline then retry",
+            "empty after collecting"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "mining claim row: \"Mining reward, epoch 0 \u00b7 1,234 FACTORY, staked when collected\"",
+            "claim read back from calldata: distributor, epoch, amount, this wallet",
+            "claim naming another wallet shown, not offered",
+            "one tap: wallet sends EpochDistributor.claim with 500k gas"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "unavailable is not empty",
+            "signed out asks to sign in"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "sponsored",
+      "tier": "mocked Chromium only; no live board, relay, signing or sends",
+      "evidenceRecords": 5,
+      "evidenceSha256": "32a334cc0853dc2b4994d56a5458e319d5873889cfb93759ff48be1cadc362bd",
+      "results": [
+        {
+          "device": "mobile",
+          "checks": [
+            "sponsored settle: no wallet prompt, caller key",
+            "lost answer asked again with the same key, one operation",
+            "cap refusal: reason shown, wallet sends with D4b gas",
+            "simulation refusal: nothing sent, reason, try again",
+            "retry after a refusal uses a new key",
+            "reverted relay tx: wallet offered with the hash",
+            "outside the policy: wallet, relay not asked"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "sponsored settle: no wallet prompt, caller key",
+            "lost answer asked again with the same key, one operation",
+            "cap refusal: reason shown, wallet sends with D4b gas",
+            "simulation refusal: nothing sent, reason, try again",
+            "retry after a refusal uses a new key",
+            "reverted relay tx: wallet offered with the hash",
+            "outside the policy: wallet, relay not asked"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "refusal after a lost answer stays unknown, no wallet fallback",
+            "check again: same key, done"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "not mined, then dropped on check: nothing happened, wallet offered with the hash",
+            "the dropped key is never reused",
+            "next sponsored action has a new key"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "no answer: unknown, check again",
+            "reload keeps the key",
+            "not mined yet: checked again with the same key",
+            "one operation, no wallet send"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "publish-v1",
+      "tier": "mocked Chromium only; no live board, signing or sends",
+      "evidenceRecords": 7,
+      "evidenceSha256": "cb4432f2fb9df25e05a0d7de1301e80b5e1944295e95a53c6f8e049e8e28b7ab",
+      "results": [
+        {
+          "device": "mobile",
+          "checks": [
+            "two modes",
+            "named agent invited",
+            "presets",
+            "custom windows in bounds",
+            "default arbiter by name",
+            "custom arbiter warning and not creator",
+            "bonds from stake",
+            "free-stake shortfall with Stake link",
+            "create_task v1 arguments"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "two modes",
+            "named agent invited",
+            "presets",
+            "custom windows in bounds",
+            "default arbiter by name",
+            "custom arbiter warning and not creator",
+            "bonds from stake",
+            "free-stake shortfall with Stake link",
+            "create_task v1 arguments"
+          ],
+          "passed": true
+        },
+        {
+          "width": 390,
+          "checks": [
+            "Standard/Long clamp to deployment bounds",
+            "Fast uses minimums",
+            "minute custom bounds and refusal",
+            "exact minute create_task arguments",
+            "frozen windows survive reload without a second prepare"
+          ],
+          "passed": true
+        },
+        {
+          "width": 1440,
+          "checks": [
+            "Standard/Long clamp to deployment bounds",
+            "Fast uses minimums",
+            "minute custom bounds and refusal",
+            "exact minute create_task arguments",
+            "frozen windows survive reload without a second prepare"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "unreadable clocks block offer preparation without guessed bounds"
+          ],
+          "passed": true
+        },
+        {
+          "device": "mobile",
+          "checks": [
+            "fee tier and net before activation",
+            "no top-up before activation",
+            "top-up approve then topUp",
+            "bonus shown after",
+            "v1 completeAfterSilence sent with 1.2M gas"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "checks": [
+            "fee tier and net before activation",
+            "no top-up before activation",
+            "top-up approve then topUp",
+            "bonus shown after",
+            "v1 completeAfterSilence sent with 1.2M gas"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "selection",
+      "tier": "mocked Chromium only; no live Job 61, wallet signing or sends",
+      "evidenceRecords": 3,
+      "evidenceSha256": "0a7aab69ae0f219b80207794c469b179d077ca5f4627e6d0b192b49064d85609",
+      "results": [
+        {
+          "device": "mobile",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "checks": [
+            "persisted reload without signing",
+            "expired reselect",
+            "multiple selections",
+            "invalid selection",
+            "unavailable verification",
+            "new selection cache hydration",
+            "signed-out connected wallet hides cached applications",
+            "account switch hides selection"
+          ],
+          "passed": true
+        },
+        {
+          "device": "desktop",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "checks": [
+            "persisted reload without signing",
+            "expired reselect",
+            "multiple selections",
+            "invalid selection",
+            "unavailable verification",
+            "new selection cache hydration",
+            "signed-out connected wallet hides cached applications",
+            "account switch hides selection"
+          ],
+          "passed": true
+        },
+        {
+          "checks": [
+            "distinct pool contract and curator viewer receives application badge/actions"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "directory",
+      "tier": "mocked Chromium only; no real wallets or live registration",
+      "evidenceRecords": 11,
+      "evidenceSha256": "c6372b6c4196b351f354ba9e2aa6219ff7fec870bef2b6697c86c342841a3e41",
+      "results": [
+        {
+          "name": "mobile-showcase",
+          "width": 390,
+          "height": 844,
+          "scrollWidth": 390
+        },
+        {
+          "name": "mobile-directory-zero-jobs",
+          "width": 390,
+          "height": 844,
+          "scrollWidth": 390
+        },
+        {
+          "name": "mobile-profile-ad",
+          "width": 390,
+          "height": 844,
+          "scrollWidth": 390
+        },
+        {
+          "name": "mobile-onboarding-signed",
+          "width": 390,
+          "height": 844,
+          "scrollWidth": 390
+        },
+        {
+          "device": "mobile",
+          "test": "onboarding signatures and same-record uncertain retry",
+          "passed": true
+        },
+        {
+          "name": "desktop-showcase",
+          "width": 1440,
+          "height": 900,
+          "scrollWidth": 1440
+        },
+        {
+          "name": "desktop-directory-zero-jobs",
+          "width": 1440,
+          "height": 900,
+          "scrollWidth": 1440
+        },
+        {
+          "name": "desktop-profile-ad",
+          "width": 1440,
+          "height": 900,
+          "scrollWidth": 1440
+        },
+        {
+          "name": "desktop-onboarding-signed",
+          "width": 1440,
+          "height": 900,
+          "scrollWidth": 1440
+        },
+        {
+          "device": "desktop",
+          "test": "onboarding signatures and same-record uncertain retry",
+          "passed": true
+        },
+        {
+          "test": "wallet rotation during signing prevents submit",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "providerAuthentication": {
+    "at": "2026-10-04T12:15:23.281Z",
+    "tier": "real-Claude-local-provider-call",
+    "passed": true,
+    "exitCode": 0,
+    "authEnvironmentPreserved": true,
+    "walletKeysForwarded": false,
+    "toolsEnabled": false,
+    "limits": [
+      "No Hireling OAuth consent, wallet transaction or worker assignment exercised.",
+      "Child output and credential values discarded."
+    ]
+  },
+  "review": {
+    "AF001through009": "source-resolved by the independent reviewer",
+    "AF010": "fixed in 2ecc772 with exact-optional correction 27eb6fd; independent recheck pending",
+    "AF011": "coordinator fix c6f53ee included; onboarding suite passed",
+    "generalSignoff": false
+  },
+  "limits": [
+    "No wallet transaction was broadcast by this QA run.",
+    "Mocked browser tests do not establish real Privy login or user-owned consent.",
+    "Real local Claude call established provider authentication only, with tools disabled and wallet keys excluded.",
+    "AUTONOMOUS_SIGNING_VERIFIED remains false."
+  ]
+}
