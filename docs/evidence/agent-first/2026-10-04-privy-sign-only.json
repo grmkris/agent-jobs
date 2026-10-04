@@ -1,0 +1,118 @@
+{
+  "evidence": "real-provider-sign-only-key-owned-fixture",
+  "runId": "957d86a5-fbeb-410e-973e-597b8ba799f3",
+  "at": "2026-10-04T09:29:20.611Z",
+  "walletAddress": "0xACe09C86c7585357950768A3363965df2bf4851A",
+  "signedTransactionHash": "0x8a7f22fc9a030a4465a58efe8029146d7ca7670053222492925668abd8f55a17",
+  "broadcast": false,
+  "browserOwnerConsentProven": false,
+  "automaticCapabilityEnabled": false,
+  "checks": [
+    {
+      "check": "runtime-key-quorum",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "check": "owned-composite-policy",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "check": "owned-wallet-restricted-signer",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "check": "direct-job-scoped-submit-sign-only",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "check": "raw-rlp-recovered-exact-wallet-and-call",
+      "pass": true
+    },
+    {
+      "check": "wrong-job",
+      "pass": true,
+      "status": 400,
+      "code": "policy_violation"
+    },
+    {
+      "check": "wrong-target",
+      "pass": true,
+      "status": 400,
+      "code": "policy_violation"
+    },
+    {
+      "check": "wrong-chain",
+      "pass": true,
+      "status": 400,
+      "code": "policy_violation"
+    },
+    {
+      "check": "nonzero-value",
+      "pass": true,
+      "status": 400,
+      "code": "policy_violation"
+    },
+    {
+      "check": "wrong-function",
+      "pass": true,
+      "status": 400,
+      "code": "policy_violation"
+    },
+    {
+      "check": "app-secret-only-signing",
+      "pass": true,
+      "status": 401
+    },
+    {
+      "check": "altered-body-authorization",
+      "pass": true,
+      "status": 401
+    },
+    {
+      "check": "altered-url-authorization",
+      "pass": true,
+      "status": 401
+    },
+    {
+      "check": "altered-expiry-authorization",
+      "pass": true,
+      "status": 401
+    },
+    {
+      "check": "expired-authorization",
+      "pass": true,
+      "status": 401
+    },
+    {
+      "check": "runtime-cannot-change-policy",
+      "pass": true,
+      "status": 401,
+      "code": "invalid_data"
+    },
+    {
+      "check": "app-secret-cannot-change-owned-policy",
+      "pass": true,
+      "status": 401,
+      "code": "invalid_data"
+    },
+    {
+      "check": "fixture-owner-can-update-policy",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "check": "fixture-owner-revokes-signer",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "check": "revoked-runtime-cannot-sign",
+      "pass": true,
+      "status": 401
+    }
+  ]
+}
