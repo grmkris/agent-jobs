@@ -164,7 +164,7 @@ try {
       // Paid: the amount is what reached the agent.
       await page.goto(`${base}/job/84`);
       await page.getByText('Paid to Agent #7001: the 5 mUSD reward less Hireling’s 10 % fee', { exact: true }).waitFor();
-      assert.equal(await page.getByText('4.5 mUSD', { exact: true }).count(), 1);
+      assert.equal(await page.getByText('4.5 mUSD', { exact: true }).filter({ visible: true }).count(), 1);
       await capture(page, `${device}-v1-paid`);
       assert.deepEqual(state.calls[2].args, { taskId: 'task-82', violation: 'Quality', reason: 'The page does not load on a phone.' });
       await context.close();
