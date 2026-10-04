@@ -172,6 +172,17 @@ export function TxSteps({
     try { return load(key) !== null } catch (failure) { journalFailure(failure); return true }
   }
 
+  /** A user-supplied hash is evidence only if it names this exact wallet attempt on the configured chain. */
+  const verifyTransaction = async (i: number, hash: Hex, r: OpRecord) => {
+    const transaction = await getTransaction(wagmiConfig, { hash, chainId: chain.id })
+    const nonce = r.pending === i ? r.snapshot?.nonce : r.attempts?.[i]
+    const call = r.batch
+      ? { to: r.from, data: sdk.batchCalldata(boardSteps), value: 0n }
+      : { to: txs[i]!.to, data: txs[i]!.data, value: BigInt(txs[i]!.value) }
+    if (transaction.chainId !== chain.id || r.from == null || nonce == null || transaction.from.toLowerCase() !== r.from.toLowerCase() || transaction.nonce !== nonce || transaction.to?.toLowerCase() !== call.to?.toLowerCase() || transaction.input.toLowerCase() !== call.data.toLowerCase() || transaction.value !== call.value)
+      throw new Error('This receipt differs from the reviewed sender, chain, attempt, recipient, calldata or amount. Reconcile the original transaction.')
+  }
+
   /** Waits for a sent hash, then has the board record it; used after a send and after a reload. */
   const settle = async (i: number, hash: Hex, r: OpRecord) => {
     if (r.sponsored === true) {
@@ -179,13 +190,14 @@ export function TxSteps({
       return
     }
     try {
+      if (verifyReceipt) await verifyTransaction(i, hash, r)
       const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       if (receipt.status !== 'success') {
         const latest = load(key, requireJournal) ?? r
         const reverted = [...(latest.reverted ?? [])]
         if (!reverted.some(previous => previous.toLowerCase() === hash.toLowerCase())) reverted.push(hash)
         const hashes = [...latest.hashes]; hashes[i] = null
-        commit({ ...latest, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
+        commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
         set(i, {
           at: 'failed',
           hash,
@@ -194,14 +206,13 @@ export function TxSteps({
         })
         return
       }
-      if (verifyReceipt) {
-        const transaction = await getTransaction(wagmiConfig, { hash, chainId: chain.id })
-        const tx = txs[i]!
-        if (transaction.from.toLowerCase() !== r.from?.toLowerCase() || transaction.to?.toLowerCase() !== tx.to.toLowerCase() || transaction.input.toLowerCase() !== tx.data.toLowerCase() || transaction.value !== BigInt(tx.value))
-          throw new Error('This receipt differs from the reviewed sender, recipient, calldata or amount. Reconcile the original transaction.')
+      const latest = load(key, requireJournal) ?? r
+      if (latest.pending === i) {
+        const hashes = [...latest.hashes]; hashes[i] = hash
+        commit({ ...latest, pending: null, snapshot: null, hashes })
       }
     } catch (e) {
-      set(i, { at: 'failed', hash, error: friendlyError(e) })
+      set(i, r.pending === i ? { at: 'uncertain', error: friendlyError(e) } : { at: 'failed', hash, error: friendlyError(e) })
       return
     }
     await report(i, hash, r)
@@ -519,7 +530,7 @@ export function TxSteps({
       sending.current = false
       return
     }
-    const withPending = { ...authoritative, pending: i, snapshot, from }
+    const withPending = { ...authoritative, pending: i, snapshot, attempts: Object.assign([...(authoritative.attempts ?? [])], { [i]: snapshot.nonce }), from }
     try { commit(withPending) } catch (failure) {
       sending.current = false
       setJournalError(friendlyError(failure))
@@ -656,14 +667,11 @@ export function TxSteps({
                     const index = latest.pending
                     if (index === null) return
                     const hash = pendingHash as Hex
-                    const known = {
-                      ...latest,
-                      pending: null,
-                      snapshot: null,
-                      hashes: Object.assign([...latest.hashes], { [index]: hash }),
+                    try { await verifyTransaction(index, hash, latest) } catch (failure) {
+                      set(index, { at: 'uncertain', error: friendlyError(failure) })
+                      return
                     }
-                    commit(known)
-                    await settle(index, hash, known)
+                    await settle(index, hash, latest)
                   }).catch(journalFailure)
                 }}
               >

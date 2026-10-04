@@ -45,10 +45,10 @@ export const createConfig=()=>({}); export const http=()=>({}); export const cus
 import {useSyncExternalStore} from 'react';const subscribe=fn=>{window.addEventListener('fixture-wallet-change',fn);return()=>window.removeEventListener('fixture-wallet-change',fn)};
 export const useReadContract=()=>({data:false}); export const useAccount=()=>({address:useSyncExternalStore(subscribe,()=>window.__walletAddress),chainId:10143});
 export const useSwitchChain=()=>({switchChainAsync:async()=>{}});
-export const useSendTransaction=()=>({sendTransactionAsync:async(tx)=>{const r=await fetch('/__security/wallet',{method:'POST',body:JSON.stringify(tx,(_,v)=>typeof v==='bigint'?v.toString():v)});const body=await r.json();if(window.__walletLoseReply)throw new Error('Fixture lost wallet reply');return body.hash;}});
+export const useSendTransaction=()=>({sendTransactionAsync:async(tx)=>{const r=await fetch('/__security/wallet',{method:'POST',body:JSON.stringify(tx,(_,v)=>typeof v==='bigint'?v.toString():v)});const body=await r.json();if(window.__walletLoseReply)throw new Error('Fixture lost wallet reply');window.__nonce=Number(BigInt(body.hash));return body.hash;}});
 `,
   'security-actions': `
-export const getTransactionCount=async()=>{await new Promise(r=>setTimeout(r,window.__readDelay??0));return 0};
+export const getTransactionCount=async()=>{await new Promise(r=>setTimeout(r,window.__readDelay??0));if(window.__chainUnknown)throw new Error('Fixture chain unavailable');if(window.__walletLoseReply)return 0;return (await(await fetch('/__security/nonce')).json()).nonce};
 export const getBlockNumber=async()=>{await new Promise(r=>setTimeout(r,window.__readDelay??0)); if(window.__expireDuringRead)window.__expiresAt=0;return 100n};
 export const getBlock=async()=>({transactions:[]});
 export const getTransaction=async(_config,{hash})=>{const transaction=await(await fetch('/__security/transaction?hash='+hash)).json();return {...transaction,value:BigInt(transaction.value)}};
@@ -88,8 +88,9 @@ const fixture = async () => {
       getGasPrice:async()=>100n,estimateGas:async()=>21000n,
     };
   }, {operatorWallet:wallet});
-  const state = { prompts: 0, receiptDown: false, transactionMismatch: false, delayWallet: 0, transactions: [], releaseReceipt: null, signalReceiptHeld: null };
+  const state = { prompts: 0, receiptDown: false, transactionMismatch: false, transactionOverride: null, delayWallet: 0, transactions: [], releaseReceipt: null, signalReceiptHeld: null };
   await context.route('**/__security/*', async route => {
+    if (route.request().url().endsWith('/nonce')) return route.fulfill({json:{nonce:state.transactions.length}});
     if (route.request().url().endsWith('/wallet')) {
       state.prompts++;
       state.transactions.push(route.request().postDataJSON());
@@ -97,8 +98,10 @@ const fixture = async () => {
       return route.fulfill({json:{hash:`0x${state.prompts.toString(16).padStart(64,'0')}`}});
     }
     if (route.request().url().includes('/transaction?')) {
-      const tx = state.transactions[Number(BigInt(new URL(route.request().url()).searchParams.get('hash'))) - 1];
-      return route.fulfill({json:{from:tx.account,to:tx.to,input:tx.data,value:state.transactionMismatch?'1':tx.value}});
+      const index=Number(BigInt(new URL(route.request().url()).searchParams.get('hash'))) - 1;
+      const tx = state.transactions[index];
+      const original=tx??state.transactions[0];
+      return route.fulfill({json:{chainId:10143,nonce:index,from:original.account,to:original.to,input:original.data,value:state.transactionMismatch?'1':original.value,...state.transactionOverride}});
     }
     if (state.signalReceiptHeld && route.request().frame().url().includes('lag') && new URL(route.request().url()).searchParams.get('hash') === `0x${'1'.padStart(64,'0')}`) {
       const signal=state.signalReceiptHeld;state.signalReceiptHeld=null;
@@ -138,6 +141,39 @@ try {
     state.transactionMismatch=true;
     await a.getByRole('button',{name:'Confirm in your wallet'}).click();await a.getByText(/receipt differs/).waitFor();assert.equal(state.prompts,1);
     state.transactionMismatch=false;await a.getByRole('button',{name:'Try again'}).click();await a.getByRole('status').getByText(/Funding confirmed/).waitFor();assert.equal(state.prompts,1);
+    await context.close();
+  }
+  // AF-010: an unrelated reverted hash must be rejected before the pending attempt is cleared or made retryable.
+  {
+    const {context,state}=await fixture();const page=await context.newPage();
+    await page.goto(`${origin}/security?seed`);await page.evaluate(()=>{window.__walletLoseReply=true;window.__receiptStatus='reverted'});
+    await page.getByRole('button',{name:'Confirm in your wallet'}).click();await page.getByText(/returned an error without a transaction hash/).waitFor();await page.evaluate(()=>{window.__chainUnknown=true});
+    for (const changed of [{nonce:1},{chainId:1},{from:agentWallet},{to:agentWallet},{input:'0xdeadbeef'},{value:'1'}]) {
+      state.transactionOverride={nonce:0,...changed};
+      await page.getByLabel('Transaction hash from wallet activity').fill(`0x${'2'.padStart(64,'0')}`);
+      await page.getByRole('button',{name:'Check existing transaction'}).click();
+      await page.getByText(/receipt differs from the reviewed sender, chain, attempt/).waitFor();
+      assert.equal(state.prompts,1);assert.equal(await page.getByRole('button',{name:'Confirm in your wallet'}).count(),0);
+      assert.equal(await page.getByRole('button',{name:'Try again'}).count(),0);
+      const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem(window.__key)));assert.equal(saved.pending,0);assert.equal(saved.snapshot.nonce,0);assert.equal(saved.hashes.length,0);
+    }
+    // The bound original reverted transaction can clear the pending state and permit exactly one fresh attempt.
+    state.transactionOverride=null;
+    await page.getByLabel('Transaction hash from wallet activity').fill(`0x${'1'.padStart(64,'0')}`);
+    await page.getByRole('button',{name:'Check existing transaction'}).click();await page.getByText(/transaction reverted/).waitFor();
+    await page.evaluate(()=>{window.__chainUnknown=false;window.__walletLoseReply=false;window.__nonce=1;window.__receiptStatus='success'});
+    await page.getByRole('button',{name:'Try again'}).click();await page.waitForFunction(()=>window.__done);assert.equal(state.prompts,2);
+    await context.close();
+  }
+  // A reverted receipt for the exact reviewed attempt remains a safe, sendable retry.
+  {
+    const {context,state}=await fixture();const page=await context.newPage();
+    await page.goto(`${origin}/security?funding`);await page.getByLabel('MON to send',{exact:true}).fill('0.5');
+    await page.getByRole('button',{name:'Review funding'}).click();await page.getByRole('button',{name:'Confirm in your wallet'}).waitFor();
+    await page.evaluate(()=>{window.__receiptStatus='reverted'});await page.getByRole('button',{name:'Confirm in your wallet'}).click();
+    await page.getByText(/transaction reverted/).waitFor();assert.equal(state.prompts,1);
+    await page.evaluate(()=>{window.__receiptStatus='success'});await page.getByRole('button',{name:'Try again'}).click();
+    await page.getByRole('status').getByText(/Funding confirmed/).waitFor();assert.equal(state.prompts,2);
     await context.close();
   }
   // Funding: freeze native/token values, refuse another signer, and resume the second transfer after reload.
@@ -181,8 +217,9 @@ try {
     const held=new Promise(resolve=>{state.signalReceiptHeld=resolve});
     await b.goto(`${origin}/security?funding&lag`);await held;
     await a.getByRole('button',{name:'Confirm step 2 of 2'}).click();
-    await new Promise(resolve=>setTimeout(resolve,500));
+    await a.waitForFunction(async()=>{const locks=await navigator.locks.query();return locks.pending.length===1});
     state.releaseReceipt();await b.getByRole('button',{name:'Confirm step 2 of 2'}).waitFor();
+    await b.waitForFunction(()=>{const key=Object.keys(localStorage).find(value=>value.startsWith('hireling.op-value:'));return JSON.parse(localStorage.getItem(key)).recorded[0]===true});
     await b.getByRole('button',{name:'Confirm step 2 of 2'}).click();await b.getByRole('status').getByText(/Funding confirmed/).waitFor();assert.equal(state.prompts,2);
     await context.close();
   }
@@ -220,8 +257,12 @@ try {
     await context.close();
   }
   assert.deepEqual(errors,[]);
-  console.log('PASS: AF-001, AF-002, AF-004, AF-006, AF-009 and reviewed native/token funding with reload; actual components, wallet and chain fixtures, zero live sends');
+  console.log('PASS: AF-001, AF-002, AF-004, AF-006, AF-009, AF-010 and reviewed native/token funding with reload; actual components, wallet and chain fixtures, zero live sends');
 } catch (failure) {
-  for (const context of browser.contexts()) for (const page of context.pages()) console.error('Fixture failure:', page.url(), await page.locator('body').innerText(), await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage))));
+  console.error(failure);
+  for (const context of browser.contexts()) for (const page of context.pages()) {
+    try { console.error('Fixture failure:', page.url(), await page.locator('body').innerText(), await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage)))); }
+    catch (diagnostic) { console.error('Fixture diagnostics unavailable:', diagnostic.message); }
+  }
   throw failure;
 } finally {await browser.close();await server.close();rmSync(cacheDir,{recursive:true,force:true});}

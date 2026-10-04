@@ -20,7 +20,7 @@ export async function getTransaction(_config, { hash }) {
   chainReady();
   const sent = window.__wallet.sends[Number(BigInt(hash)) - 1];
   if (sent === undefined) throw new Error('Fixture transaction unavailable');
-  return { from: window.__wallet.address, to: sent.to, input: sent.data, value: BigInt(sent.value ?? 0) };
+  return { chainId: 10143, from: window.__wallet.address, to: sent.to, input: sent.data, value: BigInt(sent.value ?? 0), nonce: Number(BigInt(hash)) - 1 };
 }
 export async function getBlockNumber() {
   chainReady();
