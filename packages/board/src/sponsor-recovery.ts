@@ -30,6 +30,21 @@ export class SponsorRecovery {
       status, (receipt.gasUsed * receipt.effectiveGasPrice).toString(), Math.floor(Number(block.timestamp) / 86400) * 86400, op.id)
   }
   #drop(op: SponsorOperation) { this.sql.run("UPDATE sponsor_operations SET status='dropped' WHERE id=? AND status='pending'", op.id) }
+
+  async #authority(op: SponsorOperation): Promise<{ live: boolean; countersUnchanged: boolean }> {
+    const hasEntries = this.sql.all("SELECT name FROM sqlite_master WHERE type='table' AND name='sponsor_entry_grants'").length > 0
+    const entries = hasEntries ? this.sql.all<{ delegation_hash: Hex; baseline_calls: number }>('SELECT delegation_hash,baseline_calls FROM sponsor_entry_grants WHERE operation_id=?', op.id) : []
+    // Existing sends retain their journal and signed bytes through the clean break, including those without an entry ledger.
+    if (entries.length === 0) entries.push({ delegation_hash: op.delegation_hash as Hex, baseline_calls: op.baseline_calls })
+    let live = true
+    let countersUnchanged = true
+    for (const entry of entries) {
+      const grant = this.sql.all<{ status: string; expires_at: number }>('SELECT status,expires_at FROM grants WHERE delegation_hash=?', entry.delegation_hash)[0]
+      if (grant?.status !== 'live' || grant.expires_at <= this.now() || await isDisabled(this.ctx, entry.delegation_hash)) live = false
+      if (await callsMade(this.ctx, entry.delegation_hash) !== BigInt(entry.baseline_calls)) countersUnchanged = false
+    }
+    return { live, countersUnchanged }
+  }
   async #replacement(op: SponsorOperation): Promise<Replacement> {
     const [saved] = this.sql.all<Replacement>('SELECT * FROM sponsor_replacements WHERE operation_id=?', op.id)
     if (saved !== undefined) return saved
@@ -59,8 +74,7 @@ export class SponsorRecovery {
       let replacement = this.sql.all<Replacement>('SELECT * FROM sponsor_replacements WHERE operation_id=?', op.id)[0]
       let cancelled = replacement === undefined ? undefined : await this.#receipt(replacement.tx_hash)
       if (original === undefined && cancelled === undefined) {
-        const [used, latest] = await Promise.all([callsMade(this.ctx, op.delegation_hash as Hex),
-          this.ctx.publicClient.getTransactionCount({ address: getAddress(op.relay), blockTag: 'latest' })])
+        const latest = await this.ctx.publicClient.getTransactionCount({ address: getAddress(op.relay), blockTag: 'latest' })
         if (latest > op.nonce) {
           // Re-read after the nonce observation, since either transaction could have mined during the first read.
           original = await this.#receipt(op.tx_hash as Hex)
@@ -70,15 +84,14 @@ export class SponsorRecovery {
             if (replacement !== undefined) this.sql.run("UPDATE sponsor_replacements SET status='dropped' WHERE operation_id=?", op.id)
           }
         } else if (broadcast) {
-          const [grant] = this.sql.all<{ status: string; delegation_hash: string; expires_at: number }>('SELECT status,delegation_hash,expires_at FROM grants WHERE delegation_hash=?', op.delegation_hash)
-          const live = replacement === undefined && grant?.status === 'live' && grant.delegation_hash === op.delegation_hash && grant.expires_at > this.now()
-            && !await isDisabled(this.ctx, op.delegation_hash as Hex)
+          const authority = await this.#authority(op)
+          const live = replacement === undefined && authority.live
           // A changed grant/counter must never cause a fresh redemption of saved calls. Once a replacement is
           // persisted, recovery stays on that path even if a new grant is subsequently prepared.
-          if (live && used === BigInt(op.baseline_calls)) {
+          if (live && authority.countersUnchanged) {
             try { await this.ctx.publicClient.sendRawTransaction({ serializedTransaction: op.raw_tx as Hex }) } catch { /* Reconcile saved hash. */ }
             original = await this.ctx.publicClient.waitForTransactionReceipt({ hash: op.tx_hash as Hex, timeout: 20_000 }).catch(() => undefined)
-          } else if (!live) {
+          } else if (!live || !authority.countersUnchanged) {
             replacement = await this.#replacement(op)
             try { await this.ctx.publicClient.sendRawTransaction({ serializedTransaction: replacement.raw_tx }) } catch { /* Original may have won the nonce. */ }
             // Check the original first; an already-broadcast redemption can beat the cancellation.

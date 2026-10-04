@@ -1,19 +1,20 @@
 /** ERC-7710 gas sponsorship. Only the relay signs transactions; the wallet signs its own bounded delegation. */
 import * as sdk from '@agent-jobs/sdk'
 import {
-  type Abi, type AbiFunction, type Address, type Hex, type LocalAccount,
-  concat, decodeFunctionData, encodeAbiParameters, encodeFunctionData, encodePacked,
-  getAddress, isAddress, keccak256, recoverAddress, stringToHex, toFunctionSelector,
+  type Address, type Hex, type LocalAccount, getAddress, isAddress, keccak256, recoverAddress, stringToHex,
 } from 'viem'
 import {
-  type Caveat, type Delegation, ROOT_AUTHORITY, callsMade, delegationDigest, delegationHash, delegationJson,
-  delegationTypedData, disableCalldata, isDisabled, parseDelegation, redeemCallsCalldata,
+  type Delegation, callsMade, delegationDigest, delegationHash,
+  delegationTypedData, disableCalldata, isDisabled, parseDelegation,
 } from '@agent-jobs/sdk'
 import type { Sql } from './store.ts'
 import { migrateAgentSchema } from './agent-schema.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
 import { type SponsorOperation as Operation, type SponsorResult, SponsorRecovery } from './sponsor-recovery.ts'
 import { SPONSOR_LIMITS, sponsorRelayFloor } from './sponsor-policy.ts'
+import { GrantStore, type GrantRow } from './grants.ts'
+import { checkGrantCall, checkHireFunding, type GrantCall, type CheckedGrantCall } from './grant-calls.ts'
+import { redeemGrantBatch } from './hire-batch.ts'
 export { SPONSOR_LIMITS } from './sponsor-policy.ts'
 export type { SponsorResult } from './sponsor-recovery.ts'
 
@@ -34,17 +35,15 @@ export interface SponsorDeps {
   readonly relay?: { readonly account: LocalAccount; readonly rpcUrl: string }
   readonly fail: (code: 'unauthenticated' | 'forbidden' | 'not-found' | 'invalid' | 'conflict' | 'chain', message: string) => Error
 }
+export interface NamedSponsorEntry {
+  readonly grant: Hex
+  readonly calls: readonly GrantCall[]
+}
 interface Grant {
   delegator: string; delegation_json: string; delegation_hash: string; signature: string | null; status: string; expires_at: number
 }
-interface Target { address: Address; abi: Abi; methods: readonly string[] }
-type NormalCall = { target: Address; callData: Hex; value: bigint; floor: bigint }
-export type SponsorStatus = { status: 'none' | 'live' | 'expired' | 'used' | 'revoked'; typedData: string | null; callsUsed: number }
+export type SponsorStatus = { status: 'none' | 'live' | 'expired' | 'used' | 'revoked'; typedData: string | null; delegationHash: Hex | null; callsUsed: number }
 const eq = (a: string | null | undefined, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
-const uint = (n: bigint) => encodeAbiParameters([{ type: 'uint256' }], [n])
-const caveat = (enforcer: Address, terms: Hex): Caveat => ({ enforcer, terms: terms.toLowerCase() as Hex, args: '0x' })
-const functions = (t: Target) => t.abi.filter((f): f is AbiFunction => f.type === 'function' && t.methods.includes(f.name))
-
 /** Serialized across awaits, including status/prepare/revoke, so concurrent calls cannot change a grant mid-send. */
 export class SponsorDesk {
   readonly #d: SponsorDeps
@@ -86,26 +85,8 @@ export class SponsorDesk {
     return Object.assign(this.#d.fail(reason === 'policy' ? 'forbidden' : reason === 'simulation' ? 'chain' : 'conflict', message), { reason })
   }
   #row(wallet: string): Grant | undefined { return this.#d.sql.all<Grant>("SELECT * FROM grants WHERE delegator = ? AND kind='operator' ORDER BY expires_at DESC, rowid DESC LIMIT 1", wallet.toLowerCase())[0] }
-  #targets(): Target[] {
-    const c = this.#ctx()
-    return [
-      { address: c.stack.holding, abi: sdk.hirelingHoldingAbi, methods: ['activate', 'cancel', 'cancelSelection', 'claimTopUpRefund', 'settle', 'withdraw'] },
-      { address: c.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, methods: ['accept', 'reject', 'dispute', 'completeAfterSilence', 'rejectAfterDeliveryDeadline', 'rejectAfterWindow', 'refundAfterArbitrationTimeout', 'retryDeferred'] },
-      { address: c.deployment.hireling!.vault, abi: sdk.stakeVaultAbi, methods: ['cancelUnstake', 'withdraw'] },
-      { address: c.deployment.core, abi: sdk.coreAbi, methods: ['submit', 'submitClaim', 'claimRefund'] },
-    ]
-  }
   #delegation(wallet: Address, salt: bigint, expires: number): Delegation {
-    const e = this.#ctx().deployment.delegation.enforcers
-    const targets = this.#targets()
-    const methods = [...new Set(targets.flatMap(t => functions(t).map(f => toFunctionSelector(f))))]
-    return { delegator: wallet, delegate: this.#relay().account.address, authority: ROOT_AUTHORITY, salt, signature: '0x', caveats: [
-      caveat(e.allowedTargets, concat(targets.map(t => t.address))),
-      caveat(e.allowedMethods, concat(methods)),
-      caveat(e.limitedCalls, uint(BigInt(SPONSOR_LIMITS.calls))),
-      caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(expires)])),
-      caveat(e.valueLte, uint(0n)),
-    ] }
+    return sdk.buildGrant(this.#ctx(), { kind: 'operator', delegator: wallet, salt, start: expires - SPONSOR_LIMITS.validity })
   }
   #current(row: Grant): Delegation {
     const x = parseDelegation(row.delegation_json)
@@ -114,11 +95,11 @@ export class SponsorDesk {
   }
   async #status(wallet: Address): Promise<SponsorStatus> {
     const ctx = this.#ctx(), row = this.#row(wallet)
-    if (row === undefined || row.status === 'prepared') return { status: 'none', typedData: null, callsUsed: 0 }
+    if (row === undefined || row.status === 'prepared') return { status: 'none', typedData: null, delegationHash: null, callsUsed: 0 }
     // Unavailable chain state must error, never claim unused permission or an enabled delegation.
     const [used, disabled] = await Promise.all([callsMade(ctx, row.delegation_hash as Hex), isDisabled(ctx, row.delegation_hash as Hex)])
     const status = row.status === 'revoked' || disabled ? 'revoked' : this.#d.now() >= row.expires_at ? 'expired' : used >= BigInt(SPONSOR_LIMITS.calls) ? 'used' : 'live'
-    return { status, typedData: delegationTypedData(ctx.deployment, parseDelegation(row.delegation_json)), callsUsed: Number(used) }
+    return { status, typedData: delegationTypedData(ctx.deployment, parseDelegation(row.delegation_json)), delegationHash: row.delegation_hash as Hex, callsUsed: Number(used) }
   }
   status(wallet: string) { return this.#serial(() => this.#status(this.#wallet(wallet))) }
   prepare(walletText: string) { return this.#grantSerial(async () => {
@@ -128,9 +109,7 @@ export class SponsorDesk {
     const salt = BigInt(`0x${[...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('')}`)
     const expires = this.#d.now() + SPONSOR_LIMITS.validity
     const x = this.#delegation(wallet, salt, expires)
-    this.#d.sql.run(`INSERT INTO grants (delegation_hash,kind,delegator,delegate,owner,delegation_json,signature,status,expires_at)
-      VALUES (?,'operator',?,?,?,?,NULL,'prepared',?)`,
-      delegationHash(x), wallet.toLowerCase(), x.delegate.toLowerCase(), wallet.toLowerCase(), delegationJson(x), expires)
+    new GrantStore(this.#d.sql, ctx).prepare(wallet, { kind: 'operator', delegator: wallet, salt, start: expires - SPONSOR_LIMITS.validity })
     const current = await sdk.delegationOf(ctx.publicClient, wallet)
     return { sign: { typedData: delegationTypedData(ctx.deployment, x) }, upgrade: eq(current, ctx.deployment.delegation.delegator) ? null : { delegator: ctx.deployment.delegation.delegator } }
   }) }
@@ -142,6 +121,7 @@ export class SponsorDesk {
     const x = this.#current(row)
     const signer = await recoverAddress({ hash: delegationDigest(ctx.deployment, x), signature: signature as Hex }).catch(() => null)
     if (!eq(signer, wallet)) throw this.#d.fail('forbidden', 'the signature is not the wallet’s over the prepared delegation')
+    if (row.signature !== null && !eq(row.signature, signature)) throw this.#d.fail('conflict', 'the prepared signature cannot change')
     if (!eq(await sdk.delegationOf(ctx.publicClient, wallet), ctx.deployment.delegation.delegator)) throw this.#d.fail('conflict', 'upgrade the wallet to the DeleGator before confirming sponsorship')
     if (await isDisabled(ctx, row.delegation_hash as Hex)) throw this.#d.fail('conflict', 'this delegation is disabled on-chain')
     this.#d.sql.run("UPDATE grants SET signature=?, status='live' WHERE delegation_hash=?", signature, row.delegation_hash)
@@ -157,28 +137,52 @@ export class SponsorDesk {
     })
     return { transactions }
   }) }
-  #validate(calls: readonly SponsorCall[]): NormalCall[] {
-    if (!Array.isArray(calls) || calls.length === 0 || calls.length > SPONSOR_LIMITS.batch) throw this.#d.fail('invalid', `provide 1-${SPONSOR_LIMITS.batch} sponsored calls`)
-    return calls.map((call, i) => {
-      if (call === null || typeof call !== 'object' || !isAddress(call.to) || typeof call.data !== 'string' || !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(call.data) || call.data.length > 32770) throw this.#d.fail('invalid', `calls[${i}] has malformed target or calldata`)
-      if ((call.value ?? '0') !== '0' || call.chainId !== undefined && call.chainId !== this.#ctx().deployment.chainId) throw this.#d.fail('invalid', `calls[${i}] must have zero value and use this chain`)
-      const target = this.#targets().find(t => eq(call.to, t.address))
-      if (target === undefined) throw this.#refuse('policy', `calls[${i}] targets a contract outside Hireling v1`)
-      const fn = functions(target).find(f => eq(call.data.slice(0, 10), toFunctionSelector(f)))
-      if (fn === undefined) throw this.#refuse('policy', `calls[${i}] uses a method outside the sponsorship policy`)
-      try {
-        const decoded = decodeFunctionData({ abi: [fn], data: call.data as Hex })
-        if (!eq(encodeFunctionData({ abi: [fn], functionName: decoded.functionName, args: decoded.args }), call.data)) throw new Error('noncanonical calldata')
-      } catch { throw this.#d.fail('invalid', `calls[${i}] is not valid calldata for ${fn.name}`) }
-      const floor = eq(target.address, this.#ctx().stack.evaluator)
-        ? fn.name === 'retryDeferred' ? sdk.V1_GAS.retryDeferred : fn.name === 'dispute' ? 300_000n : sdk.V1_GAS.evaluator
-        : fn.name === 'settle' ? sdk.V1_GAS.settle : fn.name === 'claimTopUpRefund' ? sdk.V1_GAS.claimTopUpRefund : fn.name === 'cancel' ? sdk.V1_GAS.cancel : 500_000n
-      return { target: target.address, callData: call.data.toLowerCase() as Hex, value: 0n, floor }
+  #validate(wallet: Address, entries: readonly NamedSponsorEntry[]) {
+    if (!Array.isArray(entries) || entries.length === 0 || entries.length > SPONSOR_LIMITS.batch) throw this.#d.fail('invalid', `provide 1-${SPONSOR_LIMITS.batch} named grant entries`)
+    const ctx = this.#ctx()
+    const store = new GrantStore(this.#d.sql, ctx)
+    const parsed: Array<{ row: GrantRow; spec: sdk.GrantSpec; grant: Delegation; checked: CheckedGrantCall }> = []
+    for (const entry of entries) {
+      if (typeof entry?.grant !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(entry.grant)) throw this.#d.fail('invalid', 'every named grant must be a delegation hash')
+      if (!Array.isArray(entry.calls)) throw this.#d.fail('invalid', 'every named grant must contain calls')
+      const row = store.get(entry.grant)
+      if (row === undefined || row.signature === null || row.status !== 'live' || row.expires_at <= this.#d.now()) throw this.#d.fail('conflict', 'every named grant must be live and signed')
+      if (!eq(row.delegator, wallet) || !eq(row.delegate, ctx.deployment.relay)) throw this.#d.fail('forbidden', 'a named grant must belong to this wallet and delegate to the relay')
+      const spec = store.spec(entry.grant)
+      if (spec.kind.startsWith('agent-') || spec.kind === 'unstake') {
+        const agent = this.#d.sql.all<{ operator: string; state: string; chain_id: number }>('SELECT operator,state,chain_id FROM agents WHERE address=?', wallet.toLowerCase())[0]
+        if (agent === undefined || !eq(agent.operator, row.owner) || agent.chain_id !== ctx.deployment.chainId || agent.state === 'revoked') throw this.#d.fail('forbidden', 'the grant does not match a live bound agent and operator')
+        if (spec.kind === 'agent-sweep' && !eq(spec.operator, row.owner)) throw this.#d.fail('forbidden', 'the sweep recipient is not this agent operator')
+      }
+      const grant = store.signed(entry.grant)
+      if (entry.calls.length === 0) throw this.#d.fail('invalid', 'each entry requires calls')
+      for (const call of entry.calls) {
+        try { parsed.push({ row, spec, grant, checked: checkGrantCall(ctx, spec, call) }) }
+        catch (cause) {
+          const message = cause instanceof Error ? cause.message : 'invalid grant call'
+          const error = message.includes('outside') ? this.#refuse('policy', message) : this.#d.fail('invalid', message)
+          throw Object.assign(error, { cause })
+        }
+      }
+    }
+    if (parsed.length === 0 || parsed.length > SPONSOR_LIMITS.batch) throw this.#d.fail('invalid', `provide 1-${SPONSOR_LIMITS.batch} sponsored calls`)
+    const owner = parsed[0]!.row.owner
+    if (parsed.some(item => !eq(item.row.owner, owner))) throw this.#d.fail('forbidden', 'all named grants must belong to the same operator')
+    const nested = new Map<Hex, { row: GrantRow; spec: sdk.GrantSpec; grant: Delegation; calls: number }>()
+    const publishes = checkHireFunding(ctx, owner, wallet, parsed.map(item => ({ spec: item.spec, checked: item.checked })), hash => {
+      const row = store.get(hash)
+      if (row === undefined || row.status !== 'live' || row.expires_at <= this.#d.now() || !eq(row.owner, owner)) throw this.#d.fail('conflict', 'nested allowance is not live for this operator')
+      const result = { row, spec: store.spec(hash), grant: store.signed(hash), calls: 1 }
+      const previous = nested.get(hash)
+      if (previous === undefined) nested.set(hash, result)
+      else previous.calls++
+      return result
     })
+    return { parsed, nested, owner, publishes }
   }
   #recovery() { return new SponsorRecovery(this.#d.sql, this.#ctx(), this.#d.now, this.#d.relay?.account) }
   #resume(op: Operation, broadcast = true) { return this.#recovery().resume(op, broadcast) }
-  submit(walletText: string, calls: readonly SponsorCall[], key: string) { return this.#serial(async (): Promise<SponsorResult> => {
+  submit(walletText: string, entries: readonly NamedSponsorEntry[], key: string, agentOperationId?: Hex) { return this.#serial(async (): Promise<SponsorResult> => {
     const wallet = this.#wallet(walletText)
     const id = keccak256(stringToHex(JSON.stringify([wallet.toLowerCase(), key])))
     const prior = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]
@@ -187,21 +191,33 @@ export class SponsorDesk {
     if (prior !== undefined) return withRelayNonce(getAddress(prior.relay), () => this.#resume(prior))
     const ctx = this.#ctx(), relay = this.#relay()
     return withRelayNonce(relay.account.address, async () => {
-      const parsed = this.#validate(calls)
       if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw this.#d.fail('invalid', 'key must be 1-128 letters, digits, underscores or hyphens; reuse it only for retries of one action')
-      const payloadHash = keccak256(stringToHex(JSON.stringify(parsed.map(c => [c.target.toLowerCase(), c.callData, '0']))))
-      const row = this.#row(wallet)
-      if (row === undefined || row.signature === null) throw this.#d.fail('conflict', 'confirm a sponsorship delegation before submitting calls')
-      // Both ledgers recover under the same queue before a fresh nonce, simulation or cap reservation.
+      // Both ledgers recover before any fresh counters, nonce, simulation or cap reservation.
       try { await new RelaySender(this.#d.sql, ctx, relay.account, relay.rpcUrl, this.#d.now).checkPendingLocked() }
       catch { throw this.#refuse('pending', 'an earlier relay transaction is still pending; retry shortly') }
-      const current = await this.#status(wallet)
-      if (current.status !== 'live' || row.status !== 'live') throw this.#d.fail('conflict', `sponsorship is ${current.status}`)
-      if (current.callsUsed + parsed.length > SPONSOR_LIMITS.calls) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
-      const signed = this.#current(row)
-      const data = redeemCallsCalldata(signed, parsed)
+      const { parsed, nested, owner, publishes } = this.#validate(wallet, entries)
+      const payloadHash = keccak256(stringToHex(JSON.stringify(parsed.map(item => [item.row.delegation_hash, item.checked.execution.target.toLowerCase(), item.checked.execution.callData, '0']))))
+      const counted = new Map<Hex, { row: GrantRow; spec: sdk.GrantSpec; baseline: number; calls: number }>()
+      for (const item of parsed) {
+        const hash = item.row.delegation_hash
+        const existing = counted.get(hash)
+        if (existing !== undefined) existing.calls++
+        else counted.set(hash, { row: item.row, spec: item.spec, baseline: Number(await callsMade(ctx, hash)), calls: 1 })
+      }
+      for (const [hash, item] of nested) {
+        const existing = counted.get(hash)
+        if (existing !== undefined) existing.calls += item.calls
+        else counted.set(hash, { row: item.row, spec: item.spec, baseline: Number(await callsMade(ctx, hash)), calls: item.calls })
+      }
+      for (const [hash, item] of counted) {
+        if (await isDisabled(ctx, hash)) throw this.#d.fail('conflict', 'a named grant is disabled')
+        if (item.spec.kind !== 'allowance' && item.baseline + item.calls > sdk.grantCallLimit(item.spec)) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
+      }
+      const row = parsed[0]!.row
+      const baseline = counted.get(row.delegation_hash)!.baseline
+      const data = redeemGrantBatch(parsed.map(item => ({ grant: item.grant, execution: item.checked.execution })))
       // ADR-0011 inner limits plus manager overhead are used only if estimation is unreliable.
-      const floor = parsed.reduce((sum, c) => sum + c.floor, 100_000n)
+      const floor = parsed.reduce((sum, c) => sum + c.checked.floor, 100_000n)
       const gas = await sdk.transactionGas(ctx.publicClient, { account: relay.account, to: ctx.deployment.delegation.manager, data }, floor)
         .catch(() => { throw this.#refuse('simulation', 'the sponsored calls did not simulate successfully') })
       if (gas > SPONSOR_LIMITS.gas) throw this.#refuse('cap', 'the sponsored transaction exceeds the gas cap')
@@ -211,16 +227,28 @@ export class SponsorDesk {
       const daily = this.#d.sql.all<{ cost: string }>('SELECT cost FROM sponsor_operations WHERE charged_day=? AND cost IS NOT NULL UNION ALL SELECT cost FROM sponsor_replacements WHERE charged_day=? AND cost IS NOT NULL', day, day)
       // Charge only receipts. All unresolved sends were reconciled above; this send reserves its maximum cost.
       if (daily.reduce((sum, op) => sum + BigInt(op.cost!), cost) > SPONSOR_LIMITS.dailyWei) throw this.#refuse('cap', 'the relay’s daily sponsorship budget is exhausted')
-      const recent = this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE wallet=? AND created_at > ?', wallet.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
-      if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the wallet’s sponsorship rate limit is exhausted')
+      const recent = this.#d.sql.all<{ calls: number }>('SELECT calls FROM sponsor_operator_usage WHERE owner=? AND created_at > ?', owner.toLowerCase(), this.#d.now() - SPONSOR_LIMITS.walletWindow)
+      if (recent.reduce((sum, op) => sum + op.calls, parsed.length) > SPONSOR_LIMITS.walletCalls) throw this.#refuse('rate', 'the operator sponsorship rate limit is exhausted')
+      const dailyPublishes = this.#d.sql.all<{ publishes: number }>('SELECT coalesce(sum(publishes),0) publishes FROM sponsor_operator_usage WHERE owner=? AND created_at>=?', owner.toLowerCase(), day)[0]!.publishes
+      if (dailyPublishes + publishes > SPONSOR_LIMITS.operatorPublishes) throw this.#refuse('cap', 'the operator daily sponsored publish count is exhausted')
       if (await ctx.publicClient.getBalance({ address: relay.account.address }) < sponsorRelayFloor(ctx.deployment.network) + cost) throw this.#refuse('floor', 'the sponsorship relay is below its balance floor')
       const nonce = await ctx.publicClient.getTransactionCount({ address: relay.account.address, blockTag: 'pending' })
       const raw = await relay.account.signTransaction({ type: 'eip1559', chainId: ctx.deployment.chainId, nonce,
         to: ctx.deployment.delegation.manager, data, value: 0n, gas, maxFeePerGas, maxPriorityFeePerGas })
       const hash = keccak256(raw)
-      // A single synchronous reservation persists the operation and the exact signed bytes before any money moves.
-      this.#d.sql.run("INSERT INTO sponsor_operations (id,wallet,delegation_hash,status,raw_tx,tx_hash,relay,nonce,reserved_cost,calls,baseline_calls,created_at,action_key,payload_hash) VALUES (?,?,?,'pending',?,?,?,?,?,?,?,?,?,?)",
-        id, wallet.toLowerCase(), row.delegation_hash, raw, hash, relay.account.address, nonce, cost.toString(), parsed.length, current.callsUsed, this.#d.now(), key, payloadHash)
+      // The signed send, every counter reservation and its agent-operation link commit together before broadcast.
+      if (this.#d.sql.atomic === undefined) throw this.#d.fail('chain', 'atomic sponsor storage is unavailable')
+      this.#d.sql.atomic(() => {
+        this.#d.sql.run("INSERT INTO sponsor_operations (id,wallet,delegation_hash,status,raw_tx,tx_hash,relay,nonce,reserved_cost,calls,baseline_calls,created_at,action_key,payload_hash) VALUES (?,?,?,'pending',?,?,?,?,?,?,?,?,?,?)",
+          id, wallet.toLowerCase(), row.delegation_hash, raw, hash, relay.account.address, nonce, cost.toString(), parsed.length, baseline, this.#d.now(), key, payloadHash)
+        for (const [grantHash, item] of counted) this.#d.sql.run('INSERT INTO sponsor_entry_grants (operation_id,delegation_hash,baseline_calls,calls) VALUES (?,?,?,?)', id, grantHash, item.baseline, item.calls)
+        this.#d.sql.run('INSERT INTO sponsor_operator_usage (operation_id,owner,calls,publishes,created_at) VALUES (?,?,?,?,?)', id, owner.toLowerCase(), parsed.length, publishes, this.#d.now())
+        if (agentOperationId !== undefined) {
+          const operation = this.#d.sql.all<{ stage: string; sponsor_operation_id: string | null; address: string; state: string }>('SELECT agent_operations.stage,agent_operations.sponsor_operation_id,agents.address,agents.state FROM agent_operations JOIN agents ON agents.id=agent_operations.agent_id WHERE agent_operations.id=?', agentOperationId)[0]
+          if (operation === undefined || !eq(operation.address, wallet) || operation.state === 'revoked' || operation.sponsor_operation_id !== null || !['prepared', 'signed', 'approval'].includes(operation.stage)) throw this.#d.fail('conflict', 'agent operation is not ready for this send')
+          this.#d.sql.run("UPDATE agent_operations SET stage='sending',sponsor_operation_id=?,updated_at=? WHERE id=?", id, this.#d.now(), agentOperationId)
+        }
+      })
       return this.#resume(this.#d.sql.all<Operation>('SELECT * FROM sponsor_operations WHERE id=?', id)[0]!)
     })
   }) }

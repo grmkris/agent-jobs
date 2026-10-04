@@ -21,6 +21,7 @@ export interface SponsorStatus {
   status: 'none' | 'live' | 'expired' | 'used' | 'revoked'
   /** The signed delegation's `eth_signTypedData_v4` JSON, or null when there is none. */
   typedData: string | null
+  delegationHash: Hex | null
   callsUsed: number
 }
 
@@ -51,6 +52,7 @@ export function sponsorRulesFor(contracts: { holding: string; evaluator: string;
     [contracts.evaluator.toLowerCase()]: { name: 'Evaluator', abi: sdk.hirelingEvaluatorAbi as Abi },
     [contracts.vault.toLowerCase()]: { name: 'Stake vault', abi: sdk.stakeVaultAbi as Abi },
     [d.core.toLowerCase()]: { name: 'Core', abi: sdk.coreAbi as Abi },
+    [d.delegation.manager.toLowerCase()]: { name: 'Delegation manager', abi: sdk.delegationManagerAbi as Abi },
   }
   return { chainId: d.chainId, manager: d.delegation.manager, relay: d.relay, enforcers: d.delegation.enforcers, targets }
 }
@@ -138,7 +140,7 @@ export function useSponsorStatus(wallet: string | undefined, signedIn: boolean) 
 }
 
 /**
- * A sponsored send: the relay's one transaction for 1–4 ordered calls (B6). `dropped` (B6 21:27): the relay's nonce
+ * A sponsored send: the relay's one transaction for 1–8 ordered calls (B6). `dropped` (B6 21:27): the relay's nonce
  * went to another transaction and this one has no receipt, so it never mines; like `reverted`, nothing happened, and
  * a new attempt needs a new key.
  */
@@ -157,10 +159,10 @@ export interface SponsorCall {
 }
 
 /** How many calls one sponsored send may carry (B6). */
-export const SPONSOR_BATCH = 4
+export const SPONSOR_BATCH = 8
 
 /**
- * Whether these transactions can go through the relay as one sponsored send: at most four, all on this chain with no
+ * Whether these transactions can go through the relay as one sponsored send: at most eight, all on this chain with no
  * value, each to a contract and function the signed delegation allows, and with that many calls left on it. Anything
  * else (an ERC-20 approve, a Safe transaction, the delegation's own revocation) goes from the wallet.
  */
@@ -216,7 +218,11 @@ export function sponsorKey(): string {
 export const sponsorApi = {
   status: (wallet: string) => tool<SponsorStatus>('sponsor_status', { wallet }),
   /** `key` is kept with the steps before the request and reused only to retry them. */
-  submit: (wallet: string, key: string, calls: SponsorCall[]) => tool<SponsorOperation>('sponsor_submit', { wallet, key, calls }),
+  submit: async (wallet: string, key: string, calls: SponsorCall[]) => {
+    const status = await tool<SponsorStatus>('sponsor_status', { wallet })
+    const entries = status.delegationHash === null ? [] : [{ grant: status.delegationHash, calls }]
+    return tool<SponsorOperation>('sponsor_submit', { wallet, key, entries })
+  },
   prepare: (wallet: string) => tool<SponsorPrep>('sponsor_prepare', { wallet }),
   confirm: (wallet: string, signature: string) => tool<SponsorStatus>('sponsor_confirm', { wallet, signature }),
   /** The board stops using the delegation at once; any transactions are the on-chain `disableDelegation` from the wallet. */

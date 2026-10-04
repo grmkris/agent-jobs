@@ -5,7 +5,7 @@
  * caller's own wallet: `cast send <to> <data>` and `cast wallet sign --data '<typedData>'` for a key-holding agent,
  * `eth_sendTransaction` / `eth_signTypedData_v4` for a wallet.
  */
-import type { Board, BudgetInput, Caller, DeliverableSpec } from '@agent-jobs/board'
+import type { Board, BudgetInput, Caller, DeliverableSpec, NamedSponsorEntry } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 
 export interface Tool {
@@ -825,12 +825,17 @@ export const tools: Record<string, Tool> = {
   },
 
   sponsor_submit: {
-    description: 'Submit 1–4 zero-value calls to the four v1 contracts under your signed sponsorship delegation. The relay validates, simulates, records, and sends one bounded transaction.',
+    description: 'Submit up to eight zero-value calls, each named by its signed grant. The relay validates pins, nested hire funding, gas and operator limits, persists the send, and reconciles retries.',
     inputSchema: { type: 'object', properties: {
-      wallet: str('Your wallet address.'), key: str('A unique action key, 1-128 letters, digits, underscores or hyphens. Persist and reuse only for retries.'),
-      calls: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'object', properties: { to: str('v1 contract address.'), data: str('Canonical calldata.'), value: str('Must be "0" when present.'), chainId: num('Optional chain id; must match the deployment.'), description: str('Optional display metadata; ignored.'), gas: str('Optional display metadata; ignored. Relay gas is bounded by policy.') }, required: ['to', 'data'], additionalProperties: false } },
-    }, required: ['wallet', 'key', 'calls'] },
-    run: (board, caller, a) => board.sponsorSubmit(caller, { wallet: s(a, 'wallet'), key: s(a, 'key'), calls: a.calls as Array<{ to: string; data: string; value?: string; chainId?: number }> }),
+      wallet: str('Your wallet address.'), key: str('A stable action key, 1-128 letters, digits, underscores or hyphens. Persist and reuse only for retries.'),
+      entries: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'object', properties: {
+        grant: str('The hash of the stored signed grant for these calls.'),
+        calls: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'object', properties: {
+          to: str('Grant target address.'), data: str('Canonical calldata.'), value: str('Must be "0" when present.'), chainId: num('Must match the deployment.'), description: str('Display metadata.'), gas: str('Display metadata; relay gas is bounded by policy.'),
+        }, required: ['to', 'data'], additionalProperties: false } },
+      }, required: ['grant', 'calls'], additionalProperties: false } },
+    }, required: ['wallet', 'key', 'entries'] },
+    run: (board, caller, a) => board.sponsorSubmit(caller, { wallet: s(a, 'wallet'), key: s(a, 'key'), entries: a.entries as NamedSponsorEntry[] }),
   },
 
   sponsor_operation: {

@@ -29,7 +29,7 @@ import {
 import { createSiweMessage, parseSiweMessage } from 'viem/siwe'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
-import { type SponsorCall, SponsorDesk } from './sponsor.ts'
+import { type NamedSponsorEntry, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
 import { confirmedOperationIds, confirmsVaultOperation } from './receipts.ts'
 import { RelaySender, type RelayRequest } from './relay.ts'
@@ -282,7 +282,7 @@ export class Board {
   sponsorPrepare(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).prepare(input.wallet) }
   sponsorConfirm(caller: Caller, input: { wallet: string; signature: string }) { return this.#sponsorDesk(caller, input.wallet).confirm(input.wallet, input.signature) }
   sponsorRevoke(caller: Caller, input: { wallet: string }) { return this.#sponsorDesk(caller, input.wallet).revoke(input.wallet) }
-  sponsorSubmit(caller: Caller, input: { wallet: string; calls: readonly SponsorCall[]; key: string }) { return this.#sponsorDesk(caller, input.wallet).submit(input.wallet, input.calls, input.key) }
+  sponsorSubmit(caller: Caller, input: { wallet: string; entries: readonly NamedSponsorEntry[]; key: string }) { return this.#sponsorDesk(caller, input.wallet).submit(input.wallet, input.entries, input.key) }
   sponsorOperation(caller: Caller, input: { wallet: string; operationId: string }) { return this.#sponsorDesk(caller, input.wallet).operation(input.wallet, input.operationId) }
 
   /** Internal binding RPC only; never included in the public tool registry. */

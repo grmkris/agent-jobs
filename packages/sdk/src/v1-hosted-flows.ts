@@ -44,7 +44,8 @@ export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
   }
   const sponsor = async (step: string, wallet: sdk.Wallet, prepared: Prepared, taskId: string) => {
     const key = (await once('run-key', async () => sdk.randomNonce().toString())) + `-${flow}-${step}`
-    const op = await d.call<{ status: string; txHash: Hex; operationId: string }>(wallet, 'sponsor_submit', { wallet: wallet.account.address, key, calls: prepared.transactions })
+    const status = await d.call<{ delegationHash: Hex | null }>(wallet, 'sponsor_status', { wallet: wallet.account.address })
+    const op = await d.call<{ status: string; txHash: Hex; operationId: string }>(wallet, 'sponsor_submit', { wallet: wallet.account.address, key, entries: status.delegationHash === null ? [] : [{ grant: status.delegationHash, calls: prepared.transactions }] })
     check(op.status === 'confirmed', `sponsored ${step} must confirm before advancing (${op.status})`)
     j.log(`${flow}/${step}`, op.txHash)
     await report(taskId, op.txHash)
@@ -73,14 +74,14 @@ export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
     }
   } else if (flow === 'sponsor-caps') {
     await enableSponsor(worker)
-    const status = await d.call<{ callsUsed: number }>(worker, 'sponsor_status', { wallet: worker.account.address })
+    const status = await d.call<{ callsUsed: number; delegationHash: Hex }>(worker, 'sponsor_status', { wallet: worker.account.address })
     // Fill the grant with harmless, unique cancelSelection transitions; the caveat and hosted rate both refuse excess.
     for (let i = status.callsUsed; i <= 100; i++) {
       const key = `${await once('run-key', async () => sdk.randomNonce().toString())}-cap-${i}`
       const nonce = await once(`selection-${i}`, async () => sdk.randomNonce())
       const calls = [{ to: ctx.stack.holding, value: '0', data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [nonce] }) }]
       try {
-        const op = await d.call<{ status: string; txHash: Hex }>(worker, 'sponsor_submit', { wallet: worker.account.address, key, calls })
+        const op = await d.call<{ status: string; txHash: Hex }>(worker, 'sponsor_submit', { wallet: worker.account.address, key, entries: [{ grant: status.delegationHash, calls }] })
         check(op.status === 'confirmed', 'cap fill transaction did not confirm'); j.log(`sponsor-caps/${i}`, op.txHash)
       } catch (error) {
         const reason = error as { reason?: string; code?: string; message?: string }

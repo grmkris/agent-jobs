@@ -18,7 +18,7 @@ const tx = (over: Partial<TxRequest> = {}): TxRequest => ({ description: 'Settle
 describe('which steps the relay sends', () => {
   it('sends calls the signed delegation allows, while it has calls left', () => {
     expect(sponsorable([tx()], live, 10143, 1_000)).toBe(true)
-    expect(sponsorable(Array.from({ length: SPONSOR_BATCH }, () => tx()), live, 10143, 1_000)).toBe(true)
+    expect(sponsorable(Array.from({ length: SPONSOR_BATCH }, () => tx()), { ...live, policy: { ...policy, calls: BigInt(SPONSOR_BATCH) } }, 10143, 1_000)).toBe(true)
   })
 
   it('leaves everything else to the wallet', () => {

@@ -25,7 +25,10 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     }
     return board.sponsorConfirm(caller(wallet), { wallet: wallet.account.address, signature: await sdk.signTypedDataJson(wallet, prep.sign.typedData) })
   }
-  const submit = (wallet: sdk.Wallet, key: string, calls: readonly sdk.TxRequest[]) => board.sponsorSubmit(caller(wallet), { wallet: wallet.account.address, key, calls })
+  const submit = async (wallet: sdk.Wallet, key: string, calls: readonly sdk.TxRequest[]) => {
+    const status = await board.sponsorStatus(caller(wallet), { wallet: wallet.account.address })
+    return board.sponsorSubmit(caller(wallet), { wallet: wallet.account.address, key, entries: status.delegationHash === null ? [] : [{ grant: status.delegationHash, calls }] })
+  }
   beforeAll(async () => {
     f = await startHirelingFork(); db = new DatabaseSync(':memory:'); now = Number((await f.ctx.publicClient.getBlock()).timestamp); board = boot()
     agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/sponsor-fork')

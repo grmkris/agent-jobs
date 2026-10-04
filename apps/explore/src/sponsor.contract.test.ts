@@ -16,7 +16,7 @@ interface Desk {
   prepare(wallet: string): Promise<SponsorPrep>
   confirm(wallet: string, signature: string): Promise<SponsorStatus>
   revoke(wallet: string): Promise<{ transactions: TxRequest[] }>
-  submit(wallet: string, calls: SponsorCall[] | Array<{ to: string; data: string; value: '0' }>, key: string): Promise<SponsorOperation>
+  submit(wallet: string, entries: Array<{ grant: Hex; calls: SponsorCall[] }>, key: string): Promise<SponsorOperation>
 }
 const boardSrc = (file: string) => new URL(`../../../packages/board/src/${file}`, import.meta.url).href
 const { SponsorDesk } = (await import(/* @vite-ignore */ boardSrc('sponsor.ts'))) as { SponsorDesk: new (deps: unknown) => Desk }
@@ -88,7 +88,7 @@ describe('Explore against the board’s real sponsorship desk', () => {
     const read = readDelegation(prep.sign.typedData, b.owner.address, b.rules)
     expect(read).toMatchObject({ ok: true })
     if (!read.ok) return
-    expect(read.policy.targets.map((t) => t.name)).toEqual(['Holding', 'Evaluator', 'Stake vault', 'Core'])
+    expect(read.policy.targets.map((t) => t.name)).toEqual(['Holding', 'Evaluator', 'Stake vault', 'Core', 'Delegation manager'])
     expect(read.policy.calls).toBe(100n)
     expect(read.policy.validUntil).toBe(1_800_000_000 + 86_400)
     const names = read.policy.methods.map((m) => m.name)
@@ -101,10 +101,10 @@ describe('Explore against the board’s real sponsorship desk', () => {
 
   it('confirms with the wallet’s signature, and sponsor_status reads back as live in Explore’s shape', async () => {
     const b = board()
-    expect(await b.desk.status(b.owner.address)).toEqual({ status: 'none', typedData: null, callsUsed: 0 })
+    expect(await b.desk.status(b.owner.address)).toEqual({ status: 'none', typedData: null, delegationHash: null, callsUsed: 0 })
     const prep = await b.desk.prepare(b.owner.address)
     const status = await b.desk.confirm(b.owner.address, await b.sign(prep.sign.typedData))
-    expect(status).toEqual({ status: 'live', typedData: expect.any(String), callsUsed: 0 })
+    expect(status).toEqual({ status: 'live', typedData: expect.any(String), delegationHash: expect.any(String), callsUsed: 0 })
     const read = readDelegation(status.typedData as string, b.owner.address, b.rules)
     expect(read).toMatchObject({ ok: true })
     if (!read.ok) return
@@ -122,8 +122,9 @@ describe('Explore against the board’s real sponsorship desk', () => {
     const prep = await b.desk.prepare(b.owner.address)
     await b.desk.confirm(b.owner.address, await b.sign(prep.sign.typedData))
     const call = { to: b.stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [1n] }), value: '0' as const }
+    const grant = (await b.desk.status(b.owner.address)).delegationHash!
     const key = sponsorKey()
-    const op = await b.desk.submit(b.owner.address, [call], key)
+    const op = await b.desk.submit(b.owner.address, [{ grant, calls: [call] }], key)
     expect(op).toEqual({ operationId: expect.stringMatching(/^0x[0-9a-f]{64}$/), status: 'confirmed', txHash: expect.stringMatching(/^0x[0-9a-f]{64}$/), callsUsed: 1 })
     const sent = b.client.sendRawTransaction.mock.calls.at(0)?.[0]
     if (sent === undefined) throw new Error('sponsorship did not send a transaction')
@@ -132,14 +133,14 @@ describe('Explore against the board’s real sponsorship desk', () => {
     expect(signed.maxPriorityFeePerGas).toBeLessThan(await b.client.getGasPrice())
     expect(signed.maxFeePerGas).toBe(2n * (await b.client.getBlock()).baseFeePerGas)
     // A retry after a lost answer: same key, same operation, nothing new sent.
-    expect(await b.desk.submit(b.owner.address, [call], key)).toEqual(op)
+    expect(await b.desk.submit(b.owner.address, [{ grant, calls: [call] }], key)).toEqual(op)
     // The same calls as a new action, with a new key, go again.
-    expect((await b.desk.submit(b.owner.address, [call], sponsorKey())).operationId).not.toBe(op.operationId)
+    expect((await b.desk.submit(b.owner.address, [{ grant, calls: [call] }], sponsorKey())).operationId).not.toBe(op.operationId)
 
     const outside = { to: b.deployment.rewardTokens[0] as string, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [b.stack.holding, 1n] }), value: '0' as const }
-    expect(submitFailure(await asClientError(b.desk.submit(b.owner.address, [outside], sponsorKey())))).toMatchObject({ kind: 'wallet' })
+    expect(submitFailure(await asClientError(b.desk.submit(b.owner.address, [{ grant, calls: [outside] }], sponsorKey())))).toMatchObject({ kind: 'wallet' })
     b.setBalance(0n)
-    const floor = await asClientError(b.desk.submit(b.owner.address, [call], sponsorKey()))
+    const floor = await asClientError(b.desk.submit(b.owner.address, [{ grant, calls: [call] }], sponsorKey()))
     expect(floor.reason).toBe('floor')
     expect(submitFailure(floor)).toMatchObject({ kind: 'wallet', why: expect.stringMatching(/low on gas money/) })
   })

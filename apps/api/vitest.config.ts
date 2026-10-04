@@ -11,6 +11,8 @@ const PLACEHOLDER_ACCOUNT_ID = '0'.repeat(32)
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
+    // Each integration file starts its own bundler and workerd sidecar. Bound parallel boots on the shared box.
+    maxWorkers: 2,
     env: {
       CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID ?? PLACEHOLDER_ACCOUNT_ID,
       CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN ?? 'local-placeholder-token',
