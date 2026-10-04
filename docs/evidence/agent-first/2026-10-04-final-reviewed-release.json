@@ -1,0 +1,587 @@
+{
+  "at": "2026-10-04T15:21:31.151494+00:00",
+  "tier": "live-testnet-release-readback",
+  "source": {
+    "commit": "817954249d171458810e0ec537e7cbaf2fbde701",
+    "tree": "f98450b9564cfbef05a931f3a9746554b37ff45d"
+  },
+  "digest": "c67e4eb2953a65c88391df646d1172b49e098ec34d4b25dfbfdef2e392aeb8cb",
+  "versions": {
+    "Api": "1602d764-f7ee-4dc8-8440-5ee0b6f37f52",
+    "Indexer": "4c77d309-6d33-4baa-9c90-37f7ba0670bf",
+    "Explore": "c2781bf2-2106-43d3-bdce-b2db745e55b6"
+  },
+  "review": {
+    "tier": "independent-source-only",
+    "verdict": "SIGNOFF",
+    "sourceCommit": "817954249d171458810e0ec537e7cbaf2fbde701",
+    "reviewSha256": "b31bb10cc204ec0edf807e5f3c71b41f9c19f37aa3533afbf7c45369f1b41455",
+    "remainingFindings": {
+      "High": 0,
+      "Medium": 0,
+      "Low": 0
+    }
+  },
+  "plan": {
+    "summary": {
+      "create": 0,
+      "update": 1,
+      "adopted": 0,
+      "replace": 0,
+      "delete": 0,
+      "orphaned": 0,
+      "noop": 4
+    },
+    "changes": {
+      "migrations": [],
+      "secretChanges": [],
+      "resourceCreates": [],
+      "domainChanges": [],
+      "scheduleChanges": []
+    },
+    "expectedDomains": [
+      "hireling.xyz",
+      "testnet.hireling.xyz"
+    ],
+    "operations": [
+      {
+        "logicalId": "Database",
+        "action": "noop"
+      },
+      {
+        "logicalId": "Manifests",
+        "action": "noop"
+      },
+      {
+        "logicalId": "Api",
+        "action": "noop"
+      },
+      {
+        "logicalId": "Indexer",
+        "action": "noop"
+      },
+      {
+        "logicalId": "Explore",
+        "action": "update"
+      }
+    ]
+  },
+  "gates": {
+    "source": {
+      "commit": "817954249d171458810e0ec537e7cbaf2fbde701",
+      "tree": "f98450b9564cfbef05a931f3a9746554b37ff45d"
+    },
+    "checks": [
+      {
+        "name": "onboarding",
+        "args": [
+          "--filter",
+          "@agent-jobs/explore",
+          "exec",
+          "node",
+          "test/onboarding.e2e.mjs",
+          "/tmp/hireling-onboarding-af012-evidence"
+        ],
+        "startedAt": "2026-10-04T15:08:26.541Z",
+        "finishedAt": "2026-10-04T15:09:18.774Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-af012-onboarding.log"
+      },
+      {
+        "name": "migrations",
+        "args": [
+          "db:generate",
+          "--check"
+        ],
+        "startedAt": "2026-10-04T15:09:18.777Z",
+        "finishedAt": "2026-10-04T15:09:19.605Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-af012-migrations.log"
+      },
+      {
+        "name": "repository",
+        "args": [
+          "check"
+        ],
+        "startedAt": "2026-10-04T15:09:19.605Z",
+        "finishedAt": "2026-10-04T15:09:43.573Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-af012-repository.log"
+      },
+      {
+        "name": "staging-guard",
+        "args": [
+          "staging:test"
+        ],
+        "startedAt": "2026-10-04T15:09:43.574Z",
+        "finishedAt": "2026-10-04T15:10:04.643Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-af012-staging-guard.log"
+      },
+      {
+        "name": "plan",
+        "args": [
+          "deploy:staging",
+          "plan"
+        ],
+        "startedAt": "2026-10-04T15:10:04.644Z",
+        "finishedAt": "2026-10-04T15:10:34.433Z",
+        "exitCode": 0,
+        "log": "/tmp/hireling-af012-plan.log"
+      }
+    ]
+  },
+  "onboarding": {
+    "tier": "mocked Chromium only; no live board, bot, signing or sends",
+    "results": [
+      {
+        "device": "mobile",
+        "flow": "telegram",
+        "checks": [
+          "Me row",
+          "signed text names wallet and code",
+          "t.me deep link with code",
+          "waits across reload",
+          "linked by the bot",
+          "Me badge",
+          "unlink",
+          "foreign text refused",
+          "decline links nothing"
+        ],
+        "passed": true
+      },
+      {
+        "device": "mobile",
+        "flow": "sponsorship",
+        "checks": [
+          "Me row",
+          "limits read from caveats",
+          "upgrade then sign",
+          "delegate is the relay",
+          "on with calls used",
+          "Me badge",
+          "turn off sends disableDelegation",
+          "foreign target refused"
+        ],
+        "passed": true
+      },
+      {
+        "device": "desktop",
+        "flow": "telegram",
+        "checks": [
+          "Me row",
+          "signed text names wallet and code",
+          "t.me deep link with code",
+          "waits across reload",
+          "linked by the bot",
+          "Me badge",
+          "unlink",
+          "foreign text refused",
+          "decline links nothing"
+        ],
+        "passed": true
+      },
+      {
+        "device": "desktop",
+        "flow": "sponsorship",
+        "checks": [
+          "Me row",
+          "limits read from caveats",
+          "upgrade then sign",
+          "delegate is the relay",
+          "on with calls used",
+          "Me badge",
+          "turn off sends disableDelegation",
+          "foreign target refused"
+        ],
+        "passed": true
+      },
+      {
+        "checks": [
+          "telegram unavailable is not unlinked",
+          "sponsorship unavailable is not off",
+          "no v1: sponsorship says not yet, Me hides it"
+        ],
+        "passed": true
+      }
+    ],
+    "errors": []
+  },
+  "liveChecks": [
+    {
+      "name": "health",
+      "status": 200,
+      "network": "monad-testnet"
+    },
+    {
+      "name": "release",
+      "network": "monad-testnet",
+      "mainnetLive": false,
+      "writesOpen": true
+    },
+    {
+      "name": "OAuth discovery",
+      "issuer": "https://testnet.hireling.xyz",
+      "scopes": [
+        "hireling:read",
+        "hireling:hire",
+        "hireling:work"
+      ]
+    },
+    {
+      "name": "resource-scoped anonymous MCP refusal",
+      "resource": "/mcp",
+      "status": 401
+    },
+    {
+      "name": "resource-scoped anonymous MCP refusal",
+      "resource": "/b/public/mcp",
+      "status": 401
+    },
+    {
+      "name": "owner API anonymous refusal",
+      "path": "/api/agents",
+      "status": 401
+    },
+    {
+      "name": "owner API anonymous refusal",
+      "path": "/api/approvals",
+      "status": 401
+    },
+    {
+      "name": "companion artifact",
+      "version": "0.1.0",
+      "file": "/companion/hireling-0.1.0-d0630cf561749e40.mjs",
+      "sha256": "d0630cf561749e401335436459d0e08b803c6704aa1c134a0b3c7efb135f0af5",
+      "bytes": 837785
+    },
+    {
+      "name": "published skill",
+      "role": "connector",
+      "sha256": "90e82c8d74f2fb42be1910bfbd0bd527f0d342e30a25fd01f652f2b475acacd8"
+    },
+    {
+      "name": "published skill",
+      "role": "worker",
+      "sha256": "c41906e8bb5d4936f1469967791d790e7bddf50f0156398be870b308805c302c"
+    },
+    {
+      "name": "published skill",
+      "role": "publisher",
+      "sha256": "718ba5ead1f4db8caff67382a5f67722e33c9d9ca5a705c0621b8f67c018a268"
+    },
+    {
+      "name": "published skill",
+      "role": "arbitrator",
+      "sha256": "ec6499fad81a0c3608874c3a6efabef09569120f54bd5fc25b04a3f395614133"
+    },
+    {
+      "name": "protocol chain",
+      "chainId": 10143
+    },
+    {
+      "name": "live job discovery",
+      "jobs": 88,
+      "index": {
+        "next_block": 68148253,
+        "updated_at": 1791126850
+      },
+      "job106": true
+    },
+    {
+      "name": "live directory",
+      "agents": 4
+    },
+    {
+      "name": "SPA route",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/connect",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/workspace",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/workspace/new",
+      "status": 200
+    },
+    {
+      "name": "SPA route",
+      "path": "/approvals",
+      "status": 200
+    },
+    {
+      "name": "apex redirect",
+      "status": 301,
+      "location": "https://testnet.hireling.xyz/connect"
+    }
+  ],
+  "browser": [
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/",
+      "status": 200,
+      "heading": "Good agents.Real work.One workspace.",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-390-home.png"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/connect",
+      "status": 200,
+      "heading": "Run your agent",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-390-connect.png"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/workspace",
+      "status": 200,
+      "heading": "Agent workspace",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-390-workspace.png"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/workspace/new",
+      "status": 200,
+      "heading": "Create your agent",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-390-workspace-new.png"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/approvals",
+      "status": 200,
+      "heading": "Approvals",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-390-approvals.png"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/",
+      "status": 200,
+      "heading": "Good agents.Real work.One workspace.",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-1440-home.png"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/connect",
+      "status": 200,
+      "heading": "Run your agent",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-1440-connect.png"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/workspace",
+      "status": 200,
+      "heading": "Agent workspace",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-1440-workspace.png"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/workspace/new",
+      "status": 200,
+      "heading": "Create your agent",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-1440-workspace-new.png"
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/approvals",
+      "status": 200,
+      "heading": "Approvals",
+      "overflow": false,
+      "pageErrors": [],
+      "consoleErrors": [],
+      "failedRequests": [
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        },
+        {
+          "url": "https://testnet.hireling.xyz",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "screenshot": "/tmp/hireling-agent-first-live-1440-approvals.png"
+    }
+  ],
+  "indexerCron": {
+    "url": "https://agentjobs-indexer-staging-2unhvhpefxd7n2wb.kristjan-grm11775.workers.dev/",
+    "afterReleaseAt": "2026-10-04T15:12:13.577Z",
+    "samples": [
+      {
+        "observedAt": "2026-10-04T15:16:38.238Z",
+        "at": 1791126977,
+        "ok": 1,
+        "nextBlock": 68148664,
+        "updatedAt": 1791126974,
+        "lease": true
+      },
+      {
+        "observedAt": "2026-10-04T15:19:25.952Z",
+        "at": 1791127153,
+        "ok": 1,
+        "nextBlock": 68149246,
+        "updatedAt": 1791127150,
+        "lease": true
+      }
+    ]
+  },
+  "limits": [
+    "No wallet transaction or automated signing authority exercised.",
+    "Human browser-owned Privy consent and end-to-end onboarding remain acceptance checks.",
+    "AF-010/AF-012 regressions use browser wallet/chain fixtures.",
+    "Independent signoff is source-only, not a live Privy acceptance result.",
+    "AUTONOMOUS_SIGNING_VERIFIED remains false."
+  ]
+}

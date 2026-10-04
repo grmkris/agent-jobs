@@ -1085,3 +1085,28 @@ and [local QA evidence](evidence/agent-first/2026-10-04-security-funding-qa.json
 This release does not prove a human Privy login, browser-owned consent, worker pairing on a user's machine or
 automatic signing. The independent source review's latest recheck was pending for AF-010 and AF-011 at the time of
 release; its source findings and this release evidence remain separate claims.
+
+## Final reviewed agent-first follow-up on testnet (4 Oct 2026)
+
+The independent review's Recheck 4 signed off the runtime at `817954249d171458810e0ec537e7cbaf2fbde701` with
+zero remaining High, Medium or Low findings in its scope. AF-010 is resolved by `2ecc772` plus the snapshot type
+correction `27eb6fd`; the pending mobile swipe is resolved by coordinator commit `44fe440`. That signoff is source
+review only. The actual-component security regression passed AF-010 field binding and bound-revert retry; the
+onboarding regression passed AF-012's translated pending swipe and spring-back before completing its fixture prompt.
+
+A fresh migration inventory, full `pnpm check`, and all 157 staging guard tests passed at the signed-off commit.
+The final guarded digest was `c67e4eb2953a65c88391df646d1172b49e098ec34d4b25dfbfdef2e392aeb8cb`. Its only update was
+the existing Explore Worker; API, Indexer, D1 and R2 were no-ops. Domains, bindings, namespaces and cron were preserved,
+with no migrations or resource creates, replacements or deletions. Explore applied version
+`c2781bf2-2106-43d3-bdce-b2db745e55b6`; API stayed `1602d764-f7ee-4dc8-8440-5ee0b6f37f52` and Indexer stayed
+`4c77d309-6d33-4baa-9c90-37f7ba0670bf`.
+
+Fresh live readback passed health, testnet release configuration, OAuth discovery/refusal, skills, companion integrity,
+protocol chain 10143, discovery routes and apex redirect. Anonymous Chromium loaded five routes at mobile and desktop
+widths with HTTP 200, no page errors and no horizontal overflow. Two successful lease-owning Indexer observations
+advanced the checkpoint from `68148664` to `68149246`. See the [final sanitized evidence](evidence/agent-first/2026-10-04-final-reviewed-release.json).
+
+The tested deployment is ready for Kris's real Privy login, wallet consent and worker onboarding acceptance. Those human
+flows are not claimed by source signoff or fixture tests. Automatic signing remains disabled; no wallet transaction or
+mainnet operation was performed by these releases. Legacy hosted OAuth tokens require fresh authorization because the
+new versioned token/family tables deliberately leave old grants untouched.
