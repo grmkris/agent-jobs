@@ -37,8 +37,8 @@ export default class TelegramDrill extends Cloudflare.Worker<TelegramDrill>()('H
       const receipts = await sql.all<{ status: string; telegram_message_id: number }>('SELECT status, telegram_message_id FROM telegram_outbox')
       // workerd's own Request validates the real transport's init, as its fetch does before sending.
       const delivered = await telegramTransport('fixture-token', (async (input: string, init: RequestInit) => {
-        new Request(input, init)
-        return Response.json({ ok: true, result: { message_id: 9 } })
+        const request = new Request(input, init)
+        return Response.json({ ok: true, result: { message_id: request.redirect === 'manual' ? 9 : 0 } })
       }) as typeof fetch).sendMessage('42', 'fixture').then((r) => r.messageId, () => 0)
       return { runtime: navigator.userAgent, linked: linked.queued && (await telegramStatus(sql, 'monad-testnet', account.address)).linked, duplicate: duplicate.queued,
         queued: queued.processed, sent, counted: drained.reduce((n, r) => n + r.sent, 0), receipts, delivered }
