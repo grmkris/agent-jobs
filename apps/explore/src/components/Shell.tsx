@@ -4,7 +4,7 @@
  * the secondary ones (quotes, boards), the network and the account. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BriefcaseBusiness, CircleUserRound, HandCoins, type LucideIcon, MessagesSquare, PlusCircle, SquareStack } from 'lucide-react'
+import { Bell, Bot, BriefcaseBusiness, CircleUserRound, HandCoins, House, type LucideIcon, MessagesSquare, PlusCircle, SquareStack } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { isMainnet, usePaused } from '../wallet.ts'
@@ -29,13 +29,16 @@ function places(): { main: Place[]; more: Place[] } {
   const under = (p: string) => (path: string) => path.startsWith(`${base}${p}`)
   return {
     main: [
-      { label: 'Jobs', icon: BriefcaseBusiness, target: r.jobs(), active: (p) => p === (base || '/') || p === `${base}/` || under('/job/')(p) },
-      { label: 'Post', icon: PlusCircle, target: r.publish(), active: under('/publish') },
-      { label: 'Collect', icon: HandCoins, target: { to: '/collect' }, active: (p) => p.startsWith('/collect') },
-      { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: (p) => p.startsWith('/agents') || p.startsWith('/agent/') || under('/agent/')(p) || p.startsWith('/connect') },
+      { label: 'Home', icon: House, target: { to: '/' }, active: (p) => p === '/' },
+      { label: 'Jobs', icon: BriefcaseBusiness, target: base === '' ? { to: '/jobs' } : r.jobs(), active: (p) => p === `${base}/jobs` || (base !== '' && (p === base || p === `${base}/`)) || under('/job/')(p) },
+      { label: 'Workspace', icon: Bot, target: { to: '/workspace' }, active: (p) => p.startsWith('/workspace') || p.startsWith('/connect') },
+      { label: 'Approvals', icon: Bell, target: { to: '/approvals' }, active: (p) => p.startsWith('/approvals') },
       { label: 'Me', icon: CircleUserRound, target: { to: '/me' }, active: (p) => p.startsWith('/me') },
     ],
     more: [
+      { label: 'Hire an agent', icon: Bot, target: { to: '/agents' }, active: (p) => p.startsWith('/agents') || p.startsWith('/agent/') || under('/agent/')(p) },
+      { label: 'Post a job', icon: PlusCircle, target: r.publish(), active: under('/publish') },
+      { label: 'Collect', icon: HandCoins, target: { to: '/collect' }, active: (p) => p.startsWith('/collect') },
       { label: 'Quote requests', icon: MessagesSquare, target: r.quotes(), active: under('/quotes') },
       { label: 'Boards', icon: SquareStack, target: { to: '/boards' }, active: (p) => p.startsWith('/boards') },
     ],
@@ -85,11 +88,12 @@ export function Shell({ children }: { children: ReactNode }) {
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   const badge = (label: string) => (label === 'Collect' && collect > 0 ? collect : null)
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-1 overflow-y-auto border-r border-sep bg-side px-3 pt-5 pb-4 lg:flex" aria-label="Sections">
         <div className="px-2.5 pb-5">
           <Brand />
         </div>
+        <p className="eyebrow px-3 pb-2 text-[0.6rem]">YOUR NEXT COLLABORATOR</p>
         <nav className="grid gap-0.5">
           {main.map((p) => (
             <SideItem key={p.label} place={p} on={p.active(pathname)} count={badge(p.label)} />
@@ -115,7 +119,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main key={pathname} className="mx-auto grid min-w-0 w-full max-w-3xl animate-[view-in_0.32s_var(--ease-spring)] gap-6 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-8 lg:pt-10 lg:pb-16">
+        <main key={pathname} className={cn('mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-spring)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16', pathname === '/' || pathname.startsWith('/workspace') || pathname.startsWith('/approvals') ? 'max-w-7xl' : 'max-w-3xl')}>
           <LaunchBanner />
           {paused && (
             <div role="alert" className="rounded-xl bg-bad-bg px-4 py-3 text-[0.9rem] text-bad">

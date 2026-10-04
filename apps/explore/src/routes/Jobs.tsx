@@ -24,9 +24,9 @@ export interface JobListItem {
 const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) => results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
 
 export function useJobs() {
-  const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 20_000 })
+  const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
   const boardId = currentBoardId()
-  const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>(), refetchInterval: 20_000 })
+  const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>(), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
   // The public list also shows jobs published on other boards; their titles and board state come from those boards.
   const others = useMemo(() => [...new Set((chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])))].toSorted(), [chain.data, boardId])
   const otherData = useQueries({
@@ -225,7 +225,7 @@ export function JobsPage() {
   )
 }
 
-function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase | null; note: string }) {
+export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase | null; note: string }) {
   const routes = boardRoutes()
   const mode = item.chain?.mode ?? item.task?.mode
   const agentId = item.chain?.agent_id

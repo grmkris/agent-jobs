@@ -3,7 +3,12 @@
  * it) and the primary type's integer fields as bigints.
  */
 export function typedDataArgs(json: string) {
-  const parsed = JSON.parse(json) as { types: Record<string, Array<{ name: string; type: string }>>; primaryType: string; domain: Record<string, unknown>; message: Record<string, unknown> }
+  const parsed = JSON.parse(json) as {
+    types: Record<string, Array<{ name: string; type: string }>>
+    primaryType: string
+    domain: Record<string, unknown>
+    message: Record<string, unknown>
+  }
   const { EIP712Domain: _domain, ...types } = parsed.types
   const message = { ...parsed.message }
   for (const f of types[parsed.primaryType] ?? []) {

@@ -4,11 +4,11 @@
  * (apps/api/src/worker.ts, BOARD_ROUTE). Every other `/b/<slug>/…` path is a page of the app (main.tsx board routes),
  * so a refresh, a shared link or the widget's "Open in Hireling" loads the SPA.
  */
-const PROXIED = ['/api/', '/data/', '/offers/', '/mcp', '/health']
+const PROXIED = ['/api/', '/data/', '/offers/', '/oauth/', '/.well-known/', '/mcp', '/health']
 const BOARD_API = /^\/b\/[a-z0-9-]{3,32}(?:\/api\/|\/data\/|\/offers\/|\/mcp$|\/health$)/
 
 export function isApiPath(pathname: string): boolean {
-  return PROXIED.some((p) => pathname === p || pathname.startsWith(p)) || BOARD_API.test(pathname)
+  return PROXIED.some((p) => pathname === p || (p.endsWith('/') && pathname.startsWith(p))) || BOARD_API.test(pathname)
 }
 
 /** A path naming a file (`/icon.png`, `/manifest.webmanifest`); pages never have an extension. */

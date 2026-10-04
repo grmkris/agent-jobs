@@ -20,7 +20,9 @@ function env(files: Record<string, string> = {}) {
         fetch: async (r: Request) => {
           const path = new URL(r.url).pathname
           const type = path.endsWith('.png') ? 'image/png' : path.endsWith('.webmanifest') || path.endsWith('.md') ? 'application/octet-stream' : 'text/html'
-          return path in files ? new Response(files[path], { headers: { 'content-type': type } }) : new Response(INDEX, { headers: { 'content-type': 'text/html' } })
+          return path in files
+            ? new Response(files[path], { headers: { 'content-type': type } })
+            : new Response(INDEX, { headers: { 'content-type': 'text/html' } })
         },
       },
     },
@@ -50,6 +52,24 @@ describe('explore worker routing', () => {
     expect(await res.text()).toBe(INDEX)
     expect(e.api).toEqual([])
     expect(res.headers.get('x-frame-options')).toBe('DENY')
+  })
+
+  it('proxies OAuth discovery and consent state while keeping UI approval pages in the SPA', async () => {
+    const e = env()
+    for (const path of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-authorization-server',
+      '/oauth/authorize',
+      '/oauth/token',
+      '/oauth/requests/one',
+    ]) {
+      expect(isApiPath(path)).toBe(true)
+      expect((await get(path, e)).headers.get('content-type')).toBe('application/json')
+    }
+    for (const path of ['/connect', '/approvals/one', '/workspace', '/mcp-explainer', '/health-check']) {
+      expect(isApiPath(path)).toBe(false)
+      expect(await (await get(path, e)).text()).toBe(INDEX)
+    }
   })
 
   it('proxies a board tool call', async () => {

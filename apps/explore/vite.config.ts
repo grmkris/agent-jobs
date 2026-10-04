@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
+import { builtinModules } from 'node:module'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
+import { build } from 'vite'
 import { MAINNET_LIVE } from './src/release.ts'
 import { NotDeployedError, deployment } from '../../packages/sdk/src/deployment.ts'
 
@@ -85,7 +88,7 @@ function release() {
  * skill that matches this deploy (the Run your agent page shows how). Emitted into the build; served from the repo in
  * dev.
  */
-const SKILL_ROLES = ['worker', 'publisher', 'arbitrator'] as const
+const SKILL_ROLES = ['connector', 'worker', 'publisher', 'arbitrator'] as const
 const skillSource = (role: string) => readFileSync(fileURLToPath(new URL(`../../skill/${role}/SKILL.md`, import.meta.url)), 'utf8')
 function skills() {
   return {
@@ -104,9 +107,30 @@ function skills() {
   }
 }
 
+/** Emit the local companion as a self-contained, hash-addressed Node module. The module has no npm/runtime
+ * dependency: only Node 22+ built-ins. A manifest lets the UI and release probe pin the exact bytes. */
+function companion() {
+  return {
+    name: 'hireling-companion',
+    async generateBundle(this: { emitFile(f: { type: 'asset'; fileName: string; source: string }): void }) {
+      const source = readFileSync(fileURLToPath(new URL('../../packages/sdk/scripts/companion.ts', import.meta.url)), 'utf8')
+      const result = await build({ configFile: false, logLevel: 'error', define: { 'process.env': 'process.env' }, build: { target: 'es2022', write: false, minify: false, rollupOptions: { input: fileURLToPath(new URL('../../packages/sdk/scripts/companion.ts', import.meta.url)), external: [...builtinModules, ...builtinModules.map(name => `node:${name}`)], output: { format: 'es', inlineDynamicImports: true } } } })
+      const outputs = Array.isArray(result) ? result.flatMap(r => r.output) : 'output' in result ? result.output : []
+      const entry = outputs.find(output => output.type === 'chunk' && output.isEntry)
+      if (entry?.type !== 'chunk') throw new Error('companion build emitted no entry module')
+      const hash = createHash('sha256').update(entry.code).digest('hex').slice(0, 16)
+      const version = /const VERSION = '([^']+)'/.exec(source)?.[1] ?? '0.0.0'
+      const fileName = `companion/hireling-${version}-${hash}.mjs`
+      const code = entry.code.startsWith('#!') ? entry.code : `#!/usr/bin/env node\n${entry.code}`
+      this.emitFile({ type: 'asset', fileName, source: code })
+      this.emitFile({ type: 'asset', fileName: 'companion/manifest.json', source: `${JSON.stringify({ version, file: `/${fileName}`, sha256: createHash('sha256').update(code).digest('hex'), node: '>=22', platform: ['darwin', 'linux'], commands: ['pair', 'run', 'health', 'status', 'mcp'] }, null, 2)}\n` })
+    },
+  }
+}
+
 // Alchemy's Cloudflare.Website.Vite injects the Cloudflare plugin at deploy; `worker.ts` is the Worker entry.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), manifest(), skills(), release()],
+  plugins: [react(), tailwindcss(), manifest(), skills(), companion(), release()],
   // The network is fixed per deploy stage (AGENT_JOBS_NETWORK, the same variable the API and indexer read).
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {

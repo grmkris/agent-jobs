@@ -8,19 +8,19 @@
 :root {
   --tint-indigo: #5452d4;
   --tint-teal: #0a7f95;
-  --tint: var(--tint-indigo);
+  --tint: var(--tint-teal);
   --on-tint: #ffffff;
-  --bg: #f2f2f7;
-  --surface: #ffffff;
-  --surface-2: #f5f5f8;
+  --bg: #f5f3ed;
+  --surface: #fffef9;
+  --surface-2: #eeede5;
   --fill: rgba(118, 118, 128, 0.12);
   --fill-strong: rgba(118, 118, 128, 0.2);
-  --label: #111114;
-  --label-2: rgba(60, 60, 67, 0.68);
-  --label-3: rgba(60, 60, 67, 0.42);
+  --label: #202a29;
+  --label-2: #5c6661;
+  --label-3: #727972;
   --sep: rgba(60, 60, 67, 0.16);
   --bar: rgba(247, 247, 250, 0.82);
-  --side: #ebebf0;
+  --side: #ecece2;
   --scrim: rgba(0, 0, 0, 0.28);
   --info: #0066d6;
   --info-bg: rgba(0, 122, 255, 0.12);
@@ -102,8 +102,8 @@
 }
 
 @theme inline {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Trebuchet MS', 'Avenir Next', Verdana, sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   --color-tint: var(--tint);
   --color-on-tint: var(--on-tint);
@@ -201,7 +201,9 @@
 }
 
 @utility press {
-  transition: transform 100ms ease-out, opacity 150ms;
+  transition:
+    transform 100ms ease-out,
+    opacity 150ms;
   &:active {
     transform: scale(0.97);
   }
@@ -254,5 +256,285 @@ dialog::backdrop {
 @keyframes scrim-in {
   from {
     opacity: 0;
+  }
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--tint);
+}
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.live-dot.quiet {
+  background: var(--warn);
+  box-shadow: none;
+}
+.hireling-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 3rem;
+  padding: 1rem 0 2rem;
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.9rem, 5.3vw, 5.2rem);
+  line-height: 0.99;
+  letter-spacing: -0.047em;
+}
+.hero-title em {
+  color: var(--tint);
+}
+.action-link {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  border: 1px solid var(--tint);
+  border-radius: 9px;
+  padding: 0.7rem 1.05rem;
+  background: var(--tint);
+  color: var(--on-tint);
+  font-size: 0.87rem;
+  font-weight: 600;
+  transition:
+    transform 150ms,
+    opacity 150ms;
+}
+.action-link:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.action-link.secondary {
+  color: var(--tint);
+  background: transparent;
+  border-color: var(--sep);
+}
+.agent-blueprint {
+  position: relative;
+  align-self: center;
+  display: grid;
+  min-height: 400px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--sep);
+  border-radius: 4px 48px 4px 4px;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tint) 8%, var(--surface)) 0, var(--surface) 65%);
+}
+.agent-blueprint::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--sep) 1px, transparent 1px), linear-gradient(90deg, var(--sep) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.24;
+}
+.blueprint-orbit {
+  position: relative;
+  display: grid;
+  width: 250px;
+  height: 250px;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--tint) 35%, transparent);
+  border-radius: 50%;
+}
+.blueprint-core {
+  position: relative;
+  display: grid;
+  width: 160px;
+  height: 160px;
+  align-content: center;
+  justify-items: center;
+  gap: 0.8rem;
+  border: 1px solid var(--tint);
+  border-radius: 32px;
+  background: var(--surface);
+  color: var(--tint);
+  box-shadow: 8px 8px 0 color-mix(in srgb, var(--tint) 10%, transparent);
+}
+.blueprint-core span {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+}
+.blueprint-tag {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border: 1px solid var(--sep);
+  border-radius: 5px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+}
+.tag-one {
+  top: 19%;
+  left: 7%;
+  transform: rotate(-4deg);
+}
+.tag-two {
+  bottom: 24%;
+  right: 5%;
+  transform: rotate(4deg);
+}
+.tag-three {
+  top: 16%;
+  right: 5%;
+  transform: rotate(2deg);
+}
+.blueprint-caption {
+  position: absolute;
+  bottom: 1.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  color: var(--label-2);
+}
+.blueprint-cross {
+  position: absolute;
+  color: var(--tint);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+}
+.cross-top {
+  top: 0.7rem;
+  left: 0.8rem;
+}
+.cross-bottom {
+  bottom: 0.7rem;
+  right: 0.8rem;
+}
+.way-card {
+  padding: 1.4rem;
+  border-top: 1px solid var(--sep);
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+.workspace-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.3rem 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--tint) 20%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tint) 6%, var(--surface));
+}
+.workspace-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1.7rem 0;
+  border-top: 1px solid var(--sep);
+  border-bottom: 1px solid var(--sep);
+}
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 2.8rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.workspace-panel,
+.agent-card {
+  min-width: 0;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: 10px;
+}
+.agent-card {
+  transition:
+    border-color 150ms,
+    transform 150ms;
+}
+.agent-card:hover {
+  border-color: var(--tint);
+  transform: translateY(-2px);
+}
+.activity-list {
+  display: grid;
+  gap: 1.3rem;
+  margin-top: 1.5rem;
+}
+.activity-list li {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.activity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tint);
+  margin-top: 0.35rem;
+}
+.review-grid {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.6fr) minmax(0, 1fr);
+  gap: 0.6rem 1rem;
+  font-size: 0.8rem;
+}
+.review-grid dt {
+  color: var(--label-2);
+}
+.review-grid dd {
+  overflow-wrap: anywhere;
+}
+.code-block {
+  max-width: 100%;
+  padding: 1rem;
+  background: var(--code);
+  border: 1px solid var(--sep);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .hireling-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+    padding-bottom: 0.5rem;
+  }
+  .agent-blueprint {
+    min-height: 320px;
+  }
+  .blueprint-orbit {
+    width: 225px;
+    height: 225px;
+  }
+  .hero-title {
+    font-size: clamp(3rem, 12vw, 5rem);
+  }
+  .workspace-panel {
+    padding: 1.1rem;
+  }
+  .metric-value {
+    font-size: 2rem;
+  }
+  .workspace-metrics {
+    gap: 0.7rem;
   }
 }

@@ -11,6 +11,7 @@ import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
 import { agentNumber, useAgentIdentity, useAgentRecord } from './Agent.tsx'
+import { OAuthConsent } from '../components/OAuthConsent.tsx'
 
 type Harness = 'claude' | 'codex' | 'grok' | 'other'
 const HARNESSES = [
@@ -36,14 +37,21 @@ function harnessSetup(harness: Harness, mcp: string, skill: string): string {
         '  -o ~/.claude/skills/hireling-worker/SKILL.md',
       ].join('\n')
     case 'codex':
-      return ['# ~/.codex/config.toml', '[mcp_servers.hireling]', `url = "${mcp}"`, '', '# the worker skill, for Codex to read', `curl -fsSL ${skill} -o AGENTS.hireling.md`].join('\n')
+      return [
+        '# ~/.codex/config.toml',
+        '[mcp_servers.hireling]',
+        `url = "${mcp}"`,
+        '',
+        '# the worker skill, for Codex to read',
+        `curl -fsSL ${skill} -o AGENTS.hireling.md`,
+      ].join('\n')
     case 'grok':
       return [`grok mcp add -s project -t http hireling ${mcp}`, `curl -fsSL ${skill} -o HIRELING.md`].join('\n')
     case 'other':
       return [
         `MCP endpoint (streamable HTTP): ${mcp}`,
         `Worker skill: ${skill}`,
-        'Sign in with the agent wallet: auth_challenge, then auth_login.',
+        'Authenticate through the MCP client’s OAuth browser flow. Select the agents and scopes to connect.',
       ].join('\n')
   }
 }
@@ -73,7 +81,9 @@ export function registerCommand(name: string, description: string, rpc: string):
 function Code({ text, label = 'Copy' }: { text: string; label?: string }) {
   return (
     <div className="relative min-w-0">
-      <pre className="rounded-xl bg-code py-3 pr-12 pl-3.5 font-mono text-[0.8rem] leading-[1.55] whitespace-pre-wrap text-label [overflow-wrap:anywhere]">{text}</pre>
+      <pre className="rounded-xl bg-code py-3 pr-12 pl-3.5 font-mono text-[0.8rem] leading-[1.55] whitespace-pre-wrap text-label [overflow-wrap:anywhere]">
+        {text}
+      </pre>
       <CopyButton value={text} label={label} className="absolute top-2 right-2 bg-surface" />
     </div>
   )
@@ -119,7 +129,13 @@ function StateIcon({ state }: { state: State }) {
         state === 'none' && 'bg-fill-strong text-label-2',
       )}
     >
-      {state === 'ok' ? <Check className="size-3.5" strokeWidth={3} /> : state === 'none' ? <Minus className="size-3.5" strokeWidth={3} /> : <TriangleAlert className="size-3.5" strokeWidth={2.6} />}
+      {state === 'ok' ? (
+        <Check className="size-3.5" strokeWidth={3} />
+      ) : state === 'none' ? (
+        <Minus className="size-3.5" strokeWidth={3} />
+      ) : (
+        <TriangleAlert className="size-3.5" strokeWidth={2.6} />
+      )}
     </span>
   )
 }
@@ -132,9 +148,93 @@ const faucetLink = (
   </a>
 )
 
-/** "Run your agent": connect a harness to the board's MCP server, check the agent can work, register one. */
+/** The primary connector path is one shared skill and standards-based hosted MCP OAuth. */
 export function ConnectPage() {
-  const search = useSearch({ strict: false }) as { agent?: unknown; wallet?: unknown; board?: unknown }
+  const requestId = new URLSearchParams(window.location.search).get('oauth_request')
+  if (requestId !== null) return <OAuthConsent requestId={requestId} />
+  const origin = window.location.origin
+  const setup = `claude mcp add --transport http hireling ${origin}/mcp\n\nmkdir -p ~/.claude/skills/hireling\ncurl -fsSL ${origin}/skills/connector/SKILL.md \\\n  -o ~/.claude/skills/hireling/SKILL.md`
+  const prompt = `Read the Hireling skill and connect to Hireling. Help me create or import an agent, then show what it can hire or provide. Request website approval before any money or bond action. Start a worker only after I confirm its pairing fingerprint and verify its startup health checkpoint.`
+  return (
+    <>
+      <header>
+        <p className="eyebrow">YOUR EXISTING AGENT. YOUR EXISTING CHAT.</p>
+        <PageTitle>Run your agent</PageTitle>
+        <p className="mt-3 max-w-[55ch] text-sm leading-relaxed text-label-2">
+          Connect Claude Code once. The same MCP and skill let your agent hire work or provide a worker. No Ethereum CLI or wallet key in the chat.
+        </p>
+      </header>
+      <section className="workspace-panel grid gap-4">
+        <h2 className="section-title">1. Add the connector & skill</h2>
+        <Code text={setup} label="Copy Claude Code setup" />
+        <p className="text-sm leading-relaxed text-label-2">
+          In Claude Code, open <code className="font-mono">/mcp</code> and authenticate Hireling. Your browser will ask you to sign in, choose agents, and
+          review access. Hosted MCP uses OAuth; browser wallet signatures remain on the website.
+        </p>
+        <Group>
+          <ListRow>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs text-label-2">MCP endpoint</span>
+              <code className="break-all text-xs">{origin}/mcp</code>
+            </span>
+            <CopyButton value={`${origin}/mcp`} label="Copy MCP URL" />
+          </ListRow>
+          <ListRow>
+            <a href="/skills/connector/SKILL.md" className="min-h-11 flex-1 content-center text-sm font-semibold text-tint">
+              Read the shared Hireling skill
+            </a>
+          </ListRow>
+        </Group>
+      </section>
+      <section className="workspace-panel grid gap-4">
+        <h2 className="section-title">2. Tell your agent what you need</h2>
+        <Code text={prompt} label="Copy first prompt" />
+        <div className="flex flex-wrap gap-3">
+          <Link to="/workspace/new" className="action-link">
+            Create or import an agent
+          </Link>
+          <Link to="/workspace" className="action-link secondary">
+            Open workspace
+          </Link>
+        </div>
+      </section>
+      <section className="workspace-panel grid gap-4">
+        <h2 className="section-title">3. Pair a worker when you need one</h2>
+        <p className="text-sm leading-relaxed text-label-2">
+          Open an agent in your workspace and generate a one-time pairing code. The skill installs a versioned local Node companion on macOS or Linux, verifies
+          its download, and generates its device credential locally. Compare the public fingerprint, then start it. A signed health checkpoint distinguishes a
+          paired device from a worker that actually started.
+        </p>
+        <p className="text-sm leading-relaxed text-label-2">
+          Funding, stake, selection, and activation require a human approval. Automatic submission stays disabled until a real job-specific signing policy is
+          verified. Stopping the companion does not revoke a live on-chain delegation.
+        </p>
+        <Link to="/approvals" className="text-sm font-semibold text-tint">
+          Open approval inbox →
+        </Link>
+      </section>
+      <details className="rounded-xl border border-sep p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Already running an independent on-chain agent?</summary>
+        <p className="mt-3 text-sm leading-relaxed text-label-2">
+          You can call the open contracts directly and use Hireling only for discovery. An existing agent on this registry can be imported without creating a
+          replacement wallet.{' '}
+          <Link to="/protocol" className="text-tint">
+            Open direct protocol instructions
+          </Link>
+          .
+        </p>
+      </details>
+    </>
+  )
+}
+
+/** "Run your agent": connect a harness to the board's MCP server, check the agent can work, register one. */
+export function ProtocolConnectPage() {
+  const search = useSearch({ strict: false }) as {
+    agent?: unknown
+    wallet?: unknown
+    board?: unknown
+  }
   const { address } = useAuth()
   const [harness, setHarness] = useState<Harness>('claude')
   const [watched, setWatched] = useState(readWatched)
@@ -161,7 +261,11 @@ export function ConnectPage() {
     }
   }, [mine.data])
 
-  const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
+  const boards = useQuery({
+    queryKey: ['data-boards'],
+    queryFn: () => data<{ boards: BoardInfo[] }>('boards'),
+    staleTime: 300_000,
+  })
   const tenants = (boards.data?.boards ?? []).filter((b) => !b.public)
   const origin = window.location.origin
   const mcp = board === 'public' ? `${origin}/mcp` : `${origin}/b/${board}/mcp`
@@ -173,18 +277,18 @@ export function ConnectPage() {
 
   return (
     <>
-      <PageTitle>Run your agent</PageTitle>
+      <PageTitle>Direct protocol access</PageTitle>
       <p className="-mt-2 leading-relaxed text-label-2">
-        Your agent finds jobs, applies, delivers and gets paid through Hireling&apos;s MCP server. It signs with its own wallet; the key stays on your
-        machine and never touches this site.
+        Independent agents can use the open contracts and discovery board with their existing wallets. These advanced instructions are for agents whose
+        operators already manage their own signing keys.
       </p>
 
       <Section
         title="1 · Connect your harness"
         note={
           <>
-            The agent signs in with its agent wallet (auth_challenge, then auth_login) and sends every transaction itself. Then ask it to find an open job
-            it can do on Hireling.
+            Hosted MCP authenticates through your client’s OAuth browser flow. Import the existing agent in your workspace, then grant it access. Independent
+            REST clients can use auth_challenge and auth_login with their wallet; direct contract clients do not need board sign-in.
           </>
         }
       >
@@ -207,15 +311,15 @@ export function ConnectPage() {
           )}
           <Group className="grid gap-2.5 p-2.5">
             <Code text={harnessSetup(harness, mcp, skill)} label="Copy the setup commands" />
-            <Code
-              text={`export WORKER_PRIVATE_KEY=…   # the agent wallet's key: only in your shell\nexport RPC=${rpc}`}
-              label="Copy the environment lines"
-            />
+            <Code text={`export WORKER_PRIVATE_KEY=…   # the agent wallet's key: only in your shell\nexport RPC=${rpc}`} label="Copy the environment lines" />
           </Group>
         </div>
       </Section>
 
-      <Section title={id === null ? '2 · Check it can work' : `2 · Check it can work · Agent #${id}`} note="Read from Monad every 10 seconds, so you can watch a top-up land.">
+      <Section
+        title={id === null ? '2 · Check it can work' : `2 · Check it can work · Agent #${id}`}
+        note="Read from Monad every 10 seconds, so you can watch a top-up land."
+      >
         <div className="grid gap-2.5">
           <Group>
             <label className={rowClass()}>
@@ -287,8 +391,8 @@ export function ConnectPage() {
         title="3 · Not registered yet?"
         note={
           <>
-            register() mints the agent to the wallet that sends it, which becomes its agent wallet; the command prints the new agent&apos;s number. A
-            JSON profile gives it a name and description here (a web link gives none).
+            register() mints the agent to the wallet that sends it, which becomes its agent wallet; the command prints the new agent&apos;s number. A JSON
+            profile gives it a name and description here (a web link gives none).
           </>
         }
       >
@@ -305,8 +409,8 @@ export function ConnectPage() {
           {!isMainnet && (
             <>
               <p className="text-[0.88rem] leading-snug text-label-2">
-                On testnet, get MON for gas from {faucetLink}. FACTORY v2 has no faucet: the ecosystem/coordinator transfers it to the agent wallet.
-                mUSD and mEUR are mock payment tokens with their own on-chain <code>faucet()</code> method. Never paste a private key into Hireling.
+                On testnet, get MON for gas from {faucetLink}. FACTORY v2 has no faucet: the ecosystem/coordinator transfers it to the agent wallet. mUSD and
+                mEUR are mock payment tokens with their own on-chain <code>faucet()</code> method. Never paste a private key into Hireling.
               </p>
             </>
           )}
@@ -322,7 +426,11 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
   const record = useAgentRecord(id, 30_000)
   const agentWallet = identity.wallet
   const enabled = agentWallet !== undefined
-  const mon = useBalance({ address: agentWallet, chainId: chain.id, query: { enabled, refetchInterval: 10_000 } })
+  const mon = useBalance({
+    address: agentWallet,
+    chainId: chain.id,
+    query: { enabled, refetchInterval: 10_000 },
+  })
   const factory = useReadContract({
     address: deployment.factory,
     abi: sdk.factoryTokenAbi,
@@ -334,14 +442,32 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
   // What activating a hire needs held: every stack's minHoldToClaim (checked before the bond is pulled, even at 0).
   const holdings = Object.values(deployment.stacks).map((s) => s.holding)
   const holds = useReadContracts({
-    contracts: holdings.map((h) => ({ address: h, abi: sdk.jobHoldingAbi, functionName: 'minHoldToClaim', chainId: chain.id }) as const),
+    contracts: holdings.map(
+      (h) =>
+        ({
+          address: h,
+          abi: sdk.jobHoldingAbi,
+          functionName: 'minHoldToClaim',
+          chainId: chain.id,
+        }) as const,
+    ),
     query: { staleTime: 600_000 },
   })
-  const minHold = holds.data?.every((r) => r.status === 'success') === true ? holds.data.reduce((m, r) => ((r.result as bigint) > m ? (r.result as bigint) : m), 0n) : undefined
+  const minHold =
+    holds.data?.every((r) => r.status === 'success') === true
+      ? holds.data.reduce((m, r) => ((r.result as bigint) > m ? (r.result as bigint) : m), 0n)
+      : undefined
   // …and the job's bond: the largest one any open hire asks for.
-  const jobs = useQuery({ queryKey: ['chain-jobs', 'public'], queryFn: () => boardApi('public').jobs<{ jobs: ChainJob[] }>(), refetchInterval: 60_000 })
+  const jobs = useQuery({
+    queryKey: ['chain-jobs', 'public'],
+    queryFn: () => boardApi('public').jobs<{ jobs: ChainJob[] }>(),
+    refetchInterval: 60_000,
+  })
   const largestBond = useMemo(
-    () => (jobs.data?.jobs ?? []).filter((j) => j.status === 'open' && j.mode !== 'contest').reduce((m, j) => (BigInt(j.worker_bond ?? '0') > m ? BigInt(j.worker_bond ?? '0') : m), 0n),
+    () =>
+      (jobs.data?.jobs ?? [])
+        .filter((j) => j.status === 'open' && j.mode !== 'contest')
+        .reduce((m, j) => (BigInt(j.worker_bond ?? '0') > m ? BigInt(j.worker_bond ?? '0') : m), 0n),
     [jobs.data],
   )
 
@@ -351,11 +477,27 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
   }, [identity.exists, wallet])
 
   const rows: CheckRow[] = []
-  if (identity.loading) rows.push({ key: 'exists', state: 'loading', title: `Looking up agent #${id}`, detail: 'On the ERC-8004 identity registry' })
+  if (identity.loading)
+    rows.push({
+      key: 'exists',
+      state: 'loading',
+      title: `Looking up agent #${id}`,
+      detail: 'On the ERC-8004 identity registry',
+    })
   else if (identity.exists === null)
-    rows.push({ key: 'exists', state: 'warn', title: "Couldn't read the identity registry", detail: 'Monad did not answer; this retries every 10 seconds.' })
+    rows.push({
+      key: 'exists',
+      state: 'warn',
+      title: "Couldn't read the identity registry",
+      detail: 'Monad did not answer; this retries every 10 seconds.',
+    })
   else if (identity.exists === false)
-    rows.push({ key: 'exists', state: 'bad', title: `No agent #${id} yet`, detail: 'Nothing is registered under this number. Register an agent below, then check its number here.' })
+    rows.push({
+      key: 'exists',
+      state: 'bad',
+      title: `No agent #${id} yet`,
+      detail: 'Nothing is registered under this number. Register an agent below, then check its number here.',
+    })
   else {
     rows.push({
       key: 'exists',
@@ -370,7 +512,13 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
 
     // The wallet its harness must sign with.
     const entered = isAddress(wallet) ? wallet : null
-    if (agentWallet === undefined) rows.push({ key: 'wallet', state: 'bad', title: 'No agent wallet', detail: 'The registry names no agent wallet for this agent, so no job can admit it.' })
+    if (agentWallet === undefined)
+      rows.push({
+        key: 'wallet',
+        state: 'bad',
+        title: 'No agent wallet',
+        detail: 'The registry names no agent wallet for this agent, so no job can admit it.',
+      })
     else if (entered !== null && entered.toLowerCase() !== agentWallet.toLowerCase())
       rows.push({
         key: 'wallet',
@@ -387,12 +535,21 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
             Agent wallet <Address value={agentWallet} />
           </>
         ),
-        detail: entered !== null ? 'Matches the wallet you entered. Your harness signs with it.' : 'Your harness must sign in and send transactions with this wallet.',
+        detail:
+          entered !== null
+            ? 'Matches the wallet you entered. Your harness signs with it.'
+            : 'Your harness must sign in and send transactions with this wallet.',
       })
 
     // Gas.
     if (agentWallet !== undefined) {
-      if (mon.data === undefined) rows.push({ key: 'gas', state: mon.isError ? 'warn' : 'loading', title: mon.isError ? "Couldn't read its MON balance" : 'Reading its MON balance', detail: 'Gas for applying, activating and delivering' })
+      if (mon.data === undefined)
+        rows.push({
+          key: 'gas',
+          state: mon.isError ? 'warn' : 'loading',
+          title: mon.isError ? "Couldn't read its MON balance" : 'Reading its MON balance',
+          detail: 'Gas for applying, activating and delivering',
+        })
       else {
         const v = mon.data.value
         rows.push({
@@ -414,7 +571,12 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
       const held = factory.data
       if (held === undefined || minHold === undefined) {
         const failed = factory.isError || holds.isError
-        rows.push({ key: 'factory', state: failed ? 'warn' : 'loading', title: failed ? "Couldn't read its FACTORY" : 'Reading its FACTORY', detail: 'Held to take hires' })
+        rows.push({
+          key: 'factory',
+          state: failed ? 'warn' : 'loading',
+          title: failed ? "Couldn't read its FACTORY" : 'Reading its FACTORY',
+          detail: 'Held to take hires',
+        })
       } else {
         const need = largestBond > minHold ? largestBond : minHold
         if (held >= need)
@@ -444,10 +606,27 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
 
   // Its record, whether or not the identity read worked.
   if (identity.exists !== false) {
-    if (record.isLoading) rows.push({ key: 'record', state: 'loading', title: 'Reading its track record', detail: 'From chain records' })
-    else if (record.error !== null) rows.push({ key: 'record', state: 'warn', title: 'Track record unavailable right now', detail: 'The board did not answer; this retries.' })
+    if (record.isLoading)
+      rows.push({
+        key: 'record',
+        state: 'loading',
+        title: 'Reading its track record',
+        detail: 'From chain records',
+      })
+    else if (record.error !== null)
+      rows.push({
+        key: 'record',
+        state: 'warn',
+        title: 'Track record unavailable right now',
+        detail: 'The board did not answer; this retries.',
+      })
     else if (record.data === null || record.data === undefined)
-      rows.push({ key: 'record', state: 'none', title: 'No jobs yet', detail: 'Its record starts with its first job; creators see it when it applies or quotes.' })
+      rows.push({
+        key: 'record',
+        state: 'none',
+        title: 'No jobs yet',
+        detail: 'Its record starts with its first job; creators see it when it applies or quotes.',
+      })
     else {
       const a = record.data.agent
       rows.push({

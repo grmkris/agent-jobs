@@ -59,7 +59,8 @@ const SPONSORED = {
 const UNCERTAIN = {
   legacy: 'The wallet outcome is unknown. Reconcile its transaction hash before continuing.',
   checking: 'Your wallet returned an error without a transaction hash. Checking the chain for this step…',
-  pending: 'Your account has a transaction waiting to be mined. Check again in a moment, or paste its hash from your wallet activity; do not send this step again yet.',
+  pending:
+    'Your account has a transaction waiting to be mined. Check again in a moment, or paste its hash from your wallet activity; do not send this step again yet.',
   unknown: 'The chain could not confirm whether this step went out. Check again, or paste its hash from your wallet activity; do not send it again yet.',
 }
 
@@ -110,8 +111,34 @@ const LABEL: Record<Status['at'], string> = {
  * plain words; a failed report is retried without sending again; and a reload picks up a sent transaction instead of
  * offering to resend.
  */
-export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, onBusyChange, onSafeToRestartChange, reportToBoard = true, autoStart = false }: { taskId: string; txs: TxRequest[]; onDone: (hashes: string[]) => void; boardId?: string | undefined; owner?: string | undefined; canSend?: boolean; onBusyChange?: (busy: boolean) => void; onSafeToRestartChange?: (safe: boolean) => void; reportToBoard?: boolean; autoStart?: boolean }) {
+export function TxSteps({
+  taskId,
+  txs,
+  onDone,
+  boardId,
+  owner,
+  canSend = true,
+  onBusyChange,
+  onSafeToRestartChange,
+  reportToBoard = true,
+  autoStart = false,
+  retainRecord = false,
+}: {
+  taskId: string
+  txs: TxRequest[]
+  onDone: (hashes: string[]) => void
+  boardId?: string | undefined
+  owner?: string | undefined
+  canSend?: boolean
+  onBusyChange?: (busy: boolean) => void
+  onSafeToRestartChange?: (safe: boolean) => void
+  reportToBoard?: boolean
+  autoStart?: boolean
+  retainRecord?: boolean
+}) {
   const { chainId, address } = useAccount()
+  const currentAccount = useRef({ chainId, address, canSend })
+  currentAccount.current = { chainId, address, canSend }
   const auth = useAuth()
   const batch = usePrivyBatch(address)
   const sponsorship = useLiveSponsorship(address, auth.signedIn && auth.address?.toLowerCase() === address?.toLowerCase())
@@ -119,7 +146,15 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const key = keyOf(taskId, txs)
-  const [record, setRecord] = useState<OpRecord>(() => load(key) ?? { batch: batch !== null && txs.length > 1, hashes: [], recorded: [], pending: null })
+  const [record, setRecord] = useState<OpRecord>(
+    () =>
+      load(key) ?? {
+        batch: batch !== null && txs.length > 1,
+        hashes: [],
+        recorded: [],
+        pending: null,
+      },
+  )
   const [status, setStatus] = useState<Status[]>(() =>
     (record.batch || record.sponsored === true ? [txs[0] as TxRequest] : txs).map((_, i): Status => {
       const h = record.hashes[i]
@@ -155,7 +190,12 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     try {
       const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       if (receipt.status !== 'success') {
-        set(i, { at: 'failed', hash, reverted: true, error: record.batch ? 'The transaction reverted, so none of the steps happened.' : 'The transaction reverted, so nothing changed.' })
+        set(i, {
+          at: 'failed',
+          hash,
+          reverted: true,
+          error: record.batch ? 'The transaction reverted, so none of the steps happened.' : 'The transaction reverted, so nothing changed.',
+        })
         return
       }
     } catch (e) {
@@ -167,7 +207,12 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
 
   /** Steps that will not go through the relay after all: from the wallet, as one batch where it can, with why. */
   const toWallet = (text: string | null, hash?: Hex) => {
-    const next: OpRecord = { batch: batch !== null && txs.length > 1, hashes: [], recorded: [], pending: null }
+    const next: OpRecord = {
+      batch: batch !== null && txs.length > 1,
+      hashes: [],
+      recorded: [],
+      pending: null,
+    }
     setSponsorOff(true)
     commit(next)
     setStatus((next.batch ? [txs[0] as TxRequest] : txs).map((): Status => ({ at: 'idle' })))
@@ -182,7 +227,11 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
    */
   const settleSponsored = async (hash: Hex, r: OpRecord) => {
     try {
-      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id, timeout: 60_000 })
+      const receipt = await waitForTransactionReceipt(wagmiConfig, {
+        hash,
+        chainId: chain.id,
+        timeout: 60_000,
+      })
       if (receipt.status !== 'success') {
         toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
         return
@@ -203,10 +252,17 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       return
     }
     if (op.status === 'dropped') {
-      toWallet('Hireling’s relay transaction was replaced before it was mined, so nothing happened. You can send these from your wallet; you pay the gas.', op.txHash)
+      toWallet(
+        'Hireling’s relay transaction was replaced before it was mined, so nothing happened. You can send these from your wallet; you pay the gas.',
+        op.txHash,
+      )
       return
     }
-    const known: OpRecord = { ...r, sponsor: { key: r.sponsor?.key ?? '', operationId: op.operationId }, hashes: [op.txHash] }
+    const known: OpRecord = {
+      ...r,
+      sponsor: { key: r.sponsor?.key ?? '', operationId: op.operationId },
+      hashes: [op.txHash],
+    }
     commit(known)
     set(0, { at: 'sent', hash: op.txHash })
     await settleSponsored(op.txHash, known)
@@ -220,7 +276,17 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   const runSponsored = async () => {
     if (!writesOpen) return
     const at = status[0]?.at
-    if (sending.current || !canSend || address === undefined || (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) || at === 'signing' || at === 'sent' || at === 'confirmed' || at === 'recorded') return
+    if (
+      sending.current ||
+      !canSend ||
+      address === undefined ||
+      (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) ||
+      at === 'signing' ||
+      at === 'sent' ||
+      at === 'confirmed' ||
+      at === 'recorded'
+    )
+      return
     sending.current = true
     set(0, { at: 'signing' })
     let r = record
@@ -275,7 +341,11 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       commit(next)
       set(i, { at: 'recorded', hash })
     } catch (e) {
-      set(i, { at: 'confirmed', hash, reportError: `On the chain, but the board did not record it: ${friendlyError(e)}` })
+      set(i, {
+        at: 'confirmed',
+        hash,
+        reportError: `On the chain, but the board did not record it: ${friendlyError(e)}`,
+      })
     }
   }
 
@@ -294,7 +364,9 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     }
     checking.current = true
     set(i, { at: 'uncertain', checking: true, error: UNCERTAIN.checking })
-    const call = r.batch ? { to: from, data: sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))) } : { to: (txs[i] as TxRequest).to, data: (txs[i] as TxRequest).data as Hex }
+    const call = r.batch
+      ? { to: from, data: sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))) }
+      : { to: (txs[i] as TxRequest).to, data: (txs[i] as TxRequest).data as Hex }
     let outcome: Reconciled = { at: 'unknown' }
     let notSent = 0
     for (const wait of RECHECK_MS) {
@@ -306,15 +378,26 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     }
     checking.current = false
     if (outcome.at === 'found') {
-      const known = { ...r, pending: null, snapshot: null, hashes: Object.assign([...r.hashes], { [i]: outcome.hash }) }
+      const known = {
+        ...r,
+        pending: null,
+        snapshot: null,
+        hashes: Object.assign([...r.hashes], { [i]: outcome.hash }),
+      }
       commit(known)
       set(i, { at: 'sent', hash: outcome.hash })
       await settle(i, outcome.hash, known)
     } else if (outcome.at === 'not-sent') {
       commit({ ...r, pending: null, snapshot: null })
-      set(i, { at: 'failed', error: 'Your wallet returned an error and nothing left your account, so nothing was sent. You can send it again.' })
+      set(i, {
+        at: 'failed',
+        error: 'Your wallet returned an error and nothing left your account, so nothing was sent. You can send it again.',
+      })
     } else {
-      set(i, { at: 'uncertain', error: outcome.at === 'pending' ? UNCERTAIN.pending : UNCERTAIN.unknown })
+      set(i, {
+        at: 'uncertain',
+        error: outcome.at === 'pending' ? UNCERTAIN.pending : UNCERTAIN.unknown,
+      })
     }
   }
 
@@ -349,7 +432,7 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
   useEffect(() => {
     if (!allDone || done.current) return
     done.current = true
-    save(key, null)
+    if (!retainRecord) save(key, null)
     onDone(status.flatMap((s) => (s.at === 'recorded' ? [s.hash] : [])))
   }, [allDone])
 
@@ -359,7 +442,15 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       await runSponsored()
       return
     }
-    if (sending.current || !canSend || address === undefined || (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) || record.pending !== null || retryAction(status[i] ?? { at: 'signing' }) !== 'send') return
+    if (
+      sending.current ||
+      !canSend ||
+      address === undefined ||
+      (owner !== undefined && owner.toLowerCase() !== address.toLowerCase()) ||
+      record.pending !== null ||
+      retryAction(status[i] ?? { at: 'signing' }) !== 'send'
+    )
+      return
     if (record.batch && batch === null) {
       set(i, { at: 'failed', error: 'This wallet cannot send a batch; send them one at a time.' })
       return
@@ -374,7 +465,22 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       const [nonce, block] = await Promise.all([reads.nonce('pending'), reads.blockNumber()])
       snapshot = { nonce, block: block.toString() }
     } catch (e) {
-      set(i, { at: 'failed', error: `Your account could not be read from the chain, so nothing was sent. ${friendlyError(e)}` })
+      set(i, {
+        at: 'failed',
+        error: `Your account could not be read from the chain, so nothing was sent. ${friendlyError(e)}`,
+      })
+      sending.current = false
+      return
+    }
+    if (
+      currentAccount.current.address?.toLowerCase() !== from.toLowerCase() ||
+      currentAccount.current.chainId !== chain.id ||
+      !currentAccount.current.canSend
+    ) {
+      set(i, {
+        at: 'failed',
+        error: 'The selected wallet or network changed before the send. Nothing was sent.',
+      })
       sending.current = false
       return
     }
@@ -388,7 +494,14 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       } else {
         const tx = txs[i] as TxRequest
         const gas = gasLimit(tx, hireling)
-        hash = await sendTransactionAsync({ to: tx.to, data: tx.data, value: 0n, chainId: chain.id, ...(gas === undefined ? {} : { gas }) })
+        hash = await sendTransactionAsync({
+          account: from,
+          to: tx.to,
+          data: tx.data,
+          value: 0n,
+          chainId: chain.id,
+          ...(gas === undefined ? {} : { gas }),
+        })
       }
     } catch (e) {
       sending.current = false
@@ -400,7 +513,12 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
       }
       return
     }
-    const sent = { ...withPending, pending: null, snapshot: null, hashes: Object.assign([...record.hashes], { [i]: hash }) }
+    const sent = {
+      ...withPending,
+      pending: null,
+      snapshot: null,
+      hashes: Object.assign([...record.hashes], { [i]: hash }),
+    }
     commit(sent)
     set(i, { at: 'sent', hash })
     await settle(i, hash, sent)
@@ -421,9 +539,15 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
     void run(0)
   }, [sponsorship.settled, record.sponsored])
   const busy = current !== undefined && (current.at === 'signing' || current.at === 'sent' || (current.at === 'confirmed' && current.reportError === undefined))
-  useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
-  const safeToRestart = record.pending === null && status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
-  useEffect(() => { onSafeToRestartChange?.(safeToRestart) }, [safeToRestart, onSafeToRestartChange])
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
+  const safeToRestart =
+    record.pending === null &&
+    status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
+  useEffect(() => {
+    onSafeToRestartChange?.(safeToRestart)
+  }, [safeToRestart, onSafeToRestartChange])
 
   // Mainnet before launch (D16): whatever page handed these over, nothing is sent or signed.
   if (!writesOpen) return <LaunchNotice />
@@ -460,19 +584,40 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
           {current.checking !== true && (
             <>
               {record.snapshot != null && (
-                <Button variant="tinted" onClick={() => { if (record.pending !== null) void reconcile(record.pending, record) }}>
+                <Button
+                  variant="tinted"
+                  onClick={() => {
+                    if (record.pending !== null) void reconcile(record.pending, record)
+                  }}
+                >
                   Check the chain again
                 </Button>
               )}
-              <Input aria-label="Transaction hash from wallet activity" value={pendingHash} onChange={(event) => setPendingHash(event.target.value)} placeholder="0x… transaction hash" />
-              <Button variant="tinted" disabled={!/^0x[0-9a-fA-F]{64}$/.test(pendingHash)} onClick={() => {
-                const index = record.pending
-                if (index === null) return
-                const hash = pendingHash as Hex
-                const known = { ...record, pending: null, snapshot: null, hashes: Object.assign([...record.hashes], { [index]: hash }) }
-                commit(known)
-                void settle(index, hash, known)
-              }}>Check existing transaction</Button>
+              <Input
+                aria-label="Transaction hash from wallet activity"
+                value={pendingHash}
+                onChange={(event) => setPendingHash(event.target.value)}
+                placeholder="0x… transaction hash"
+              />
+              <Button
+                variant="tinted"
+                disabled={!/^0x[0-9a-fA-F]{64}$/.test(pendingHash)}
+                onClick={() => {
+                  const index = record.pending
+                  if (index === null) return
+                  const hash = pendingHash as Hex
+                  const known = {
+                    ...record,
+                    pending: null,
+                    snapshot: null,
+                    hashes: Object.assign([...record.hashes], { [index]: hash }),
+                  }
+                  commit(known)
+                  void settle(index, hash, known)
+                }}
+              >
+                Check existing transaction
+              </Button>
             </>
           )}
         </div>
@@ -501,18 +646,20 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
               <StepIcon n={i + 1} s={s} />
               <span className="min-w-0 flex-1">
                 <span className={cn('block text-[0.95rem] first-letter:uppercase', s.at === 'idle' && i !== next && 'text-label-2')}>{tx.description}</span>
-                {(
+                {
                   <span className="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-label-2">
                     {record.sponsored === true && SPONSORED_LABEL[s.at] !== undefined
                       ? SPONSORED_LABEL[s.at]
                       : record.batch && s.at === 'idle'
                         ? `Waiting · ${txs.length} steps as one transaction`
                         : s.at === 'uncertain' && s.checking === true
-                          ? record.sponsored === true ? 'Checking with Hireling…' : 'Checking the chain…'
+                          ? record.sponsored === true
+                            ? 'Checking with Hireling…'
+                            : 'Checking the chain…'
                           : LABEL[s.at]}
                     {'hash' in s && s.hash !== undefined && <TxLink hash={s.hash} />}
                   </span>
-                )}
+                }
               </span>
             </ListRow>
           )
@@ -536,21 +683,18 @@ export function TxSteps({ taskId, txs, onDone, boardId, owner, canSend = true, o
             : current.at === 'failed'
               ? 'Try again'
               : record.sponsored === true
-                ? txs.length > 1 ? `Send all ${txs.length} · Hireling pays the gas` : 'Send · Hireling pays the gas'
+                ? txs.length > 1
+                  ? `Send all ${txs.length} · Hireling pays the gas`
+                  : 'Send · Hireling pays the gas'
                 : record.batch
-                ? `Confirm ${txs.length > 1 ? `all ${txs.length} as one transaction` : ''}`.trim()
-                : txs.length > 1
-                  ? `Confirm step ${next + 1} of ${txs.length}`
-                  : 'Confirm in your wallet'}
+                  ? `Confirm ${txs.length > 1 ? `all ${txs.length} as one transaction` : ''}`.trim()
+                  : txs.length > 1
+                    ? `Confirm step ${next + 1} of ${txs.length}`
+                    : 'Confirm in your wallet'}
         </Button>
       )}
       {record.sponsored === true && (!started || (current?.at === 'failed' && record.sponsor == null)) && (
-        <Button
-          variant="plain"
-          size="sm"
-          onClick={() => toWallet(null)}
-          className="justify-self-center"
-        >
+        <Button variant="plain" size="sm" onClick={() => toWallet(null)} className="justify-self-center">
           Pay the gas yourself instead
         </Button>
       )}
