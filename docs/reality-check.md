@@ -1053,3 +1053,34 @@ signature recovery, owner policy updates and signer revocation without broadcast
 so it does not prove genuine browser-user consent. `AUTONOMOUS_SIGNING_VERIFIED` remains false and users approve
 wallet actions on the website. No wallet transaction was sent by this release; mainnet, Telegram additions and
 MCP Apps were outside this implementation. See [ADR-0012](decisions/0012-agent-first-onboarding.md).
+
+## Agent-first security and funding follow-up release on testnet (4 Oct 2026)
+
+The AF-001 through AF-011 follow-up, Collect navigation recovery, sponsored-operation reconciliation, and the
+coordinator's Privy fixture and Sheet wallet-prompt fixes were released to the existing Monad testnet staging stack
+from commit `1b97aa4442cf58ad1d7cb77b98d3872904cba145`. The guarded plan digest was
+`f60fd63d199768bc5f407adb00cbec8c96714a959f3c79ae6896c7f8d7be8ec6`. It updated the existing API and Explore
+Workers and left Indexer, D1 and R2 as no-ops. The plan contained no migrations, resource creates, replacements,
+deletions, binding changes, domain changes or schedule changes. Existing Board and DirectoryObject namespaces,
+`hireling.xyz`, `testnet.hireling.xyz` and the Indexer `* * * * *` cron were preserved. Applied versions were API
+`1602d764-f7ee-4dc8-8440-5ee0b6f37f52`, Indexer `4c77d309-6d33-4baa-9c90-37f7ba0670bf`, and Explore
+`65895124-8c52-4195-944f-0bd432f22c19`.
+
+The local release gate passed after the final correction: migration generation was clean; the repository gate covered
+195 contract tests (45 skipped), 6 SDK tests, 21 indexer tests (1 skipped), 34 mining tests, 190 API tests (11
+skipped), 117 Explore tests, and the 30 staging guard tests. Actual-component Chromium regression covered approval
+expiry, cross-tab and journal safety, reconciliation, funding and the AF-010 manual-hash binding. Separate mocked
+Chromium suites passed onboarding, v1 job, v1 flows, stake, Collect, sponsored sends, publish-v1, selection and
+directory. These are local fixture checks; no wallet transaction was broadcast.
+
+Live readback returned `/health` 200 on `monad-testnet`, `writesOpen=true`, `mainnetLive=false`, OAuth discovery with
+S256 PKCE, 401 for anonymous MCP and owner APIs, protocol chain 10143, four published skills, and companion
+`0.1.0` SHA-256 `d0630cf561749e401335436459d0e08b803c6704aa1c134a0b3c7efb135f0af5`. Anonymous Chromium at 390x844
+and 1440x900 loaded the home, connector, workspace, agent creation and approvals routes without page errors or
+horizontal overflow. Two lease-owning Indexer observations succeeded after release, advancing the checkpoint from
+`68127193` to `68127591`. See the [sanitized release evidence](evidence/agent-first/2026-10-04-security-funding-release.json)
+and [local QA evidence](evidence/agent-first/2026-10-04-security-funding-qa.json).
+
+This release does not prove a human Privy login, browser-owned consent, worker pairing on a user's machine or
+automatic signing. The independent source review's latest recheck was pending for AF-010 and AF-011 at the time of
+release; its source findings and this release evidence remain separate claims.
