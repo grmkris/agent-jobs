@@ -13,10 +13,12 @@ describe('fleet OAuth', () => {
     const sql = sqlOf(new DatabaseSync(':memory:')); await migrateFleet(sql)
     const origin = 'https://hireling.test', redirectUri = 'http://localhost:49321/callback', verifier = 'a'.repeat(64)
     const registered = await oauthRoute({ sql, method:'POST', path:'/oauth/register', query:new URLSearchParams(), origin, siteOrigin:origin, body:{client_name:'test',redirect_uris:[redirectUri]}, now:100 })
-    expect(registered?.status).toBe(201); const clientId = (registered?.body as {client_id:string}).client_id
+    expect(registered?.status).toBe(201); const clientId = (registered!.body as {client_id:string}).client_id
     const started = await oauthRoute({sql,method:'GET',path:'/oauth/authorize',query:new URLSearchParams({client_id:clientId,redirect_uri:redirectUri,response_type:'code',scope:'hireling:read',resource:`${origin}/mcp`,code_challenge:await pkceChallenge(verifier),code_challenge_method:'S256',state:'s'}),origin,siteOrigin:origin,body:{},now:101})
     expect(started?.headers?.location).toContain('/connect?oauth_request=')
-    const requestId = new URL(started!.headers!.location!).searchParams.get('oauth_request')!
+    const location = started?.headers?.location
+    expect(location).toContain('/connect?oauth_request=')
+    const requestId = new URL(location as string).searchParams.get('oauth_request')!
     const consent = await oauthRoute({sql,method:'GET',path:`/oauth/requests/${requestId}`,query:new URLSearchParams(),origin,siteOrigin:origin,owner:'0x0000000000000000000000000000000000000001',body:{},now:102})
     expect(consent?.status).toBe(200)
     const approved = await oauthRoute({sql,method:'POST',path:`/oauth/requests/${requestId}/approve`,query:new URLSearchParams(),origin,siteOrigin:origin,owner:'0x0000000000000000000000000000000000000001',body:{decision:'approve',agentIds:[]},now:102})

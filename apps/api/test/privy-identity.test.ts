@@ -2,13 +2,13 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { verifyPrivyWallet } from '../src/privy-identity.ts'
 
 afterEach(() => vi.unstubAllGlobals())
+const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
 it('verifies JWT, operator ownership and child wallet with Worker-compatible redirect refusal', async () => {
   for (const redirectAt of [-1, 0, 1, 2]) {
     const appId = `test-app-${redirectAt}`
     const key = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
     const jwk = await crypto.subtle.exportKey('jwk', key.publicKey)
-    const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
     const unsigned = `${encode({ alg: 'ES256', kid: 'test' })}.${encode({ iss: 'privy.io', aud: appId, sub: 'did:privy:test', exp: 200 })}`
     const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key.privateKey, new TextEncoder().encode(unsigned))
     const token = `${unsigned}.${Buffer.from(signature).toString('base64url')}`

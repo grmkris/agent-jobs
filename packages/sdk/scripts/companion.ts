@@ -22,11 +22,14 @@ function durableWrite(path: string, value: unknown) { mkdirSync(dirname(path), {
 function save(state: State) { durableWrite(statePath, state) }
 function load(): State { if (!existsSync(statePath)) fatal(`not paired; run: node hireling.mjs pair --code <code>`); return JSON.parse(readFileSync(statePath, 'utf8')) as State }
 function key() { const state = load(); return { state, privateKey: parsePrivateKey(state.privateKeyPem) } }
-function publicKeySpki(key: KeyObject): string { return key.export({ format: 'der', type: 'spki' }).toString('base64') }
+function publicKeySpki(publicKey: KeyObject): string { return publicKey.export({ format: 'der', type: 'spki' }).toString('base64') }
 function pairSignature(code: string, spki: string, privateKey: KeyObject): string { return sign('sha256', Buffer.from(`hireling-pair-v1\n${code}\n${spki}`), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64') }
-function healthSignature(managedId: string, generation: number, challenge: string, status: string, version: string, privateKey: KeyObject, state: State): string { return sign('sha256', Buffer.from(`hireling-health-v2\n${managedId}\n${generation}\n${challenge}\n${status}\n${version}\n${state.launchId ?? ''}\n${state.firstPromptHash ?? ''}\n${state.pid ?? ''}`), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64') }
+function healthSignature(managedId: string, generation: number, challenge: string, healthStatus: string, version: string, privateKey: KeyObject, state: State): string { return sign('sha256', Buffer.from(`hireling-health-v2\n${managedId}\n${generation}\n${challenge}\n${healthStatus}\n${version}\n${state.launchId ?? ''}\n${state.firstPromptHash ?? ''}\n${state.pid ?? ''}`), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64') }
 async function request<T>(origin: string, path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(20_000), ...init, headers: { accept: 'application/json', ...(init.body === undefined ? {} : { 'content-type': 'application/json' }), ...(init.headers ?? {}) } })
+  const headers = new Headers(init.headers)
+  if (!headers.has('accept')) headers.set('accept', 'application/json')
+  if (init.body !== undefined && !headers.has('content-type')) headers.set('content-type', 'application/json')
+  const res = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(20_000), ...init, headers })
   const text = await res.text(); let body: unknown; try { body = JSON.parse(text) } catch { body = text }
   if (!res.ok) throw new Error(`Hireling ${res.status} ${path}: ${typeof body === 'string' ? body : JSON.stringify(body)}`)
   if (typeof body === 'object' && body !== null && 'ok' in body && 'result' in body) return (body as { result: T }).result
@@ -39,15 +42,15 @@ async function pair(code: string, apiOrigin = DEFAULT_API) {
   const state: State = { apiOrigin: paired.apiOrigin ?? apiOrigin, managedId: String(paired.agent.id), generation: paired.generation, runtimeToken: paired.runtimeToken, agent: paired.agent, publicKeySpki: spki, privateKeyPem: privateKey.export({ format: 'pem', type: 'pkcs8' }).toString(), pairedAt: new Date().toISOString(), gatewayEnabled: paired.gatewayEnabled === true, ...(paired.privyAppId === undefined ? {} : { privyAppId: paired.privyAppId }), journal: {} }
   save(state); console.log(JSON.stringify({ ok: true, managedId: state.managedId, agent: state.agent, generation: state.generation, gatewayEnabled: paired.gatewayEnabled === true, fingerprint: createHash('sha256').update(spki).digest('hex'), statePath }, null, 2))
 }
-async function health(status: string = 'healthy', silent = false) {
+async function health(healthStatus: string = 'healthy', silent = false) {
   const { state, privateKey } = key(); if (state.managedId === undefined || state.generation === undefined || state.runtimeToken === undefined) fatal('pairing is incomplete')
-  if (!['launched', 'ready', 'healthy', 'stopped'].includes(status)) fatal('invalid health state')
-  if (status === 'healthy') { if (state.pid === undefined || !['ready', 'healthy'].includes(state.status ?? '')) fatal('worker has not completed the Claude MCP handshake'); try { process.kill(state.pid, 0) } catch { fatal('worker process is no longer running') } }
+  if (!['launched', 'ready', 'healthy', 'stopped'].includes(healthStatus)) fatal('invalid health state')
+  if (healthStatus === 'healthy') { if (state.pid === undefined || !['ready', 'healthy'].includes(state.status ?? '')) fatal('worker has not completed the Claude MCP handshake'); try { process.kill(state.pid, 0) } catch { fatal('worker process is no longer running') } }
   const challenge = await request<{ challenge: string; expiresAt: number }>(state.apiOrigin, `/api/agents/${encodeURIComponent(state.managedId)}/health`, { headers: { authorization: `Bearer ${state.runtimeToken}` } })
   if (challenge.expiresAt <= Math.floor(Date.now() / 1000)) fatal('health challenge has already expired')
-  const body = { challenge: challenge.challenge, signature: healthSignature(state.managedId, state.generation, challenge.challenge, status, VERSION, privateKey, state), generation: state.generation, status, version: VERSION, ...(state.launchId === undefined ? {} : { launchId: state.launchId }), ...(state.firstPromptHash === undefined ? {} : { firstPromptHash: state.firstPromptHash }), ...(state.pid === undefined ? {} : { pid: state.pid }) }
+  const body = { challenge: challenge.challenge, signature: healthSignature(state.managedId, state.generation, challenge.challenge, healthStatus, VERSION, privateKey, state), generation: state.generation, status: healthStatus, version: VERSION, ...(state.launchId === undefined ? {} : { launchId: state.launchId }), ...(state.firstPromptHash === undefined ? {} : { firstPromptHash: state.firstPromptHash }), ...(state.pid === undefined ? {} : { pid: state.pid }) }
   await request(state.apiOrigin, `/api/agents/${encodeURIComponent(state.managedId)}/health`, { method: 'POST', headers: { authorization: `Bearer ${state.runtimeToken}` }, body: JSON.stringify(body) })
-  state.status = status; save(state); if (!silent) console.log(JSON.stringify({ ok: true, managedId: state.managedId, status, at: new Date().toISOString() }))
+  state.status = healthStatus; save(state); if (!silent) console.log(JSON.stringify({ ok: true, managedId: state.managedId, status: healthStatus, at: new Date().toISOString() }))
 }
 async function status() { const state = load(); console.log(JSON.stringify({ managedId: state.managedId, agent: state.agent, generation: state.generation, status: state.status, launchId: state.launchId, pid: state.pid, gatewayEnabled: state.gatewayEnabled === true, statePath }, null, 2)) }
 function promptHash(prompt: string) { return createHash('sha256').update(prompt).digest('hex') }
@@ -91,25 +94,25 @@ async function walletAction(kind: 'submit' | 'dispute', input: Record<string, un
 }
 async function localMcp() {
   const state = load(); const rl = createInterface({ input: process.stdin });
-  const send = (id: unknown, result: unknown) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
   const transactionSchema = { type: 'object', properties: { chainId: { type: 'number', const: 10143 }, to: { type: 'string' }, data: { type: 'string' }, gas: { type: 'string' } }, required: ['chainId', 'to', 'data'] }
   const operationSchema = { type: 'object', properties: { jobId: { type: 'string' }, operationId: { type: 'string' }, transaction: transactionSchema }, required: ['jobId', 'operationId', 'transaction'] }
   for await (const line of rl) { let req: { id?: unknown; method?: string; params?: { name?: string; arguments?: Record<string, unknown> } }; try { req = JSON.parse(line) as typeof req } catch { continue }
-    if (req.method === 'initialize') send(req.id, { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'hireling-companion', version: VERSION } })
-    else if (req.method === 'tools/list') send(req.id, { tools: [{ name: 'hireling_status', description: 'Read this worker pairing and health status', inputSchema: { type: 'object', properties: {} } }, { name: 'hireling_submit', description: 'Send the exact prepared, approved submit operation. Refuses when provider authority is unavailable.', inputSchema: operationSchema }, { name: 'hireling_dispute', description: 'Send the exact prepared, approved dispute operation', inputSchema: operationSchema }] })
+    if (req.method === 'initialize') sendJson(req.id, { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'hireling-companion', version: VERSION } })
+    else if (req.method === 'tools/list') sendJson(req.id, { tools: [{ name: 'hireling_status', description: 'Read this worker pairing and health status', inputSchema: { type: 'object', properties: {} } }, { name: 'hireling_submit', description: 'Send the exact prepared, approved submit operation. Refuses when provider authority is unavailable.', inputSchema: operationSchema }, { name: 'hireling_dispute', description: 'Send the exact prepared, approved dispute operation', inputSchema: operationSchema }] })
     else if (req.method === 'tools/call') { const name = req.params?.name
       try {
-        if (name === 'hireling_status') send(req.id, { content: [{ type: 'text', text: JSON.stringify({ managedId: state.managedId, agent: state.agent, status: state.status, generation: state.generation, gatewayEnabled: state.gatewayEnabled === true }) }] })
-        else if (name === 'hireling_submit' || name === 'hireling_dispute') send(req.id, { content: [{ type: 'text', text: JSON.stringify(await walletAction(name === 'hireling_submit' ? 'submit' : 'dispute', req.params?.arguments ?? {})) }] })
-        else send(req.id, { isError: true, content: [{ type: 'text', text: 'unknown wallet tool' }] })
-      } catch (error) { send(req.id, { isError: true, content: [{ type: 'text', text: error instanceof Error ? error.message : 'worker wallet request failed' }] }) }
+        if (name === 'hireling_status') sendJson(req.id, { content: [{ type: 'text', text: JSON.stringify({ managedId: state.managedId, agent: state.agent, status: state.status, generation: state.generation, gatewayEnabled: state.gatewayEnabled === true }) }] })
+        else if (name === 'hireling_submit' || name === 'hireling_dispute') sendJson(req.id, { content: [{ type: 'text', text: JSON.stringify(await walletAction(name === 'hireling_submit' ? 'submit' : 'dispute', req.params?.arguments ?? {})) }] })
+        else sendJson(req.id, { isError: true, content: [{ type: 'text', text: 'unknown wallet tool' }] })
+      } catch (error) { sendJson(req.id, { isError: true, content: [{ type: 'text', text: error instanceof Error ? error.message : 'worker wallet request failed' }] }) }
     }
     else if (req.method === 'notifications/initialized') continue
-    else send(req.id, { error: { code: -32601, message: 'method not found' } })
+    else sendJson(req.id, { error: { code: -32601, message: 'method not found' } })
   }
 }
 const [command, ...args] = process.argv.slice(2)
 function option(name: string): string | undefined { const i = args.indexOf(name); if (i < 0) return undefined; const value = args[i + 1]; if (!value || value.startsWith('--')) fatal(`${name} requires a value`); return value }
+const sendJson = (id: unknown, result: unknown) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
 try {
   if (Number(process.versions.node.split('.')[0]) < 22) fatal('Hireling companion requires Node 22 or newer')
   if (command === 'pair') { const code = option('--code') ?? fatal('--code is required'); await pair(code, option('--api') ?? DEFAULT_API) }

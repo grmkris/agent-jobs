@@ -24,7 +24,7 @@ export interface AuthorizationEnvelope {
 export function canonicalAuthorizationRequest(input: Omit<AuthorizationEnvelope, 'signature' | 'publicKey'>): string {
   const headers = Object.entries(input.headers)
     .map(([k, v]) => [k.toLowerCase(), String(v).trim()] as const)
-    .sort(([a], [b]) => a.localeCompare(b))
+    .toSorted(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v}`)
     .join('\n')
   return [
@@ -73,7 +73,7 @@ export function canonicalJson(value: unknown): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
   if (typeof value === 'number' && Number.isFinite(value)) return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
-  if (typeof value === 'object' && value !== null) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(',')}}`
+  if (typeof value === 'object' && value !== null) return `{${Object.keys(value).toSorted().map(key => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(',')}}`
   throw new Error('authorization payload must contain only JSON values')
 }
 

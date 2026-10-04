@@ -5,7 +5,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant, migrateFleet, listManagedAgents, getManagedAgent, type FleetSql } from '@agent-jobs/board'
+import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant, migrateFleet, getManagedAgent, type FleetSql } from '@agent-jobs/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
@@ -332,7 +332,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const oauth = yield* Effect.promise(() => oauthRoute({ sql: fleetSql, method: request.method, path, query: url.searchParams, body: oauthBody, origin: url.origin, siteOrigin: allowed && origin !== undefined ? origin : url.origin, owner: operatorSession?.address, now: now() }))
         if (oauth !== undefined) return oauth.status === 302 ? HttpServerResponse.empty({ status: 302, headers: oauth.headers }) : json(oauth.body, oauth.status, oauth.headers)
 
-        const fleetReply = yield* Effect.promise(() => fleetRoute({ sql: fleetSql, method: request.method, path, body: oauthBody, origin: url.origin, owner: operatorSession?.address, bearer, now: now(), network, rpcUrl, appId: process.env.PRIVY_APP_ID ?? '', appSecret: privyAppSecret, runTool: async (tool, args, caller, boardId): Promise<BoardReply> => JSON.parse(await Effect.runPromise(boards.getByName(boardId).call({ tool, args, caller, env: { ...env, boardId } }))) as BoardReply }))
+        const fleetReply = yield* Effect.promise(() => fleetRoute({ sql: fleetSql, method: request.method, path, body: oauthBody, origin: url.origin, owner: operatorSession?.address, bearer, now: now(), network, rpcUrl, appId: process.env.PRIVY_APP_ID ?? '', appSecret: privyAppSecret, runTool: async (tool, args, caller, callBoardId): Promise<BoardReply> => JSON.parse(await Effect.runPromise(boards.getByName(callBoardId).call({ tool, args, caller, env: { ...env, boardId: callBoardId } }))) as BoardReply }))
         if (fleetReply !== undefined) {
           if (path === '/api/live' && fleetReply.status === 200) {
             const live = fleetReply.body as { result: Record<string, unknown> }
@@ -444,9 +444,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
               return respond({})
             case 'tools/list':
               return respond({
-                tools: [
-                  ...Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...fleetTools }).filter(([name]) => permittedTool(grant, name)).map(([name, t]) => ({ name, description: t.description, inputSchema: { ...t.inputSchema, properties: { ...t.inputSchema.properties, managedAgentId: { type: 'string', description: 'The managed agent ID granted by OAuth. Required when the connector grants several agents.' } } } })),
-                ],
+                tools: Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...fleetTools }).filter(([name]) => permittedTool(grant, name)).map(([name, t]) => ({ name, description: t.description, inputSchema: { ...t.inputSchema, properties: { ...t.inputSchema.properties, managedAgentId: { type: 'string', description: 'The managed agent ID granted by OAuth. Required when the connector grants several agents.' } } } })),
               })
             case 'tools/call': {
               const name = message.params?.name as string

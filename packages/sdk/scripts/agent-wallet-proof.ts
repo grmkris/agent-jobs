@@ -22,6 +22,7 @@ const runId = randomUUID()
 type ProviderReply = { status: number; body: Record<string, unknown> }
 type Check = { check: string; pass: boolean; status?: number; code?: string }
 const checks: Check[] = []
+const rpcBody = (tx: Record<string, unknown>) => ({ method: 'eth_signTransaction', params: { transaction: tx } })
 
 async function request(path: string, method: string, body: unknown, key?: KeyObject, options: { expiry?: string; signatureBody?: unknown; signatureUrl?: string; mutateExpiry?: string } = {}): Promise<ProviderReply> {
   const url = `${api}${path}`, expiry = options.expiry ?? String(Date.now() + 60_000)
@@ -63,7 +64,6 @@ try {
   const wallet = await request('/wallets', 'POST', { chain_type: 'ethereum', owner: { public_key: publicKey(owner.publicKey) }, additional_signers: [{ signer_id: signerId, override_policy_ids: [policyId] }] })
   record('owned-wallet-restricted-signer', wallet, 'accept'); walletId = identity(wallet, 'id'); walletAddress = identity(wallet, 'address')
   const transaction = { to: config.deployment.core, chain_id: 10143, data: submitData, value: '0x0', nonce: '0x0', type: 2, gas_limit: '0xf4240', max_fee_per_gas: '0x3b9aca00', max_priority_fee_per_gas: '0x0' }
-  const rpcBody = (tx: Record<string, unknown>) => ({ method: 'eth_signTransaction', params: { transaction: tx } })
   const rpcPath = `/wallets/${walletId}/rpc`
   const approved = await request(rpcPath, 'POST', rpcBody(transaction), worker.privateKey)
   record('direct-job-scoped-submit-sign-only', approved, 'accept')
