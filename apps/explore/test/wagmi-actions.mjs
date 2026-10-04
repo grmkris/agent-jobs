@@ -16,6 +16,12 @@ export async function getTransactionCount() {
   chainReady();
   return window.__wallet.sends.length;
 }
+export async function getTransaction(_config, { hash }) {
+  chainReady();
+  const sent = window.__wallet.sends[Number(BigInt(hash)) - 1];
+  if (sent === undefined) throw new Error('Fixture transaction unavailable');
+  return { from: window.__wallet.address, to: sent.to, input: sent.data, value: BigInt(sent.value ?? 0) };
+}
 export async function getBlockNumber() {
   chainReady();
   return BASE_BLOCK + BigInt(window.__wallet.sends.length);

@@ -1,6 +1,5 @@
 import type { Hex } from 'viem'
-import type { TxRequest } from '../api.ts'
-import type { SendSnapshot } from './txOperation.ts'
+import type { SendSnapshot, WalletStep } from './txOperation.ts'
 
 export interface OpRecord {
   batch: boolean
@@ -18,10 +17,11 @@ export interface JournalStorage {
   removeItem(key: string): void
 }
 export const emptyJournal = (): OpRecord => ({ batch: false, hashes: [], recorded: [], pending: null })
-export function txJournalKey(taskId: string, txs: TxRequest[]): string {
+export function txJournalKey(taskId: string, txs: WalletStep[]): string {
+  const native = txs.some(tx => tx.value !== '0')
   let hash = 0x811c9dc5
-  for (const char of txs.map(tx => `${tx.to}:${tx.data}`).join('|')) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193)
-  return `hireling.op:${taskId}:${(hash >>> 0).toString(36)}`
+  for (const char of txs.map(tx => native ? `${tx.chainId}:${tx.to}:${tx.data}:${tx.value}` : `${tx.to}:${tx.data}`).join('|')) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193)
+  return `hireling.op${native ? '-value' : ''}:${taskId}:${(hash >>> 0).toString(36)}`
 }
 export function readTxJournal(storage: JournalStorage, key: string, requireExisting = false): OpRecord | null {
   let raw: string | null
@@ -47,7 +47,7 @@ export function writeTxJournal(storage: JournalStorage, key: string, record: OpR
   } catch { throw new Error('Transaction journal could not be saved. No new wallet prompt is allowed; reconcile any existing broadcast.') }
 }
 /** Persist the inner journal before an outer approval record can advertise executable transactions. */
-export function initializeTxJournal(storage: JournalStorage, taskId: string, txs: TxRequest[]): void {
+export function initializeTxJournal(storage: JournalStorage, taskId: string, txs: WalletStep[]): void {
   const key = txJournalKey(taskId, txs)
   if (readTxJournal(storage, key) === null) writeTxJournal(storage, key, emptyJournal())
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { guardedSnapshot, reconcileSend, retryAction, walletRefused, withWalletStepLock, type StepLocks } from './txOperation.ts'
+import { guardedSnapshot, reconcileSend, retryAction, walletRefused, walletStepRequest, withWalletStepLock, type StepLocks } from './txOperation.ts'
 import { approvalSendError } from '../approval-operation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
@@ -106,6 +106,15 @@ describe('ambiguous send reconciliation', () => {
     const { chain: c, reads } = chain({ mined: 6, blocks: { 102: [tx(9, '0xabcdef', '0x3333333333333333333333333333333333333333'), tx(5, '0xABCDEF')] } })
     expect(await reconcileSend(c, snapshot, owner, call)).toEqual({ at: 'found', hash: tx(5, '0x').hash })
     expect(reads.blocks).toBe(3)
+  })
+  it('distinguishes two native transfers to the same recipient by their reviewed amount', async () => {
+    const native = { ...call, data: '0x' as const, value: 500n }
+    const wrong = { ...tx(5, '0x'), value: 499n }, right = { ...tx(6, '0x'), value: 500n }
+    expect(await reconcileSend(chain({ mined: 6, blocks: { 101: [wrong] } }).chain, snapshot, owner, native)).toEqual({ at: 'not-sent' })
+    expect(await reconcileSend(chain({ mined: 7, blocks: { 101: [wrong], 102: [right] } }).chain, snapshot, owner, native)).toEqual({ at: 'found', hash: right.hash })
+    const request = { description: 'Fund worker', chainId: 10143, to: call.to as `0x${string}`, data: '0x' as const, value: '500' }
+    expect(walletStepRequest(request, owner, 10143)).toMatchObject({ value: 500n })
+    expect(() => walletStepRequest(request, owner, 143)).toThrow(/network/)
   })
   it('allows a resend when the nonce moved for another call of this account', async () => {
     const { chain: c, reads } = chain({ mined: 6, blocks: { 101: [tx(5, '0x1234')] } })

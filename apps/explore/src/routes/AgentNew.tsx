@@ -6,6 +6,7 @@ import { createPublicClient, http, isAddress, parseAbi, parseEventLogs, type Hex
 import { useSignMessage } from 'wagmi'
 import { type TxRequest, tool } from '../api.ts'
 import { useAgentWallets } from '../components/Privy.tsx'
+import { AgentFundingReview } from '../components/AgentFundingReview.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { Address, Badge, Button, CopyButton, EmptyState, ErrorText, Field, Input, PageTitle, Segmented, TextArea, TxLink } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
@@ -290,6 +291,7 @@ export function AgentNewPage() {
               Operator: <Address value={agent.owner} />
             </p>
           </div>
+          <AgentFundingReview key={agent.id} agent={agent} />
           <section className="workspace-panel grid gap-4">
             <div className="flex items-center gap-2">
               <Fingerprint className="size-5 text-tint" />

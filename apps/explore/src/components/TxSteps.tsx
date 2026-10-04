@@ -3,7 +3,7 @@ import { Check, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Hex } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
-import { getBlock, getBlockNumber, getTransactionCount, waitForTransactionReceipt } from 'wagmi/actions'
+import { getBlock, getBlockNumber, getTransaction, getTransactionCount, waitForTransactionReceipt } from 'wagmi/actions'
 import { type TxRequest, boardApi } from '../api.ts'
 import { batchGasLimit, gasLimit } from '../gas.ts'
 import { hireling } from '../hireling.ts'
@@ -13,7 +13,7 @@ import { chain, wagmiConfig, writesOpen } from '../wallet.ts'
 import { LaunchNotice } from './LaunchGate.tsx'
 import { usePrivyBatch } from './Privy.tsx'
 import { useAuth } from './Wallet.tsx'
-import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, guardedSnapshot, reconcileSend, retryAction, walletRefused, withWalletStepLock } from './txOperation.ts'
+import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, type WalletStep, guardedSnapshot, reconcileSend, retryAction, walletRefused, walletStepRequest, withWalletStepLock } from './txOperation.ts'
 import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
 import { emptyJournal, readTxJournal, txJournalKey, writeTxJournal, type OpRecord } from './txJournal.ts'
 
@@ -87,9 +87,10 @@ export function TxSteps({
   allowSponsorship = true,
   sendGuard,
   requireJournal = false,
+  verifyReceipt = false,
 }: {
   taskId: string
-  txs: TxRequest[]
+  txs: WalletStep[]
   onDone: (hashes: string[]) => void
   boardId?: string | undefined
   owner?: string | undefined
@@ -104,15 +105,18 @@ export function TxSteps({
   /** Rechecked immediately after chain reads, before any new wallet prompt. */
   sendGuard?: (() => string | null) | undefined
   requireJournal?: boolean
+  verifyReceipt?: boolean
 }) {
   const { chainId, address } = useAccount()
   const currentAccount = useRef({ chainId, address, canSend })
   currentAccount.current = { chainId, address, canSend }
   const auth = useAuth()
   const walletBatch = usePrivyBatch(address)
-  const batch = allowBatch ? walletBatch : null
+  const zeroValue = txs.every(tx => tx.value === '0')
+  const boardSteps = txs.map(tx => ({ ...tx, value: '0' as const }))
+  const batch = allowBatch && zeroValue ? walletBatch : null
   const sponsorship = useLiveSponsorship(address, allowSponsorship && auth.signedIn && auth.address?.toLowerCase() === address?.toLowerCase())
-  const canSponsor = allowSponsorship && sponsorship.live !== null && sponsorable(txs, sponsorship.live, chain.id)
+  const canSponsor = allowSponsorship && zeroValue && sponsorship.live !== null && sponsorable(boardSteps, sponsorship.live, chain.id)
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const key = txJournalKey(taskId, txs)
@@ -162,7 +166,7 @@ export function TxSteps({
   const journalFailure = (failure: unknown) => {
     const error = friendlyError(failure)
     setJournalError(error)
-    setStatus(all => all.map(status => status.at === 'recorded' || status.at === 'sent' ? status : { at: 'uncertain', error }))
+    setStatus(all => all.map(entry => entry.at === 'recorded' || entry.at === 'sent' ? entry : { at: 'uncertain', error }))
   }
   const hasSavedJournal = () => {
     try { return load(key) !== null } catch (failure) { journalFailure(failure); return true }
@@ -184,6 +188,12 @@ export function TxSteps({
           error: record.batch ? 'The transaction reverted, so none of the steps happened.' : 'The transaction reverted, so nothing changed.',
         })
         return
+      }
+      if (verifyReceipt) {
+        const transaction = await getTransaction(wagmiConfig, { hash, chainId: chain.id })
+        const tx = txs[i]!
+        if (transaction.from.toLowerCase() !== r.from?.toLowerCase() || transaction.to?.toLowerCase() !== tx.to.toLowerCase() || transaction.input.toLowerCase() !== tx.data.toLowerCase() || transaction.value !== BigInt(tx.value))
+          throw new Error('This receipt differs from the reviewed sender, recipient, calldata or amount. Reconcile the original transaction.')
       }
     } catch (e) {
       set(i, { at: 'failed', hash, error: friendlyError(e) })
@@ -291,7 +301,7 @@ export function TxSteps({
       }
       let op: SponsorOperation
       try {
-        op = await sponsorApi.submit(address, callerKey, sponsorCalls(txs))
+        op = await sponsorApi.submit(address, callerKey, sponsorCalls(boardSteps))
       } catch (e) {
         const failure = submitFailure(e)
         if (failure.kind === 'lost') {
@@ -353,7 +363,7 @@ export function TxSteps({
     set(i, { at: 'uncertain', checking: true, error: UNCERTAIN.checking })
     const call = r.batch
       ? { to: from, data: sdk.batchCalldata(txs.map((t) => ({ ...t, value: '0' as const }))) }
-      : { to: (txs[i] as TxRequest).to, data: (txs[i] as TxRequest).data as Hex }
+      : { to: txs[i]!.to, data: txs[i]!.data, value: BigInt(txs[i]!.value) }
     let outcome: Reconciled = { at: 'unknown' }
     let notSent = 0
     for (const wait of RECHECK_MS) {
@@ -492,16 +502,12 @@ export function TxSteps({
     try {
       if (authoritative.batch) {
         if (batch === null) throw new Error('This wallet cannot send a batch; send them one at a time.')
-        hash = await batch(txs, batchGasLimit(txs, hireling))
+        hash = await batch(boardSteps, batchGasLimit(txs, hireling))
       } else {
-        const tx = txs[i] as TxRequest
+        const tx = txs[i]!
         const gas = gasLimit(tx, hireling)
         hash = await sendTransactionAsync({
-          account: from,
-          to: tx.to,
-          data: tx.data,
-          value: 0n,
-          chainId: chain.id,
+          ...walletStepRequest(tx, from, chain.id),
           ...(gas === undefined ? {} : { gas }),
         })
       }
