@@ -1,6 +1,6 @@
 /**
- * The app's frame. On a phone: a translucent top bar (brand and account) and a tab bar at the bottom (Jobs, Post,
- * Collect, Agents, Me), both clear of the notch and the home indicator. On a wide screen: a sidebar with the same places,
+ * The app's frame. On a phone: a translucent top bar (brand and account) and a tab bar at the bottom (Home, Jobs,
+ * Workspace, Approvals, Me), both clear of the notch and the home indicator. On a wide screen: a sidebar with the same places,
  * the secondary ones (quotes, boards), the network and the account. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
@@ -84,7 +84,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const paused = usePaused()
   const { pathname } = useLocation()
   const { main, more } = places()
-  // How many things the wallet can collect: a count on the Collect tab, nothing when unknown.
+  // Collect is in Me on mobile and in the desktop sidebar; nothing is counted when unknown.
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   const badge = (label: string) => (label === 'Collect' && collect > 0 ? collect : null)
   return (
@@ -101,7 +101,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
         <nav className="mt-4 grid gap-0.5" aria-label="More">
           {more.map((p) => (
-            <SideItem key={p.label} place={p} on={p.active(pathname)} quiet />
+            <SideItem key={p.label} place={p} on={p.active(pathname)} quiet count={badge(p.label)} />
           ))}
         </nav>
         <div className="mt-auto grid gap-3 px-2 pt-6">
@@ -147,7 +147,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <BoardLink key={p.label} target={p.target} className={cn('relative grid justify-items-center gap-0.5 py-1 text-[0.66rem] font-medium active:opacity-60', on ? 'text-tint' : 'text-label-3')}>
               <Icon aria-hidden className="size-6" strokeWidth={on ? 2.2 : 1.8} />
               {p.label}
-              {badge(p.label) !== null && <Count n={badge(p.label) as number} className="absolute top-0 left-[calc(50%+0.5rem)]" />}
+              {p.label === 'Me' && collect > 0 && <Count n={collect} className="absolute top-0 left-[calc(50%+0.5rem)]" />}
             </BoardLink>
           )
         })}

@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
-// The Collect tab (U3): five tabs with a count, the wallet's collect actions from the board, one tap per action
+// The Collect place (U3): five primary tabs, mobile Me -> Collect and desktop Collect counts, the wallet's collect actions from the board, one tap per action
 // (the tap opens the wallet), v1 payout calls with their gas limits, a mining claim read back from its calldata
 // (U-MINE, B8b), empty, unavailable and signed-out states. Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
@@ -94,12 +94,24 @@ try {
     await page.goto(base);
     const nav = viewport.width === 390 ? page.getByRole('navigation', { name: 'Sections' }).last() : page.getByRole('complementary', { name: 'Sections' });
     await nav.getByLabel('3 to collect').waitFor();
+    const collectNav = viewport.width === 390 ? null : nav.getByRole('link', { name: /Collect/ });
+    if (collectNav !== null) await collectNav.getByLabel('3 to collect').waitFor();
     if (viewport.width === 390) {
       const tabs = await nav.getByRole('link').evaluateAll((links) => links.map((l) => ({ text: l.textContent, width: l.getBoundingClientRect().width, height: l.getBoundingClientRect().height })));
       assert.equal(tabs.length, 5, JSON.stringify(tabs));
+      assert.deepEqual(tabs.map((t) => t.text?.replace(/3$/, '')), ['Home', 'Jobs', 'Workspace', 'Approvals', 'Me']);
       assert.ok(tabs.every((t) => t.width >= 44 && t.height >= 44), JSON.stringify(tabs));
     }
-    await nav.getByRole('link', { name: /Collect/ }).click();
+    if (viewport.width === 390) {
+      await nav.getByRole('link', { name: /^Me/ }).click();
+      const mobileCollect = page.getByRole('main').getByRole('link', { name: /^Collect/ });
+      await mobileCollect.getByLabel('3 to collect').waitFor();
+      const target = await mobileCollect.boundingBox();
+      assert.ok(target.width >= 44 && target.height >= 44, JSON.stringify(target));
+      await mobileCollect.click();
+    } else {
+      await collectNav.click();
+    }
     await page.waitForURL('**/collect');
     await page.getByText('Settle job #72', { exact: true }).waitFor();
     await page.getByText('Your top-up back from job #71', { exact: true }).waitFor();
@@ -134,7 +146,7 @@ try {
     await page.getByText('Nothing to collect', { exact: true }).waitFor();
     assert.equal(await nav.getByLabel(/to collect/).count(), 0);
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 3);
-    results.push({ device, checks: ['five tabs at least 44 px', 'count badge', 'list from collect_actions', 'one tap opens the wallet', 'settle 1M gas', 'top-up refund 450k gas', 'decline then retry', 'empty after collecting'], passed: true });
+    results.push({ device, checks: ['five primary tabs at least 44 px', device === 'mobile' ? 'Me -> Collect with count and 44 px target' : 'secondary Collect link with count', 'count badge updates after collection', 'list from collect_actions', 'one tap opens the wallet', 'settle 1M gas', 'top-up refund 450k gas', 'decline then retry', 'empty after collecting'], passed: true });
     await context.close();
   }
 

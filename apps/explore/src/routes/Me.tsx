@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, Clock, Send } from 'lucide-react'
 import { useMemo } from 'react'
+import { useCollectActions } from '../collect.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { WalletCard } from '../components/Fund.tsx'
 import { InstallHint } from '../components/InstallHint.tsx'
@@ -22,6 +23,7 @@ export function MePage() {
   const owner = useSafeOwner(auth.address)
   const telegram = useTelegramStatus(auth.address, auth.signedIn, false)
   const sponsor = useSponsorStatus(auth.address, auth.signedIn)
+  const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   if (auth.address === undefined) {
     return (
       <>
@@ -50,6 +52,14 @@ export function MePage() {
               Stake
               <span className="block text-[0.78rem] text-label-3">Your fee tier, bonds and unstaking</span>
             </span>
+            <ChevronRight aria-hidden className="size-4 text-label-3" />
+          </Link>
+          <Link to="/collect" className={rowClass({ interactive: true })}>
+            <span className="flex-1">
+              Collect
+              <span className="block text-[0.78rem] text-label-3">Payouts, refunds and mining ready for your wallet</span>
+            </span>
+            {collect > 0 && <span aria-label={`${collect} to collect`}><Badge>{collect}</Badge></span>}
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
           {hireling !== null && (
