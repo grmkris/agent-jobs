@@ -1,5 +1,5 @@
 import { type Address, encodeFunctionData, erc20Abi, parseAbi } from 'viem'
-import { delegationHash, advanceExecution, redeemCallsCalldata, type Delegation } from '../../../board/src/delegation.ts'
+import { delegationHash, advanceExecution, redeemCallsCalldata, type Delegation } from '../../src/delegation/index.ts'
 import { config } from '../privy/policy.ts'
 import { AuthorityChain } from './authority-chain.ts'
 import { fixtureGrant, fixtureAllowance, nestedRedemption, periodAbi } from './authority-grants.ts'

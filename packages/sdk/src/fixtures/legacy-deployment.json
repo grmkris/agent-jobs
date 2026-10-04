@@ -21,7 +21,8 @@
       "allowedTargets": "0x7F20f61b1f09b08D970938F6fa563634d65c4EeB",
       "allowedMethods": "0x2c21fD0Cb9DC8445CB3fb0DC5E7Bb0Aca01842B5",
       "limitedCalls": "0x04658B29F6b82ed55274221a06Fc97D318E25416",
-      "timestamp": "0x1046bb45C8d673d4ea75321280DB34899413c069"
+      "timestamp": "0x1046bb45C8d673d4ea75321280DB34899413c069",
+      "erc20PeriodTransfer": "0x474e3Ae7E169e940607cC624Da8A15Eb120139aB"
     }
   },
   "x402": {

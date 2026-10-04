@@ -8,7 +8,7 @@ import {
 import {
   type Caveat, type Delegation, ROOT_AUTHORITY, callsMade, delegationDigest, delegationHash, delegationJson,
   delegationTypedData, disableCalldata, isDisabled, parseDelegation, redeemCallsCalldata,
-} from './delegation.ts'
+} from '@agent-jobs/sdk'
 import type { Sql } from './store.ts'
 import { migrateGrantSchema } from './agent-schema.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'

@@ -1,10 +1,10 @@
 /** Bounded P0 fixture grants. Product grant builders belong to P2. */
 import { createRequire } from 'node:module'
 import { type Address, type Hex, concat, encodeAbiParameters, encodeFunctionData, encodePacked, pad, parseAbi, toFunctionSelector } from 'viem'
-import { ROOT_AUTHORITY, redeemCallsCalldata, type Caveat, type Delegation, type Execution } from '../../../board/src/delegation.ts'
+import { ROOT_AUTHORITY, redeemCallsCalldata, type Caveat, type Delegation, type Execution } from '../../src/delegation/index.ts'
 import { config } from '../privy/policy.ts'
 
-const require = createRequire(new URL('../../../board/package.json', import.meta.url))
+const require = createRequire(new URL('../../package.json', import.meta.url))
 const metamask = require('@metamask/delegation-core') as {
   createERC20TokenPeriodTransferTerms(input: { tokenAddress: Address; periodAmount: bigint; periodDuration: number; startDate: number }): Hex
 }

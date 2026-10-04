@@ -43,7 +43,7 @@ export const deployed = loaded !== null
 export const deployment: sdk.Deployment = loaded ?? undeployed()
 function undeployed(): sdk.Deployment {
   const none = zeroAddress
-  const enforcers = { erc20TransferAmount: none, allowedCalldata: none, valueLte: none, allowedTargets: none, allowedMethods: none, limitedCalls: none, timestamp: none }
+  const enforcers = { erc20PeriodTransfer: none, erc20TransferAmount: none, allowedCalldata: none, valueLte: none, allowedTargets: none, allowedMethods: none, limitedCalls: none, timestamp: none }
   return {
     network, chainId: chain.id, core: none, factory: none, hireling: null, rewardTokens: [], stacks: {}, legacyStacks: {}, identity: none,
     reputation: none, delegation: { manager: none, delegator: none, enforcers }, admin: none, poolFactory: null, arbitrator: none, attester: none,

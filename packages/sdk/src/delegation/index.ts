@@ -7,7 +7,8 @@
  * builds them, and `delegation.test.ts` cross-checks them against MetaMask's own `@metamask/delegation-core`. The board
  * never signs: it prepares what the creator signs and what the worker sends.
  */
-import type * as sdk from '@agent-jobs/sdk'
+import type { Deployment } from '../deployment.ts'
+import type { Ctx } from '../actions.ts'
 import {
   type Address,
   type Hex,
@@ -19,10 +20,10 @@ import {
   hashTypedData,
   pad,
   parseAbi,
+  parseAbiItem,
   toFunctionSelector,
 } from 'viem'
-import { type ExecutionBudget, callFunction } from './terms.ts'
-import { typedDataJson } from './typed-data.ts'
+import { typedDataJson } from '../typed-data.ts'
 
 /** The authority of a delegation granted directly by the account that holds the funds (no parent delegation). */
 export const ROOT_AUTHORITY: Hex = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
@@ -34,6 +35,30 @@ export interface Caveat {
   readonly enforcer: Address
   readonly terms: Hex
   readonly args: Hex
+}
+
+
+type ExecutionBudget = AdvanceBudget | CallBudget
+
+interface AdvanceBudget {
+  readonly kind: 'advance'
+  readonly token: Address
+  readonly cap: bigint
+  readonly expiresAt: number
+}
+
+interface CallBudget {
+  readonly kind: 'call'
+  readonly target: Address
+  readonly function: string
+  readonly cap: bigint
+  readonly expiresAt: number
+}
+
+function callFunction(budget: CallBudget) {
+  const item = parseAbiItem(budget.function)
+  if (item.type !== 'function') throw new Error('not a function')
+  return item
 }
 
 export interface Delegation {
@@ -116,7 +141,7 @@ const caveat = (enforcer: Address, terms: Hex): Caveat => ({ enforcer, terms: te
  * `salt` is the offer's terms hash: one delegation per hire, so a re-prepared grant is the same delegation and a
  * revoked one stays revoked.
  */
-export function budgetDelegation(d: sdk.Deployment, budget: ExecutionBudget, creator: Address, worker: Address, salt: Hex, until: number): Delegation {
+export function budgetDelegation(d: Deployment, budget: ExecutionBudget, creator: Address, worker: Address, salt: Hex, until: number): Delegation {
   const e = d.delegation.enforcers
   const window = caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(until)]))
   const caveats =
@@ -147,7 +172,7 @@ function signable(x: Delegation) {
   }
 }
 
-export function delegationDomain(d: sdk.Deployment) {
+export function delegationDomain(d: Deployment) {
   return { name: 'DelegationManager', version: '1', chainId: d.chainId, verifyingContract: d.delegation.manager } as const
 }
 
@@ -157,12 +182,12 @@ export function delegationHash(x: Delegation): Hex {
 }
 
 /** The digest the creator signs; the DeleGator on the creator's account checks its own key against it (ERC-1271). */
-export function delegationDigest(d: sdk.Deployment, x: Delegation): Hex {
+export function delegationDigest(d: Deployment, x: Delegation): Hex {
   return hashTypedData({ domain: delegationDomain(d), types: DELEGATION_TYPES, primaryType: 'Delegation', message: signable(x) })
 }
 
 /** The `eth_signTypedData_v4` JSON of the delegation, for the creator's wallet. */
-export function delegationTypedData(d: sdk.Deployment, x: Delegation): string {
+export function delegationTypedData(d: Deployment, x: Delegation): string {
   return typedDataJson(delegationDomain(d), DELEGATION_TYPES, 'Delegation', signable(x))
 }
 
@@ -200,18 +225,18 @@ export function disableCalldata(x: Delegation): Hex {
 }
 
 /** An advance's running total, as the ERC-20 amount enforcer counts it. */
-export function drawn(ctx: sdk.Ctx, hash: Hex): Promise<bigint> {
+export function drawn(ctx: Ctx, hash: Hex): Promise<bigint> {
   const d = ctx.deployment.delegation
   return ctx.publicClient.readContract({ address: d.enforcers.erc20TransferAmount, abi: countersAbi, functionName: 'spentMap', args: [d.manager, hash] })
 }
 
 /** How many times a call budget was redeemed. */
-export function callsMade(ctx: sdk.Ctx, hash: Hex): Promise<bigint> {
+export function callsMade(ctx: Ctx, hash: Hex): Promise<bigint> {
   const d = ctx.deployment.delegation
   return ctx.publicClient.readContract({ address: d.enforcers.limitedCalls, abi: countersAbi, functionName: 'callCounts', args: [d.manager, hash] })
 }
 
-export function isDisabled(ctx: sdk.Ctx, hash: Hex): Promise<boolean> {
+export function isDisabled(ctx: Ctx, hash: Hex): Promise<boolean> {
   const d = ctx.deployment.delegation
   return ctx.publicClient.readContract({ address: d.manager, abi: delegationManagerAbi, functionName: 'disabledDelegations', args: [hash] })
 }

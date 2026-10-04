@@ -1,7 +1,7 @@
 /** Shared sponsorship reconciliation for every sender in the relay nonce queue. */
 import * as sdk from '@agent-jobs/sdk'
 import { type Hex, type LocalAccount, type TransactionReceipt, TransactionReceiptNotFoundError, getAddress, keccak256, parseTransaction } from 'viem'
-import { callsMade, isDisabled } from './delegation.ts'
+import { callsMade, isDisabled } from '@agent-jobs/sdk'
 import type { Sql } from './store.ts'
 import { sponsorRelayFloor } from './sponsor-policy.ts'
 

@@ -238,12 +238,6 @@ importers:
         specifier: 2.56.9
         version: 2.56.9(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@4.6.5)
     devDependencies:
-      '@metamask/delegation-core':
-        specifier: 3.0.0
-        version: 3.0.0
-      '@metamask/delegation-deployments':
-        specifier: 2.1.0
-        version: 2.1.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.6
@@ -316,6 +310,12 @@ importers:
         specifier: 2.56.9
         version: 2.56.9(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@4.6.5)
     devDependencies:
+      '@metamask/delegation-core':
+        specifier: 3.0.0
+        version: 3.0.0
+      '@metamask/delegation-deployments':
+        specifier: 2.1.0
+        version: 2.1.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.6

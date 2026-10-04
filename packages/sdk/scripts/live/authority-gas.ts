@@ -1,12 +1,12 @@
 /** Measure the real relay hire batch, verify escrow, then cancel the fixture job. */
 import { type Hex, decodeEventLog, encodeFunctionData, erc20Abi, keccak256, stringToHex } from 'viem'
-import { advanceExecution, delegationHash, redeemCallsCalldata } from '../../../board/src/delegation.ts'
+import { advanceExecution, delegationHash, redeemCallsCalldata } from '../../src/delegation/index.ts'
 import { hirelingHoldingAbi } from '../../src/abi/hirelingHolding.ts'
 import { config } from '../privy/policy.ts'
 import { AuthorityChain } from './authority-chain.ts'
 import { available, balance, token, workGrant } from './authority-allowance.ts'
 import { fixtureAllowance, fixtureGrant, pinnedApproval, redemptionBatch } from './authority-grants.ts'
-import { disableCalldata } from '../../../board/src/delegation.ts'
+import { disableCalldata } from '../../src/delegation/index.ts'
 
 export async function proveGas(chain: AuthorityChain, details: unknown[]): Promise<void> {
   const holding = chain.ctx.stack.holding

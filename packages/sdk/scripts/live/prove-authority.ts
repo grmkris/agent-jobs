@@ -290,9 +290,9 @@ async function prove(): Promise<void> {
   })
 
   const manager = chain.ctx.deployment.delegation.manager
-  const { delegationHash, delegationManagerAbi } = await import('../../../board/src/delegation.ts')
+  const { delegationHash, delegationManagerAbi } = await import('../../src/delegation/index.ts')
   for (const key of ['allowance/short-period', 'gas/weekly-allowance']) {
-    const grant = chain.journal.state.values[key] as import('../../../board/src/delegation.ts').Delegation
+    const grant = chain.journal.state.values[key] as import('../../src/delegation/index.ts').Delegation
     check(await chain.ctx.publicClient.readContract({ address: manager, abi: delegationManagerAbi,
       functionName: 'disabledDelegations', args: [delegationHash(grant)] }), 'Fixture allowance was not disabled')
   }

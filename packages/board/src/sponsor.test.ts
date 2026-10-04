@@ -7,7 +7,7 @@ import { Board, BoardError } from './service.ts'
 import { SPONSOR_LIMITS, SponsorDesk } from './sponsor.ts'
 import { sponsorRelayFloor } from './sponsor-policy.ts'
 import { fromNodeSqlite } from './store.ts'
-import { delegationManagerAbi } from './delegation.ts'
+import { delegationManagerAbi } from '@agent-jobs/sdk'
 import { RelaySender } from './relay.ts'
 import { admissionFailure, hostedToolNames, parseHostedAdmission, readOnlyHostedTools } from './admission.ts'
 

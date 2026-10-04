@@ -14,8 +14,8 @@ import { DELEGATOR_CONTRACTS } from '@metamask/delegation-deployments'
 import { type Address, type Hex, concat, decodeFunctionData, domainSeparator, encodePacked, keccak256, pad, recoverTypedDataAddress, toFunctionSelector } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
-import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
-import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
+import mainnet from '../../../../contracts/config/monad-mainnet.json' with { type: 'json' }
+import testnet from '../../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import {
   DELEGATION_TYPES,
   ROOT_AUTHORITY,
@@ -28,8 +28,9 @@ import {
   delegationTypedData,
   disableCalldata,
   redeemCalldata,
-} from './delegation.ts'
-import type { AdvanceBudget, CallBudget } from './terms.ts'
+} from '@agent-jobs/sdk'
+type AdvanceBudget = Parameters<typeof budgetDelegation>[1] & { kind: 'advance' }
+type CallBudget = Parameters<typeof budgetDelegation>[1] & { kind: 'call' }
 
 const d = sdk.deployment('monad-testnet')
 const creator = privateKeyToAccount(`0x${'11'.repeat(32)}`)

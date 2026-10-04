@@ -77,6 +77,7 @@ export interface HirelingDeployment {
 
 /** The caveat enforcers an execution budget is built from (MetaMask's `…Enforcer` contracts, ADR-0009). */
 export interface DelegationEnforcers {
+  readonly erc20PeriodTransfer: Address
   readonly erc20TransferAmount: Address
   readonly allowedCalldata: Address
   readonly valueLte: Address
@@ -86,7 +87,7 @@ export interface DelegationEnforcers {
   readonly timestamp: Address
 }
 
-export interface Delegation {
+export interface DelegationDeployment {
   readonly manager: Address
   readonly delegator: Address
   readonly enforcers: DelegationEnforcers
@@ -118,7 +119,7 @@ export interface Deployment {
    * batches through ERC-7579 `execute` and validates the account's own key through ERC-1271), and the caveat
    * enforcers a budget delegation is built from (ADR-0009).
    */
-  readonly delegation: Delegation
+  readonly delegation: DelegationDeployment
   /** The core's admin (deployer EOA): pauses, upgrades and verifier registration. */
   readonly admin: Address
   /** `JobPoolFactory` (ADR-0007): pooled funding of one offer. Null where none is deployed. */

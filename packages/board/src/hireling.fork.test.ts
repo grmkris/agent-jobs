@@ -7,7 +7,7 @@ import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { admissionFailure, parseHostedAdmission } from './admission.ts'
-import { ROOT_AUTHORITY, delegationTypedData, redeemCalldata } from './delegation.ts'
+import { ROOT_AUTHORITY, delegationTypedData, redeemCalldata } from '@agent-jobs/sdk'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('Hireling board on a local Monad fork', () => {

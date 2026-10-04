@@ -31,7 +31,7 @@ describe('Telegram link', () => {
 })
 
 describe('sponsorship delegation', () => {
-  const enforcers = { erc20TransferAmount: a(0xc1), allowedCalldata: a(0xc2), valueLte: a(0xc3), allowedTargets: a(0xc4), allowedMethods: a(0xc5), limitedCalls: a(0xc6), timestamp: a(0xc7) }
+  const enforcers = { erc20PeriodTransfer: a(0xc8), erc20TransferAmount: a(0xc1), allowedCalldata: a(0xc2), valueLte: a(0xc3), allowedTargets: a(0xc4), allowedMethods: a(0xc5), limitedCalls: a(0xc6), timestamp: a(0xc7) }
   const holding = a(0xd1)
   const vault = a(0xd2)
   const rules: SponsorRules = {

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { DELEGATION_TYPES } from '../../../board/src/delegation.ts'
+import { DELEGATION_TYPES } from '../../src/delegation/index.ts'
 import { selectionTypes, setBudgetTypes, submitTypes } from '../../src/typed-data.ts'
 
 export const config = JSON.parse(readFileSync(new URL('../../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'))

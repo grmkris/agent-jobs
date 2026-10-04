@@ -7,7 +7,7 @@ import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { SPONSOR_LIMITS } from './sponsor.ts'
-import { type Delegation, parseDelegation, redeemCallsCalldata } from './delegation.ts'
+import { type Delegation, parseDelegation, redeemCallsCalldata } from '@agent-jobs/sdk'
 
 const caller = (wallet: sdk.Wallet) => ({ address: wallet.account.address })
 
@@ -145,7 +145,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
 
   it('revocation stops board sends and disables the root on-chain; expired delegations refuse', async () => {
     const revoked = await board.sponsorRevoke(caller(f.worker), { wallet: f.worker.account.address })
-    expect(decodeFunctionData({ abi: (await import('./delegation.ts')).delegationManagerAbi, data: revoked.transactions[0]!.data }).functionName).toBe('disableDelegation')
+    expect(decodeFunctionData({ abi: (await import('@agent-jobs/sdk')).delegationManagerAbi, data: revoked.transactions[0]!.data }).functionName).toBe('disableDelegation')
     expect((await board.sponsorStatus(caller(f.worker), { wallet: f.worker.account.address })).status).toBe('revoked')
     await sdk.sendAll(f.worker, f.ctx.publicClient, revoked.transactions)
     expect((await board.sponsorStatus(caller(f.worker), { wallet: f.worker.account.address })).status).toBe('revoked')

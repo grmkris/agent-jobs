@@ -27,7 +27,7 @@ import {
   isDisabled,
   parseDelegation,
   redeemCalldata,
-} from './delegation.ts'
+} from '@agent-jobs/sdk'
 import type { BudgetDelegationRow, BudgetDrawRow, Sql, TaskRow } from './store.ts'
 import { type AdvanceBudget, type CallBudget, type ExecutionBudget, type OfferTerms, callFunction } from './terms.ts'
 

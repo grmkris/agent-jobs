@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { type Abi, type Address, decodeEventLog, encodeFunctionData } from 'viem'
-import { redeemCallsCalldata } from '../../../board/src/delegation.ts'
+import { redeemCallsCalldata } from '../../src/delegation/index.ts'
 import { fixtureGrant } from './authority-grants.ts'
 import { AuthorityChain } from './authority-chain.ts'
 
