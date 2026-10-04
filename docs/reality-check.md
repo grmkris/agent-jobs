@@ -1110,3 +1110,26 @@ The tested deployment is ready for Kris's real Privy login, wallet consent and w
 flows are not claimed by source signoff or fixture tests. Automatic signing remains disabled; no wallet transaction or
 mainnet operation was performed by these releases. Legacy hosted OAuth tokens require fresh authorization because the
 new versioned token/family tables deliberately leave old grants untouched.
+
+## Spec v2 P0 authority proofs (4 Oct 2026)
+
+The [sanitized P0 evidence](evidence/agent-first-v2/README.md) establishes P0.1 and P0.3–P0.6 on live Privy and
+Monad testnet 10143, with P0.2 accepted as pass-with-note for bounded export classification. A server-created wallet
+owned by an API-created fixture user accepted Worker WebCrypto P-256 routine authorization. Provider policy denials
+covered chain, verifying contract, primary type, schema, delegate, newWallet, 7702 target and transaction signing/sending.
+Routine-key policy/signer mutations were refused. Export was refused at validation/authorization; its probes did not
+establish policy evaluation. The policy itself contains an explicit export DENY and no export ALLOW.
+
+Fresh operator fixture `0x37D8Cf41ec626FA5E3bF096ef9923CbB9F36823e` owns ERC-8004 agent **2001**, whose agentWallet
+is Privy fixture wallet `0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419`. Relayed registration minted to the operator's
+7702 DeleGator, and `setAgentWallet` accepted the upgraded agent's signature. Nested allowance redemption proved
+live start/cap/recipient/token/rollover behavior using a 90-second fixture period; a separate real Monad fork proved
+the specified seven-day period and 30-day expiry. An atomic allowance pull + approval + publish created job **107**
+as the agent in transaction `0x809165b1c08c0e5ab0d4811557d36bf0b216caea3e50e31a1695e73cae83a27e`, charged
+1,771,615 gas. The job was cancelled and its 1 mUSD refunded; both fixture spending allowances are disabled.
+All eleven successful testnet receipts total 0.632758122 MON in relay gas. Exact hashes, gas, timestamps, source
+hashes, enforcement boundaries and validation are in [p0-authority.json](evidence/agent-first-v2/p0-authority.json).
+
+P0.7 genuine browser-owner recovery signing is deferred to Kris/P8, as the approved plan permits. These are fixture
+integration proofs; they do not establish genuine-user onboarding, hosted v2 MCP execution, deployment or mainnet
+acceptance. P1 has not started. No deployment or mainnet transaction was performed.

@@ -13,6 +13,8 @@ contracts/broadcast/
 packages/sdk/scripts/.state.json
 packages/sdk/scripts/.v1-flows/
 .demo-workers/
+packages/sdk/scripts/privy/.local/
+packages/sdk/scripts/live/.local/
 
 # CRE compiler output and local transaction journals
 workflows/ci-evidence/.local/

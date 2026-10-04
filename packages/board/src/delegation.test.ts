@@ -46,6 +46,7 @@ const lower = (cs: Array<{ enforcer: Address; terms: Hex; args: Hex }>) => cs.ma
 describe('the framework on Monad is the one in the config (MetaMask Delegation Framework v1.3.0)', () => {
   const name: Record<string, string> = {
     erc20TransferAmount: 'ERC20TransferAmountEnforcer',
+    erc20PeriodTransfer: 'ERC20PeriodTransferEnforcer',
     allowedCalldata: 'AllowedCalldataEnforcer',
     valueLte: 'ValueLteEnforcer',
     allowedTargets: 'AllowedTargetsEnforcer',

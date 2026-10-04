@@ -16,6 +16,7 @@
     "delegator": "0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B",
     "enforcers": {
       "erc20TransferAmount": "0xf100b0819427117EcF76Ed94B358B1A5b5C6D2Fc",
+      "erc20PeriodTransfer": "0x474e3Ae7E169e940607cC624Da8A15Eb120139aB",
       "allowedCalldata": "0xc2b0d624c1c4319760C96503BA27C347F3260f55",
       "valueLte": "0x92Bf12322527cAA612fd31a0e810472BBB106A8F",
       "allowedTargets": "0x7F20f61b1f09b08D970938F6fa563634d65c4EeB",

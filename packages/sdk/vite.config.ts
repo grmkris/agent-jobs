@@ -9,6 +9,8 @@ export default defineConfig({
         // cache hit on 2026-09-26), so the inputs are declared by hand.
         input: [
           { pattern: 'src/**', base: 'package' },
+          { pattern: 'scripts/live/**', base: 'package' },
+          { pattern: 'scripts/privy/**', base: 'package' },
           { pattern: 'scripts/v1-flows.ts', base: 'package' },
           { pattern: 'scripts/demo-workers.ts', base: 'package' },
           { pattern: 'scripts/companion.ts', base: 'package' },

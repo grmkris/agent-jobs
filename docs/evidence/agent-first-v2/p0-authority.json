@@ -1,0 +1,536 @@
+{
+  "recordedAt": "2026-10-04T20:33:42.824Z",
+  "updatedAt": "2026-10-04T21:18:48.793Z",
+  "sourceStatus": "P0 fixture scripts recorded before commit; exact source files identified by sourceHashes and the containing git commit",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "identity": "fixture (API-created; no genuine user session)",
+  "fixture": {
+    "runId": "43a14260-5293-4bff-abe4-5014ad4cd585",
+    "userId": "did:privy:cmuua3gj000tf0dl3l7odvmjl",
+    "walletId": "m7bgqq1bh1un8im1awzn5jan",
+    "address": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419"
+  },
+  "signerId": "qetyy57hy4cc69q8xjonwlc3",
+  "policyId": "s06i5eramn0plwdunkvxf8aj",
+  "appEnforced": [
+    "EIP-712 domain name and version",
+    "Selection spending limit and linkage to the frozen job",
+    "SetBudgetAuthorization freshly quoted net and activated job",
+    "Delegation B1/B2/B3 caveat templates, including pinned arguments",
+    "7702 chain_id = 10143 (Privy documents only the contract condition)"
+  ],
+  "transactions": [
+    {
+      "label": "operator/upgrade",
+      "hash": "0x1a692c47cda044d4b63be221b93703f8e29279ade13408561c8786b1b588d746",
+      "gasLimit": "68037",
+      "gasUsed": "68037",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "6939774000000000",
+      "blockNumber": "68217665",
+      "timestamp": "1791147816",
+      "relayNonce": 79
+    },
+    {
+      "label": "agent/upgrade",
+      "hash": "0x9af1b420a744301cef029cc514c29d8a24d0bdd6e27b132735f7cb22246f8957",
+      "gasLimit": "68037",
+      "gasUsed": "68037",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "6939774000000000",
+      "blockNumber": "68217674",
+      "timestamp": "1791147818",
+      "relayNonce": 80
+    },
+    {
+      "label": "registration/register",
+      "hash": "0xeacca82fb5611c207e36ff078e29189e76c6e487074adb5ac72b3dde33d6ec96",
+      "gasLimit": "645709",
+      "gasUsed": "645709",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "65862318000000000",
+      "blockNumber": "68217683",
+      "timestamp": "1791147821",
+      "relayNonce": 81
+    },
+    {
+      "label": "registration/setAgentWallet",
+      "hash": "0x93b8587b67f40837a6c9358db02e3efb366cdd52bc7df45768c7d504b1d2498e",
+      "gasLimit": "424527",
+      "gasUsed": "424527",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "43301754000000000",
+      "blockNumber": "68217691",
+      "timestamp": "1791147824",
+      "relayNonce": 82
+    },
+    {
+      "label": "allowance/mint-fixture-token",
+      "hash": "0xdbc428f0ec5513a03bf4716d19a03905d6b867b3246e92eaaad39ed74c1d114d",
+      "gasLimit": "89717",
+      "gasUsed": "89717",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "9151134000000000",
+      "blockNumber": "68217699",
+      "timestamp": "1791147826",
+      "relayNonce": 83
+    },
+    {
+      "label": "allowance/period-one",
+      "hash": "0xecd702d4a4403462d83a3fb908589bbf80d025c43f743fc71b0844c91ab2a77b",
+      "gasLimit": "754669",
+      "gasUsed": "754669",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "76976238000000000",
+      "blockNumber": "68217810",
+      "timestamp": "1791147860",
+      "relayNonce": 84
+    },
+    {
+      "label": "allowance/period-two",
+      "hash": "0xc85016061b53ddff9e529ccc6ef5152ac710408de023f8d5a7bad0807681c2db",
+      "gasLimit": "604197",
+      "gasUsed": "604197",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "61628094000000000",
+      "blockNumber": "68218648",
+      "timestamp": "1791148113",
+      "relayNonce": 85
+    },
+    {
+      "label": "allowance/disable-short-period",
+      "hash": "0x573c2939a1a7bff5578a3bb9df7abbe06bc7b906eb4b5d3bfb4ac2e21fd6888c",
+      "gasLimit": "441265",
+      "gasUsed": "441265",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "45009030000000000",
+      "blockNumber": "68218656",
+      "timestamp": "1791148115",
+      "relayNonce": 86
+    },
+    {
+      "label": "gas/atomic-hire",
+      "hash": "0x809165b1c08c0e5ab0d4811557d36bf0b216caea3e50e31a1695e73cae83a27e",
+      "gasLimit": "1771615",
+      "gasUsed": "1771615",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "180704730000000000",
+      "blockNumber": "68219010",
+      "timestamp": "1791148222",
+      "relayNonce": 87
+    },
+    {
+      "label": "gas/cancel-fixture",
+      "hash": "0x71052178d67fb96ff6c23c51d89931aae9dac5710fdb4783c93282d7209e53d8",
+      "gasLimit": "894443",
+      "gasUsed": "894443",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "91233186000000000",
+      "blockNumber": "68219020",
+      "timestamp": "1791148225",
+      "relayNonce": 88
+    },
+    {
+      "label": "gas/disable-weekly-allowance",
+      "hash": "0x2a09a4c19866f761879fbe6cb4cf9caba95118598a4a05dc8a05fecd7168180e",
+      "gasLimit": "441295",
+      "gasUsed": "441295",
+      "effectiveGasPrice": "102000000000",
+      "costWei": "45012090000000000",
+      "blockNumber": "68219030",
+      "timestamp": "1791148228",
+      "relayNonce": 89
+    }
+  ],
+  "results": [
+    {
+      "proof": 1,
+      "name": "User-owned server wallet, routine signer, Worker WebCrypto RPC authorization",
+      "status": "pass",
+      "details": [
+        {
+          "userId": "did:privy:cmuua3gj000tf0dl3l7odvmjl",
+          "walletId": "m7bgqq1bh1un8im1awzn5jan",
+          "address": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+          "userOwnerVerified": true,
+          "signerPolicyVerified": true,
+          "webCryptoRpcAccepted": true,
+          "recoveredAgentAddress": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419"
+        }
+      ]
+    },
+    {
+      "proof": 2,
+      "name": "Policy denials and provider/application enforcement boundaries",
+      "status": "pass-with-note",
+      "details": [
+        {
+          "label": "wrong chain",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "wrong verifying contract",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "wrong primary type",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "wrong exact schema",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "wrong delegate",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "wrong newWallet",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "transaction sending",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "transaction signing",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "label": "key export",
+          "httpStatus": 400,
+          "code": "invalid_data"
+        },
+        "key export: no proven policy denial (HTTP 400, invalid_data)",
+        {
+          "exportProbe": "raw point, no authorization",
+          "httpStatus": 400,
+          "code": "invalid_data"
+        },
+        {
+          "exportProbe": "raw point, routine authorization",
+          "httpStatus": 400,
+          "code": "invalid_data"
+        },
+        {
+          "exportProbe": "SPKI, routine authorization",
+          "httpStatus": 401,
+          "code": "unspecified"
+        },
+        {
+          "label": "wrong 7702 target",
+          "httpStatus": 400,
+          "code": "policy_violation"
+        },
+        {
+          "note": "Bounded export classification only; no positive owner control is available for this fixture.",
+          "exportRules": [
+            {
+              "id": "v9c0q2fs6y2jcf030typlmot",
+              "name": "Deny export",
+              "method": "exportPrivateKey",
+              "conditions": [],
+              "action": "DENY"
+            }
+          ],
+          "noExportAllowRule": true,
+          "unmatchedMethodsDefaultDeny": true,
+          "appEnforced": [
+            "EIP-712 domain name and version",
+            "Selection spending limit and linkage to the frozen job",
+            "SetBudgetAuthorization freshly quoted net and activated job",
+            "Delegation B1/B2/B3 caveat templates, including pinned arguments",
+            "7702 chain_id = 10143 (Privy documents only the contract condition)"
+          ],
+          "providerEnforced": [
+            "typed-data chainId",
+            "verifyingContract",
+            "primaryType",
+            "exact types schema",
+            "Delegation.delegate",
+            "AgentWalletSet.newWallet = signing wallet",
+            "7702 target",
+            "no transaction signing/sending"
+          ]
+        }
+      ]
+    },
+    {
+      "proof": 3,
+      "name": "Routine key cannot mutate policy or wallet signers",
+      "status": "pass",
+      "details": [
+        {
+          "label": "policy update with routine key",
+          "httpStatus": 401,
+          "code": "invalid_data"
+        },
+        {
+          "label": "signer removal with routine key",
+          "httpStatus": 401,
+          "code": "invalid_data"
+        }
+      ]
+    },
+    {
+      "proof": 4,
+      "name": "Relay registration to a DeleGator and upgraded agent-wallet consent",
+      "status": "pass",
+      "details": [
+        {
+          "fixture": true,
+          "agentId": "2001",
+          "owner": "0x37D8Cf41ec626FA5E3bF096ef9923CbB9F36823e",
+          "agentWallet": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+          "operatorDeleGatorVerified": true,
+          "upgradedAgentConsentAccepted": true,
+          "registrationGrantCalls": 2,
+          "registrationGrantLifetime": 600,
+          "transactions": [
+            {
+              "label": "operator/upgrade",
+              "hash": "0x1a692c47cda044d4b63be221b93703f8e29279ade13408561c8786b1b588d746",
+              "gasLimit": "68037",
+              "gasUsed": "68037",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "6939774000000000",
+              "blockNumber": "68217665",
+              "timestamp": "1791147816",
+              "relayNonce": 79
+            },
+            {
+              "label": "agent/upgrade",
+              "hash": "0x9af1b420a744301cef029cc514c29d8a24d0bdd6e27b132735f7cb22246f8957",
+              "gasLimit": "68037",
+              "gasUsed": "68037",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "6939774000000000",
+              "blockNumber": "68217674",
+              "timestamp": "1791147818",
+              "relayNonce": 80
+            },
+            {
+              "label": "registration/register",
+              "hash": "0xeacca82fb5611c207e36ff078e29189e76c6e487074adb5ac72b3dde33d6ec96",
+              "gasLimit": "645709",
+              "gasUsed": "645709",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "65862318000000000",
+              "blockNumber": "68217683",
+              "timestamp": "1791147821",
+              "relayNonce": 81
+            },
+            {
+              "label": "registration/setAgentWallet",
+              "hash": "0x93b8587b67f40837a6c9358db02e3efb366cdd52bc7df45768c7d504b1d2498e",
+              "gasLimit": "424527",
+              "gasUsed": "424527",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "43301754000000000",
+              "blockNumber": "68217691",
+              "timestamp": "1791147824",
+              "relayNonce": 82
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "proof": 5,
+      "name": "Nested period allowance redemption, encoding, start and rollover",
+      "status": "pass",
+      "details": [
+        {
+          "fixture": true,
+          "durationSeconds": 90,
+          "weeklyBoundary": "Seven-day rollover is a separate local Monad fork proof",
+          "encoding": "116 packed bytes; byte-for-byte equality with @metamask/delegation-core 3.0.0; onchain getTermsInfo matched",
+          "start": 1791147857,
+          "startProof": {
+            "available": "0",
+            "period": "0",
+            "contractRefusal": "transfer-not-started"
+          },
+          "exhausted": {
+            "available": "0",
+            "period": "1",
+            "overCapRefused": true,
+            "wrongRecipientRefused": true,
+            "wrongTokenRefused": true
+          },
+          "rollover": {
+            "available": "25000000",
+            "isNewPeriod": true,
+            "period": "2"
+          },
+          "nestedTransactions": [
+            "0xecd702d4a4403462d83a3fb908589bbf80d025c43f743fc71b0844c91ab2a77b",
+            "0xc85016061b53ddff9e529ccc6ef5152ac710408de023f8d5a7bad0807681c2db"
+          ],
+          "operatorTokenDelta": "-50000000",
+          "agentTokenDelta": "50000000",
+          "acceleratedAllowanceDisabled": true
+        }
+      ]
+    },
+    {
+      "proof": 6,
+      "name": "Measured gas for publish, nested redemption, registration and wallet consent",
+      "status": "pass",
+      "details": [
+        {
+          "fixture": true,
+          "jobId": "107",
+          "publishCallGas": "465815",
+          "atomicHire": "0x809165b1c08c0e5ab0d4811557d36bf0b216caea3e50e31a1695e73cae83a27e",
+          "pullAmount": "1000000",
+          "weeklyAllowance": {
+            "durationSeconds": 604800,
+            "lifetimeSeconds": 2592000,
+            "hash": "0x2093296c1a1a3d602f178f09d7180920d37cb9ea60c681cda7ba117443a76bf9",
+            "disabledAfterProof": true
+          },
+          "jobCleanup": "cancelled and reward refunded to fixture agent; no active job or reserved bond remains",
+          "gasMeasurements": [
+            {
+              "label": "registration/register",
+              "hash": "0xeacca82fb5611c207e36ff078e29189e76c6e487074adb5ac72b3dde33d6ec96",
+              "gasLimit": "645709",
+              "gasUsed": "645709",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "65862318000000000",
+              "blockNumber": "68217683",
+              "timestamp": "1791147821",
+              "relayNonce": 81
+            },
+            {
+              "label": "registration/setAgentWallet",
+              "hash": "0x93b8587b67f40837a6c9358db02e3efb366cdd52bc7df45768c7d504b1d2498e",
+              "gasLimit": "424527",
+              "gasUsed": "424527",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "43301754000000000",
+              "blockNumber": "68217691",
+              "timestamp": "1791147824",
+              "relayNonce": 82
+            },
+            {
+              "label": "allowance/period-one",
+              "hash": "0xecd702d4a4403462d83a3fb908589bbf80d025c43f743fc71b0844c91ab2a77b",
+              "gasLimit": "754669",
+              "gasUsed": "754669",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "76976238000000000",
+              "blockNumber": "68217810",
+              "timestamp": "1791147860",
+              "relayNonce": 84
+            },
+            {
+              "label": "gas/atomic-hire",
+              "hash": "0x809165b1c08c0e5ab0d4811557d36bf0b216caea3e50e31a1695e73cae83a27e",
+              "gasLimit": "1771615",
+              "gasUsed": "1771615",
+              "effectiveGasPrice": "102000000000",
+              "costWei": "180704730000000000",
+              "blockNumber": "68219010",
+              "timestamp": "1791148222",
+              "relayNonce": 87
+            }
+          ],
+          "recommendedGasFloors": {
+            "registration/register": "850000",
+            "registration/setAgentWallet": "550000",
+            "allowance/period-one": "950000",
+            "gas/atomic-hire": "2250000"
+          },
+          "floorApplication": "P2/P3 builders consume these measurements; existing V1_GAS payout floors are unchanged"
+        }
+      ]
+    },
+    {
+      "proof": 7,
+      "name": "Client-side recovery signing for the server-created wallet",
+      "status": "deferred",
+      "details": [
+        {
+          "status": "deferred",
+          "reason": "Fixture is API-created and has no genuine Privy browser session; P0.1 proved the server wallet WebCrypto signer only.",
+          "requiredAt": "P8 genuine-user acceptance",
+          "serverFixtureSignature": false
+        }
+      ]
+    }
+  ],
+  "operator": "0x37D8Cf41ec626FA5E3bF096ef9923CbB9F36823e",
+  "agent": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+  "relay": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
+  "runCapWei": "1000000000000000000",
+  "reserveWei": "2000000000000000000",
+  "configuredDailyBudgetWei": "10000000000000000000",
+  "totalCostWei": "632758122000000000",
+  "sourceBaseCommit": "ff3fce60984b5281e10447170911b6fb4e97002b",
+  "sourceHashes": {
+    ".gitignore": "acb9fc2f97766919f880e0ea7793d94dba881a10ca08a0d02e0b53729f8ed924",
+    "contracts/config/monad-testnet.json": "d80906f34a2418ca1b0105a489d07486d9d216d7fbc43674c04098e89203087a",
+    "contracts/config/monad-mainnet.json": "f204ea5fad50e42cad4df639c2a6b4b09f869edc0283fce172ae0964e42f0e11",
+    "packages/sdk/tsconfig.json": "83be89fa4b883e84e4dbc1183dfdecd2289f309bdb6b71f9a593293b3ca7dc7b",
+    "packages/sdk/vite.config.ts": "4017e6059ee993bf13f4865fc7215be2fec0f6ebb38e49acabc4bbafb6429602",
+    "packages/board/src/delegation.test.ts": "4175f629aabcd3fd8eeb388d9135cd6bbd2e33994cbcd78ac9e09669667d6310",
+    "packages/sdk/scripts/live/authority-allowance.ts": "51f116d25a82f4c23f1fb63b6339863c43f81597f62275e83a74435a8fd19f68",
+    "packages/sdk/scripts/live/authority-chain.ts": "311d3e7a6ffad58ab9351fc25f019f56a3803229a5deda2fe3df0ac775d0464d",
+    "packages/sdk/scripts/live/authority-cost.test.ts": "e0b0dcd0918a3a6f3a3914619d7277408368975bbd28608fa6f71af46c2b92bd",
+    "packages/sdk/scripts/live/authority-cost.ts": "d9b8840c683c7020e4564cc7f57fb2674d2885b1a2e8681037d2edb5b008a7fa",
+    "packages/sdk/scripts/live/authority-gas.ts": "789c440f6ad1f30c113b03c2ef4a8b3fa200c8e3fc85b14ab4c315af277713e2",
+    "packages/sdk/scripts/live/authority-grants.ts": "87aed53664ba3866ff90caa0dffe4e6087024bcc731a8062315b7872bfc27c32",
+    "packages/sdk/scripts/live/authority-registration.ts": "e858f0b62c94ca39f62b437dc064d7ff6a51e5259eb04e4798e221df4fc676ca",
+    "packages/sdk/scripts/live/authority.fork.test.ts": "d6947a7eb15078e4b22e5f140046bbd1e6acb4368ce5c7764f047a7faf426014",
+    "packages/sdk/scripts/live/prove-authority.ts": "3be156575dcca64bb47b779b68eec3b4d449b7588ae55c3d318dbdf656da9ea2",
+    "packages/sdk/scripts/privy/client.ts": "1834f7a27fbbd785c743f506eebc80bb1d59fa9f372a9c4e0e9038339885f062",
+    "packages/sdk/scripts/privy/env.ts": "4563a31c14ac082aa2124d24202e0bff567976dc5c9d41d70ed0dc01e4c9f803",
+    "packages/sdk/scripts/privy/p256.test.ts": "ceda273561d593df3d0556c302def428f9fe5d66deb80c0214668ffbacb44270",
+    "packages/sdk/scripts/privy/p256.ts": "b6ea97d540c47bcbb6aecf0414146a4dec1f5cd56715e9d0a6e439e39d06249f",
+    "packages/sdk/scripts/privy/policy.ts": "09b09cce7ca16137fbabe0162589657b853eb624c31d94e5a2a6ba486e6b0e08",
+    "packages/sdk/scripts/privy/setup.ts": "e73e07f21598f9d3715ce40f08b1e04dfdf3e185fad3bcfadaea5a390ce4c472"
+  },
+  "validation": {
+    "checkedAt": "2026-10-04T21:23:58.296065+00:00",
+    "repositoryGate": {
+      "command": "heavy pnpm check",
+      "exitCode": 0,
+      "rpcDependentSuites": "skipped without exported RPC; separate explicit fork proof below",
+      "viteTaskCache": "unchanged tasks may replay cache"
+    },
+    "realMonadFork": {
+      "command": "heavy pnpm --filter @agent-jobs/sdk exec vitest run scripts/live/authority.fork.test.ts scripts/privy/p256.test.ts",
+      "rpcEnabled": true,
+      "filesPassed": 2,
+      "testsPassed": 4,
+      "upstreamBroadcasts": 0
+    },
+    "pureFeeExposure": {
+      "command": "heavy pnpm --filter @agent-jobs/sdk exec vitest run scripts/live/authority-cost.test.ts",
+      "testsPassed": 1
+    },
+    "literalSecretScan": {
+      "result": "pass",
+      "scope": "owned source, config, documentation and sanitized evidence against actual local credentials"
+    },
+    "existingTelegramHarnessRetry": "First full run failed the existing runtime assertion; isolated retry and final full gate passed; API source unchanged"
+  },
+  "runNotes": [
+    "No protocol proof or broadcast transaction reverted. Runner budget holds stopped before broadcast.",
+    "The first hold over-reserved mined maximum fees; fixed to use mined receipt costs and pending signed exposure.",
+    "Measured atomic hire gas required raising the runner cap from 0.5 to 1 MON. Configured relay daily policy remains 10 MON; reserve remains 2 MON.",
+    "Rollover wait was interrupted; resumed operations reconciled existing hashes. Relay receipts use consecutive nonces 79 through 89 with no duplicate effect.",
+    "Both fixture spending allowances were read back as disabled. P0.7 remains for genuine owner browser acceptance at P8."
+  ]
+}
