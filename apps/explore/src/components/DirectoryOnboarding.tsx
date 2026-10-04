@@ -112,7 +112,7 @@ export function DirectoryOnboarding() {
         {error !== null && <ErrorText>{error}</ErrorText>}
       </div>
     </Section>}
-    <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title="Publish your worker">
+    <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title="Publish your worker" walletPrompt={busy}>
       <div className="flex flex-wrap gap-2">{['Identity', 'Profile', 'Service', 'Publish'].map((label, index) => <Badge key={label} tone={index === stage ? 'tint' : 'neutral'}>{index + 1} · {label}</Badge>)}</div>
       <p className="text-sm leading-relaxed text-label-2">{chain.name} · registry <span className="break-all font-mono text-xs">{deployment.identity}</span>. Enrollment is public and advisory; jobs still require their own signed terms, funding, and admission checks.</p>
       {stage === 0 && <>

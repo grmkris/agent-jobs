@@ -10,21 +10,35 @@ import { Button, cn } from './ui.tsx'
 /** Apple's momentum projection: where a flick released at `velocity` px/s comes to rest. */
 const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 1000) * decelerationRate) / (1 - decelerationRate)
 
-export function Sheet({ open, onClose, title, children, className }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; className?: string }) {
+/**
+ * `walletPrompt`: a wallet request started from the sheet is pending. An embedded wallet (Privy) draws its own prompt in
+ * the page, which sits below the top layer and is inert behind a modal dialog, so its Sign button could not be pressed.
+ * While one is pending the sheet stays on screen as a non-modal dialog and cannot be dismissed by its backdrop.
+ */
+export function Sheet({ open, onClose, title, children, className, walletPrompt = false }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; className?: string; walletPrompt?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const drag = useRef<{ start: number; y: number; t: number; v: number } | null>(null)
   const [dy, setDy] = useState(0)
   const titleId = useId()
 
+  const modal = useRef(false)
+
   useEffect(() => {
     const d = ref.current
     if (d === null) return
-    if (open && !d.open) {
-      setDy(0)
-      d.showModal()
-    } else if (!open && d.open) d.close()
-  }, [open])
+    if (!open) {
+      if (d.open) d.close()
+      return
+    }
+    const wantModal = !walletPrompt
+    if (d.open && modal.current === wantModal) return
+    if (d.open) d.close()
+    else setDy(0)
+    modal.current = wantModal
+    if (wantModal) d.showModal()
+    else d.show()
+  }, [open, walletPrompt])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (window.matchMedia('(min-width: 640px)').matches) return
@@ -56,14 +70,17 @@ export function Sheet({ open, onClose, title, children, className }: { open: boo
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      onClose={onClose}
+      onClose={() => {
+        // Switching between modal and non-modal closes and reopens the dialog; its queued close event is not a dismissal.
+        if (ref.current?.open !== true) onClose()
+      }}
       onCancel={(e) => {
         e.preventDefault()
         onClose()
       }}
       onClick={(e) => {
         // A click on the dialog itself (not its panel) is a click on the backdrop.
-        if (e.target === ref.current) onClose()
+        if (e.target === ref.current && !walletPrompt) onClose()
       }}
       className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-scrim sm:open:grid sm:open:place-items-center"
     >
@@ -124,7 +141,7 @@ export function ConfirmSheet({
   cancelLabel?: string
 }) {
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    <Sheet open={open} onClose={onClose} title={title} walletPrompt={busy === true}>
       {description !== undefined && <div className="-mt-2 leading-snug text-label-2">{description}</div>}
       {children}
       <div className="grid gap-2">

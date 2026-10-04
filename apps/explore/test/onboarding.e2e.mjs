@@ -147,7 +147,11 @@ try {
       const sheet = page.getByRole('dialog', { name: 'Sign to link Telegram?' });
       await sheet.getByText(`Code: ${NONCE}`, { exact: false }).waitFor();
       await capture(page, `${device}-telegram-sign`);
+      // An embedded wallet's in-page prompt must stay pressable while the sheet waits for it.
+      await page.evaluate(() => { window.__wallet.signPrompt = true; });
       await sheet.getByRole('button', { name: 'Sign', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Wallet signature fixture' }).getByRole('button', { name: 'Sign fixture' }).click({ timeout: 5000 });
+      await page.evaluate(() => { window.__wallet.signPrompt = false; });
       const open = page.getByRole('link', { name: 'Open @hireling_xyz_bot' });
       await open.waitFor();
       assert.equal(await open.getAttribute('href'), `https://t.me/hireling_xyz_bot?start=${NONCE}`);
