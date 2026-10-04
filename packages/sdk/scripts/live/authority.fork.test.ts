@@ -1,15 +1,16 @@
 /** Real deployed MetaMask/registry bytecode on a local Monad fork; never sends to the upstream RPC. */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { type Hex, decodeEventLog, encodeFunctionData, parseEther } from 'viem'
+import { type Hex, decodeEventLog, decodeFunctionData, encodeFunctionData, erc20Abi, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { context, wallet } from '../../src/client.ts'
 import { localTestPort } from '../../test/fork-port.ts'
-import { advanceExecution, delegationHash, delegationTypedData, redeemCallsCalldata, type Delegation } from '../../src/delegation/index.ts'
+import { advanceExecution, delegationHash, delegationManagerAbi, delegationTypedData, redeemCallsCalldata, type Delegation } from '../../src/delegation/index.ts'
 import { agentWalletTypes, config } from '../privy/policy.ts'
 import { fixtureAllowance, fixtureGrant, nestedRedemption, periodAbi, periodTerms } from './authority-grants.ts'
 import { mintAbi, token } from './authority-allowance.ts'
 import { registryAbi } from './authority-registration.ts'
+import { buildGrant } from '../../src/delegation/grants.ts'
 
 const enabled = !!process.env.MONAD_TESTNET_RPC_URL
 
@@ -58,6 +59,30 @@ describe.skipIf(!enabled)('P0 authority on real Monad fork', () => {
     }
   }, 120_000)
   afterAll(() => { node?.kill() })
+
+  it('redeems registration and exact allowance at the same timestamp they were prepared', async () => {
+    const start = Number((await ctx.publicClient.getBlock()).timestamp) + 60
+    const grantContext = { ...ctx, deployment: { ...ctx.deployment, relay: relay.account.address } }
+    const registration = await sign(operator, buildGrant(grantContext, { kind: 'registration', delegator: operator.address, salt: 100n, start }))
+    const once = await sign(operator, buildGrant(grantContext, { kind: 'allowance-once', delegator: operator.address, agent: agent.address, token, amount: 1n, salt: 101n, start }))
+    const work = await sign(agent, buildGrant(grantContext, { kind: 'agent-work', delegator: agent.address, salt: 102n, start }))
+    await send(token, encodeFunctionData({ abi: mintAbi, functionName: 'mint', args: [operator.address, 10n] }))
+    const register = encodeFunctionData({ abi: registryAbi, functionName: 'register', args: ['https://hireling.xyz/fixtures/same-second'] })
+    const registrationCall = decodeFunctionData({ abi: delegationManagerAbi, data: redeemCallsCalldata(registration,
+      [{ target: ctx.deployment.identity, value: 0n, callData: register }]) })
+    const allowanceCall = decodeFunctionData({ abi: delegationManagerAbi, data: redeemCallsCalldata(work,
+      [{ target: ctx.deployment.delegation.manager, value: 0n, callData: redeemCallsCalldata(once, [advanceExecution(token, agent.address, 1n)]) }]) })
+    if (registrationCall.functionName !== 'redeemDelegations' || allowanceCall.functionName !== 'redeemDelegations') throw new Error('Invalid fixture redemption')
+    const batch = encodeFunctionData({ abi: delegationManagerAbi, functionName: 'redeemDelegations', args: [
+      [...registrationCall.args[0], ...allowanceCall.args[0]],
+      [...registrationCall.args[1], ...allowanceCall.args[1]],
+      [...registrationCall.args[2], ...allowanceCall.args[2]],
+    ] })
+    await rpc('evm_setNextBlockTimestamp', [start])
+    const receipt = await send(ctx.deployment.delegation.manager, batch)
+    expect((await ctx.publicClient.getBlock({ blockHash: receipt.blockHash })).timestamp).toBe(BigInt(start))
+    expect(await ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [agent.address] })).toBe(1n)
+  }, 120_000)
 
   it('mints to the operator DeleGator, accepts upgraded agent consent, and limits registration to two calls', async () => {
     const identity = ctx.deployment.identity

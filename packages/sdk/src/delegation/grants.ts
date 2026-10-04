@@ -83,7 +83,7 @@ export function grantTargets(ctx: GrantContext, spec: GrantSpec): readonly Grant
         { address: d.delegation.manager, abi: delegationManagerAbi, methods: ['redeemDelegations', 'disableDelegation'] }]
     case 'agent-approve':
     case 'agent-sweep':
-      return [...new Set([...d.rewardTokens, d.factory].map(address => address.toLowerCase()))]
+      return [...new Set((spec.kind === 'agent-approve' ? d.rewardTokens : [...d.rewardTokens, d.factory]).map(address => address.toLowerCase()))]
         .map(address => ({ address: address as Address, abi: erc20Abi, methods: [spec.kind === 'agent-approve' ? 'approve' : 'transfer'] }))
     case 'allowance':
     case 'allowance-once':
@@ -128,7 +128,7 @@ export function buildGrant(ctx: GrantContext, spec: GrantSpec): Delegation {
     caveat(e.allowedTargets, concat(targets.map(target => target.address))),
     caveat(e.allowedMethods, concat([...new Set(methods)])),
     caveat(e.valueLte, uint(0n)),
-    caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [BigInt(spec.start), BigInt(grantExpiry(spec))])),
+    caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(grantExpiry(spec))])),
   ]
   if (spec.kind !== 'allowance') caveats.push(caveat(e.limitedCalls, uint(BigInt(grantCallLimit(spec)))))
   if (spec.kind === 'agent-approve' || spec.kind === 'agent-sweep' || allowance) {
