@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "capturedAt": "2026-10-04",
+  "network": "monad-testnet",
+  "classification": "sanitized-pre-clean-break-inventory",
+  "sources": {
+    "fleetDurableObject": {
+      "binding": "Board",
+      "objectName": "__hireling_fleet_v1__",
+      "rows": {
+        "managed_agents": "unknown-live",
+        "agent_approvals": "unknown-live",
+        "oauth_clients": "unknown-live",
+        "oauth_requests": "unknown-live",
+        "oauth_codes": "unknown-live",
+        "oauth_tokens_v2": "unknown-live",
+        "oauth_token_families_v2": "unknown-live",
+        "agent_pairings": "unknown-live",
+        "agent_activity": "unknown-live",
+        "agent_gateway_operations": "unknown-live",
+        "approval_execution": "unknown-live",
+        "agent_challenges": "unknown-live",
+        "agent_runtime": "unknown-live"
+      },
+      "note": "The public Worker exposes only owner-scoped reads; the Cloudflare Durable Object API does not expose row queries. No token, code, public key, wallet credential, or row payload is copied here."
+    },
+    "sponsorDurableObject": {
+      "binding": "Board",
+      "objectName": "__hosted_sponsor_v1__",
+      "rows": {
+        "sponsor_grants": "unknown-live",
+        "sponsor_operations": "unknown-live"
+      },
+      "note": "Grant JSON, signatures, operation payloads, transaction bytes, and wallet identifiers are intentionally omitted."
+    },
+    "localTestHarness": {
+      "rows": "none",
+      "note": "No production Durable Object export is present in this checkout."
+    }
+  },
+  "redactions": [
+    "access tokens",
+    "authorization codes",
+    "PKCE verifiers",
+    "delegation signatures",
+    "transaction bytes",
+    "private keys",
+    "device public keys"
+  ]
+}
