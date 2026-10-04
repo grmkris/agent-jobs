@@ -119,7 +119,7 @@ describe('link security and delivery reconciliation', () => {
     expect((await sql.all<{ text: string }>('SELECT text FROM telegram_outbox'))[0]?.text).toContain('https://testnet.hireling.xyz/telegram')
     await sql.batch([stmt("UPDATE telegram_outbox SET status = 'sent'")])
     await enqueueTelegram(sql, { id: 'moved', chatId: String(chat), text: 'notice', now: 100 })
-    let redirect: RequestRedirect | undefined
+    let redirect: RequestInit['redirect']
     const moved = telegramTransport('fake-token', async (_input, init) => { redirect = init?.redirect; return new Response(null, { status: 302, headers: { location: 'https://example.com' } }) })
     expect(await drainTelegramOutbox(sql, moved, 101)).toEqual({ sent: 0, failed: 1, uncertain: 0 })
     expect(redirect).toBe('manual')
