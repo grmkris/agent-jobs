@@ -42,11 +42,11 @@ describe('downloaded companion artifact', () => {
       await writeFile(modulePath, artifact.code)
       await writeFile(statePath, JSON.stringify({ apiOrigin, managedId: 'fixture', generation: 0, runtimeToken: 'fixture-token', privateKeyPem: privateKey.export({ format: 'pem', type: 'pkcs8' }).toString(), journal: {} }), { mode: 0o600 })
       await writeFile(workerPath, '#!/usr/bin/env node\nconst fs = require("node:fs"); fs.writeFileSync(process.env.HOME + "/child-env.json", JSON.stringify(process.env)); console.log("worker-output-secret"); console.error("worker-stderr-secret"); setTimeout(() => console.log(JSON.stringify({type:"system",subtype:"init",mcp_servers:[{name:"hireling-wallet",status:"connected"}]})), 100); setTimeout(() => process.exit(0), 500);\n', { mode: 0o700 })
-      const result = await promisify(execFile)(process.execPath, [modulePath, 'run', '--prompt', 'fixture'], { timeout: 10_000, env: { PATH: process.env.PATH, HOME: directory, HIRELING_STATE: statePath, HIRELING_AGENT_COMMAND: workerPath, CLIPROXY_API_KEY: 'parent-provider-secret', WORKER_PRIVATE_KEY: 'parent-wallet-secret', PRIVY_APP_SECRET: 'parent-privy-secret' } })
+      const childResult = await promisify(execFile)(process.execPath, [modulePath, 'run', '--prompt', 'fixture'], { timeout: 10_000, env: { PATH: process.env.PATH, HOME: directory, HIRELING_STATE: statePath, HIRELING_AGENT_COMMAND: workerPath, CLIPROXY_API_KEY: 'parent-provider-secret', WORKER_PRIVATE_KEY: 'parent-wallet-secret', PRIVY_APP_SECRET: 'parent-privy-secret' } })
       const inherited = JSON.parse(await readFile(join(directory, 'child-env.json'), 'utf8')) as Record<string, string>
       for (const key of ['CLIPROXY_API_KEY', 'WORKER_PRIVATE_KEY', 'PRIVY_APP_SECRET', 'HIRELING_STATE']) expect(inherited).not.toHaveProperty(key)
       expect(inherited.HIRELING_MANAGED_AGENT_ID).toBe('fixture')
-      expect(result.stdout + result.stderr).not.toMatch(/worker-output-secret|worker-stderr-secret|parent-provider-secret|parent-wallet-secret|parent-privy-secret/)
+      expect(childResult.stdout + childResult.stderr).not.toMatch(/worker-output-secret|worker-stderr-secret|parent-provider-secret|parent-wallet-secret|parent-privy-secret/)
       expect(healthStates).toEqual(['launched', 'ready', 'stopped'])
     } finally {
       await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
