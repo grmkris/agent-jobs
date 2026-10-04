@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { reconcileSend, retryAction, walletRefused } from './txOperation.ts'
+import { guardedSnapshot, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
+import { approvalSendError } from '../approval-operation.ts'
 
 const hash = `0x${'1'.repeat(64)}` as const
 
 describe('wallet step retry reconciliation', () => {
+  it('refuses unsent approval steps after expiry, including expiry during chain reads', async () => {
+    let now = 99
+    let readCount = 0
+    const guard = () => approvalSendError(100, now)
+    const reads = { nonce: async () => { readCount++; return 5 }, blockNumber: async () => 10n }
+    expect(await guardedSnapshot(reads, guard)).toEqual({ nonce: 5, block: '10' })
+    now = 100
+    await expect(guardedSnapshot(reads, guard)).rejects.toThrow(/expired/)
+    expect(readCount).toBe(1)
+    now = 99
+    await expect(guardedSnapshot({ ...reads, blockNumber: async () => { now = 100; return 10n } }, guard)).rejects.toThrow(/expired/)
+    // Reconciliation does not depend on approval freshness.
+    expect(retryAction({ at: 'failed', error: 'Expired after broadcast', hash })).toBe('receipt')
+  })
   it('never resends a transaction after a receipt timeout', () => {
     expect(retryAction({ at: 'failed', error: 'RPC unavailable', hash })).toBe('receipt')
   })

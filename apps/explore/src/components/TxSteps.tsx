@@ -13,7 +13,7 @@ import { chain, wagmiConfig, writesOpen } from '../wallet.ts'
 import { LaunchNotice } from './LaunchGate.tsx'
 import { usePrivyBatch } from './Privy.tsx'
 import { useAuth } from './Wallet.tsx'
-import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
+import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, guardedSnapshot, reconcileSend, retryAction, walletRefused } from './txOperation.ts'
 import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
 
 type Status = TxStatus
@@ -125,6 +125,7 @@ export function TxSteps({
   retainRecord = false,
   allowBatch = true,
   allowSponsorship = true,
+  sendGuard,
 }: {
   taskId: string
   txs: TxRequest[]
@@ -139,6 +140,8 @@ export function TxSteps({
   retainRecord?: boolean
   allowBatch?: boolean
   allowSponsorship?: boolean
+  /** Rechecked immediately after chain reads, before any new wallet prompt. */
+  sendGuard?: (() => string | null) | undefined
 }) {
   const { chainId, address } = useAccount()
   const currentAccount = useRef({ chainId, address, canSend })
@@ -467,8 +470,7 @@ export function TxSteps({
     let snapshot: SendSnapshot
     try {
       const reads = chainReads(from)
-      const [nonce, block] = await Promise.all([reads.nonce('pending'), reads.blockNumber()])
-      snapshot = { nonce, block: block.toString() }
+      snapshot = await guardedSnapshot(reads, sendGuard)
     } catch (e) {
       set(i, {
         at: 'failed',

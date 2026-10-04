@@ -4,7 +4,7 @@ import { ArrowLeft, Check, Clock3, ShieldCheck, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useAccount, useSignTypedData } from 'wagmi'
 import { boardApi, type TxRequest } from '../api.ts'
-import { approvalSigner, approvalTypedData, frozenOperation, frozenTransactions, type FrozenOperation } from '../approval-operation.ts'
+import { approvalSendError, approvalSigner, approvalTypedData, frozenOperation, frozenTransactions, type FrozenOperation } from '../approval-operation.ts'
 import { useAgentWallets } from '../components/Privy.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
@@ -289,6 +289,7 @@ function ExecutionPanel({
   })
   current.current = { address: account.address, chainId: account.chainId, signedIn: auth.signedIn }
   const { signTypedDataAsync } = useSignTypedData()
+  const now = useNow()
   const cache = useQueryClient()
   const key = `hireling.approval-operation:${approval.id}`
   const frozen = JSON.stringify(approval.payload)
@@ -347,6 +348,8 @@ function ExecutionPanel({
     guard()
     if (operation.result.sign !== undefined) {
       if (next.signature === undefined) {
+        const expired = approvalSendError(approval.expiresAt)
+        if (expired !== null) throw new Error(expired)
         const typed = approvalTypedData(operation, deployment)
         const signature = await signTypedDataAsync(typedDataArgs(typed))
         next = commit({ ...next, signature })
@@ -461,7 +464,8 @@ function ExecutionPanel({
                 retainRecord
                 allowBatch={false}
                 allowSponsorship={false}
-                canSend={selected && auth.signedIn && !busy}
+                sendGuard={() => approvalSendError(approval.expiresAt)}
+                canSend={selected && auth.signedIn && !busy && approval.expiresAt > now}
                 onDone={(hashes) => {
                   try {
                     const saved = commit({ ...record, hashes })

@@ -18,6 +18,11 @@ export interface FrozenOperation {
   chainId: number
 }
 
+/** Expiry stops fresh prompts; receipt reconciliation never calls this guard. */
+export function approvalSendError(expiresAt: number, now = Date.now() / 1000): string | null {
+  return expiresAt <= now ? 'This approval expired before the wallet step started. Ask your agent for a fresh request.' : null
+}
+
 /** A malformed or different-chain transaction never reaches the wallet. */
 export function frozenTransactions(value: unknown, chainId: number): TxRequest[] {
   if (!Array.isArray(value)) throw new Error('The frozen operation has no transaction list.')

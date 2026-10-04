@@ -35,6 +35,15 @@ export interface SendSnapshot {
   block: string
 }
 
+/** Check approval freshness both before and after asynchronous pre-send reads. */
+export async function guardedSnapshot(reads: Pick<ChainReads, 'nonce' | 'blockNumber'>, guard?: (() => string | null)): Promise<SendSnapshot> {
+  const assert = () => { const problem = guard?.(); if (problem) throw new Error(problem) }
+  assert()
+  const [nonce, block] = await Promise.all([reads.nonce('pending'), reads.blockNumber()])
+  assert()
+  return { nonce, block: block.toString() }
+}
+
 /** The chain reads a reconciliation needs; the transactions of a block as far as matching a call goes. */
 export interface ChainReads {
   nonce(blockTag: 'latest' | 'pending'): Promise<number>
