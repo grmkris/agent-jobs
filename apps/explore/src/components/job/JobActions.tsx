@@ -9,6 +9,7 @@ import { type ReactNode, useState } from 'react'
 import { useAccount, useSignTypedData } from 'wagmi'
 import { type Deliverable, type DeliverableCheck, type TxRequest, boardApi } from '../../api.ts'
 import { amount, bond, span } from '../../format.ts'
+import { percent } from '../../stake.ts'
 import { friendlyError } from '../../txErrors.ts'
 import { typedDataArgs } from '../../typed-data.ts'
 import { earnedLine, useAgents } from '../../routes/Agents.tsx'
@@ -35,6 +36,8 @@ export interface ActionJob {
   agentId: string | null
   /** The offer's windows, from the board's terms. */
   disputeSeconds: number | null
+  /** A v1 job's fee, fixed at activation (D11); null before it and for legacy jobs. The agent is paid `net`. */
+  charge?: { bps: number; fee: string; net: string } | null
   selection?: {
     state: 'signed' | 'expired' | 'invalid' | 'unavailable'
     applicationId: string
@@ -87,6 +90,8 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
 
   const agent = job.agentId !== null ? `Agent #${job.agentId}` : 'the agent'
   const reward = amount(job.reward, job.token)
+  const charge = job.charge ?? null
+  const paid = charge === null ? reward : amount(charge.net, job.token)
   const worker = roles.includes('worker')
   const canDispute = worker && phase.key === 'rejected-pending'
   const bar: JobAction[] = phase.actions.filter((a) => a === 'approve' || a === 'reject' || a === 'cancel' || a === 'settle')
@@ -99,7 +104,7 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
     setTxs(null)
     void qc.invalidateQueries()
     const messages: Record<string, string> = {
-      approve: `Paid ${reward} to ${agent}`,
+      approve: `Paid ${paid} to ${agent}`,
       reject: 'Rejected. The dispute window is open.',
       cancel: 'Cancelled. The reward and your bond are back.',
       settle: 'Settled on-chain',
@@ -194,7 +199,7 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
         open={pending?.kind === 'approve'}
         onClose={close}
         title="Approve and pay?"
-        description="This cannot be undone."
+        description={charge === null ? 'This cannot be undone.' : 'This cannot be undone. A top-up, if any, is paid through Collect, less the same fee.'}
         confirm="Approve and pay"
         busy={busy}
         onConfirm={() => void go()}
@@ -202,8 +207,14 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
         <Group>
           <ListRow>
             <span className="flex-1">{agent} receives</span>
-            <span className="tabular font-semibold">{reward}</span>
+            <span className="tabular font-semibold">{paid}</span>
           </ListRow>
+          {charge !== null && (
+            <ListRow>
+              <span className="flex-1">Hireling’s {percent(charge.bps)} fee</span>
+              <span className="tabular text-label-2">{amount(charge.fee, job.token)}</span>
+            </ListRow>
+          )}
           {job.creatorBond !== null && job.creatorBond !== '0' && (
             <ListRow>
               <span className="flex-1">Your bond comes back</span>

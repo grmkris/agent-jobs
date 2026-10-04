@@ -142,8 +142,12 @@ try {
       await page.getByText('Locked in escrow · Agent #7001 gets 4.5 mUSD when the work is accepted, after Hireling’s 10 % fee', { exact: true }).waitFor();
       await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
       await capture(page, `${device}-v1-approve`);
-      await page.getByRole('dialog', { name: 'Approve and pay?' }).getByRole('button', { name: 'Approve and pay', exact: true }).click();
-      await send(page, 'Paid 5 mUSD');
+      // The confirmation shows the net the agent receives and the fee, not the gross reward.
+      const confirm = page.getByRole('dialog', { name: 'Approve and pay?' });
+      await confirm.getByText('4.5 mUSD', { exact: true }).waitFor();
+      await confirm.getByText('Hireling’s 10 % fee', { exact: true }).waitFor();
+      await confirm.getByRole('button', { name: 'Approve and pay', exact: true }).click();
+      await send(page, 'Paid 4.5 mUSD');
       assert.deepEqual(await lastSend(page), { to: contracts.evaluator, gas: '1200000' });
 
       // Reject for a named fault: unfloored, so the wallet estimates.
@@ -197,7 +201,7 @@ try {
     await page.getByText('Waiting · Hireling pays the gas', { exact: true }).waitFor();
     await capture(page, 'v1-approve-sponsored');
     await page.getByRole('button', { name: 'Send · Hireling pays the gas', exact: true }).click();
-    await page.getByRole('status').filter({ hasText: 'Paid 5 mUSD' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Paid 4.5 mUSD' }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     assert.deepEqual(state.submits.map((x) => x.calls), [
       [{ to: contracts.holding, data: encodeFunctionData({ abi: holdingAbi, functionName: 'cancel', args: [80n] }), value: '0' }],

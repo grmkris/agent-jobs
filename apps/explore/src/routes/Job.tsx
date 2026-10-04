@@ -233,6 +233,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
             workerBond: d?.job.worker_bond ?? listed?.workerBond ?? null,
             agentId,
             disputeSeconds: t.terms.windows?.disputeSeconds ?? null,
+            charge: chargeOf(d),
             selection,
           }}
           phase={phase}
