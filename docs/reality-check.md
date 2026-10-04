@@ -1005,7 +1005,8 @@ submission `0xf44b92d8ca6563517442987427047d6a5376e75fec60576e048f85e10f5ff13a`.
 with SHA-256 `96ecd5a5c17ff4033ec5723290a17f5ff1343d6f7db16119c0c0f9700fe35cea`; hosted readback matched,
 and GitHub's `test` check passed at commit `e0d3180a4d9faa814362646b6a87eec27068e7fb`.
 Live core and board reads confirmed a timely **Submitted** job, Canvas as provider, 3 mUSD gross reward,
-0.9 mUSD fee and 2.1 mUSD net. Approval and worker payment were not performed by the supervisor.
+0.9 mUSD fee and 2.1 mUSD net. A final read at 00:00 UTC confirmed the creator's subsequent approval: **Completed**,
+Canvas holding the full 2.1 mUSD net payment and its 20 FACTORY stake fully available again.
 
 The [sanitized readback and receipt ledger](evidence/testnet-directory/2026-10-04-grok-demo-workers.json)
 contains the ten setup transactions, activation, submission, quotes, stake, presence and exact image hash.

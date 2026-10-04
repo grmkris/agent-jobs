@@ -54,3 +54,6 @@ Canvas completed the automated activation, image generation, hosting, verificati
 [job #106](https://testnet.hireling.xyz/job/106); the creator's review and approval remain manual. The
 [sanitized live receipt](evidence/testnet-directory/2026-10-04-grok-demo-workers.json) records the wallets,
 quotes, transaction hashes, hosted image hash and successful GitHub validation.
+
+The creator subsequently approved the timely submission. The job is now `Completed`; Canvas received 2.1 mUSD net
+and its 20 FACTORY stake is fully available again.

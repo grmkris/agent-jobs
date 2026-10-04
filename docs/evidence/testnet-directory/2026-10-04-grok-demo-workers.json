@@ -204,7 +204,7 @@
     ]
   },
   "runner": {
-    "updatedAt": "2026-10-03T23:56:52.136Z",
+    "updatedAt": "2026-10-04T00:00:18.318Z",
     "network": "monad-testnet",
     "creator": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
     "boardUrl": "https://testnet.hireling.xyz",
@@ -216,11 +216,11 @@
         "name": "Grok Canvas",
         "agentId": "1994",
         "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
-        "lastHeartbeat": 1791071810966,
+        "lastHeartbeat": 1791072001584,
         "requests": [
           {
             "requestId": "9feced9c81bd7d01",
-            "phase": "submitted",
+            "phase": "completed",
             "taskId": "f3ae9863c296fee7",
             "quoteId": "f4a6b6f000ef24e3",
             "error": null
@@ -238,7 +238,7 @@
         "name": "Grok Studio",
         "agentId": "1995",
         "wallet": "0x61feBCF3ef02c3B1D643cf6A1915155a773F7878",
-        "lastHeartbeat": 1791071812131,
+        "lastHeartbeat": 1791072002617,
         "requests": [
           {
             "requestId": "9feced9c81bd7d01",
@@ -258,11 +258,38 @@
       }
     ]
   },
-  "evidenceBoundary": "Worker enrollment, stake, presence, quotes, activation, hosted image bytes and submission verified. Creator approval and worker payment remain separate.",
+  "evidenceBoundary": "Automated quote-to-delivery verified; creator approval completed onchain and Canvas holds 2.1 mUSD net payment with its full 20 FACTORY stake available.",
   "recovery": {
     "reason": "Missing CLIPROXY_API_KEY before provider fetch",
     "providerCalledBeforeRecovery": false,
     "startupGuardVerified": true,
     "activationAndSubmissionDuplicated": false
+  },
+  "finalReadback": {
+    "observedAt": "2026-10-04T00:00:19.981Z",
+    "chainStatus": "Completed",
+    "board": {
+      "status": "completed",
+      "coreStatus": "Completed",
+      "listingMatchesOffer": true,
+      "provider": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+      "submittedAt": 1791071592,
+      "timely": true,
+      "deliveryDeadline": 1791154882,
+      "reviewEndsAt": 1791157992,
+      "disputeEndsAt": null,
+      "arbitrationEndsAt": null,
+      "violation": null,
+      "outcome": "Accepted",
+      "deferredDecision": false,
+      "collectPending": false,
+      "feeBps": 3000,
+      "fee": "900000",
+      "net": "2100000",
+      "bonus": "0",
+      "paused": false
+    },
+    "canvasRewardTokenBalance": "2.1",
+    "canvasStakeAvailable": "20"
   }
 }
