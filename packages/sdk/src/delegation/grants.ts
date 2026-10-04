@@ -7,7 +7,7 @@ import { coreAbi, hirelingEvaluatorAbi, hirelingHoldingAbi, identityAbi, stakeVa
 import type { Deployment, Stack } from '../deployment.ts'
 import { type Caveat, type Delegation, ROOT_AUTHORITY, delegationHash, delegationManagerAbi } from './index.ts'
 
-export type GrantKind = 'operator' | 'registration' | 'agent-work' | 'agent-approve' | 'agent-sweep' | 'allowance' | 'allowance-once' | 'unstake'
+export type GrantKind = 'operator' | 'registration' | 'agent-work' | 'agent-approve' | 'agent-approve-once' | 'agent-sweep' | 'allowance' | 'allowance-once' | 'unstake'
 
 export interface GrantContext {
   readonly deployment: Deployment
@@ -26,6 +26,7 @@ export type GrantSpec = GrantBase & (
   | { readonly kind: 'registration' }
   | { readonly kind: 'agent-work' }
   | { readonly kind: 'agent-approve' }
+  | { readonly kind: 'agent-approve-once'; readonly token: Address; readonly amount: bigint; readonly operationId: Hex }
   | { readonly kind: 'unstake' }
   | { readonly kind: 'agent-sweep'; readonly operator: Address }
   | { readonly kind: 'allowance'; readonly agent: Address; readonly token: Address; readonly amount: bigint }
@@ -82,7 +83,9 @@ export function grantTargets(ctx: GrantContext, spec: GrantSpec): readonly Grant
         ? { ...target, methods: [...target.methods, 'publish'] } : target),
         { address: d.delegation.manager, abi: delegationManagerAbi, methods: ['redeemDelegations', 'disableDelegation'] }]
     case 'agent-approve':
+    case 'agent-approve-once':
     case 'agent-sweep':
+      if (spec.kind === 'agent-approve-once') return [{ address: spec.token, abi: erc20Abi, methods: ['approve'] }]
       return [...new Set((spec.kind === 'agent-approve' ? d.rewardTokens : [...d.rewardTokens, d.factory]).map(address => address.toLowerCase()))]
         .map(address => ({ address: address as Address, abi: erc20Abi, methods: [spec.kind === 'agent-approve' ? 'approve' : 'transfer'] }))
     case 'allowance':
@@ -104,12 +107,12 @@ export function periodTransferTerms(token: Address, amount: bigint, duration: nu
 
 export function grantExpiry(spec: GrantSpec): number {
   const validity = spec.kind === 'allowance' ? ALLOWANCE_VALIDITY
-    : spec.kind === 'registration' || spec.kind === 'allowance-once' || spec.kind === 'unstake' ? ONE_OFF_VALIDITY : GRANT_VALIDITY
+    : spec.kind === 'registration' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' || spec.kind === 'unstake' ? ONE_OFF_VALIDITY : GRANT_VALIDITY
   return spec.start + validity
 }
 
 export function grantCallLimit(spec: GrantSpec): number {
-  return spec.kind === 'registration' ? 2 : spec.kind === 'unstake' || spec.kind === 'allowance-once' ? 1 : GRANT_CALLS
+  return spec.kind === 'registration' ? 2 : spec.kind === 'unstake' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? 1 : GRANT_CALLS
 }
 
 export function buildGrant(ctx: GrantContext, spec: GrantSpec): Delegation {
@@ -131,10 +134,15 @@ export function buildGrant(ctx: GrantContext, spec: GrantSpec): Delegation {
     caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(grantExpiry(spec))])),
   ]
   if (spec.kind !== 'allowance') caveats.push(caveat(e.limitedCalls, uint(BigInt(grantCallLimit(spec)))))
-  if (spec.kind === 'agent-approve' || spec.kind === 'agent-sweep' || allowance) {
-    const recipient = spec.kind === 'agent-approve' ? stack.holding : spec.kind === 'agent-sweep' ? spec.operator : spec.agent
+  if (spec.kind === 'agent-approve' || spec.kind === 'agent-approve-once' || spec.kind === 'agent-sweep' || allowance) {
+    const recipient = spec.kind === 'agent-approve' || spec.kind === 'agent-approve-once' ? stack.holding : spec.kind === 'agent-sweep' ? spec.operator : spec.agent
     if (!isAddress(recipient)) throw new Error('Invalid grant recipient')
     caveats.push(caveat(e.allowedCalldata, encodePacked(['uint256', 'bytes'], [4n, pad(recipient, { size: 32 })])))
+    if (spec.kind === 'agent-approve-once') {
+      if (spec.amount <= 0n) throw new Error('One-off approval requires a positive amount')
+      if (!/^0x[0-9a-fA-F]{64}$/.test(spec.operationId)) throw new Error('One-off approval requires its exact operation')
+      caveats.push(caveat(e.allowedCalldata, encodePacked(['uint256', 'bytes'], [36n, uint(spec.amount)])))
+    }
   }
   if (spec.kind === 'allowance') caveats.push(caveat(e.erc20PeriodTransfer, periodTransferTerms(spec.token, spec.amount, ALLOWANCE_PERIOD, spec.start)))
   if (spec.kind === 'allowance-once') {
@@ -165,10 +173,10 @@ export function describeGrant(ctx: GrantContext, spec: GrantSpec, grant: Delegat
     expiresAt: grantExpiry(spec),
     calls: spec.kind === 'allowance' ? null : grantCallLimit(spec),
     nativeValue: '0',
-    recipient: spec.kind === 'agent-approve' ? ctx.stack.holding : spec.kind === 'agent-sweep' ? spec.operator
+    recipient: spec.kind === 'agent-approve' || spec.kind === 'agent-approve-once' ? ctx.stack.holding : spec.kind === 'agent-sweep' ? spec.operator
       : spec.kind === 'allowance' || spec.kind === 'allowance-once' ? spec.agent : null,
-    token: spec.kind === 'allowance' || spec.kind === 'allowance-once' ? spec.token : null,
-    amount: spec.kind === 'allowance' || spec.kind === 'allowance-once' ? spec.amount.toString() : null,
+    token: spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? spec.token : null,
+    amount: spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? spec.amount.toString() : null,
     periodSeconds: spec.kind === 'allowance' ? ALLOWANCE_PERIOD : null,
   }
 }

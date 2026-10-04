@@ -3,6 +3,7 @@ import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, recoverAddress } from 'viem'
 import { migrateAgentSchema } from './agent-schema.ts'
 import type { Sql } from './store.ts'
+import { checkGrantCall } from './grant-calls.ts'
 
 export interface GrantRow {
   delegation_hash: Hex
@@ -17,7 +18,8 @@ export interface GrantRow {
 }
 
 export function grantSpecJson(spec: sdk.GrantSpec): string {
-  return JSON.stringify(spec, (_, value) => typeof value === 'bigint' ? value.toString() : value)
+  const ordered = Object.fromEntries(Object.entries(spec).toSorted(([a], [b]) => a.localeCompare(b)))
+  return JSON.stringify(ordered, (_, value) => typeof value === 'bigint' ? value.toString() : value)
 }
 
 export function parseGrantSpec(json: string): sdk.GrantSpec {
@@ -31,10 +33,12 @@ export class GrantStore {
   }
 
   prepare(owner: Address, spec: sdk.GrantSpec): { hash: Hex; grant: sdk.Delegation; typedData: string; description: ReturnType<typeof sdk.describeGrant> } {
+    if (spec.kind === 'agent-approve-once') this.approvedHire(owner, spec)
     const grant = sdk.buildGrant(this.context, spec)
     const hash = sdk.delegationHash(grant)
     const prior = this.get(hash)
     if (prior && (prior.owner.toLowerCase() !== owner.toLowerCase() || prior.status === 'revoked' || prior.status === 'disabled')) throw new Error('Grant identity is already stopped')
+    if (prior && grantSpecJson(this.spec(hash)) !== grantSpecJson(spec)) throw new Error('Grant template cannot change')
     if (this.sql.atomic === undefined) throw new Error('Grant preparation requires atomic storage')
     this.sql.atomic(() => {
       this.sql.run(`INSERT OR IGNORE INTO grants (delegation_hash,kind,delegator,delegate,owner,delegation_json,signature,status,expires_at)
@@ -64,6 +68,33 @@ export class GrantStore {
     const grant = { ...sdk.parseDelegation(row.delegation_json), signature: row.signature }
     sdk.assertGrant(this.context, this.spec(hash), grant)
     return grant
+  }
+
+  /** Unknown-token approval authority exists only after the operator's exact allowance has been verified. */
+  approvedHire(owner: Address, spec: Extract<sdk.GrantSpec, { kind: 'agent-approve-once' }>, publishData?: Hex): Hex {
+    const approval = this.sql.all<{ status: string; request_json: string; decision_json: string | null; operator: string; address: string | null; chain_id: number; state: string }>(
+      `SELECT approvals.status,approvals.request_json,approvals.decision_json,agents.operator,agents.address,agents.chain_id,agents.state
+       FROM approvals JOIN agents ON agents.id=approvals.agent_id
+       WHERE approvals.operation_id=? AND approvals.kind='hire-over-limit'`, spec.operationId)[0]
+    if (approval === undefined || approval.status !== 'approved' || approval.state === 'revoked' || approval.chain_id !== this.context.deployment.chainId
+      || approval.operator.toLowerCase() !== owner.toLowerCase() || approval.address?.toLowerCase() !== spec.delegator.toLowerCase()) throw new Error('One-off approval requires a verified operator decision for this operation')
+    const request = JSON.parse(approval.request_json) as { token?: string; amount?: string; publish?: Hex }
+    const decision = JSON.parse(approval.decision_json ?? '{}') as { allowanceHash?: string }
+    if (request.token?.toLowerCase() !== spec.token.toLowerCase() || request.amount !== spec.amount.toString()
+      || !/^0x[0-9a-fA-F]{64}$/.test(decision.allowanceHash ?? '')) throw new Error('One-off approval differs from the approved hire')
+    if (typeof request.publish !== 'string' || publishData !== undefined && request.publish.toLowerCase() !== publishData.toLowerCase()) throw new Error('One-off approval requires the frozen publish for this operation')
+    const publish = checkGrantCall(this.context, { kind: 'agent-work', delegator: spec.delegator, salt: spec.salt, start: spec.start }, { to: this.context.stack.holding, data: request.publish })
+    const params = publish.args[0] as { token: Address; reward: bigint }
+    if (publish.method !== 'publish' || params.token.toLowerCase() !== spec.token.toLowerCase() || params.reward !== spec.amount) throw new Error('One-off approval differs from the frozen publish')
+    const hash = decision.allowanceHash as Hex
+    const allowance = this.get(hash)
+    const template = this.spec(hash)
+    if (allowance?.status !== 'live' || allowance.signature === null || template.kind !== 'allowance-once'
+      || allowance.owner.toLowerCase() !== owner.toLowerCase() || template.delegator.toLowerCase() !== owner.toLowerCase()
+      || template.agent.toLowerCase() !== spec.delegator.toLowerCase() || template.token.toLowerCase() !== spec.token.toLowerCase()
+      || template.amount !== spec.amount || allowance.expires_at < sdk.grantExpiry(spec)) throw new Error('One-off approval requires the verified exact operator allowance')
+    this.signed(hash)
+    return hash
   }
 
   async confirm(hash: Hex, signature: Hex): Promise<GrantRow> {

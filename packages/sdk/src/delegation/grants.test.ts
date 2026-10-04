@@ -35,6 +35,17 @@ describe('spec v2 grant templates', () => {
     expect(delegationHash(grant)).not.toBe(delegationHash({ ...grant, delegate: agent }))
   })
 
+  it('pins one-off token approval to Holding, the exact amount, one call and ten minutes', () => {
+    const token = '0x3333333333333333333333333333333333333333' as const
+    const spec = { kind: 'agent-approve-once' as const, delegator: agent, token, amount: 17n, operationId: `0x${'12'.repeat(32)}` as const, salt: 11n, start: now }
+    const grant = buildGrant(ctx, spec)
+    expect(describeGrant(ctx, spec, grant)).toMatchObject({ delegate: d.relay, recipient: ctx.stack.holding, token, amount: '17', calls: 1, expiresAt: now + 600 })
+    const pins = grant.caveats.filter(item => item.enforcer.toLowerCase() === d.delegation.enforcers.allowedCalldata.toLowerCase())
+    expect(pins).toHaveLength(2)
+    expect(pins[1]!.terms).toBe(encodePacked(['uint256', 'uint256'], [36n, 17n]))
+    expect(() => describeGrant(ctx, { ...spec, amount: 18n }, grant)).toThrow('approved template')
+  })
+
   it('publishes the ERC-8004 consent schema for the registry signer', () => {
     expect(agentWalletTypes.AgentWalletSet.map(field => field.name)).toEqual(['agentId', 'newWallet', 'owner', 'deadline'])
   })

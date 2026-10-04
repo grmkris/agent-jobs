@@ -64,6 +64,8 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   }, forkSetupTimeout())
   afterAll(() => fixture?.close())
 
+
+
   it('publishes with zero agent funds and matches every transfer and approval to the exact reward', async () => {
     const data = batch(1)
     const entries = decodeGrantBatch(data)
@@ -115,5 +117,29 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
     expect((await ctx.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
     expect(await sdk.isDisabled(ctx, sdk.delegationHash(work))).toBe(true)
     expect((await send(batch(8))).status).toBe('reverted')
+  }, 120_000)
+  it('pins an approved unlisted-token hire to the exact amount and a single approval call', async () => {
+    const startNow = Number((await ctx.publicClient.getBlock()).timestamp)
+    const agent = fixture.contributor.account.address
+    const freshWork = await signed(fixture.contributor, { kind: 'agent-work', delegator: agent, salt: 43n, start: startNow })
+    const oneOffAllowance = await signed(fixture.creator, { kind: 'allowance-once', delegator: fixture.creator.account.address, agent, token, amount, salt: 41n, start: startNow })
+    const spec: sdk.GrantSpec = { kind: 'agent-approve-once', delegator: agent, token, amount, salt: 42n, start: startNow, operationId: sdk.EMPTY_HASH }
+    const unlisted = { ...ctx, deployment: { ...ctx.deployment, rewardTokens: [] } }
+    const unsigned = sdk.buildGrant(unlisted, spec)
+    const oneOffApproval = { ...unsigned, signature: await sdk.signTypedDataJson(fixture.contributor, sdk.delegationTypedData(ctx.deployment, unsigned)) }
+    const approve = (spender: `0x${string}`, value: bigint, target = token) => sdk.redeemCallsCalldata(oneOffApproval, [{ target, value: 0n,
+      callData: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spender, value] }) }])
+    expect((await send(approve(ctx.stack.holding, amount + 1n))).status).toBe('reverted')
+    expect((await send(approve(fixture.worker.account.address, amount))).status).toBe('reverted')
+    expect((await send(approve(ctx.stack.holding, amount, ctx.deployment.rewardTokens[1]!))).status).toBe('reverted')
+    expect(await sdk.callsMade(ctx, sdk.delegationHash(oneOffApproval))).toBe(0n)
+    const before = await balance(fixture.creator)
+    const hire = buildHireBatch({ allowance: oneOffAllowance, work: freshWork, approval: oneOffApproval,
+      manager: ctx.deployment.delegation.manager, holding: ctx.stack.holding, token, agent, amount, publish: publish(41) })
+    expect((await send(hire)).status).toBe('success')
+    expect(await balance(fixture.creator)).toBe(before - amount)
+    expect(await balance(fixture.contributor)).toBe(0n)
+    expect(await sdk.callsMade(ctx, sdk.delegationHash(oneOffApproval))).toBe(1n)
+    expect((await send(approve(ctx.stack.holding, amount))).status).toBe('reverted')
   }, 120_000)
 })

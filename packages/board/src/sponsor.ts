@@ -168,6 +168,13 @@ export class SponsorDesk {
     if (parsed.length === 0 || parsed.length > SPONSOR_LIMITS.batch) throw this.#d.fail('invalid', `provide 1-${SPONSOR_LIMITS.batch} sponsored calls`)
     const owner = parsed[0]!.row.owner
     if (parsed.some(item => !eq(item.row.owner, owner))) throw this.#d.fail('forbidden', 'all named grants must belong to the same operator')
+    for (let index = 0; index < parsed.length; index++) {
+      const item = parsed[index]!
+      if (item.spec.kind !== 'agent-approve-once') continue
+      const publish = parsed[index + 1]
+      if (publish?.checked.method !== 'publish') throw this.#d.fail('forbidden', 'one-off approval must accompany its frozen publish')
+      store.approvedHire(item.row.owner, item.spec, publish.checked.execution.callData)
+    }
     const nested = new Map<Hex, { row: GrantRow; spec: sdk.GrantSpec; grant: Delegation; calls: number }>()
     const publishes = checkHireFunding(ctx, owner, wallet, parsed.map(item => ({ spec: item.spec, checked: item.checked })), hash => {
       const row = store.get(hash)

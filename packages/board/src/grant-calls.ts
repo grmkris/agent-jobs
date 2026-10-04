@@ -29,10 +29,11 @@ export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call:
   const decoded = decodeFunctionData({ abi: [fn], data: call.data as Hex })
   if (!same(encodeFunctionData({ abi: [fn], functionName: decoded.functionName, args: decoded.args }), call.data)) throw new Error('Call is not valid canonical calldata')
   const args = decoded.args ?? []
-  const pin = spec.kind === 'agent-approve' ? ctx.stack.holding : spec.kind === 'agent-sweep' ? spec.operator
+  const pin = spec.kind === 'agent-approve' || spec.kind === 'agent-approve-once' ? ctx.stack.holding : spec.kind === 'agent-sweep' ? spec.operator
     : spec.kind === 'allowance' || spec.kind === 'allowance-once' ? spec.agent : undefined
   if (pin !== undefined && (typeof args[0] !== 'string' || !same(args[0], pin))) throw new Error('Grant spender or recipient mismatch')
   if (spec.kind === 'allowance-once' && args[1] !== spec.amount) throw new Error('One-off allowance amount mismatch')
+  if (spec.kind === 'agent-approve-once' && args[1] !== spec.amount) throw new Error('One-off approval amount mismatch')
   if (fn.name === 'disableDelegation') {
     const disabled = args[0] as sdk.Delegation
     if (!same(disabled.delegator, spec.delegator)) throw new Error('Cannot disable another wallet delegation')
@@ -59,7 +60,7 @@ export function checkHireFunding(ctx: sdk.GrantContext, operator: Address, agent
     }
     if (current.checked.method !== 'redeemDelegations') continue
     const approval = calls[index + 1], publish = calls[index + 2]
-    if (current.spec.kind !== 'agent-work' || approval?.spec.kind !== 'agent-approve' || publish?.spec.kind !== 'agent-work'
+    if (current.spec.kind !== 'agent-work' || approval === undefined || !['agent-approve', 'agent-approve-once'].includes(approval.spec.kind) || publish?.spec.kind !== 'agent-work'
       || approval.checked.method !== 'approve' || publish.checked.method !== 'publish') throw new Error('Nested allowance requires work, approval and publish entries')
     const inner = decodeGrantBatch(current.checked.execution.callData)
     if (inner.length !== 1) throw new Error('Allowance redemption must contain one transfer')
@@ -68,6 +69,7 @@ export function checkHireFunding(ctx: sdk.GrantContext, operator: Address, agent
     if (!['allowance', 'allowance-once'].includes(stored.spec.kind) || !same(nested.grant.delegator, operator) || !same(nested.grant.delegate, agent)
       || !same(sdk.delegationHash(nested.grant), sdk.delegationHash(stored.grant))) throw new Error('Nested allowance does not match the stored operator grant')
     if (nested.grant.signature.toLowerCase() !== stored.grant.signature.toLowerCase()) throw new Error('Nested allowance signature does not match the stored operator grant')
+    if (approval.spec.kind === 'agent-approve-once' && stored.spec.kind !== 'allowance-once') throw new Error('One-off approval requires the exact one-off operator allowance')
     sdk.assertGrant(ctx, stored.spec, nested.grant)
     const transfer = checkGrantCall(ctx, stored.spec, { to: nested.execution.target, data: nested.execution.callData, value: nested.execution.value.toString() })
     const params = publish.checked.args[0] as { token: Address; reward: bigint }
