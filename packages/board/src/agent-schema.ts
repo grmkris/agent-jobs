@@ -58,6 +58,15 @@ export function migrateAgentSchema(sql: Sql): void {
       created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
       UNIQUE(agent_id,action_key)
     )`)
+    sql.run(`CREATE TABLE agent_sign_requests (
+      id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, purpose TEXT NOT NULL,
+      wallet_id TEXT NOT NULL, request_json TEXT NOT NULL, result_json TEXT,
+      created_at INTEGER NOT NULL, UNIQUE(agent_id,purpose)
+    )`)
+    sql.run(`CREATE TABLE agent_operation_steps (
+      operation_id TEXT NOT NULL, name TEXT NOT NULL, value_json TEXT NOT NULL,
+      PRIMARY KEY(operation_id,name)
+    )`)
     sql.run(`CREATE TABLE approvals (
       id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, operation_id TEXT NOT NULL UNIQUE,
       kind TEXT NOT NULL, status TEXT NOT NULL, request_json TEXT NOT NULL,

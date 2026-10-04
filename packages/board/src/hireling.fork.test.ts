@@ -46,6 +46,9 @@ fork('Hireling board on a local Monad fork', () => {
     const seen = await board.getTask({ address: f.creator.account.address }, { taskId: created.taskId })
     expect(seen.chain.listingMatchesOffer).toBe(true)
     const selection = await board.selectWorker({ address: f.creator.account.address }, { taskId: created.taskId, applicationId: created.applicationId! })
+    await expect(board.verifyAgentSigning({ address: f.creator.account.address }, {
+      tool: 'select_worker', args: { taskId: created.taskId, applicationId: created.applicationId! }, typedData: selection.sign.typedData,
+    })).resolves.toBe(selection.sign.typedData)
     await board.submitSelection({ address: f.creator.account.address }, { taskId: created.taskId, nonce: selection.nonce, signature: await sdk.signTypedDataJson(f.creator, selection.sign.typedData) })
     return { taskId: created.taskId, jobId: BigInt(seen.jobId!) }
   }
@@ -118,8 +121,19 @@ fork('Hireling board on a local Monad fork', () => {
     const prep = await board.prepareActivation({ address: f.worker.account.address }, { taskId: x.taskId })
     expect(prep.feeQuote).toEqual({ feeBps: 3000, fee: '31', net: '70' })
     expect(JSON.parse(prep.sign.typedData).message.amount).toBe('70')
+    await expect(board.verifyAgentSigning({ address: f.worker.account.address }, {
+      tool: 'prepare_activation', args: { taskId: x.taskId }, typedData: prep.sign.typedData,
+    })).resolves.toBe(prep.sign.typedData)
+    const wrongAmount = JSON.parse(prep.sign.typedData)
+    wrongAmount.message.amount = '101'
+    await expect(board.verifyAgentSigning({ address: f.worker.account.address }, {
+      tool: 'prepare_activation', args: { taskId: x.taskId }, typedData: JSON.stringify(wrongAmount),
+    })).rejects.toThrow('frozen authorized action')
     const oldSignature = await sdk.signTypedDataJson(f.worker, prep.sign.typedData)
     await sdk.stake(f.ctx, f.worker, parseEther('10000'))
+    await expect(board.verifyAgentSigning({ address: f.worker.account.address }, {
+      tool: 'prepare_activation', args: { taskId: x.taskId }, typedData: prep.sign.typedData,
+    })).rejects.toThrow('frozen authorized action')
     await expect(board.buildActivation({ address: f.worker.account.address }, { taskId: x.taskId, budgetSignature: oldSignature })).rejects.toThrow('current net quote')
     await activate(x.taskId)
     expect((await sdk.getJob(f.ctx, x.jobId)).budget).toBe(90n)

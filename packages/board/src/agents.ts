@@ -187,6 +187,20 @@ export class AgentStore {
     return this.operation(id)
   }
 
+  step<T>(operationId: string, name: string): T | undefined {
+    const row = this.sql.all<{ value_json: string }>('SELECT value_json FROM agent_operation_steps WHERE operation_id=? AND name=?', operationId, name)[0]
+    return row === undefined ? undefined : JSON.parse(row.value_json) as T
+  }
+
+  freezeStep<T>(operationId: string, name: string, value: T): T {
+    this.operation(operationId)
+    const json = canonicalAgentArgs(value)
+    this.sql.run('INSERT OR IGNORE INTO agent_operation_steps VALUES (?,?,?)', operationId, name, json)
+    const stored = this.step<T>(operationId, name)!
+    if (canonicalAgentArgs(stored) !== json) throw new Error('Frozen operation step cannot change')
+    return stored
+  }
+
   requestApproval(operation: AgentOperationRow, kind: ApprovalRow['kind'], request: unknown): ApprovalRow {
     this.sql.run(`INSERT OR IGNORE INTO approvals (id,agent_id,operation_id,kind,status,request_json,created_at)
       VALUES (?,?,?,?,'pending',?,?)`, operation.id, operation.agent_id, operation.id, kind, canonicalAgentArgs(request), this.now())

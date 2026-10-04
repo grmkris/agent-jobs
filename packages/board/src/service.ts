@@ -41,6 +41,7 @@ import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github
 import type { ModelEndpoint } from './model.ts'
 import { screenOffer } from './screening.ts'
 import { creatorSelectionProjection } from './selection.ts'
+import { assertAgentEnvelope, assertExactAgentTypedData } from './agent-signing-scope.ts'
 import { typedDataJson } from './typed-data.ts'
 import {
   type ApplicationRow,
@@ -1017,6 +1018,53 @@ export class Board {
   }
 
   /** Stores the creator's signed Selection after checking it recovers to the creator. */
+  async verifyAgentSigning(caller: Caller, input: { tool: string; args: Record<string, unknown>; typedData: string }): Promise<string> {
+    const me = this.#requireCaller(caller)
+    if (typeof input.args.taskId !== 'string') throw new BoardError('invalid', 'signing requires a task')
+    const task = this.#task(input.args.taskId)
+    const ctx = this.#taskCtx(task)
+    if (!hireling.isHireling(ctx)) throw new BoardError('forbidden', 'hosted agents sign only for the v1 stack')
+    const typed = assertAgentEnvelope(ctx, input.typedData, me)
+    await this.#requireUnpaused(task)
+    const view = await this.#requireListingMatches(task)
+    if (view.status !== 'open' || view.provider !== null) throw new BoardError('conflict', 'signing requires an open unassigned hire')
+    const terms = parseTerms(task.terms_json)
+    let expected: string
+    if (input.tool === 'select_worker' && typed.primaryType === 'Selection') {
+      if (!eq(task.creator, me)) throw new BoardError('forbidden', 'only the agent creator signs its selection')
+      const sel = this.#sql.all<SelectionRow>('SELECT * FROM selections WHERE task_id=? AND nonce=?', task.id, String(typed.message.nonce))[0]
+      const app = this.#sql.all<ApplicationRow>('SELECT * FROM applications WHERE task_id=? AND id=?', task.id, String(input.args.applicationId))[0]
+      if (sel === undefined || app === undefined || sel.application_id !== app.id || !eq(sel.worker, app.worker) || sel.agent_id !== app.agent_id
+        || sel.activate_by < this.#now() || sel.activate_by >= terms.deliveryDeadline) throw new BoardError('forbidden', 'selection differs from its frozen application or deadline')
+      const [wallet, used] = await Promise.all([
+        sdk.agentWallet(ctx, BigInt(sel.agent_id)),
+        ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'selectionNonceUsed', args: [me, BigInt(sel.nonce)] }),
+      ])
+      if (!eq(wallet, sel.worker) || used) throw new BoardError('forbidden', 'selection wallet changed or nonce was used')
+      expected = typedDataJson(sdk.holdingDomain(ctx.deployment.chainId, ctx.stack.holding), sdk.selectionTypes, 'Selection', this.#selection(task, sel))
+    } else if (input.tool === 'prepare_activation' && typed.primaryType === 'SetBudgetAuthorization') {
+      const sel = this.#liveSelectionFor(task, me)
+      const prep = this.#sql.all<{ nonce: string; budget_nonce: string; budget_deadline: number }>('SELECT * FROM activation_preps WHERE task_id=? AND worker=?', task.id, me)[0]
+      if (prep === undefined || prep.nonce !== sel.nonce || prep.budget_deadline <= this.#now()) throw new BoardError('conflict', 'activation preparation expired or changed')
+      const [wallet, valid, used] = await Promise.all([
+        sdk.agentWallet(ctx, BigInt(sel.agent_id)),
+        ctx.publicClient.verifyTypedData({ address: getAddress(task.creator), domain: sdk.holdingDomain(ctx.deployment.chainId, ctx.stack.holding), types: sdk.selectionTypes,
+          primaryType: 'Selection', message: { ...this.#selection(task, sel) }, signature: sel.signature as Hex }),
+        ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'selectionNonceUsed', args: [getAddress(task.creator), BigInt(sel.nonce)] }),
+      ])
+      if (!eq(wallet, me) || !valid || used) throw new BoardError('forbidden', 'worker registration or creator selection is no longer valid')
+      const quote = await hireling.activationQuote(ctx, this.#jobId(task), me, terms)
+      expected = typedDataJson(sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), sdk.setBudgetTypes, 'SetBudgetAuthorization', {
+        signer: me, jobId: this.#jobId(task), token: terms.token, amount: quote.net, optParamsHash: sdk.EMPTY_HASH,
+        nonce: BigInt(prep.budget_nonce), deadline: BigInt(prep.budget_deadline),
+      })
+    } else {
+      throw new BoardError('forbidden', 'this tool has no routine signing scope')
+    }
+    assertExactAgentTypedData(input.typedData, expected)
+    return expected
+  }
+
   async submitSelection(caller: Caller, input: { taskId: string; nonce: string; signature: string }) {
     const me = this.#requireCaller(caller)
     const task = this.#task(input.taskId)
