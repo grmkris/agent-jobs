@@ -1,0 +1,19 @@
+{
+  "recordedAt": "2026-10-05T02:34:44.895Z",
+  "commit": "72cf7c83b24e07e292a16f676a155871f532e454",
+  "sourceStatus": "P3 executor source under verification",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "identity": "API-created P0 fixture; no genuine-user consent",
+  "proof": "product executor and signing journal with live Privy and testnet relay; hosted HTTP acceptance remains P8",
+  "status": "pass",
+  "agent": "0x27100E3DEb7f48a148B2387c3Be6605E2D5c0419",
+  "registryAgentId": "2001",
+  "txHash": "0xc270d80a89237f4ea59280d591dc5ba0fad9df969548deb8ab693c36ff51f9bc",
+  "gasUsed": "432693",
+  "costWei": "44134686000000000",
+  "signerRequests": 3,
+  "retriesReuseSignedSend": true,
+  "retriesDoNotSign": true,
+  "fixtureRunBudgetWei": "1000000000000000000"
+}

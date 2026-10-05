@@ -61,3 +61,23 @@ The literal scan against actual credentials found no secrets in the owned files.
 is held in ignored `.env.local`, not the receipt journal.
 
 P0 ends here. P1 and releases await Claude; genuine-user recovery and the broader A01–A08 acceptance remain open.
+
+## Subsequent implementation evidence — 5 October 2026
+
+P1–P7 source work is complete. The management object choice, preserved pending
+relay ledgers and release boundaries are in [release-handoff.md](release-handoff.md).
+P6 docs and the sanitized read-only inventory are committed as `149f6b1`.
+
+[p3-executor.json](p3-executor.json) proves the product executor with real Privy
+fixture signing and one harmless Monad testnet cancellation. Receipt
+`0xc270d80a89237f4ea59280d591dc5ba0fad9df969548deb8ab693c36ff51f9bc`
+used 432,693 gas and cost 0.044134686 MON. Reconstructing the executor reused
+the confirmed result without new signatures or a nonce change. The live proof's
+budget and canonical-comparison corrections are `c7d16df` and `72cf7c8`;
+they do not change product signing authority. Hosted HTTP acceptance remains P8.
+
+[p7-mining.md](p7-mining.md) records the definitive mining-rule fixtures,
+real local contract fork and read-only live schedule/pool checks. The official
+pool remains a configuration decision; the historical liquidity probe does not
+choose it. No deployment, epoch funding, root publication or mainnet transaction
+was performed by this build.

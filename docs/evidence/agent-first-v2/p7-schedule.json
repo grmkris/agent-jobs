@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-10-05T02:32:09.197Z",
+  "commit": "28923149fa1e45c96dd6f242be68a7c3bc86834d",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "classification": "read-only-live-reserve-schedule",
+  "reserve": "0xBAbAcbCe15Ad9219dCDd6B748A5FC6E63a0Cdc6a",
+  "finalizedBlock": "68282928",
+  "finalizedBlockHash": "0x6aabc74a8060da306398930836d0fd3e82743d4cacfd90b31926dc35f12466a1",
+  "results": [
+    {
+      "epoch": "0",
+      "budget": "4120879120879120879120878",
+      "status": "pass"
+    },
+    {
+      "epoch": "1",
+      "budget": "13736263736263736263736262",
+      "status": "pass"
+    },
+    {
+      "epoch": "26",
+      "budget": "254120879120879120879120862",
+      "status": "pass"
+    },
+    {
+      "epoch": "27",
+      "budget": "258928571428571428571428554",
+      "status": "pass"
+    },
+    {
+      "epoch": "53",
+      "budget": "381524725274725274725274700",
+      "status": "pass"
+    },
+    {
+      "epoch": "181",
+      "budget": "500000000000000000000000000",
+      "status": "pass"
+    },
+    {
+      "epoch": "182",
+      "budget": "500000000000000000000000000",
+      "status": "pass"
+    }
+  ]
+}

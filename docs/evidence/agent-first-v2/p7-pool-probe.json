@@ -37,5 +37,11 @@
       "sqrtPriceX96": "792281625142643375935",
       "liquidity": "99989999999999"
     }
-  ]
+  ],
+  "network": "monad-testnet",
+  "implementationCommit": "66eb7940c40dbf3dacae3cb06f483eb826450475",
+  "sourceHashes": {
+    "scripts/mining/pool-chain.ts": "f7975862a9368e787246f76c1ca8139c60df164f2421f4fd6c278e5ad215697b",
+    "scripts/mining/pool.ts": "498d70bcd849559e3d84d0b7eb551cd2a436f8f6036604ee9d6cf69777ac18d8"
+  }
 }
