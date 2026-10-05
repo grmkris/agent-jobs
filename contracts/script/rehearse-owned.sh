@@ -47,3 +47,16 @@ owned_file() {
     echo "kept $1: its $2 is not this rehearsal's" >&2
   fi
 }
+
+# A pristine G1b scratch copy must be prepared before replacing fixture signers or launching a new stack.
+# Both rehearsals verify that the archive is verbatim and that preparation only removes G1b deployment outputs.
+prepare_rehearsal_redeploy() { # <scratch config> <archive> <original config> <RPC env name>
+  local scratch=$1 archive=$2 original=$3 rpc_env=$4
+  RPC_ENV="$rpc_env" bash script/prepare-redeploy-testnet.sh --from g1b --config "$scratch" --archive "$archive" || return
+  jq -e --slurpfile original "$original" '
+    del(.archive) == $original[0] and (.archive.reason | length > 0) and (.archive.date | length > 0)' "$archive" >/dev/null \
+    || { echo "refusing: G1b archive differs from the original record" >&2; return 1; }
+  jq -e --slurpfile original "$original" '
+    . == ($original[0] | del(.deployment.hireling, .deployment.main, .deployment.oddTokens))' "$scratch" >/dev/null \
+    || { echo "refusing: preparation changed more than the G1b deployment output" >&2; return 1; }
+}

@@ -5,7 +5,7 @@
 #      odd tokens and makes the fee proposal and Holding probe, all with fresh keys, promoting into a scratch
 #      config/rehearsal-<pid>-<random>.json (gitignored). The tracked config/monad-testnet.json is only ever read: at G1 the real
 #      launch promotes into it, possibly in this same checkout (G1-DRY-001);
-#   2. the wallets get MON, FACTORY v2 and v1 and the reward token (mUSD) on the fork, and deployment.oddTokens is
+#   2. the wallets get MON, fresh-stack FACTORY and legacy FACTORY and the reward token (mUSD) on the fork, and deployment.oddTokens is
 #      recorded;
 #   3. the runner, which reads the SDK's bundled monad-testnet config, runs from a private mirror: byte-identical copies
 #      of packages/sdk/src and scripts (without any journal), the real node_modules, and the scratch config as its
@@ -35,7 +35,7 @@ TRACKED="config/monad-testnet.json" # read only
 # Order matters: admin-vault-refusal needs the Holding probe still inside its 8 days, so it runs before the cases that
 # wait out windows; admin-fees waits 3 days and stake-cooldown 7, so they come last. legacy-dispute is left out: it signs
 # with the real legacy arbitrator key, the evaluator's immutable, which a fork cannot stand in for.
-DEFAULT_CASES="admin-ownership,admin-vault-refusal,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,fees,owed-blocklist,owed-gas,legacy-contest,admin-fees,admin-pause,stake-cooldown"
+DEFAULT_CASES="admin-ownership,admin-vault-refusal,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,delegate,slash-pro-rata,undelegate-pending-slash,fees,owed-blocklist,owed-gas,legacy-contest,admin-fees,admin-pause,stake-cooldown"
 CASES="${1:-${FLOW_CASES:-$DEFAULT_CASES}}"
 PROFILE="g1dry-$(date +%s)"
 WORK="$(mktemp -d)"
@@ -106,12 +106,19 @@ rpc anvil_impersonateAccount "$REAL_ADMIN"; rpc anvil_setBalance "$REAL_ADMIN" 0
 cast send --rpc-url "$LOCAL" --unlocked --from "$REAL_ADMIN" "$CORE" "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE "$DEPLOYER" \
   >/dev/null 2>&1 || fail "could not make the fork deployer the core's admin"
 rpc anvil_stopImpersonatingAccount "$REAL_ADMIN"
+# Prepare the pristine G1b copy before fixture overrides: the archive identity includes the original roles.
+cp "$WORK/config.base" "$CONFIG"
+export FLOW_RPC="$LOCAL"
+prepare_rehearsal_redeploy "$CONFIG" "$FOUNDRY_BROADCAST/monad-testnet-g1b.json" "$WORK/config.base" FLOW_RPC \
+  || fail "G1b redeploy preparation"
+ok "G1b archived verbatim; fresh deployment outputs removed; core and legacy pairs preserved"
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg attester "$ATTESTER" --arg arb "$ARBITRATOR" \
   --arg c "$CREATOR" --arg w "$WORKER" '
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arb }
   | .hireling.safe = $safe | .hireling.defaultArbitrator = $arb | .hireling.schedule.treasury = $safe
   | .hireling.allocation = { treasury: $safe, ecosystem: $admin, liquidity: $admin }
-  | .oddTokens = { wallets: [$c, $w], mint: 1000 }' "$WORK/config.base" >"$CONFIG"
+  | .oddTokens = { wallets: [$c, $w], mint: 1000 }' "$CONFIG" >"$WORK/prepared-fixture.json"
+cp "$WORK/prepared-fixture.json" "$CONFIG"
 export FLOW_RPC="$LOCAL" FLOW_DEPLOYER_KEY="$K_DEPLOYER" FLOW_SAFE_OWNER_KEY="$K_OWNER1"
 env RPC_ENV=FLOW_RPC DEPLOYER_KEY_ENV=FLOW_DEPLOYER_KEY SAFE_OWNER_KEY_ENV=FLOW_SAFE_OWNER_KEY LAUNCH_LOGS="$WORK/launch" \
   bash script/launch-testnet.sh --yes --private-keys --fee-proposal --holding-probe >"$WORK/launch.out" 2>&1 \
@@ -137,16 +144,17 @@ MUSD=$(jq -r '.deployment.rewardTokens[0]' "$CONFIG")
 rpc anvil_dealERC20 "$CREATOR" "$MUSD" 0x3b9aca00 # 1,000 mUSD (6 decimals)
 [[ "$(cast call --rpc-url "$LOCAL" "$MUSD" "balanceOf(address)(uint256)" "$CREATOR" 2>/dev/null | awk '{print $1}')" -ge 1000000000 ]] \
   || fail "could not deal mUSD to the creator on the fork"
-# legacy-contest publishes on the legacy open-token pair (main before promotion), which needs the creator to hold its
-# FACTORY (v1, at least 1). After promotion .deployment.factory is v2, so ask that holding which token it reads.
-FACTORY_V1=$(cast call --rpc-url "$LOCAL" "$(jq -r .deployment.main.holding "$WORK/config.base")" "factory()(address)" 2>/dev/null)
-[[ "${FACTORY_V1,,}" != "${FACTORY,,}" ]] || fail "the legacy pair's FACTORY is v2?"
+# Fund the actual legacy open-token pair preserved by preparation, rather than the archived G1b v1 main pair.
+LEGACY_HOLDING=$(jq -r '[.deployment.legacy[] | select(.kind == "legacy" and .openTokens == true)][0].holding // empty' "$CONFIG")
+[[ -n "$LEGACY_HOLDING" ]] || fail "no configured legacy open-token pair"
+FACTORY_V1=$(cast call --rpc-url "$LOCAL" "$LEGACY_HOLDING" "factory()(address)" 2>/dev/null)
+[[ "${FACTORY_V1,,}" != "${FACTORY,,}" ]] || fail "the legacy pair uses the new FACTORY?"
 for w in $CREATOR $WORKER; do
   rpc anvil_dealERC20 "$w" "$FACTORY_V1" 0x56bc75e2d63100000 # 100 FACTORY v1
   [[ "$(cast call --rpc-url "$LOCAL" "$FACTORY_V1" "balanceOf(address)(uint256)" "$w" 2>/dev/null | awk '{print $1}')" == 100000000000000000000 ]] \
     || fail "could not deal FACTORY v1 to $w on the fork"
 done
-ok "creator and worker hold 50,000 FACTORY v2 and 100 FACTORY v1; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
+ok "creator and worker hold 50,000 fresh-stack FACTORY and 100 legacy FACTORY; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
 if [[ -n "${HOLD:-}" ]]; then # HOLD=<file>: pause here, fork up and config promoted, until the file is removed
   touch "$HOLD"; echo "holding: fork $LOCAL, config $PWD/$CONFIG; remove $HOLD to run the cases"
   while [[ -e "$HOLD" ]]; do sleep 2; done

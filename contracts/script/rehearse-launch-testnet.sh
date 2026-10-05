@@ -133,13 +133,8 @@ ok "dev0 stands in for roles.admin as the core's admin (DEFAULT_ADMIN_ROLE, gran
 cp config/monad-testnet.json "$CONFIG"
 if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
   ARCHIVE="$FOUNDRY_BROADCAST/monad-testnet-g1b.json"
-  RPC_ENV=REHEARSAL_RPC bash script/prepare-redeploy-testnet.sh --from g1b --config "$CONFIG" --archive "$ARCHIVE"
-  jq -e --slurpfile original config/monad-testnet.json '
-    del(.archive) == $original[0] and (.archive.reason | length > 0) and (.archive.date | length > 0)' "$ARCHIVE" >/dev/null \
-    || fail "G1b archive differs from the original record"
-  jq -e --slurpfile original config/monad-testnet.json '
-    . == ($original[0] | del(.deployment.hireling, .deployment.main, .deployment.oddTokens))' "$CONFIG" >/dev/null \
-    || fail "preparation changed more than the G1b deployment output"
+  prepare_rehearsal_redeploy "$CONFIG" "$ARCHIVE" config/monad-testnet.json REHEARSAL_RPC \
+    || fail "G1b redeploy preparation"
   ok "G1b archived verbatim; main absent; legacy pairs, core, roles, oddTokens/liquidity/fast inputs preserved"
 fi
 
