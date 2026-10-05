@@ -25,7 +25,7 @@ try {
     await page.goto(`${base}/connect?oauth_request=fixture`);
     await page.getByRole('button', { name: 'Create a new agent', exact: true }).click();
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    await page.getByRole('heading', { name: 'Agent #1942 is registered', exact: true }).waitFor();
+    await page.getByText(/^Agent ID 1942 is registered to your wallet\./).waitFor();
     const use = page.getByRole('button', { name: 'Use this agent for this connection', exact: true });
     assert.equal(await use.isDisabled(), false, 'OAuth setup does not require funding permissions');
     assert.equal(await page.getByText('Optional weekly spending allowance', { exact: true }).count(), 1);

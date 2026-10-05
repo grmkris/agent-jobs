@@ -1,7 +1,8 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import { useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { type Address } from "viem";
 import { useSignTypedData } from "wagmi";
 import { agentEndpoint, type ManagedAgent } from "../api.ts";
@@ -11,7 +12,8 @@ import { AgentGrantReview } from "../components/AgentGrantReview.tsx";
 import { BoardLink } from "../components/BoardLink.tsx";
 import { OperatorGrant } from "../components/OperatorGrant.tsx";
 import { PrivyLogin } from "../components/Privy.tsx";
-import { Button, ErrorText, Input, PageTitle, Section } from "../components/ui.tsx";
+import { Button, ErrorText, Input, PageTitle, Section, Segmented, cn, textLinkClass } from "../components/ui.tsx";
+import { StartPrompt } from "../components/AgentStartLink.tsx";
 import { useAuth } from "../components/Wallet.tsx";
 import { agentHome, useManagedAgents } from "../managed.ts";
 import { AllowanceEditor } from "../components/AllowanceEditor.tsx";
@@ -101,6 +103,7 @@ function AgentSetup({
   const [agent, setAgent] = useState(initial);
   const [operatorReady, setOperatorReady] = useState(false);
   const [fundingReady, setFundingReady] = useState(false);
+  const [role, setRole] = useState<"both" | "hire" | "work">("both");
   const [review, setReview] = useState<ReturnType<typeof reviewAgentGrant> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,49 +166,35 @@ function AgentSetup({
       /* Setup is already durably stored. */
     }
   }
+  const active = agent !== undefined && agent.state === "active";
+  const steps = context === "oauth" ? (["Identity", "Choose"] as const) : (["Identity", "Connect", "Choose"] as const);
   return (
-    <div className="grid gap-6">
-      <ol className="grid grid-cols-3 gap-2 border-b border-sep pb-4 text-xs">
-        <li className={agent === undefined ? "font-semibold text-tint" : "text-label-2"}>
-          01 · Name & wallet
-        </li>
-        <li
-          className={
-            agent !== undefined && agent.state !== "active"
-              ? "font-semibold text-tint"
-              : "text-label-2"
-          }
-        >
-          02 · Registration
-        </li>
-        <li className={agent?.state === "active" ? "font-semibold text-tint" : "text-label-2"}>
-          {context === "oauth" ? "03 · Connection" : "03 · Permissions"}
-        </li>
-      </ol>
-      {agent === undefined ? (
-        <Section
-          title="Name your coding agent"
-          note="The server creates a separate Privy wallet owned by your account. The routine signer prepares its upgrade and gas grants."
-        >
-          <label className="grid gap-2 text-sm">
-            <span>Agent name</span>
-            <Input
-              value={name || draft.name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={100}
-              placeholder="My coding agent"
-            />
-          </label>
-          <Button busy={busy} onClick={() => void run(create)}>
-            Create agent wallet
-          </Button>
-        </Section>
-      ) : agent.state !== "active" ? (
-        <>
-          <Section
-            title={agent.name}
-            note={`Setup saved · ${agent.state}. Retry resumes the same wallet and registration.`}
-          >
+    <div className="grid gap-8">
+      <Step n={1} of={steps} title="Identity" done={active} summary={active && agent !== undefined ? `${agent.name} · Agent ID ${agent.agent_id}` : undefined}>
+        {agent === undefined ? (
+          <>
+            <label className="grid gap-2 text-sm">
+              <span>Agent name</span>
+              <Input
+                value={name || draft.name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={100}
+                placeholder="My coding agent"
+              />
+            </label>
+            <p className="text-ui text-muted-foreground">
+              Hireling creates a separate wallet for it, owned by your account, and registers its Agent ID to your
+              wallet.
+            </p>
+            <Button busy={busy} onClick={() => void run(create)}>
+              Create agent wallet
+            </Button>
+          </>
+        ) : agent.state !== "active" ? (
+          <>
+            <p className="text-ui text-muted-foreground">
+              {agent.name} · setup saved ({agent.state}). Retrying resumes the same wallet and registration.
+            </p>
             {["created", "upgraded"].includes(agent.state) ? (
               <Button
                 busy={busy}
@@ -231,47 +220,129 @@ function AgentSetup({
                 </Button>
               </>
             )}
-          </Section>
-        </>
-      ) : (
-        <>
-          <Section
-            title={`Agent #${agent.agent_id} is registered`}
-            note="Its NFT belongs to your operator wallet. The agent wallet holds its earnings and job obligations. Each backer keeps ownership of its FACTORY position."
-          >
-            <p className="text-sm text-label-2">
-              {context === "oauth" ? "You can connect now. Spending allowance and FACTORY backing can be added later." : "Work and hire are available by default. Review the connection permissions when your MCP client opens OAuth."}
-            </p>
-            {context === "oauth" && onReady !== undefined && (
-              <Button onClick={() => onReady(agent)}>Use this agent for this connection</Button>
-            )}
-            {context === "oauth" ? (
-              <details className="border-t border-sep pt-3">
-                <summary className="cursor-pointer text-sm font-semibold">Optional weekly spending allowance</summary>
-                <div className="pt-3"><AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} /></div>
-              </details>
-            ) : <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />}
-          </Section>
-          {context === "oauth" ? (
-            <details>
-              <summary className="cursor-pointer text-sm font-semibold">Optional FACTORY backing</summary>
-              <div className="pt-3"><AgentStake agent={agent} operator={operator} /></div>
-            </details>
-          ) : <AgentStake agent={agent} operator={operator} />}
-          {context === "standalone" && <ConnectionCard />}
+          </>
+        ) : (
+          <p className="text-ui text-muted-foreground">
+            Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings and
+            job obligations; anyone who backs it keeps ownership of their FACTORY.
+          </p>
+        )}
+      </Step>
+      {active && agent !== undefined && context === "standalone" && (
+        <Step n={2} of={steps} title="Connect" summary="Paste this into your coding agent, or add Hireling to its MCP settings. It asks you once whether to work, hire or both.">
+          <StartPrompt />
+          <ConnectionCard />
+        </Step>
+      )}
+      {active && agent !== undefined && (
+        <Step n={steps.length} of={steps} title="Choose" summary={context === "oauth" ? "You can connect now. A weekly budget and backing can be added later." : "An agent can hire other agents, get hired, or both. Either part can wait."}>
+          <Segmented
+            label="What this agent does"
+            value={role}
+            onChange={setRole}
+            options={[
+              ["both", "Both"],
+              ["hire", "Hire"],
+              ["work", "Get hired"],
+            ]}
+          />
+          {context === "oauth" && onReady !== undefined && (
+            <Button onClick={() => onReady(agent)}>Use this agent for this connection</Button>
+          )}
+          {role !== "work" && (
+            <Part title="Hire · weekly budget" note="What it may spend each week without asking you. Bigger spends wait for your approval.">
+              {context === "oauth" ? (
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium">Optional weekly spending allowance</summary>
+                  <div className="pt-3"><AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} /></div>
+                </details>
+              ) : (
+                <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />
+              )}
+            </Part>
+          )}
+          {role !== "hire" && (
+            <Part title="Get hired · backing" note="A worker's deposit comes from the FACTORY behind it, and bad work can lose it. Back your agent now or later.">
+              {context === "oauth" ? (
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium">Optional FACTORY backing</summary>
+                  <div className="pt-3"><AgentStake agent={agent} operator={operator} /></div>
+                </details>
+              ) : (
+                <AgentStake agent={agent} operator={operator} />
+              )}
+            </Part>
+          )}
+          {/* Room for the listing the agent drafts for itself ("Review the listing your agent drafted → Publish"),
+              once self-listing is decided. */}
           {context === "standalone" && onReady !== undefined && (
             <Button disabled={!fundingReady} onClick={() => onReady(agent)}>
               Use this agent for this connection
             </Button>
           )}
           {onReady === undefined && (
-            <BoardLink target={agentHome(agent)} className="min-h-11 content-center font-semibold text-tint">
+            <BoardLink target={agentHome(agent)} className={textLinkClass}>
               Open this agent
             </BoardLink>
           )}
-        </>
+        </Step>
       )}
       {error !== null && <ErrorText>{error}</ErrorText>}
+    </div>
+  );
+}
+
+/**
+ * One numbered step of agent setup (Identity, Connect, Choose; OAuth has no Connect step, the client is already
+ * connecting). A finished step keeps its one-line summary and a check.
+ */
+function Step({
+  n,
+  of,
+  title,
+  done = false,
+  summary,
+  children,
+}: {
+  n: number;
+  of: readonly string[];
+  title: string;
+  done?: boolean;
+  summary?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-4">
+      <span
+        aria-hidden
+        className={cn(
+          "grid size-7 place-items-center rounded-full text-xs font-semibold tabular",
+          done ? "bg-success/15 text-success-text" : "bg-foreground text-background",
+        )}
+      >
+        {done ? <Check className="size-4" /> : n}
+      </span>
+      <div className="grid min-w-0 gap-1 pt-0.5">
+        <h2 className="text-base leading-tight font-semibold tracking-tight">
+          <span className="sr-only">Step {n} of {of.length}: </span>
+          {title}
+        </h2>
+        {summary !== undefined && <p className="text-sm text-muted-foreground">{summary}</p>}
+      </div>
+      <div className="col-start-2 grid min-w-0 gap-5">{children}</div>
+    </div>
+  );
+}
+
+/** One role's part of the Choose step. */
+function Part({ title, note, children }: { title: string; note: string; children: ReactNode }) {
+  return (
+    <div className="grid min-w-0 gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+      <div className="grid gap-0.5">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="text-ui text-muted-foreground">{note}</p>
+      </div>
+      {children}
     </div>
   );
 }

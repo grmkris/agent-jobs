@@ -104,7 +104,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <nav className="grid gap-0.5" aria-label="Places">
           {jobs !== undefined && <SideItem place={jobs} on={jobs.active(pathname)} />}
-          {agentsPlace !== undefined && <SideItem place={agentsPlace} on={agentsPlace.active(pathname) && !agents.some((a) => onAgent(pathname, a.agent_id))} count={waiting > 0 ? <Count n={waiting} kind="waiting" /> : null} />}
+          {agentsPlace !== undefined && <SideItem place={agentsPlace} on={agentsPlace.active(pathname) && !(auth.signedIn && pathname === '/agents/new') && !agents.some((a) => onAgent(pathname, a.agent_id))} count={waiting > 0 ? <Count n={waiting} kind="waiting" /> : null} />}
           {auth.signedIn && (
             <ul className="ml-4.5 grid gap-0.5 border-l border-sidebar-border pl-2" aria-label="Your agents">
               {agents.map((agent) => {
