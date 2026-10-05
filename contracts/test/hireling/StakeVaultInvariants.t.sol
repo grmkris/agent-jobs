@@ -161,6 +161,7 @@ contract StakeVaultDelegationInvariantsTest is StakeVaultFixture {
             assertLe(pool.reserved, pool.assets, "reservations covered by all assets");
             assertEq(pool.shares == 0, pool.assets == 0, "empty pool equivalence");
             assertLe(pool.queuedShares, pool.shares);
+            assertLe(pool.shares, type(uint192).max, "every accepted position fits one exit queue");
             uint256 shares;
             uint256 queued;
             uint256 positionValues;

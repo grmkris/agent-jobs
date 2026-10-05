@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
 import {StakeVaultFixture} from "./StakeVault.t.sol";
@@ -292,6 +293,108 @@ contract StakeVaultDelegationTest is StakeVaultFixture {
         vm.prank(holding);
         vault.release(account, 10);
         assertEq(vault.reservedOf(account), 0);
+    }
+
+    /// @dev Two accepted inflationary deposits followed by a third near-total slash reach the queue-bound edge.
+    function _inflateSharesWithNearTotalSlashes(bool otherBond) internal {
+        _delegate(alice, account, 1e18);
+        if (otherBond) {
+            vm.prank(safe);
+            vault.proposeHolding(holding2);
+            vm.warp(vm.getBlockTimestamp() + vault.HOLDING_DELAY());
+            vault.acceptHolding();
+            _reserve(holding2, account, 1);
+        }
+        for (uint256 i; i < 3; ++i) {
+            uint256 assets = vault.poolOf(account).assets - 1;
+            _reserve(holding, account, assets);
+            vm.prank(holding);
+            vault.slash(account, assets);
+            if (i < 2) _delegate(alice, account, 1e18);
+        }
+    }
+
+    function _assertCappedDepositTakesNothing() internal {
+        IStakeVault.Pool memory before = vault.poolOf(account);
+        uint256 balance = token.balanceOf(alice);
+        uint256 minted = vault.convertToShares(account, 1e18);
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, uint8(192), before.shares + minted)
+        );
+        vault.delegate(account, 1e18);
+        assertEq(token.balanceOf(alice), balance, "rejected deposit does not take tokens");
+        assertEq(abi.encode(vault.poolOf(account)), abi.encode(before), "rejected deposit does not change the pool");
+    }
+
+    function test_shareCap_nearTotalSlashesStillAllowOneCooldownExitAndRecovery() public {
+        _inflateSharesWithNearTotalSlashes(false);
+        _assertCappedDepositTakesNothing();
+        uint256 shares = vault.positionOf(account, alice).shares;
+        assertLe(shares, type(uint192).max);
+        _queue(alice, account, shares);
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        assertEq(_withdraw(alice, account), 1, "all residual assets in one cooldown");
+        assertEq(vault.poolOf(account).shares, 0);
+        assertEq(vault.poolOf(account).assets, 0);
+        _delegate(alice, account, 1e18);
+        assertEq(vault.positionOf(account, alice).shares, 1e18, "empty pool recovers 1:1");
+        _assertConserved();
+    }
+
+    function test_shareCap_otherHoldingBondSurvivesUntilReleaseThenWholeExitWorks() public {
+        _inflateSharesWithNearTotalSlashes(true);
+        _assertCappedDepositTakesNothing();
+        assertEq(vault.reservedBy(holding2, account), 1);
+        uint256 shares = vault.positionOf(account, alice).shares;
+        _queue(alice, account, shares);
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.StillBonded.selector, 0, 1));
+        vault.withdraw(account);
+        vm.prank(safe);
+        vault.revokeHolding(holding2);
+        vm.prank(holding2);
+        assertEq(vault.release(account, 1), 1, "revoked Holding can still settle the residual bond");
+        assertEq(_withdraw(alice, account), 1);
+        _delegate(bob, account, 1e18);
+        assertEq(vault.positionOf(account, bob).shares, 1e18);
+        _assertConserved();
+    }
+
+    function test_inflatedSharesUseFullPrecisionForBackingAndRedemption() public {
+        _delegate(alice, account, 1e18);
+        _reserve(holding, account, 1e18 - 1);
+        vm.prank(holding);
+        vault.slash(account, 1e18 - 1);
+        _delegate(alice, account, 1e12);
+        _reserve(holding, account, 1e12);
+        vm.prank(holding);
+        vault.slash(account, 1e12);
+        _delegate(bob, account, 1_000_000e18);
+        IStakeVault.Pool memory pool = vault.poolOf(account);
+        assertGt(pool.shares, type(uint256).max / pool.assets, "shares times assets exceeds uint256");
+        assertEq(vault.stakeOf(account), 1_000_000e18 + 1);
+        uint256 bobShares = vault.positionOf(account, bob).shares;
+        assertEq(vault.convertToAssets(account, bobShares), 1_000_000e18);
+        _queue(bob, account, bobShares);
+        assertEq(vault.stakeOf(account), 1);
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        assertEq(_withdraw(bob, account), 1_000_000e18);
+        uint256 aliceShares = vault.positionOf(account, alice).shares;
+        _queue(alice, account, aliceShares);
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        assertEq(_withdraw(alice, account), 1);
+        _assertConserved();
+    }
+
+    function test_shareCap_isolatedPoolDoesNotPreventOtherBacking() public {
+        _inflateSharesWithNearTotalSlashes(false);
+        _assertCappedDepositTakesNothing();
+        _delegate(bob, account2, 1e18);
+        assertEq(vault.poolOf(account2).assets, 1e18);
+        assertEq(vault.positionOf(account2, bob).shares, 1e18);
+        assertEq(vault.poolOf(account).assets, 1);
     }
 
     function testFuzz_depositSlashRedeemCannotCreateValue(uint96 a, uint96 b, uint96 c, uint96 burn) public {

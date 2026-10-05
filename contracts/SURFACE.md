@@ -178,6 +178,9 @@ Pool invariant: `reserved <= assets`, including when reservations exceed active 
 The vault FACTORY balance is at least `totalAssets`; unsolicited token transfers do not affect share prices.
 `Delegated`, `UndelegateRequested`, `UndelegateCancelled`, `Withdrawn`, `PoolReset`, and the unchanged
 `Reserved`/`Released`/`Slashed` events reconstruct every pool and position for future profit-sharing epochs.
+Deposits reject total shares above `uint192` before taking funds, keeping every accepted position withdrawable in
+one queue. After repeated near-total slashes, a pool may refuse new backing until it empties and recovers 1:1.
+Reservations and unreserved dust are preserved; share/asset products use full-precision `Math.mulDiv`.
 The legacy vault methods and totals are removed; this is a clean redeploy, with no compatibility shims.
 
 ## FeeSchedule, Factory, mining

@@ -278,8 +278,11 @@ contract StakeVault is IStakeVault, Ownable2Step, ReentrancyGuardTransient {
         if (shares == 0) revert ZeroShares();
         Pool storage pool = _pools[account];
         Position storage position = _position(account, delegator);
+        // Queued shares are uint192 so every accepted position can be exited in one cooldown. Reject a
+        // price-inflating deposit before taking tokens; an empty pool recovers to a 1:1 price after exit.
+        uint256 newShares = (pool.shares + shares).toUint192();
         pool.assets = (uint256(pool.assets) + assets).toUint128();
-        pool.shares += shares;
+        pool.shares = newShares;
         position.shares += shares;
         totalAssets += assets;
         factory.safeTransferFrom(payer, address(this), assets);

@@ -56,9 +56,15 @@ The accepted testnet edges are:
    before mainnet; this design does not promise exposure after withdrawal.
 2. Request/cancel can change the tier just before activation. A stale signed net
    budget then reverts atomically; the SDK must quote and sign again.
-3. Repeated near-total slashes can inflate one pool's share count. Checked
-   `uint256` share arithmetic and `uint192` queue bounds revert rather than wrap;
-   this edge affects that pool only and needs another review before mainnet.
+3. Repeated near-total slashes can inflate one pool's share count. Deposits cap
+   total shares at `uint192` before taking tokens, so every accepted position
+   still fits a single withdrawal queue. A pool can stop accepting new backing
+   until all positions exit and it empties; its next deposit then mints 1:1.
+   The agent can also start fresh on a new wallet, without moving existing
+   positions. Other Holdings' bonds remain reserved until release/slash; no
+   unreserved dust is burned. Products use `Math.mulDiv` even when intermediate
+   shares times assets exceed `uint256`. This limitation affects that pool only
+   and needs another review before mainnet (VV2-001).
 4. Positions are keyed by account wallet address. Agent-wallet rotation does not
    move backing or delegator positions to the replacement address.
 
