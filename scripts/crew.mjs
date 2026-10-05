@@ -92,6 +92,9 @@ function start() {
     const archive = execute('git', ['archive', sha, 'packages/sdk', 'contracts/config', 'package.json'], { encoding: null, maxBuffer: 32 * 1024 * 1024 })
     execFileSync('tar', ['-x', '-C', source], { input: archive })
   }
+  // Docker cannot create nested mount points inside a read-only parent bind mount.
+  mkdirSync(join(source, 'node_modules'), { recursive: true })
+  mkdirSync(join(source, 'packages/sdk/node_modules'), { recursive: true })
   const bun = execute('readlink', ['-f', execute('which', ['bun'])])
   for (const worker of workers) {
     const existing = dockerState(worker.container)
