@@ -82,7 +82,7 @@ export class AgentSigning {
     const typedData = sdk.agentWalletTypedData(this.context.deployment, consent)
     return this.#typed(id, `consent:${purpose}`, typedData, async () => {
       if (agent.agent_id !== consent.agentId.toString() || consent.owner.toLowerCase() !== agent.operator.toLowerCase()
-        || consent.newWallet.toLowerCase() !== agent.address.toLowerCase() || consent.deadline <= BigInt(this.now()) || consent.deadline > BigInt(this.now() + 600)) throw new Error('Consent differs from the registered agent and owner')
+        || consent.newWallet.toLowerCase() !== agent.address.toLowerCase() || consent.deadline <= BigInt(this.now()) || consent.deadline > BigInt(this.now() + 300)) throw new Error('Consent differs from the registered agent and owner')
       const owner = await this.context.publicClient.readContract({ address: agent.registry, abi: sdk.identityAbi, functionName: 'ownerOf', args: [consent.agentId] })
       if (owner.toLowerCase() !== agent.operator.toLowerCase()) throw new Error('Registry owner differs from the operator')
       return sdk.agentWalletTypedData(this.context.deployment, consent)
@@ -103,7 +103,9 @@ export class AgentSigning {
     const authorization = await this.provider.signAuthorization(agent.privy_wallet_id, contract, chainId, nonce, row.id)
     if (authorization.address.toLowerCase() !== contract.toLowerCase() || authorization.chainId !== chainId || authorization.nonce !== nonce
       || (await recoverAuthorizationAddress({ authorization })).toLowerCase() !== agent.address.toLowerCase()) throw new Error('Upgrade signature is outside the authorized account and chain')
-    this.#save(row, authorization)
-    return authorization
+    const result = { address: authorization.address, chainId: authorization.chainId, nonce: authorization.nonce,
+      r: authorization.r, s: authorization.s, yParity: authorization.yParity ?? Number(authorization.v! - 27n) }
+    this.#save(row, result)
+    return result
   }
 }

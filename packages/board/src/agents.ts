@@ -99,7 +99,7 @@ export class AgentStore {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(input.id) || input.name.trim().length < 1 || input.name.length > 100) throw new Error('Invalid agent identity')
     const prior = this.sql.all<AgentRow>('SELECT * FROM agents WHERE id=?', input.id)[0]
     if (prior) {
-      if (prior.operator.toLowerCase() !== input.operator.toLowerCase() || prior.privy_user_id !== input.privyUserId || prior.chain_id !== input.chainId || prior.registry.toLowerCase() !== input.registry.toLowerCase()) throw new Error('Agent creation key changed')
+      if (prior.operator.toLowerCase() !== input.operator.toLowerCase() || prior.privy_user_id !== input.privyUserId || prior.chain_id !== input.chainId || prior.registry.toLowerCase() !== input.registry.toLowerCase() || prior.name !== input.name.trim()) throw new Error('Agent creation key changed')
       return prior
     }
     this.sql.run(`INSERT INTO agents (id,operator,privy_user_id,name,registry,chain_id,state,permissions_json,onboarding_json,revoke_json,created_at,updated_at)
