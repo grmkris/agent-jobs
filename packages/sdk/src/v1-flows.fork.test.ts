@@ -5,6 +5,7 @@ import { getStake, registerAgent, delegate } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
 import { coreAbi, factoryTokenAbi, hirelingHoldingAbi } from './abi/index.ts'
+import { getBacking, getPosition } from './staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('live matrix runner against real v1 bytecode', () => {
@@ -20,6 +21,75 @@ fork('live matrix runner against real v1 bytecode', () => {
     f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, legacyStacks: { 'test-legacy': { kind: 'legacy', factory: legacyFactory, holding: legacyHolding, evaluator: legacyEvaluator, openTokens: true } } } }
   }, forkSetupTimeout())
   afterAll(() => f?.close())
+  for (const flow of ['delegate', 'slash-pro-rata', 'undelegate-pending-slash'] as const) {
+    it(`${flow} proves owned backing and resumes after a withdrawal receipt crash`, async () => {
+      const snapshot = await f.rpc('evm_snapshot')
+      try {
+        expect(V1_CORE_FLOWS).toContain(flow)
+        let durable: FlowState = { binding: flow, values: {}, sends: {} }
+        let interrupt = true
+        const boot = () => new FlowJournal(f.ctx, parseFlowJson(flowJson(durable)), state => {
+          durable = parseFlowJson(flowJson(state))
+          if (interrupt && state.values[`receipt/${flow}/withdraw-creator`]) throw new Error('crash after delegator withdrawal receipt')
+        }, () => undefined)
+        const deps = { ...f, relay: f.contributor, agentId, token: f.ctx.stack.factory, reward: 101n, bond: parseEther('10'),
+          waitUntil: async (_label: string, timestamp: number) => {
+            if (Number((await f.ctx.publicClient.getBlock()).timestamp) < timestamp) {
+              await f.rpc('evm_setNextBlockTimestamp', [timestamp])
+              await f.rpc('evm_mine')
+            }
+          }, log: () => undefined }
+        await expect(runV1CoreFlow({ ...deps, journal: boot() }, flow)).rejects.toThrow('crash after delegator withdrawal receipt')
+        expect(durable.values[`${flow}/done`]).toBeUndefined()
+        const originalSends = structuredClone(durable.sends)
+        const activation = durable.values[`${flow}/activation-verified`] as { feeBps: number; workerBond: bigint; selfValue: bigint; backing: bigint }
+        if (flow === 'delegate') {
+          expect(activation.workerBond).toBeGreaterThan(activation.selfValue)
+          expect(activation.backing).toBe(parseEther('10000'))
+          expect(activation.feeBps).toBe(1000)
+          const deposit = durable.values[`${flow}/deposit-creator-verified`] as { delegator: string; payer: string; account: string; position: { shares: bigint } }
+          expect(deposit.delegator.toLowerCase()).toBe(f.creator.account.address.toLowerCase())
+          expect(deposit.payer.toLowerCase()).toBe(f.creator.account.address.toLowerCase())
+          expect(deposit.account.toLowerCase()).toBe(f.worker.account.address.toLowerCase())
+          expect(deposit.position.shares).toBeGreaterThan(0n)
+        } else {
+          type View = { pool: { assets: bigint; shares: bigint; reserved: bigint }; positions: Record<string, { shares: bigint; value: bigint; queuedShares: bigint }> }
+          const proof = durable.values[`${flow}/slash-verified`] as { before: View; after: View }
+          expect(proof.before.pool.assets - proof.after.pool.assets).toBe(deps.bond)
+          const owners = flow === 'slash-pro-rata' ? ['creator', 'relay', 'worker'] : ['creator']
+          for (const owner of owners) {
+            const before = proof.before.positions[owner]!, after = proof.after.positions[owner]!
+            expect(after.shares).toBe(before.shares)
+            expect(before.value).toBeGreaterThan(after.value)
+            const expectedLoss = before.shares * deps.bond / proof.before.pool.shares
+            const residual = before.value - after.value - expectedLoss
+            expect(residual >= -1n && residual <= 1n).toBe(true)
+          }
+          if (flow === 'undelegate-pending-slash') {
+            expect(proof.after.positions.creator!.queuedShares).toBeGreaterThan(0n)
+            expect(proof.after.pool.reserved).toBeGreaterThan(0n)
+            expect(durable.values[`${flow}/blocked-before-slash`]).toMatchObject({ reserved: proof.before.pool.reserved })
+            expect(durable.values[`${flow}/blocked-after-slash`]).toMatchObject({ reserved: proof.after.pool.reserved })
+          }
+        }
+        interrupt = false
+        await runV1CoreFlow({ ...deps, journal: boot() }, flow)
+        for (const [key, saved] of Object.entries(originalSends)) expect(durable.sends[key]).toEqual(saved)
+        expect(durable.values[`${flow}/done`]).toBe(true)
+        expect((await getPosition(f.ctx, f.worker.account.address, f.creator.account.address)).shares).toBe(0n)
+        expect((await getPosition(f.ctx, f.worker.account.address, f.contributor.account.address)).shares).toBe(0n)
+        expect((await getBacking(f.ctx, f.worker.account.address)).reserved).toBe(0n)
+        if (flow === 'undelegate-pending-slash') {
+          const proof = durable.values[`${flow}/slash-verified`] as { after: { positions: { creator: { value: bigint } } } }
+          expect(durable.values[`${flow}/withdraw-creator-verified`]).toMatchObject({ assets: proof.after.positions.creator.value })
+          expect(durable.values[`${flow}/guard-release-verified`]).toBe(true)
+        }
+        const nonces = await Promise.all([f.creator, f.worker, f.contributor].map(wallet => f.ctx.publicClient.getTransactionCount({ address: wallet.account.address })))
+        await runV1CoreFlow({ ...deps, journal: boot() }, flow)
+        expect(await Promise.all([f.creator, f.worker, f.contributor].map(wallet => f.ctx.publicClient.getTransactionCount({ address: wallet.account.address })))).toEqual(nonces)
+      } finally { await f.rpc('evm_revert', [snapshot]) }
+    }, 120_000)
+  }
   it('refuses an unfunded legacy contest before any send, even when the creator holds v2 FACTORY', async () => {
     const state: FlowState = { binding: 'legacy-prerequisite', values: {}, sends: {} }
     const journal = new FlowJournal(f.ctx, state, () => undefined, () => undefined)
@@ -64,7 +134,7 @@ fork('live matrix runner against real v1 bytecode', () => {
       expect(durable.values['stake-cooldown/done']).toBe(true)
     } finally { await f.rpc('evm_revert', [snapshot]) }
   }, 120_000)
-  for (const flow of V1_CORE_FLOWS) {
+  for (const flow of V1_CORE_FLOWS.filter(name => !['delegate', 'slash-pro-rata', 'undelegate-pending-slash'].includes(name))) {
     it(`runs ${flow} through the same persisted send path used live`, async () => {
       const state: FlowState = { binding: 'fork', values: {}, sends: {} }
       const j = new FlowJournal(f.ctx, state, () => undefined, () => undefined)

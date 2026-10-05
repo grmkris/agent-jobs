@@ -1,10 +1,12 @@
 /** Testnet live matrix money paths. Every send goes through the persisted journal; this module never deploys. */
-import { type Address, type Abi, type TransactionReceipt, decodeEventLog, parseUnits } from 'viem'
+import { type Address, parseUnits } from 'viem'
 import * as sdk from './index.ts'
 import { FlowJournal } from './flow-journal.ts'
 import { verifyJobEconomics, verifyOwedWithdrawal } from './v1-flow-economics.ts'
+import { v1FlowActions } from './v1-flow-actions.ts'
+import { isDelegatedStakeFlow, runDelegatedStakeFlow } from './v1-flow-delegated-stake.ts'
 
-export const V1_CORE_FLOWS = ['hire', 'silence', 'ruling-worker', 'ruling-worker-slash', 'ruling-creator', 'ruling-creator-slash', 'violation', 'missed', 'cancel', 'arbitration-timeout', 'topup-paid', 'topup-refund', 'stake-cooldown', 'fees', 'legacy-contest', 'legacy-dispute'] as const
+export const V1_CORE_FLOWS = ['hire', 'silence', 'ruling-worker', 'ruling-worker-slash', 'ruling-creator', 'ruling-creator-slash', 'violation', 'missed', 'cancel', 'arbitration-timeout', 'topup-paid', 'topup-refund', 'stake-cooldown', 'delegate', 'slash-pro-rata', 'undelegate-pending-slash', 'fees', 'legacy-contest', 'legacy-dispute'] as const
 export type V1CoreFlow = typeof V1_CORE_FLOWS[number]
 /** A scheduled chain wait leaves the same case resumable without claiming it completed. */
 export class FlowWaiting extends Error {
@@ -38,62 +40,15 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
   if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'hireling-v1' || h === null) throw new Error('v1 flows require deployed Hireling on chain 10143')
   if (j.state.values[`${scope}/done`] === true) { d.log(`${scope}: already verified; no sends`); return }
   if (flow === 'legacy-contest' && j.state.sends[`${scope}/publish`] === undefined) await requireLegacyContestFactory(ctx, creator)
-  const now = async () => Number((await ctx.publicClient.getBlock()).timestamp)
-  const receipts = new Map<string, TransactionReceipt>()
-  const call = async (label: string, wallet: sdk.Wallet, target: Address, abi: readonly unknown[], fn: string, args: readonly unknown[], gas?: bigint) => {
-    const key = `${scope}/${label}`
-    const receipt = await j.contract(key, wallet, target, abi as Abi, fn, args, gas)
-    receipts.set(label, receipt)
-    return receipt
+  const { receipts, now, call, approve, publish, activate, submit, settle } = v1FlowActions(d, flow, scope)
+  const waitForSettlement = (target: number) => d.waitUntil(flow, target)
+  if (isDelegatedStakeFlow(flow)) {
+    await runDelegatedStakeFlow(d, flow, scope)
+    j.state.values[`${scope}/done`] = true
+    j.save(j.state)
+    d.log(`${scope}: verified`)
+    return
   }
-  const approve = async (label: string, wallet: sdk.Wallet, token: Address, spender: Address, amount: bigint) => {
-    const needed = await j.once(`${scope}/${label}/needed`, async () => await ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet.account.address, spender] }) < amount)
-    if (needed) await call(label, wallet, token, sdk.factoryTokenAbi, 'approve', [spender, amount])
-  }
-  const waitForSettlement = async (target: number) => {
-    await d.waitUntil(flow, target)
-  }
-  const publish = async (pair = ctx) => {
-    const p = await j.once(`${scope}/offer`, async () => {
-      const t = await now(), deadline = t + (flow === 'missed' ? 120 : 6 * 3600)
-      const limits = pair.stack.kind === 'hireling-v1' ? sdk.minimumOfferWindows(await sdk.readWindowBounds(pair)) : null
-      const windows = limits === null ? { reviewWindow: 0, disputeWindow: 0, arbitrationWindow: 0 }
-        : { reviewWindow: limits.reviewSeconds, disputeWindow: limits.disputeSeconds, arbitrationWindow: limits.arbitrationSeconds }
-      return { token: d.token, reward: d.reward, creatorBond: flow.startsWith('legacy-') ? 0n : d.bond, workerBond: flow.startsWith('legacy-') ? 0n : d.bond,
-        approver: creator.account.address, manifestHash: sdk.hashText(`v1 flow ${flow}`), policyHash: sdk.hashText(`${flow}:${t}:${sdk.randomNonce()}`),
-        deliveryDeadline: deadline, expiredAt: await sdk.minExpiry(pair, deadline, windows), ...windows, arbitrator: d.arbitrator.account.address }
-    })
-    await approve('approve-reward', creator, p.token, pair.stack.holding, p.reward)
-    const request = pair.stack.kind === 'hireling-v1' ? p : { approver: p.approver, manifestHash: p.manifestHash, policyHash: p.policyHash, token: p.token, reward: p.reward,
-      creatorBond: 0n, workerBond: 0n, deliveryDeadline: p.deliveryDeadline, expiredAt: p.expiredAt, mode: flow === 'legacy-contest' ? 1 : 0, selectionDeadline: flow === 'legacy-contest' ? p.deliveryDeadline - 60 : 0 }
-    const receipt = await call('publish', creator, pair.stack.holding, pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi, 'publish', [request])
-    let jobId: bigint | undefined
-    for (const log of receipt.logs) { if (!eq(log.address, pair.stack.holding)) continue
-      try { const event = decodeEventLog({ abi: pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi, data: log.data, topics: log.topics }); if (event.eventName === 'Published') jobId = event.args.jobId } catch { /* Other logs. */ } }
-    if (jobId === undefined) throw new Error(`${flow}: no canonical Published event`)
-    j.state.values[`${scope}/jobId`] = jobId; j.save(j.state)
-    return { p, jobId }
-  }
-  const activate = async (x: Awaited<ReturnType<typeof publish>>, pair = ctx) => {
-    const selectionData = await j.once(`${scope}/selection`, async () => {
-      const listing = await sdk.getListing(pair, x.jobId)
-      if (pair.stack.kind === 'hireling-v1') sdk.assertActivationTerms(await sdk.getV1Listing(pair, x.jobId), { ...x.p, creator: creator.account.address })
-      const selection = { jobId: x.jobId, worker: worker.account.address, agentId: d.agentId, termsHash: x.p.policyHash, activateBy: x.p.deliveryDeadline - 1, nonce: sdk.randomNonce() }
-      const sig = await sdk.signSelection(pair, creator, selection)
-      return { selection, sig, reward: listing.reward }
-    })
-    // An unsigned attempt may resume after the worker's stake changes. Requote immediately before signing;
-    // once signed transaction bytes exist, resume only those bytes and their original authorization.
-    const data = j.state.sends[`${scope}/activate`] === undefined ? await (async () => {
-      const net = pair.stack.kind === 'hireling-v1' ? (await sdk.quoteActivation(pair, x.jobId, worker.account.address))[2] : selectionData.reward
-      const auth = await sdk.signBudget(pair, worker, { jobId: x.jobId, token: x.p.token, amount: net, deadline: BigInt((await now()) + 3600) })
-      const result = { ...selectionData, auth, net }; j.state.values[`${scope}/activation`] = result; j.save(j.state); return result
-    })() : j.state.values[`${scope}/activation`] as typeof selectionData & { auth: sdk.Authorization; net: bigint }
-    await call('activate', worker, pair.stack.holding, pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi, 'activate', [data.selection, data.sig, data.auth])
-    return data.net
-  }
-  const submit = (jobId: bigint) => call('submit', worker, ctx.deployment.core, sdk.coreAbi, 'submit', [jobId, sdk.hashText(`deliverable:${flow}`), '0x'])
-  const settle = (jobId: bigint, pair = ctx) => call('settle', relay, pair.stack.holding, pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi, 'settle', [jobId], sdk.V1_GAS.settle)
 
   if (flow === 'stake-cooldown') {
     const amount = parseUnits('1', 18)

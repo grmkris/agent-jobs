@@ -21,6 +21,16 @@ case also requires the creator to hold at least 1 FACTORY v1 from the legacy ope
 address. The runner reads that address and balance before any setup or flow send and stops with a clear prerequisite
 message when it is missing; do not assume the v2 FACTORY balance satisfies it.
 
+The three delegated cases reuse the creator as an outside owner and, for `slash-pro-rata`, the relay as
+another outside owner. The creator journals the relay's FACTORY funding; no extra keys are needed. Start with
+no open worker bonds, no queued worker shares, and no existing creator/relay positions in that worker pool.
+`delegate` needs enough liquid creator FACTORY to reach the worker's next fee tier and reserves more than
+the worker's own position can cover. Each case exits its outside positions after the deployed cooldown,
+so the following `fees` case still begins below the second tier. `undelegate-pending-slash` keeps a second
+job active across the first ruling, checks `StillBonded` on both sides of the slash, then releases that bond
+and verifies the actual post-slash withdrawal event and token transfer. Its delivery deadlines include
+the deployed cooldown, while submission and dispute happen after the wait.
+
 Every signed transaction, including setup/approvals, is saved before broadcast in
 `packages/sdk/scripts/.v1-flows/<V1_FLOW_PROFILE>/journal.json` (profile defaults to `default`). It contains signed authority, so it is ignored by git and
 written with mode 600. Preserve it for retries. A retry reconciles the exact hash and raw transaction;
@@ -43,6 +53,9 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Arbitration timeout | `arbitration-timeout` (deployed per-job window) |
 | Top-up payment and contributor pull refund | `topup-paid`, `topup-refund` |
 | Delegated backing, reservations, slash, cooldown | Setup delegates with `delegate`; the hire/slash cases; `delegate`, `slash-pro-rata`, `undelegate-pending-slash`, and `stake-cooldown` (vault unlock time) |
+| Owned delegated backing and snapshotted fee tier | `delegate` |
+| Two outside owners plus self stake, ruled pro-rata burn | `slash-pro-rata` |
+| Slash queued shares, retain a second bond, then withdraw | `undelegate-pending-slash` |
 | Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid FACTORY to reach it) |
 | Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
 | Legacy contracts and immutable key | `legacy-contest`, `legacy-dispute` |
@@ -78,8 +91,9 @@ receipts and intermediate assertions are saved before later steps; final readbac
 including after the final withdrawal/cancellation/unpause receipt. Saved unmined bytes are never completion.
 
 Admin cases require `SAFE_BACKUP_TESTNET_PRIVATE_KEY`, an owner of the threshold-1 configured testnet Safe.
-G1 prepares fee and Holding proposals. `admin-fees` consumes that existing proposal after its three-day delay;
-`admin-vault-refusal` proves early refusal and cancels the existing probe. `admin-pause` uses atomic Safe
+G1 prepares fee and Holding proposals. `admin-vault-refusal` proves early refusal and cancels the existing probe.
+Run `admin-fees` next: it consumes the unchanged launch schedule after the deployed fee delay, within its proposal grace,
+before job windows and delegated cooldowns can expire it. `admin-pause` uses atomic Safe
 MultiSendCallOnly pause/notePause and unpause/notePause pairs (the Safe needs the core admin role).
 
 Long cases print their chain-time wait and resume from the saved journal after interruption. Start the
