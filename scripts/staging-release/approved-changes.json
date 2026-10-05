@@ -9,6 +9,7 @@
     { "logicalId": "Api", "name": "PRIVY_POLICY_ID", "action": "add", "type": "plain_text" }
   ],
   "secretChanges": [
+    { "logicalId": "Api", "name": "PRIVY_APP_SECRET", "action": "rotate" },
     { "logicalId": "Api", "name": "PRIVY_SIGNER_KEY", "action": "add" },
     { "logicalId": "Api", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },
     { "logicalId": "Api", "name": "TELEGRAM_WEBHOOK_SECRET", "action": "add" },

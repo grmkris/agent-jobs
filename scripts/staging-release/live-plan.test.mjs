@@ -93,6 +93,22 @@ test('the live plan admits reviewed Api settings from env or native bindings and
   }
 })
 
+test('the reviewed Privy overwrite permits only the exact inherited Budget singleton', () => {
+  for (const extra of [false, true]) {
+    const input = fixture()
+    input.live.workers.Api.bindings.find(item => item.name === 'Legacy').name = 'BUDGET_SIGNER_PRIVATE_KEY'
+    input.live.workers.Api.bindings.push({ name: 'PRIVY_APP_SECRET', type: 'secret_text' })
+    const node = nativeResource(input.snapshot, 'Api')
+    const legacy = node.bindings.find(item => item.sid === 'LegacySecrets')
+    legacy.action = 'update'
+    legacy.data.bindings = [{ name: 'BUDGET_SIGNER_PRIVATE_KEY', type: 'inherit' }]
+    if (extra) legacy.data.bindings.push({ name: 'UNLISTED_SECRET', type: 'inherit' })
+    node.bindings.push(binding('PRIVY_APP_SECRET', { bindings: [{ name: 'PRIVY_APP_SECRET', type: 'secret_text', text: 'test-only-marker' }] }, 'update'))
+    Object.assign(input.snapshot, describePlan(input.snapshot.native))
+    assert.equal(reviewLivePlan(input.snapshot, input.live, readApprovedChanges().reference, () => false).ok, !extra)
+  }
+})
+
 test('settings additions fail closed on empty or non-text values, wrong Worker, unknown name and duplicates', () => {
   for (const source of ['env', 'bindings']) {
     for (const candidate of [

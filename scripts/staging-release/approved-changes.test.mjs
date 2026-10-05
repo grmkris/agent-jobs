@@ -54,6 +54,13 @@ test('a listed rotation is allowed', () => {
   assert.deepEqual(result, { ok: true, blockers: [] })
 })
 
+test('the reviewed Privy app-secret overwrite is Api-only and cannot become an addition', () => {
+  const change = { logicalId: 'Api', name: 'PRIVY_APP_SECRET', action: 'rotate' }
+  assert.deepEqual(validatePlanChanges({ ...empty, secretChanges: [change] }, readApprovedChanges().reference), { ok: true, blockers: [] })
+  assert.equal(validatePlanChanges({ ...empty, secretChanges: [{ ...change, logicalId: 'Indexer' }] }, readApprovedChanges().reference).ok, false)
+  assert.equal(validatePlanChanges({ ...empty, secretChanges: [{ ...change, action: 'add' }] }, readApprovedChanges().reference).ok, false)
+})
+
 test('the additional exposed credentials may rotate only on their named Worker', () => {
   const secretChanges = [
     { logicalId: 'Api', name: 'AI_GATEWAY_API_KEY', action: 'rotate' },

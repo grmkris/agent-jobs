@@ -83,6 +83,14 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
       }
       const native = node.bindings.find(entry => entry.sid === binding.sid)
       const bound = native?.data?.bindings ?? []
+      // P8's reviewed overwrite removes only Privy's duplicate inheritance; Budget remains inherited.
+      const privy = wires.filter(wire => wire.name === 'PRIVY_APP_SECRET')
+      if (row.logicalId === 'Api' && binding.sid === 'LegacySecrets' && binding.action === 'update' && bound.length === 1 &&
+          bound[0].name === 'BUDGET_SIGNER_PRIVATE_KEY' && bound[0].type === 'inherit' &&
+          observed?.bindings.find(old => old.name === bound[0].name)?.type === 'secret_text' &&
+          observed?.bindings.find(old => old.name === 'PRIVY_APP_SECRET')?.type === 'secret_text' &&
+          privy.length === 1 && privy[0].type === 'secret_text' && typeof privy[0].text === 'string' && privy[0].text.length > 0 &&
+          validatePlanChanges({ ...changes, secretChanges: [{ logicalId: 'Api', name: 'PRIVY_APP_SECRET', action: 'rotate' }] }, reference).ok) continue
       for (const entry of bound) {
         const old = observed?.bindings.find(item => item.name === entry.name)
         if (old && entry.type !== 'inherit' && entry.type !== old.type) refuse('binding-type-change-refused', row.logicalId, entry.name)

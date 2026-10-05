@@ -42,7 +42,6 @@ export default Alchemy.Stack(
       // Preserve legacy secrets without reading their values back from Cloudflare.
       yield* api.bind('LegacySecrets', { bindings: [
         { type: 'inherit', name: 'BUDGET_SIGNER_PRIVATE_KEY' },
-        { type: 'inherit', name: 'PRIVY_APP_SECRET' },
       ] })
     }
     const indexer = yield* Indexer
