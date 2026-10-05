@@ -3,6 +3,7 @@ import { type Address, getAbiItem } from 'viem'
 import { feeScheduleAbi, stakeVaultAbi } from './abi/index.ts'
 import type { Ctx } from './actions.ts'
 import { delegationCandidates, type StakeLedgerEvent } from './staking-ledger.ts'
+import { logWindowEnd, smallerLogSpan } from './log-ranges.ts'
 
 export interface StakePool {
   readonly assets: bigint
@@ -108,15 +109,23 @@ export async function listDelegations(ctx: Ctx, delegator: Address, options: Del
   const blockNumber = options.blockNumber ?? await ctx.publicClient.getBlockNumber()
   const events = [getAbiItem({ abi: stakeVaultAbi, name: 'Delegated' }), getAbiItem({ abi: stakeVaultAbi, name: 'PoolReset' })] as const
   const ledger: StakeLedgerEvent[] = []
-  for (let fromBlock = options.fromBlock ?? h.block; fromBlock <= blockNumber; fromBlock += 10_000n) {
-    const end = fromBlock + 9_999n
-    const logs = await ctx.publicClient.getLogs({ address: h.vault, events,
-      fromBlock, toBlock: end < blockNumber ? end : blockNumber, strict: true })
+  for (let fromBlock = options.fromBlock ?? h.block, span = 100n; fromBlock <= blockNumber;) {
+    const end = logWindowEnd(fromBlock, blockNumber, span)
+    let logs
+    try {
+      logs = await ctx.publicClient.getLogs({ address: h.vault, events, fromBlock, toBlock: end, strict: true })
+    } catch (error) {
+      const smaller = smallerLogSpan(error, span)
+      if (smaller === undefined) throw error
+      span = smaller
+      continue
+    }
     for (const log of logs) {
       const entry = { account: log.args.account, blockNumber: log.blockNumber, logIndex: log.logIndex }
       ledger.push(log.eventName === 'PoolReset' ? { ...entry, name: 'PoolReset', generation: log.args.generation }
         : { ...entry, name: 'Delegated', delegator: log.args.delegator })
     }
+    fromBlock = end + 1n
   }
   const positions = []
   for (const candidate of delegationCandidates(ledger, { delegator, ...(options.account === undefined ? {} : { account: options.account }) })) {
