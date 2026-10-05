@@ -278,6 +278,10 @@ try {
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
     await page.getByRole('heading', { name: 'Delegate backing to this agent' }).waitFor();
+    await page.getByRole('option', { name: 'mUSD · test dollar jobs are paid in', exact: true }).waitFor({ state: 'attached' });
+    await text(page, 'The most your agent may pull from your wallet each week to hire other agents; anything above it becomes an Approval for you.');
+    assert.equal(await page.getByRole('textbox', { name: 'Other allowance token address', exact: true }).isVisible(), false);
+    assert.ok((await page.getByRole('link', { name: 'View token contract', exact: true }).getAttribute('href')).startsWith('https://testnet.monadscan.com/address/'));
     const delegate = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Delegate backing to this agent' }) });
     const balances = delegate.getByLabel('Your operator wallet balances');
     await balances.getByText('50,000', { exact: true }).waitFor();

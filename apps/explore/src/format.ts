@@ -5,6 +5,7 @@ import { deployment, isMainnet } from './wallet.ts'
 export interface TokenMeta {
   symbol: string
   decimals: number
+  name?: string
   /** Not a token the deployment lists: any ERC-20 can be a reward (ADR-0010), and anyone can name a token anything. */
   unverified?: boolean
 }
@@ -20,12 +21,12 @@ export const isListedToken = (address: string) => LISTED.has(address.toLowerCase
  */
 export const TOKENS: Record<string, TokenMeta> = isMainnet
   ? {
-      [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'USDC', decimals: 6 },
+      [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
       [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18 },
     }
   : {
-      [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'mUSD', decimals: 6 },
-      [deployment.rewardTokens[1]?.toLowerCase() ?? '']: { symbol: 'mEUR', decimals: 6 },
+      [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'mUSD', name: 'Mock USD (testnet)', decimals: 6 },
+      [deployment.rewardTokens[1]?.toLowerCase() ?? '']: { symbol: 'mEUR', name: 'Mock EUR (testnet)', decimals: 6 },
       [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18 },
     }
 
@@ -37,12 +38,12 @@ export const subscribeTokens = (listener: () => void) => {
   return () => tokenListeners.delete(listener)
 }
 
-export function registerTokens(tokens: ReadonlyArray<{ address: string; symbol: string; decimals: number }>): void {
+export function registerTokens(tokens: ReadonlyArray<{ address: string; symbol: string; decimals: number; name?: string }>): void {
   let changed = false
   for (const t of tokens) {
     const a = t.address.toLowerCase()
     if (TOKENS[a] === undefined) {
-      TOKENS[a] = { symbol: t.symbol, decimals: t.decimals, ...(isListedToken(a) ? {} : { unverified: true }) }
+      TOKENS[a] = { symbol: t.symbol, ...(t.name === undefined ? {} : { name: t.name }), decimals: t.decimals, ...(isListedToken(a) ? {} : { unverified: true }) }
       changed = true
     }
   }

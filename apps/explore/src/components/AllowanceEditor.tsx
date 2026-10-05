@@ -5,11 +5,12 @@ import type { ManagedAgent } from "../api.ts";
 import { agentAction } from "../agent-api.ts";
 import { reviewAgentGrant, type PreparedGrant } from "../agent-grant.ts";
 import { typedDataArgs } from "../typed-data.ts";
-import { deployment } from "../wallet.ts";
+import { deployment, explorer } from "../wallet.ts";
 import { useToken } from "../useTokens.ts";
+import { rewardTokenList } from "../format.ts";
 import { AgentGrantReview } from "./AgentGrantReview.tsx";
 import { useAuth } from "./Wallet.tsx";
-import { Button, ErrorText, Input } from "./ui.tsx";
+import { Button, ErrorText, Input, Select } from "./ui.tsx";
 import { OperatorBalances } from "./OperatorBalances.tsx";
 
 export function AllowanceEditor({
@@ -79,22 +80,24 @@ export function AllowanceEditor({
       <h3 className="font-semibold">Weekly spending allowance</h3>
       <OperatorBalances operator={operator} token={token} />
       <p className="text-sm text-label-2">
-        Fixed seven-day periods, lasting 30 days. Renewal disables the old allowance before the new
-        one becomes usable.
+        The most your agent may pull from your wallet each week to hire other agents; anything above it becomes an Approval for you.
       </p>
       {review === null ? (
         <>
-          <label className="grid gap-1 text-sm">
-            <span>Reward token</span>
-            <Input
-              value={token}
-              onChange={(event) => {
-                setToken(event.target.value);
-                setKey(crypto.randomUUID());
-              }}
-              aria-label="Allowance token"
-            />
-          </label>
+          <div className="grid gap-1 text-sm">
+            <label>
+              <span className="sr-only">Token jobs are paid in</span>
+              <Select aria-label="Token jobs are paid in" value={token.toLowerCase()} onChange={(event) => { setToken(event.target.value); setKey(crypto.randomUUID()); }}>
+                {rewardTokenList().map(([address, info]) => <option key={address} value={address}>{info.symbol} · {info.name === "Mock USD (testnet)" ? "test dollar jobs are paid in" : info.name ?? "jobs are paid in this token"}</option>)}
+                {isAddress(token) && !rewardTokenList().some(([address]) => address === token.toLowerCase()) && <option value={token.toLowerCase()}>{typeof meta === "object" ? meta.symbol : "Custom token"}</option>}
+              </Select>
+            </label>
+            {isAddress(token) && <a className="text-xs text-label-2 underline" href={explorer("address", token)} target="_blank" rel="noreferrer">View token contract</a>}
+            <details>
+              <summary className="cursor-pointer text-xs text-label-2">Use another token</summary>
+              <Input aria-label="Other allowance token address" value={token} onChange={(event) => { setToken(event.target.value); setKey(crypto.randomUUID()); }} />
+            </details>
+          </div>
           <label className="grid gap-1 text-sm">
             <span>
               Weekly maximum ·{" "}
