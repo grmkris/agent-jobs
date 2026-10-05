@@ -96,14 +96,14 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
     >
       <Group>
         <ListRow>
-          <span className="min-w-0 flex-1 font-mono text-[0.82rem] break-all text-label-2">{address}</span>
+          <span className="min-w-0 flex-1 font-mono text-ui break-all text-label-2">{address}</span>
           <CopyButton value={address} label="Copy address" />
         </ListRow>
         {rows.map(([symbol, what, value]) => (
           <ListRow key={symbol}>
             <span className="flex-1">
               {symbol}
-              <span className="block text-[0.78rem] text-label-3">{what}</span>
+              <span className="block text-xs text-label-3">{what}</span>
             </span>
             <span className="tabular text-label">{value ?? '…'}</span>
           </ListRow>

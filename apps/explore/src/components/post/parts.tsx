@@ -45,7 +45,7 @@ export function Choices<T extends string>({
             </span>
             <span className="min-w-0">
               <span className="block font-semibold">{o.title}</span>
-              <span className="mt-0.5 block text-[0.88rem] leading-snug text-label-2">{o.body}</span>
+              <span className="mt-0.5 block text-sm leading-snug text-label-2">{o.body}</span>
             </span>
           </button>
         )
@@ -79,7 +79,7 @@ export function Chip({ on, onClick, children }: { on: boolean; onClick: () => vo
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className={cn('press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[0.88rem] font-medium', on ? 'bg-tint/14 text-tint' : 'bg-fill text-label-2')}
+      className={cn('press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium', on ? 'bg-tint/14 text-tint' : 'bg-fill text-label-2')}
     >
       {on && <Check aria-hidden className="size-3.5" strokeWidth={3} />}
       {children}
@@ -110,7 +110,7 @@ export function StepNav({ onBack, status, children, stack = false }: { onBack?: 
       >
         Back
       </button>
-      <span aria-live="polite" className={cn('min-w-0 flex-1 truncate text-center text-[0.8rem] text-label-3', stack && 'max-sm:hidden')}>
+      <span aria-live="polite" className={cn('min-w-0 flex-1 truncate text-center text-ui text-label-3', stack && 'max-sm:hidden')}>
         {status}
       </span>
       {children}
@@ -122,11 +122,11 @@ export function StepNav({ onBack, status, children, stack = false }: { onBack?: 
 export function FieldRow({ label, hint, children, htmlFor }: { label: ReactNode; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
     <div className={cn(rowClass(), 'flex-col items-stretch gap-1.5 py-3')}>
-      <label htmlFor={htmlFor} className="text-[0.82rem] text-label-2">
+      <label htmlFor={htmlFor} className="text-ui text-label-2">
         {label}
       </label>
       {children}
-      {hint !== undefined && <span className="text-[0.78rem] leading-snug text-label-3">{hint}</span>}
+      {hint !== undefined && <span className="text-xs leading-snug text-label-3">{hint}</span>}
     </div>
   )
 }
@@ -137,7 +137,7 @@ export function LineRow({ label, note, children, stack = false, htmlFor }: { lab
     <div className={cn(rowClass(), stack && 'flex-col items-stretch gap-2 py-3 sm:flex-row sm:items-center')}>
       <label htmlFor={htmlFor} className="min-w-0 flex-1">
         <span className="block">{label}</span>
-        {note !== undefined && <span className="block text-[0.78rem] leading-snug text-label-3">{note}</span>}
+        {note !== undefined && <span className="block text-xs leading-snug text-label-3">{note}</span>}
       </label>
       {children}
     </div>
@@ -150,7 +150,7 @@ export function KV({ label, children, note }: { label: ReactNode; children: Reac
     <div className={cn(rowClass(), 'items-baseline justify-between')}>
       <span className="max-w-[55%] shrink-0">
         <span className="block">{label}</span>
-        {note !== undefined && <span className="block text-[0.78rem] leading-snug text-label-3">{note}</span>}
+        {note !== undefined && <span className="block text-xs leading-snug text-label-3">{note}</span>}
       </span>
       <span className="min-w-0 flex-1 text-right text-label-2 [overflow-wrap:anywhere]">{children}</span>
     </div>
@@ -163,7 +163,7 @@ export function Disclosure({ title, summary, children, open, onToggle }: { title
     <details open={open} onToggle={(e) => onToggle?.((e.currentTarget as HTMLDetailsElement).open)} className="group/disclosure overflow-hidden rounded-xl bg-surface">
       <summary className={cn(rowClass({ interactive: true }), 'cursor-pointer list-none [&::-webkit-details-marker]:hidden')}>
         <span className="flex-1 font-medium">{title}</span>
-        {summary !== undefined && <span className="min-w-0 truncate text-[0.85rem] text-label-3 group-open/disclosure:hidden">{summary}</span>}
+        {summary !== undefined && <span className="min-w-0 truncate text-ui text-label-3 group-open/disclosure:hidden">{summary}</span>}
         <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3 transition-transform duration-200 group-open/disclosure:rotate-90" />
       </summary>
       {children}
@@ -178,7 +178,7 @@ export function Mark({ tone }: { tone: 'ok' | 'warn' | 'bad' | 'wait' | 'none' }
     <span
       aria-hidden
       className={cn(
-        'grid size-6 shrink-0 place-items-center rounded-full text-[0.8rem] font-bold text-background',
+        'grid size-6 shrink-0 place-items-center rounded-full text-ui font-bold text-background',
         tone === 'ok' && 'bg-ok',
         tone === 'warn' && 'bg-warn',
         tone === 'bad' && 'bg-bad',

@@ -189,7 +189,7 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
           <div className="material sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 grid rounded-2xl p-2.5 shadow-float lg:bottom-4">
             <SignInToPublish auth={auth} label={signInLabel} />
           </div>
-          <p className="px-4 text-[0.85rem] text-label-2">
+          <p className="px-4 text-ui text-label-2">
             {settleOnly ? 'Anyone signed in can send this step; sign in to do it.' : 'This wallet has a part in this job. Sign in to see and send what it can do.'}
           </p>
         </div>
@@ -251,9 +251,9 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
         onConfirm={() => void go()}
       >
         <div className="grid gap-2">
-          <span className="text-[0.82rem] text-label-2">Why</span>
+          <span className="text-ui text-label-2">Why</span>
           <Segmented label="Why" value={violation} onChange={setViolation} options={VIOLATIONS} />
-          <p className="text-[0.88rem] leading-snug text-label-2">
+          <p className="text-sm leading-snug text-label-2">
             {violation === 'None'
               ? 'The reward comes back to you and both bonds are returned. Nobody is penalised.'
               : `If the rejection stands, ${agent}'s ${bond(job.workerBond)} bond is burned. Use this only when the work breaks the accepted-when list${violation === 'Falsified' ? ' by faking its evidence' : ''}.`}
@@ -353,9 +353,9 @@ function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: b
   const list = (apps.data ?? []).toSorted((a, b) => Number(hiredBefore.has(b.agent_id)) - Number(hiredBefore.has(a.agent_id)))
   return (
     <Section title={`Applications${list.length > 0 ? ` · ${list.length}` : ''}`} note={selected.size > 0 ? 'Selection is signed, not an activation. Other unexpired selections remain usable until one worker activates.' : 'Agents apply over MCP. Select one: you sign, no transaction; it starts when the agent activates.'}>
-      {selected.size === 0 && job.selection?.some((selection) => selection.state === 'expired') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">The previous selection expired before activation. You can select an applicant again.</p>}
-      {selected.size === 0 && job.selection?.some((selection) => selection.state === 'invalid') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">The previous selection is no longer valid for this offer. No worker activation is confirmed.</p>}
-      {job.selection?.some((selection) => selection.state === 'unavailable') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-[0.86rem] text-warn">Selection verification is unavailable. A stored signature is not proof the worker can still activate.</p>}
+      {selected.size === 0 && job.selection?.some((selection) => selection.state === 'expired') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">The previous selection expired before activation. You can select an applicant again.</p>}
+      {selected.size === 0 && job.selection?.some((selection) => selection.state === 'invalid') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">The previous selection is no longer valid for this offer. No worker activation is confirmed.</p>}
+      {job.selection?.some((selection) => selection.state === 'unavailable') && <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">Selection verification is unavailable. A stored signature is not proof the worker can still activate.</p>}
       {apps.isLoading ? null : list.length === 0 ? (
         <EmptyState title="No applications yet">Agents that apply show up here with their record.</EmptyState>
       ) : (
@@ -370,10 +370,10 @@ function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: b
                   </BoardLink>
                   {hiredBefore.has(a.agent_id) && <Badge tone="info">Hired before</Badge>}
                 </span>
-                <span className="block text-[0.84rem] text-label-2">
+                <span className="block text-ui text-label-2">
                   <AgentRecord agentId={a.agent_id} />
                 </span>
-                {a.note !== '' && <span className="block text-[0.86rem] text-label-2">“{a.note}”</span>}
+                {a.note !== '' && <span className="block text-sm text-label-2">“{a.note}”</span>}
               </span>
               {selected.has(a.id) ? <Badge tone="success">Selected</Badge> : <Button size="sm" variant="tinted" onClick={() => onSelect(a.id, a.agent_id)}>Select</Button>}
             </ListRow>

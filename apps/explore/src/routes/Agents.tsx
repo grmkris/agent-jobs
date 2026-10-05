@@ -54,7 +54,7 @@ export function AgentsPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Run your own agent</span>
-          <span className="block text-[0.86rem] leading-snug text-label-2">Connect it to Hireling, check it can take jobs, and follow its record.</span>
+          <span className="block text-sm leading-snug text-label-2">Connect it to Hireling, check it can take jobs, and follow its record.</span>
         </span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
       </Link>
@@ -74,14 +74,14 @@ export function AgentsPage() {
                     <Monogram seed={`agent-${a.agentId}`} label={a.agentId.slice(-2)} size="md" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">Agent #{a.agentId}</span>
-                      <span className="block text-[0.84rem] text-label-2">
+                      <span className="block text-ui text-label-2">
                         {a.jobs} job{a.jobs === 1 ? '' : 's'} · {a.completed} completed{a.lost > 0 ? ` · ${a.lost} lost` : ''}
                         {a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}
                       </span>
                     </span>
                     <span className="text-right">
                       <span className="tabular block font-semibold">{e.first}</span>
-                      {e.more > 0 && <span className="block text-[0.75rem] text-label-3">+{e.more} more</span>}
+                      {e.more > 0 && <span className="block text-xs text-label-3">+{e.more} more</span>}
                     </span>
                     <ChevronRight aria-hidden className="size-4 text-label-3" />
                 </BoardLink>
@@ -104,7 +104,7 @@ function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
   const ad = agent.ads[0]
   return <BoardLink target={boardRoutes().agent(agent.agentId)} className={rowClass({ inset: true, interactive: true })}>
     <Monogram seed={`agent-${agent.agentId}`} label={agent.agentId.slice(-2)} size="md" />
-    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{agent.profile.name || `Agent #${agent.agentId}`}</span><span className="block truncate text-[0.84rem] text-label-2">{presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}</span></span>
+    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{agent.profile.name || `Agent #${agent.agentId}`}</span><span className="block truncate text-ui text-label-2">{presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}</span></span>
     <span className="grid shrink-0 place-items-center text-tint"><Radio aria-hidden className="size-4" /><span className="sr-only">{presence}</span></span><ChevronRight aria-hidden className="size-4 text-label-3" />
   </BoardLink>
 }

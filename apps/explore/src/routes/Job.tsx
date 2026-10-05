@@ -177,7 +177,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         <Back />
         <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
           <p className="font-semibold">{chain.isError ? 'Chain job details are unavailable' : `Job #${jobId} is not indexed yet`}</p>
-          <p className="text-[0.9rem] text-label-2">{chain.isError ? 'The chain index could not be read. This does not mean the job is still in progress or unpaid.' : 'A newly published job appears about a minute after its block is final.'}</p>
+          <p className="text-sm text-label-2">{chain.isError ? 'The chain index could not be read. This does not mean the job is still in progress or unpaid.' : 'A newly published job appears about a minute after its block is final.'}</p>
           <Button variant="tinted" onClick={() => void chain.refetch()}>Retry job details</Button>
         </div>
       </>
@@ -188,15 +188,15 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
     <>
       <Back />
       {chain.isError && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>Chain job details are unavailable.{d === undefined ? ' Payment history cannot be confirmed from the index.' : ` Showing last-known indexed facts from ${new Date(chain.dataUpdatedAt).toLocaleString()}.`}</p>
           <Button variant="tinted" onClick={() => void chain.refetch()}>Retry job details</Button>
         </div>
       )}
-      {board.isError && <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn"><p>Board details are unavailable. {d !== undefined ? 'Showing indexed chain facts instead; actions are paused until the offer refreshes.' : 'Offer terms and actions cannot be confirmed.'}</p><Button variant="tinted" onClick={() => void board.refetch()}>Retry offer details</Button></div>}
+      {board.isError && <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn"><p>Board details are unavailable. {d !== undefined ? 'Showing indexed chain facts instead; actions are paused until the offer refreshes.' : 'Offer terms and actions cannot be confirmed.'}</p><Button variant="tinted" onClick={() => void board.refetch()}>Retry offer details</Button></div>}
       <header className="grid min-w-0 gap-2">
-        <h1 className="font-display text-[1.75rem] leading-[1.15] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{title}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-[0.88rem] text-label-2">
+        <h1 className="text-2xl leading-[1.15] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-label-2">
           {waitingForActivation ? <><Badge tone="success">Selected</Badge><span>On-chain: Open</span></> : <PhaseBadge phase={phase} />}
           {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
           <span>· {mode === 'contest' ? 'Contest' : listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
@@ -211,12 +211,12 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
       {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} charge={chargeOf(d)} />}
 
-      {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-[0.88rem] text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
+      {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-sm text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
 
       {writesOpen && phase?.key === 'completed' && agentId !== null && auth.address !== undefined && (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={jobId} />
-          <p className="px-4 text-[0.85rem] text-label-2">A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.</p>
+          <p className="px-4 text-ui text-label-2">A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.</p>
         </div>
       )}
 
@@ -279,7 +279,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
             <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{brief}</p>
             {criteria.length > 0 && (
               <div>
-                <p className="text-[0.85rem] text-label-2">Accepted when</p>
+                <p className="text-ui text-label-2">Accepted when</p>
                 <ul className="mt-1 list-disc pl-5">
                   {criteria.map((c) => (
                     <li key={c} className="[overflow-wrap:anywhere]">{c}</li>
@@ -287,7 +287,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
                 </ul>
               </div>
             )}
-            {mode === 'contest' && <p className="text-[0.85rem] text-warn">Only the winning entry is paid, and the contest may close early when it is awarded.</p>}
+            {mode === 'contest' && <p className="text-ui text-warn">Only the winning entry is paid, and the contest may close early when it is awarded.</p>}
           </div>
         </Section>
       )}
@@ -356,10 +356,10 @@ function Money({ phase, reward, token, mode, agentId, charge }: { phase: Phase |
         {!terminal && !draft ? <Lock aria-hidden className="size-5" /> : <ReceiptText aria-hidden className="size-5" />}
       </span>
       <span className="min-w-0">
-        <span className="tabular block font-display text-[1.75rem] leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{amount(paid && charge !== null ? charge.net : reward, token)}</span>
-        <span className="mt-1 block text-[0.88rem] text-label-2">{where}</span>
+        <span className="tabular block text-2xl leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{amount(paid && charge !== null ? charge.net : reward, token)}</span>
+        <span className="mt-1 block text-sm text-label-2">{where}</span>
         {token !== null && tokenInfo(token).unverified === true && (
-          <span className="mt-1 block text-[0.8rem] text-label-3 [overflow-wrap:anywhere]">Unverified token {token}: anyone can deploy a token under any name</span>
+          <span className="mt-1 block text-ui text-label-3 [overflow-wrap:anywhere]">Unverified token {token}: anyone can deploy a token under any name</span>
         )}
       </span>
     </div>
@@ -369,7 +369,7 @@ function Money({ phase, reward, token, mode, agentId, charge }: { phase: Phase |
 /** What happens next and who acts: addressed to the viewer when it is theirs to do. */
 function NextStep({ phase }: { phase: Phase }) {
   if (phase.terminal && phase.actions.length === 0) {
-    return <p className="px-1 text-[0.95rem] leading-relaxed text-label-2"><Sentence parts={phase.next} /></p>
+    return <p className="px-1 text-sm leading-relaxed text-label-2"><Sentence parts={phase.next} /></p>
   }
   const you = phase.youAct && phase.toYou !== null
   return (
@@ -382,7 +382,7 @@ function NextStep({ phase }: { phase: Phase }) {
         </p>
       </div>
       {phase.warnings.map((w) => (
-        <p key={w} role="alert" className="rounded-xl bg-bad-bg px-4 py-2.5 text-[0.9rem] text-bad">
+        <p key={w} role="alert" className="rounded-xl bg-bad-bg px-4 py-2.5 text-sm text-bad">
           {w}
         </p>
       ))}
@@ -402,7 +402,7 @@ function Dispute({ d, boardId, taskId, signedIn, isParty }: { d: Detail; boardId
     <Section title="Rejection and dispute" note={reason === undefined || reason === null ? 'The written reason is shown to the creator, the approver and the agent; everyone else sees its fingerprint on-chain.' : undefined}>
       <Group className="px-4 py-2">
         {d.job.violation !== null && <Row label="Rejected as">{VIOLATION[d.job.violation] ?? d.job.violation}</Row>}
-        <Row label="Reason">{reason ?? <span className="font-mono text-[0.8rem]">{d.job.rejection_reason_hash?.slice(0, 14) ?? '—'}…</span>}</Row>
+        <Row label="Reason">{reason ?? <span className="font-mono text-ui">{d.job.rejection_reason_hash?.slice(0, 14) ?? '—'}…</span>}</Row>
         {bundle.data?.bundle.statements.map((s, i) => (
           <Row key={i} label={`${s.role[0]?.toUpperCase()}${s.role.slice(1)}'s statement`}>
             {s.text}
@@ -444,7 +444,7 @@ function People({ d, listed, agentId, viewer }: { d: Detail | undefined; listed:
             <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
             <span className="min-w-0 flex-1">
               <span className="block font-medium">Agent #{agentId}</span>
-              <span className="block truncate font-mono text-[0.8rem] text-label-2">{worker}</span>
+              <span className="block truncate font-mono text-ui text-label-2">{worker}</span>
             </span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </BoardLink>
@@ -479,19 +479,19 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
         {listed !== undefined && (
           <Row label="Deliver as">
             {(listed.deliverable?.accepts ?? ['git']).map((k) => DELIVERABLE_KINDS.find((x) => x.kind === k)?.label ?? k).join(', ')}
-            {listed.deliverable?.target !== undefined && <span className="block text-[0.8rem]">{listed.deliverable.target}</span>}
+            {listed.deliverable?.target !== undefined && <span className="block text-ui">{listed.deliverable.target}</span>}
           </Row>
         )}
         {listed !== undefined && listed.requiredChecks.length > 0 && <Row label="Required GitHub check">{listed.requiredChecks.join(', ')}</Row>}
         {screening !== undefined && (
           <Row label="Screening" hint="An AI screener reads every brief; its verdict is advice">
             {VERDICT[screening.verdict] ?? screening.verdict}
-            {screening.reasons.length > 0 && <span className="block text-[0.8rem]">{screening.reasons.join(' · ')}</span>}
+            {screening.reasons.length > 0 && <span className="block text-ui">{screening.reasons.join(' · ')}</span>}
           </Row>
         )}
         {termsHash !== undefined && (
           <Row label="Offer ID">
-            <a className="-my-3.5 inline-flex py-3.5 font-mono text-[0.8rem] text-tint" href={`/offers/${termsHash}.json`} target="_blank" rel="noreferrer">
+            <a className="-my-3.5 inline-flex py-3.5 font-mono text-ui text-tint" href={`/offers/${termsHash}.json`} target="_blank" rel="noreferrer">
               {termsHash.slice(0, 12)}…
             </a>
           </Row>
@@ -503,7 +503,7 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
         )}
         {d?.submission != null && (
           <Row label="On-chain delivery">
-            <span className="font-mono text-[0.8rem]">{d.submission.deliverable.slice(0, 14)}…</span> <TxLink hash={d.submission.tx_hash} />
+            <span className="font-mono text-ui">{d.submission.deliverable.slice(0, 14)}…</span> <TxLink hash={d.submission.tx_hash} />
           </Row>
         )}
       </div>

@@ -50,7 +50,7 @@ function CheckLine({ check }: { check: DeliverableCheck | null }) {
   if (check === null) return null
   const ok = check.ok === true
   return (
-    <span className={cn('flex items-center gap-1.5 text-[0.82rem]', ok ? 'text-ok' : check.ok === false ? 'text-bad' : 'text-label-2')}>
+    <span className={cn('flex items-center gap-1.5 text-ui', ok ? 'text-ok' : check.ok === false ? 'text-bad' : 'text-label-2')}>
       {ok ? <Check aria-hidden className="size-3.5" strokeWidth={3} /> : <CircleAlert aria-hidden className="size-3.5" />}
       {ok ? 'Checked at submit' : check.ok === false ? 'Check at submit failed' : 'Not checked'}
       <span className="text-label-3">· {check.detail}</span>
@@ -61,7 +61,7 @@ function CheckLine({ check }: { check: DeliverableCheck | null }) {
 /** One deliverable as a line of text, with its check. */
 export function DeliverableLine({ d, check }: { d: Deliverable; check: DeliverableCheck | null }) {
   return (
-    <span className="grid gap-0.5 text-[0.88rem]">
+    <span className="grid gap-0.5 text-sm">
       <span className="text-label-2">
         {KIND[d.kind]} · <Where d={d} />
       </span>
@@ -98,12 +98,12 @@ export function Delivered({
         ))}
         {evidence.map((e) => (
           <ListRow key={e.tx_hash}>
-            <span className="grid flex-1 gap-1 text-[0.88rem]">
+            <span className="grid flex-1 gap-1 text-sm">
               <span className="flex flex-wrap items-center gap-2">
                 <Badge tone={e.conclusion === 'success' ? 'success' : 'danger'}>{e.conclusion === 'success' ? 'Check passed' : 'Check failed'}</Badge>
                 <span className="text-label-2">{e.onchainMatch ? 'on the delivered commit' : e.expired ? 'attestation expired' : 'on a different commit'}</span>
               </span>
-              <span className="flex flex-wrap items-center gap-2 text-[0.8rem] text-label-3">
+              <span className="flex flex-wrap items-center gap-2 text-ui text-label-3">
                 Signed by <Address value={e.verifier} /> <TxLink hash={e.tx_hash} />
               </span>
             </span>

@@ -41,7 +41,7 @@ export function SponsorshipPage() {
       <>
         <PageTitle sub={SUB}>Gas sponsorship</PageTitle>
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="font-display text-[1.4rem] leading-tight font-bold tracking-[-0.02em]">Sign in to stop paying gas</h2>
+          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to stop paying gas</h2>
           <SignInToPublish auth={auth} label="Sign in" />
         </section>
       </>
@@ -127,7 +127,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: NonNullable<Ret
       {status.isLoading ? (
         <LoadingRows rows={3} />
       ) : status.isError || s === undefined ? (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>Whether Hireling pays your gas cannot be read right now.</p>
           <Button variant="tinted" onClick={() => void status.refetch()}>Retry</Button>
         </div>
@@ -172,17 +172,17 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: NonNullable<Ret
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint/14 text-tint">
                   <Fuel aria-hidden className="size-4" />
                 </span>
-                <span className="min-w-0 flex-1 text-[0.92rem] leading-snug">
+                <span className="min-w-0 flex-1 text-sm leading-snug">
                   You sign one permission. Hireling’s relay then sends your hires, deliveries, approvals and payouts, and pays their gas: only calls to Hireling’s contracts, a limited number of times, until it expires.
                 </span>
               </ListRow>
             </Group>
           </Section>
-          {s.status !== 'none' && s.status !== 'live' && <p className="px-4 text-[0.88rem] text-label-2">{ENDED[s.status]} Turn it on again for a new one.</p>}
+          {s.status !== 'none' && s.status !== 'live' && <p className="px-4 text-sm text-label-2">{ENDED[s.status]} Turn it on again for a new one.</p>}
           <Button size="lg" busy={busy === 'prepare'} onClick={() => void begin()}>
             Turn on
           </Button>
-          <p className="px-4 text-[0.85rem] leading-snug text-label-2">Agents turn it on the same way, signing the same permission from the agent’s own wallet.</p>
+          <p className="px-4 text-ui leading-snug text-label-2">Agents turn it on the same way, signing the same permission from the agent’s own wallet.</p>
         </div>
       )}
       {error !== null && <ErrorText>{error}</ErrorText>}
@@ -213,7 +213,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: NonNullable<Ret
         onConfirm={() => void enable()}
       >
         {prep !== null && <Policy policy={prep.policy} />}
-        {prep !== null && prep.prep.upgrade !== null && <p className="text-[0.88rem] text-label-2">First your wallet points at the delegation contract. The relay sends that for you.</p>}
+        {prep !== null && prep.prep.upgrade !== null && <p className="text-sm text-label-2">First your wallet points at the delegation contract. The relay sends that for you.</p>}
       </ConfirmSheet>
       <ConfirmSheet
         open={turningOff}
@@ -246,7 +246,7 @@ function Policy({ policy }: { policy: SponsorPolicy }) {
         ))}
         <ListRow>
           <span className="shrink-0">Only</span>
-          <span className="min-w-0 flex-1 text-right font-mono text-[0.8rem] break-words text-label-2">{policy.methods.map((x) => x.name).join(', ')}</span>
+          <span className="min-w-0 flex-1 text-right font-mono text-ui break-words text-label-2">{policy.methods.map((x) => x.name).join(', ')}</span>
         </ListRow>
         <ListRow>
           <span className="flex-1">At most</span>

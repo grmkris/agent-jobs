@@ -40,7 +40,7 @@ export function CollectPage() {
       <>
         <PageTitle sub="Payments, refunds and stake you can claim.">Collect</PageTitle>
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="font-display text-[1.4rem] leading-tight font-bold tracking-[-0.02em]">Sign in to see what you can collect</h2>
+          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to see what you can collect</h2>
           <SignInToPublish auth={auth} label="Sign in" />
         </section>
       </>
@@ -54,7 +54,7 @@ export function CollectPage() {
       {actions.isLoading ? (
         <LoadingRows rows={3} />
       ) : actions.isError ? (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>What you can collect cannot be read right now. This does not mean there is nothing waiting for you.</p>
           <Button variant="tinted" onClick={() => void actions.refetch()}>Retry</Button>
         </div>
@@ -85,12 +85,12 @@ export function CollectPage() {
                       <>
                         <span className="block font-medium">{k?.title(a) ?? a.kind}</span>
                         {a.amount != null && a.token != null && <span className="tabular block font-semibold">{amount(a.amount, a.token)}</span>}
-                        <span className="block text-[0.85rem] leading-snug text-label-2">{a.description}</span>
+                        <span className="block text-ui leading-snug text-label-2">{a.description}</span>
                       </>
                     )}
-                    {refused !== null && <span role="alert" className="mt-1 block text-[0.85rem] leading-snug text-bad">Not offered: {refused}</span>}
+                    {refused !== null && <span role="alert" className="mt-1 block text-ui leading-snug text-bad">Not offered: {refused}</span>}
                     {a.jobId != null && (
-                      <BoardLink target={boardRoutes().job(a.jobId)} className="text-[0.85rem] text-tint">
+                      <BoardLink target={boardRoutes().job(a.jobId)} className="text-ui text-tint">
                         Open the job
                       </BoardLink>
                     )}
@@ -122,7 +122,7 @@ export function CollectPage() {
           })}
         </Group>
       )}
-      {list.length > 0 && <p className="px-4 text-[0.8rem] leading-snug text-label-2">The contracts decide who is paid: settling a job pays out as its outcome says and releases both bonds. What is yours comes to your wallet.</p>}
+      {list.length > 0 && <p className="px-4 text-ui leading-snug text-label-2">The contracts decide who is paid: settling a job pays out as its outcome says and releases both bonds. What is yours comes to your wallet.</p>}
     </>
   )
 }

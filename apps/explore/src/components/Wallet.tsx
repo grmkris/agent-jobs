@@ -131,9 +131,9 @@ export function AccountControl({ auth, account, full = false }: { auth: ReturnTy
       {auth.signedIn ? (
         // The link is the 44 px target; the pill inside it is what shows.
         <Link to="/me" className="flex min-h-11 min-w-0 items-center" aria-label="Your wallet">
-          <span className="flex min-w-0 items-center gap-2 rounded-full bg-fill py-1 pr-3 pl-1 text-[0.85rem] font-medium">
+          <span className="flex min-w-0 items-center gap-2 rounded-full bg-fill py-1 pr-3 pl-1 text-ui font-medium">
             <Monogram seed={auth.address} />
-            <span className="truncate font-mono text-[0.8rem]">{auth.address.slice(0, 6)}…{auth.address.slice(-4)}</span>
+            <span className="truncate font-mono text-ui">{auth.address.slice(0, 6)}…{auth.address.slice(-4)}</span>
           </span>
         </Link>
       ) : (
@@ -161,7 +161,7 @@ export function Monogram({ seed, label, size = 'sm' }: { seed: string; label?: s
   return (
     <span
       aria-hidden
-      className={cn('grid shrink-0 place-items-center rounded-full font-bold text-white', size === 'sm' && 'size-6 text-[0.6rem]', size === 'md' && 'size-9 text-[0.72rem]', size === 'lg' && 'size-16 text-lg')}
+      className={cn('grid shrink-0 place-items-center rounded-full font-bold text-white', size === 'sm' && 'size-6 text-micro', size === 'md' && 'size-9 text-xs', size === 'lg' && 'size-16 text-lg')}
       style={{ background: `linear-gradient(140deg, hsl(${h} 62% 56%), hsl(${(h + 40) % 360} 58% 44%))` }}
     >
       {label ?? ''}

@@ -50,7 +50,7 @@ export function StartPrompt({ children }: { children?: ReactNode }) {
   return (
     <div className="w-full rounded-3xl bg-card p-2 text-left shadow-[0_1px_2px_oklch(0_0_0/0.04),0_12px_40px_-12px_oklch(0_0_0/0.18)] ring-1 ring-foreground/10 dark:shadow-[0_1px_2px_oklch(0_0_0/0.4),0_12px_40px_-12px_oklch(0_0_0/0.6)]">
       <p className="px-3 pt-2 text-xs text-muted-foreground">Paste into your coding agent</p>
-      <p className="px-3 pt-1.5 pb-4 font-mono text-[0.9rem] leading-relaxed [overflow-wrap:anywhere]">{prompt}</p>
+      <p className="px-3 pt-1.5 pb-4 font-mono text-sm leading-relaxed [overflow-wrap:anywhere]">{prompt}</p>
       <div className="flex flex-wrap items-center justify-between gap-2 pl-3">
         <span className="text-xs text-muted-foreground">Claude Code · Codex · Cursor · Grok</span>
         <span className="flex items-center gap-2">

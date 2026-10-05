@@ -17,9 +17,9 @@ export function CopyRow({ label, value, hint }: { label: string; value: string; 
   return (
     <ListRow className="items-start">
       <span className="grid min-w-0 flex-1 gap-1 py-0.5">
-        <span className="text-[0.82rem] text-label-2">{label}</span>
-        <code className="font-mono text-[0.8rem] leading-relaxed [overflow-wrap:anywhere]">{value}</code>
-        {hint !== undefined && <span className="text-[0.78rem] text-label-3">{hint}</span>}
+        <span className="text-ui text-label-2">{label}</span>
+        <code className="font-mono text-ui leading-relaxed [overflow-wrap:anywhere]">{value}</code>
+        {hint !== undefined && <span className="text-xs text-label-3">{hint}</span>}
       </span>
       <CopyButton value={value} label={`Copy the ${label.toLowerCase()}`} />
     </ListRow>
@@ -36,7 +36,7 @@ export function BoardsPage() {
       <p className="-mt-2 leading-relaxed text-label-2">
         A board is one host&apos;s marketplace: its own stacks, reward tokens, defaults and the origins that may embed it. Anyone signed in can create one.
       </p>
-      <Link to="/boards/new" className="press inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-xl bg-tint px-4 text-[0.95rem] font-semibold text-on-tint sm:min-h-10">
+      <Link to="/boards/new" className="press inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-xl bg-tint px-4 text-sm font-semibold text-on-tint sm:min-h-10">
         <Plus aria-hidden className="size-4" strokeWidth={2.6} />
         Create a board
       </Link>
@@ -68,7 +68,7 @@ export function BoardsPage() {
               {b.allowedOrigins.length > 0 && (
                 <ListRow className="items-start">
                   <span className="shrink-0">Embeds from</span>
-                  <span className="min-w-0 flex-1 text-right font-mono text-[0.8rem] text-label-2 [overflow-wrap:anywhere]">{b.allowedOrigins.join(', ')}</span>
+                  <span className="min-w-0 flex-1 text-right font-mono text-ui text-label-2 [overflow-wrap:anywhere]">{b.allowedOrigins.join(', ')}</span>
                 </ListRow>
               )}
               <CopyRow label="MCP server" value={boardMcpUrl(b)} />
@@ -88,7 +88,7 @@ function BoardHead({ board: b }: { board: BoardInfo }) {
       <span className="grid min-w-0 flex-1 gap-1">
         <span className="truncate">
           <span className="font-medium">{b.name}</span>
-          <span className="ml-2 font-mono text-[0.8rem] text-label-3">{b.public ? 'public board' : `/b/${b.id}`}</span>
+          <span className="ml-2 font-mono text-ui text-label-3">{b.public ? 'public board' : `/b/${b.id}`}</span>
         </span>
         <span className="flex flex-wrap gap-1.5">
           {b.stacks.map((s) => (

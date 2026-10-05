@@ -186,7 +186,7 @@ export function JobsPage() {
         />
       </div>
       {(chainError !== null || boardError !== null) && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-[0.9rem] text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           {chainError !== null && <p>Chain data is unavailable.{chainReady ? ` Showing last-known chain facts from ${new Date(chainUpdatedAt).toLocaleString()}; statuses have not been changed.` : ' Payment statuses and counts cannot be confirmed.'}</p>}
           {boardError !== null && <p>Board details are unavailable. Existing chain facts still determine payment status; some titles or board details may be missing.</p>}
           <Button variant="tinted" onClick={() => void refetch()}>Retry</Button>
@@ -219,7 +219,7 @@ export function JobsPage() {
           </Group>
         </>
       )}
-      <p className="px-4 text-[0.75rem] text-label-3">
+      <p className="px-4 text-xs text-label-3">
         {!chainReady ? 'Chain facts are unavailable.' : index === null ? 'The chain index is not built yet.' : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`} Jobs from before titles were
         kept show as “Job #N”.
       </p>
@@ -259,7 +259,7 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       )}
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{item.task?.title ?? `Job #${item.jobId}`}</span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[0.84rem] text-label-2">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-ui text-label-2">
           <PhaseBadge phase={phase} />
           {other !== null && <Badge tone="info">{other}</Badge>}
           <span className="truncate">{note}</span>
@@ -267,7 +267,7 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       </span>
       <span className="min-w-0 max-w-[38%] shrink text-right">
         <span className="tabular block whitespace-normal font-semibold [overflow-wrap:anywhere]">{rewardText}</span>
-        <span className="block text-[0.75rem] text-label-3">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
+        <span className="block text-xs text-label-3">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
       </span>
       <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
     </Link>

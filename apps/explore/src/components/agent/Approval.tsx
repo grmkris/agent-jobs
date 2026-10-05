@@ -112,7 +112,7 @@ export function Approval({
       title={`${agent.name} · ${approval.kind === "unstake" ? "Leave agent-owned position" : "Hire approval"}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-display text-xl font-semibold">
+        <p className="text-xl font-semibold">
           {request.token === undefined
             ? `${amount(request.amount, deployment.factory)} FACTORY position value`
             : amount(request.amount, request.token)}
@@ -132,7 +132,7 @@ export function Approval({
           &amp; delegate.
         </p>
       )}
-      <p className="break-all font-mono text-[0.65rem] text-label-3">
+      <p className="break-all font-mono text-micro text-label-3">
         Operation {approval.operation_id}
       </p>
       {review !== null && <AgentGrantReview description={review.description} />}

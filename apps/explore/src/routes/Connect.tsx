@@ -83,7 +83,7 @@ export function registerCommand(name: string, description: string, rpc: string):
 function Code({ text, label = 'Copy' }: { text: string; label?: string }) {
   return (
     <div className="relative min-w-0">
-      <pre className="rounded-xl bg-code py-3 pr-12 pl-3.5 font-mono text-[0.8rem] leading-[1.55] whitespace-pre-wrap text-label [overflow-wrap:anywhere]">
+      <pre className="rounded-xl bg-code py-3 pr-12 pl-3.5 font-mono text-ui leading-[1.55] whitespace-pre-wrap text-label [overflow-wrap:anywhere]">
         {text}
       </pre>
       <CopyButton value={text} label={label} className="absolute top-2 right-2 bg-surface" />
@@ -228,7 +228,7 @@ export function ProtocolConnectPage() {
           {tenants.length > 0 && (
             <Group className="px-4 py-2">
               <label className="flex items-center justify-between gap-3">
-                <span className="text-[0.95rem]">Board</span>
+                <span className="text-sm">Board</span>
                 <Select value={board} onChange={(e) => setBoard(e.target.value)} className="w-auto max-w-[60%]">
                   <option value="public">Public board</option>
                   {tenants.map((b) => (
@@ -267,7 +267,7 @@ export function ProtocolConnectPage() {
             <label className={rowClass()}>
               <span className="min-w-0 flex-1">
                 Wallet
-                <span className="block text-[0.78rem] text-label-3">Optional: the one your harness signs with</span>
+                <span className="block text-xs text-label-3">Optional: the one your harness signs with</span>
               </span>
               <Input
                 value={walletInput}
@@ -276,12 +276,12 @@ export function ProtocolConnectPage() {
                 spellCheck={false}
                 autoComplete="off"
                 aria-invalid={wallet !== '' && !isAddress(wallet)}
-                className="w-40 font-mono text-[0.82rem] sm:w-80"
+                className="w-40 font-mono text-ui sm:w-80"
               />
             </label>
           </Group>
           {watched.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2 px-4 text-[0.82rem]">
+            <div className="flex flex-wrap items-center gap-2 px-4 text-ui">
               <span className="text-label-2">Checked before:</span>
               {watched.map((w) => (
                 <button
@@ -299,9 +299,9 @@ export function ProtocolConnectPage() {
             </div>
           )}
           {agentInput !== '' && id === null ? (
-            <p className="px-4 text-[0.88rem] text-bad">Agent numbers are whole numbers, like 1942.</p>
+            <p className="px-4 text-sm text-bad">Agent numbers are whole numbers, like 1942.</p>
           ) : id === null ? (
-            <p className="px-4 text-[0.88rem] text-label-2">Enter your agent&apos;s number to check it.</p>
+            <p className="px-4 text-sm text-label-2">Enter your agent&apos;s number to check it.</p>
           ) : (
             <Checklist
               key={id}
@@ -339,7 +339,7 @@ export function ProtocolConnectPage() {
           <Code text={registerCommand(name, description, rpc)} label="Copy the register command" />
           {!isMainnet && (
             <>
-              <p className="text-[0.88rem] leading-snug text-label-2">
+              <p className="text-sm leading-snug text-label-2">
                 On testnet, get MON for gas from {faucetLink}. FACTORY v2 has no faucet: the ecosystem/coordinator transfers it to the agent wallet. mUSD and
                 mEUR are mock payment tokens with their own on-chain <code>faucet()</code> method. Never paste a private key into Hireling.
               </p>
@@ -576,7 +576,7 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
           <StateIcon state={r.state} />
           <span className="grid min-w-0 flex-1 gap-0.5">
             <span className="font-medium [overflow-wrap:anywhere]">{r.title}</span>
-            <span className="text-[0.86rem] leading-snug text-label-2">{r.detail}</span>
+            <span className="text-sm leading-snug text-label-2">{r.detail}</span>
           </span>
         </ListRow>
       ))}

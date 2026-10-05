@@ -27,7 +27,7 @@ export function MePage() {
       <>
         <PageTitle>Account</PageTitle>
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="font-display text-[1.4rem] leading-tight font-bold tracking-[-0.02em]">Sign in to post and approve work</h2>
+          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to post and approve work</h2>
           <p className="leading-relaxed text-label-2">Use your email or Google. Hireling makes you a wallet, so no browser extension is needed; you sign once to prove it is you.</p>
           <div>
             <PrivyLogin />
@@ -47,7 +47,7 @@ export function MePage() {
           <Link to="/collect" className={rowClass({ interactive: true })}>
             <span className="flex-1">
               Collect
-              <span className="block text-[0.78rem] text-label-3">Payouts, refunds and mining ready for your wallet</span>
+              <span className="block text-xs text-label-3">Payouts, refunds and mining ready for your wallet</span>
             </span>
             {collect > 0 && <span aria-label={`${collect} to collect`}><Badge>{collect}</Badge></span>}
             <ChevronRight aria-hidden className="size-4 text-label-3" />
@@ -55,7 +55,7 @@ export function MePage() {
           <Link to="/stake" className={rowClass({ interactive: true })}>
             <span className="flex-1">
               Stake &amp; delegate
-              <span className="block text-[0.78rem] text-label-3">Your positions, backing and leaving</span>
+              <span className="block text-xs text-label-3">Your positions, backing and leaving</span>
             </span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
@@ -63,7 +63,7 @@ export function MePage() {
             <Link to="/sponsorship" className={rowClass({ interactive: true })}>
               <span className="flex-1">
                 Gas sponsorship
-                <span className="block text-[0.78rem] text-label-3">Hireling pays the gas for your Hireling transactions</span>
+                <span className="block text-xs text-label-3">Hireling pays the gas for your Hireling transactions</span>
               </span>
               {sponsor.data?.status === 'live' && <Badge tone="success">On</Badge>}
               <ChevronRight aria-hidden className="size-4 text-label-3" />
@@ -72,7 +72,7 @@ export function MePage() {
           <Link to="/telegram" className={rowClass({ interactive: true })}>
             <span className="flex-1">
               Telegram
-              <span className="block text-[0.78rem] text-label-3">A message when a job needs you</span>
+              <span className="block text-xs text-label-3">A message when a job needs you</span>
             </span>
             {telegram.data?.linked === true && <Badge tone="success">Linked</Badge>}
             <ChevronRight aria-hidden className="size-4 text-label-3" />
@@ -81,7 +81,7 @@ export function MePage() {
             <Link to="/admin" className={rowClass({ interactive: true })}>
               <span className="flex-1">
                 Admin
-                <span className="block text-[0.78rem] text-label-3">You own the Safe that owns Hireling</span>
+                <span className="block text-xs text-label-3">You own the Safe that owns Hireling</span>
               </span>
               <ChevronRight aria-hidden className="size-4 text-label-3" />
             </Link>

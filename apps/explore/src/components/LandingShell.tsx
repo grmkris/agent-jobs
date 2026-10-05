@@ -15,7 +15,7 @@ export function LandingShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh">
       <header className="material-chrome material-edge-bottom sticky top-0 z-30 pt-[var(--safe-top)]">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 pr-[max(1.25rem,var(--safe-right))] pl-[max(1.25rem,var(--safe-left))]">
-          <Link to="/" className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
+          <Link to="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight">
             <Mark />
             Hireling
           </Link>

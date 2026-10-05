@@ -84,7 +84,7 @@ export function Preflight({
           <Mark tone={monValue === undefined ? 'wait' : monValue > 0n ? 'ok' : 'warn'} />
           <span className="min-w-0 flex-1">
             <span className="block">Gas</span>
-            {monValue === 0n && <span className="block text-[0.8rem] text-warn">Add {chain.nativeCurrency.symbol} to pay for the transactions.</span>}
+            {monValue === 0n && <span className="block text-ui text-warn">Add {chain.nativeCurrency.symbol} to pay for the transactions.</span>}
           </span>
           <span className="tabular text-label-2">{monValue === undefined ? '…' : `${formatNumber(monValue, 18)} ${chain.nativeCurrency.symbol}`}</span>
         </ListRow>
@@ -94,7 +94,7 @@ export function Preflight({
             <span className="min-w-0 flex-1">
               <span className="block">Reward · {reward === null ? `— ${sym}` : amount(reward.toString(), token)}</span>
               {reward !== null && tokenHeld !== undefined && tokenHeld < reward && (
-                <span className="block text-[0.8rem] text-warn">You need {amount((reward - tokenHeld).toString(), token)} more.</span>
+                <span className="block text-ui text-warn">You need {amount((reward - tokenHeld).toString(), token)} more.</span>
               )}
             </span>
             <span className="tabular text-right text-label-2">{tokenHeld === undefined || typeof metadata === 'string' ? 'Token amount unavailable' : `You hold ${formatNumber(tokenHeld, metadata.decimals)} ${metadata.symbol}`}</span>
@@ -110,8 +110,8 @@ export function Preflight({
               {prefix}
               {bondNeed > 0n ? `Your bond · ${formatNumber(bondNeed, 18)} FACTORY` : 'FACTORY to publish'}
             </span>
-            {minHold > 0n && <span className="block text-[0.8rem] text-label-3">Publishing also needs {formatNumber(minHold, 18)} FACTORY held in your wallet.</span>}
-            {factoryHeld !== undefined && factoryHeld < factoryNeed && <span className="block text-[0.8rem] text-warn">You need {formatNumber(factoryNeed - factoryHeld, 18)} FACTORY more.</span>}
+            {minHold > 0n && <span className="block text-ui text-label-3">Publishing also needs {formatNumber(minHold, 18)} FACTORY held in your wallet.</span>}
+            {factoryHeld !== undefined && factoryHeld < factoryNeed && <span className="block text-ui text-warn">You need {formatNumber(factoryNeed - factoryHeld, 18)} FACTORY more.</span>}
           </span>
           <span className="tabular text-right text-label-2">{factoryHeld === undefined ? '…' : `You hold ${formatNumber(factoryHeld, 18)}`}</span>
         </ListRow>
@@ -132,14 +132,14 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
           {need > 0n ? `Your bond · ${formatNumber(need, 18)} FACTORY from backing` : 'No bond from you'}
         </span>
         {free !== undefined && free < need && (
-          <span className="block text-[0.8rem] text-warn">
+          <span className="block text-ui text-warn">
             Delegate {formatNumber(need - free, 18)} FACTORY more.{' '}
             <Link to="/stake" className="font-semibold text-tint">
               Stake &amp; delegate
             </Link>
           </span>
         )}
-        {unavailable && <span className="block text-[0.8rem] text-warn">Available backing cannot be read right now.</span>}
+        {unavailable && <span className="block text-ui text-warn">Available backing cannot be read right now.</span>}
       </span>
       <span className="tabular text-right text-label-2">{free === undefined ? '…' : `${formatNumber(free, 18)} free`}</span>
     </ListRow>

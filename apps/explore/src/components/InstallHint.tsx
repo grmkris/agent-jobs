@@ -41,7 +41,7 @@ export function InstallHint() {
   return (
     <div className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
       <Share aria-hidden className="mt-0.5 size-5 shrink-0 text-tint" />
-      <p className="flex-1 text-[0.92rem] leading-snug">
+      <p className="flex-1 text-sm leading-snug">
         <span className="font-semibold">Install Hireling as an app.</span>{' '}
         {where === 'ios' ? (
           <>In Safari, tap Share, then Add to Home Screen. It opens full screen; sign in once inside the app.</>

@@ -32,7 +32,7 @@ export function ScreeningCard({ screening, pending, children }: { screening: Scr
             <Mark tone="none" />
             <span className="min-w-0 flex-1">
               <span className="block">Not screened</span>
-              <span className="block text-[0.84rem] leading-snug text-label-2">The screener was not available for this offer, so nothing was checked.</span>
+              <span className="block text-ui leading-snug text-label-2">The screener was not available for this offer, so nothing was checked.</span>
             </span>
           </ListRow>
         ) : (
@@ -41,7 +41,7 @@ export function ScreeningCard({ screening, pending, children }: { screening: Scr
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{v.text}</span>
               {(screening?.reasons.length ?? 0) > 0 && (
-                <span className="mt-0.5 grid gap-0.5 text-[0.84rem] leading-snug text-label-2">
+                <span className="mt-0.5 grid gap-0.5 text-ui leading-snug text-label-2">
                   {screening?.reasons.map((r) => (
                     <span key={r} className="block first-letter:uppercase">
                       {r}

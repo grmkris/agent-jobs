@@ -125,7 +125,7 @@ export function EmbedPage() {
             <path d="M10 8v16M22 8v16M10 16h12" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" />
           </svg>
           <span className="truncate">{board.data?.name ?? currentBoardId()}</span>
-          <span className="text-[0.85rem] font-normal text-label-3">on Hireling</span>
+          <span className="text-ui font-normal text-label-3">on Hireling</span>
         </span>
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (
@@ -170,7 +170,7 @@ export function EmbedPage() {
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (
           <JobPage auth={auth} jobId={task.data.jobId} onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })} />
         ) : (
-          <p className="text-[0.92rem] text-label-2">{taskId === null ? 'No job selected.' : 'Waiting for the publish transaction to confirm…'}</p>
+          <p className="text-sm text-label-2">{taskId === null ? 'No job selected.' : 'Waiting for the publish transaction to confirm…'}</p>
         ))}
     </div>
   )

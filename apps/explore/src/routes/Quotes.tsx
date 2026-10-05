@@ -60,7 +60,7 @@ export function QuotesPage() {
               <BoardLink key={r.requestId} target={boardRoutes().quoteRequest(r.requestId)} className={rowClass({ interactive: true })}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{r.title}</span>
-                  <span className="block text-[0.84rem] text-label-2">
+                  <span className="block text-ui text-label-2">
                     {r.tokens.map(symbolOf).join(' or ')} · quotes close <When at={r.quoteDeadline} show="relative" />
                   </span>
                 </span>
@@ -227,7 +227,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
   return (
     <>
-      <BoardLink target={boardRoutes().quotes()} className="-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-[0.92rem] text-tint">
+      <BoardLink target={boardRoutes().quotes()} className="-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm text-tint">
         <ChevronLeft aria-hidden className="size-4" />
         Quote requests
       </BoardLink>
@@ -257,13 +257,13 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           <Section title="The job">
             <Group>
               <ListRow>
-                <span className="py-1 text-[0.95rem] leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{r.brief}</span>
+                <span className="py-1 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{r.brief}</span>
               </ListRow>
               {r.acceptanceCriteria.length > 0 && (
                 <ListRow>
                   <span className="grid min-w-0 gap-1 py-1">
-                    <span className="text-[0.8rem] text-label-2">Accepted when</span>
-                    <ul className="grid list-disc gap-0.5 pl-5 text-[0.92rem] [overflow-wrap:anywhere]">
+                    <span className="text-ui text-label-2">Accepted when</span>
+                    <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                       {r.acceptanceCriteria.map((c, i) => (
                         <li key={`${i}-${c}`}>{c}</li>
                       ))}
@@ -288,7 +288,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <KV label="Deliver as">{(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k]).join(', ')}</KV>
               {(r.requiredChecks ?? []).length > 0 && (
                 <KV label="Required GitHub check">
-                  <code className="font-mono text-[0.85rem]">{r.requiredChecks?.join(', ')}</code>
+                  <code className="font-mono text-ui">{r.requiredChecks?.join(', ')}</code>
                 </KV>
               )}
               {r.stack !== 'main' && <KV label="Review speed">{STACK_LABEL[r.stack] ?? r.stack}</KV>}
@@ -303,7 +303,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       {!auth.signedIn ? (
         <Section title="Quotes" note="Agents quote over the board's MCP server with submit_quote; the requester compares them here and picks one.">
           <Group className="grid justify-items-start gap-3 p-4">
-            <p className="text-[0.92rem] leading-snug text-label-2">Quotes are private: only the requester sees them. Sign in as the requester to compare and pick.</p>
+            <p className="text-sm leading-snug text-label-2">Quotes are private: only the requester sees them. Sign in as the requester to compare and pick.</p>
             <SignInToPublish auth={auth} label="Sign in to see quotes" />
           </Group>
         </Section>
@@ -334,7 +334,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                     <span className="block">
                       {picked !== null ? `You picked Agent #${picked.quote.agentId}'s quote of ${price}` : 'You picked a quote'}
                     </span>
-                    <span className="block text-[0.84rem] text-label-2">
+                    <span className="block text-ui text-label-2">
                       {jobId !== null ? `Published as job #${jobId}.` : 'Not published yet: publish it to lock the reward in escrow.'}
                     </span>
                   </span>
@@ -390,7 +390,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <div className="flex items-center gap-3">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">Approve a running-cost budget</span>
-                  <span className="block text-[0.82rem] text-label-2">
+                  <span className="block text-ui text-label-2">
                     Asked: {humanAmount(picking.expectedCosts.amount, picking.expectedCosts.symbol)}
                     {picking.expectedCosts.note !== '' && ` · ${picking.expectedCosts.note}`}
                   </span>
@@ -399,18 +399,18 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               </div>
               {budgetOn && (
                 <label className="flex items-center gap-2">
-                  <span className="flex-1 text-[0.92rem]">Up to</span>
+                  <span className="flex-1 text-sm">Up to</span>
                   <Input value={cap} onChange={(e) => setCap(e.target.value)} inputMode="decimal" className="tabular w-28 bg-surface text-right" />
                   <span className="w-14 shrink-0 truncate text-label-2">{picking.expectedCosts.symbol}</span>
                 </label>
               )}
-              <p className="text-[0.8rem] leading-snug text-label-2">
+              <p className="text-ui leading-snug text-label-2">
                 Separate from the price, and only if you approve it here: the agent may draw up to this cap from your wallet into its own for running costs, until the delivery deadline. You may
                 approve less than it asked. Nothing is locked; you grant it on the job page once the agent has started, and can revoke it.
               </p>
             </div>
           ) : (
-            <p className="text-[0.9rem] text-label-2">This quote declares no running costs.</p>
+            <p className="text-sm text-label-2">This quote declares no running costs.</p>
           ))}
         {error !== null && picking !== null && <ErrorText>{error}</ErrorText>}
       </ConfirmSheet>
@@ -418,12 +418,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       {sheet && publish !== null && <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
         <p className="-mt-2 leading-snug text-label-2">Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves before that.</p>
         {picked !== null && picked.screening !== null && (
-          <p className="text-[0.86rem] text-label-2">
+          <p className="text-sm text-label-2">
             Screening: <span className="font-semibold text-label">{verdictText(picked.screening.verdict)}</span> (advice only; it never blocks publishing).
           </p>
         )}
         {publish !== null && <TxSteps key={publish.taskId} taskId={publish.taskId} txs={publish.txs} onDone={() => void published(publish.taskId)} />}
-        <p className="text-[0.8rem] leading-snug text-label-2">
+        <p className="text-ui leading-snug text-label-2">
           Next, on the job page: confirm {picked === null ? 'the agent' : `Agent #${picked.quote.agentId}`} (a signature, no transaction). Once it has started, you grant any running-cost budget there.
         </p>
       </Section>}
@@ -443,17 +443,17 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
           </BoardLink>
           <span className="tabular shrink-0 font-semibold">{humanAmount(q.amount, q.symbol)}</span>
         </span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.84rem] text-label-2">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-label-2">
           {record}
           {lowest && <Badge tone="success">Lowest</Badge>}
         </span>
         {q.expectedCosts !== null && (
-          <span className="text-[0.84rem] text-label-2">
+          <span className="text-ui text-label-2">
             + running costs up to {humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
             {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
           </span>
         )}
-        {q.note !== '' && <span className="text-[0.88rem] leading-snug [overflow-wrap:anywhere]">{q.note}</span>}
+        {q.note !== '' && <span className="text-sm leading-snug [overflow-wrap:anywhere]">{q.note}</span>}
         {onPick !== undefined && (
           <Button size="sm" variant="tinted" onClick={onPick} className="mt-1.5 justify-self-start">
             Pick
@@ -483,22 +483,22 @@ function QuoteComparison({ quotes, record, onPick }: { quotes: Quote[]; record: 
                 <BoardLink target={boardRoutes().agent(q.agentId)} className="block truncate font-medium">
                   Agent #{q.agentId}
                 </BoardLink>
-                <span className="block text-[0.82rem] text-label-2">{record(q.agentId)}</span>
+                <span className="block text-ui text-label-2">{record(q.agentId)}</span>
               </span>
             </header>
             <div className="grid gap-1">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="tabular font-display text-[1.45rem] leading-tight font-bold tracking-[-0.02em]">{humanAmount(q.amount, q.symbol)}</span>
+                <span className="tabular text-xl leading-tight font-bold tracking-[-0.02em]">{humanAmount(q.amount, q.symbol)}</span>
                 {lowest.has(q.quoteId) && <Badge tone="success">Lowest</Badge>}
               </span>
               {q.expectedCosts !== null && (
-                <span className="text-[0.84rem] text-label-2">
+                <span className="text-ui text-label-2">
                   + running costs up to {humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
                   {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
                 </span>
               )}
             </div>
-            {q.note !== '' && <p className="text-[0.9rem] leading-snug text-label-2 [overflow-wrap:anywhere]">{q.note}</p>}
+            {q.note !== '' && <p className="text-sm leading-snug text-label-2 [overflow-wrap:anywhere]">{q.note}</p>}
             {onPick !== undefined && (
               <Button variant="tinted" onClick={() => onPick(q)} className="mt-auto">
                 Pick this quote

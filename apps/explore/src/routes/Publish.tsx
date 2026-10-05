@@ -144,7 +144,7 @@ function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; on
         <PageTitle>Hire again</PageTitle>
         <div className="grid gap-3 rounded-2xl bg-surface p-6 text-center">
           <p className="font-semibold">{failed ? `Job #${jobId}'s offer is unavailable right now` : `Job #${jobId} cannot be hired again`}</p>
-          <p className="text-[0.9rem] text-label-2">{failed ? 'Its terms could not be read from the board.' : 'Only a paid job, with the agent that did it, can be hired again.'}</p>
+          <p className="text-sm text-label-2">{failed ? 'Its terms could not be read from the board.' : 'Only a paid job, with the agent that did it, can be hired again.'}</p>
           {failed && <Button variant="tinted" onClick={() => void Promise.all([detail.refetch(), index.refetch()])}>Retry</Button>}
           <BoardLink target={boardRoutes().publish()} className="text-tint">Post a new job instead</BoardLink>
         </div>
@@ -182,7 +182,7 @@ function HiringAgain({ prefill }: { prefill: Record<string, string> }) {
       <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
       <p className="min-w-0 leading-relaxed">
         <span className="block font-semibold">Hiring Agent #{agentId} again</span>
-        <span className="block text-[0.9rem] text-label-2">
+        <span className="block text-sm text-label-2">
           The same token, reward and terms as{' '}
           <BoardLink target={boardRoutes().job(again)} className="text-tint">
             job #{again}
@@ -447,7 +447,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
       <PageTitle>{prefill.again !== undefined && f.mode === 'hire' ? 'Hire again' : 'Post a job'}</PageTitle>
       {f.mode === 'hire' && <HiringAgain prefill={prefill} />}
       {publishedAs !== null && (
-        <div role="status" className="grid gap-2 rounded-xl bg-ok-bg px-4 py-3 text-[0.92rem] text-ok">
+        <div role="status" className="grid gap-2 rounded-xl bg-ok-bg px-4 py-3 text-sm text-ok">
           <span>This draft was already published, as job #{publishedAs}.</span>
           <span className="flex flex-wrap gap-4 font-semibold">
             <BoardLink target={boardRoutes().job(publishedAs)} className="underline">
@@ -473,7 +473,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         <fieldset disabled={runningOffer !== null} className="contents">
         <div className="grid gap-2">
           <Progress step={step} of={4} />
-          <p className="px-1 text-[0.8rem] text-label-2">
+          <p className="px-1 text-ui text-label-2">
             Step {step} of 4 · {step === 3 && quotes ? 'Quotes and deadline' : step === 3 && contest ? 'Prize and deadlines' : STEP_TITLE[step]}
           </p>
         </div>
@@ -572,7 +572,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                           placeholder="0x…"
                           autoComplete="off"
                           spellCheck={false}
-                          className="font-mono text-[0.85rem]"
+                          className="font-mono text-ui"
                         />
                       </FieldRow>
                     )}
@@ -608,14 +608,14 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   <ListRow>
                     <span className="grid min-w-0 gap-1 py-1">
                       <span className="font-semibold [overflow-wrap:anywhere]">{f.title}</span>
-                      <span className="text-[0.92rem] leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{f.brief}</span>
+                      <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{f.brief}</span>
                     </span>
                   </ListRow>
                   {criteria.length > 0 && (
                     <ListRow>
                       <span className="grid min-w-0 gap-1 py-1">
-                        <span className="text-[0.8rem] text-label-2">Accepted when</span>
-                        <ul className="grid list-disc gap-0.5 pl-5 text-[0.92rem] [overflow-wrap:anywhere]">
+                        <span className="text-ui text-label-2">Accepted when</span>
+                        <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                           {criteria.map((c, i) => (
                             <li key={`${i}-${c}`}>{c}</li>
                           ))}
@@ -648,13 +648,13 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   <KV label="Deliver as">{kinds}</KV>
                   {f.accepts.includes('git') && f.check.trim() !== '' && (
                     <KV label="Required GitHub check">
-                      <code className="font-mono text-[0.85rem]">{f.check.trim()}</code>
+                      <code className="font-mono text-ui">{f.check.trim()}</code>
                     </KV>
                   )}
                   {V1 && f.mode === 'hire' ? (
                     <>
                       <KV label="Windows">{windowsText(f)}</KV>
-                      <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Hireling's arbiter" : <span className="font-mono text-[0.82rem] [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
+                      <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Hireling's arbiter" : <span className="font-mono text-ui [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
                       <KV label="Bonds">{`${f.creatorBond} FACTORY reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
                     </>
                   ) : (
@@ -681,7 +681,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                         <Mark tone="wait" />
                         <span className="min-w-0 flex-1">
                           <span className="block">Screening your brief…</span>
-                          <span className="block text-[0.84rem] text-label-2">This can take up to a minute.</span>
+                          <span className="block text-ui text-label-2">This can take up to a minute.</span>
                         </span>
                       </ListRow>
                     ) : (
@@ -721,8 +721,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                     <Lock aria-hidden className="size-5" />
                   </span>
                   <span className="min-w-0">
-                    <span className="tabular block font-display text-[1.6rem] leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{reward}</span>
-                    <span className="block text-[0.86rem] text-label-2">
+                    <span className="tabular block text-2xl leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{reward}</span>
+                    <span className="block text-sm text-label-2">
                       Locked in escrow when you publish · due <When at={deliverBy} show="relative" />
                     </span>
                   </span>
@@ -733,7 +733,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                 <Disclosure title="Details">
                   <div className={rowClass()}>
                     <span className="flex-1">Offer ID</span>
-                    <span className="font-mono text-[0.82rem] text-label-2">{frozen.created.taskId}</span>
+                    <span className="font-mono text-ui text-label-2">{frozen.created.taskId}</span>
                     <CopyButton value={frozen.created.taskId} label="Copy offer ID" />
                   </div>
                   <KV label="Prepared">
@@ -749,7 +749,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
           )}
         </div>
 
-        {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-[0.86rem] text-label-2">{problem}</p>}
+        {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-sm text-label-2">{problem}</p>}
         <StepNav onBack={step === 1 || walletBusy ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
           {step < 3 ? (
             next((step + 1) as Step)
@@ -762,7 +762,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
               Ask for quotes
             </Button>
           ) : frozen !== null ? (
-            <p className="min-w-0 text-center text-[0.9rem] text-label-2">Complete the wallet steps below to publish {reward}.</p>
+            <p className="min-w-0 text-center text-sm text-label-2">Complete the wallet steps below to publish {reward}.</p>
           ) : (
             <Button size="lg" busy={freezing} disabled={publishedAs !== null} onClick={() => void freeze()}>
               Prepare to publish
@@ -881,17 +881,17 @@ function V1Terms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p: 
           </LineRow>
           {customArbiter ? (
             <FieldRow label="Arbitrator's address" htmlFor="post-arbitrator">
-              <Input id="post-arbitrator" value={f.arbitrator} onChange={(e) => set({ arbitrator: e.target.value.trim() })} placeholder="0x…" autoComplete="off" spellCheck={false} className="font-mono text-[0.85rem]" />
+              <Input id="post-arbitrator" value={f.arbitrator} onChange={(e) => set({ arbitrator: e.target.value.trim() })} placeholder="0x…" autoComplete="off" spellCheck={false} className="font-mono text-ui" />
             </FieldRow>
           ) : (
             <div className={cn(rowClass(), 'flex-col items-start gap-0.5')}>
               <span>Hireling's arbiter</span>
-              {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-[0.78rem] text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
+              {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-xs text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
             </div>
           )}
         </Group>
         {customArbiter && (
-          <p role="alert" className="mx-1 mt-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.88rem] leading-snug text-warn">
+          <p role="alert" className="mx-1 mt-2 rounded-xl bg-warn-bg px-4 py-3 text-sm leading-snug text-warn">
             A custom arbitrator rules on disputes instead of Hireling's arbiter: their ruling decides who is paid and can burn a bond. Choose someone you and the agent both trust. It cannot be you.
           </p>
         )}
@@ -985,7 +985,7 @@ function Advanced({ f, set, stacks }: { f: PostForm; set: (p: Partial<PostForm>)
         </FieldRow>
         {f.accepts.includes('git') && (
           <LineRow label="Required GitHub check" note="The evidence must show this check passing on the submitted commit. Leave empty for none." htmlFor="post-check">
-            <Input id="post-check" value={f.check} onChange={(e) => set({ check: e.target.value })} autoComplete="off" className="w-32 font-mono text-[0.88rem]" />
+            <Input id="post-check" value={f.check} onChange={(e) => set({ check: e.target.value })} autoComplete="off" className="w-32 font-mono text-sm" />
           </LineRow>
         )}
         {hire && <BudgetRows f={f} set={set} />}
@@ -1027,10 +1027,10 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
           {call ? (
             <>
               <FieldRow label="Contract" htmlFor="post-call-target">
-                <Input id="post-call-target" value={f.callTarget} onChange={(e) => set({ callTarget: e.target.value })} autoComplete="off" spellCheck={false} className="font-mono text-[0.85rem]" />
+                <Input id="post-call-target" value={f.callTarget} onChange={(e) => set({ callTarget: e.target.value })} autoComplete="off" spellCheck={false} className="font-mono text-ui" />
               </FieldRow>
               <FieldRow label="Allowed function" htmlFor="post-call-function" hint="Exactly one function, in human-readable ABI form.">
-                <Input id="post-call-function" value={f.callFunction} onChange={(e) => set({ callFunction: e.target.value })} autoComplete="off" spellCheck={false} className="font-mono text-[0.78rem]" />
+                <Input id="post-call-function" value={f.callFunction} onChange={(e) => set({ callFunction: e.target.value })} autoComplete="off" spellCheck={false} className="font-mono text-xs" />
               </FieldRow>
               <LineRow label="Cap" note={isMainnet ? 'The total MON the call may send.' : 'nad.fun charges a 10 MON deploy fee on testnet.'} htmlFor="post-call-cap">
                 <Input id="post-call-cap" value={f.callCap} onChange={(e) => set({ callCap: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
@@ -1040,7 +1040,7 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
           ) : (
             <>
               <FieldRow label="Token" htmlFor="post-budget-token" hint="Any ERC-20 you hold; the reward tokens are suggested.">
-                <Input id="post-budget-token" value={f.budgetToken} onChange={(e) => set({ budgetToken: e.target.value })} list="post-advance-tokens" autoComplete="off" spellCheck={false} className="font-mono text-[0.85rem]" />
+                <Input id="post-budget-token" value={f.budgetToken} onChange={(e) => set({ budgetToken: e.target.value })} list="post-advance-tokens" autoComplete="off" spellCheck={false} className="font-mono text-ui" />
                 <datalist id="post-advance-tokens">
                   {rewardTokenList().map(([address, t]) => (
                     <option key={address} value={address}>
@@ -1055,7 +1055,7 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
               </LineRow>
             </>
           )}
-          <div className={cn(rowClass(), 'text-[0.84rem] leading-snug text-label-2')}>
+          <div className={cn(rowClass(), 'text-ui leading-snug text-label-2')}>
             Nothing is locked for it: once the agent has started, you grant it on the job page as an on-chain permission from your wallet, and can revoke it any time.
           </div>
         </>

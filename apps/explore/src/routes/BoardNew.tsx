@@ -47,7 +47,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
       <>
         <PageTitle>Create a board</PageTitle>
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="font-display text-[1.4rem] leading-tight font-bold tracking-[-0.02em]">Sign in to create a board</h2>
+          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to create a board</h2>
           <p className="leading-relaxed text-label-2">
             Your wallet becomes the board&apos;s owner.{' '}
             {auth.address === undefined ? 'Sign in with your email or Google, then sign once to prove it is you.' : 'Sign the sign-in message (Sign in, at the top) to continue.'}
@@ -68,7 +68,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         <PageTitle sub={<span className="font-mono">/b/{createdId}</span>}>Board created</PageTitle>
         {secret !== null && (
           <div role="status" className="grid gap-3 rounded-2xl bg-warn-bg px-4 py-3.5">
-            <p className="flex items-start gap-3 text-[0.92rem] leading-snug">
+            <p className="flex items-start gap-3 text-sm leading-snug">
               <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
               <span>
                 <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event sent to your webhook, and Hireling
@@ -76,7 +76,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
               </span>
             </p>
             <div className="flex items-center gap-2 rounded-xl bg-surface py-2 pr-2 pl-3">
-              <code className="min-w-0 flex-1 font-mono text-[0.8rem] [overflow-wrap:anywhere]">{secret}</code>
+              <code className="min-w-0 flex-1 font-mono text-ui [overflow-wrap:anywhere]">{secret}</code>
               <CopyButton value={secret} label="Copy the webhook secret" />
             </div>
           </div>
@@ -119,13 +119,13 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
             label="Allowed origins"
             hint="One per line: https://host[:port], or http://localhost:* for local development. Pages there may embed the board and sign in with their own domain."
           >
-            <TextArea value={origins} onChange={(e) => setOrigins(e.target.value)} rows={3} placeholder="https://example.com" spellCheck={false} className="font-mono text-[0.85rem]" />
+            <TextArea value={origins} onChange={(e) => setOrigins(e.target.value)} rows={3} placeholder="https://example.com" spellCheck={false} className="font-mono text-ui" />
           </Field>
-          <label className="flex items-start gap-3 text-[0.95rem]">
+          <label className="flex items-start gap-3 text-sm">
             <input type="checkbox" checked={drip} onChange={(e) => setDrip(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-tint" />
             <span>
               Testnet MON drip
-              <span className="block text-[0.82rem] text-label-2">Give each wallet that signs in through this board a little MON, once.</span>
+              <span className="block text-ui text-label-2">Give each wallet that signs in through this board a little MON, once.</span>
             </span>
           </label>
         </Group>
@@ -133,7 +133,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
       <Section title="Optional">
         <Group className="grid gap-4 p-4">
           <Field label="Default approver" hint="Judges every offer unless the publisher names one.">
-            <Input value={approver} onChange={(e) => setApprover(e.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" className="font-mono text-[0.85rem]" />
+            <Input value={approver} onChange={(e) => setApprover(e.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" className="font-mono text-ui" />
           </Field>
           <Field label="Webhook URL" hint="An https URL that receives signed events on task state changes.">
             <Input value={webhook} onChange={(e) => setWebhook(e.target.value)} placeholder="https://" spellCheck={false} autoComplete="off" />

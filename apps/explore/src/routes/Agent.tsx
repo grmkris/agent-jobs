@@ -178,8 +178,8 @@ export function AgentAvatar({ id, image, size = 'md' }: { id: string; image?: st
 function Tile({ value, label, className }: { value: ReactNode; label: ReactNode; className?: string | undefined }) {
   return (
     <div className="grid content-start gap-0.5 rounded-xl bg-surface px-3.5 py-3">
-      <b className={cn('tabular font-display text-[1.35rem] leading-[1.15] font-bold tracking-[-0.02em]', className)}>{value}</b>
-      <span className="text-[0.78rem] text-label-2">{label}</span>
+      <b className={cn('tabular text-xl leading-[1.15] font-bold tracking-[-0.02em]', className)}>{value}</b>
+      <span className="text-xs text-label-2">{label}</span>
     </div>
   )
 }
@@ -219,8 +219,8 @@ function Profile({ id }: { id: string }) {
       <header className="flex items-center gap-4">
         <AgentAvatar id={id} image={profile?.image} size="lg" />
         <div className="grid min-w-0 gap-1">
-          <h1 className="font-display text-[2rem] leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.9rem] text-label-2">
+          <h1 className="text-3xl leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-label-2">
             {profile?.name !== null && profile?.name !== undefined && <span>Agent #{id} ·</span>}
             {identity.exists === true && (
               <span>
@@ -240,7 +240,7 @@ function Profile({ id }: { id: string }) {
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
-          <p className="px-4 text-[0.85rem] text-label-2">You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.</p>
+          <p className="px-4 text-ui text-label-2">You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.</p>
         </div>
       )}
 
@@ -322,7 +322,7 @@ function Record({ record }: { record: AgentRecord }) {
             earned.length === 0 ? (
               '—'
             ) : (
-              <span className="grid text-[1.05rem] leading-snug">
+              <span className="grid text-base leading-snug">
                 {earned.map((e) => (
                   <span key={e}>{e}</span>
                 ))}
@@ -336,7 +336,7 @@ function Record({ record }: { record: AgentRecord }) {
       {overdue.length > 0 && (
         <div role="status" className="flex items-start gap-3 rounded-2xl bg-warn-bg px-4 py-3.5 leading-snug">
           <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
-          <p className="text-[0.92rem]">
+          <p className="text-sm">
             <span className="font-semibold">Needs attention:</span> {overdue.length === 1 ? 'one of its open jobs is' : `${overdue.length} of its open jobs are`} past the delivery
             deadline with nothing delivered. Anyone can close {overdue.length === 1 ? 'it' : 'them'}; the creator gets the reward back
             {bondAtStake ? ' and the posted bond burns' : ''}.
@@ -417,13 +417,13 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
             <ListRow>
               <span className="flex-1">
                 Agent wallet
-                <span className="block text-[0.78rem] text-label-3">Signs its applications and transactions</span>
+                <span className="block text-xs text-label-3">Signs its applications and transactions</span>
               </span>
               <Address value={identity.wallet} />
             </ListRow>
             <ListRow>
               <span className="shrink-0">{p?.kind === 'json' ? 'Profile' : 'Profile link'}</span>
-              <span className="min-w-0 flex-1 truncate text-right text-[0.88rem] text-label-2">
+              <span className="min-w-0 flex-1 truncate text-right text-sm text-label-2">
                 {p === null ? (
                   'None'
                 ) : p.kind === 'json' ? (
@@ -472,7 +472,7 @@ function Jobs({ record }: { record: AgentRecord }) {
             <BoardLink key={j.job_id} target={boardRoutes(b).job(j.job_id)} className={rowClass({ interactive: true })}>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{task?.title ?? `Job #${j.job_id}`}</span>
-                <span className="block truncate text-[0.84rem] text-label-2">
+                <span className="block truncate text-ui text-label-2">
                   #{j.job_id} · {b === 'public' ? 'Public board' : (names.get(b) ?? b)} · {j.mode === 'contest' ? 'Contest' : 'Hire'}
                 </span>
               </span>

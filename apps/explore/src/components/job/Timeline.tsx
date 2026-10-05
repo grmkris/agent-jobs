@@ -167,9 +167,9 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
           <Dot mark={s.mark} />
           <span className="min-w-0 [overflow-wrap:anywhere]">
             <span className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-label-2')}>{s.title}</span>
-            {s.sub !== undefined && <span className="block text-[0.82rem] text-label-2">{s.sub}</span>}
+            {s.sub !== undefined && <span className="block text-ui text-label-2">{s.sub}</span>}
             {s.mark === 'now' && phase !== null && phase.next.length > 0 && (
-              <span className="block text-[0.82rem] text-label-2">
+              <span className="block text-ui text-label-2">
                 <Sentence parts={phase.next} />
               </span>
             )}
@@ -179,7 +179,7 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
               </span>
             )}
           </span>
-          <span className="col-start-2 min-w-0 text-[0.8rem] text-label-2 sm:col-start-auto sm:text-right">{s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}</span>
+          <span className="col-start-2 min-w-0 text-ui text-label-2 sm:col-start-auto sm:text-right">{s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}</span>
         </li>
       ))}
     </ol>

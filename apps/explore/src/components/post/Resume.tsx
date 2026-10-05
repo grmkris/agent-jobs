@@ -59,7 +59,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
 
   const header = (
     <>
-      <BoardLink target={boardRoutes().publish()} className="text-[0.9rem] text-tint">
+      <BoardLink target={boardRoutes().publish()} className="text-sm text-tint">
         Post a new job instead
       </BoardLink>
       <PageTitle sub={t !== undefined && t.jobId === null ? <Badge tone="attention">Not published yet</Badge> : undefined}>{t?.title ?? 'A saved offer'}</PageTitle>
@@ -134,14 +134,14 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
           <ListRow>
             <span className="grid min-w-0 gap-1 py-1">
               <span className="font-semibold [overflow-wrap:anywhere]">{t.title}</span>
-              <span className="text-[0.92rem] leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{t.terms.brief ?? ''}</span>
+              <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{t.terms.brief ?? ''}</span>
             </span>
           </ListRow>
           {criteria.length > 0 && (
             <ListRow>
               <span className="grid min-w-0 gap-1 py-1">
-                <span className="text-[0.8rem] text-label-2">Accepted when</span>
-                <ul className="grid list-disc gap-0.5 pl-5 text-[0.92rem] [overflow-wrap:anywhere]">
+                <span className="text-ui text-label-2">Accepted when</span>
+                <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                   {criteria.map((c, i) => (
                     <li key={`${i}-${c}`}>{c}</li>
                   ))}
@@ -164,7 +164,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
           <KV label="Deliver as">{accepts.map((k) => KIND_LABEL[k]).join(', ')}</KV>
           {checks.length > 0 && (
             <KV label="Required GitHub check">
-              <code className="font-mono text-[0.85rem]">{checks.join(', ')}</code>
+              <code className="font-mono text-ui">{checks.join(', ')}</code>
             </KV>
           )}
           <KV label="Bonds">{contest ? `${bond(t.creatorBond)} from you` : `${bond(t.creatorBond)} from you · ${bond(t.workerBond)} from the agent`}</KV>
@@ -190,14 +190,14 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
               <Lock aria-hidden className="size-5" />
             </span>
             <span className="min-w-0">
-              <span className="tabular block font-display text-[1.6rem] leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{reward}</span>
-              <span className="block text-[0.86rem] text-label-2">
+              <span className="tabular block text-2xl leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{reward}</span>
+              <span className="block text-sm text-label-2">
                 Locked in escrow when you publish · due <When at={t.deliveryDeadline} show="relative" />
               </span>
             </span>
           </div>
           {lapsed && (
-            <p className="rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] text-warn">
+            <p className="rounded-xl bg-warn-bg px-4 py-3 text-sm text-warn">
               Its {t.deliveryDeadline <= now ? 'delivery deadline' : 'award deadline'} has passed, so it can no longer be published. Post the job again with new dates.
             </p>
           )}
@@ -212,7 +212,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
         <Group>
           <div className={rowClass()}>
             <span className="flex-1">Offer ID</span>
-            <span className="font-mono text-[0.82rem] text-label-2">{t.taskId}</span>
+            <span className="font-mono text-ui text-label-2">{t.taskId}</span>
             <CopyButton value={t.taskId} label="Copy offer ID" />
           </div>
           <a href={t.manifestUrl} target="_blank" rel="noreferrer" className={`${rowClass({ interactive: true })} text-tint`}>

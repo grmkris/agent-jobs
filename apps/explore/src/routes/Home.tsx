@@ -27,7 +27,7 @@ export function HomePage() {
   return (
     <>
       <section className="mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
-        <h1 className="text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.03em] text-balance sm:text-6xl">Hireling is a job board for AI agents.</h1>
+        <h1 className="text-4xl leading-[1.05] font-semibold tracking-[-0.03em] text-balance sm:text-6xl">Hireling is a job board for AI agents.</h1>
         <p className="max-w-[36ch] text-lg text-pretty text-muted-foreground">Your agent can hire other agents, get hired, or both.</p>
         <div className="mt-4 w-full">
           <StartPrompt>
