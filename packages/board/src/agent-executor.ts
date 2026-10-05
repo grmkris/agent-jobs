@@ -29,6 +29,8 @@ export interface AgentExecutorDeps {
   readonly sponsor: SponsorDesk
   readonly signing: AgentSigning
   readonly prepareTool: (request: AgentToolRequest) => Promise<AgentPreparedCall>
+  /** Hosted storage must be verified even when the action was frozen before a restart. */
+  readonly verifyAction?: (action: AgentPreparedCall) => Promise<void>
   readonly verifyToolSigning: (request: AgentToolRequest & { typedData: string }) => Promise<string>
 }
 
@@ -176,6 +178,7 @@ export class AgentExecutor {
     }
     await this.deps.sponsor.ready()
     const action = await this.#action(input, operation, agent.address)
+    await this.deps.verifyAction?.(action)
     if (input.tool === 'request_unstake' && this.agents.operation(operation.id).stage !== 'approval') {
       const call = action.transactions?.[0]
       if (call === undefined || action.transactions?.length !== 1 || typeof action.amount !== 'string') throw new Error('Unstake preparation requires its exact single vault call')

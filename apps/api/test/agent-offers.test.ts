@@ -71,22 +71,26 @@ test.skipIf(!forkEnabled)('an approval-completed hire has public terms before es
         if (request.tool !== 'create_task') throw new Error('Unexpected publication fixture tool')
         const prepared = await board.createTask(request.caller, request.args as never)
         const preparedAction = prepared as unknown as AgentPreparedCall
-        const publication = await publish(url!, 'original-board', preparedAction)
-        if (!publication.ok) throw new Error('Native offer publication failed')
         return preparedAction
       }
       const sponsor = new (await import('@agent-jobs/board')).SponsorDesk({ sql, ctx, now: () => now,
         relay: { account: fixture.admin.account as LocalAccount, rpcUrl: fixture.url }, fail: (code, message) => new BoardError(code, message) })
-      const boot = () => new AgentExecutor({ sql, context: ctx, now: () => now, sponsor, signing, prepareTool,
+      const boot = (verify = true) => new AgentExecutor({ sql, context: ctx, now: () => now, sponsor, signing, prepareTool,
+        ...(verify ? { verifyAction: async (action: AgentPreparedCall) => {
+          const publication = await publish(url!, 'original-board', action)
+          if (!publication.ok) throw new Error('Native offer publication failed')
+        } } : {}),
         verifyToolSigning: request => board.verifyAgentSigning(request.caller, request) })
       const input = { agentId: 'publication-fixture', boardId: 'original-board', operationKey: 'approval-hire', tool: 'create_task', args: {
         title: 'Approved publication fixture', brief: 'Fork proof only', acceptanceCriteria: [], token, reward: '1', creatorBond: '0', workerBond: '0',
         deliveryDeadline: now + 86400, mode: 'hire', invite: { agentId: workerId.toString() }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 },
       } }
-      const approval = await boot().execute(input)
+      const approval = await boot(false).execute(input)
       expect(approval.status).toBe('approval')
       const action = agents.step<AgentPreparedCall>(approval.operationId, 'action')!
-      expect(await publish(url!, 'original-board', action, false, true)).toMatchObject({ ok: true, manifest: action.manifest, attribution: { boardId: 'original-board', taskId: action.taskId } })
+      const missing = await publish(url!, 'original-board', action, false, true)
+      expect(missing.manifest).toBeUndefined()
+      expect(missing.attribution).toBeUndefined()
       const exact = grants.prepare(operator.account.address, { kind: 'allowance-once', delegator: operator.account.address, agent: agent.account.address, token, amount: 1_000_000n, salt: 1n, start: now })
       await grants.confirm(exact.hash, await sdk.signTypedDataJson(operator, exact.typedData))
       agents.decide(approval.operationId, operator.account.address, true, { allowanceHash: exact.hash })

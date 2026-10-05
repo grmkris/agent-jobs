@@ -66,6 +66,8 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   const signing = new AgentSigning(sql, ctx, provider, () => Math.floor(Date.now() / 1000))
   const executor = new AgentExecutor({ sql, now: () => Math.floor(Date.now() / 1000), context: ctx, signing,
     sponsor,
+    verifyAction: action => publishAgentOffer({ sql: fromD1(bindings.Database as never), bucket: bindings.Manifests as OfferBucket | undefined,
+      boardId: req.env.boardId, action, now: Math.floor(Date.now() / 1000) }),
     prepareTool: async input => {
       if (input.tool === 'sweep_earnings') {
         const token = String(input.args.token ?? '')
@@ -77,8 +79,6 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
       const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
       if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
       const action = reply.result as import('@agent-jobs/board').AgentPreparedCall
-      await publishAgentOffer({ sql: fromD1(bindings.Database as never), bucket: bindings.Manifests as OfferBucket | undefined,
-        boardId: req.env.boardId, action, now: Math.floor(Date.now() / 1000) })
       return action
     },
     verifyToolSigning: input => tenant.verifyAgentSigning({ ...prepare(input.tool, input.args), typedData: input.typedData }),
