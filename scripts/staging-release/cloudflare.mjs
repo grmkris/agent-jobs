@@ -79,13 +79,22 @@ export async function liveBuckets(pageSize = 1000) {
 const bindingFields = ['type', 'name', 'namespace_id', 'class_name', 'script_name', 'id', 'database_id', 'bucket_name', 'jurisdiction', 'service', 'environment', 'entrypoint']
 const scripts = () => [targets.Api, targets.Indexer, targets.Explore]
 
+/** Preserve only a presence result for the three reviewed public identifiers; never retain values. */
+export function censusBinding(binding) {
+  const identity = Object.fromEntries(bindingFields.filter(key => key in binding).map(key => [key, binding[key]]))
+  if (['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID'].includes(binding.name)) {
+    identity.nonemptyText = binding.type === 'plain_text' && typeof binding.text === 'string' && binding.text.trim().length > 0
+  }
+  return identity
+}
+
 /** One Worker's live tags and binding identities (no values), as the census records them. */
 export async function liveWorker(id) {
   const name = targets[id]
   const settings = await cloudflare(`/workers/scripts/${name}/settings`)
   return {
     name, tags: settings.tags ?? [],
-    bindings: (settings.bindings ?? []).map((binding) => Object.fromEntries(bindingFields.filter((key) => key in binding).map((key) => [key, binding[key]]))),
+    bindings: (settings.bindings ?? []).map(censusBinding),
   }
 }
 
@@ -170,7 +179,7 @@ export function validateCensus(live, options = {}) {
     if (get('Api', 'PRIVY_SIGNER_KEY')?.type !== 'secret_text') throw new StagingReleaseError('census-agent-signer-binding-missing')
     for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) {
       const binding = get('Api', name)
-      if (binding?.type !== 'plain_text' || typeof binding.text !== 'string' || binding.text.trim().length === 0) throw new StagingReleaseError('census-agent-authority-setting-missing')
+      if (binding?.type !== 'plain_text' || binding.nonemptyText !== true) throw new StagingReleaseError('census-agent-authority-setting-missing')
     }
   }
 }

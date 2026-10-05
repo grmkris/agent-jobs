@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cloudflarePaged, liveBuckets, liveDeployment, liveDomains, liveNamespaces } from './cloudflare.mjs'
+import { cloudflarePaged, liveBuckets, liveDeployment, liveDomains, liveNamespaces, censusBinding } from './cloudflare.mjs'
 
 const originalFetch = globalThis.fetch
 const response = body => new Response(JSON.stringify({ success: true, ...body }), { headers: { 'content-type': 'application/json' } })
@@ -178,16 +178,29 @@ test('agent signing census requires a secret routine key and nonempty plain iden
   assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-signer-binding-missing/)
   bindings.push({ name: 'PRIVY_SIGNER_KEY', type: 'secret_text' })
   assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-authority-setting-missing/)
-  for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) bindings.push({ name, type: 'plain_text', text: 'public-id' })
+  for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) bindings.push(censusBinding({ name, type: 'plain_text', text: 'public-id' }))
   validateCensus(live, { requireAgentSigning: true })
   for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) {
     const setting = bindings.find(binding => binding.name === name)
     for (const text of ['', ' \t\n', undefined, null, 1]) {
-      setting.text = text
+      Object.assign(setting, censusBinding({ name, type: 'plain_text', text }))
       assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-authority-setting-missing/)
     }
-    setting.text = 'public-id'
+    Object.assign(setting, censusBinding({ name, type: 'plain_text', text: 'public-id' }))
   }
   bindings.find(binding => binding.name === 'PRIVY_SIGNER_KEY').type = 'plain_text'
   assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-signer-binding-missing/)
+})
+
+test('live census binding projection records presence and strips every value', () => {
+  const marker = 'value-must-not-appear'
+  const input = ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID'].map(name => ({ name, type: 'plain_text', text: marker }))
+  input.push({ name: 'PRIVY_APP_SECRET', type: 'secret_text', text: marker })
+  input.push({ name: 'UNLISTED_SETTING', type: 'plain_text', text: marker })
+  const projected = JSON.parse(JSON.stringify(input.map(censusBinding)))
+  assert.equal(JSON.stringify(projected).includes(marker), false)
+  assert.equal(projected.slice(0, 3).every(binding => binding.nonemptyText === true), true)
+  assert.equal('nonemptyText' in projected[3], false)
+  assert.equal('nonemptyText' in projected[4], false)
+  for (const type of ['secret_text', 'inherit', 'json']) assert.equal(censusBinding({ name: 'PRIVY_APP_ID', type, text: marker }).nonemptyText, false)
 })
