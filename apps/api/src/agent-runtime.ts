@@ -10,6 +10,7 @@ import { resourceBoard } from './oauth-validation.ts'
 import { toJson } from './tools.ts'
 import { fromD1 } from '@agent-jobs/indexer'
 import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
+import { tenantAgentRequest } from './agent-requests.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -53,8 +54,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
     const result = operation.sponsor_operation_id === null ? operation : await sponsor.operation(agent.address!, operation.sponsor_operation_id)
     return toJson({ ok: true, result })
   }
-  const auth = { agentId: agent.id, resource: req.resource, ...(req.operator === undefined ? {} : { operator: true }) }
-  const prepare = (tool: string, input: Record<string, unknown>): BoardCall => ({ tool, args: input, env: req.env, caller: agent.address!, agentAuth: auth, ...(req.ip === undefined ? {} : { ip: req.ip }), ...(req.bearer === undefined ? {} : { bearer: req.bearer }) })
+  const prepare = (tool: string, input: Record<string, unknown>): BoardCall => tenantAgentRequest(req, agent.address!, tool, input)
   const tenant = namespace.get(namespace.idFromName(req.env.boardId))
   if (requiredToolScope(req.tool) === 'hireling:read') return tenant.call(prepare(req.tool, args))
   const signerKey = typeof bindings.PRIVY_SIGNER_KEY === 'string' ? bindings.PRIVY_SIGNER_KEY : ''

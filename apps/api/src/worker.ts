@@ -32,6 +32,7 @@ import { permittedTool } from './mcp-policy.ts'
 import { agentRoute } from './routes/agents.ts'
 import { approvalRoute } from './routes/approvals.ts'
 import { agentTools } from './tools-agents.ts'
+import { managementRequest } from './agent-requests.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -317,7 +318,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const lifecycleRequest = agentRoute(request.method, path, oauthBody) ?? approvalRoute(request.method, path, oauthBody)
         if (lifecycleRequest !== undefined) {
           if (request.method === 'POST' && (origin === undefined || !allowed)) return json({ ok: false, code: 'forbidden', message: 'Agent decisions require the website origin' }, 403)
-          const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).agentManage({ env, request: lifecycleRequest, ...(bearer === undefined ? {} : { bearer }), ...(request.headers['x-privy-token'] === undefined ? {} : { privyToken: request.headers['x-privy-token'] }) })) as BoardReply
+          const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).agentManage(managementRequest(env, lifecycleRequest, bearer, request.headers))) as BoardReply
           return json(reply, reply.ok ? 200 : STATUS[reply.code] ?? 503, { 'cache-control': 'no-store' })
         }
         if (path.startsWith('/oauth/') || path.startsWith('/.well-known/oauth-')) {

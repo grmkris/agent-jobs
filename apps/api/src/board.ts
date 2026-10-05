@@ -15,7 +15,7 @@ import { permittedTool } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
 import { runAgent, type AgentExecuteRequest } from './agent-runtime.ts'
 import { agentManagement } from './agent-management.ts'
-import type { AgentRouteRequest } from './routes/agents.ts'
+import { operatorRequest, type AgentManagementRequest } from './agent-requests.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
 export interface BoardCall {
@@ -138,7 +138,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           managementQueue = result.catch(() => undefined)
           return result
         }),
-        agentManage: (req: { env: BoardCall['env']; request: AgentRouteRequest; bearer?: string; privyToken?: string }) => Effect.promise(() => {
+        agentManage: (req: AgentManagementRequest) => Effect.promise(() => {
           const result = managementQueue.then(async () => {
             try {
               const bindings = runtimeEnv as Record<string, unknown>
@@ -152,7 +152,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const managementResult = await agentManagement({ request: req.request, sql, context, operator: session.address, bindings, rpcUrl: req.env.rpcUrl, relayKey: req.env.relayKey as Hex, now: () => Math.floor(Date.now() / 1000),
                 ...(req.privyToken === undefined ? {} : { privyToken: req.privyToken }),
                 execute: async (agentId, tool, args, key, _approvalId, originalBoard) => {
-                  const reply = JSON.parse(await executeAgent({ env: { ...req.env, boardId: originalBoard ?? req.env.boardId }, tool, args: { ...args, operationKey: key }, agentId, resource: `${req.env.uri}${req.env.boardId === 'public' ? '' : `/b/${req.env.boardId}`}/mcp`, operator: session.address, ...(req.bearer === undefined ? {} : { bearer: req.bearer }) })) as BoardReply
+                  const reply = JSON.parse(await executeAgent(operatorRequest(req, session.address, { agentId, tool, args, key, boardId: originalBoard }))) as BoardReply
                   if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
                   return reply.result
                 },
