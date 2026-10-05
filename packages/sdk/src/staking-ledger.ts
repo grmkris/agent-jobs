@@ -19,7 +19,7 @@ export type StakeLedgerEvent = {
 export function delegationCandidates(events: readonly StakeLedgerEvent[], filters: { account?: Address; delegator?: Address } = {}): DelegationCandidate[] {
   const generations = new Map<string, bigint>()
   const positions = new Map<string, DelegationCandidate>()
-  const ordered = [...events].sort((a, b) => a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1)
+  const ordered = events.toSorted((a, b) => a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1)
   for (const event of ordered) {
     const account = event.account.toLowerCase()
     if (event.name === 'PoolReset') {
