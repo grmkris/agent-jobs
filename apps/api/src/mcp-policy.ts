@@ -8,7 +8,7 @@ const READ_TOOLS = new Set([
 ])
 const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work'])
 const WORK_TOOLS = new Set(['apply', 'submit_quote', 'prepare_activation', 'submit_work', 'dispute', 'add_statement'])
-const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'withdraw_stake', 'sweep_earnings', 'check_operation'])
+const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings', 'check_operation'])
 const CONTINUATIONS = new Set(['submit_selection', 'build_activation', 'report_transaction', 'report_operation'])
 
 export function requiredToolScope(name: string): 'hireling:read' | 'hireling:hire' | 'hireling:work' | 'write' | undefined {

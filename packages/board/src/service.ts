@@ -31,7 +31,7 @@ import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type NamedSponsorEntry, SponsorDesk } from './sponsor.ts'
 import * as hireling from './hireling.ts'
-import { confirmedOperationIds, confirmsVaultOperation } from './receipts.ts'
+import { confirmedOperationIds, vaultOperationResult } from './receipts.ts'
 import { RelaySender, type RelayRequest } from './relay.ts'
 import { collectActions, type CollectSnapshot } from './collect.ts'
 import * as v1Tools from './v1-tools.ts'
@@ -303,29 +303,47 @@ export class Board {
     const operationId = this.#operation(task.id, 'top-up', me, { amount: prepared.amount })
     return { operationId, ...prepared }
   }
-  async stake(caller: Caller, input: { amount: string }) {
+  #vaultAccount(input: string | undefined, fallback: Address): Address {
+    if (input === undefined) return fallback
+    if (typeof input !== 'string' || !isAddress(input)) throw new BoardError('invalid', 'account must be an address')
+    return getAddress(input)
+  }
+  async stake(caller: Caller, input: { amount: string; account?: string }) {
     const me = this.#requireCaller(caller)
-    const prepared = await v1Tools.prepareStake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'stake', me, { amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    const prepared = await v1Tools.prepareStake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message), this.#vaultAccount(input.account, me))
+    const operationId = this.#operation(`vault:${prepared.account.toLowerCase()}:${me.toLowerCase()}`, 'stake', me, { account: prepared.account, delegator: me, payer: me, amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
-  async requestUnstake(caller: Caller, input: { amount: string }) {
+  async requestUnstake(caller: Caller, input: { amount: string; account?: string }) {
     const me = this.#requireCaller(caller)
-    const prepared = await v1Tools.prepareUnstake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'request-unstake', me, { amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    const prepared = await v1Tools.prepareUnstake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message), this.#vaultAccount(input.account, me))
+    const operationId = this.#operation(`vault:${prepared.account.toLowerCase()}:${me.toLowerCase()}`, 'request-unstake', me, { account: prepared.account, delegator: me, amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
-  async withdrawStake(caller: Caller) {
+  async withdrawStake(caller: Caller, input: { account?: string } = {}) {
     const me = this.#requireCaller(caller)
-    const prepared = await v1Tools.prepareStakeWithdrawal(this.#ctx('main'), me, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'withdraw-stake', me, { amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    const prepared = await v1Tools.prepareStakeWithdrawal(this.#ctx('main'), me, (code, message) => new BoardError(code, message), this.#vaultAccount(input.account, me))
+    const operationId = this.#operation(`vault:${prepared.account.toLowerCase()}:${me.toLowerCase()}`, 'withdraw-stake', me, { account: prepared.account, delegator: me, amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
-  async getStake(_caller: Caller, input: { wallet: string }) {
-    if (typeof input.wallet !== 'string' || !isAddress(input.wallet)) throw new BoardError('invalid', 'wallet must be an address')
+  async cancelUnstake(caller: Caller, input: { account?: string } = {}) {
+    const me = this.#requireCaller(caller)
+    const prepared = await v1Tools.prepareCancelUnstake(this.#ctx('main'), me, (code, message) => new BoardError(code, message), this.#vaultAccount(input.account, me))
+    const operationId = this.#operation(`vault:${prepared.account.toLowerCase()}:${me.toLowerCase()}`, 'cancel-unstake', me,
+      { account: prepared.account, delegator: me, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    return { operationId, ...prepared }
+  }
+  async getStake(_caller: Caller, input: { wallet?: string; account?: string }) {
+    const wallet = input.wallet ?? _caller.address ?? input.account
+    if (typeof wallet !== 'string' || !isAddress(wallet)) throw new BoardError('invalid', 'wallet or account must be an address')
     const ctx = this.#ctx('main'), h = v1Tools.requireV1(ctx, (code, message) => new BoardError(code, message))
-    const state = await sdk.getStake(ctx, getAddress(input.wallet))
-    return { token: h.factory, vault: h.vault, ...state, staked: state.staked.toString(), reserved: state.reserved.toString(), available: state.available.toString(), unstaking: state.unstaking.toString() }
+    const account = this.#vaultAccount(input.account, getAddress(wallet))
+    const blockNumber = await ctx.publicClient.getBlockNumber()
+    const [backing, position] = await Promise.all([sdk.getBacking(ctx, account, { blockNumber }), sdk.getPosition(ctx, account, getAddress(wallet), { blockNumber })])
+    return { token: h.factory, vault: h.vault, account, delegator: getAddress(wallet), blockNumber: backing.blockNumber,
+      assets: backing.assets.toString(), staked: backing.active.toString(), reserved: backing.reserved.toString(), available: backing.available.toString(),
+      queued: backing.queued.toString(), unstaking: position.queued.toString(), unlockAt: position.unlockAt,
+      shares: position.shares.toString(), queuedShares: position.queuedShares.toString(), tier: backing.tier }
   }
   async feeQuote(_caller: Caller, input: { taskId: string; worker: string }) {
     if (typeof input.worker !== 'string' || !isAddress(input.worker)) throw new BoardError('invalid', 'worker must be an address')
@@ -885,7 +903,7 @@ export class Board {
     const me = this.#requireCaller(caller)
     const [op] = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE id=? AND lower(actor)=lower(?)', input.operationId, me)
     if (op === undefined) throw new BoardError('not-found', 'no wallet operation for this caller')
-    if (!['stake', 'request-unstake', 'withdraw-stake'].includes(op.kind)) throw new BoardError('invalid', 'this operation belongs to a task; use report_transaction')
+    if (!['stake', 'request-unstake', 'cancel-unstake', 'withdraw-stake'].includes(op.kind)) throw new BoardError('invalid', 'this operation belongs to a task; use report_transaction')
     if (input.txHash !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(input.txHash)) throw new BoardError('invalid', 'txHash must be a transaction hash')
     if (op.status === 'prepared') {
       const hash = input.txHash ?? op.tx_hash
@@ -895,11 +913,13 @@ export class Board {
         const ctx = this.#ctx('main')
         const receipt = await ctx.publicClient.getTransactionReceipt({ hash: hash as Hex }).catch(() => undefined)
         if (receipt === undefined) throw new BoardError('chain', 'no receipt yet for the reported wallet operation; retry shortly')
-        if (confirmsVaultOperation(ctx, receipt, op)) this.#sql.run("UPDATE operations SET status='confirmed',tx_hash=?,updated_at=? WHERE id=? AND status='prepared'", hash, this.#now(), op.id)
+        const result = vaultOperationResult(ctx, receipt, op)
+        if (result !== null) this.#sql.run("UPDATE operations SET status='confirmed',tx_hash=?,detail=?,updated_at=? WHERE id=? AND status='prepared'",
+          hash, JSON.stringify({ ...JSON.parse(op.detail!), result }), this.#now(), op.id)
       }
     }
     const [saved] = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE id=?', op.id)
-    return { operationId: op.id, kind: op.kind, status: saved!.status, txHash: saved!.tx_hash }
+    return { operationId: op.id, kind: op.kind, status: saved!.status, txHash: saved!.tx_hash, result: saved!.detail === null ? null : JSON.parse(saved!.detail).result ?? null }
   }
 
   /**

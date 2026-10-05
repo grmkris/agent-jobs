@@ -41,7 +41,7 @@ export const hostedToolNames = new Set([
   'prepare_service_ad', 'publish_service_ad', 'prepare_revoke_service_ad', 'revoke_service_ad',
   'telegram_status', 'telegram_link_prepare', 'telegram_link_confirm', 'telegram_unlink',
   'sponsor_status', 'sponsor_prepare', 'sponsor_confirm', 'sponsor_revoke', 'sponsor_submit', 'sponsor_operation',
-  'top_up', 'stake', 'request_unstake', 'withdraw_stake', 'get_stake', 'fee_quote', 'collect_actions',
+  'top_up', 'stake', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'get_stake', 'fee_quote', 'collect_actions',
 ])
 
 export interface HostedAdmission {

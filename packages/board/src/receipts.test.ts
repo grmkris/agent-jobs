@@ -1,7 +1,7 @@
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, type TransactionReceipt, encodeAbiParameters, encodeEventTopics, parseAbi } from 'viem'
 import { expect, it, vi } from 'vitest'
-import { confirmedOperationIds, confirmsVaultOperation } from './receipts.ts'
+import { confirmedOperationIds, confirmsVaultOperation, vaultOperationResult } from './receipts.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
@@ -75,18 +75,22 @@ it('cancel is authorized by the canonical listing creator, and a settle event ne
 
 const vault = `0x${'4'.repeat(40)}` as Address
 const vaultCtx = { ...ctx, deployment: { ...ctx.deployment, hireling: { vault, factory: ctx.stack.factory } } } as sdk.Ctx
-function vaultLog(kind: 'stake' | 'request-unstake' | 'withdraw-stake', account = wallet, payer = wallet, amount = 7n, address = vault) {
-  const delegator = wallet
-  if (kind === 'stake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator, payer } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [amount, 7n]) }
-  if (kind === 'request-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UndelegateRequested', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint48' }], [7n, amount, 10n, 1000]) }
-  return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Withdrawn', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [7n, amount]) }
+function vaultLog(kind: 'stake' | 'request-unstake' | 'cancel-unstake' | 'withdraw-stake', account = wallet, payer = wallet, amount = 7n, address = vault, shares = 7n, delegator = wallet) {
+  if (kind === 'stake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator, payer } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [amount, shares]) }
+  if (kind === 'request-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UndelegateRequested', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint48' }], [shares, amount, 10n, 1000]) }
+  if (kind === 'cancel-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UndelegateCancelled', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [shares, amount]) }
+  return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Withdrawn', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [shares, amount]) }
 }
-const vaultOp = (kind: string) => op(kind, wallet, { vault, token: ctx.stack.factory, amount: '7', shares: '7' })
-it.each(['stake', 'request-unstake', 'withdraw-stake'] as const)('vault %s matches the exact account, amount, method and configured vault', kind => {
+const vaultOp = (kind: string) => op(kind, wallet, { vault, token: ctx.stack.factory, account: wallet, delegator: wallet, payer: wallet, amount: '7', shares: '7' })
+it.each(['stake', 'request-unstake', 'cancel-unstake', 'withdraw-stake'] as const)('vault %s matches ownership, method and configured vault despite floating asset quotes', kind => {
   const prepared = vaultOp(kind)
   expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind)]), prepared)).toBe(true)
-  for (const log of [vaultLog(kind, mallory), vaultLog(kind, wallet, wallet, 8n), vaultLog(kind, wallet, wallet, 7n, mallory), accepted()])
+  for (const log of [vaultLog(kind, mallory), vaultLog(kind, wallet, wallet, 7n, vault, 7n, mallory), vaultLog(kind, wallet, wallet, 7n, mallory), accepted()])
     expect(confirmsVaultOperation(vaultCtx, receipt([log]), prepared)).toBe(false)
+  const changedAssets = vaultOperationResult(vaultCtx, receipt([vaultLog(kind, wallet, wallet, 1n)]), prepared)
+  if (kind === 'stake') expect(changedAssets).toBeNull()
+  else expect(changedAssets).toMatchObject({ shares: '7', assets: '1' })
+  expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind, wallet, wallet, 7n, vault, 8n)]), prepared)).toBe(kind === 'stake')
   expect(confirmsVaultOperation(vaultCtx, { ...receipt([vaultLog(kind)]), status: 'reverted' }, prepared)).toBe(false)
   expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind)]), { ...prepared, detail: null })).toBe(false)
 })
@@ -105,10 +109,19 @@ it('a saved wallet-operation hash survives a lost receipt response and polls the
     await expect(board.reportOperation({ address: wallet }, { operationId: original.id, txHash: hash })).rejects.toThrow('no receipt')
     expect(sql.all('SELECT status,tx_hash FROM operations')[0]).toEqual({ status: 'prepared', tx_hash: hash })
     const restarted = new Board(sql, config)
-    expect(await restarted.reportOperation({ address: wallet }, { operationId: original.id })).toEqual({ operationId: original.id, kind: 'stake', status: 'confirmed', txHash: hash })
+    expect(await restarted.reportOperation({ address: wallet }, { operationId: original.id })).toMatchObject({ operationId: original.id, kind: 'stake', status: 'confirmed', txHash: hash, result: { shares: '7', assets: '7' } })
+    expect(JSON.parse(sql.all<OperationRow>('SELECT * FROM operations')[0]!.detail!).result).toMatchObject({ assets: '7', shares: '7' })
     expect(sql.all('SELECT * FROM operations')).toHaveLength(1)
     expect(await restarted.reportOperation({ address: wallet }, { operationId: original.id, txHash: sdk.hashText('different') })).toMatchObject({ txHash: hash, status: 'confirmed' })
     await expect(restarted.reportOperation({ address: mallory }, { operationId: original.id })).rejects.toThrow('no wallet operation')
     expect(getTransactionReceipt).toHaveBeenCalledTimes(2)
   } finally { db.close() }
+})
+
+it('VV2-002 confirms the A=6/S=10 request by its three exact shares, not its two-asset quote', () => {
+  const operation = op('request-unstake', wallet, { vault, token: ctx.stack.factory, account: mallory,
+    delegator: wallet, amount: '2', shares: '3' })
+  expect(vaultOperationResult(vaultCtx, receipt([vaultLog('request-unstake', mallory, wallet, 1n, vault, 3n)]), operation))
+    .toMatchObject({ account: mallory, delegator: wallet, shares: '3', assets: '1' })
+  expect(vaultOperationResult(vaultCtx, receipt([vaultLog('request-unstake', mallory, wallet, 1n, vault, 2n)]), operation)).toBeNull()
 })

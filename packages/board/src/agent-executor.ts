@@ -164,6 +164,10 @@ export class AgentExecutor {
   async #execute(input: AgentExecuteInput): Promise<AgentExecuteResult> {
     const agent = this.agents.get(input.agentId)
     if (agent.address === null || agent.privy_wallet_id === null || agent.state !== 'active' || agent.chain_id !== this.deps.context.deployment.chainId) throw new Error('Agent is not active on this chain')
+    if (['stake', 'request_unstake', 'cancel_unstake', 'withdraw_stake'].includes(input.tool) && input.args.account !== undefined
+      && (typeof input.args.account !== 'string' || input.args.account.toLowerCase() !== agent.address.toLowerCase())) {
+      throw new Error('Managed vault actions require the agent own account and position')
+    }
     const operation = this.agents.begin(input.agentId, input.operationKey, input.boardId, input.tool, input.args)
     if (operation.stage === 'confirmed') return { status: 'confirmed', operationId: operation.id, result: JSON.parse(operation.result_json!) }
     if (operation.sponsor_operation_id !== null) {

@@ -1,26 +1,46 @@
 /** Operation reconciliation uses verified contract events, including calls relayed through a DeleGator. */
 import * as sdk from '@agent-jobs/sdk'
-import { type Abi, type TransactionReceipt, decodeEventLog } from 'viem'
+import { type Abi, type TransactionReceipt, decodeEventLog, isAddress } from 'viem'
 import { evaluatorAbi, holdingAbi } from './hireling.ts'
 import type { OperationRow } from './store.ts'
 
 const same = (a: unknown, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
 
-/** A vault receipt must describe the recorded wallet's exact prepared action, even when relayed. */
-export function confirmsVaultOperation(ctx: sdk.Ctx, receipt: TransactionReceipt, op: OperationRow): boolean {
-  if (receipt.status !== 'success' || ctx.deployment.hireling === null || op.detail === null) return false
-  const detail = JSON.parse(op.detail) as { vault?: string; token?: string; amount?: string; shares?: string }
-  if (!same(detail.vault, ctx.deployment.hireling.vault) || !same(detail.token, ctx.deployment.hireling.factory) || !/^\d+$/.test(detail.amount ?? '') || !/^\d+$/.test(detail.shares ?? '')) return false
+export interface VaultOperationResult {
+  account: string
+  delegator: string
+  payer?: string
+  shares: string
+  assets: string
+}
+
+/** Match fixed ownership, deposit assets and exit shares. The event supplies exit assets and minted shares. */
+export function vaultOperationResult(ctx: sdk.Ctx, receipt: TransactionReceipt, op: OperationRow): VaultOperationResult | null {
+  if (receipt.status !== 'success' || ctx.deployment.hireling === null || op.detail === null) return null
+  const detail = JSON.parse(op.detail) as { vault?: string; token?: string; account?: string; delegator?: string; payer?: string; shares?: string; amount?: string }
+  if (!same(detail.vault, ctx.deployment.hireling.vault) || !same(detail.token, ctx.deployment.hireling.factory)
+    || !isAddress(detail.account ?? '') || !same(detail.delegator, op.actor)) return null
+  if (op.kind === 'stake' ? !same(detail.payer, op.actor) || !/^[1-9]\d*$/.test(detail.amount ?? '') : !/^[1-9]\d*$/.test(detail.shares ?? '')) return null
   for (const log of receipt.logs) {
     if (!same(log.address, detail.vault!)) continue
     try {
-      const e = decodeEventLog({ abi: sdk.stakeVaultAbi, data: log.data, topics: log.topics })
-      if (e.eventName === 'Delegated' && op.kind === 'stake' && same(e.args.account, op.actor) && same(e.args.delegator, op.actor) && e.args.shares.toString() === detail.shares && same(e.args.payer, op.actor) && e.args.assets.toString() === detail.amount) return true
-      if (e.eventName === 'UndelegateRequested' && op.kind === 'request-unstake' && same(e.args.account, op.actor) && same(e.args.delegator, op.actor) && e.args.shares.toString() === detail.shares && e.args.assets.toString() === detail.amount) return true
-      if (e.eventName === 'Withdrawn' && op.kind === 'withdraw-stake' && same(e.args.account, op.actor) && same(e.args.delegator, op.actor) && e.args.shares.toString() === detail.shares && e.args.assets.toString() === detail.amount) return true
+      const e = decodeEventLog({ abi: sdk.stakeVaultAbi, data: log.data, topics: log.topics, strict: true })
+      if (!['Delegated', 'UndelegateRequested', 'UndelegateCancelled', 'Withdrawn'].includes(e.eventName)) continue
+      const args = e.args as { account: string; delegator: string; payer?: string; shares: bigint; assets: bigint }
+      if (!same(args.account, detail.account!) || !same(args.delegator, detail.delegator!)) continue
+      const expected = op.kind === 'stake' ? 'Delegated' : op.kind === 'request-unstake' ? 'UndelegateRequested'
+        : op.kind === 'cancel-unstake' ? 'UndelegateCancelled' : op.kind === 'withdraw-stake' ? 'Withdrawn' : null
+      if (e.eventName !== expected) continue
+      if (op.kind === 'stake' ? !same(args.payer, detail.payer!) || args.assets.toString() !== detail.amount : args.shares.toString() !== detail.shares) continue
+      return { account: args.account, delegator: args.delegator, ...(args.payer === undefined ? {} : { payer: args.payer }),
+        shares: args.shares.toString(), assets: args.assets.toString() }
     } catch { /* An unrelated or malformed log cannot confirm this operation. */ }
   }
-  return false
+  return null
+}
+
+export function confirmsVaultOperation(ctx: sdk.Ctx, receipt: TransactionReceipt, op: OperationRow): boolean {
+  return vaultOperationResult(ctx, receipt, op) !== null
 }
 
 export async function confirmedOperationIds(ctx: sdk.Ctx, jobId: bigint, receipt: TransactionReceipt, operations: readonly OperationRow[]): Promise<string[]> {

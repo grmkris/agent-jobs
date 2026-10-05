@@ -33,24 +33,43 @@ export async function prepareTopUp(ctx: sdk.Ctx, wallet: Address, jobId: bigint,
     transaction(ctx, 'Add to the agreed reward', ctx.stack.holding, encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'topUp', args: [jobId, amount] })),
   ] }
 }
-export async function prepareStake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail) {
-  const h = requireV1(ctx, fail), amount = positiveAmount(text, 18, fail)
+export async function prepareStake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail, account: Address = wallet) {
+  const h = requireV1(ctx, fail)
+  const amount = positiveAmount(text, 18, fail)
   if (!await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'bootstrapped' })) throw fail('conflict', 'the stake vault has not opened yet')
-  const shares = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'convertToShares', args: [wallet, amount] })
-  return { token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [
+  const shares = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'convertToShares', args: [account, amount] })
+  if (shares === 0n) throw fail('conflict', 'this amount rounds to zero shares')
+  return { account, delegator: wallet, payer: wallet, token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [
     ...await approved(ctx, wallet, h.factory, h.vault, amount, fail),
-    transaction(ctx, 'Stake FACTORY for fees and bonds', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [wallet, amount] })),
+    transaction(ctx, 'Back the agent with wallet-owned FACTORY', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [account, amount] })),
   ] }
 }
-export async function prepareUnstake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail) {
-  const h = requireV1(ctx, fail), amount = positiveAmount(text, 18, fail)
-  const shares = await sdk.undelegationShares(ctx, wallet, wallet, amount)
-  return { token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [transaction(ctx, 'Start the unstaking cooldown', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [wallet, shares] }))] }
-}
-export async function prepareStakeWithdrawal(ctx: sdk.Ctx, wallet: Address, fail: Fail) {
+export async function prepareUnstake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail, account: Address = wallet) {
   const h = requireV1(ctx, fail)
-  const [state, block] = await Promise.all([sdk.getStake(ctx, wallet), ctx.publicClient.getBlock()])
-  if (state.unstaking === 0n || Number(block.timestamp) < state.unlockAt) throw fail('conflict', 'no unstaked FACTORY has completed its cooldown')
-  const position = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'positionOf', args: [wallet, wallet] })
-  return { token: h.factory, amount: state.unstaking.toString(), shares: position.queuedShares.toString(), transactions: [transaction(ctx, 'Withdraw unstaked FACTORY to your wallet', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [wallet] }))] }
+  const amount = positiveAmount(text, 18, fail)
+  const shares = await sdk.undelegationShares(ctx, account, wallet, amount)
+  return { account, delegator: wallet, token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [
+    transaction(ctx, 'Queue your position for undelegation', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [account, shares] })),
+  ] }
+}
+export async function prepareStakeWithdrawal(ctx: sdk.Ctx, wallet: Address, fail: Fail, account: Address = wallet) {
+  const h = requireV1(ctx, fail)
+  const block = await ctx.publicClient.getBlock()
+  const [position, backing] = await Promise.all([
+    sdk.getPosition(ctx, account, wallet, { blockNumber: block.number }),
+    sdk.getBacking(ctx, account, { blockNumber: block.number }),
+  ])
+  if (position.queuedShares === 0n || Number(block.timestamp) < position.unlockAt) throw fail('conflict', 'no queued position has completed its cooldown')
+  if (backing.assets - position.queued < backing.reserved) throw fail('conflict', 'the position still backs an open bond; wait for its release')
+  return { account, delegator: wallet, token: h.factory, amount: position.queued.toString(), shares: position.queuedShares.toString(), transactions: [
+    transaction(ctx, 'Withdraw your position to its owner wallet', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [account] })),
+  ] }
+}
+export async function prepareCancelUnstake(ctx: sdk.Ctx, wallet: Address, fail: Fail, account: Address = wallet) {
+  const h = requireV1(ctx, fail)
+  const position = await sdk.getPosition(ctx, account, wallet)
+  if (position.queuedShares === 0n) throw fail('conflict', 'this position has no queued exit')
+  return { account, delegator: wallet, token: h.factory, amount: position.queued.toString(), shares: position.queuedShares.toString(), transactions: [
+    transaction(ctx, 'Cancel the queued exit and restore active backing', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelUndelegate', args: [account] })),
+  ] }
 }
