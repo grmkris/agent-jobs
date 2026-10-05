@@ -2,6 +2,7 @@
 import { type Address, getAbiItem } from 'viem'
 import { feeScheduleAbi, stakeVaultAbi } from './abi/index.ts'
 import type { Ctx } from './actions.ts'
+import { delegationCandidates, type StakeLedgerEvent } from './staking-ledger.ts'
 
 export interface StakePool {
   readonly assets: bigint
@@ -96,7 +97,7 @@ export async function getPosition(ctx: Ctx, account: Address, delegator: Address
 }
 
 export interface DelegationReadOptions extends StakeReadOptions {
-  /** Restrict discovery to a pool, or resume event discovery at a later block. */
+  /** Restrict discovery to a pool. fromBlock overrides the vault creation block for local fixtures. */
   readonly account?: Address
   readonly fromBlock?: bigint
 }
@@ -105,21 +106,21 @@ export interface DelegationReadOptions extends StakeReadOptions {
 export async function listDelegations(ctx: Ctx, delegator: Address, options: DelegationReadOptions = {}) {
   const h = vaultOf(ctx)
   const blockNumber = options.blockNumber ?? await ctx.publicClient.getBlockNumber()
-  const event = getAbiItem({ abi: stakeVaultAbi, name: 'Delegated' })
-  const latest = new Map<string, { account: Address; block: bigint }>()
+  const events = [getAbiItem({ abi: stakeVaultAbi, name: 'Delegated' }), getAbiItem({ abi: stakeVaultAbi, name: 'PoolReset' })] as const
+  const ledger: StakeLedgerEvent[] = []
   for (let fromBlock = options.fromBlock ?? h.block; fromBlock <= blockNumber; fromBlock += 10_000n) {
     const end = fromBlock + 9_999n
-    const logs = await ctx.publicClient.getLogs({ address: h.vault, event,
-      args: { delegator, ...(options.account === undefined ? {} : { account: options.account }) },
+    const logs = await ctx.publicClient.getLogs({ address: h.vault, events,
       fromBlock, toBlock: end < blockNumber ? end : blockNumber, strict: true })
-    for (const log of logs) latest.set(log.args.account.toLowerCase(), { account: log.args.account, block: log.blockNumber })
+    for (const log of logs) {
+      const entry = { account: log.args.account, blockNumber: log.blockNumber, logIndex: log.logIndex }
+      ledger.push(log.eventName === 'PoolReset' ? { ...entry, name: 'PoolReset', generation: log.args.generation }
+        : { ...entry, name: 'Delegated', delegator: log.args.delegator })
+    }
   }
   const positions = []
-  for (const { account, block } of latest.values()) {
-    // positionOf hides retired generations. The pool at the latest deposit supplies the historical generation.
-    const historical = await ctx.publicClient.readContract({ address: h.vault, abi: stakeVaultAbi,
-      functionName: 'poolOf', args: [account], blockNumber: block })
-    positions.push(await getPosition(ctx, account, delegator, { blockNumber, knownGeneration: historical.generation }))
+  for (const candidate of delegationCandidates(ledger, { delegator, ...(options.account === undefined ? {} : { account: options.account }) })) {
+    positions.push(await getPosition(ctx, candidate.account, candidate.delegator, { blockNumber, knownGeneration: candidate.generation }))
   }
   return { source: 'vault-events' as const, blockNumber, delegator, positions }
 }
