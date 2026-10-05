@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, parseAbi, toFunctionSelector } from 'viem';
+import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, parseAbi } from 'viem';
 import { build, createServer, preview } from 'vite';
 import { overflow, shifts, smallTargets, trackShifts, unnamed } from './audit-checks.mjs';
+import { sponsorshipGrantTerms } from './grant-fixture.mjs';
 
 // Screenshots of the v1 pages for a polish pass, each in a realistic state from the e2e fixtures, at two phone widths and
 // desktop: `<page>-<width>.png` in the output directory. Promoted testnet contract addresses; fixture states,
@@ -31,6 +32,7 @@ const token = config.deployment.rewardTokens[0].toLowerCase();
 assert.equal(config.deployment.main.kind, 'hireling-v1', 'Submission captures require a promoted v1 testnet deployment');
 const { factory, vault, feeSchedule, distributor, miningReserve, safe } = config.deployment.hireling;
 const contracts = { factory, vault, feeSchedule, distributor, miningReserve, safe, holding: config.deployment.main.holding, evaluator: config.deployment.main.evaluator };
+const grantTerms = sponsorshipGrantTerms(contracts);
 const now = Math.floor(Date.now() / 1000);
 const K = 10n ** 18n;
 const widths = widthsFlag !== undefined ? widthsFlag.split(',').map(Number) : auditing ? [375, 390] : [375, 390, 1440];
@@ -120,8 +122,8 @@ const delegation = JSON.stringify({
   message: {
     delegate: config.roles.relay, delegator: me, authority: `0x${'f'.repeat(64)}`, salt: '7',
     caveats: [
-      { enforcer: config.delegation.enforcers.allowedTargets, terms: concat([contracts.holding, contracts.vault]) },
-      { enforcer: config.delegation.enforcers.allowedMethods, terms: concat(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)', 'function withdraw()'].map((f) => toFunctionSelector(f))) },
+      { enforcer: config.delegation.enforcers.allowedTargets, terms: concat(grantTerms.targets) },
+      { enforcer: config.delegation.enforcers.allowedMethods, terms: grantTerms.methods },
       { enforcer: config.delegation.enforcers.limitedCalls, terms: encodeAbiParameters([{ type: 'uint256' }], [100n]) },
       { enforcer: config.delegation.enforcers.timestamp, terms: encodePacked(['uint128', 'uint128'], [0n, BigInt(now + 30 * 86400)]) },
     ],

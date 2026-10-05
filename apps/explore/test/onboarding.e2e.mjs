@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, parseAbi, toFunctionSelector } from 'viem';
+import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, parseAbi } from 'viem';
 import { createServer } from 'vite';
+import { sponsorshipGrantTerms } from './grant-fixture.mjs';
 
 // U7: the Telegram link page (board code, signed text naming the wallet, t.me deep link, waiting for the bot, unlink)
 // and gas-sponsorship onboarding (the ERC-7710 delegation to the relay, read from its caveats before signing, refused
@@ -16,11 +17,12 @@ const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-
 const { relay } = config.roles;
 const { manager, enforcers } = config.delegation;
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
+const grantTerms = sponsorshipGrantTerms(contracts);
 const NONCE = 'tg_fixture_123';
 const textFor = (wallet) => `Link this wallet to Telegram on Hireling.\nWallet: ${wallet}\nCode: ${NONCE}`;
 const until = Math.floor(Date.now() / 1000) + 30 * 86400;
 
-const delegation = (targets = [contracts.holding, contracts.vault]) => JSON.stringify({
+const delegation = (targets = grantTerms.targets) => JSON.stringify({
   types: { EIP712Domain: [], Delegation: [{ name: 'delegate', type: 'address' }, { name: 'delegator', type: 'address' }, { name: 'authority', type: 'bytes32' }, { name: 'caveats', type: 'Caveat[]' }, { name: 'salt', type: 'uint256' }], Caveat: [{ name: 'enforcer', type: 'address' }, { name: 'terms', type: 'bytes' }] },
   primaryType: 'Delegation',
   domain: { name: 'DelegationManager', version: '1', chainId: 10143, verifyingContract: manager },
@@ -30,7 +32,7 @@ const delegation = (targets = [contracts.holding, contracts.vault]) => JSON.stri
     authority: `0x${'f'.repeat(64)}`,
     caveats: [
       { enforcer: enforcers.allowedTargets, terms: concat(targets) },
-      { enforcer: enforcers.allowedMethods, terms: concat(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)', 'function withdraw()'].map((f) => toFunctionSelector(f))) },
+      { enforcer: enforcers.allowedMethods, terms: grantTerms.methods },
       { enforcer: enforcers.limitedCalls, terms: encodeAbiParameters([{ type: 'uint256' }], [50n]) },
       { enforcer: enforcers.timestamp, terms: encodePacked(['uint128', 'uint128'], [0n, BigInt(until)]) },
     ],
@@ -225,7 +227,7 @@ try {
       const sheet = page.getByRole('dialog', { name: 'Let Hireling pay your gas?' });
       await sheet.getByText('Call Holding', { exact: true }).waitFor();
       await sheet.getByText('Call Stake vault', { exact: true }).waitFor();
-      await sheet.getByText('settle, claimTopUpRefund, withdraw', { exact: true }).waitFor();
+      await sheet.getByText(grantTerms.methodNames, { exact: true }).waitFor();
       await sheet.getByText('50 calls', { exact: true }).waitFor();
       await sheet.getByText('First your wallet points at the delegation contract. The relay sends that for you.', { exact: true }).waitFor();
       await capture(page, `${device}-sponsor-sign`);

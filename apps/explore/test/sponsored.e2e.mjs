@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { concat, encodeAbiParameters, encodeFunctionData, encodePacked, parseAbi, toFunctionSelector } from 'viem';
+import { concat, encodeAbiParameters, encodeFunctionData, encodePacked } from 'viem';
 import { createServer } from 'vite';
+import { epochDistributorAbi } from '../../../packages/sdk/src/abi/epochDistributor.ts';
+import { holdingAbi, sponsorshipGrantTerms, vaultAbi } from './grant-fixture.mjs';
 
 // Sponsored sends (U7b) on the Collect tab, against a fixture board with B6's sponsor_submit shape (20:26): a step
 // the signed delegation covers goes through Hireling's relay with no wallet prompt and a caller key; a lost answer is
@@ -18,20 +20,19 @@ const me = '0x1111111111111111111111111111111111111111';
 const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'));
 const d = config.deployment;
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
-const abi = parseAbi(['function settle(uint256 jobId)', 'function claimTopUpRefund(uint256 jobId, address contributor)', 'function withdraw()', 'function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']);
+const grantTerms = sponsorshipGrantTerms(contracts);
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const ACTIONS = [
-  { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi, functionName: 'settle', args: [72n] }))] },
-  { kind: 'claimTopUpRefund', jobId: '71', token: d.rewardTokens[0], amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [tx('Claim your top-up back', contracts.holding, encodeFunctionData({ abi, functionName: 'claimTopUpRefund', args: [71n, me] }))] },
-  { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked FACTORY', contracts.vault, encodeFunctionData({ abi, functionName: 'withdraw' }))] },
-  { kind: 'miningClaim', epoch: '0', token: d.factory, amount: (1234n * 10n ** 18n).toString(), description: 'Your share of epoch 0.', transactions: [tx('Claim epoch 0', contracts.distributor, encodeFunctionData({ abi, functionName: 'claim', args: [0n, me, 1234n * 10n ** 18n, []] }))] },
+  { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
+  { kind: 'claimTopUpRefund', jobId: '71', token: d.rewardTokens[0], amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [tx('Claim your top-up back', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'claimTopUpRefund', args: [71n, me] }))] },
+  { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked FACTORY', contracts.vault, encodeFunctionData({ abi: vaultAbi, functionName: 'withdraw', args: [me] }))] },
+  { kind: 'miningClaim', epoch: '0', token: d.factory, amount: (1234n * 10n ** 18n).toString(), description: 'Your share of epoch 0.', transactions: [tx('Claim epoch 0', contracts.distributor, encodeFunctionData({ abi: epochDistributorAbi, functionName: 'claim', args: [0n, me, 1234n * 10n ** 18n, []] }))] },
 ];
 
-// The wallet's signed delegation to the relay, as sponsor_status returns it: Hireling's four contracts, the three
-// payout functions, 100 calls, a day, and no value.
+// The wallet's signed delegation to the relay uses the SDK work grant's targets and methods,
+// with the fixture's 100-call, one-day limit and no value.
 const uint = (x) => encodeAbiParameters([{ type: 'uint256' }], [x]);
 const caveat = (enforcer, terms) => ({ enforcer, terms, args: '0x' });
-const methods = ['function settle(uint256)', 'function claimTopUpRefund(uint256,address)', 'function withdraw()'].map((s) => toFunctionSelector(s));
 const typedData = JSON.stringify({
   types: { EIP712Domain: [], Delegation: [], Caveat: [] },
   primaryType: 'Delegation',
@@ -39,8 +40,8 @@ const typedData = JSON.stringify({
   message: {
     delegate: config.roles.relay, delegator: me, authority: `0x${'f'.repeat(64)}`, salt: '1',
     caveats: [
-      caveat(config.delegation.enforcers.allowedTargets, concat([contracts.holding, contracts.evaluator, contracts.vault, d.core])),
-      caveat(config.delegation.enforcers.allowedMethods, concat(methods)),
+      caveat(config.delegation.enforcers.allowedTargets, concat(grantTerms.targets)),
+      caveat(config.delegation.enforcers.allowedMethods, grantTerms.methods),
       caveat(config.delegation.enforcers.limitedCalls, uint(100n)),
       caveat(config.delegation.enforcers.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(Math.floor(Date.now() / 1000) + 86400)])),
       caveat(config.delegation.enforcers.valueLte, uint(0n)),
