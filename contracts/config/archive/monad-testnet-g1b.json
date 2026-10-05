@@ -105,9 +105,9 @@
   "deployment": {
     "block": 66169332,
     "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
-    "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
+    "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
     "hireling": {
-      "block": 68454129,
+      "block": 67856884,
       "clocks": {
         "epochDuration": 3600,
         "epochZeroDuration": 1800,
@@ -119,14 +119,14 @@
         "proposalGrace": 1800,
         "unstakeDelay": 600
       },
-      "distributor": "0x2A01c50941a99cefe46A890E56cc4b0bb53cCED1",
-      "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
-      "feeSchedule": "0xFD023A795dE24D31F6cd6979A14A969e425FCdD4",
-      "miningReserve": "0x9AB4Ee2d2F833716c78bC6D79c54C2087a05570e",
+      "distributor": "0xA137bEf2b46B9F63c9Acf9A9EAC1D8dF0eE63CCE",
+      "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
+      "feeSchedule": "0x77504A6a21f6cc9E6d4930D380967c58E9eEaF84",
+      "miningReserve": "0xBAbAcbCe15Ad9219dCDd6B748A5FC6E63a0Cdc6a",
       "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
-      "t0": 1791219243,
-      "teamVesting": "0x0D2c0890d8E6130494E05d653A0cAa254C97F053",
-      "vault": "0xfa1eA4A0fF138f7cbB271806aB6d122d0DAa47C6"
+      "t0": 1791038852,
+      "teamVesting": "0x40f91994eB77821B94FF4548935597af150311d4",
+      "vault": "0x6e980b0545Be5622f7399E40655aeccB6f56E3FA"
     },
     "legacy": {
       "demo-v1": {
@@ -162,9 +162,9 @@
       }
     },
     "main": {
-      "evaluator": "0x593D5AbB4E8Bd7244078f655d964089931BF0f1F",
-      "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
-      "holding": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+      "evaluator": "0x576fCe8dB0a6d1B70C31728aF3742f43719Bed11",
+      "factory": "0x2eA6e10948D2C915cb7c5974ECb8D90DE070deA7",
+      "holding": "0x0d02D7dAe6b98cB9904B4F87349b227aec04F4AD",
       "kind": "hireling-v1",
       "openTokens": true
     },
@@ -177,9 +177,9 @@
     ],
     "stacksBlock": 66784609,
     "oddTokens": {
-      "blocklist": "0x6489d03029f8ab77dfa0f8117cccc2a43c1635a0",
-      "gasBurner": "0x28c656f24e6daa83d4cb96cbdd325fe31b26ff00",
-      "block": 68454339
+      "blocklist": "0xb4c7921fca1a4d21c244b1e192585109d606734f",
+      "gasBurner": "0xaaaee6ae3926a87078e65e16de5103daec60a19a",
+      "block": 67857064
     }
   },
   "hireling": {
@@ -243,4 +243,10 @@
     "maxRepairCost": 1,
     "positionOwner": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF"
   }
+,
+  "archive": {
+  "reason": "G1b archived for the G1c delegated-stake redeploy (ADR-0014)",
+  "date": "2026-10-05T16:52:39.426321+00:00",
+  "sourceSha256": "d80906f34a2418ca1b0105a489d07486d9d216d7fbc43674c04098e89203087a"
+}
 }
