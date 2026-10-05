@@ -31,12 +31,12 @@ function places(): { main: Place[]; more: Place[] } {
     main: [
       { label: 'Home', icon: House, target: { to: '/' }, active: (p) => p === '/' },
       { label: 'Jobs', icon: BriefcaseBusiness, target: base === '' ? { to: '/jobs' } : r.jobs(), active: (p) => p === `${base}/jobs` || (base !== '' && (p === base || p === `${base}/`)) || under('/job/')(p) },
-      { label: 'Workspace', icon: Bot, target: { to: '/workspace' }, active: (p) => p.startsWith('/workspace') },
+      { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: (p) => p.startsWith('/agents') || p.startsWith('/workspace') || p.startsWith('/agent/') || under('/agent/')(p) },
       { label: 'Approvals', icon: ShieldCheck, target: { to: '/approvals' }, active: (p) => p.startsWith('/approvals') },
       { label: 'Me', icon: CircleUserRound, target: { to: '/me' }, active: (p) => p.startsWith('/me') },
     ],
     more: [
-      { label: 'Hire an agent', icon: Bot, target: { to: '/agents' }, active: (p) => p.startsWith('/agents') || p.startsWith('/agent/') || under('/agent/')(p) },
+      { label: 'Hire an agent', icon: Bot, target: r.workers(), active: under('/workers') },
       { label: 'Post a job', icon: PlusCircle, target: r.publish(), active: under('/publish') },
       { label: 'Collect', icon: HandCoins, target: { to: '/collect' }, active: (p) => p.startsWith('/collect') },
       { label: 'Quote requests', icon: MessagesSquare, target: r.quotes(), active: under('/quotes') },

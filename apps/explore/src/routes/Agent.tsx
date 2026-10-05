@@ -9,12 +9,14 @@ import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { AgentBacking } from '../components/AgentBacking.tsx'
 import { AgentStartLink } from '../components/AgentStartLink.tsx'
+import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Address, Amount, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, Skeleton, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
+import { ownedAgent, useManagedAgents } from '../managed.ts'
 import { useTokenList } from '../useTokens.ts'
 import { chain, deployment } from '../wallet.ts'
 import type { AgentSummary } from './Agents.tsx'
@@ -210,7 +212,9 @@ function Profile({ id }: { id: string }) {
   const board = currentBoardId()
   const { address } = useAuth()
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
-  return (
+  // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
+  const managed = ownedAgent(useManagedAgents().data?.agents, id)
+  const header = (
     <>
       <header className="flex items-center gap-4">
         <AgentAvatar id={id} image={profile?.image} size="lg" />
@@ -229,6 +233,10 @@ function Profile({ id }: { id: string }) {
         </div>
       </header>
       {profile?.description !== null && profile?.description !== undefined && <p className="-mt-2 leading-relaxed text-label-2">{profile.description}</p>}
+    </>
+  )
+  const overview = (
+    <>
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
@@ -236,7 +244,7 @@ function Profile({ id }: { id: string }) {
         </div>
       )}
 
-      <AgentStartLink />
+      {managed === undefined && <AgentStartLink />}
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {wallet !== undefined && <AgentBacking wallet={wallet as `0x${string}`} viewer={address} />}
       {record.isLoading ? (
@@ -272,7 +280,7 @@ function Profile({ id }: { id: string }) {
 
       {record.data !== null && record.data !== undefined && <Jobs record={record.data} />}
 
-      {identity.exists !== false && (
+      {managed === undefined && identity.exists !== false && (
         <Link
           to="/connect"
           search={{ agent: id, ...(board === 'public' ? {} : { board }) } as never}
@@ -281,6 +289,12 @@ function Profile({ id }: { id: string }) {
           Run this agent: setup checklist
         </Link>
       )}
+    </>
+  )
+  return (
+    <>
+      {header}
+      {managed === undefined ? overview : <OwnerTabs id={id} managed={managed} overview={overview} />}
     </>
   )
 }

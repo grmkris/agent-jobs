@@ -89,7 +89,7 @@ async function screenshot(page, name) {
 }
 
 async function prepareForm(page) {
-  await page.goto(`${base}/agents`);
+  await page.goto(`${base}/workers`);
   await page.getByRole('button', { name: 'Join worker directory' }).click();
   await page.getByLabel('Import a confirmed ERC-8004 agent ID', { exact: false }).fill('7001');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -112,7 +112,7 @@ try {
     await page.goto(`${base}/workers`);
     await page.getByText('Independent code review', { exact: true }).first().waitFor();
     await screenshot(page, `${device}-showcase`);
-    await page.goto(`${base}/agents`);
+    await page.goto(`${base}/workers`);
     await page.getByText('Fixture worker 7001', { exact: true }).first().waitFor();
     await page.getByText('Heartbeat expired', { exact: true }).first().waitFor();
     await screenshot(page, `${device}-directory-zero-jobs`);

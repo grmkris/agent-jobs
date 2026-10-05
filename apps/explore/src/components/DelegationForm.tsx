@@ -150,7 +150,7 @@ export function DelegationForm({
           {mode === "add" ? "Delegate" : "Leave"}
           {value === null ? "" : ` ${factoryValue(value)}`}
         </Button>
-        <Link to="/agents" className="min-h-11 content-center text-sm text-tint">
+        <Link to="/workers" className="min-h-11 content-center text-sm text-tint">
           View the worker directory
         </Link>
       </form>

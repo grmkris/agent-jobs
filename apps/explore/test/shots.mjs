@@ -225,7 +225,7 @@ const PAGES = [
   lifecycle('job-paid', 'completed', [...story.published, ...story.active, ...story.delivered, ...story.paid]),
   lifecycle('job-ruled', 'completed', [...story.published, ...story.active, ...story.deliveredEarlier, ...story.ruled], { for_worker: 1, slash_loser: 1, reason_hash: `0x${'7b'.repeat(32)}`, tx_hash: hash(10) }),
   { name: 'home', wagmi: 'v1-wagmi.mjs', path: '/', visitor: true, jobs: { 74: 'open', 75: 'active', 76: 'submitted', 77: 'completed', 78: 'completed' } },
-  { name: 'directory', wagmi: 'directory-wagmi.mjs', path: '/agents', visitor: true },
+  { name: 'directory', wagmi: 'directory-wagmi.mjs', path: '/workers', visitor: true },
   {
     name: 'publish-review', wagmi: 'v1-wagmi.mjs', path: '/publish', v1: true, v1State: { free: 20_000n * K },
     init: () => { window.__balances = { native: 3n * 10n ** 18n, balanceOf: 120_000_000n }; },

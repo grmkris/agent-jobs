@@ -10,6 +10,7 @@ import { LaunchGate } from './components/LaunchGate.tsx'
 import { Shell } from './components/Shell.tsx'
 import { LandingShell } from './components/LandingShell.tsx'
 import { AgentsPage } from './routes/Agents.tsx'
+import { MyAgentsPage } from './routes/MyAgents.tsx'
 import { MePage } from './routes/Me.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
@@ -82,8 +83,9 @@ const agent = createRoute({
   path: '/agent/$agentId',
   component: AgentPage,
 })
-const agents = createRoute({ getParentRoute: () => root, path: '/agents', component: AgentsPage })
-// The worker directory, a tab of the Jobs area; /agents keeps showing it until it becomes "my agents".
+// The operator's own agents; each opens on its page, which carries the owner tabs.
+const agents = createRoute({ getParentRoute: () => root, path: '/agents', component: () => <LaunchGate title="Agents"><MyAgentsPage /></LaunchGate> })
+// The worker directory, a tab of the Jobs area.
 const workers = createRoute({ getParentRoute: () => root, path: '/workers', component: AgentsPage })
 const connect = createRoute({
   getParentRoute: () => root,

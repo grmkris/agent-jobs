@@ -100,7 +100,7 @@ try {
     if (viewport.width === 390) {
       const tabs = await nav.getByRole('link').evaluateAll((links) => links.map((l) => ({ text: l.textContent, width: l.getBoundingClientRect().width, height: l.getBoundingClientRect().height })));
       assert.equal(tabs.length, 5, JSON.stringify(tabs));
-      assert.deepEqual(tabs.map((t) => t.text?.replace(/3$/, '')), ['Home', 'Jobs', 'Workspace', 'Approvals', 'Me']);
+      assert.deepEqual(tabs.map((t) => t.text?.replace(/3$/, '')), ['Home', 'Jobs', 'Agents', 'Approvals', 'Me']);
       assert.ok(tabs.every((t) => t.width >= 44 && t.height >= 44), JSON.stringify(tabs));
     }
     if (viewport.width === 390) {
