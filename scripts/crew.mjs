@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const directory = join(root, '.crew')
+const network = 'hireling-crew'
+const providerHost = '100.105.51.45'
 const workers = [
   { slug: 'canvas', container: 'hireling-crew-grok', key: 'DEMO_CANVAS_PRIVATE_KEY' },
   { slug: 'studio', container: 'hireling-crew-grok-studio', key: 'DEMO_STUDIO_PRIVATE_KEY' },
@@ -47,6 +49,7 @@ function prepare() {
   // Give the workers repository credentials only; never mount the host gh configuration.
   const github = value('DEMO_GITHUB_TOKEN') ?? value('GH_TOKEN') ?? execute('gh', ['auth', 'token'])
   const source = process.env.CREW_JOURNAL_SOURCE ?? join(sourceRoot, '.demo-workers')
+  const formats = JSON.parse(readFileSync(join(root, 'packages/sdk/src/demo-worker-formats.json'), 'utf8'))
   if (!existsSync(join(source, 'journal.json'))) throw new Error('Existing worker journal is required; setup does not reset identities')
   for (const worker of workers) {
     if (dockerState(worker.container)?.Running) continue
@@ -57,7 +60,7 @@ function prepare() {
       // Keep the complete historical economic journal in both private worker snapshots.
       // Each process can sign only for its own profile, and future writes are isolated.
       for (const name of readdirSync(source)) {
-        if (name === 'journal.json' || /\.(png|jpg|jpeg|txt|md)$/.test(name)) {
+        if (name === 'journal.json' || Object.hasOwn(formats, name.split('.').at(-1))) {
           copyFileSync(join(source, name), join(state, name))
           chmodSync(join(state, name), 0o600)
         }
@@ -96,20 +99,27 @@ function start() {
   mkdirSync(join(source, 'node_modules'), { recursive: true })
   mkdirSync(join(source, 'packages/sdk/node_modules'), { recursive: true })
   const bun = execute('readlink', ['-f', execute('which', ['bun'])])
+  let driver
+  try { driver = execute('docker', ['network', 'inspect', '--format', '{{.Driver}}', network]) }
+  catch { execute('docker', ['network', 'create', '--driver', 'bridge', network]); driver = 'bridge' }
+  if (driver !== 'bridge') throw new Error('Crew requires its dedicated bridge network')
   for (const worker of workers) {
     const existing = dockerState(worker.container)
     if (existing) {
+      if (execute('docker', ['inspect', '--format', '{{.HostConfig.NetworkMode}}', worker.container]) !== network) {
+        throw new Error('Stop and remove the old crew container before moving it to the dedicated bridge')
+      }
       execute('docker', ['start', worker.container])
       console.log(`${worker.container}: existing immutable container started`)
       continue
     }
     execute('docker', ['run', '-d', '--name', worker.container, '--restart', 'unless-stopped', '--memory', '2g',
-      '--network', 'host', '--user', `${process.getuid()}:${process.getgid()}`, '--stop-timeout', '180',
+      '--network', network, '--user', `${process.getuid()}:${process.getgid()}`, '--stop-timeout', '180',
       '--label', `hireling.crew.source=${sha}`, '--label', 'hireling.crew.network=monad-testnet',
       '--env-file', join(directory, `${worker.slug}.env`),
       '-e', `DEMO_WORKER_SLUG=${worker.slug}`, '-e', 'DEMO_WORKER_STATE_DIR=/state',
       '-e', 'DEMO_JOURNAL_LOCKED=1',
-      '-e', 'DEMO_MODEL_BASE_URL=http://127.0.0.1:8317/v1',
+      '-e', `DEMO_MODEL_BASE_URL=http://${providerHost}:8317/v1`,
       '-v', `${source}:/workspace:ro`, '-v', `${root}/node_modules:/workspace/node_modules:ro`,
       '-v', `${root}/packages/sdk/node_modules:/workspace/packages/sdk/node_modules:ro`,
       '-v', `${directory}/${worker.slug}:/state`, '-v', `${bun}:/usr/local/bin/bun:ro`,

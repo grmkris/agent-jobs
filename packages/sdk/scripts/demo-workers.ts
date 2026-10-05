@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { type Address, type Hex, decodeEventLog, decodeFunctionData, parseAbi, parseUnits } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
-import { type DemoBid, type DemoRequest, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from '../src/demo-worker.ts'
+import { type DemoBid, type DemoRequest, assertSavedDemoArtifact, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from '../src/demo-worker.ts'
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 import { envLocal } from './lib/common.ts'
 import config from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
@@ -143,7 +143,7 @@ async function generate(worker: Runtime, entry: Entry): Promise<{ filename: stri
   const key = `${worker.profile.slug}/${entry.request.requestId}/artifact`
   const saved = state.values[key] as { filename: string; name: string; mediaType: string; sha256: string } | undefined
   if (saved) {
-    if (digest(readFileSync(path(saved.filename))) !== saved.sha256) throw new Error('Saved artifact bytes changed')
+    assertSavedDemoArtifact(existsSync(path(saved.filename)) ? readFileSync(path(saved.filename)) : undefined, saved.sha256)
     return saved
   }
   // An interrupted provider call is uncertain. Never automatically generate again on resume.
@@ -341,9 +341,9 @@ async function advance(worker: Runtime, entry: Entry) {
     if (!mine && Object.values(worker.entries).some(other => other !== entry && occupiesWorker(other.phase))) return
     if (!reserve(worker, 'quotes', entry.request.requestId)) return
     const quoted = mine ?? await worker.board.call<{ quoteId: string }>('submit_quote', proposal)
-    entry.quoteId = quoted.quoteId; save()
     // A response (or reconciliation after a crash) can arrive on another UTC day.
     if (!reserve(worker, 'quotes', entry.request.requestId)) throw new Error('Quote crossed into a full UTC day; operator reconciliation required')
+    entry.quoteId = quoted.quoteId; save()
   }
   if (!entry.taskId) {
     const quotes = await worker.board.call<{ picked: string | null; quotes: Array<{ quoteId: string; agentId: string }> }>('list_quotes', { requestId: entry.request.requestId })
@@ -358,8 +358,14 @@ async function advance(worker: Runtime, entry: Entry) {
   }
   const task = await worker.board.call<Task>('get_task', { taskId: entry.taskId })
   if (task.mine.application?.worker.toLowerCase() !== worker.account.address.toLowerCase()) { entry.phase = 'lost'; save(); return }
-  if (task.chain.status === 'completed') { entry.phase = 'completed'; save(); log(worker.profile.name, 'paid', { taskId: task.taskId, jobId: task.jobId }); return }
-  if (['submitted', 'review'].includes(task.chain.status)) { entry.phase = 'submitted'; save(); return }
+  if (['completed', 'submitted', 'review'].includes(task.chain.status)) {
+    // The saved debit can predate the confirmed effect at UTC rollover. Reconcile before marking terminal.
+    if (!reserve(worker, 'deliveries', entry.request.requestId)) throw new Error('Recovered delivery exceeds the UTC cap; operator reconciliation required')
+    entry.phase = task.chain.status === 'completed' ? 'completed' : 'submitted'
+    save()
+    if (entry.phase === 'completed') log(worker.profile.name, 'paid', { taskId: task.taskId, jobId: task.jobId })
+    return
+  }
   if (['rejected', 'disputed', 'expired', 'cancelled'].includes(task.chain.status)) { entry.phase = 'attention'; save(); return }
   if (!task.jobId || !task.mine.selected) return
   verifyPickedTerms(entry.request, task.terms, token, parseUnits(worker.profile.price, 6))
@@ -406,8 +412,8 @@ async function advance(worker: Runtime, entry: Entry) {
     || decodeFunctionData({ abi: sdk.coreAbi, data: tx.data }).functionName !== 'submit')) throw new Error('Unexpected submission destination or method')
   if (!reserve(worker, 'deliveries', entry.request.requestId)) return
   await sendTask(worker, task.taskId, `${entry.request.requestId}/submit`, submission.transactions)
-  entry.phase = 'submitted'; save()
   if (!reserve(worker, 'deliveries', entry.request.requestId)) throw new Error('Delivery crossed into a full UTC day; operator reconciliation required')
+  entry.phase = 'submitted'; save()
   if (entry.request.requiredChecks?.length) await worker.board.call('request_evidence', { taskId: task.taskId })
   log(worker.profile.name, 'submitted', { taskId: task.taskId, jobId: task.jobId, artifactUrl: published.url })
 }

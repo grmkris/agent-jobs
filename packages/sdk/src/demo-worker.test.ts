@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { type DemoRequest, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from './demo-worker.ts'
+import { type DemoRequest, assertSavedDemoArtifact, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from './demo-worker.ts'
+import formats from './demo-worker-formats.json' with { type: 'json' }
+import { sha256 } from 'viem'
 
 const creator = '0x1111111111111111111111111111111111111111'
 const token = '0x2222222222222222222222222222222222222222'
@@ -37,6 +39,16 @@ describe('model output and frozen terms', () => {
   })
   it.each(['unsafe', 'illegal', 'uncertain', undefined])('declines a plan with safety assessment %s', safety => {
     expect(parseDemoBid({ ...bid, safety })).toBeNull()
+  })
+  it.each(Object.entries(formats))('accepts the shared migration format %s', (extension, mediaType) => {
+    expect(parseDemoBid({ ...bid, kind: mediaType.startsWith('image/') ? 'image' : 'file', filename: `delivery.${extension}`, mediaType })).not.toBeNull()
+  })
+  it('requires pinned bytes on resume and gives a clear refusal when a saved JSON artifact was omitted', () => {
+    const bytes = new TextEncoder().encode('{"delivery":"saved"}')
+    const hash = sha256(bytes).slice(2)
+    expect(() => assertSavedDemoArtifact(bytes, hash)).not.toThrow()
+    expect(() => assertSavedDemoArtifact(undefined, hash)).toThrow('Saved artifact is missing')
+    expect(() => assertSavedDemoArtifact(new TextEncoder().encode('changed'), hash)).toThrow('bytes changed')
   })
   it.each(['../../.env.local', 'file.sh', 'cats.png/../../secret', 'https://outside/file.png'])('refuses model filename %s', filename => {
     expect(() => parseDemoBid({ ...bid, filename })).toThrow()

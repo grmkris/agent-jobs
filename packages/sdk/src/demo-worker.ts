@@ -1,5 +1,6 @@
 /** Bounded testnet worker policy. Model output is data; this module grants no signing authority. */
-import { type Address, parseUnits } from 'viem'
+import { type Address, parseUnits, sha256 } from 'viem'
+import outputFormats from './demo-worker-formats.json' with { type: 'json' }
 
 export interface DemoRequest {
   requestId: string
@@ -39,6 +40,11 @@ export interface DemoBid {
   mediaType: string
 }
 
+export function assertSavedDemoArtifact(bytes: Uint8Array | undefined, expectedHash: string): void {
+  if (bytes === undefined) throw new Error('Saved artifact is missing; restore the exact pinned bytes before resuming')
+  if (sha256(bytes).slice(2) !== expectedHash) throw new Error('Saved artifact bytes changed')
+}
+
 export function requestProblem(request: DemoRequest, policy: DemoPolicy, now: number): string | undefined {
   if (request.chainId !== 10143 || request.stack !== 'main') return 'Only the current Monad testnet v1 stack is supported'
   if (!request.tokens.some(token => token.toLowerCase() === policy.token.toLowerCase())) return 'Demo payment token is not accepted'
@@ -62,9 +68,10 @@ export function parseDemoBid(value: unknown): DemoBid | null {
   if ((v.kind !== 'image' && v.kind !== 'file') || typeof v.note !== 'string' || typeof v.prompt !== 'string'
     || typeof v.filename !== 'string' || typeof v.mediaType !== 'string') throw new Error('Invalid bid fields')
   if (v.note.length < 1 || v.note.length > 1000 || v.prompt.length < 1 || v.prompt.length > 6000) throw new Error('Bid exceeds text bounds')
-  if (!/^[a-z0-9][a-z0-9_-]{0,70}\.(png|jpg|jpeg|txt|md|json)$/.test(v.filename)) throw new Error('Unsafe or unsupported output filename')
+  if (!/^[a-z0-9][a-z0-9_-]{0,70}\.[a-z]{2,5}$/.test(v.filename)) throw new Error('Unsafe or unsupported output filename')
   const extension = v.filename.split('.').at(-1)
-  const mediaTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', txt: 'text/plain', md: 'text/markdown', json: 'application/json' }
+  const mediaTypes: Record<string, string> = outputFormats
+  if (!extension || !Object.hasOwn(mediaTypes, extension)) throw new Error('Unsafe or unsupported output filename')
   if (mediaTypes[extension!] !== v.mediaType || (v.kind === 'image') !== ['png', 'jpg', 'jpeg'].includes(extension!)) throw new Error('Output kind and media type disagree')
   return { kind: v.kind, note: v.note, prompt: v.prompt, filename: v.filename, mediaType: v.mediaType }
 }

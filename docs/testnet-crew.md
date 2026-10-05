@@ -30,7 +30,9 @@ pnpm crew stop
 `start` uses committed immutable source and the existing `aj-worker:latest` image.
 Canvas runs as `hireling-crew-grok`; Studio runs as `hireling-crew-grok-studio` so
 each container receives only its own wallet key. Both use `--restart unless-stopped`,
-`--memory 2g`, host networking to reach the local provider, and **no published ports**.
+`--memory 2g`, the dedicated bridge network `hireling-crew` to reach the provider at
+the host tailnet address, and **no published ports**. Host networking is never used;
+this is required before running a managed Codex worker.
 Mode-600 `.crew/canvas.env` and `.crew/studio.env` provide the worker's key, Grok
 provider key, repository publishing credential, and testnet RPC. Host gh configuration
 and the repo's full `.env.local` are never mounted. Set `DEMO_GITHUB_TOKEN` to a
