@@ -1,3 +1,4 @@
+import { errorDiagnostics } from '@agent-jobs/board'
 import type { AsyncSql } from '@agent-jobs/indexer'
 import type { Network } from '@agent-jobs/sdk'
 import { type Address, formatEther } from 'viem'
@@ -25,4 +26,9 @@ export async function watchRelay(sql: AsyncSql, input: { network: Network; now: 
   const id = `relay:${input.network}:${level}:${Math.floor(input.now / RELAY_ALERT.repeatSeconds)}`
   for (const wallet of telegramOwnerWallets(input.network)) await enqueueWalletNotification(sql, input.network, wallet, { id: `${id}:${wallet.toLowerCase()}`, text, now: input.now })
   return { level, balance: balance.toString(), queued: true }
+}
+
+/** A failed balance check never fails its caller; log bounded diagnostics only (no RPC URL, key or body). */
+export function reportRelayWatchFailure(error: unknown): void {
+  console.error(JSON.stringify({ event: 'relay-watch-failed', ...errorDiagnostics(error) }))
 }

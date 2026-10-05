@@ -1,8 +1,8 @@
 import { DatabaseSync } from 'node:sqlite'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fromNodeSqlite, stmt } from '@agent-jobs/indexer'
 import { migrateTelegram } from '../src/telegram.ts'
-import { RELAY_ALERT, relayLevel, watchRelay } from '../src/relay-watch.ts'
+import { RELAY_ALERT, relayLevel, reportRelayWatchFailure, watchRelay } from '../src/relay-watch.ts'
 
 const relay = '0xac7282b6a519665dcb71563317C71d1F357f9e7e' as const
 const owner = '0xb9970a6371358f6c74dfb15a7cb2653e3ae3e471'
@@ -40,4 +40,15 @@ describe('relay balance watch', () => {
     const tables = await sql.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'telegram_%'")
     expect(tables).toEqual([])
   })
+
+  it('logs a failed balance read without its RPC URL or key', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      reportRelayWatchFailure(Object.assign(new Error('fetch https://rpc.monad.example/key/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 failed'), { name: 'HttpRequestError' }))
+      const logged = spy.mock.calls.map(call => call.join(' ')).join('\n')
+      expect(logged).toContain('relay-watch-failed')
+      expect(logged).not.toMatch(/rpc\.monad\.example|ABCDEFGHIJ/)
+    } finally { spy.mockRestore() }
+  })
 })
+

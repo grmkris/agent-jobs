@@ -11,7 +11,7 @@ import { toJson } from './tools.ts'
 import { fromD1 } from '@agent-jobs/indexer'
 import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
 import { tenantAgentRequest } from './agent-requests.ts'
-import { watchRelay } from './relay-watch.ts'
+import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -90,7 +90,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
     // A floor refusal sent nothing; alert the owners now instead of waiting for the indexer's next balance check.
     if ((error as { reason?: unknown }).reason === 'floor' && bindings.Database !== undefined) {
       await watchRelay(fromD1(bindings.Database as never), { network: req.env.network, now: Math.floor(Date.now() / 1000), relay: ctx.deployment.relay, balance: () => ctx.publicClient.getBalance({ address: ctx.deployment.relay }) })
-        .catch(alertError => console.error(JSON.stringify({ event: 'relay-watch-failed', message: alertError instanceof Error ? alertError.message : String(alertError) })))
+        .catch(reportRelayWatchFailure)
     }
     throw error
   }

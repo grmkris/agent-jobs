@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AgentFailure, agentFailureReply } from './agent-failure.ts'
+import { AgentFailure, agentFailureReply, errorDiagnostics } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
 
 describe('agentFailureReply', () => {
@@ -27,4 +27,20 @@ describe('agentFailureReply', () => {
     expect(JSON.stringify(reply)).not.toContain('SECRETKEY')
     expect(log).toHaveBeenCalledWith(reply.errorId, secret)
   })
+
+  it('logs bounded diagnostics with URLs and long tokens removed through the default sink', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const secret = Object.assign(new Error('HTTP request failed. URL: https://monad.example/v2/SECRETKEY0123456789abcdef Body: {"auth":"sk_live_ABCDEFGHIJKLMNOPQRSTUV"}'), { name: 'HttpRequestError', status: 401, code: 'bad-request' })
+      const reply = agentFailureReply(secret, 'Hosted agent execution failed')
+      const logged = spy.mock.calls.map(call => call.join(' ')).join('\n')
+      expect(logged).toContain(reply.errorId!)
+      expect(logged).toContain('HttpRequestError')
+      expect(logged).not.toMatch(/SECRETKEY|sk_live|monad\.example/)
+    } finally { spy.mockRestore() }
+    expect(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' }))).toEqual({ name: 'object', message: 'x' })
+    expect(errorDiagnostics('plain string')).toEqual({ name: 'string' })
+    expect(errorDiagnostics(new Error('y'.repeat(500))).message).toBe('[redacted]')
+  })
 })
+

@@ -49,5 +49,22 @@ export function agentFailureReply(error: unknown, fallback: string, log: (errorI
 }
 
 function defaultLog(errorId: string, error: unknown): void {
-  console.error(JSON.stringify({ event: 'agent-failure', errorId, name: error instanceof Error ? error.name : typeof error, message: error instanceof Error ? error.message : String(error) }))
+  console.error(JSON.stringify({ event: 'agent-failure', errorId, ...errorDiagnostics(error) }))
+}
+
+/** URLs, then any 20+ character token (API keys, bearer tokens, hashes): what a credentialed RPC error could carry. */
+const redact = (text: string): string => text.replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url]').replace(/[A-Za-z0-9_+/=-]{20,}/g, '[redacted]').slice(0, 200)
+
+/**
+ * Bounded facts about an error for Worker logs: its class name, a short code or HTTP status when present, and a
+ * message with URLs and long tokens removed. Never the raw message, cause or response body.
+ */
+export function errorDiagnostics(error: unknown): { name: string; code?: string; status?: number; message?: string } {
+  const e = (typeof error === 'object' && error !== null ? error : {}) as { name?: unknown; code?: unknown; status?: unknown; message?: unknown }
+  return {
+    name: typeof e.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(e.name) ? e.name : typeof error,
+    ...(typeof e.code === 'string' && /^[a-z][a-z-]{0,31}$/.test(e.code) ? { code: e.code } : {}),
+    ...(typeof e.status === 'number' && Number.isSafeInteger(e.status) ? { status: e.status } : {}),
+    ...(typeof e.message === 'string' ? { message: redact(e.message) } : {}),
+  }
 }
