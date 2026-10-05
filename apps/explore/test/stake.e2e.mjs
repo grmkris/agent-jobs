@@ -267,6 +267,7 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 1440, height: 900 });
+    const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
@@ -275,6 +276,16 @@ try {
     await page.evaluate(() => { window.__wallet.signGate = true; });
     await page.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
     await page.waitForFunction(() => window.__wallet.signatures.length === 1 && window.__releasePermit !== undefined);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null, 'the permit prompt precedes the prepared pointer, while the vault lock is still held');
+    // Reproduce Chromium's stale localStorage renderer cache deterministically:
+    // storage events may arrive after the queued Web Lock callback has begun.
+    await second.evaluate(key => {
+      const getItem = Storage.prototype.getItem;
+      window.__restorePointerCache = () => { Storage.prototype.getItem = getItem; };
+      Storage.prototype.getItem = function (item) {
+        return this === localStorage && item === key ? null : getItem.call(this, item);
+      };
+    }, pointerKey);
     await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
     await second.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock => lock.name.includes('vault:')));
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'second tab waits before signing');
@@ -283,21 +294,34 @@ try {
     await second.waitForFunction(() => document.body.textContent.includes('Another Stake tab has an unfinished position action.') ||
       Array.from(document.querySelectorAll('h2')).some(heading => heading.textContent === 'Confirm your position action'));
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'lock reread prevents a second prepared effect');
-    const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), pointerKey);
+    const checkpointId = await second.evaluate(async key => {
+      const { readVaultIntentDurable } = await import('/src/vault-lock.ts');
+      return (await readVaultIntentDurable(localStorage, key)).id;
+    }, pointerKey);
+    assert.equal(checkpointId, saved.id, 'committed checkpoint observes the original intent even with a forced stale null localStorage cache');
+    await second.evaluate(() => window.__restorePointerCache());
+    await second.waitForFunction(({ key, id }) => JSON.parse(localStorage.getItem(key) ?? 'null')?.id === id, { key: pointerKey, id: saved.id });
     assert.equal(await second.evaluate(key => JSON.parse(localStorage.getItem(key)).id, pointerKey), saved.id, 'a remounted tab may resume only the original intent');
     assert.equal(await second.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('hireling.op:delegation:')).length), 1, 'only one prepared journal exists across both tabs');
     await page.getByRole('button', { name: 'Not now', exact: true }).waitFor();
-    await second.evaluate(({ key, saved: priorIntent }) => localStorage.setItem(key, JSON.stringify({ ...priorIntent, id: 'newer-tab-intent' })), { key: pointerKey, saved });
+    await second.evaluate(async ({ key, saved: priorIntent }) => {
+      const { withVaultIntentLock, writeVaultIntent } = await import('/src/vault-lock.ts');
+      await withVaultIntentLock(navigator.locks, key, () =>
+        writeVaultIntent(localStorage, key, { ...priorIntent, id: 'newer-tab-intent' }));
+    }, { key: pointerKey, saved });
     await page.getByRole('button', { name: 'Not now', exact: true }).click();
     await text(page, 'A newer position action is saved in another tab; keep it for reconciliation.');
-    assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).id, pointerKey), 'newer-tab-intent', 'stale dismissal preserves the new pointer');
+    assert.equal(await second.evaluate(async key => {
+      const { readVaultIntentDurable } = await import('/src/vault-lock.ts');
+      return (await readVaultIntentDurable(localStorage, key)).id;
+    }, pointerKey), 'newer-tab-intent', 'stale dismissal preserves the new pointer');
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByText(/This position action changed in another tab/).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Confirm fixture', exact: true }).count(), 0, 'stale action cannot open a wallet prompt');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await context.close();
-    results.push({ checks: ['two origin-sharing tabs serialize preparation and permit signing', 'persisted intent reread under Web Lock', 'stale Not now compare-delete', 'stale prepared send blocked'], passed: true });
+    results.push({ checks: ['two origin-sharing tabs serialize preparation and permit signing', 'committed checkpoint reread under Web Lock despite forced stale null localStorage', 'one original pointer and journal', 'stale Not now compare-delete', 'stale prepared send blocked'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live vault, signing or sends', results, errors }, null, 2));

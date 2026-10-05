@@ -2,7 +2,7 @@
 import * as sdk from "@agent-jobs/sdk";
 import { type Address, type TransactionReceipt, decodeAbiParameters, decodeEventLog, decodeFunctionData, encodeEventTopics } from "viem";
 import type { WalletStep } from "./components/txOperation.ts";
-import { type VaultIntent, readVaultIntent } from "./vault-lock.ts";
+import { type VaultIntent, type VaultIntentCheckpoint, browserVaultIntentCheckpoint, readVaultIntentDurable } from "./vault-lock.ts";
 
 const executionsAbi = [{ type: "tuple[]", components: [
   { name: "target", type: "address" }, { name: "value", type: "uint256" }, { name: "callData", type: "bytes" },
@@ -28,7 +28,7 @@ function delegationAmounts(txs: readonly WalletStep[], vault: Address, owner: Ad
   });
 }
 
-export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getItem">, key: string, intent: VaultIntent, owner: Address) {
+export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getItem">, key: string, intent: VaultIntent, owner: Address, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint) {
   const vault = ctx.deployment.hireling!.vault;
   return {
     sendGuard: async (): Promise<string | null> => {
@@ -38,7 +38,7 @@ export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getIt
             !same((await sdk.delegationOf(ctx.publicClient, owner)) ?? "", ctx.deployment.delegation.delegator))
           return "Your wallet's batch delegation changed. Reconcile the saved action before continuing.";
       }
-      return readVaultIntent(storage, key)?.id === intent.id ? null
+      return (await readVaultIntentDurable(storage, key, checkpoint))?.id === intent.id ? null
         : "This position action changed in another tab. Reload to reconcile the saved action.";
     },
     receiptGuard: (receipt: Pick<TransactionReceipt, "logs">, steps: readonly WalletStep[]): string | null => {

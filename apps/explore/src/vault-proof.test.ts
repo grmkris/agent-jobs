@@ -2,7 +2,7 @@ import * as sdk from "@agent-jobs/sdk";
 import { type Address, type Hex, type TransactionReceipt, createPublicClient, custom, encodeAbiParameters, encodeEventTopics, encodeFunctionData } from "viem";
 import { describe, expect, it } from "vitest";
 import { vaultOperationGuards } from "./vault-proof.ts";
-import type { VaultIntent } from "./vault-lock.ts";
+import type { VaultIntent, VaultIntentCheckpoint } from "./vault-lock.ts";
 
 const owner = "0x1111111111111111111111111111111111111111";
 const account = "0x2222222222222222222222222222222222222222";
@@ -24,7 +24,8 @@ function fixture(txs: VaultIntent["txs"] = [tx]) {
   } }) }) };
   const intent: VaultIntent = { id: "intent", kind: "delegate", account, txs };
   const storage = { getItem: () => JSON.stringify({ ...intent, id: savedId }) };
-  return { guards: vaultOperationGuards(ctx, storage, "pointer", intent, owner), intent,
+  const checkpoint: VaultIntentCheckpoint = { read: async () => storage.getItem(), write: async () => { throw new Error("guard must never write"); } };
+  return { guards: vaultOperationGuards(ctx, storage, "pointer", intent, owner, checkpoint), intent,
     revoke: () => { code = "0x"; }, supersede: () => { savedId = "newer"; } };
 }
 
@@ -51,6 +52,14 @@ describe("shared vault action proofs", () => {
     const f = fixture();
     f.revoke();
     expect(f.guards.receiptGuard({ logs: [delegated()] }, f.intent.txs)).toBeNull();
+  });
+  it("refuses a stale local pointer even if the prior intent still has a valid 7702 delegate", async () => {
+    const f = fixture([delegate]);
+    const storage = { getItem: () => JSON.stringify(f.intent) };
+    const checkpoint: VaultIntentCheckpoint = { read: async () => JSON.stringify({ ...f.intent, id: "newer" }), write: async () => {} };
+    const ctx = sdk.context("monad-testnet", "main", "http://127.0.0.1:1");
+    const guards = vaultOperationGuards(ctx, storage, "pointer", f.intent, owner, checkpoint);
+    await expect(guards.sendGuard()).rejects.toThrow(/changed in another tab/);
   });
   it("a successful no-op or an event from a different contract proves no requested delegation", () => {
     const f = fixture();

@@ -19,8 +19,10 @@ import { factoryValue } from "./DelegationPositions.tsx";
 import { OperatorBalances } from "./OperatorBalances.tsx";
 import {
   type VaultIntent,
-  clearOwnedIntent,
+  clearOwnedIntentDurable,
   readVaultIntent,
+  readVaultIntentDurable,
+  writeVaultIntent,
   vaultIntentKey,
   withVaultIntentLock,
 } from "../vault-lock.ts";
@@ -54,7 +56,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
     setBusy(true);
     try {
       await withVaultIntentLock(navigator.locks, key, async () => {
-        if (readVaultIntent(localStorage, key) !== null)
+        if ((await readVaultIntentDurable(localStorage, key)) !== null)
           throw new Error(
             "Another tab has an unfinished position action. Open Stake & delegate to reconcile it first.",
           );
@@ -110,10 +112,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           txs,
         };
         initializeTxJournal(localStorage, `delegation:${next.id}`, next.txs);
-        const bytes = JSON.stringify(next);
-        localStorage.setItem(key, bytes);
-        if (localStorage.getItem(key) !== bytes)
-          throw new Error("Delegation intent could not be saved; nothing may start");
+        await writeVaultIntent(localStorage, key, next);
         setIntent(next);
       });
     } catch (failure) {
@@ -174,7 +173,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           {...vaultOperationGuards(stakeContext(), localStorage, key, intent, operator as Address)}
           onDone={() => {
             void withVaultIntentLock(navigator.locks, key, async () => {
-              if (!clearOwnedIntent(localStorage, key, intent.id))
+              if (!(await clearOwnedIntentDurable(localStorage, key, intent.id)))
                 throw new Error(
                   "A newer position action is saved in another tab; keep it for reconciliation.",
                 );

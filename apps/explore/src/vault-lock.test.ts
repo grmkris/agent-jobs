@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { clearOwnedIntent, withVaultIntentLock } from "./vault-lock.ts";
+import { type VaultIntent, type VaultIntentCheckpoint, clearOwnedIntent, clearOwnedIntentDurable, readVaultIntentDurable, withVaultIntentLock, writeVaultIntent } from "./vault-lock.ts";
+
+const intent: VaultIntent = {
+  id: "first", kind: "delegate", account: "0x1111111111111111111111111111111111111111",
+  txs: [{ description: "delegate", chainId: 10143, to: "0x2222222222222222222222222222222222222222", data: "0xab", value: "0" }],
+};
+function storageCache() {
+  const values = new Map<string, string>();
+  return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
+}
+function checkpointStore(): VaultIntentCheckpoint {
+  const values = new Map<string, string | null>();
+  return { read: async key => values.get(key), write: async (key, value) => { values.set(key, value); } };
+}
 
 describe("vault intent lock", () => {
   it("serialises two tabs and rereads the shared pointer before preparing", async () => {
@@ -40,5 +53,84 @@ describe("vault intent lock", () => {
     expect(map.has("k")).toBe(true);
     expect(clearOwnedIntent(storage, "k", "new")).toBe(true);
     expect(map.has("k")).toBe(false);
+  });
+
+  it("sees the committed intent with a stale null renderer cache, before it can sign", async () => {
+    const checkpoint = checkpointStore();
+    const firstTab = storageCache();
+    const staleTab = storageCache();
+    await writeVaultIntent(firstTab, "k", intent, checkpoint);
+    expect(staleTab.getItem("k")).toBeNull();
+    expect(await readVaultIntentDurable(staleTab, "k", checkpoint)).toEqual(intent);
+    expect(staleTab.getItem("k")).toBeNull(); // No reliance on a storage event or cache overwrite.
+  });
+
+  it("does not release the preparation lock before the checkpoint commit resolves", async () => {
+    const firstTab = storageCache();
+    let commit!: () => void;
+    let wrote!: () => void;
+    const writeStarted = new Promise<void>(resolve => { wrote = resolve; });
+    const released: string[] = [];
+    const checkpoint: VaultIntentCheckpoint = {
+      read: async () => undefined,
+      write: async () => { wrote(); await new Promise<void>(resolve => { commit = resolve; }); },
+    };
+    const locks = { request: async <T>(_name: string, work: () => Promise<T>) => {
+      const result = await work();
+      released.push("released");
+      return result;
+    } };
+    const prepared = withVaultIntentLock(locks, "k", () => writeVaultIntent(firstTab, "k", intent, checkpoint));
+    await writeStarted;
+    expect(firstTab.getItem("k")).toBe(JSON.stringify(intent));
+    expect(released).toEqual([]);
+    commit();
+    await prepared;
+    expect(released).toEqual(["released"]);
+  });
+
+  it("preserves legacy intents without creating a checkpoint in a reader", async () => {
+    const checkpoint = checkpointStore();
+    const legacy = storageCache();
+    legacy.setItem("k", JSON.stringify(intent));
+    expect(await readVaultIntentDurable(legacy, "k", checkpoint)).toEqual(intent);
+    expect(await checkpoint.read("k")).toBeUndefined();
+  });
+
+  it("a committed clear cannot resurrect a stale legacy-looking pointer", async () => {
+    const checkpoint = checkpointStore();
+    const current = storageCache();
+    const stale = storageCache();
+    await writeVaultIntent(current, "k", intent, checkpoint);
+    stale.setItem("k", JSON.stringify(intent));
+    expect(await clearOwnedIntentDurable(current, "k", intent.id, checkpoint)).toBe(true);
+    expect(await checkpoint.read("k")).toBeNull();
+    await expect(readVaultIntentDurable(stale, "k", checkpoint)).rejects.toThrow(/changed in another tab/);
+    expect(await clearOwnedIntentDurable(current, "k", intent.id, checkpoint)).toBe(true);
+    expect(await readVaultIntentDurable(current, "k", checkpoint)).toBeNull();
+  });
+
+  it("compare-delete preserves a newer intent in either store", async () => {
+    const checkpoint = checkpointStore();
+    const current = storageCache();
+    await writeVaultIntent(current, "k", { ...intent, id: "newer" }, checkpoint);
+    expect(await clearOwnedIntentDurable(current, "k", intent.id, checkpoint)).toBe(false);
+    expect((await readVaultIntentDurable(current, "k", checkpoint))?.id).toBe("newer");
+    await writeVaultIntent(current, "k", intent, checkpoint);
+    current.setItem("k", JSON.stringify({ ...intent, id: "out-of-band-newer" }));
+    expect(await clearOwnedIntentDurable(current, "k", intent.id, checkpoint)).toBe(false);
+    expect(JSON.parse(current.getItem("k")!).id).toBe("out-of-band-newer");
+    await expect(readVaultIntentDurable(current, "k", checkpoint)).rejects.toThrow(/changed in another tab/);
+  });
+
+  it("refuses checkpoint failures instead of allowing a new preparation or send", async () => {
+    const unavailable = new Error("checkpoint unavailable");
+    const checkpoint: VaultIntentCheckpoint = { read: async () => { throw unavailable; }, write: async () => { throw unavailable; } };
+    const current = storageCache();
+    await expect(readVaultIntentDurable(current, "k", checkpoint)).rejects.toBe(unavailable);
+    await expect(writeVaultIntent(current, "k", intent, checkpoint)).rejects.toBe(unavailable);
+    expect(current.getItem("k")).toBe(JSON.stringify(intent)); // Retain the existing recovery intent.
+    await expect(clearOwnedIntentDurable(current, "k", intent.id, checkpoint)).rejects.toBe(unavailable);
+    expect(current.getItem("k")).toBe(JSON.stringify(intent));
   });
 });

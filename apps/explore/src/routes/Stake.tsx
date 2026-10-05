@@ -41,18 +41,13 @@ import { vaultOperationGuards } from "../vault-proof.ts";
 import { chain } from "../wallet.ts";
 import {
   type VaultIntent as Operation,
-  clearOwnedIntent,
+  clearOwnedIntentDurable,
   readVaultIntent,
+  readVaultIntentDurable,
+  writeVaultIntent,
   vaultIntentKey,
   withVaultIntentLock,
 } from "../vault-lock.ts";
-
-function persistOperation(key: string, operation: Operation) {
-  const json = JSON.stringify(operation);
-  localStorage.setItem(key, json);
-  if (localStorage.getItem(key) !== json)
-    throw new Error("The operation could not be saved. Nothing may be sent.");
-}
 
 export function StakePage() {
   const auth = useAuth();
@@ -156,7 +151,7 @@ function Stake({
     initial.error !== null;
   const disabled = unavailable || busy || operation !== null || reads.data?.open !== true;
 
-  function savePrepared(
+  async function savePrepared(
     kind: Operation["kind"],
     target: Address,
     description: string,
@@ -169,7 +164,7 @@ function Stake({
       txs: [{ description, chainId: chain.id, to: contracts.vault, value: "0", data }],
     };
     writeTxJournal(localStorage, txJournalKey(`delegation:${next.id}`, next.txs), emptyJournal());
-    persistOperation(key, next);
+    await writeVaultIntent(localStorage, key, next);
     setOperation(next);
     setSafeToDismiss(false);
     setText("");
@@ -182,11 +177,11 @@ function Stake({
     data: `0x${string}`,
   ) {
     await withVaultIntentLock(navigator.locks, key, async () => {
-      if (readVaultIntent(localStorage, key) !== null)
+      if ((await readVaultIntentDurable(localStorage, key)) !== null)
         throw new Error(
           "Another Stake tab has an unfinished position action. Reconcile it before starting another.",
         );
-      savePrepared(kind, target, description, data);
+      await savePrepared(kind, target, description, data);
     });
   }
 
@@ -197,14 +192,14 @@ function Stake({
     setError(null);
     try {
       await withVaultIntentLock(navigator.locks, key, async () => {
-        if (readVaultIntent(localStorage, key) !== null)
+        if ((await readVaultIntentDurable(localStorage, key)) !== null)
           throw new Error(
             "Another Stake tab has an unfinished position action. Reconcile it before starting another.",
           );
         const ctx = stakeContext(contracts);
         if (mode === "leave") {
           const shares = await sdk.undelegationShares(ctx, account, owner, amount);
-          savePrepared(
+          await savePrepared(
             "leave",
             account,
             `Leave ${factoryValue(amount)} behind ${account}`,
@@ -244,7 +239,7 @@ function Stake({
         );
         const signature = await signTypedDataAsync(permit);
         const { r, s, v, yParity } = parseSignature(signature);
-        savePrepared(
+        await savePrepared(
           "delegate",
           account,
           `Delegate ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
@@ -365,7 +360,7 @@ function Stake({
             {...vaultOperationGuards(stakeContext(contracts), localStorage, key, operation, owner)}
             onDone={() => {
               void withVaultIntentLock(navigator.locks, key, async () => {
-                if (!clearOwnedIntent(localStorage, key, operation.id))
+                if (!(await clearOwnedIntentDurable(localStorage, key, operation.id)))
                   throw new Error(
                     "A newer position action is saved in another tab; keep it for reconciliation.",
                   );
@@ -404,7 +399,7 @@ function Stake({
                       "This action started in another tab. Reconcile it before preparing another.",
                     );
                   await withVaultIntentLock(navigator.locks, key, async () => {
-                    if (!clearOwnedIntent(localStorage, key, operation.id))
+                    if (!(await clearOwnedIntentDurable(localStorage, key, operation.id)))
                       throw new Error(
                         "A newer position action is saved in another tab; keep it for reconciliation.",
                       );

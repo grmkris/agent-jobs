@@ -7,7 +7,8 @@ import { readFileSync } from 'node:fs';
 // Mocked Chromium only: the real SDK reads encoded responses from a test-only RPC transport.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/hireling-delegation-evidence';
-const base = 'http://127.0.0.1:5194';
+const port = Number(process.env.STAKE_FIXTURE_PORT ?? 5194);
+const base = `http://127.0.0.1:${port}`;
 const owner = '0x1111111111111111111111111111111111111111';
 const delegator = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url))).delegation.delegator;
 const agentWallet = '0x2222222222222222222222222222222222222222';
@@ -17,7 +18,7 @@ const agent = { chainId: 10143, identityRegistry: contracts.factory, agentId: '1
 const errors = [];
 const results = [];
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
-const server = await createServer({ envDir: false, server: { host: '127.0.0.1', port: 5194, strictPort: true, watch: null, hmr: false }, plugins: [{ name: 'delegation-fixtures', enforce: 'pre', resolveId(source) {
+const server = await createServer({ envDir: false, server: { host: '127.0.0.1', port, strictPort: true, watch: null, hmr: false }, plugins: [{ name: 'delegation-fixtures', enforce: 'pre', resolveId(source) {
   if (source === 'wagmi') return `${directory}stake-wagmi.mjs`;
   if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
   if (source.endsWith('/stake-context.ts')) return `${directory}stake-chain.mjs`;
