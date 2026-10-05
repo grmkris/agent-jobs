@@ -41,13 +41,16 @@ describe('relay balance watch', () => {
     expect(tables).toEqual([])
   })
 
-  it('logs a failed balance read without its RPC URL or key', () => {
+  it('logs a failed balance read without any message or body text', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      reportRelayWatchFailure(Object.assign(new Error('fetch https://rpc.monad.example/key/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 failed'), { name: 'HttpRequestError' }))
+      reportRelayWatchFailure(Object.assign(new Error('fetch https://rpc.monad.example/key/ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 failed'), { name: 'HttpRequestError', status: 401 }))
+      reportRelayWatchFailure(new Error('Authorization: Bearer SECRETKEY'))
+      reportRelayWatchFailure(Object.assign(new Error('rpc refused'), { body: '{"apiKey":"short-secret"}' }))
       const logged = spy.mock.calls.map(call => call.join(' ')).join('\n')
       expect(logged).toContain('relay-watch-failed')
-      expect(logged).not.toMatch(/rpc\.monad\.example|ABCDEFGHIJ/)
+      expect(logged).toContain('"status":401')
+      expect(logged).not.toMatch(/rpc\.monad\.example|ABCDEFGHIJ|Bearer|SECRETKEY|short-secret|apiKey|refused/)
     } finally { spy.mockRestore() }
   })
 })

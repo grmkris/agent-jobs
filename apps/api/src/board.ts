@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, type AgentRetry } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, failureFromReply, type AgentRetry } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -93,7 +93,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           const id = namespace.idFromName(SPONSOR_OBJECT_NAME)
           if (id.toString() === state.id.toString()) return board.relayTransaction(request)
           const reply = JSON.parse(await namespace.get(id).relay({ env, request })) as BoardReply
-          if (!reply.ok) throw new BoardError('chain', reply.message)
+          if (!reply.ok) throw failureFromReply(reply)
           return reply.result as Hex
         },
         ...(key32(env.attesterKey) && key32(env.relayKey)
@@ -155,7 +155,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
                 ...(req.privyToken === undefined ? {} : { privyToken: req.privyToken }),
                 execute: async (agentId, tool, args, key, _approvalId, originalBoard) => {
                   const reply = JSON.parse(await executeAgent(operatorRequest(req, session.address, { agentId, tool, args, key, boardId: originalBoard }))) as BoardReply
-                  if (!reply.ok) throw Object.assign(new BoardError(reply.code as never, reply.message), { reason: reply.reason, retry: reply.retry, retryAfter: reply.retryAfter })
+                  if (!reply.ok) throw failureFromReply(reply)
                   return reply.result
                 },
               })
@@ -237,7 +237,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
                 if (!['attachEvidence', 'ruleWithSignature'].includes(decoded.functionName)) throw new BoardError('forbidden', 'invalid evaluator relay method')
               }
               return toJson({ ok: true, result: await boardFor(req.env).relayTransaction(request) })
-            } catch (e) { return toJson({ ok: false, code: e instanceof BoardError ? e.code : 'chain', message: e instanceof Error ? e.message : String(e) }) }
+            } catch (e) { return toJson(agentFailureReply(e, 'The relay could not send this transaction', undefined, 'chain')) }
           })
           relayQueue = result.catch(() => undefined)
           return result
@@ -302,10 +302,9 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const toolResult = await tool.run(board, caller, req.args, ctx)
               return toJson({ ok: true, result: toolResult } satisfies BoardReply)
             } catch (e) {
-              const code = e instanceof BoardError ? e.code : 'error'
-              const message = e instanceof Error ? (e as { shortMessage?: string }).shortMessage ?? e.message : String(e)
-              const { reason, retry, retryAfter } = e instanceof Error ? e as { reason?: string; retry?: AgentRetry; retryAfter?: number } : {}
-              return toJson({ ok: false, code, message, ...(reason === undefined ? {} : { reason }), ...(retry === undefined ? {} : { retry }), ...(retryAfter === undefined ? {} : { retryAfter }) } satisfies BoardReply)
+              // The one safe boundary for tenant replies: board refusals keep their code and fields, a decoded revert
+              // keeps its error name, and anything else (RPC or provider text) becomes a logged error id.
+              return toJson(agentFailureReply(e, 'The board could not complete this call', undefined, 'error') satisfies BoardReply)
             }
             })
             callQueue = result.catch(() => undefined)

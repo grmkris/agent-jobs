@@ -1,5 +1,5 @@
 /** The reserved management object's MCP and operator action runtime. */
-import { AgentStore, AgentSigning, AgentExecutor, AgentLifecycle, BoardError, SponsorDesk, migrateAgentSchema, SPONSOR_OBJECT_NAME, type Sql } from '@agent-jobs/board'
+import { AgentStore, AgentSigning, AgentExecutor, AgentLifecycle, BoardError, SponsorDesk, failureFromReply, migrateAgentSchema, SPONSOR_OBJECT_NAME, type Sql } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -78,7 +78,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
         return { token, amount: amount.toString(), transactions: [{ to: token as Address, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [agent.operator, amount] }), value: '0', description: 'Move earnings to your operator wallet', chainId: ctx.deployment.chainId }] }
       }
       const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
-      if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
+      if (!reply.ok) throw failureFromReply(reply)
       const action = reply.result as import('@agent-jobs/board').AgentPreparedCall
       return action
     },

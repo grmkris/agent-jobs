@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AgentFailure, agentFailureReply, errorDiagnostics } from './agent-failure.ts'
+import { AgentFailure, agentFailureReply, errorDiagnostics, failureFromReply } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
 
 describe('agentFailureReply', () => {
@@ -28,19 +28,55 @@ describe('agentFailureReply', () => {
     expect(log).toHaveBeenCalledWith(reply.errorId, secret)
   })
 
-  it('logs bounded diagnostics with URLs and long tokens removed through the default sink', () => {
+  it('logs only static diagnostics through the default sink, never message or body text', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      const secret = Object.assign(new Error('HTTP request failed. URL: https://monad.example/v2/SECRETKEY0123456789abcdef Body: {"auth":"sk_live_ABCDEFGHIJKLMNOPQRSTUV"}'), { name: 'HttpRequestError', status: 401, code: 'bad-request' })
-      const reply = agentFailureReply(secret, 'Hosted agent execution failed')
+      const long = Object.assign(new Error('HTTP request failed. URL: https://monad.example/v2/SECRETKEY0123456789abcdef'), { name: 'HttpRequestError', status: 401, code: 'bad-request' })
+      const reply = agentFailureReply(long, 'Hosted agent execution failed')
+      // Short or segmented credentials defeat any redactor, so none of the text may reach the log at all.
+      agentFailureReply(new Error('Authorization: Bearer SECRETKEY'), 'Hosted agent execution failed')
+      agentFailureReply(Object.assign(new Error('provider refused'), { body: '{"apiKey":"short-secret"}', details: 'sk-1 x-api-key: ab12' }), 'Hosted agent execution failed')
+      agentFailureReply('token=abc', 'Hosted agent execution failed')
       const logged = spy.mock.calls.map(call => call.join(' ')).join('\n')
+      expect(spy).toHaveBeenCalledTimes(4)
       expect(logged).toContain(reply.errorId!)
-      expect(logged).toContain('HttpRequestError')
-      expect(logged).not.toMatch(/SECRETKEY|sk_live|monad\.example/)
+      expect(logged).toContain('"name":"HttpRequestError"')
+      expect(logged).toContain('"status":401')
+      expect(logged).not.toMatch(/SECRETKEY|monad\.example|Bearer|short-secret|apiKey|sk-1|ab12|token=abc|refused|request failed/)
     } finally { spy.mockRestore() }
-    expect(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' }))).toEqual({ name: 'object', message: 'x' })
+    expect(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' }))).toEqual({ name: 'object' })
+    expect(errorDiagnostics(Object.assign(new Error('x'), { code: 'rate-limited', status: 429 }))).toEqual({ name: 'Error', code: 'rate-limited', status: 429 })
     expect(errorDiagnostics('plain string')).toEqual({ name: 'string' })
-    expect(errorDiagnostics(new Error('y'.repeat(500))).message).toBe('[redacted]')
+  })
+
+  it('reports a decoded revert by its ABI name only', () => {
+    const revert = Object.assign(new Error('execution reverted: https://rpc.example/KEY'), { cause: { data: { errorName: 'StillBonded', args: ['https://rpc.example/KEY'] } } })
+    expect(agentFailureReply(revert, 'fallback', vi.fn())).toEqual({ ok: false, code: 'chain', message: 'The chain refused this call: StillBonded', reason: 'revert', retry: 'none' })
+    const odd = Object.assign(new Error('x'), { data: { errorName: 'Not an ABI name: https://rpc.example/KEY' } })
+    expect(agentFailureReply(odd, 'fallback', vi.fn())).toMatchObject({ reason: 'internal' })
   })
 })
 
+describe('the tenant boundary (VV2-017)', () => {
+  it('keeps an unexpected tenant error out of the MCP reply and the console across the Board.call rewrap', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const tenant = new TypeError('fetch https://rpc.example/v2/SECRETKEY failed: {"apiKey":"short-secret"}')
+      // Board.call serializes the tenant failure; the hosted caller rebuilds it and applies its own boundary.
+      const boardReply = agentFailureReply(tenant, 'The board could not complete this call', undefined, 'error')
+      const mcpReply = agentFailureReply(failureFromReply(boardReply), 'Hosted agent execution failed')
+      expect(boardReply).toMatchObject({ code: 'error', reason: 'internal', retry: 'same-key' })
+      expect(mcpReply).toEqual(boardReply)
+      expect(spy).toHaveBeenCalledTimes(1)
+      const surfaces = [JSON.stringify(boardReply), JSON.stringify(mcpReply), ...spy.mock.calls.map(call => call.join(' '))].join('\n')
+      expect(surfaces).toContain(boardReply.errorId!)
+      expect(surfaces).not.toMatch(/SECRETKEY|rpc\.example|short-secret|apiKey|fetch/)
+    } finally { spy.mockRestore() }
+  })
+
+  it('passes an explicit refusal through the rewrap unchanged', () => {
+    const floor = Object.assign(new BoardError('unavailable', 'the sponsorship relay is below its balance floor'), { reason: 'floor', retry: 'same-key', retryAfter: 600 })
+    const boardReply = agentFailureReply(floor, 'fallback', vi.fn(), 'error')
+    expect(agentFailureReply(failureFromReply(boardReply), 'fallback', vi.fn())).toEqual(boardReply)
+  })
+})
