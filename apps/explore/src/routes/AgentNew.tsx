@@ -165,7 +165,7 @@ function AgentSetup({
           02 · Registration
         </li>
         <li className={agent?.state === "active" ? "font-semibold text-tint" : "text-label-2"}>
-          03 · Permissions
+          {context === "oauth" ? "03 · Connection" : "03 · Permissions"}
         </li>
       </ol>
       {agent === undefined ? (
@@ -226,14 +226,26 @@ function AgentSetup({
             note="Its NFT belongs to your operator wallet. The agent wallet holds its earnings and job obligations. Each backer keeps ownership of its FACTORY position."
           >
             <p className="text-sm text-label-2">
-              Work and hire are available by default. Review the connection permissions when your
-              MCP client opens OAuth.
+              {context === "oauth" ? "You can connect now. Spending allowance and FACTORY backing can be added later." : "Work and hire are available by default. Review the connection permissions when your MCP client opens OAuth."}
             </p>
-            <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />
+            {context === "oauth" && onReady !== undefined && (
+              <Button onClick={() => onReady(agent)}>Use this agent for this connection</Button>
+            )}
+            {context === "oauth" ? (
+              <details className="border-t border-sep pt-3">
+                <summary className="cursor-pointer text-sm font-semibold">Optional weekly spending allowance</summary>
+                <div className="pt-3"><AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} /></div>
+              </details>
+            ) : <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />}
           </Section>
-          <AgentStake agent={agent} operator={operator} />
+          {context === "oauth" ? (
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold">Optional FACTORY backing</summary>
+              <div className="pt-3"><AgentStake agent={agent} operator={operator} /></div>
+            </details>
+          ) : <AgentStake agent={agent} operator={operator} />}
           {context === "standalone" && <ConnectionCard />}
-          {onReady !== undefined && (
+          {context === "standalone" && onReady !== undefined && (
             <Button disabled={!fundingReady} onClick={() => onReady(agent)}>
               Use this agent for this connection
             </Button>

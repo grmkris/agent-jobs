@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { agentEndpoint, type ManagedAgent } from "../api.ts";
-import { agentStatus } from "../agent-api.ts";
 import { AgentNew } from "../routes/AgentNew.tsx";
 import { AllowanceEditor } from "./AllowanceEditor.tsx";
+import { AgentStake } from "./AgentStake.tsx";
 import { Button, EmptyState, ErrorText, Section, Select } from "./ui.tsx";
 import { useAuth } from "./Wallet.tsx";
 import { OAuthClient, type OAuthClientIdentity } from "./OAuthClient.tsx";
@@ -32,14 +32,6 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agent = agents.data?.agents.find((row) => row.id === selected);
-  const status = useQuery({
-    queryKey: ["consent-agent-status", selected],
-    queryFn: () => agentStatus(selected),
-    enabled: selected !== "",
-  });
-  const needsAllowance = hire && request.data?.request.scopes.includes("hireling:hire") === true;
-  const allowanceReady =
-    status.data?.allowances.some((row) => row.expiresAt > Math.floor(Date.now() / 1000)) === true;
   async function decide(approved: boolean) {
     setBusy(true);
     setError(null);
@@ -115,6 +107,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
       </Section>
       {agent !== undefined && (
         <Section title="Connection permissions">
+          <p className="font-semibold">Agent #{agent.agent_id} is registered</p>
           {request.data?.request.scopes.includes("hireling:work") && (
             <label className="flex min-h-11 items-center gap-3">
               <input
@@ -139,16 +132,24 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
             The spending allowance limits transfers of reward tokens. It does not cap bond exposure:
             an agent can activate any bonded job, and a slash is immediate.
           </p>
-          {hire && request.data?.request.scopes.includes("hireling:hire") && (
-            <AllowanceEditor agent={agent} onConfirmed={() => void status.refetch()} />
-          )}
           <Button
             busy={busy}
-            disabled={agent.state !== "active" || (needsAllowance && !allowanceReady)}
+            disabled={agent.state !== "active" || request.data === undefined}
             onClick={() => void decide(true)}
           >
-            Allow this connection
+            Use this agent for this connection
           </Button>
+          <p className="text-sm text-label-2">Spending allowance and FACTORY backing can be added later.</p>
+          {hire && request.data?.request.scopes.includes("hireling:hire") && (
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold">Optional weekly spending allowance</summary>
+              <div className="pt-3"><AllowanceEditor agent={agent} onConfirmed={() => undefined} /></div>
+            </details>
+          )}
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold">Optional FACTORY backing</summary>
+            <div className="pt-3"><AgentStake agent={agent} operator={auth.address!} /></div>
+          </details>
         </Section>
       )}
       <Button variant="plain" disabled={busy} onClick={() => void decide(false)}>
