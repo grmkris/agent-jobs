@@ -6,6 +6,14 @@ import { schema, signingShapes } from "../../privy/policy.ts";
 import { required } from "./guards.ts";
 import { Runtime, type Proof } from "./runtime.ts";
 
+interface Denial {
+  probe: string;
+  enforcementLayer: "provider-policy" | "provider-authorization" | "hosted-application";
+  path: "Privy API with routine quorum" | "deployed MCP" | "deployed HTTP";
+  status?: number;
+  code: string;
+}
+
 export async function policyDenials(runtime: Runtime): Promise<Proof> {
   await runtime.login();
   const agent = runtime.agent;
@@ -81,7 +89,7 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
       },
     },
   };
-  const results: Array<{ probe: string; tier: string; status: number; code: string }> = [];
+  const results: Denial[] = [];
   for (const [probe, body] of [
     ["wrong chain", wrongChain],
     ["wrong verifying contract", wrongDomain],
@@ -98,7 +106,8 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
     );
     results.push({
       probe,
-      tier: "Privy API using the deployed wallet and configured routine key",
+      enforcementLayer: "provider-policy",
+      path: "Privy API with routine quorum",
       status: response.status,
       code: response.code,
     });
@@ -119,7 +128,8 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
     const response = await api.request("PATCH", route, body, sign);
     results.push({
       probe,
-      tier: "Privy routine-key authorization",
+      enforcementLayer: "provider-authorization",
+      path: "Privy API with routine quorum",
       status: response.status,
       code: response.code,
     });
@@ -145,7 +155,8 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
   );
   results.push({
     probe: "export",
-    tier: "bounded export probe; an authorization refusal is distinct from policy evaluation",
+    enforcementLayer: "provider-authorization",
+    path: "Privy API with routine quorum",
     status: exported.status,
     code: exported.code,
   });
@@ -168,6 +179,12 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
     !JSON.stringify(refused.output).includes("registered agentId")
   )
     throw new Error("P8_DEPLOYED_SIGNER_SCOPE_DENIAL_NOT_PROVEN");
+  results.push({
+    probe: "another registered identity",
+    enforcementLayer: "hosted-application",
+    path: "deployed MCP",
+    code: "registered_agent_scope",
+  });
   const grantRefusal = await runtime.browser.page.evaluate(
     async ({ id }) => {
       const storage = (globalThis as unknown as { localStorage: Storage }).localStorage;
@@ -190,24 +207,23 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
   );
   if (grantRefusal.ok !== false || grantRefusal.code !== "forbidden")
     throw new Error("P8_ARBITRARY_CAVEAT_SIGNING_EXPOSED");
+  results.push({
+    probe: "arbitrary signing tool with empty caveats",
+    enforcementLayer: "hosted-application",
+    path: "deployed HTTP",
+    status: grantRefusal.status,
+    code: grantRefusal.code,
+  });
   return {
     checks: [
-      "provider wrong-chain denial",
-      "provider wrong-contract denial",
-      "provider wrong-type denial",
-      "provider wrong-field denial",
-      "provider wrong-delegate denial",
-      "routine signer cannot mutate policy or signers",
-      "routine signer export refused",
-      "deployed MCP refuses another registered identity",
-      "deployed website refuses arbitrary caveat signing",
+      ...results.map((item) => `${item.enforcementLayer}: ${item.probe} refused`),
+      "provider-authorization: policy and signers unchanged after refused mutations",
     ],
     txHashes: [],
     details: {
       results,
-      grantRefusal,
       boundary:
-        "Privy probes use the deployed wallet and routine key directly. Identity and arbitrary signing refusal use the deployed HTTP/MCP executor. Exact caveat and domain-version validation are app-enforced; no raw signing endpoint exists.",
+        "Provider probes use the deployed-created wallet and routine quorum directly. The MCP identity refusal and HTTP arbitrary-signing-tool refusal are hosted application evidence. Exact caveat and domain-version validation remains source/fork evidence; this suite uses no raw signing endpoint.",
     },
   };
 }

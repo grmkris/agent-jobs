@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { type Hex } from "viem";
 import { atomicHire } from "./atomic.ts";
 import { limits } from "./limits.ts";
@@ -36,6 +36,7 @@ type Evidence = {
   error?: string;
 };
 const evidenceDirectory = new URL("../../../../../docs/evidence/agent-first-v2/", import.meta.url);
+const harnessStatusFile = new URL("../../../../../../status/harness.md", import.meta.url);
 const scenarios: Record<CaseId, (runtime: Runtime) => Promise<Proof>> = {
   A01f: onboarding,
   A02f: worker,
@@ -48,6 +49,15 @@ const scenarios: Record<CaseId, (runtime: Runtime) => Promise<Proof>> = {
 };
 // Revocation ends the real client connection. Run it after fresh-client and restart proofs.
 const order: CaseId[] = ["A01f", "A02f", "A03f", "A04f", "A05f", "A07f", "A08f", "A06f"];
+
+async function reportOperator(proof: Proof): Promise<void> {
+  const operator = proof.details.operator;
+  if (typeof operator !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(operator))
+    throw new Error("P8_VERIFIED_OPERATOR_MISSING");
+  const note = `NOTE A01F-OPERATOR ${operator}`;
+  const status = await readFile(harnessStatusFile, "utf8");
+  if (!status.split("\n").includes(note)) await appendFile(harnessStatusFile, `${note}\n`);
+}
 
 async function main(): Promise<void> {
   const release = releaseAuthorization();
@@ -80,6 +90,7 @@ async function main(): Promise<void> {
         await runtime.chain.audit();
         await runtime.close();
         run.set(`proof/${id}`, proof);
+        if (id === "A01f") await reportOperator(proof);
         evidence.result = "pass";
         evidence.checks = proof.checks;
         evidence.txHashes = [...new Set(proof.txHashes)];

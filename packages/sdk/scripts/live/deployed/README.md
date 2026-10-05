@@ -14,15 +14,16 @@ Anonymous smoke needs no credentials and may run before the v2 release:
 heavy bun packages/sdk/scripts/live/deployed/smoke.ts
 ```
 
-Full acceptance requires Claude's exact `RELEASED <full sha>` line in the selected
-status file. Source the existing environment only in the invoking shell:
+Full acceptance requires Claude's exact `RELEASED <full sha>` line in
+`/home/kristjan/code/agent-jobs.wt/status/triage.md`. Read triage between steps for
+coordinator directives. Source the existing environment only in the invoking shell:
 
 ```sh
 set -a
 source /home/kristjan/code/agent-jobs/.env.local
 set +a
 export P8_RELEASED_SHA=<full released commit>
-export P8_RELEASE_STATUS_FILE=/home/kristjan/code/agent-jobs.wt/status/claude.md
+export P8_RELEASE_STATUS_FILE=/home/kristjan/code/agent-jobs.wt/status/triage.md
 export P8_RUN_ID=p8-fixture-20261005
 export P8_GROK_AGENT_ID=<reviewed registered Grok demo worker ID>
 pnpm live:deployed
@@ -32,7 +33,9 @@ Select individual cases with `pnpm live:deployed A01f`. Cases depend on the same
 run's A01 agent, A02 job/earnings and A03 signed allowance calldata. Default order
 is A01f, A02f, A03f, A04f, A05f, A07f, A08f, then A06f: revocation ends the client
 connection. A03 proves the named-worker atomic publish; it does not wait for the
-Grok supervisor to accept or deliver. Claude owns its scope change and restart.
+Grok supervisor to accept or deliver. Build owns the creator-list change; Claude
+owns its coordination and restart. A01f appends `NOTE A01F-OPERATOR <address>` to
+the sibling `status/harness.md` after verified onboarding, including retained proofs.
 
 The required environment names are `MONAD_TESTNET_RPC_URL`, `PRIVY_TEST_EMAIL`,
 `PRIVY_TEST_OTP`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_SIGNER_ID`,
@@ -51,8 +54,11 @@ spend reaches 2 MON. Do not reset the ledger to bypass a refusal.
 
 A04's period/expiry proofs and A03's failed-publish rollback use real signed
 browser grants and deployed bytecode on a local Anvil fork; evidence labels these
-separately from live chain receipts. A05 distinguishes direct Privy policy probes
-on the deployed wallet from HTTP/MCP application refusals. A07 kills the real
+separately from live chain receipts. Each A05 denial records its enforcement layer
+and path: `provider-policy` for direct policy probes, `provider-authorization` for
+routine-quorum mutation/export refusals, and `hosted-application` for deployed
+HTTP/MCP input refusals. Direct provider probes use the deployed-created wallet;
+the hosted suite exposes no raw signing endpoint. A07 kills the real
 Codex process after the server confirms an economic effect and before a durable
 client result; its next process must recover the same operation ID and hash.
 A06 aborts relay routes with Playwright, executes a real Privy-owner/RPC recovery
