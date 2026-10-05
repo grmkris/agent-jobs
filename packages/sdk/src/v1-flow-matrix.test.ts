@@ -12,5 +12,5 @@ it('registers every board-free matrix case exactly once in the 24-case fork rehe
   expect(list.toSorted()).toEqual(expected.toSorted())
   for (const name of ['delegate', 'slash-pro-rata', 'undelegate-pending-slash'])
     expect(list.indexOf(name)).toBeLessThan(list.indexOf('fees'))
-  expect(list.indexOf('admin-vault-refusal')).toBeLessThan(list.indexOf('delegate'))
+  expect(list.slice(0, 3)).toEqual(['admin-ownership', 'admin-vault-refusal', 'admin-fees'])
 })

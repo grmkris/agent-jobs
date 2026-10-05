@@ -32,10 +32,11 @@ PORT="${PORT:-8601}"
 LOCAL="http://127.0.0.1:$PORT"
 CHAIN=10143
 TRACKED="config/monad-testnet.json" # read only
-# Order matters: admin-vault-refusal needs the Holding probe still inside its 8 days, so it runs before the cases that
-# wait out windows; admin-fees waits 3 days and stake-cooldown 7, so they come last. legacy-dispute is left out: it signs
+# Order matters: admin-vault-refusal must cancel the still-timelocked Holding probe before any wait. admin-fees executes
+# the unchanged launch schedule next, before job windows and delegated cooldowns can expire its proposal grace.
+# stake-cooldown runs last. legacy-dispute is left out: it signs
 # with the real legacy arbitrator key, the evaluator's immutable, which a fork cannot stand in for.
-DEFAULT_CASES="admin-ownership,admin-vault-refusal,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,delegate,slash-pro-rata,undelegate-pending-slash,fees,owed-blocklist,owed-gas,legacy-contest,admin-fees,admin-pause,stake-cooldown"
+DEFAULT_CASES="admin-ownership,admin-vault-refusal,admin-fees,hire,cancel,topup-paid,topup-refund,silence,ruling-worker,ruling-worker-slash,ruling-creator,ruling-creator-slash,violation,missed,arbitration-timeout,delegate,slash-pro-rata,undelegate-pending-slash,fees,owed-blocklist,owed-gas,legacy-contest,admin-pause,stake-cooldown"
 CASES="${1:-${FLOW_CASES:-$DEFAULT_CASES}}"
 PROFILE="g1dry-$(date +%s)"
 WORK="$(mktemp -d)"
