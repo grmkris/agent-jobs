@@ -1,0 +1,60 @@
+{
+  "id": "A01f",
+  "commit": "dcdeb74242d070adcb8402a84873c6439fb72f13",
+  "release": "f2dc8ed14fe2fbe3ad6eec5fc5b6a7bbe4870925",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "fixture": true,
+  "result": "stopped",
+  "runId": "p8-fixture-20261005",
+  "stoppedAt": "2026-10-05T12:19:11.121545+00:00",
+  "checks": [
+    "Real Privy fixture login and SIWE succeeded; stable operator recorded",
+    "Read-only browser probe found exactly one backend agent matching the retained draft"
+  ],
+  "txHashes": [
+    "0xa5298f9e77c8e0be319737b209045a9aa1d30574ddeb2365549797b3d5ea093a"
+  ],
+  "gas": [
+    "68037"
+  ],
+  "spendMon": "0.006939774",
+  "spentWei": "6939774000000000",
+  "previousReportedSpendMon": "0",
+  "reservedMon": "0.08",
+  "reservedWei": "80000000000000000",
+  "reservations": {
+    "p8-fixture-20261005/onboarding/create": "80000000000000000"
+  },
+  "error": "P8_STOPPED_BY_OPERATOR",
+  "details": {
+    "operator": "0xBd3F394940474c31fA444B102AF0a8043a1FCCA6",
+    "retainedDraftId": "8436a589-7418-4113-8e94-3c39290431c3",
+    "managedAgentRecorded": false,
+    "backendAgentObservation": {
+      "tier": "read-only retained-session browser probe before stop",
+      "id": "8436a589-7418-4113-8e94-3c39290431c3",
+      "state": "grants-live",
+      "address": "0xf69a94aaeda3cd9347ab890c6739efe745a93888"
+    },
+    "registryVerification": "not completed",
+    "remainingCases": "A02f-A08f unrun",
+    "receiptAccounting": "Current persisted ledger charges all observed relay traffic conservatively; one receipt was added during the final retry reconciliation after the earlier 0 MON report.",
+    "receipts": [
+      {
+        "txHash": "0xa5298f9e77c8e0be319737b209045a9aa1d30574ddeb2365549797b3d5ea093a",
+        "status": "success",
+        "gasUsed": "68037",
+        "effectiveGasPrice": "102000000000",
+        "costWei": "6939774000000000",
+        "nativeValueWei": "0",
+        "blockNumber": "68398132",
+        "from": "0xac7282b6a519665dcb71563317c71d1f357f9e7e",
+        "nonce": 91
+      }
+    ],
+    "stopReason": "Kris stopped the deployed harness; no further run authorized",
+    "ownedProcessesRemaining": [],
+    "retainedState": "Browser profile, draft, journal, budget reservations and stale runner lock preserved; no grants or funds released."
+  }
+}
