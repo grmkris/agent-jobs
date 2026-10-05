@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { build, createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { AgentStartLink } from './src/components/AgentStartLink.tsx'
+import { AgentStartLink, StartPrompt, startPrompt } from './src/components/AgentStartLink.tsx'
 import { startGuide } from './start-guide-plugin.ts'
 import { renderStartGuide } from './start-guide.ts'
 import worker from './worker.ts'
@@ -162,6 +162,19 @@ describe('Explore onboarding examples', () => {
         expect(html).toContain(`aria-label="Copy ${role} setup instruction"`)
       }
       expect(html.match(/<button /g)).toHaveLength(4)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+  it('gives the landing one role-free prompt that points at the served guide', () => {
+    expect(startPrompt('https://testnet.hireling.xyz')).toBe('Read https://testnet.hireling.xyz/start.md and set yourself up on Hireling.')
+    // start.md asks the human once whether to work, hire or both, so the prompt can stay role-free.
+    expect(source).toMatch(/Should I work, hire, or both\?/)
+    vi.stubGlobal('window', { location: { origin: 'https://testnet.hireling.xyz' } })
+    try {
+      const html = renderToStaticMarkup(createElement(StartPrompt))
+      expect(html).toContain('Read https://testnet.hireling.xyz/start.md and set yourself up on Hireling.')
+      expect(html).toContain('Copy prompt')
     } finally {
       vi.unstubAllGlobals()
     }

@@ -1,31 +1,42 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { NetworkSwitch } from './NetworkSwitch.tsx'
-import { AccountControl, useAuth, useAutoSignIn } from './Wallet.tsx'
 import { LaunchBanner } from './LaunchGate.tsx'
+import { NetworkSwitch } from './NetworkSwitch.tsx'
+import { Mark } from './Shell.tsx'
+import { buttonVariants } from './ui/button.tsx'
+import { textLinkClass } from './ui.tsx'
 
+/**
+ * The public front door: a translucent bar with the brand and one way in ("Open app"), the page, and a footer that
+ * says what the protocol's admin can do. No site nav: the app itself is the navigation.
+ */
 export function LandingShell({ children }: { children: ReactNode }) {
-  const auth = useAuth()
-  const account = useAutoSignIn(auth)
-  return <div className="min-h-dvh">
-    <header className="material sticky top-0 z-30 border-b border-sep pt-[var(--safe-top)]">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 lg:px-10">
-        <Link to="/" className="font-display text-xl font-bold">Hireling</Link>
-        <nav aria-label="Site" className="flex items-center gap-4 text-sm font-medium">
-          <Link to="/jobs" className="min-h-11 content-center">Jobs</Link>
-          <Link to="/agents" className="min-h-11 content-center">Agents</Link>
-          <a href="https://github.com/grmkris/agent-jobs#readme" className="min-h-11 content-center">Docs</a>
-        </nav>
-        {auth.signedIn ? <Link to="/workspace" className="action-link secondary">Open app</Link> : <AccountControl auth={auth} account={account} />}
-      </div>
-    </header>
-    <main className="mx-auto grid max-w-7xl gap-8 px-5 py-8 lg:px-10 lg:py-14">
-      <LaunchBanner />
-      {children}
-      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-sep pt-6 text-xs text-label-2">
-        <span>Open jobs. On-chain escrow. Owner-controlled permissions.</span>
-        <NetworkSwitch />
-      </footer>
-    </main>
-  </div>
+  return (
+    <div className="min-h-dvh">
+      <header className="material-chrome material-edge-bottom sticky top-0 z-30 pt-[var(--safe-top)]">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 pr-[max(1.25rem,var(--safe-right))] pl-[max(1.25rem,var(--safe-left))]">
+          <Link to="/" className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
+            <Mark />
+            Hireling
+          </Link>
+          <Link to="/jobs" className={buttonVariants({ variant: 'outline' })}>
+            Open app
+          </Link>
+        </div>
+      </header>
+      <main className="mx-auto grid max-w-5xl gap-16 pt-12 pr-[max(1.25rem,var(--safe-right))] pb-[max(3rem,var(--safe-bottom))] pl-[max(1.25rem,var(--safe-left))] sm:pt-24">
+        <LaunchBanner />
+        {children}
+        <footer className="flex flex-wrap items-center justify-between gap-4 border-t pt-6 text-xs text-muted-foreground">
+          <span>
+            Rewards are escrowed on Monad; the protocol's admin keeps pause and upgrade powers.{' '}
+            <a className={textLinkClass} href="https://github.com/grmkris/agent-jobs#trust" target="_blank" rel="noreferrer">
+              Protocol and admin powers
+            </a>
+          </span>
+          <NetworkSwitch />
+        </footer>
+      </main>
+    </div>
+  )
 }

@@ -46,7 +46,7 @@ function places(): { main: Place[]; more: Place[] } {
 }
 
 /** The brand mark (src/brand/mark.svg), in the tint so it follows light, dark and a tint change. */
-function Mark() {
+export function Mark() {
   return (
     <svg aria-hidden viewBox="0 0 32 32" className="size-7 shrink-0">
       <rect width="32" height="32" rx="7" className="fill-tint" />

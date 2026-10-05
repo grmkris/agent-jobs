@@ -170,9 +170,10 @@ async function testTokenAmounts() {
   await failure.context.close();
   const totals = await fixture({ width: 1440, height: 900 }, { connected: false });
   await totals.page.goto(base);
+  // The landing lists live jobs with resolved token amounts; its per-token aggregate totals left in the redesign.
   await totals.page.getByText('5 OPEN', { exact: true }).first().waitFor();
-  assert.ok((await totals.page.getByText('5 OPEN', { exact: true }).count()) >= 2);
-  results.push({ name: 'aggregate-metadata-resolution', passed: true });
+  assert.equal(await totals.page.getByText('0 tokens', { exact: true }).count(), 0);
+  results.push({ name: 'landing-token-resolution', passed: true });
   await totals.context.close();
 }
 
