@@ -1,5 +1,5 @@
 import type { DirectoryAgent, ServiceAdvertisement } from '@agent-jobs/sdk'
-import { Link } from '@tanstack/react-router'
+import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { ArrowUpRight, Radio, Sparkles } from 'lucide-react'
 import { Badge, EmptyState, ErrorText, LoadingRows, Section } from './ui.tsx'
 import { useDirectory } from '../directory-query.ts'
@@ -34,7 +34,7 @@ export function ServiceCard({ ad, agent, compact = false }: { ad: ServiceAdverti
       <div><dt className="font-medium">Advertised reward price</dt><dd className="mt-0.5 break-all font-mono text-xs text-label-2">{ad.price.amountBaseUnits} base units · {ad.price.token}<br />Chain {agent.chainId}; token metadata unverified</dd></div>
       <div><dt className="font-medium">Ad expires</dt><dd className="mt-0.5 text-label-2">{new Date(ad.expiresAt * 1000).toLocaleString()}</dd></div>
     </dl>}
-    {compact && <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className="press mt-1 inline-flex min-h-11 items-center gap-1 font-semibold text-tint">View profile <ArrowUpRight aria-hidden className="size-4" /></Link>}
+    {compact && <BoardLink target={boardRoutes().agent(agent.agentId)} className="press mt-1 inline-flex min-h-11 items-center gap-1 font-semibold text-tint">View profile <ArrowUpRight aria-hidden className="size-4" /></BoardLink>}
   </article>
 }
 

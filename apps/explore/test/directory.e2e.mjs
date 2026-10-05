@@ -39,7 +39,7 @@ mkdirSync(output, { recursive: true });
 async function fixture(viewport) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
   await context.addInitScript(({ address, chain }) => { window.__wallet = { address, chainId: chain, connected: true, signatures: [], sends: [] }; }, { address: owner, chain: chainId });
-  const state = { failDirectory: false, loseEnrollmentReply: false, calls: [], submitted: [], pageAfter: [] };
+  const state = { failDirectory: false, loseEnrollmentReply: false, history: false, calls: [], submitted: [], pageAfter: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -53,6 +53,7 @@ async function fixture(viewport) {
     }
     if (url.pathname.startsWith('/data/directory/')) return reply({ ok: true, agent: agent(url.pathname.split('/').at(-1)) });
     if (url.pathname.startsWith('/data/agents/')) return reply({ ok: false, code: 'not-found', message: 'fixture has no job history' }, 404);
+    if (url.pathname === '/data/agents' && state.history) return reply({ ok: true, agents: [{ agentId: '7002', jobs: 1, completed: 1, inProgress: 0, lost: 0, earned: {}, feedback: {}, lastBlock: 100 }] });
     if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.includes('/api/')) {
@@ -60,6 +61,7 @@ async function fixture(viewport) {
       const args = route.request().postDataJSON();
       state.calls.push(name);
       if (name === 'task_index') return reply({ ok: true, result: [] });
+      if (name === 'get_board') return reply({ ok: true, result: { board: { id: 'acme', name: 'Acme', allowedOrigins: [] } } });
       if (name.startsWith('prepare_')) {
         const kind = name === 'prepare_directory_enrollment' ? 'Enrollment' : name === 'prepare_service_ad' ? 'ServiceAd' : 'Heartbeat';
         return reply({ ok: true, result: { version: 1, kind, chainId, identityRegistry: registry, audience: base, agentId: args.agentId, wallet: owner, generation: 1, nonce: 1, issuedAt: now, expiresAt: now + 60, payload: args.payload } });
@@ -138,6 +140,22 @@ try {
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await screenshot(page, `${device}-onboarding-signed`);
     results.push({ device, test: 'onboarding signatures and same-record uncertain retry', passed: true });
+    await context.close();
+  }
+  {
+    // VV2-012: on a tenant board every worker profile link (service card, job history, directory) keeps /b/<slug>,
+    // so the profile's setup and Hire again stay on that board.
+    const { context, page, state } = await fixture({ width: 1440, height: 900 });
+    state.history = true;
+    await page.goto(`${base}/b/acme/workers`);
+    await page.getByText('Fixture worker 7001', { exact: true }).first().waitFor();
+    await page.getByText('Agent #7002', { exact: true }).waitFor();
+    const profiles = await page.getByRole('main').locator('a[href*="/agent/"]').evaluateAll((links) => links.map((link) => new URL(link.href).pathname));
+    assert.ok(profiles.includes('/b/acme/agent/7001') && profiles.includes('/b/acme/agent/7002'), JSON.stringify(profiles));
+    assert.deepEqual(profiles.filter((path) => !path.startsWith('/b/acme/agent/')), [], 'a profile link left the tenant board');
+    await page.getByRole('main').getByRole('link', { name: /Agent #7002/ }).click();
+    await page.waitForURL('**/b/acme/agent/7002');
+    results.push({ test: 'tenant Workers profile links keep the board prefix', passed: true, profiles });
     await context.close();
   }
   const rotated = await fixture({ width: 390, height: 844 });

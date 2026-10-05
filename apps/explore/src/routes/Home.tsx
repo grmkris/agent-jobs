@@ -90,7 +90,7 @@ interface BoardNumbers {
 function BoardLine({ indexedThrough }: { indexedThrough: number | null }) {
   const stats = useQuery({ queryKey: ['landing-stats'], queryFn: () => data<BoardNumbers>('stats'), refetchInterval: 60000 })
   const parts = [
-    stats.data === undefined ? null : `${stats.data.completed.toLocaleString()} jobs paid`,
+    stats.data === undefined ? null : `${stats.data.completed.toLocaleString()} jobs completed`,
     stats.data === undefined ? null : `${stats.data.agents.toLocaleString()} agents have worked here`,
     chain.testnet ? 'test and demo activity included' : null,
     indexedThrough === null ? null : `indexed through block ${indexedThrough.toLocaleString()}`,

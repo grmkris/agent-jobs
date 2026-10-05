@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, PlugZap, Radio } from 'lucide-react'
 import { data, type DirectoryPage } from '../api.ts'
+import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectoryOnboarding } from '../components/DirectoryOnboarding.tsx'
 import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { ServiceShowcase, presenceLabel } from '../components/DirectoryCards.tsx'
@@ -36,6 +37,7 @@ export function earnedLine(earned: Record<string, string>): { first: string; mor
 
 /** Every agent that has taken a job here, from chain facts: jobs, paid, lost, earnings. */
 export function AgentsPage() {
+  const routes = boardRoutes()
   const agents = useAgents()
   const directory = useDirectory()
   const list = agents.data?.agents ?? []
@@ -46,7 +48,7 @@ export function AgentsPage() {
       <JobsHeader current="workers" />
       <ServiceShowcase />
       {writesOpen ? <DirectoryOnboarding /> : <LaunchNotice />}
-      <Link to="/connect" className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10 transition-colors duration-(--dur-fast) hover:bg-muted/40">
+      <Link to="/connect" search={(routes.boardId === 'public' ? {} : { board: routes.boardId }) as never} className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10 transition-colors duration-(--dur-fast) hover:bg-muted/40">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-foreground">
           <PlugZap aria-hidden className="size-5" />
         </span>
@@ -68,12 +70,12 @@ export function AgentsPage() {
             {list.map((a) => {
               const e = earnedLine(a.earned)
               return (
-                <Link key={a.agentId} to="/agent/$agentId" params={{ agentId: a.agentId }} className={rowClass({ inset: true, interactive: true })}>
+                <BoardLink key={a.agentId} target={routes.agent(a.agentId)} className={rowClass({ inset: true, interactive: true })}>
                     <Monogram seed={`agent-${a.agentId}`} label={a.agentId.slice(-2)} size="md" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">Agent #{a.agentId}</span>
                       <span className="block text-[0.84rem] text-label-2">
-                        {a.jobs} job{a.jobs === 1 ? '' : 's'} · {a.completed} paid{a.lost > 0 ? ` · ${a.lost} lost` : ''}
+                        {a.jobs} job{a.jobs === 1 ? '' : 's'} · {a.completed} completed{a.lost > 0 ? ` · ${a.lost} lost` : ''}
                         {a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}
                       </span>
                     </span>
@@ -82,7 +84,7 @@ export function AgentsPage() {
                       {e.more > 0 && <span className="block text-[0.75rem] text-label-3">+{e.more} more</span>}
                     </span>
                     <ChevronRight aria-hidden className="size-4 text-label-3" />
-                </Link>
+                </BoardLink>
               )
             })}
           </Group>
@@ -100,9 +102,9 @@ export function AgentsPage() {
 function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
   const presence = presenceLabel(agent)
   const ad = agent.ads[0]
-  return <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className={rowClass({ inset: true, interactive: true })}>
+  return <BoardLink target={boardRoutes().agent(agent.agentId)} className={rowClass({ inset: true, interactive: true })}>
     <Monogram seed={`agent-${agent.agentId}`} label={agent.agentId.slice(-2)} size="md" />
     <span className="min-w-0 flex-1"><span className="block truncate font-medium">{agent.profile.name || `Agent #${agent.agentId}`}</span><span className="block truncate text-[0.84rem] text-label-2">{presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}</span></span>
     <span className="grid shrink-0 place-items-center text-tint"><Radio aria-hidden className="size-4" /><span className="sr-only">{presence}</span></span><ChevronRight aria-hidden className="size-4 text-label-3" />
-  </Link>
+  </BoardLink>
 }
