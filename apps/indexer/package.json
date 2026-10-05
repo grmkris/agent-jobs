@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@agent-jobs/board": "workspace:*",
     "@agent-jobs/indexer": "workspace:*",
     "@agent-jobs/sdk": "workspace:*",
     "alchemy": "catalog:",

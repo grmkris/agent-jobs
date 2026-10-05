@@ -2,7 +2,6 @@ import { contractsOf, fromD1, hyperSync, migrate, rpcHead, runOnce } from '@agen
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Config from 'effect/Config'
-import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
@@ -13,6 +12,7 @@ import { runtimeSecret } from '../../api/src/prod-config.ts'
 import { queueTelegramNotifications } from '../../api/src/telegram-notifications.ts'
 import { drainTelegramOutbox, migrateTelegram, telegramTransport } from '../../api/src/telegram.ts'
 import { reportRelayWatchFailure, watchRelay } from '../../api/src/relay-watch.ts'
+import { recordIndexerRun, type IndexerRunOutcome } from './run-record.ts'
 
 const secret = (name: string) =>
   Config.Redacted(name).pipe(Effect.map((v) => (Redacted.value(v) === 'unset' ? '' : Redacted.value(v))))
@@ -40,18 +40,11 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
 
     /** The last cron outcome, kept in D1 for `GET /` (Workers logs need a permission the deploy token lacks). */
-    const record = (ok: boolean, detail: string) =>
+    const record = (outcome: IndexerRunOutcome) =>
       Effect.gen(function* () {
         const raw = yield* db.raw
         const sql = fromD1(raw as never)
-        const hide = [yield* secret('MONAD_RPC_URL'), yield* secret('HYPERSYNC_API_TOKEN'), yield* secret('TELEGRAM_BOT_TOKEN')].filter((v) => v.length >= 8)
-        const safe = hide.reduce((t, v) => t.split(v).join('[redacted]'), detail).slice(0, 2000)
-        yield* Effect.promise(async () => {
-          await sql.batch([
-            { query: 'CREATE TABLE IF NOT EXISTS indexer_runs (id INTEGER PRIMARY KEY, at INTEGER NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL)', params: [] },
-            { query: 'INSERT OR REPLACE INTO indexer_runs (id, at, ok, detail) VALUES (1, ?, ?, ?)', params: [Math.floor(Date.now() / 1000), ok ? 1 : 0, safe] },
-          ])
-        })
+        yield* Effect.promise(() => recordIndexerRun(sql, outcome, Math.floor(Date.now() / 1000)))
       })
 
     const run = Effect.gen(function* () {
@@ -103,8 +96,8 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
 
     yield* Cloudflare.Workers.cron('* * * * *', () =>
       run.pipe(
-        Effect.flatMap((r) => record(true, JSON.stringify(r))),
-        Effect.catchCause((c) => record(false, Cause.pretty(c)).pipe(Effect.ignore)),
+        Effect.flatMap((r) => record({ ok: true, result: r })),
+        Effect.catchCause((c) => record({ ok: false, cause: c }).pipe(Effect.ignore)),
       ),
     )
 

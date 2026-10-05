@@ -209,6 +209,9 @@ importers:
 
   apps/indexer:
     dependencies:
+      '@agent-jobs/board':
+        specifier: workspace:*
+        version: link:../../packages/board
       '@agent-jobs/indexer':
         specifier: workspace:*
         version: link:../../packages/indexer
