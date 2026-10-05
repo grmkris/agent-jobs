@@ -114,7 +114,7 @@ async function setupStake() {
     if (amount === 0n) continue
     const allowance = await ctx.publicClient.readContract({ address: h.factory, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet.account.address, h.vault] })
     if (allowance < amount) await journal.contract(`setup/${name}/approve`, wallet, h.factory, sdk.factoryTokenAbi, 'approve', [h.vault, amount])
-    await journal.contract(`setup/${name}/stake`, wallet, h.vault, sdk.stakeVaultAbi, 'stake', [amount])
+    await journal.contract(`setup/${name}/stake`, wallet, h.vault, sdk.stakeVaultAbi, 'delegate', [wallet.account.address, amount])
   }
 }
 

@@ -18,7 +18,7 @@ fork('live hosted runner through the REST/MCP registry on a real local fork', ()
     f.ctx = ctx
     board = boot()
     agentId = await sdk.registerAgent(ctx, f.worker, 'https://hireling.xyz/hosted-live-runner')
-    await sdk.stake(ctx, f.creator, parseEther('100')); await sdk.stake(ctx, f.worker, parseEther('100'))
+    await sdk.delegate(ctx, f.creator, parseEther('100')); await sdk.delegate(ctx, f.worker, parseEther('100'))
   }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
   for (const lost of ['create_task', 'request_quotes', 'submit_quote', 'pick_quote'] as const) {

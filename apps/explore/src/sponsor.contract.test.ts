@@ -92,8 +92,8 @@ describe('Explore against the board’s real sponsorship desk', () => {
     expect(read.policy.calls).toBe(100n)
     expect(read.policy.validUntil).toBe(1_800_000_000 + 86_400)
     const names = read.policy.methods.map((m) => m.name)
-    for (const allowed of ['activate', 'settle', 'claimTopUpRefund', 'accept', 'retryDeferred', 'cancelUnstake', 'withdraw']) expect(names).toContain(allowed)
-    for (const excluded of ['topUp', 'publish', 'stake', 'requestUnstake', 'setHoldingDenied', 'rule']) expect(names).not.toContain(excluded)
+    for (const allowed of ['activate', 'settle', 'claimTopUpRefund', 'accept', 'retryDeferred', 'cancelUndelegate', 'withdraw']) expect(names).toContain(allowed)
+    for (const excluded of ['topUp', 'publish', 'delegate', 'requestUndelegate', 'setHoldingDenied', 'rule']) expect(names).not.toContain(excluded)
     // Another wallet's page refuses it; so does one expecting another relay.
     expect(readDelegation(prep.sign.typedData, b.relay.address, b.rules)).toMatchObject({ ok: false })
     expect(readDelegation(prep.sign.typedData, b.owner.address, { ...b.rules, relay: addr('9') })).toMatchObject({ ok: false })

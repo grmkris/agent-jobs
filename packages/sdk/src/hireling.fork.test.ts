@@ -2,7 +2,7 @@ import { parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
 import { activate, balanceOf, cancel, claimTopUpRefund, getJob, getStake, getV1Listing, hashText, publish, quoteActivation,
-  registerAgent, requestUnstake, settle, settleDeferred, signSelection, stake, submit, accept, topUp, withdrawStake, type ActivationTerms } from './actions.ts'
+  registerAgent, requestUndelegate, settle, settleDeferred, signSelection, delegate, submit, accept, topUp, withdraw, type ActivationTerms } from './actions.ts'
 import { coreAbi } from './abi/index.ts'
 import { factoryV2Abi, jobHoldingAbi, jobPoolAbi } from './abi/index.ts'
 import { hirelingLifecycle, hirelingState } from './hireling.ts'
@@ -17,8 +17,8 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
   beforeAll(async () => {
     f = await startHirelingFork()
     agentId = await registerAgent(f.ctx, f.worker, 'https://hireling.xyz/sdk-local-fork-test')
-    await stake(f.ctx, f.creator, parseEther('100'))
-    await stake(f.ctx, f.worker, parseEther('100'))
+    await delegate(f.ctx, f.creator, parseEther('100'))
+    await delegate(f.ctx, f.worker, parseEther('100'))
   }, forkSetupTimeout())
   afterAll(() => f?.close())
 
@@ -34,7 +34,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     return { jobId, expected, selection, creatorSig: await signSelection(ctx, creator, selection) }
   }
 
-  it('fee-paying activation funds the core with the quoted net and reserves stake without bond approvals', async () => {
+  it('fee-paying activation funds the core with the quoted net and reserves backing without bond approvals', async () => {
     const x = await listed()
     expect(await quoteActivation(f.ctx, x.jobId, f.worker.account.address)).toEqual([3000, 31n, 70n])
     const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.worker.account.address })
@@ -44,7 +44,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     expect((await getJob(f.ctx, x.jobId)).budget).toBe(70n)
     expect((await getV1Listing(f.ctx, x.jobId)).fee).toBe(31n)
     expect((await getStake(f.ctx, f.worker.account.address)).reserved).toBe(parseEther('10'))
-    await expect(requestUnstake(f.ctx, f.worker, parseEther('91'))).rejects.toThrow()
+    await expect(requestUndelegate(f.ctx, f.worker, parseEther('101'))).rejects.toThrow()
     await topUp(f.ctx, f.contributor, x.jobId, 11n)
     const before = await balanceOf(f.ctx, f.ctx.stack.factory, f.worker.account.address)
     await submit(f.ctx, f.worker, x.jobId, hashText('finished'))
@@ -75,7 +75,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     expect(lifecycle(await hirelingLifecycle(f.ctx, x.jobId))).toMatchObject({ key: 'completed', beneficiary: 'worker' })
   }, 120_000)
 
-  it('refunds a cancelled offer and a contributor top-up after a missed delivery, then withdraws cooled stake', async () => {
+  it('refunds a cancelled offer and a contributor top-up after a missed delivery, then withdraws cooled backing', async () => {
     const cancelled = await listed()
     await cancel(f.ctx, f.creator, cancelled.jobId)
     expect((await getV1Listing(f.ctx, cancelled.jobId)).outcome).toBe(2)
@@ -90,12 +90,12 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     const before = await balanceOf(f.ctx, f.ctx.stack.factory, f.contributor.account.address)
     await claimTopUpRefund(f.ctx, f.creator, x.jobId, f.contributor.account.address)
     expect((await balanceOf(f.ctx, f.ctx.stack.factory, f.contributor.account.address)) - before).toBe(12n)
-    await requestUnstake(f.ctx, f.worker, parseEther('10'))
+    await requestUndelegate(f.ctx, f.worker, parseEther('10'))
     const state = await getStake(f.ctx, f.worker.account.address)
-    await expect(withdrawStake(f.ctx, f.worker)).rejects.toThrow()
+    await expect(withdraw(f.ctx, f.worker)).rejects.toThrow()
     await f.rpc('evm_setNextBlockTimestamp', [state.unlockAt + 1])
     await f.rpc('evm_mine')
-    await withdrawStake(f.ctx, f.worker)
+    await withdraw(f.ctx, f.worker)
     expect((await getStake(f.ctx, f.worker.account.address)).unstaking).toBe(0n)
   }, 120_000)
 

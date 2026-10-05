@@ -23,8 +23,8 @@ export function grantSpecJson(spec: sdk.GrantSpec): string {
 }
 
 export function parseGrantSpec(json: string): sdk.GrantSpec {
-  const raw = JSON.parse(json) as sdk.GrantSpec & { salt: string; amount?: string }
-  return { ...raw, salt: BigInt(raw.salt), ...(raw.amount === undefined ? {} : { amount: BigInt(raw.amount) }) } as sdk.GrantSpec
+  const raw = JSON.parse(json) as sdk.GrantSpec & { salt: string; amount?: string; shares?: string }
+  return { ...raw, salt: BigInt(raw.salt), ...(raw.amount === undefined ? {} : { amount: BigInt(raw.amount) }), ...(raw.shares === undefined ? {} : { shares: BigInt(raw.shares) }) } as sdk.GrantSpec
 }
 
 export class GrantStore {
@@ -105,8 +105,8 @@ export class GrantStore {
        WHERE approvals.operation_id=? AND approvals.kind='unstake'`, spec.operationId)[0]
     if (approval === undefined || approval.status !== 'approved' || approval.state === 'revoked' || approval.chain_id !== this.context.deployment.chainId
       || approval.operator.toLowerCase() !== owner.toLowerCase() || approval.address?.toLowerCase() !== spec.delegator.toLowerCase()) throw new Error('Unstake requires a verified operator decision for this operation')
-    const request = JSON.parse(approval.request_json) as { amount?: string; call?: { to: string; data: string } }
-    if (request.amount !== spec.amount.toString() || request.call === undefined) throw new Error('Unstake differs from the exact operator approval')
+    const request = JSON.parse(approval.request_json) as { amount?: string; shares?: string; call?: { to: string; data: string } }
+    if (request.shares !== spec.shares.toString() || request.call === undefined) throw new Error('Unstake differs from the exact operator approval')
     checkGrantCall(this.context, spec, request.call)
   }
 

@@ -2,7 +2,7 @@ import * as sdk from '@agent-jobs/sdk'
 import { Link } from '@tanstack/react-router'
 import { ChevronLeft, Hourglass, Layers, Lock, ShieldX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { type Address, type Hex, encodeFunctionData, parseSignature, zeroAddress } from 'viem'
+import { type Address, type Hex, createPublicClient, http, encodeFunctionData, parseSignature, zeroAddress } from 'viem'
 import { useReadContracts, useSignTypedData } from 'wagmi'
 import type { TxRequest } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
@@ -17,6 +17,8 @@ import { type HirelingContracts, hireling } from '../hireling.ts'
 import { amountProblem, factoryAmount, percent, proposalState, tierOf } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain } from '../wallet.ts'
+
+const rpc = createPublicClient({ chain, transport: http() })
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
 
@@ -107,7 +109,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'stakeOf', args: [address], chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'reservedOf', args: [address], chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [address], chainId: chain.id },
-      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'unstakeOf', args: [address], chainId: chain.id },
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'positionOf', args: [address, address], chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'UNSTAKE_DELAY', chainId: chain.id },
       { address: c.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'schedule', chainId: chain.id },
       { address: c.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'pending', chainId: chain.id },
@@ -115,20 +117,21 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       { address: c.factory, abi: sdk.factoryV2Abi, functionName: 'nonces', args: [address], chainId: chain.id },
       { address: c.factory, abi: sdk.factoryV2Abi, functionName: 'eip712Domain', chainId: chain.id },
       { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'bootstrapped', chainId: chain.id },
+      { address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'poolOf', args: [address], chainId: chain.id },
     ],
     query: { refetchInterval: 15_000 },
   })
   const parse = (data: typeof reads.data): Facts | null => {
     if (data === undefined || data.some((r) => r.status !== 'success')) return null
-    const [staked, reserved, available, unstake, cooldown, schedule, pending, wallet, nonce, domain, open] = data.map((r) => r.result) as [
-      bigint, bigint, bigint, readonly [bigint, number], number,
+    const [staked, reserved, available, unstake, cooldown, schedule, pending, wallet, nonce, domain, open, pool] = data.map((r) => r.result) as [
+      bigint, bigint, bigint, { shares: bigint; queuedShares: bigint; unlockAt: number; generation: bigint }, number,
       { thresholds: readonly bigint[]; bps: readonly number[] },
       readonly [{ thresholds: readonly bigint[]; bps: readonly number[] }, number],
-      bigint, bigint, readonly [Hex, string, string, bigint, Address, Hex, readonly bigint[]], boolean,
+      bigint, bigint, readonly [Hex, string, string, bigint, Address, Hex, readonly bigint[]], boolean, { assets: bigint; shares: bigint },
     ]
     return {
       open, staked, reserved, available, wallet, nonce, cooldown: Number(cooldown),
-      unstaking: unstake[0], unlockAt: Number(unstake[1]),
+      unstaking: pool.shares === 0n ? 0n : unstake.queuedShares * pool.assets / pool.shares, unlockAt: Number(unstake.unlockAt),
       schedule,
       pending: Number(pending[1]) === 0 ? null : { ...pending[0], eta: Number(pending[1]) },
       domain: { name: domain[1], version: domain[2], chainId: domain[3], verifyingContract: domain[4] },
@@ -196,7 +199,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
         message: { owner: address, spender: c.vault, value, nonce: fresh.nonce, deadline },
       })
       const { r, s, v, yParity } = parseSignature(signature)
-      const data = encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'stakeWithPermit', args: [value, deadline, Number(v ?? BigInt(yParity + 27)), r, s] })
+      const data = encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegateWithPermit', args: [address, value, deadline, Number(v ?? BigInt(yParity + 27)), r, s] })
       setOp({ kind: 'stake', txs: [tx(`Stake ${fmt(value)}`, data)] })
       setText('')
     } catch (e) {
@@ -205,11 +208,14 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
       setBusy(false)
     }
   }
-  const submit = () => {
+  const submit = async () => {
     if (amount === null || problem !== null || facts === null || stale) return
     if (mode === 'stake') void stake(amount)
     else {
-      setOp({ kind: 'unstake', txs: [tx(`Start unstaking ${fmt(amount)}`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [amount] }))] })
+      try {
+        const shares = await rpc.readContract({ address: c.vault, abi: sdk.stakeVaultAbi, functionName: 'convertToShares', args: [address, amount] })
+        setOp({ kind: 'unstake', txs: [tx(`Start unstaking ${fmt(amount)}`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [address, shares] }))] })
+      } catch (failure) { setError(friendlyError(failure)); return }
       setText('')
     }
   }
@@ -355,7 +361,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
                   <Button
                     className="flex-1"
                     disabled={!unlocked || op !== null || stale}
-                    onClick={() => setOp({ kind: 'withdraw', txs: [tx(`Withdraw ${fmt(facts.unstaking)}`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw' }))] })}
+                    onClick={() => setOp({ kind: 'withdraw', txs: [tx(`Withdraw ${fmt(facts.unstaking)}`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [address] }))] })}
                   >
                     Withdraw
                   </Button>
@@ -363,7 +369,7 @@ function Stake({ c, address }: { c: HirelingContracts; address: Address }) {
                     variant="tinted"
                     className="flex-1"
                     disabled={op !== null || stale}
-                    onClick={() => setOp({ kind: 'cancel', txs: [tx(`Stake ${fmt(facts.unstaking)} again`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelUnstake' }))] })}
+                    onClick={() => setOp({ kind: 'cancel', txs: [tx(`Stake ${fmt(facts.unstaking)} again`, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'cancelUndelegate', args: [address] }))] })}
                   >
                     Keep it staked
                   </Button>

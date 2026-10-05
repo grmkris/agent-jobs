@@ -8,7 +8,7 @@ import {IStakeVault} from "./IStakeVault.sol";
 /// @notice Pays work-mining rewards (ADR-0011). After an epoch ends, the owner (the Safe) posts its Merkle root, the
 ///         total, and the hash of the published epoch data; the root must be backed by FACTORY already here and not
 ///         promised to an earlier root. Anyone may then claim for any account: the reward is staked straight into the
-///         vault for that account (`IStakeVault.stakeFor`), never sent to a wallet.
+///         vault for that account (`IStakeVault.delegateFor`), never sent to a wallet.
 ///
 ///         Leaves use OpenZeppelin's double hash, `keccak256(bytes.concat(keccak256(abi.encode(epoch, account,
 ///         amount))))` (`StandardMerkleTree` with types `["uint256", "address", "uint256"]`). A root can be replaced

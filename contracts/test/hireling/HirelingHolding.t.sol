@@ -198,7 +198,7 @@ contract HirelingHoldingTest is BaseV1 {
             uint256 have = vault.stakeOf(worker);
             if (stakes[i] > have) {
                 vm.prank(worker);
-                vault.stake(stakes[i] - have);
+                vault.delegate(worker, stakes[i] - have);
             }
             uint256 jobId = publish();
             (uint16 bps, uint256 fee, uint256 net) = holding.quoteActivation(jobId, worker);
@@ -219,7 +219,7 @@ contract HirelingHoldingTest is BaseV1 {
     function test_activate_reservationsIncludedInTier() public {
         // 9_990 staked + 10 reserved elsewhere = 10_000: the 10 % tier counts reserved stake.
         vm.prank(worker);
-        vault.stake(10_000e18 - WORKER_STAKE);
+        vault.delegate(worker, 10_000e18 - WORKER_STAKE);
         uint256 jobId = publish();
         activate(jobId);
         assertEq(vault.reservedOf(worker), WORKER_BOND);
@@ -251,21 +251,24 @@ contract HirelingHoldingTest is BaseV1 {
         uint256 jobId = fundedJob();
         uint16 before = listing(jobId).feeBps;
         vm.prank(worker);
-        vault.stake(1_000_000e18);
+        vault.delegate(worker, 1_000_000e18);
         assertEq(listing(jobId).feeBps, before);
         assertEq(holding.termsOf(jobId).funded, REWARD - listing(jobId).fee);
     }
 
-    function test_activate_reservesWorkerBond_blocksUnstake() public {
+    function test_activate_reservesWorkerBond_blocksWithdrawal() public {
         uint256 jobId = fundedJob();
         assertTrue(listing(jobId).workerBondReserved);
         assertEq(vault.reservedOf(worker), WORKER_BOND);
         assertEq(factory.balanceOf(address(holding)), 0, "no FACTORY moves at activation");
+        uint256 shares = vault.positionOf(worker, worker).shares;
         vm.prank(worker);
-        vm.expectRevert(
-            abi.encodeWithSelector(IStakeVault.InsufficientAvailable.selector, WORKER_STAKE - WORKER_BOND, WORKER_STAKE)
-        );
-        vault.requestUnstake(WORKER_STAKE);
+        vault.requestUndelegate(worker, shares);
+        assertEq(vault.availableOf(worker), 0);
+        vm.warp(block.timestamp + vault.UNSTAKE_DELAY());
+        vm.prank(worker);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.StillBonded.selector, 0, WORKER_BOND));
+        vault.withdraw(worker);
     }
 
     function test_activate_workerBondNeedsStake() public {

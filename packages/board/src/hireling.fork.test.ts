@@ -23,8 +23,8 @@ fork('Hireling board on a local Monad fork', () => {
     now = Number((await f.ctx.publicClient.getBlock()).timestamp)
     board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: f.ctx }, domain: 'fork.test', uri: 'https://fork.test', manifestBaseUrl: 'https://fork.test/offers', now: () => now })
     agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/board-local-fork')
-    await sdk.stake(f.ctx, f.creator, parseEther('100'))
-    await sdk.stake(f.ctx, f.worker, parseEther('100'))
+    await sdk.delegate(f.ctx, f.creator, parseEther('100'))
+    await sdk.delegate(f.ctx, f.worker, parseEther('100'))
   }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
 
@@ -62,7 +62,7 @@ fork('Hireling board on a local Monad fork', () => {
 
   it.each(['arbitrary caller', 'drain recovery'])('refuses a copied-hash publication reported through %s, then binds and activates the creator’s job', async (path) => {
     const created = await board.createTask({ address: f.creator.account.address }, offer())
-    await sdk.stake(f.ctx, f.contributor, parseEther('10'))
+    await sdk.delegate(f.ctx, f.contributor, parseEther('10'))
     const spoof = await sdk.publish(f.ctx, f.contributor, { mode: 'hire', token: f.ctx.stack.factory, reward: 101n,
       creatorBond: parseEther('10'), workerBond: parseEther('10'), deliveryDeadline: now + 3600,
       reviewWindow: windows.reviewSeconds, disputeWindow: windows.disputeSeconds, arbitrationWindow: windows.arbitrationSeconds,
@@ -130,7 +130,7 @@ fork('Hireling board on a local Monad fork', () => {
       tool: 'prepare_activation', args: { taskId: x.taskId }, typedData: JSON.stringify(wrongAmount),
     })).rejects.toThrow('frozen authorized action')
     const oldSignature = await sdk.signTypedDataJson(f.worker, prep.sign.typedData)
-    await sdk.stake(f.ctx, f.worker, parseEther('10000'))
+    await sdk.delegate(f.ctx, f.worker, parseEther('10000'))
     await expect(board.verifyAgentSigning({ address: f.worker.account.address }, {
       tool: 'prepare_activation', args: { taskId: x.taskId }, typedData: prep.sign.typedData,
     })).rejects.toThrow('frozen authorized action')

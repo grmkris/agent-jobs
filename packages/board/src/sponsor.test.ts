@@ -157,7 +157,7 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
     for (const [to, abi, methods] of [
       [f.ctx.stack.holding, sdk.hirelingHoldingAbi, ['publish', 'topUp', 'setDefaultArbitrator']],
       [f.ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, ['rule', 'ruleWithSignature', 'cancelRuling', 'notePause', 'setVerifier']],
-      [f.ctx.deployment.hireling!.vault, sdk.stakeVaultAbi, ['stake', 'stakeWithPermit', 'requestUnstake', 'setHoldingDenied']],
+      [f.ctx.deployment.hireling!.vault, sdk.stakeVaultAbi, ['delegate', 'delegateWithPermit', 'requestUndelegate', 'setHoldingDenied']],
       [f.ctx.deployment.core, sdk.coreAbi, ['setPayoutReceiver', 'pause', 'upgradeToAndCall']],
     ] as const) {
       for (const name of methods) {

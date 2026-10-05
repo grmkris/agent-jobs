@@ -20,7 +20,7 @@ library HirelingConstants {
     /// @notice The highest fee any FeeSchedule may charge (30 %).
     uint16 internal constant MAX_FEE_BPS = 3_000;
 
-    /// @notice Stake withdrawals wait this long after `requestUnstake`.
+    /// @notice Stake withdrawals wait this long after `requestUndelegate`.
     uint48 internal constant UNSTAKE_DELAY = 7 days;
     /// @notice A new Holding can reserve stake only this long after it is proposed: longer than `UNSTAKE_DELAY`,
     ///         so every staker can leave before a Holding they distrust can touch their stake.

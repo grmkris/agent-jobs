@@ -43,7 +43,7 @@ contract StakeVaultTest is Test {
 
     function _stake(address who, uint256 amount) internal {
         vm.prank(who);
-        vault.stake(amount);
+        vault.delegate(who, amount);
     }
 
     function _reserve(address by, address who, uint256 amount) internal {
@@ -52,8 +52,8 @@ contract StakeVaultTest is Test {
     }
 
     function _assertConserved() internal view {
-        assertEq(token.balanceOf(address(vault)), vault.totalStaked() + vault.totalUnstaking(), "balance");
-        assertLe(vault.totalReserved(), vault.totalStaked(), "reserved <= staked");
+        assertEq(token.balanceOf(address(vault)), vault.totalAssets(), "balance");
+        assertLe(vault.totalReserved(), vault.totalAssets(), "reserved <= staked");
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -64,28 +64,28 @@ contract StakeVaultTest is Test {
         _stake(alice, 100e18);
         assertEq(vault.stakeOf(alice), 100e18);
         assertEq(vault.availableOf(alice), 100e18);
-        assertEq(vault.totalStaked(), 100e18);
+        assertEq(vault.totalAssets(), 100e18);
         _assertConserved();
     }
 
     function test_stake_refusesZero() public {
         vm.prank(alice);
         vm.expectRevert(IStakeVault.ZeroAmount.selector);
-        vault.stake(0);
+        vault.delegate(alice, 0);
     }
 
     function test_stakeFor_paidByCallerCreditsAccount() public {
         vm.prank(bob);
         vm.expectEmit(address(vault));
-        emit IStakeVault.Staked(alice, bob, 5e18);
-        vault.stakeFor(alice, 5e18);
+        emit IStakeVault.Delegated(alice, alice, bob, 5e18, 5e18);
+        vault.delegateFor(alice, alice, 5e18);
         assertEq(vault.stakeOf(alice), 5e18);
         assertEq(vault.stakeOf(bob), 0);
         assertEq(token.balanceOf(bob), 1_000_000e18 - 5e18);
 
         vm.prank(bob);
         vm.expectRevert(IStakeVault.ZeroAddress.selector);
-        vault.stakeFor(address(0), 1);
+        vault.delegateFor(address(0), bob, 1);
     }
 
     function test_stakeWithPermit_andToleratesAFrontRunPermit() public {
@@ -97,7 +97,7 @@ contract StakeVaultTest is Test {
         // Someone submits the permit first; the stake still goes through on the allowance it left.
         token.permit(carol, address(vault), 10e18, deadline, v, r, s);
         vm.prank(carol);
-        vault.stakeWithPermit(10e18, deadline, v, r, s);
+        vault.delegateWithPermit(carol, 10e18, deadline, v, r, s);
         assertEq(vault.stakeOf(carol), 10e18);
     }
 
@@ -107,7 +107,7 @@ contract StakeVaultTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _signPermit(key, carol, 10e18, 0, deadline);
         vm.prank(carol);
-        vault.stakeWithPermit(10e18, deadline, v, r, s);
+        vault.delegateWithPermit(carol, 10e18, deadline, v, r, s);
         assertEq(vault.stakeOf(carol), 10e18);
         assertEq(token.allowance(carol, address(vault)), 0);
     }
@@ -137,8 +137,10 @@ contract StakeVaultTest is Test {
     function test_unstake_cooldownSevenDays() public {
         _stake(alice, 100e18);
         vm.prank(alice);
-        vault.requestUnstake(40e18);
-        (uint256 amount, uint48 unlockAt) = vault.unstakeOf(alice);
+        vault.requestUndelegate(alice, 40e18);
+        IStakeVault.Position memory position = vault.positionOf(alice, alice);
+        uint256 amount = position.queuedShares;
+        uint48 unlockAt = position.unlockAt;
         assertEq(amount, 40e18);
         assertEq(unlockAt, t0 + 7 days);
         assertEq(vault.stakeOf(alice), 60e18, "cooldown no longer counts for the tier");
@@ -146,30 +148,32 @@ contract StakeVaultTest is Test {
 
         vm.warp(t0 + 7 days - 1);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UnstakeLocked.selector, uint48(t0 + 7 days)));
-        vault.withdraw();
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.UndelegateLocked.selector, uint48(t0 + 7 days)));
+        vault.withdraw(alice);
 
         vm.warp(t0 + 7 days);
         uint256 before = token.balanceOf(alice);
         vm.prank(alice);
-        vault.withdraw();
+        vault.withdraw(alice);
         assertEq(token.balanceOf(alice), before + 40e18);
-        assertEq(vault.totalUnstaking(), 0);
+        assertEq(vault.poolOf(alice).queuedShares, 0);
         _assertConserved();
 
         vm.prank(alice);
-        vm.expectRevert(IStakeVault.NothingUnstaking.selector);
-        vault.withdraw();
+        vm.expectRevert(IStakeVault.NothingQueued.selector);
+        vault.withdraw(alice);
     }
 
     function test_unstake_secondRequestRestartsCooldown() public {
         _stake(alice, 100e18);
         vm.prank(alice);
-        vault.requestUnstake(10e18);
+        vault.requestUndelegate(alice, 10e18);
         vm.warp(t0 + 6 days);
         vm.prank(alice);
-        vault.requestUnstake(10e18);
-        (uint256 amount, uint48 unlockAt) = vault.unstakeOf(alice);
+        vault.requestUndelegate(alice, 10e18);
+        IStakeVault.Position memory position = vault.positionOf(alice, alice);
+        uint256 amount = position.queuedShares;
+        uint48 unlockAt = position.unlockAt;
         assertEq(amount, 20e18);
         assertEq(unlockAt, t0 + 13 days);
     }
@@ -177,32 +181,35 @@ contract StakeVaultTest is Test {
     function test_unstake_cancelRestoresStake() public {
         _stake(alice, 100e18);
         vm.prank(alice);
-        vault.requestUnstake(30e18);
+        vault.requestUndelegate(alice, 30e18);
         vm.prank(alice);
-        vault.cancelUnstake();
+        vault.cancelUndelegate(alice);
         assertEq(vault.stakeOf(alice), 100e18);
-        (uint256 amount,) = vault.unstakeOf(alice);
+        uint256 amount = vault.positionOf(alice, alice).queuedShares;
         assertEq(amount, 0);
         _assertConserved();
 
         vm.prank(alice);
-        vm.expectRevert(IStakeVault.NothingUnstaking.selector);
-        vault.cancelUnstake();
+        vm.expectRevert(IStakeVault.NothingQueued.selector);
+        vault.cancelUndelegate(alice);
     }
 
-    function test_unstake_reservationBlocksUnstake() public {
+    function test_undelegate_bondsAllowQueueButBlockWithdrawal() public {
         _stake(alice, 100e18);
         _reserve(holding, alice, 70e18);
-        assertEq(vault.stakeOf(alice), 100e18, "reservations count for the tier");
-        assertEq(vault.availableOf(alice), 30e18);
-
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(IStakeVault.InsufficientAvailable.selector, 30e18, 31e18));
-        vault.requestUnstake(31e18);
-
-        vm.prank(alice);
-        vault.requestUnstake(30e18);
+        vault.requestUndelegate(alice, 40e18);
+        assertEq(vault.stakeOf(alice), 60e18);
         assertEq(vault.availableOf(alice), 0);
+        vm.warp(t0 + 7 days);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStakeVault.StillBonded.selector, 60e18, 70e18));
+        vault.withdraw(alice);
+        vm.prank(holding);
+        vault.release(alice, 10e18);
+        vm.prank(alice);
+        vault.withdraw(alice);
+        assertEq(vault.poolOf(alice).assets, 60e18);
         _assertConserved();
     }
 
@@ -232,7 +239,7 @@ contract StakeVaultTest is Test {
 
         // Stake in cooldown cannot be reserved either.
         vm.prank(alice);
-        vault.requestUnstake(40e18);
+        vault.requestUndelegate(alice, 40e18);
         vm.prank(holding);
         vm.expectRevert(abi.encodeWithSelector(IStakeVault.InsufficientAvailable.selector, 0, 1));
         vault.reserve(alice, 1);
@@ -326,10 +333,10 @@ contract StakeVaultTest is Test {
         vm.prank(safe);
         vault.proposeHolding(holding2);
         vm.prank(alice);
-        vault.requestUnstake(100e18);
+        vault.requestUndelegate(alice, 100e18);
         vm.warp(t0 + 7 days);
         vm.prank(alice);
-        vault.withdraw();
+        vault.withdraw(alice);
         vm.expectRevert();
         vault.acceptHolding();
     }
@@ -399,11 +406,11 @@ contract StakeVaultTest is Test {
         token.approve(address(fresh), type(uint256).max);
         // Nobody can stake 1 wei ahead of the bootstrap to force the 8-day path.
         vm.expectRevert(IStakeVault.NotBootstrapped.selector);
-        fresh.stake(1);
+        fresh.delegate(address(this), 1);
         vm.expectRevert(IStakeVault.NotBootstrapped.selector);
-        fresh.stakeFor(alice, 1);
+        fresh.delegateFor(alice, alice, 1);
         vm.expectRevert(IStakeVault.NotBootstrapped.selector);
-        fresh.stakeWithPermit(1, block.timestamp, 0, bytes32(0), bytes32(0));
+        fresh.delegateWithPermit(address(this), 1, block.timestamp, 0, bytes32(0), bytes32(0));
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob));
@@ -414,7 +421,7 @@ contract StakeVaultTest is Test {
         assertTrue(fresh.isHolding(holding));
         assertTrue(fresh.bootstrapped());
 
-        fresh.stake(1);
+        fresh.delegate(address(this), 1);
         assertEq(fresh.stakeOf(address(this)), 1);
         vm.expectRevert(IStakeVault.BootstrapClosed.selector);
         fresh.bootstrapHolding(holding2);
@@ -427,7 +434,7 @@ contract StakeVaultTest is Test {
         fresh.acceptHolding();
         assertTrue(fresh.bootstrapped());
         token.approve(address(fresh), 1);
-        fresh.stake(1);
+        fresh.delegate(address(this), 1);
         vm.expectRevert(IStakeVault.BootstrapClosed.selector);
         fresh.bootstrapHolding(holding2);
     }
@@ -454,7 +461,7 @@ contract StakeVaultTest is Test {
         uint256 unstake = bound(uint256(u), 0, staked - reserved);
         if (unstake > 0) {
             vm.prank(alice);
-            vault.requestUnstake(unstake);
+            vault.requestUndelegate(alice, unstake);
         }
         _assertConserved();
         uint256 amount = bound(uint256(x), 0, reserved + 1);
@@ -463,7 +470,7 @@ contract StakeVaultTest is Test {
         uint256 moved = slashIt ? vault.slash(alice, amount) : vault.release(alice, amount);
         assertEq(moved, amount < reserved ? amount : reserved);
         if (slashIt) assertEq(token.totalSupply(), supply - moved);
-        assertEq(vault.stakeOf(alice), staked - unstake - (slashIt ? moved : 0));
+        assertEq(vault.stakeOf(alice), (staked - unstake) * (staked - (slashIt ? moved : 0)) / staked);
         assertEq(vault.reservedOf(alice), reserved - moved);
         _assertConserved();
     }

@@ -92,7 +92,7 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
   }
   if (base.deployment.hireling !== null) {
     const h = base.deployment.hireling, state = await sdk.getStake(base, wallet)
-    if (state.unstaking > 0n && now >= state.unlockAt) out.push({ kind: 'stakeWithdraw', token: h.factory, amount: state.unstaking.toString(), description: 'Withdraw FACTORY whose unstaking cooldown has ended.', transactions: [transaction(base, 'Withdraw unstaked FACTORY', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw' }))] })
+    if (state.unstaking > 0n && now >= state.unlockAt) out.push({ kind: 'stakeWithdraw', token: h.factory, amount: state.unstaking.toString(), description: 'Withdraw FACTORY whose unstaking cooldown has ended.', transactions: [transaction(base, 'Withdraw unstaked FACTORY', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [wallet] }))] })
     for (const epoch of new Set(snapshot.epochs ?? [])) {
       if (mining === undefined) throw new Error('mining artifacts are unavailable for Collect')
       const claim = await miningProof(base, wallet, epoch, mining)

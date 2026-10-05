@@ -63,7 +63,7 @@ contract HirelingRehearsalForkTest is Test {
             if (address(d.vault) != address(0) && !d.vault.bootstrapped()) {
                 vm.prank(stranger);
                 vm.expectRevert(IStakeVault.NotBootstrapped.selector);
-                d.vault.stake(1);
+                d.vault.delegate(address(this), 1);
             }
             if (address(d.vault) != address(0)) {
                 vm.prank(stranger);
@@ -160,7 +160,7 @@ contract HirelingRehearsalForkTest is Test {
         d.factory.transfer(worker, 20_000e18);
         vm.startPrank(worker);
         d.factory.approve(address(d.vault), type(uint256).max);
-        d.vault.stake(20_000e18);
+        d.vault.delegate(worker, 20_000e18);
         vm.stopPrank();
 
         uint48 deadline = uint48(vm.getBlockTimestamp() + 2 days);

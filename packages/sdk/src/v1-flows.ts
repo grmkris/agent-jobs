@@ -1,5 +1,5 @@
 /** Testnet live matrix money paths. Every send goes through the persisted journal; this module never deploys. */
-import { type Address, type Abi, type TransactionReceipt, decodeEventLog, encodeFunctionData, parseUnits } from 'viem'
+import { type Address, type Abi, type TransactionReceipt, decodeEventLog, parseUnits } from 'viem'
 import * as sdk from './index.ts'
 import { FlowJournal } from './flow-journal.ts'
 import { verifyJobEconomics, verifyOwedWithdrawal } from './v1-flow-economics.ts'
@@ -90,14 +90,6 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
       const result = { ...selectionData, auth, net }; j.state.values[`${scope}/activation`] = result; j.save(j.state); return result
     })() : j.state.values[`${scope}/activation`] as typeof selectionData & { auth: sdk.Authorization; net: bigint }
     await call('activate', worker, pair.stack.holding, pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi, 'activate', [data.selection, data.sig, data.auth])
-    const stakeState = await sdk.getStake(ctx, worker.account.address)
-    if (pair.stack.kind === 'hireling-v1' && x.p.workerBond > 0n && j.state.values[`${scope}/reservation-refused`] !== true) {
-      let refused = false
-      try { await ctx.publicClient.estimateGas({ account: worker.account, to: h.vault,
-        data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [stakeState.staked] }) }) } catch { refused = true }
-      check('reservation prevents unstaking', refused, true)
-      j.state.values[`${scope}/reservation-refused`] = true; j.save(j.state)
-    }
     return data.net
   }
   const submit = (jobId: bigint) => call('submit', worker, ctx.deployment.core, sdk.coreAbi, 'submit', [jobId, sdk.hashText(`deliverable:${flow}`), '0x'])
@@ -105,10 +97,11 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
 
   if (flow === 'stake-cooldown') {
     const amount = parseUnits('1', 18)
-    await call('request-unstake', worker, h.vault, sdk.stakeVaultAbi, 'requestUnstake', [amount])
+    const shares = await j.once(`${scope}/shares`, () => sdk.undelegationShares(ctx, worker.account.address, worker.account.address, amount))
+    await call('request-unstake', worker, h.vault, sdk.stakeVaultAbi, 'requestUndelegate', [worker.account.address, shares])
     const unlock = await j.once(`${scope}/unlock`, async () => (await sdk.getStake(ctx, worker.account.address)).unlockAt)
     await d.waitUntil(flow, unlock)
-    await call('withdraw', worker, h.vault, sdk.stakeVaultAbi, 'withdraw', [])
+    await call('withdraw', worker, h.vault, sdk.stakeVaultAbi, 'withdraw', [worker.account.address])
     check('cooldown amount withdrawn', (await sdk.getStake(ctx, worker.account.address)).unstaking, 0n)
   } else if (flow.startsWith('legacy-')) {
     const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
@@ -140,7 +133,7 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
       check('first fee tier snapshots', low.feeBps, tiers.bps[0])
       const amount = tiers.thresholds[1] - staked
       await approve('approve-stake', worker, h.factory, h.vault, amount)
-      await call('stake-tier', worker, h.vault, sdk.stakeVaultAbi, 'stake', [amount])
+      await call('stake-tier', worker, h.vault, sdk.stakeVaultAbi, 'delegate', [worker.account.address, amount])
     }
     const x = await publish(), jobId = x.jobId
     let net = 0n, paid = false, slashWorker = false, slashCreator = false

@@ -59,7 +59,7 @@ contract HirelingHandler is Test {
         uint256 available = vault.availableOf(who);
         if (available >= amount) return;
         vm.prank(who);
-        vault.stake(amount - available);
+        vault.delegate(who, amount - available);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ contract HirelingHandler is Test {
         if (extra > 0) {
             StakeVault vault = env.vault();
             vm.prank(worker);
-            vault.stake(extra);
+            vault.delegate(worker, extra);
         }
         _ensureAvailable(worker, l.workerBond);
         IHirelingHolding.Selection memory sel = IHirelingHolding.Selection({
@@ -243,13 +243,13 @@ contract HirelingHandler is Test {
     function requestUnstake(uint96 amount) external {
         StakeVault vault = env.vault();
         vm.prank(env.worker());
-        vault.requestUnstake(bound(amount, 1, 1_000_000e18));
+        vault.requestUndelegate(env.worker(), bound(amount, 1, 1_000_000e18));
     }
 
     function withdrawStake() external {
         StakeVault vault = env.vault();
         vm.prank(env.worker());
-        vault.withdraw();
+        vault.withdraw(env.worker());
     }
 }
 
@@ -338,10 +338,10 @@ contract HirelingInvariantsTest is Test {
     function invariant_vaultBooks() public view {
         StakeVault vault = env.vault();
         Factory factory = env.factory();
-        assertEq(factory.balanceOf(address(vault)), vault.totalStaked() + vault.totalUnstaking(), "vault balance");
-        assertLe(vault.totalReserved(), vault.totalStaked(), "totalReserved <= totalStaked");
-        assertLe(vault.reservedOf(env.creator()), vault.stakeOf(env.creator()), "creator reserved <= staked");
-        assertLe(vault.reservedOf(env.worker()), vault.stakeOf(env.worker()), "worker reserved <= staked");
+        assertEq(factory.balanceOf(address(vault)), vault.totalAssets(), "vault balance");
+        assertLe(vault.totalReserved(), vault.totalAssets(), "totalReserved <= totalStaked");
+        assertLe(vault.reservedOf(env.creator()), vault.poolOf(env.creator()).assets, "creator reserved <= staked");
+        assertLe(vault.reservedOf(env.worker()), vault.poolOf(env.worker()).assets, "worker reserved <= staked");
 
         uint256 open;
         uint256 burned;

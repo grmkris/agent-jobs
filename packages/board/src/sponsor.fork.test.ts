@@ -32,7 +32,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
   beforeAll(async () => {
     f = await startHirelingFork(); db = new DatabaseSync(':memory:'); now = Number((await f.ctx.publicClient.getBlock()).timestamp); board = boot()
     agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/sponsor-fork')
-    await sdk.stake(f.ctx, f.creator, parseEther('100')); await sdk.stake(f.ctx, f.worker, parseEther('100'))
+    await sdk.delegate(f.ctx, f.creator, parseEther('100')); await sdk.delegate(f.ctx, f.worker, parseEther('100'))
   }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
 
@@ -133,7 +133,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
   it('the chain enforcers refuse unsafe D15 methods, an outside target, native value, and a non-relay redeemer', async () => {
     const row = db.prepare("SELECT delegation_json, signature FROM grants WHERE delegator=? AND kind='operator'").get(f.worker.account.address.toLowerCase()) as { delegation_json: string; signature: Hex }
     const signed: Delegation = { ...parseDelegation(row.delegation_json), signature: row.signature }
-    const data = encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [parseEther('1')] })
+    const data = encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [f.creator.account.address, parseEther('1')] })
     await expect(f.ctx.publicClient.call({ account: f.admin.account, to: f.ctx.deployment.delegation.manager,
       data: redeemCallsCalldata(signed, [{ target: f.ctx.deployment.hireling!.vault, callData: data, value: 0n }]) })).rejects.toThrow()
     const call = { target: f.ctx.stack.holding, callData: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [987n] }), value: 0n }

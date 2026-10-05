@@ -310,7 +310,7 @@ contract MiningTest is Test {
         distributor.claim(0, carol, 300e18, _proof(t, 2));
         distributor.claim(0, dave, 400e18, _proof(t, 3));
         assertEq(distributor.outstanding(), 0);
-        assertEq(vault.totalStaked(), t.total);
+        assertEq(vault.totalAssets(), t.total);
     }
 
     function test_claim_rootPaysAtMostItsTotal() public {

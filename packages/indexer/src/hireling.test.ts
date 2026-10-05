@@ -57,7 +57,7 @@ const paidLogs = [
   log(holding, addr(2), 'RewardSettled', { jobId: 1000n, to: worker, outcome: 1, amount: 990n }, 104),
   log(holding, addr(2), 'FeeCharged', { jobId: 1000n, token, worker, creator, amount: 110n, bonusPart: 10n }, 104, 1),
   log(holding, addr(2), 'PayoutOwed', { jobId: 1000n, to: worker, token, amount: 990n }, 104, 2),
-  log(sdk.stakeVaultAbi as Abi, addr(4), 'Staked', { account: worker, payer: worker, amount: 10_000n }, 100, 1),
+  log(sdk.stakeVaultAbi as Abi, addr(4), 'Delegated', { account: worker, delegator: worker, payer: worker, assets: 10_000n, shares: 10_000n }, 100, 1),
   log(sdk.stakeVaultAbi as Abi, addr(4), 'Reserved', { holding: addr(2), account: worker, amount: 200n }, 101, 1),
   log(sdk.miningReserveAbi as Abi, addr(7), 'EpochFunded', { epoch: 0n, amount: 500n, totalFunded: 500n }, 105),
   log(sdk.epochDistributorAbi as Abi, addr(6), 'RootSet', { epoch: 0n, root: hash(9), total: 500n, dataHash: hash(10) }, 105, 1),
@@ -168,7 +168,7 @@ describe('Hireling event indexing', () => {
     expect(await listAgents(sql, contracts.chainId)).toMatchObject([{ agentId: '7', completed: 1, lost: 0, earned: {} }])
     expect(detail?.bonds).toMatchObject([{ side: 'creator', outcome: 'burned', recipient: creator }, { side: 'worker', outcome: 'returned', recipient: worker }])
     const protocol = await protocolEvents(sql, contracts.chainId)
-    expect(protocol.map((e) => e.name)).toEqual(['Staked', 'Reserved', 'EpochFunded', 'RootSet', 'Claimed', 'ScheduleExecuted'])
+    expect(protocol.map((e) => e.name)).toEqual(['Delegated', 'Reserved', 'EpochFunded', 'RootSet', 'Claimed', 'ScheduleExecuted'])
     expect(protocol.every((e) => e.at === 10_000 + e.block)).toBe(true)
     expect(protocol.at(-1)?.args.thresholds).toEqual(['0', '10000', '100000', '1000000'])
     expect((await protocolEvents(sql, contracts.chainId, { contract: addr(6), fromBlock: 106 })).map((e) => e.name)).toEqual(['Claimed'])

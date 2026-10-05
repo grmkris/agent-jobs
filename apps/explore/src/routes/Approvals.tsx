@@ -77,6 +77,7 @@ function Approval({
   const request = JSON.parse(approval.request_json) as {
     token?: Address;
     amount: string;
+    shares?: string;
     publish?: `0x${string}`;
     call?: { to: string; data: `0x${string}` };
   };
@@ -135,7 +136,7 @@ function Approval({
       )
         throw new Error("The unstake target is not the vault");
       const decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data: request.call.data });
-      if (decoded.functionName !== "requestUnstake" || decoded.args[0] !== BigInt(request.amount))
+      if (decoded.functionName !== "requestUndelegate" || decoded.args[0].toLowerCase() !== agent.address?.toLowerCase() || decoded.args[1] !== BigInt(request.shares!))
         throw new Error("The unstake call differs from the displayed amount");
     }
     let signature: string | undefined;

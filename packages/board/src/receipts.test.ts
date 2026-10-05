@@ -76,11 +76,12 @@ it('cancel is authorized by the canonical listing creator, and a settle event ne
 const vault = `0x${'4'.repeat(40)}` as Address
 const vaultCtx = { ...ctx, deployment: { ...ctx.deployment, hireling: { vault, factory: ctx.stack.factory } } } as sdk.Ctx
 function vaultLog(kind: 'stake' | 'request-unstake' | 'withdraw-stake', account = wallet, payer = wallet, amount = 7n, address = vault) {
-  if (kind === 'stake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Staked', args: { account, payer } }), data: encodeAbiParameters([{ type: 'uint256' }], [amount]) }
-  if (kind === 'request-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UnstakeRequested', args: { account } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint48' }], [amount, 10n, 1000]) }
-  return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Withdrawn', args: { account } }), data: encodeAbiParameters([{ type: 'uint256' }], [amount]) }
+  const delegator = wallet
+  if (kind === 'stake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator, payer } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [amount, 7n]) }
+  if (kind === 'request-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UndelegateRequested', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint48' }], [7n, amount, 10n, 1000]) }
+  return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Withdrawn', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [7n, amount]) }
 }
-const vaultOp = (kind: string) => op(kind, wallet, { vault, token: ctx.stack.factory, amount: '7' })
+const vaultOp = (kind: string) => op(kind, wallet, { vault, token: ctx.stack.factory, amount: '7', shares: '7' })
 it.each(['stake', 'request-unstake', 'withdraw-stake'] as const)('vault %s matches the exact account, amount, method and configured vault', kind => {
   const prepared = vaultOp(kind)
   expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind)]), prepared)).toBe(true)
@@ -89,7 +90,7 @@ it.each(['stake', 'request-unstake', 'withdraw-stake'] as const)('vault %s match
   expect(confirmsVaultOperation(vaultCtx, { ...receipt([vaultLog(kind)]), status: 'reverted' }, prepared)).toBe(false)
   expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog(kind)]), { ...prepared, detail: null })).toBe(false)
 })
-it('third-party stakeFor cannot confirm a wallet stake, and a replaced vault cannot confirm an old preparation', () => {
+it('third-party delegateFor cannot confirm a wallet stake, and a replaced vault cannot confirm an old preparation', () => {
   expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog('stake', wallet, mallory)]), vaultOp('stake'))).toBe(false)
   expect(confirmsVaultOperation({ ...vaultCtx, deployment: { ...vaultCtx.deployment, hireling: { ...vaultCtx.deployment.hireling!, vault: mallory } } }, receipt([vaultLog('stake')]), vaultOp('stake'))).toBe(false)
 })

@@ -306,19 +306,19 @@ export class Board {
   async stake(caller: Caller, input: { amount: string }) {
     const me = this.#requireCaller(caller)
     const prepared = await v1Tools.prepareStake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'stake', me, { amount: prepared.amount, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'stake', me, { amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
   async requestUnstake(caller: Caller, input: { amount: string }) {
     const me = this.#requireCaller(caller)
     const prepared = await v1Tools.prepareUnstake(this.#ctx('main'), me, input.amount, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'request-unstake', me, { amount: prepared.amount, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'request-unstake', me, { amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
   async withdrawStake(caller: Caller) {
     const me = this.#requireCaller(caller)
     const prepared = await v1Tools.prepareStakeWithdrawal(this.#ctx('main'), me, (code, message) => new BoardError(code, message))
-    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'withdraw-stake', me, { amount: prepared.amount, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
+    const operationId = this.#operation(`vault:${me.toLowerCase()}`, 'withdraw-stake', me, { amount: prepared.amount, shares: prepared.shares, token: prepared.token, vault: this.#ctx('main').deployment.hireling!.vault })
     return { operationId, ...prepared }
   }
   async getStake(_caller: Caller, input: { wallet: string }) {

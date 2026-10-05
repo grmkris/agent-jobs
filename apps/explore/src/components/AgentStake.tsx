@@ -48,7 +48,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           value: "0",
           data: encodeFunctionData({
             abi: sdk.stakeVaultAbi,
-            functionName: "stakeFor",
+            functionName: "delegate",
             args: [agent.address as Address, units],
           }),
         },
@@ -62,7 +62,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
   return (
     <Section
       title="Optional · stake for the agent"
-      note="Your operator wallet pays for one approve + stakeFor batch. Stake belongs to the agent, backs its bonds and sets its fee tier. Bond exposure is not capped by the spending allowance."
+      note="Your operator wallet pays for one approve + delegate batch and keeps ownership of the position. Backing secures the agent’s bonds and sets its fee tier. A slash reduces your position pro-rata."
     >
       {txs === null ? (
         <div className="flex gap-2">

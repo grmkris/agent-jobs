@@ -43,10 +43,11 @@ export function AgentBalances({
       {
         address: vault,
         abi: sdk.stakeVaultAbi,
-        functionName: "unstakeOf",
-        args: [agent.address as Address],
+        functionName: "positionOf",
+        args: [agent.address as Address, agent.address as Address],
         chainId: chain.id,
       },
+      { address: vault, abi: sdk.stakeVaultAbi, functionName: "poolOf", args: [agent.address as Address], chainId: chain.id },
     ],
     query: { refetchInterval: 15000 },
   });
@@ -114,7 +115,9 @@ export function AgentBalances({
   }
   const unstaking = reads.data?.[tokens.length + 1];
   const cooldown =
-    unstaking?.status === "success" ? (unstaking.result as readonly [bigint, number]) : undefined;
+    unstaking?.status === "success" ? (unstaking.result as { queuedShares: bigint; unlockAt: number }) : undefined;
+  const pool = reads.data?.[tokens.length + 2]?.result as { assets: bigint; shares: bigint } | undefined;
+  const queued = cooldown === undefined || pool === undefined || pool.shares === 0n ? 0n : cooldown.queuedShares * pool.assets / pool.shares;
   return (
     <Section
       title="Agent earnings and stake"
@@ -150,10 +153,10 @@ export function AgentBalances({
           ? amount(String(reads.data[tokens.length]!.result), deployment.factory)
           : "unavailable"}
       </p>
-      {cooldown !== undefined && cooldown[0] > 0n && (
+      {cooldown !== undefined && queued > 0n && (
         <p role="alert" className="rounded-xl bg-warn-bg p-3 text-sm text-warn">
-          Unstaking {amount(cooldown[0].toString(), deployment.factory)}. Withdraws after{" "}
-          {new Date(Number(cooldown[1]) * 1000).toLocaleString()}. Emergency recovery can cancel an
+          Unstaking {amount(queued.toString(), deployment.factory)}. Withdraws after{" "}
+          {new Date(Number(cooldown.unlockAt) * 1000).toLocaleString()}. Emergency recovery can cancel an
           unstake.
         </p>
       )}
@@ -173,7 +176,7 @@ export function AgentBalances({
           Request operator approval
         </Button>
       </div>
-      {cooldown !== undefined && cooldown[0] > 0n && (
+      {cooldown !== undefined && queued > 0n && (
         <Button variant="tinted" busy={busy} onClick={() => void execute("withdraw_stake", {})}>
           Withdraw after cooldown
         </Button>

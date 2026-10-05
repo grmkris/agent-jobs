@@ -20,13 +20,13 @@ describe('agent grant store', () => {
     agents.create({ id: 'unstake-fixture', operator, privyUserId: 'did:privy:fixture', name: 'Fixture', registry: d.identity, chainId: d.chainId })
     agents.bindWallet('unstake-fixture', 'fixture-wallet', agent)
     const operation = agents.begin('unstake-fixture', 'unstake-one', 'public', 'request_unstake', { amount: '1' })
-    const call = { to: d.hireling!.vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [17n] }) }
-    agents.requestApproval(operation, 'unstake', { amount: '17', call })
-    const spec: sdk.GrantSpec = { kind: 'unstake', delegator: agent, amount: 17n, operationId: operation.id, start: now, salt: 9n }
+    const call = { to: d.hireling!.vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [agent, 17n] }) }
+    agents.requestApproval(operation, 'unstake', { amount: '17', shares: '17', call })
+    const spec: sdk.GrantSpec = { kind: 'unstake', delegator: agent, shares: 17n, operationId: operation.id, start: now, salt: 9n }
     expect(() => store.prepare(operator, spec)).toThrow('verified operator decision')
     agents.decide(operation.id, operator, true, {})
-    expect(store.prepare(operator, spec).description).toMatchObject({ amount: '17', calls: 1, expiresAt: now + 600 })
-    expect(() => store.prepare(operator, { ...spec, amount: 18n })).toThrow('exact operator approval')
+    expect(store.prepare(operator, spec).description).toMatchObject({ shares: '17', calls: 1, expiresAt: now + 600 })
+    expect(() => store.prepare(operator, { ...spec, shares: 18n })).toThrow('exact operator approval')
     expect(() => store.prepare(agent, spec)).toThrow('verified operator decision')
     db.close()
   })

@@ -36,20 +36,21 @@ export async function prepareTopUp(ctx: sdk.Ctx, wallet: Address, jobId: bigint,
 export async function prepareStake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail) {
   const h = requireV1(ctx, fail), amount = positiveAmount(text, 18, fail)
   if (!await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'bootstrapped' })) throw fail('conflict', 'the stake vault has not opened yet')
-  return { token: h.factory, amount: amount.toString(), transactions: [
+  const shares = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'convertToShares', args: [wallet, amount] })
+  return { token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [
     ...await approved(ctx, wallet, h.factory, h.vault, amount, fail),
-    transaction(ctx, 'Stake FACTORY for fees and bonds', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'stake', args: [amount] })),
+    transaction(ctx, 'Stake FACTORY for fees and bonds', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [wallet, amount] })),
   ] }
 }
 export async function prepareUnstake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail) {
   const h = requireV1(ctx, fail), amount = positiveAmount(text, 18, fail)
-  const state = await sdk.getStake(ctx, wallet)
-  if (amount > state.available) throw fail('conflict', 'reserved stake cannot be unstaked; amount exceeds available stake')
-  return { token: h.factory, amount: amount.toString(), transactions: [transaction(ctx, 'Start the unstaking cooldown', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [amount] }))] }
+  const shares = await sdk.undelegationShares(ctx, wallet, wallet, amount)
+  return { token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [transaction(ctx, 'Start the unstaking cooldown', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [wallet, shares] }))] }
 }
 export async function prepareStakeWithdrawal(ctx: sdk.Ctx, wallet: Address, fail: Fail) {
   const h = requireV1(ctx, fail)
   const [state, block] = await Promise.all([sdk.getStake(ctx, wallet), ctx.publicClient.getBlock()])
   if (state.unstaking === 0n || Number(block.timestamp) < state.unlockAt) throw fail('conflict', 'no unstaked FACTORY has completed its cooldown')
-  return { token: h.factory, amount: state.unstaking.toString(), transactions: [transaction(ctx, 'Withdraw unstaked FACTORY to your wallet', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw' }))] }
+  const position = await ctx.publicClient.readContract({ address: h.vault, abi: sdk.stakeVaultAbi, functionName: 'positionOf', args: [wallet, wallet] })
+  return { token: h.factory, amount: state.unstaking.toString(), shares: position.queuedShares.toString(), transactions: [transaction(ctx, 'Withdraw unstaked FACTORY to your wallet', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [wallet] }))] }
 }

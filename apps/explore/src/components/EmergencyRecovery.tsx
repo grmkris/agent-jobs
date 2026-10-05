@@ -112,6 +112,7 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       const quantity = action === "request" ? parseUnits(units, 18) : 0n;
       if (action === "request" && quantity <= 0n)
         throw new Error("Enter a positive FACTORY amount");
+      const shares = action === "request" ? await rpc.readContract({ address: deployment.hireling.vault, abi: sdk.stakeVaultAbi, functionName: "convertToShares", args: [address, quantity] }) : 0n;
       call = {
         target: deployment.hireling.vault,
         value: 0n,
@@ -119,12 +120,12 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
           action === "request"
             ? encodeFunctionData({
                 abi: sdk.stakeVaultAbi,
-                functionName: "requestUnstake",
-                args: [quantity],
+                functionName: "requestUndelegate",
+                args: [address, shares],
               })
             : action === "cancel"
-              ? encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "cancelUnstake" })
-              : encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "withdraw" }),
+              ? encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "cancelUndelegate", args: [address] })
+              : encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "withdraw", args: [address] }),
       };
       description =
         action === "request"

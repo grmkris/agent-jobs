@@ -39,7 +39,7 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
         factory = factory_;
         vault = vault_;
         genesis = genesis_;
-        // The vault is immutable and pulls only inside `stakeFor`, which only `claim` calls.
+        // The vault is immutable and pulls only inside `delegateFor`, which only `claim` calls.
         SafeERC20.forceApprove(factory_, address(vault_), type(uint256).max);
     }
 
@@ -87,7 +87,7 @@ contract EpochDistributor is IEpochDistributor, Ownable2Step, ReentrancyGuardTra
         isClaimed[epoch][account] = true;
         r.claimed += amount;
         outstanding -= amount;
-        vault.stakeFor(account, amount);
+        vault.delegateFor(account, account, amount);
         emit Claimed(epoch, account, amount);
     }
 

@@ -36,7 +36,8 @@ function fixture(kind: 'legacy' | 'hireling-v1' = 'hireling-v1', over: Partial<A
           case 'stakeOf': return available
           case 'reservedOf': return 0n
           case 'availableOf': return available
-          case 'unstakeOf': return [0n, 0]
+          case 'positionOf': return { shares: available, queuedShares: 0n, unlockAt: 0, generation: 0n }
+          case 'convertToAssets': return 0n
           case 'allowance': return 0n
           default: throw new Error(`unexpected read ${name}`)
         }

@@ -78,7 +78,7 @@ contract RehearseHire is RehearsalScript {
         vm.startBroadcast(workerKey);
         uint256 agentId = identity.register();
         factory.approve(address(vault), 20_000e18);
-        vault.stake(20_000e18);
+        vault.delegate(worker, 20_000e18);
         vm.stopBroadcast();
 
         uint48 deadline = uint48(block.timestamp + 2 days);

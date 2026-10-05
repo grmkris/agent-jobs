@@ -1,7 +1,7 @@
 import { parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
-import { getStake, registerAgent, stake } from './actions.ts'
+import { getStake, registerAgent, delegate } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
 import { coreAbi, factoryTokenAbi, hirelingHoldingAbi } from './abi/index.ts'
@@ -11,7 +11,7 @@ fork('live matrix runner against real v1 bytecode', () => {
   let f: Awaited<ReturnType<typeof startHirelingFork>>, agentId: bigint
   beforeAll(async () => {
     f = await startHirelingFork(); agentId = await registerAgent(f.ctx, f.worker, 'https://hireling.xyz/live-runner-fork')
-    await stake(f.ctx, f.creator, parseEther('1000')); await stake(f.ctx, f.worker, parseEther('1000'))
+    await delegate(f.ctx, f.creator, parseEther('1000')); await delegate(f.ctx, f.worker, parseEther('1000'))
     const legacyFactory = await f.deploy('Factory', ['Legacy Factory', 'FACTORY', [f.admin.account.address], [parseEther('1000000000')]])
     const legacyHolding = await f.deploy('JobHolding', [f.ctx.deployment.core, legacyFactory, f.ctx.deployment.identity, parseEther('1'), 0n])
     const legacyEvaluator = await f.deploy('JobsEvaluator', [f.ctx.deployment.core, legacyHolding, f.ctx.deployment.reputation, f.arbitrator.account.address, 120, 120, 300, 120])

@@ -4,33 +4,55 @@ pragma solidity ^0.8.28;
 import {IFactory} from "./IFactory.sol";
 
 /// @title IStakeVault
-/// @notice Where FACTORY is staked, and where every Hireling bond lives (ADR-0011). A bond is a *reservation* of
-///         stake, not a transfer: publishing reserves the creator's bond, activating reserves the worker's, and
-///         settlement releases a reservation or slashes it, which burns that FACTORY for good. No token moves when a
-///         bond is posted.
+/// @notice Delegated FACTORY backing and Hireling bond reservations (ADR-0014). Each account has one share pool;
+///         each delegator owns its position, even when another payer funds it. Active backing, including reservations,
+///         sets the fee tier. Queued shares stop counting for tiers and new bonds but remain slashable pro-rata.
 ///
-///         Staking: `stake`, `stakeWithPermit`, or `stakeFor` (anyone may add stake to any account; the mining
-///         distributor claims this way). Unstaking: `requestUnstake` moves unreserved stake into a 7-day cooldown, after
-///         which `withdraw` pays it out; `cancelUnstake` puts it back. Stake in cooldown no longer counts for the fee
-///         tier and cannot be reserved.
+///         Requests are allowed while bonded and restart the cooldown for the entire position's queue. Withdrawal pays
+///         the delegator after the cooldown only if the remaining pool assets cover all reservations (`StillBonded`).
+///         A full slash resets the pool generation; older positions read as zero and are cleared lazily.
 ///
-///         Holdings: only an authorized Holding can reserve. The owner (the Safe) proposes a Holding, anyone accepts it
-///         after 8 days (longer than the 7-day cooldown, so every staker can leave first), and the owner can revoke one
-///         instantly. A revoked Holding can no longer reserve, but it still releases and slashes the reservations it
-///         made, so live jobs settle. `bootstrapHolding` authorizes the first Holding without the delay, once. Staking
-///         stays closed until a first Holding is authorized (bootstrapped or accepted), so nobody can stake first to
-///         force the launch onto the 8-day path. A Holding can only ever release or slash what it reserved itself
-///         (`reservedBy`).
+///         Only authorized Holdings reserve, subject to the account's veto. Revoked Holdings can still release and
+///         slash their own reservations (`reservedBy`). The Safe proposes Holdings behind a delay longer than the
+///         withdrawal cooldown and can revoke instantly. Delegation stays closed until bootstrap or first acceptance.
 ///
-///         Invariants: `reservedOf(a) <= stakeOf(a)` for every account; `totalReserved <= totalStaked`; the vault's
-///         FACTORY balance is at least `totalStaked + totalUnstaking`.
+///         Invariants: `pool.reserved <= pool.assets`; `totalReserved <= totalAssets`; the vault's FACTORY balance is
+///         at least `totalAssets`, which includes queued assets. Reservations may exceed active `stakeOf` after an exit
+///         request, so `availableOf` saturates at zero. Direct token transfers do not change share prices or accounting.
+///         There is no aggregate queued-assets view: use each pool's shares to value its queue after slashes.
 ///
-///         The implementation is `Ownable2Step`; the ownership functions come from OpenZeppelin and are not repeated.
+///         The implementation is Ownable2Step; its ownership functions come from OpenZeppelin.
 interface IStakeVault {
-    event Staked(address indexed account, address indexed payer, uint256 amount);
-    event UnstakeRequested(address indexed account, uint256 amount, uint256 totalUnstaking, uint48 unlockAt);
-    event UnstakeCancelled(address indexed account, uint256 amount);
-    event Withdrawn(address indexed account, uint256 amount);
+    struct Pool {
+        uint128 assets;
+        uint128 reserved;
+        uint256 shares;
+        uint192 queuedShares;
+        uint64 generation;
+    }
+
+    /// @dev `shares` includes `queuedShares`; both belong to this generation only.
+    struct Position {
+        uint256 shares;
+        uint192 queuedShares;
+        uint48 unlockAt;
+        uint64 generation;
+    }
+
+    event Delegated(
+        address indexed account, address indexed delegator, address indexed payer, uint256 assets, uint256 shares
+    );
+    event UndelegateRequested(
+        address indexed account,
+        address indexed delegator,
+        uint256 shares,
+        uint256 assets,
+        uint256 queuedShares,
+        uint48 unlockAt
+    );
+    event UndelegateCancelled(address indexed account, address indexed delegator, uint256 shares, uint256 assets);
+    event Withdrawn(address indexed account, address indexed delegator, uint256 shares, uint256 assets);
+    event PoolReset(address indexed account, uint64 generation);
     event Reserved(address indexed holding, address indexed account, uint256 amount);
     event Released(address indexed holding, address indexed account, uint256 amount);
     /// @dev The slashed FACTORY is burned in the same call.
@@ -43,11 +65,14 @@ interface IStakeVault {
 
     error ZeroAmount();
     error ZeroAddress();
-    /// @dev Only unreserved stake can be reserved or unstaked.
+    /// @dev Only active backing above existing reservations can be reserved.
     error InsufficientAvailable(uint256 available, uint256 requested);
     error NotHolding();
-    error NothingUnstaking();
-    error UnstakeLocked(uint48 unlockAt);
+    error ZeroShares();
+    error InsufficientShares(uint256 available, uint256 requested);
+    error NothingQueued();
+    error UndelegateLocked(uint48 unlockAt);
+    error StillBonded(uint256 remaining, uint256 reserved);
     error NoHoldingProposed();
     error HoldingTimelocked(uint48 eta);
     error HoldingAlreadyAuthorized();
@@ -60,30 +85,31 @@ interface IStakeVault {
     error HoldingProposalExpired();
 
     // ---------------------------------------------------------------------------------------------
-    // Staking
+    // Delegation
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice Stakes `amount` of the caller's FACTORY (needs an allowance).
-    function stake(uint256 amount) external;
+    /// @notice The caller pays `amount` and owns the shares backing `account`. The first deposit mints 1:1;
+    ///         subsequent deposits round shares down in favour of the pool and revert if they would mint zero.
+    function delegate(address account, uint256 amount) external;
 
-    /// @notice Stakes with an EIP-2612 permit instead of an allowance, saving the `approve` transaction. The permit's
-    ///         owner and the payer are both the caller, so a relay cannot submit it for an EOA (a sponsored 7702/4337
-    ///         call from the holder's own account can). A permit that was already used (front-run) is tolerated as long
-    ///         as the allowance is in place.
-    function stakeWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+    /// @notice Delegates with an EIP-2612 permit from the caller. A permit already submitted by a front-runner is
+    ///         tolerated if its allowance remains sufficient. A relay cannot use an EOA's permit as its own position.
+    function delegateWithPermit(address account, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
 
-    /// @notice Stakes `amount` of the caller's FACTORY for `account`. Used by the mining distributor.
-    function stakeFor(address account, uint256 amount) external;
+    /// @notice The caller pays; `delegator` owns the shares backing `account`. Mining uses `(account, account)`.
+    function delegateFor(address account, address delegator, uint256 amount) external;
 
-    /// @notice Moves `amount` of the caller's unreserved stake into the cooldown. A second request adds to the first
-    ///         and restarts the cooldown for the whole amount.
-    function requestUnstake(uint256 amount) external;
+    /// @notice Queues `shares` from the caller's position, even while bonded, and restarts the entire queue's cooldown.
+    ///         Queued shares remain slashable but stop counting for the tier and new bonds immediately.
+    function requestUndelegate(address account, uint256 shares) external;
 
-    /// @notice Puts everything in the caller's cooldown back into stake.
-    function cancelUnstake() external;
+    /// @notice Restores all of the caller's queued shares to active backing, without changing their slash exposure.
+    function cancelUndelegate(address account) external;
 
-    /// @notice Pays out the caller's whole cooldown amount once `unlockAt` has passed.
-    function withdraw() external;
+    /// @notice Redeems the caller's whole queue after unlock, rounding assets down; the last shares receive all assets.
+    ///         Reverts `StillBonded(remaining, reserved)` if withdrawal would leave any existing bond undercollateralized.
+    function withdraw(address account) external;
 
     // ---------------------------------------------------------------------------------------------
     // Bonds (Holdings only)
@@ -139,7 +165,7 @@ interface IStakeVault {
 
     function factory() external view returns (IFactory);
 
-    /// @notice `account`'s stake, reservations included and the cooldown excluded. This is what sets the fee tier.
+    /// @notice Active backing: `floor((shares - queuedShares) * assets / shares)`, or zero for an empty pool.
     function stakeOf(address account) external view returns (uint256);
 
     /// @notice The part of `account`'s stake that bonds on live jobs hold, over all Holdings.
@@ -148,15 +174,23 @@ interface IStakeVault {
     /// @notice The part of `account`'s stake that `holding` has reserved.
     function reservedBy(address holding, address account) external view returns (uint256);
 
-    /// @notice `stakeOf(account) - reservedOf(account)`: what can still be reserved or unstaked.
+    /// @notice `max(stakeOf(account) - reservedOf(account), 0)`: backing available for new bonds.
     function availableOf(address account) external view returns (uint256);
 
-    /// @notice `account`'s cooldown: the amount and when it can be withdrawn (zero when nothing is unstaking).
-    function unstakeOf(address account) external view returns (uint256 amount, uint48 unlockAt);
+    function poolOf(address account) external view returns (Pool memory);
 
-    function totalStaked() external view returns (uint256);
+    /// @notice Older-generation positions return zero shares/queue/unlock, with the pool's current generation.
+    function positionOf(address account, address delegator) external view returns (Position memory);
+
+    /// @notice Floors `shares * assets / pool.shares`; empty pools return zero. The last shares receive all assets.
+    function convertToAssets(address account, uint256 shares) external view returns (uint256);
+
+    /// @notice Floors `assets * pool.shares / pool.assets`; empty pools quote 1:1.
+    function convertToShares(address account, uint256 assets) external view returns (uint256);
+
+    /// @notice Sum of every pool's assets, including the slashable queued backing.
+    function totalAssets() external view returns (uint256);
     function totalReserved() external view returns (uint256);
-    function totalUnstaking() external view returns (uint256);
 
     /// @notice Whether `holding` may reserve stake now.
     function isHolding(address holding) external view returns (bool);
@@ -168,7 +202,7 @@ interface IStakeVault {
     ///         and `bootstrapHolding` is closed.
     function bootstrapped() external view returns (bool);
 
-    /// @notice The unstake cooldown (7 days).
+    /// @notice The delegation exit cooldown (7 days in production; deployment clocks on testnet).
     function UNSTAKE_DELAY() external view returns (uint48);
 
     /// @notice The delay before a proposed Holding can be accepted (8 days).

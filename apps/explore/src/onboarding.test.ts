@@ -42,7 +42,7 @@ describe('sponsorship delegation', () => {
     targets: { [holding]: { name: 'Holding', abi: sdk.hirelingHoldingAbi as Abi }, [vault]: { name: 'Stake vault', abi: sdk.stakeVaultAbi as Abi } },
   }
   const settle = toFunctionSelector('function settle(uint256 jobId)')
-  const withdraw = toFunctionSelector('function withdraw()')
+  const withdraw = toFunctionSelector('function withdraw(address account)')
   const caveats = [
     caveat(enforcers.allowedTargets, concat([holding, vault])),
     caveat(enforcers.allowedMethods, concat([settle, withdraw])),

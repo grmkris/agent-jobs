@@ -480,7 +480,7 @@ async function initialize(): Promise<Runtime[]> {
         state.values[`${profile.slug}/agentId`] = agentId; save()
       }
       await journal.contract(`${profile.slug}/stake-approval`, wallet, factory, sdk.factoryV2Abi, 'approve', [vault, parseUnits('20', 18)])
-      await journal.contract(`${profile.slug}/stake`, wallet, vault, sdk.stakeVaultAbi, 'stake', [parseUnits('20', 18)])
+      await journal.contract(`${profile.slug}/stake`, wallet, vault, sdk.stakeVaultAbi, 'delegate', [wallet.account.address, parseUnits('20', 18)])
     }
     if (!agentId || (await sdk.agentWallet(ctx, BigInt(agentId))).toLowerCase() !== account.address.toLowerCase()) throw new Error('Worker does not control its registered agent wallet')
     const board = sdk.boardClient(boardUrl)

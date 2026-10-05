@@ -100,14 +100,14 @@ export class AgentExecutor {
     const approval = this.agents.approval(operation.id)
     if (approval.status !== 'approved') throw new Error('Action requires an approved operator decision')
     const agent = this.agents.get(operation.agent_id)
-    const request = JSON.parse(approval.request_json) as { token: Address; amount: string }
+    const request = JSON.parse(approval.request_json) as { token: Address; amount: string; shares?: string }
     const decision = JSON.parse(approval.decision_json ?? '{}') as { allowanceHash: Hex }
     const step = approval.kind === 'unstake' ? 'approved-grant-spec' : `approved-grant-spec:${decision.allowanceHash}`
     let spec = this.agents.step<string>(operation.id, step)
     if (spec === undefined) {
       const base = { delegator: agent.address!, salt: BigInt(operation.id), operationId: operation.id, amount: BigInt(request.amount) }
       let template: sdk.GrantSpec
-      if (approval.kind === 'unstake') template = { ...base, kind: 'unstake', start: this.deps.now() }
+      if (approval.kind === 'unstake') template = { delegator: agent.address!, salt: BigInt(operation.id), operationId: operation.id, kind: 'unstake', shares: BigInt(request.shares!), start: this.deps.now() }
       else {
         const allowance = this.grants.spec(decision.allowanceHash)
         if (allowance.kind !== 'allowance-once') throw new Error('Approved hire requires an exact one-off allowance')
@@ -193,8 +193,8 @@ export class AgentExecutor {
     await this.deps.verifyAction?.(action)
     if (input.tool === 'request_unstake' && this.agents.operation(operation.id).stage !== 'approval') {
       const call = action.transactions?.[0]
-      if (call === undefined || action.transactions?.length !== 1 || typeof action.amount !== 'string') throw new Error('Unstake preparation requires its exact single vault call')
-      const approval = this.agents.requestApproval(this.agents.operation(operation.id), 'unstake', { amount: action.amount, call })
+      if (call === undefined || action.transactions?.length !== 1 || typeof action.amount !== 'string' || typeof action.shares !== 'string') throw new Error('Unstake preparation requires its exact single vault call')
+      const approval = this.agents.requestApproval(this.agents.operation(operation.id), 'unstake', { amount: action.amount, shares: action.shares, call })
       return { status: 'approval', operationId: operation.id, approval }
     }
     if (this.agents.operation(operation.id).stage === 'approval') approved = await this.#approved(operation)

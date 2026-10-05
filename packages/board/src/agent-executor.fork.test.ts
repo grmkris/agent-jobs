@@ -146,7 +146,7 @@ suite('agent executor through real contracts', () => {
   }, 120_000)
 
   it('requests operator approval before signing an exact one-call unstake', async () => {
-    await sdk.stake(ctx, fixture.worker, parseEther('10'))
+    await sdk.delegate(ctx, fixture.worker, parseEther('10'))
     const input = { agentId: 'worker-agent', boardId: 'public', operationKey: 'unstake-one', tool: 'request_unstake', args: { amount: '1' } }
     const result = await boot().execute(input)
     expect(result.status).toBe('approval')

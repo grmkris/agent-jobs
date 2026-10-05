@@ -121,11 +121,11 @@ abstract contract BaseV1 is Test {
         vm.startPrank(creator);
         pay.approve(address(holding), type(uint256).max);
         factory.approve(address(vault), type(uint256).max);
-        vault.stake(CREATOR_STAKE);
+        vault.delegate(creator, CREATOR_STAKE);
         vm.stopPrank();
         vm.startPrank(worker);
         factory.approve(address(vault), type(uint256).max);
-        vault.stake(WORKER_STAKE);
+        vault.delegate(worker, WORKER_STAKE);
         vm.stopPrank();
         vm.prank(contributor);
         pay.approve(address(holding), type(uint256).max);

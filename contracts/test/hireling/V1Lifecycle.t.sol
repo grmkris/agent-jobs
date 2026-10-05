@@ -344,7 +344,7 @@ contract V1LifecycleTest is BaseV1 {
         uint256 extra = bound(uint256(stake), 0, 2_000_000e18);
         if (extra > 0) {
             vm.prank(worker);
-            vault.stake(extra);
+            vault.delegate(worker, extra);
         }
         uint256 jobId = fundedJob();
         uint256 b = bound(uint256(bonus), 0, 5 * REWARD);

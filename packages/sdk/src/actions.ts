@@ -508,20 +508,20 @@ export function claimTopUpRefund(ctx: Ctx, caller: Wallet, jobId: bigint, contri
   return write(ctx, caller, ctx.stack.holding, hirelingHoldingAbi, 'claimTopUpRefund', [jobId, contributor], V1_GAS.claimTopUpRefund)
 }
 
-export async function stake(ctx: Ctx, staker: Wallet, amount: bigint) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('stake is only available on hireling-v1')
+export async function delegate(ctx: Ctx, staker: Wallet, amount: bigint) {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegate is only available on hireling-v1')
   if (amount <= 0n) throw new Error('stake amount must be positive')
   await ensureAllowance(ctx, staker, ctx.deployment.hireling.factory, ctx.deployment.hireling.vault, amount)
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'stake', [amount])
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegate', [staker.account.address, amount])
 }
 
-export function stakeWithPermit(ctx: Ctx, staker: Wallet, amount: bigint, permit: { deadline: bigint; v: number; r: Hex; s: Hex }) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('stakeWithPermit is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'stakeWithPermit', [amount, permit.deadline, permit.v, permit.r, permit.s])
+export function delegateWithPermit(ctx: Ctx, staker: Wallet, amount: bigint, permit: { deadline: bigint; v: number; r: Hex; s: Hex }) {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegateWithPermit is only available on hireling-v1')
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegateWithPermit', [staker.account.address, amount, permit.deadline, permit.v, permit.r, permit.s])
 }
 
-export async function stakePermit(ctx: Ctx, staker: Address, amount: bigint, deadline: bigint) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('stakePermit is only available on hireling-v1')
+export async function delegatePermit(ctx: Ctx, staker: Address, amount: bigint, deadline: bigint) {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegatePermit is only available on hireling-v1')
   const factory = ctx.deployment.hireling.factory
   const [name, nonce] = await Promise.all([
     ctx.publicClient.readContract({ address: factory, abi: factoryV2Abi, functionName: 'name' }),
@@ -533,19 +533,36 @@ export async function stakePermit(ctx: Ctx, staker: Address, amount: bigint, dea
   }
 }
 
-export function requestUnstake(ctx: Ctx, staker: Wallet, amount: bigint) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('requestUnstake is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'requestUnstake', [amount])
+/** Convert FACTORY assets to an owned, unqueued share amount before preparing an exit. */
+export async function undelegationShares(ctx: Ctx, account: Address, delegator: Address, amount: bigint): Promise<bigint> {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('undelegation requires Hireling v1')
+  if (amount <= 0n) throw new Error('undelegation amount must be positive')
+  const vault = ctx.deployment.hireling.vault
+  const [position, shares] = await Promise.all([
+    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'positionOf', args: [account, delegator] }),
+    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToShares', args: [account, amount] }),
+  ])
+  const owned = position.shares - position.queuedShares
+  const value = await ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToAssets', args: [account, owned] })
+  if (amount > value || shares > owned) throw new Error('undelegation amount exceeds the owned position')
+  if (shares === 0n) throw new Error('undelegation amount rounds to zero shares')
+  return shares
 }
 
-export function cancelUnstake(ctx: Ctx, staker: Wallet) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('cancelUnstake is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'cancelUnstake', [])
+export async function requestUndelegate(ctx: Ctx, staker: Wallet, amount: bigint) {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('requestUndelegate is only available on hireling-v1')
+  const shares = await undelegationShares(ctx, staker.account.address, staker.account.address, amount)
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'requestUndelegate', [staker.account.address, shares])
 }
 
-export function withdrawStake(ctx: Ctx, staker: Wallet) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('withdrawStake is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'withdraw', [])
+export function cancelUndelegate(ctx: Ctx, staker: Wallet) {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('cancelUndelegate is only available on hireling-v1')
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'cancelUndelegate', [staker.account.address])
+}
+
+export function withdraw(ctx: Ctx, staker: Wallet) {
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('withdraw is only available on hireling-v1')
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'withdraw', [staker.account.address])
 }
 
 export async function getStake(ctx: Ctx, account: Address) {
@@ -555,9 +572,10 @@ export async function getStake(ctx: Ctx, account: Address) {
     ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'stakeOf', args: [account] }),
     ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'reservedOf', args: [account] }),
     ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'availableOf', args: [account] }),
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'unstakeOf', args: [account] }),
+    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'positionOf', args: [account, account] }),
   ])
-  return { staked, reserved, available, unstaking: unstake[0], unlockAt: Number(unstake[1]) }
+  const unstaking = await ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToAssets', args: [account, unstake.queuedShares] })
+  return { staked, reserved, available, unstaking, unlockAt: Number(unstake.unlockAt) }
 }
 
 export async function requireStake(ctx: Ctx, account: Address, bond: bigint): Promise<void> {
@@ -626,7 +644,7 @@ export function cancelRuling(ctx: Ctx, arbitrator: Wallet, nonce: bigint) {
   return write(ctx, arbitrator, ctx.stack.evaluator, hirelingEvaluatorAbi, 'cancelRuling', [nonce])
 }
 
-export function withdraw(ctx: Ctx, account: Wallet, token: Address) {
+export function withdrawOwed(ctx: Ctx, account: Wallet, token: Address) {
   return write(ctx, account, ctx.stack.holding, holdingAbi(ctx), 'withdraw', [token])
 }
 

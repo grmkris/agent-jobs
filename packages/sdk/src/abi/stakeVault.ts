@@ -170,8 +170,141 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
-    "name": "cancelUnstake",
-    "inputs": [],
+    "name": "cancelUndelegate",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "convertToAssets",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "shares",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "convertToShares",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "assets",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "delegate",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "delegateFor",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "delegator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "delegateWithPermit",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -277,6 +410,98 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
+    "name": "poolOf",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IStakeVault.Pool",
+        "components": [
+          {
+            "name": "assets",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "reserved",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "shares",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "queuedShares",
+            "type": "uint192",
+            "internalType": "uint192"
+          },
+          {
+            "name": "generation",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "positionOf",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "delegator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "position",
+        "type": "tuple",
+        "internalType": "struct IStakeVault.Position",
+        "components": [
+          {
+            "name": "shares",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "queuedShares",
+            "type": "uint192",
+            "internalType": "uint192"
+          },
+          {
+            "name": "unlockAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "generation",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "proposeHolding",
     "inputs": [
       {
@@ -321,10 +546,15 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
-    "name": "requestUnstake",
+    "name": "requestUndelegate",
     "inputs": [
       {
-        "name": "amount",
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -450,37 +680,6 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
-    "name": "stake",
-    "inputs": [
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "stakeFor",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "stakeOf",
     "inputs": [
       {
@@ -500,66 +699,20 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
-    "name": "stakeWithPermit",
-    "inputs": [
+    "name": "totalAssets",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "amount",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "deadline",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "v",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "r",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "s",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
     "name": "totalReserved",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "totalStaked",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "totalUnstaking",
     "inputs": [],
     "outputs": [
       {
@@ -585,7 +738,7 @@ export const stakeVaultAbi = [
   },
   {
     "type": "function",
-    "name": "unstakeOf",
+    "name": "withdraw",
     "inputs": [
       {
         "name": "account",
@@ -593,26 +746,45 @@ export const stakeVaultAbi = [
         "internalType": "address"
       }
     ],
-    "outputs": [
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Delegated",
+    "inputs": [
       {
-        "name": "amount",
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "delegator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "payer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "assets",
         "type": "uint256",
+        "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "unlockAt",
-        "type": "uint48",
-        "internalType": "uint48"
+        "name": "shares",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "withdraw",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "anonymous": false
   },
   {
     "type": "event",
@@ -743,6 +915,25 @@ export const stakeVaultAbi = [
   },
   {
     "type": "event",
+    "name": "PoolReset",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "generation",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Released",
     "inputs": [
       {
@@ -818,7 +1009,7 @@ export const stakeVaultAbi = [
   },
   {
     "type": "event",
-    "name": "Staked",
+    "name": "UndelegateCancelled",
     "inputs": [
       {
         "name": "account",
@@ -827,13 +1018,19 @@ export const stakeVaultAbi = [
         "internalType": "address"
       },
       {
-        "name": "payer",
+        "name": "delegator",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "shares",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "assets",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -843,7 +1040,7 @@ export const stakeVaultAbi = [
   },
   {
     "type": "event",
-    "name": "UnstakeCancelled",
+    "name": "UndelegateRequested",
     "inputs": [
       {
         "name": "account",
@@ -852,32 +1049,25 @@ export const stakeVaultAbi = [
         "internalType": "address"
       },
       {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "UnstakeRequested",
-    "inputs": [
-      {
-        "name": "account",
+        "name": "delegator",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "shares",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "totalUnstaking",
+        "name": "assets",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "queuedShares",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -902,7 +1092,19 @@ export const stakeVaultAbi = [
         "internalType": "address"
       },
       {
-        "name": "amount",
+        "name": "delegator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "shares",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "assets",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -959,6 +1161,22 @@ export const stakeVaultAbi = [
   },
   {
     "type": "error",
+    "name": "InsufficientShares",
+    "inputs": [
+      {
+        "name": "available",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "requested",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidClock",
     "inputs": [
       {
@@ -990,7 +1208,7 @@ export const stakeVaultAbi = [
   },
   {
     "type": "error",
-    "name": "NothingUnstaking",
+    "name": "NothingQueued",
     "inputs": []
   },
   {
@@ -1022,6 +1240,22 @@ export const stakeVaultAbi = [
   },
   {
     "type": "error",
+    "name": "SafeCastOverflowedUintDowncast",
+    "inputs": [
+      {
+        "name": "bits",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SafeERC20FailedOperation",
     "inputs": [
       {
@@ -1033,7 +1267,23 @@ export const stakeVaultAbi = [
   },
   {
     "type": "error",
-    "name": "UnstakeLocked",
+    "name": "StillBonded",
+    "inputs": [
+      {
+        "name": "remaining",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "reserved",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UndelegateLocked",
     "inputs": [
       {
         "name": "unlockAt",
@@ -1050,6 +1300,11 @@ export const stakeVaultAbi = [
   {
     "type": "error",
     "name": "ZeroAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroShares",
     "inputs": []
   }
 ] as const

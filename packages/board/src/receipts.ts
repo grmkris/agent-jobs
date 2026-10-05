@@ -9,15 +9,15 @@ const same = (a: unknown, b: string) => typeof a === 'string' && a.toLowerCase()
 /** A vault receipt must describe the recorded wallet's exact prepared action, even when relayed. */
 export function confirmsVaultOperation(ctx: sdk.Ctx, receipt: TransactionReceipt, op: OperationRow): boolean {
   if (receipt.status !== 'success' || ctx.deployment.hireling === null || op.detail === null) return false
-  const detail = JSON.parse(op.detail) as { vault?: string; token?: string; amount?: string }
-  if (!same(detail.vault, ctx.deployment.hireling.vault) || !same(detail.token, ctx.deployment.hireling.factory) || !/^\d+$/.test(detail.amount ?? '')) return false
+  const detail = JSON.parse(op.detail) as { vault?: string; token?: string; amount?: string; shares?: string }
+  if (!same(detail.vault, ctx.deployment.hireling.vault) || !same(detail.token, ctx.deployment.hireling.factory) || !/^\d+$/.test(detail.amount ?? '') || !/^\d+$/.test(detail.shares ?? '')) return false
   for (const log of receipt.logs) {
     if (!same(log.address, detail.vault!)) continue
     try {
       const e = decodeEventLog({ abi: sdk.stakeVaultAbi, data: log.data, topics: log.topics })
-      if (e.eventName === 'Staked' && op.kind === 'stake' && same(e.args.account, op.actor) && same(e.args.payer, op.actor) && e.args.amount.toString() === detail.amount) return true
-      if (e.eventName === 'UnstakeRequested' && op.kind === 'request-unstake' && same(e.args.account, op.actor) && e.args.amount.toString() === detail.amount) return true
-      if (e.eventName === 'Withdrawn' && op.kind === 'withdraw-stake' && same(e.args.account, op.actor) && e.args.amount.toString() === detail.amount) return true
+      if (e.eventName === 'Delegated' && op.kind === 'stake' && same(e.args.account, op.actor) && same(e.args.delegator, op.actor) && e.args.shares.toString() === detail.shares && same(e.args.payer, op.actor) && e.args.assets.toString() === detail.amount) return true
+      if (e.eventName === 'UndelegateRequested' && op.kind === 'request-unstake' && same(e.args.account, op.actor) && same(e.args.delegator, op.actor) && e.args.shares.toString() === detail.shares && e.args.assets.toString() === detail.amount) return true
+      if (e.eventName === 'Withdrawn' && op.kind === 'withdraw-stake' && same(e.args.account, op.actor) && same(e.args.delegator, op.actor) && e.args.shares.toString() === detail.shares && e.args.assets.toString() === detail.amount) return true
     } catch { /* An unrelated or malformed log cannot confirm this operation. */ }
   }
   return false

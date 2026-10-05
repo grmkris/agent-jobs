@@ -51,7 +51,7 @@ contract V1ActivationTest is BaseV1 {
         factory.transfer(second, WORKER_BOND);
         vm.startPrank(second);
         factory.approve(address(vault), WORKER_BOND);
-        vault.stake(WORKER_BOND);
+        vault.delegate(second, WORKER_BOND);
         vm.stopPrank();
         uint256 jobId = publish();
         IHirelingHolding.Selection memory first = selectionFor(jobId, worker, AGENT_ID);

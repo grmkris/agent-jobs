@@ -34,7 +34,9 @@ export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call:
   if (pin !== undefined && (typeof args[0] !== 'string' || !same(args[0], pin))) throw new Error('Grant spender or recipient mismatch')
   if (spec.kind === 'allowance-once' && args[1] !== spec.amount) throw new Error('One-off allowance amount mismatch')
   if (spec.kind === 'agent-approve-once' && args[1] !== spec.amount) throw new Error('One-off approval amount mismatch')
-  if (spec.kind === 'unstake' && args[0] !== spec.amount) throw new Error('One-off unstake amount mismatch')
+  if (spec.kind === 'unstake' && (typeof args[0] !== 'string' || !same(args[0], spec.delegator) || args[1] !== spec.shares)) throw new Error('One-off unstake account or shares mismatch')
+  if (spec.kind === 'agent-work' && ctx.deployment.hireling !== null && same(target.address, ctx.deployment.hireling.vault)
+    && (typeof args[0] !== 'string' || !same(args[0], spec.delegator))) throw new Error('Agent vault calls require the agent own position')
   if (fn.name === 'disableDelegation') {
     const disabled = args[0] as sdk.Delegation
     if (!same(disabled.delegator, spec.delegator)) throw new Error('Cannot disable another wallet delegation')
