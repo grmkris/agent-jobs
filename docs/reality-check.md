@@ -1133,3 +1133,49 @@ hashes, enforcement boundaries and validation are in [p0-authority.json](evidenc
 P0.7 genuine browser-owner recovery signing is deferred to Kris/P8, as the approved plan permits. These are fixture
 integration proofs; they do not establish genuine-user onboarding, hosted v2 MCP execution, deployment or mainnet
 acceptance. P1 has not started. No deployment or mainnet transaction was performed.
+
+## G1c: delegated staking (StakeVault v2) on testnet (5 Oct 2026)
+
+ADR-0014. Any wallet backs any agent with `delegate(account, amount)` and keeps the position. Slashing is pro-rata
+(queued exits included), and total active backing sets the fee tier. `contracts/script/launch-testnet.sh
+--private-keys --fee-proposal --holding-probe` at main `0e0c0bc`, after `prepare-redeploy-testnet.sh --from g1b`
+archived G1b in `config/archive/monad-testnet-g1b.json`. The ERC-8183 core and the ERC-8004 registries are reused.
+The deployment block is 68454129, t0 1791219243, and the odd tokens are at 68454339. The Safe `0x1006…D5bF` owns all six v1
+contracts; read-back passed and the SDK loads the deployment.
+
+| Contract | Address |
+| :--- | :--- |
+| Factory (FACTORY v3) | `0xB1B07790341D5F79023987F91842F58a11087A28` |
+| StakeVault v2 | `0xfa1eA4A0fF138f7cbB271806aB6d122d0DAa47C6` |
+| HirelingHolding | `0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667` |
+| HirelingEvaluator | `0x593D5AbB4E8Bd7244078f655d964089931BF0f1F` |
+| FeeSchedule | `0xFD023A795dE24D31F6cd6979A14A969e425FCdD4` |
+| EpochDistributor | `0x2A01c50941a99cefe46A890E56cc4b0bb53cCED1` |
+| MiningReserve | `0x9AB4Ee2d2F833716c78bC6D79c54C2087a05570e` |
+| TeamVesting | `0x0D2c0890d8E6130494E05d653A0cAa254C97F053` |
+
+Fork rehearsals before the launch: the redeploy (gate worktree, main 81a3715) and the 24-case flow rehearsal (contracts pane, e92201f).
+
+Charged gas limits: deployer 21.28M and Safe owner 1.14M, about 2.3 MON at 102 gwei. The deployer was topped up first: 3.3 MON from the backup Safe owner, tx `0x17ad185c…341d`.
+
+**Staging release.** Guarded `release.mjs plan` then `apply` at digest `cbb8c445…`. The plan held 3 Worker code updates and no
+secret, setting, migration or domain change. Versions: Api `97a890d2`, Indexer `432cfb27`, Explore `1c6e53b4`.
+
+**Indexer.** `indexer-cutover.mjs` rewound the checkpoint from 68455189 to 68454129. The cron holds a 120 s lease
+and never releases it, so the cut-over ran just before the lease expired. Normal cron then replayed to the head.
+
+**Privy.** The authority policy pins the Holding for the Selection rule. `privy/update-holding.ts --yes` (11df51c, reviewed)
+moved it in place to the G1c Holding. The policy ID `s06i5eramn0plwdunkvxf8aj` is unchanged and `setup.ts --verify` is clean.
+
+**Refunds.** `refund-manifest.mjs --block 68454128 --config config/archive/monad-testnet-g1b.json` covered 10
+self-owned positions (26,836 FACTORY) and 11 loose balances (31,410 FACTORY), checksum `dc8e4f1a…13eb9c`, in
+`evidence/testnet-g1c/final-refunds.json`. `refund-batch.sh --yes` ran 22 journaled operations in FACTORY v3. Kris's
+wallet holds a 10,000 FACTORY position and 19,900 loose.
+
+**Live flows, all 19 core cases verified on G1c.** They include `delegate`, `slash-pro-rata` and
+`undelegate-pending-slash`. Transaction hashes per step are in
+[2026-10-05-live-flows.json](evidence/testnet-g1c/2026-10-05-live-flows.json).
+- **Funding:** the flow fixtures were funded from the deployer's ecosystem FACTORY v3: creator +100k, worker +50k.
+- **`fees`:** used a fresh fixture worker, because the shared worker was already above the second tier.
+
+These are fixture runs, not genuine-user acceptance. Open G1b jobs stay archived and unsettled. Testnet only.
