@@ -9,6 +9,7 @@ import { hireling } from "../hireling.ts";
 import { factoryAmount } from "../stake.ts";
 import { stakeContext } from "../stake-context.ts";
 import { friendlyError } from "../txErrors.ts";
+import { vaultOperationGuards } from "../vault-proof.ts";
 import { Button, ErrorText, Input, Section } from "./ui.tsx";
 import { TxSteps } from "./TxSteps.tsx";
 import { initializeTxJournal } from "./txJournal.ts";
@@ -170,14 +171,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           retainRecord
           requireJournal
           verifyReceipt
-          sendGuard={async () => {
-            if (intent.txs[0]?.to.toLowerCase() === operator.toLowerCase() &&
-                (await sdk.delegationOf(stakeContext().publicClient, operator as Address))?.toLowerCase() !== deployment.delegation.delegator.toLowerCase())
-              return "Your wallet's batch delegation changed. Reconcile the saved action before continuing.";
-            return readVaultIntent(localStorage, key)?.id === intent.id
-              ? null
-              : "This position action changed in another tab. Reload to reconcile the saved action.";
-          }}
+          {...vaultOperationGuards(stakeContext(), localStorage, key, intent, operator as Address)}
           onDone={() => {
             void withVaultIntentLock(navigator.locks, key, async () => {
               if (!clearOwnedIntent(localStorage, key, intent.id))

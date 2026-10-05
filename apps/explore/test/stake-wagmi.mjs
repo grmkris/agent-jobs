@@ -22,6 +22,10 @@ export const useSignTypedData = () => ({ signTypedDataAsync: async typedData => 
 } });
 export const useSendTransaction = () => ({ sendTransactionAsync: async transaction => {
   const hash = await sendFixtureTransaction(transaction);
-  apply(transaction);
+  const logs = [];
+  const revokedSelfCall = transaction.to.toLowerCase() === window.__wallet.address.toLowerCase() && !window.__stake.code[transaction.to.toLowerCase()];
+  if (!revokedSelfCall) apply(transaction, logs);
+  window.__stake.receipts[hash] = { status: 'success', transactionHash: hash, logs };
+  localStorage.setItem('fixture-stake-receipts', JSON.stringify(window.__stake.receipts));
   return hash;
 } });

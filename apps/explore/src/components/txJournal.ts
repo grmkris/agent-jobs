@@ -14,6 +14,8 @@ export interface OpRecord {
   sponsor?: { key: string; operationId: Hex | null } | null
   /** Proven reverted receipts are retained for audit while their step becomes sendable again. */
   reverted?: Hex[]
+  /** Successful receipts proven to have no requested effect; keep their hashes while offering a retry. */
+  effectFailures?: Array<{ index: number; hash: Hex; error: string }>
 }
 export interface JournalStorage {
   getItem(key: string): string | null
@@ -36,6 +38,8 @@ export function readTxJournal(storage: JournalStorage, key: string, requireExist
   }
   let value: OpRecord
   try { value = JSON.parse(raw) as OpRecord } catch { throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.') }
+  if (value?.effectFailures !== undefined && (!Array.isArray(value.effectFailures) || !value.effectFailures.every(failure => failure !== null && typeof failure === 'object' && Number.isSafeInteger(failure.index) && failure.index >= 0 && typeof failure.hash === 'string' && /^0x[0-9a-f]{64}$/i.test(failure.hash) && typeof failure.error === 'string')))
+    throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.')
   if (!value || typeof value.batch !== 'boolean' || !Array.isArray(value.hashes) || !value.hashes.every(hash => hash === null || typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) || !Array.isArray(value.recorded) || !value.recorded.every(recorded => recorded === null || typeof recorded === 'boolean') || value.reverted !== undefined && (!Array.isArray(value.reverted) || !value.reverted.every(hash => typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash))) || value.pending !== null && (!Number.isSafeInteger(value.pending) || value.pending < 0) || value.snapshot != null && (!Number.isSafeInteger(value.snapshot.nonce) || !/^\d+$/.test(value.snapshot.block)) || value.from != null && !/^0x[0-9a-f]{40}$/i.test(value.from) || value.attempts != null && (!Array.isArray(value.attempts) || !value.attempts.every(nonce => nonce === null || Number.isSafeInteger(nonce) && nonce >= 0)))
     throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.')
   return value

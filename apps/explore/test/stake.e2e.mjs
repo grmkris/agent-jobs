@@ -280,10 +280,13 @@ try {
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'second tab waits before signing');
     await page.evaluate(() => window.__releasePermit());
     await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
-    await text(second, 'Another Stake tab has an unfinished position action. Reconcile it before starting another.');
+    await second.waitForFunction(() => document.body.textContent.includes('Another Stake tab has an unfinished position action.') ||
+      Array.from(document.querySelectorAll('h2')).some(heading => heading.textContent === 'Confirm your position action'));
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'lock reread prevents a second prepared effect');
     const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), pointerKey);
+    assert.equal(await second.evaluate(key => JSON.parse(localStorage.getItem(key)).id, pointerKey), saved.id, 'a remounted tab may resume only the original intent');
+    assert.equal(await second.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('hireling.op:delegation:')).length), 1, 'only one prepared journal exists across both tabs');
     await page.getByRole('button', { name: 'Not now', exact: true }).waitFor();
     await second.evaluate(({ key, saved: priorIntent }) => localStorage.setItem(key, JSON.stringify({ ...priorIntent, id: 'newer-tab-intent' })), { key: pointerKey, saved });
     await page.getByRole('button', { name: 'Not now', exact: true }).click();

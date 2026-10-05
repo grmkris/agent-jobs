@@ -36,13 +36,14 @@ async function fixture(viewport, options = {}) {
     const E = 10n ** 18n;
     window.__hireling = fixtureOptions.deployed === false ? null : fixtureContracts;
     window.__agents = [fixtureAgent];
-    window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: [] };
+    window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: JSON.parse(localStorage.getItem('fixture-wallet-sends') ?? '[]') };
     window.__balances = { native: 5n * 10n ** 17n };
     window.__stake = { wallet: 50000n * E, nonce: 0n, calls: [], cooldown: 600, down: fixtureOptions.down ?? false, open: fixtureOptions.open ?? true, pools: {
       [fixtureOwner]: { assets: 4000n * E, reserved: 1500n * E, shares: 4000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
       [fixtureAgentWallet]: { assets: 10000n * E, reserved: 8000n * E, shares: 10000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 6000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n }, [fixtureOther]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
     } };
     window.__stake.code = fixtureOptions.delegated ? { [fixtureOwner]: `0xef0100${fixtureDelegator.slice(2)}` } : {};
+    window.__stake.receipts = JSON.parse(localStorage.getItem('fixture-stake-receipts') ?? '{}');
     if (fixtureOptions.proposal) window.__stake.proposal = fixtureOptions.proposal;
     if (fixtureOptions.retired) {
       const pool = window.__stake.pools[fixtureAgentWallet];
@@ -62,7 +63,7 @@ async function fixture(viewport, options = {}) {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
+    if (url.pathname === '/__test/receipt') return reply(await page.evaluate(hash => window.__stake.receipts[hash] ?? { status: 'success', logs: [] }, url.searchParams.get('hash')));
     if (url.pathname === '/data/directory') return reply({ ok: true, agents: [agent], nextCursor: null, observedAt: 100, chainId: 10143, identityRegistry: contracts.factory, scope: 'fixture' });
     if (url.pathname === '/data/directory/1942') return reply({ ok: true, agent });
     if (url.pathname === '/data/agents/1942') return reply({ ok: false, message: 'Fixture has no job history' }, 404);

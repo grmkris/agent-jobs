@@ -53,6 +53,7 @@ describe('wallet step retry reconciliation', () => {
     expect(retryAction({ at: 'idle' })).toBe('send')
     expect(retryAction({ at: 'failed', error: 'Wallet declined' })).toBe('send')
     expect(retryAction({ at: 'failed', error: 'Reverted', hash, reverted: true })).toBe('send')
+    expect(retryAction({ at: 'failed', error: 'Proved no requested effect', hash, noEffect: true })).toBe('send')
   })
   it('does not act on pending or completed steps', () => {
     expect(retryAction({ at: 'signing' })).toBe('wait')

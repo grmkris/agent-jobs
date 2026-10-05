@@ -1,7 +1,7 @@
 import * as sdk from '@agent-jobs/sdk'
 import { Check, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { Hex } from 'viem'
+import type { Hex, TransactionReceipt } from 'viem'
 import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { getBlock, getBlockNumber, getTransaction, getTransactionCount, waitForTransactionReceipt } from 'wagmi/actions'
 import { type TxRequest, boardApi } from '../api.ts'
@@ -88,6 +88,7 @@ export function TxSteps({
   sendGuard,
   requireJournal = false,
   verifyReceipt = false,
+  receiptGuard,
 }: {
   taskId: string
   txs: WalletStep[]
@@ -106,6 +107,8 @@ export function TxSteps({
   sendGuard?: (() => string | null | Promise<string | null>) | undefined
   requireJournal?: boolean
   verifyReceipt?: boolean
+  /** A successful receipt must prove the requested effect. A returned error proves no effect and permits retry; unreadable or conflicting proof must throw. */
+  receiptGuard?: ((receipt: Pick<TransactionReceipt, 'logs'>, steps: readonly WalletStep[]) => string | null) | undefined
 }) {
   const { chainId, address } = useAccount()
   const currentAccount = useRef({ chainId, address, canSend })
@@ -135,10 +138,13 @@ export function TxSteps({
       const h = record.hashes[i]
       if (h === null || h === undefined) {
         if (record.sponsored === true && record.sponsor != null) return { at: 'uncertain', error: SPONSORED.lost }
-        if (record.pending !== i) return { at: 'idle' }
+        if (record.pending !== i) {
+          const failure = record.effectFailures?.findLast(entry => entry.index === i)
+          return failure === undefined ? { at: 'idle' } : { at: 'failed', hash: failure.hash, error: failure.error, noEffect: true }
+        }
         return record.snapshot != null ? { at: 'uncertain', checking: true, error: UNCERTAIN.checking } : { at: 'uncertain', error: UNCERTAIN.legacy }
       }
-      return record.recorded[i] === true ? { at: 'recorded', hash: h } : { at: 'sent', hash: h }
+      return record.recorded[i] === true && receiptGuard === undefined ? { at: 'recorded', hash: h } : { at: 'sent', hash: h }
     }),
   )
   const [switching, setSwitching] = useState<string | null>(null)
@@ -149,6 +155,7 @@ export function TxSteps({
   const sending = useRef(false)
   const checking = useRef(false)
   const done = useRef(false)
+  const receiptProofs = useRef(new Set<Hex>())
 
   const commit = (r: OpRecord) => {
     save(key, r)
@@ -158,8 +165,9 @@ export function TxSteps({
     setRecord(r)
     setStatus((r.batch || r.sponsored === true ? [txs[0] as TxRequest] : txs).map((_, i): Status => {
       const hash = r.hashes[i]
-      if (hash != null) return r.recorded[i] === true ? { at: 'recorded', hash } : { at: 'sent', hash }
-      return r.pending === i ? { at: 'uncertain', error: UNCERTAIN.unknown } : { at: 'idle' }
+      if (hash != null) return r.recorded[i] === true && (receiptGuard === undefined || receiptProofs.current.has(hash)) ? { at: 'recorded', hash } : { at: 'sent', hash }
+      const failure = r.effectFailures?.findLast(entry => entry.index === i)
+      return r.pending === i ? { at: 'uncertain', error: UNCERTAIN.unknown } : failure === undefined ? { at: 'idle' } : { at: 'failed', hash: failure.hash, error: failure.error, noEffect: true }
     }))
   }
   const set = (i: number, s: Status) => setStatus((all) => all.map((x, j) => (j === i ? s : x)))
@@ -192,6 +200,8 @@ export function TxSteps({
     try {
       if (verifyReceipt) await verifyTransaction(i, hash, r)
       const receipt = await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
+      if (receiptGuard !== undefined && receipt.transactionHash.toLowerCase() !== hash.toLowerCase())
+        throw new Error('The effect receipt names a different transaction. Reconcile before continuing.')
       if (receipt.status !== 'success') {
         const latest = load(key, requireJournal) ?? r
         const reverted = [...(latest.reverted ?? [])]
@@ -207,6 +217,16 @@ export function TxSteps({
         return
       }
       const latest = load(key, requireJournal) ?? r
+      const effectError = receiptGuard?.(receipt, r.batch ? txs : [txs[i]!])
+      if (effectError) {
+        const effectFailures = [...(latest.effectFailures ?? [])]
+        if (!effectFailures.some(failure => failure.hash === hash)) effectFailures.push({ index: i, hash, error: effectError })
+        const hashes = [...latest.hashes]; hashes[i] = null
+        commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot ?? null, hashes, effectFailures, recorded: Object.assign([...latest.recorded], { [i]: false }) })
+        set(i, { at: 'failed', hash, noEffect: true, error: effectError })
+        return
+      }
+      receiptProofs.current.add(hash)
       if (latest.pending === i) {
         const hashes = [...latest.hashes]; hashes[i] = hash
         commit({ ...latest, pending: null, snapshot: null, hashes })
@@ -249,6 +269,9 @@ export function TxSteps({
         toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
         return
       }
+      const effectError = receiptGuard?.(receipt, txs)
+      if (effectError) throw new Error(effectError)
+      receiptProofs.current.add(hash)
     } catch {
       set(0, { at: 'uncertain', error: SPONSORED.slow })
       return
@@ -426,7 +449,7 @@ export function TxSteps({
         const latest = load(key, requireJournal) ?? record
         syncRecord(latest)
         const hash = latest.hashes[i]
-        if (hash != null && latest.recorded[i] !== true) await settle(i, hash, latest)
+        if (hash != null && (latest.recorded[i] !== true || receiptGuard !== undefined && !receiptProofs.current.has(hash))) await settle(i, hash, latest)
         else if (latest.pending === i) await reconcile(i, latest)
       })
     } catch (failure) { journalFailure(failure) }
@@ -601,7 +624,7 @@ export function TxSteps({
   }, [busy, onBusyChange])
   const safeToRestart =
     record.pending === null &&
-    status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true)))
+    status.every((entry) => entry.at === 'idle' || entry.at === 'recorded' || (entry.at === 'failed' && (entry.hash === undefined || entry.reverted === true || entry.noEffect === true)))
   useEffect(() => {
     onSafeToRestartChange?.(safeToRestart)
   }, [safeToRestart, onSafeToRestartChange])

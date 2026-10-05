@@ -36,4 +36,15 @@ describe('durable wallet transaction journal', () => {
     initializeTxJournal(storage, 'approval:1', [tx])
     expect(readTxJournal(storage, key, true)).toEqual(pending)
   })
+  it('retains no-effect receipts across reload and refuses corrupt failure history', () => {
+    const { storage, values } = fixture(), key = txJournalKey('delegation:1', [tx])
+    const hash = `0x${'ab'.repeat(32)}` as const
+    const record = { ...emptyJournal(), hashes: [null], recorded: [false], effectFailures: [{ index: 0, hash, error: 'Not delegated' }] }
+    writeTxJournal(storage, key, record)
+    expect(readTxJournal(storage, key, true)).toEqual(record)
+    for (const failure of [null, { index: -1, hash, error: 'Not delegated' }, { index: 0, hash: 'invalid', error: 'Not delegated' }, { index: 0, hash }]) {
+      values.set(key, JSON.stringify({ ...record, effectFailures: [failure] }))
+      expect(() => readTxJournal(storage, key, true)).toThrow(/corrupt.*unknown/)
+    }
+  })
 })

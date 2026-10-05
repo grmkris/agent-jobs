@@ -84,13 +84,13 @@ export function stakeContext(contracts = window.__hireling) {
   return { publicClient, deployment: { ...deployment, hireling: { ...deployment.hireling, ...contracts, block: 100n } }, stack: deployment.stacks.main };
 }
 
-export function apply({ data }) {
+export function apply({ data }, logs = []) {
   const s = window.__stake;
   if (data.startsWith('0xe9ae5c53')) {
     const { args } = decodeFunctionData({ abi: sdk.delegatorAbi, data });
     if (args[0] !== sdk.BATCH_DEFAULT_MODE) throw new Error('Fixture refuses non-atomic execution');
     const [calls] = decodeAbiParameters([{ type: 'tuple[]', components: [{ name: 'target', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'callData', type: 'bytes' }] }], args[1]);
-    for (const call of calls) apply({ data: call.callData });
+    for (const call of calls) apply({ data: call.callData }, logs);
     return;
   }
   let decoded;
@@ -112,6 +112,12 @@ export function apply({ data }) {
     const shares = pool.shares === 0n ? args[1] : args[1] * pool.shares / pool.assets;
     if (position.generation !== pool.generation) Object.assign(position, emptyPosition(pool.generation));
     s.wallet -= args[1]; s.nonce += 1n; pool.assets += args[1]; pool.shares += shares; position.shares += shares;
+    logs.push({
+      address: window.__hireling.vault,
+      topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator: owner, payer: owner } }),
+      data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [args[1], shares]),
+      removed: false,
+    });
   }
   if (functionName === 'requestUndelegate') {
     if (args[1] > position.shares - position.queuedShares) throw new Error('NotOwned');

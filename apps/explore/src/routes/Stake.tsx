@@ -37,6 +37,7 @@ import { type HirelingContracts, hireling } from "../hireling.ts";
 import { stakeContext } from "../stake-context.ts";
 import { factoryAmount } from "../stake.ts";
 import { friendlyError } from "../txErrors.ts";
+import { vaultOperationGuards } from "../vault-proof.ts";
 import { chain } from "../wallet.ts";
 import {
   type VaultIntent as Operation,
@@ -361,11 +362,7 @@ function Stake({
             verifyReceipt
             allowSponsorship={false}
             onSafeToRestartChange={setSafeToDismiss}
-            sendGuard={() =>
-              readVaultIntent(localStorage, key)?.id === operation.id
-                ? null
-                : "This position action changed in another tab. Reload to reconcile the saved action."
-            }
+            {...vaultOperationGuards(stakeContext(contracts), localStorage, key, operation, owner)}
             onDone={() => {
               void withVaultIntentLock(navigator.locks, key, async () => {
                 if (!clearOwnedIntent(localStorage, key, operation.id))
