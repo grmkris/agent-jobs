@@ -8,7 +8,7 @@ import * as sdk from '../../src/index.ts'
 import { AgentExecutor } from '../../../board/src/agent-executor.ts'
 import { AgentStore } from '../../../board/src/agents.ts'
 import { AgentSigning } from '../../../board/src/agent-signing.ts'
-import { SponsorDesk, SPONSOR_LIMITS } from '../../../board/src/sponsor.ts'
+import { SponsorDesk } from '../../../board/src/sponsor.ts'
 import { fromNodeSqlite } from '../../../board/src/store.ts'
 import { localEnv, required } from '../privy/env.ts'
 import { spentAndReserved } from './authority-cost.ts'
@@ -33,8 +33,18 @@ async function prove(): Promise<void> {
   stage = 'fixture-budget'
   const chainJournal = sdk.parseFlowJson(readFileSync(new URL('chain.json', directory), 'utf8'))
   const fees = await sdk.transactionFees(ctx.publicClient)
-  if (spentAndReserved(chainJournal) + SPONSOR_LIMITS.gas * fees.maxFeePerGas >= parseEther('1')) throw new Error('Fixture run budget would exceed 1 MON')
-  if (SPONSOR_LIMITS.gas * fees.maxFeePerGas > parseEther('0.1')) throw new Error('One-call fixture budget exceeds 0.1 MON')
+  const fixtureGasCap = 1_000_000n
+  const fixtureCostCap = parseEther('0.25')
+  const priorCost = spentAndReserved(chainJournal)
+  if (priorCost + fixtureGasCap * fees.maxFeePerGas >= parseEther('1')) throw new Error('Fixture run budget would exceed 1 MON')
+  if (fixtureGasCap * fees.maxFeePerGas > fixtureCostCap) throw new Error('One-call fixture budget exceeds 0.25 MON')
+  const signTransaction = relay.signTransaction
+  relay.signTransaction = async parameters => {
+    if (parameters.gas === undefined || parameters.gas > fixtureGasCap || parameters.maxFeePerGas === undefined
+      || parameters.gas * parameters.maxFeePerGas > fixtureCostCap
+      || priorCost + parameters.gas * parameters.maxFeePerGas >= parseEther('1')) throw new Error('Actual fixture transaction exceeds its budget')
+    return signTransaction(parameters)
+  }
   stage = 'registry-binding'
   const [owner, wallet, code] = await Promise.all([
     ctx.publicClient.readContract({ address: ctx.deployment.identity, abi: sdk.identityAbi, functionName: 'ownerOf', args: [BigInt(registered.agentId)] }),
