@@ -3,7 +3,7 @@ import type { OAuthGrant } from './oauth.ts'
 
 const READ_TOOLS = new Set([
   'get_instructions', 'whoami', 'protocol_info', 'list_tasks', 'get_task', 'task_index', 'list_quote_requests',
-  'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'fee_quote', 'mining_proof', 'list_boards',
+  'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'list_delegations', 'fee_quote', 'mining_proof', 'list_boards',
   'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status',
 ])
 const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work'])

@@ -8,6 +8,7 @@ export interface CollectSnapshot {
   jobs: Array<{ jobId: string; holding: string }>
   tokens: Array<{ holding: string; token: string }>
   epochs?: string[]
+  positions?: sdk.DelegationCandidate[]
 }
 export interface CollectAction {
   kind: 'settle' | 'claimTopUpRefund' | 'withdraw' | 'claimRefund' | 'stakeWithdraw' | 'miningClaim'
@@ -15,6 +16,7 @@ export interface CollectAction {
   epoch?: string | null
   token?: string | null
   amount?: string | null
+  account?: Address
   description: string
   transactions: sdk.TxRequest[]
 }
@@ -46,7 +48,8 @@ async function legacySettlement(ctx: sdk.Ctx, jobId: bigint, now: number): Promi
 }
 
 export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: CollectSnapshot, mining?: MiningSource): Promise<CollectAction[]> {
-  const now = Number((await base.publicClient.getBlock()).timestamp)
+  const block = await base.publicClient.getBlock()
+  const now = Number(block.timestamp)
   const out: CollectAction[] = [], tokens = new Map<string, { ctx: sdk.Ctx; token: Address }>()
   const pair = (holding: string): sdk.Ctx => {
     const entry = sdk.stackByHolding(base.deployment, holding)
@@ -91,8 +94,21 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
     if (owed > 0n) out.push({ kind: 'withdraw', token, amount: owed.toString(), description: 'Withdraw the token payment held for your wallet.', transactions: [transaction(ctx, 'Withdraw the refused token payout', ctx.stack.holding, encodeFunctionData({ abi: holdingAbi(ctx), functionName: 'withdraw', args: [token] }), 450_000n)] })
   }
   if (base.deployment.hireling !== null) {
-    const h = base.deployment.hireling, state = await sdk.getStake(base, wallet)
-    if (state.unstaking > 0n && now >= state.unlockAt) out.push({ kind: 'stakeWithdraw', token: h.factory, amount: state.unstaking.toString(), description: 'Withdraw FACTORY whose unstaking cooldown has ended.', transactions: [transaction(base, 'Withdraw unstaked FACTORY', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [wallet] }))] })
+    const h = base.deployment.hireling
+    const candidates = snapshot.positions ?? [{ account: wallet, delegator: wallet, generation: 0n }]
+    for (const candidate of candidates) {
+      if (!same(candidate.delegator, wallet)) throw new Error('the collect index references another position owner')
+      const [position, backing] = await Promise.all([
+        sdk.getPosition(base, candidate.account, wallet, { blockNumber: block.number, knownGeneration: candidate.generation }),
+        sdk.getBacking(base, candidate.account, { blockNumber: block.number }),
+      ])
+      if (position.queuedShares > 0n && now >= position.unlockAt && backing.assets - position.queued >= backing.reserved) {
+        out.push({ kind: 'stakeWithdraw', account: candidate.account, token: h.factory, amount: position.queued.toString(),
+          description: 'Withdraw your queued position after cooldown and bond release.',
+          transactions: [transaction(base, 'Withdraw the wallet-owned position', h.vault,
+            encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', args: [candidate.account] }))] })
+      }
+    }
     for (const epoch of new Set(snapshot.epochs ?? [])) {
       if (mining === undefined) throw new Error('mining artifacts are unavailable for Collect')
       const claim = await miningProof(base, wallet, epoch, mining)

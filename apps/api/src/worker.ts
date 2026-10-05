@@ -6,7 +6,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { BoardError, delegationPositions, positionFilters, DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
@@ -33,6 +33,7 @@ import { agentRoute } from './routes/agents.ts'
 import { approvalRoute } from './routes/approvals.ts'
 import { agentTools } from './tools-agents.ts'
 import { managementRequest } from './agent-requests.ts'
+import { backingCard, stakingSnapshot } from './staking-index.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -354,6 +355,19 @@ export default class Api extends Cloudflare.Worker<Api>()(
           }
           const body = yield* Effect.promise(async () => {
             try {
+              if (path === '/data/delegations' || /^\/data\/backing\/0x[0-9a-fA-F]{40}$/.test(path)) {
+                if (rpcUrl === '') throw new BoardError('unavailable', 'vault reads are unavailable')
+                const ctx = sdk.context(network, 'main', rpcUrl)
+                const filters = positionFilters({
+                  ...(url.searchParams.has('wallet') ? { wallet: url.searchParams.get('wallet')! } : {}),
+                  ...(path.startsWith('/data/backing/') ? { account: path.slice('/data/backing/'.length) }
+                    : url.searchParams.has('account') ? { account: url.searchParams.get('account')! } : {}),
+                }, undefined, message => new BoardError('invalid', message))
+                const result = path === '/data/delegations'
+                  ? await delegationPositions(ctx, await stakingSnapshot(sql, ctx, filters, now()))
+                  : await backingCard(sql, ctx, filters.account!, filters.wallet, now())
+                return { ok: true, ...result }
+              }
               if (path === '/data/boards') {
                 const stored = await listBoards(sql)
                 const pub = publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))
@@ -384,11 +398,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 return { ok: true, ...detail }
               }
               return { ok: false, code: 'not-found', message: 'no such data route' }
-            } catch {
+            } catch (error) {
+              if (error instanceof BoardError) return { ok: false, code: error.code, message: error.message }
               return { ok: false, code: 'unavailable', message: 'the index is not built yet' }
             }
           })
-          return json(body, body.ok ? 200 : 'code' in body && body.code === 'unavailable' ? 503 : 404)
+          return json(body, body.ok ? 200 : 'code' in body ? STATUS[body.code] ?? 503 : 404)
         }
 
         if (path === '/health') {

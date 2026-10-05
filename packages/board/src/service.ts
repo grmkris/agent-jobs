@@ -11,6 +11,7 @@
  * authorisation nonce).
  */
 import * as sdk from '@agent-jobs/sdk'
+import { delegationPositions, positionFilters, type DelegationSnapshot, type PositionFilters } from './staking.ts'
 import {
   type Address,
   type Hex,
@@ -110,6 +111,7 @@ export interface BoardConfig {
   readonly now?: () => number
   /** Checked, read-only discovery across every hosted board and pair; absent means Collect is unavailable. */
   readonly collectSnapshot?: (wallet: Address) => Promise<CollectSnapshot>
+  readonly delegationSnapshot?: (filters: PositionFilters) => Promise<DelegationSnapshot>
   readonly miningSource?: MiningSource
   /** Used for the one-time submission check of a deliverable (ADR-0006); defaults to the global fetch. */
   readonly fetch?: typeof fetch
@@ -344,6 +346,13 @@ export class Board {
       assets: backing.assets.toString(), staked: backing.active.toString(), reserved: backing.reserved.toString(), available: backing.available.toString(),
       queued: backing.queued.toString(), unstaking: position.queued.toString(), unlockAt: position.unlockAt,
       shares: position.shares.toString(), queuedShares: position.queuedShares.toString(), tier: backing.tier }
+  }
+  async listDelegations(caller: Caller, input: { wallet?: string; account?: string }) {
+    const filters = positionFilters(input, caller.address, message => new BoardError('invalid', message))
+    if (this.#config.delegationSnapshot === undefined) throw new BoardError('chain', 'the delegation index is unavailable')
+    const ctx = this.#ctx('main')
+    v1Tools.requireV1(ctx, (code, message) => new BoardError(code, message))
+    return delegationPositions(ctx, await this.#config.delegationSnapshot(filters))
   }
   async feeQuote(_caller: Caller, input: { taskId: string; worker: string }) {
     if (typeof input.worker !== 'string' || !isAddress(input.worker)) throw new BoardError('invalid', 'worker must be an address')

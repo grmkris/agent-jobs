@@ -870,9 +870,14 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.withdrawStake(caller, a.account === undefined ? {} : { account: s(a, 'account') }),
   },
   get_stake: {
-    description: 'Read canonical staked, reserved, available and unstaking FACTORY (base units), plus unlockAt in Unix seconds.',
+    description: 'Read an agent’s total active backing, reserved and queued FACTORY, fee tier, and one wallet’s owned position with its cooldown. Amounts are base units.',
     inputSchema: { type: 'object', properties: { wallet: str('Delegator wallet; defaults to the caller.'), account: str('Backed agent wallet; defaults to the delegator.') } },
     run: (board, caller, a) => board.getStake(caller, { ...(a.wallet === undefined ? {} : { wallet: s(a, 'wallet') }), ...(a.account === undefined ? {} : { account: s(a, 'account') }) }),
+  },
+  list_delegations: {
+    description: 'Read wallet-owned positions behind agents, or all delegators backing one account. Discovery uses the checked index; every share, value and backing amount comes from the vault at the same block.',
+    inputSchema: { type: 'object', properties: { wallet: str('Position owner; defaults to the caller when account is omitted.'), account: str('Backed agent wallet; optionally restrict the owner’s positions to this account.') } },
+    run: (board, caller, a) => board.listDelegations(caller, { ...(a.wallet === undefined ? {} : { wallet: s(a, 'wallet') }), ...(a.account === undefined ? {} : { account: s(a, 'account') }) }),
   },
   fee_quote: {
     description: 'Read quoteActivation for a worker and v1 job: feeBps, fee and net in reward-token base units. Re-quote before signing activation.',
