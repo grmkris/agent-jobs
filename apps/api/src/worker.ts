@@ -6,7 +6,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { BoardError, DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
@@ -20,10 +20,10 @@ import { rpcUrlForNetwork } from './network.ts'
 import { dripState, getBoard, jobsOfBoard, jobsWithBoards, jobWithBoard, listBoards, migrateRegistry, recordOffer } from './registry.ts'
 import { boardView, tenantArgs, tenantTools } from './tools-tenant.ts'
 import DirectoryObject, { directoryObjectName } from './directory-object.ts'
-import { DirectoryCallError, directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
+import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
-import { TelegramError, enqueuePublicRequest, enqueueWalletNotification, handleTelegramWebhook, migrateTelegram, telegramPublicChannel } from './telegram.ts'
+import { enqueuePublicRequest, enqueueWalletNotification, handleTelegramWebhook, migrateTelegram, telegramPublicChannel } from './telegram.ts'
 import { telegramTools } from './tools-telegram.ts'
 import type { OAuthReply, OAuthGrant } from './oauth.ts'
 import { mcpRoute } from './mcp.ts'
@@ -35,6 +35,7 @@ import { approvalRoute } from './routes/approvals.ts'
 import { agentTools } from './tools-agents.ts'
 import { managementRequest } from './agent-requests.ts'
 import { isStakingDataPath, stakingDataRoute } from './routes/staking.ts'
+import { workerFailure as failure } from './worker-failure.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -53,11 +54,6 @@ const secret = (name: string) =>
 
 const BOARD_ROUTE = /^\/b\/([a-z0-9-]{3,32})(\/.*)?$/
 const now = () => Math.floor(Date.now() / 1000)
-/** A Worker-side failure as a board reply: tenant and session errors keep their code, anything else is `error`. */
-const failure = (e: unknown): BoardReply =>
-  e instanceof TenantError || e instanceof SessionError || e instanceof DirectoryError || e instanceof DirectoryCallError || e instanceof TelegramError
-    ? { ok: false, code: e.code, message: e.message, ...(e instanceof DirectoryCallError && e.retryAfter !== undefined ? { retryAfter: e.retryAfter } : {}) }
-    : { ok: false, code: 'error', message: e instanceof Error ? e.message : String(e) }
 const BOARD_CACHE_SECONDS = 30
 
 // Per-isolate caches: token symbols never change, a board's config rarely, and the schema is created once.
