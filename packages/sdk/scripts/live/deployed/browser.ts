@@ -132,17 +132,37 @@ export class HostedBrowser {
         // The site's normal login handles an expired session.
       }
     }
-    await this.page.getByRole("button", { name: "Sign in", exact: true }).first().click();
-    await this.page.locator('input[type="email"]').waitFor({ timeout: 30_000 });
-    await this.page.locator('input[type="email"]').fill(required("PRIVY_TEST_EMAIL"));
     await this.page
-      .getByRole("button", { name: /continue|submit/i })
+      .getByRole("button", { name: "Sign in", exact: true })
+      .first()
+      .click()
+      .catch(() => {
+        throw new Error("P8_PRIVY_LOGIN_OPEN_FAILED");
+      });
+    await this.page
+      .locator('input[type="email"]')
+      .waitFor({ timeout: 30_000 })
+      .catch(() => {
+        throw new Error("P8_PRIVY_EMAIL_FORM_UNAVAILABLE");
+      });
+    await this.page.locator('input[type="email"]').fill(required("PRIVY_TEST_EMAIL"));
+    // Privy also offers "Continue with a wallet"; submit only the email form.
+    await this.page
+      .getByRole("button", { name: "Submit", exact: true })
       .last()
-      .click();
+      .click()
+      .catch(() => {
+        throw new Error("P8_PRIVY_EMAIL_SUBMIT_FAILED");
+      });
     const inputs = this.page.locator(
       'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
     );
-    await inputs.first().waitFor({ timeout: 30_000 });
+    await inputs
+      .first()
+      .waitFor({ timeout: 30_000 })
+      .catch(() => {
+        throw new Error("P8_PRIVY_OTP_FORM_UNAVAILABLE");
+      });
     const otp = required("PRIVY_TEST_OTP");
     const count = await inputs.count();
     if (count === 1) await inputs.fill(otp);
@@ -150,21 +170,25 @@ export class HostedBrowser {
       if (count !== otp.length) throw new Error("P8_UNRECOGNIZED_PRIVY_OTP_UI");
       for (let i = 0; i < count; i++) await inputs.nth(i).fill(otp[i]!);
     }
-    const verify = this.page.getByRole("button", { name: /verify|continue/i }).last();
+    const verify = this.page.getByRole("button", { name: /^(verify|continue|submit)$/i }).last();
     if (await verify.isVisible()) await verify.click();
-    await this.page.waitForFunction(
-      () => {
-        const storage = (
-          globalThis as unknown as { localStorage: { getItem(key: string): string | null } }
-        ).localStorage;
-        return (
-          storage.getItem("agent-jobs.session") !== null &&
-          storage.getItem("agent-jobs.session-owner") !== null
-        );
-      },
-      undefined,
-      { timeout: 90_000 },
-    );
+    await this.page
+      .waitForFunction(
+        () => {
+          const storage = (
+            globalThis as unknown as { localStorage: { getItem(key: string): string | null } }
+          ).localStorage;
+          return (
+            storage.getItem("agent-jobs.session") !== null &&
+            storage.getItem("agent-jobs.session-owner") !== null
+          );
+        },
+        undefined,
+        { timeout: 90_000 },
+      )
+      .catch(() => {
+        throw new Error("P8_PRIVY_BOARD_SESSION_UNAVAILABLE");
+      });
     await this.api("/api/agents");
     return this.operator();
   }
