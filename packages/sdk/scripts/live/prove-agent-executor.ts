@@ -6,7 +6,7 @@ import { type Address, type Hex, encodeFunctionData, keccak256, parseEther, stri
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../../src/index.ts'
 import { AgentExecutor } from '../../../board/src/agent-executor.ts'
-import { AgentStore } from '../../../board/src/agents.ts'
+import { AgentStore, canonicalAgentArgs } from '../../../board/src/agents.ts'
 import { AgentSigning } from '../../../board/src/agent-signing.ts'
 import { SponsorDesk } from '../../../board/src/sponsor.ts'
 import { fromNodeSqlite } from '../../../board/src/store.ts'
@@ -91,7 +91,7 @@ async function prove(): Promise<void> {
     const nonce = await ctx.publicClient.getTransactionCount({ address: relay.address })
     stage = 'reconstruction'
     const repeated = await boot().execute(input)
-    if (JSON.stringify(repeated) !== JSON.stringify(result) || await ctx.publicClient.getTransactionCount({ address: relay.address }) !== nonce
+    if (canonicalAgentArgs(repeated) !== canonicalAgentArgs(result) || await ctx.publicClient.getTransactionCount({ address: relay.address }) !== nonce
       || sql.all<{ total: number }>('SELECT count(*) total FROM agent_sign_requests')[0]!.total !== requests) throw new Error('Retry changed the original operation or signatures')
     const evidence = { recordedAt: new Date().toISOString(), commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
       sourceStatus: 'P3 executor source under verification', network: 'monad-testnet', chainId: 10143, identity: 'API-created P0 fixture; no genuine-user consent',
