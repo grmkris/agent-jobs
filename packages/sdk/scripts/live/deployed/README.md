@@ -48,9 +48,14 @@ The fixture creator funds 40 mUSD of the configured testnet faucet reward into t
 operator wallet for allowance tests. Reward-token amounts are separate from MON
 costs. A shared private budget ledger charges gas and successful native transfers
 for fixture wallets and **all** relay traffic observed since the run began,
-including unrelated traffic. It reserves a fee margin before writes and refuses
-work beyond 2 MON. This conservative account may block before actual fixture-only
-spend reaches 2 MON. Do not reset the ledger to bypass a refusal.
+including unrelated traffic. Reservations retain explicit gas, fee and native-value
+bounds and refresh retry quotes without discarding unresolved costs. Direct signed
+sends are checked before broadcast. Hosted/browser effects are accepted only after
+their complete observed transaction set fits the reservation; those external sends
+can be inspected only after broadcast. Every recorded receipt checks the cumulative
+2 MON cap immediately. An unbounded or excessive external send blocks completion
+and retains its reservation for reconciliation. This conservative account may block
+before actual fixture-only spend reaches 2 MON. Do not reset the ledger to bypass a refusal.
 
 A04's period/expiry proofs and A03's failed-publish rollback use real signed
 browser grants and deployed bytecode on a local Anvil fork; evidence labels these

@@ -8,7 +8,7 @@ import {
   parseTransaction,
 } from "viem";
 import * as sdk from "../../../src/index.ts";
-import { CAP_WEI, budgetRemaining, required } from "./guards.ts";
+import { CAP_WEI, assertSendBound, budgetRemaining, required, type SendBound } from "./guards.ts";
 import { RunState } from "./state.ts";
 
 export interface ReceiptEvidence {
@@ -21,6 +21,10 @@ export interface ReceiptEvidence {
   blockNumber: string;
   from: Address;
   nonce: number;
+}
+
+function largest(left: bigint, right: bigint): bigint {
+  return left > right ? left : right;
 }
 
 export class Chain {
@@ -51,6 +55,14 @@ export class Chain {
     return (this.run.budget.values.reservations as Record<string, string>) ?? {};
   }
 
+  get bounds(): Record<string, SendBound> {
+    return (this.run.budget.values.sendBounds as Record<string, SendBound>) ?? {};
+  }
+
+  get receiptBindings(): Record<string, string> {
+    return (this.run.budget.values.receiptBindings as Record<string, string>) ?? {};
+  }
+
   async record(hash: Hex): Promise<TransactionReceipt> {
     const receipt = await this.ctx.publicClient.waitForTransactionReceipt({
       hash,
@@ -77,6 +89,8 @@ export class Chain {
         },
       ]);
     }
+    // Receipt costs are authoritative even while reservations remain for reconciliation.
+    budgetRemaining(this.receipts, {});
     return receipt;
   }
 
@@ -90,17 +104,24 @@ export class Chain {
         item.toLowerCase(),
       ),
     );
-    for (let number = start; number <= end; number++) {
-      const block = await this.ctx.publicClient.getBlock({
-        blockNumber: number,
-        includeTransactions: true,
-      });
-      for (const tx of block.transactions) {
-        if (senders.has(tx.from.toLowerCase())) await this.record(tx.hash);
+    for (let number = start; number <= end; number += 4n) {
+      const numbers = Array.from(
+        { length: Number(end - number + 1n < 4n ? end - number + 1n : 4n) },
+        (_, index) => number + BigInt(index),
+      );
+      const blocks = await Promise.all(
+        numbers.map((blockNumber) =>
+          this.ctx.publicClient.getBlock({ blockNumber, includeTransactions: true }),
+        ),
+      );
+      for (const block of blocks) {
+        for (const tx of block.transactions) {
+          if (senders.has(tx.from.toLowerCase())) await this.record(tx.hash);
+        }
+        this.run.set("auditBlock", block.number! + 1n);
       }
-      this.run.set("auditBlock", number + 1n);
     }
-    budgetRemaining(this.receipts, this.reservations);
+    budgetRemaining(this.receipts, {});
   }
 
   addActor(address: Address): void {
@@ -112,22 +133,64 @@ export class Chain {
   async reserve(key: string, maxGas: bigint, nativeValue = 0n): Promise<void> {
     await this.audit();
     const scoped = `${this.run.runId}/${key}`;
-    if (this.reservations[scoped] !== undefined) return;
     const fees = await sdk.transactionFees(this.ctx.publicClient);
-    // Recheck immediately before an effect; reserve a 2x price margin above the product quote.
-    const cost = maxGas * fees.maxFeePerGas * 2n + nativeValue;
-    if (cost > budgetRemaining(this.receipts, this.reservations))
+    const previous = this.bounds[scoped];
+    // Refresh retry quotes without dropping any unresolved prior maximum.
+    const bound: SendBound = {
+      maxGas: largest(maxGas, BigInt(previous?.maxGas ?? "0")).toString(),
+      maxFeePerGas: largest(
+        fees.maxFeePerGas * 2n,
+        BigInt(previous?.maxFeePerGas ?? "0"),
+      ).toString(),
+      nativeValueWei: largest(nativeValue, BigInt(previous?.nativeValueWei ?? "0")).toString(),
+      fromBlock:
+        previous?.fromBlock ??
+        (this.run.get<bigint>("auditBlock") ?? this.run.get<bigint>("firstBlock")!).toString(),
+    };
+    const cost = largest(
+      BigInt(bound.maxGas) * BigInt(bound.maxFeePerGas) + BigInt(bound.nativeValueWei),
+      BigInt(this.reservations[scoped] ?? "0"),
+    );
+    const other = { ...this.reservations };
+    delete other[scoped];
+    if (cost > budgetRemaining(this.receipts, other))
       throw new Error("P8_BUDGET_RESERVATION_REFUSED");
+    this.run.budgetSet("sendBounds", { ...this.bounds, [scoped]: bound });
     this.run.budgetSet("reservations", { ...this.reservations, [scoped]: cost.toString() });
   }
 
   async finish(key: string, hashes: Hex[]): Promise<void> {
     for (const hash of hashes) await this.record(hash);
-    // Never release a reservation after a lost response: the caller must first reconcile.
-    const next = { ...this.reservations };
-    delete next[`${this.run.runId}/${key}`];
-    this.run.budgetSet("reservations", next);
     await this.audit();
+    const scoped = `${this.run.runId}/${key}`;
+    const reserved = this.reservations[scoped];
+    if (reserved === undefined) {
+      if (hashes.some((hash) => this.receiptBindings[hash] !== scoped))
+        throw new Error("P8_RECEIPT_HAS_NO_RESERVATION");
+      return;
+    }
+    const bound = this.bounds[scoped];
+    if (bound === undefined) throw new Error("P8_RESERVATION_REQUIRES_FRESH_BOUND");
+    const returned = new Set(hashes);
+    const complete = this.receipts.filter(
+      (receipt) =>
+        (returned.has(receipt.txHash) &&
+          this.receiptBindings[receipt.txHash] === undefined) ||
+        this.receiptBindings[receipt.txHash] === scoped,
+    );
+    const transactions = await Promise.all(
+      complete.map((receipt) => this.ctx.publicClient.getTransaction({ hash: receipt.txHash })),
+    );
+    assertSendBound(transactions, bound, reserved);
+    this.run.budgetSet("receiptBindings", {
+      ...this.receiptBindings,
+      ...Object.fromEntries(complete.map((receipt) => [receipt.txHash, scoped])),
+    });
+    // Retain the reservation after any incomplete/unbounded result, including a lost response.
+    const next = { ...this.reservations };
+    delete next[scoped];
+    this.run.budgetSet("reservations", next);
+    budgetRemaining(this.receipts, this.reservations);
   }
 
   async send(key: string, wallet: sdk.Wallet, tx: sdk.TxRequest): Promise<TransactionReceipt> {
@@ -154,24 +217,39 @@ export class Chain {
     const sign = wallet.signTransaction.bind(wallet);
     const bounded = Object.assign(Object.create(Object.getPrototypeOf(wallet)), wallet, {
       signTransaction: async (request: Parameters<typeof sign>[0]) => {
-        if (
-          request.gas === undefined ||
-          request.maxFeePerGas === undefined ||
-          request.gas * request.maxFeePerGas >
-            BigInt(this.reservations[`${this.run.runId}/${key}`]!)
-        )
-          throw new Error("P8_ACTUAL_TRANSACTION_BUDGET_REFUSED");
-        return sign(request);
+        const scoped = `${this.run.runId}/${key}`;
+        const raw = await sign(request);
+        const actual = parseTransaction(raw);
+        assertSendBound(
+          [
+            {
+              chainId: actual.chainId,
+              gas: actual.gas,
+              maxFeePerGas: actual.maxFeePerGas,
+              value: actual.value ?? 0n,
+            },
+          ],
+          this.bounds[scoped]!,
+          this.reservations[scoped]!,
+        );
+        return raw;
       },
     }) as sdk.Wallet;
     // Also inspect retained bytes; retries must not evade the run budget.
     if (saved !== undefined) {
-      if (
-        prior?.gas === undefined ||
-        prior.maxFeePerGas === undefined ||
-        prior.gas * prior.maxFeePerGas > BigInt(this.reservations[`${this.run.runId}/${key}`]!)
-      )
-        throw new Error("P8_RETAINED_TRANSACTION_BUDGET_REFUSED");
+      const scoped = `${this.run.runId}/${key}`;
+      assertSendBound(
+        [
+          {
+            chainId: prior!.chainId,
+            gas: prior!.gas,
+            maxFeePerGas: prior!.maxFeePerGas,
+            value: prior!.value ?? 0n,
+          },
+        ],
+        this.bounds[scoped]!,
+        this.reservations[scoped]!,
+      );
     }
     const receipt = await this.journal.send(key, bounded, tx);
     await this.finish(key, [receipt.transactionHash]);

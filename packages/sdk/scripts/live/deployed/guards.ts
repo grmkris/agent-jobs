@@ -48,8 +48,61 @@ export function budgetRemaining(
   const spent = costs.reduce((sum, item) => sum + BigInt(item.costWei), 0n);
   const pending = Object.values(reservations).reduce((sum, cost) => sum + BigInt(cost), 0n);
   if (spent < 0n || pending < 0n || spent + pending > CAP_WEI)
-    throw new Error("2 MON fixture budget is exhausted");
+    throw new Error("P8_FIXTURE_BUDGET_EXHAUSTED");
   return CAP_WEI - spent - pending;
+}
+
+export interface SendBound {
+  maxGas: string;
+  maxFeePerGas: string;
+  nativeValueWei: string;
+  fromBlock: string;
+}
+
+/** Check the complete actual transaction set, including unsuccessful sends. */
+export function assertSendBound(
+  transactions: readonly {
+    chainId?: number | undefined;
+    gas?: bigint | undefined;
+    maxFeePerGas?: bigint | undefined;
+    value: bigint;
+  }[],
+  bound: SendBound,
+  reservedWei: string,
+): void {
+  const decimals = [
+    bound.maxGas,
+    bound.maxFeePerGas,
+    bound.nativeValueWei,
+    bound.fromBlock,
+    reservedWei,
+  ];
+  if (decimals.some((value) => !/^(0|[1-9][0-9]*)$/.test(value)))
+    throw new Error("P8_INVALID_SEND_BOUND");
+  let gas = 0n;
+  let native = 0n;
+  let maximumCost = 0n;
+  for (const tx of transactions) {
+    if (
+      tx.chainId !== 10143 ||
+      tx.gas === undefined ||
+      tx.gas <= 0n ||
+      tx.maxFeePerGas === undefined ||
+      tx.maxFeePerGas <= 0n ||
+      tx.maxFeePerGas > BigInt(bound.maxFeePerGas) ||
+      tx.value < 0n
+    )
+      throw new Error("P8_UNBOUNDED_EXTERNAL_TRANSACTION");
+    gas += tx.gas;
+    native += tx.value;
+    maximumCost += tx.gas * tx.maxFeePerGas + tx.value;
+  }
+  if (
+    gas > BigInt(bound.maxGas) ||
+    native > BigInt(bound.nativeValueWei) ||
+    maximumCost > BigInt(reservedWei)
+  )
+    throw new Error("P8_ACTUAL_TRANSACTION_SET_EXCEEDS_RESERVATION");
 }
 
 export function publicFailure(error: unknown): string {

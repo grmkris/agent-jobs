@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { assertReleased, budgetRemaining, CAP_WEI, publicFailure } from "./guards.ts";
+import {
+  assertReleased,
+  assertSendBound,
+  budgetRemaining,
+  CAP_WEI,
+  publicFailure,
+} from "./guards.ts";
 import { providerConfig, toolResult } from "./codex.ts";
 
 describe("deployed fixture boundaries", () => {
@@ -15,6 +21,21 @@ describe("deployed fixture boundaries", () => {
     expect(budgetRemaining([{ costWei: "10" }], { pending: "20" })).toBe(CAP_WEI - 30n);
     expect(() => budgetRemaining([{ costWei: CAP_WEI.toString() }], { pending: "1" })).toThrow();
     expect(() => budgetRemaining([{ costWei: "-1" }], {})).toThrow();
+  });
+
+  it("binds the entire actual send set to chain, gas, fee and native-value limits", () => {
+    const bound = { maxGas: "100", maxFeePerGas: "10", nativeValueWei: "5", fromBlock: "1" };
+    const tx = { chainId: 10143, gas: 50n, maxFeePerGas: 10n, value: 0n };
+    expect(() => assertSendBound([tx, tx], bound, "1005")).not.toThrow();
+    expect(() => assertSendBound([tx, tx, tx], bound, "1005")).toThrow();
+    expect(() => assertSendBound([{ ...tx, gas: 101n }], bound, "1005")).toThrow();
+    expect(() => assertSendBound([{ ...tx, maxFeePerGas: 11n }], bound, "1005")).toThrow();
+    expect(() => assertSendBound([{ ...tx, value: 6n }], bound, "1005")).toThrow();
+    expect(() => assertSendBound([{ ...tx, chainId: 143 }], bound, "1005")).toThrow();
+    expect(() => assertSendBound([{ ...tx, maxFeePerGas: undefined }], bound, "1005")).toThrow();
+    expect(() => assertSendBound([tx, tx], bound, "999")).toThrow();
+    expect(() => assertSendBound([tx], { ...bound, maxGas: "-1" }, "1005")).toThrow();
+    expect(() => budgetRemaining([{ costWei: (CAP_WEI + 1n).toString() }], {})).toThrow();
   });
 
   it("copies only the selected provider tables into isolated Codex config", () => {
