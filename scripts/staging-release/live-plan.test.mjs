@@ -79,10 +79,54 @@ test('an unchanged secret after newline normalization does not require rotation 
   assert.deepEqual(review(input, () => true).changes.secretChanges, [])
 })
 
+test('the live plan admits reviewed Api settings from env or native bindings and emits names only', () => {
+  const additions = readApprovedChanges().manifest.settingsChanges
+  for (const source of ['env', 'bindings']) {
+    const input = fixture()
+    const node = nativeResource(input.snapshot, 'Api')
+    if (source === 'env') node.props.env = Object.fromEntries(additions.map(change => [change.name, 'public-id-marker']))
+    else for (const change of additions) node.bindings.push(binding(change.name, { bindings: [{ name: change.name, type: 'plain_text', text: 'public-id-marker' }] }, 'create'))
+    const result = review(input)
+    assert.equal(result.ok, true, result.blockers.join(','))
+    assert.deepEqual(result.changes.settingsChanges, additions)
+    assert.ok(!JSON.stringify(result).includes('public-id-marker'))
+  }
+})
+
+test('settings additions fail closed on empty or non-text values, wrong Worker, unknown name and duplicates', () => {
+  for (const source of ['env', 'bindings']) {
+    for (const candidate of [
+      { name: 'PRIVY_APP_ID', text: '' }, { name: 'PRIVY_APP_ID', text: ' \t\n' },
+      { name: 'PRIVY_APP_ID', text: undefined }, { name: 'PRIVY_APP_ID', text: null },
+      { name: 'PRIVY_APP_ID', text: 1 }, { name: 'UNLISTED_SETTING', text: 'public-id-marker' },
+      { name: 'PRIVY_APP_ID', text: 'public-id-marker', logicalId: 'Indexer' },
+    ]) {
+      const input = fixture()
+      const node = nativeResource(input.snapshot, candidate.logicalId ?? 'Api')
+      if (source === 'env') node.props.env = { [candidate.name]: candidate.text }
+      else node.bindings.push(binding(candidate.name, { bindings: [{ name: candidate.name, type: 'plain_text', text: candidate.text }] }, 'create'))
+      // Undefined env entries are omitted by the provider, so they do not request an addition.
+      if (source === 'env' && candidate.text === undefined) continue
+      const result = review(input)
+      assert.equal(result.ok, false, `${source}: ${candidate.name}`)
+      assert.ok(!JSON.stringify(result).includes('public-id-marker'))
+    }
+  }
+  for (const type of ['secret_text', 'inherit', 'json']) {
+    const input = fixture()
+    nativeResource(input.snapshot, 'Api').bindings.push(binding('PRIVY_APP_ID', { bindings: [{ name: 'PRIVY_APP_ID', type, text: 'public-id-marker' }] }, 'create'))
+    assert.equal(review(input).ok, false)
+  }
+  const duplicate = fixture()
+  for (let i = 0; i < 2; i++) nativeResource(duplicate.snapshot, 'Api').bindings.push(binding(`Setting${i}`, { bindings: [{ name: 'PRIVY_APP_ID', type: 'plain_text', text: 'public-id-marker' }] }, 'create'))
+  assert.equal(review(duplicate).ok, false)
+})
+
 test('live runner refuses unlisted, grouped, converted, deleted and non-secret new bindings', () => {
   for (const candidate of [
     binding('UNLISTED_TOKEN', { bindings: [{ type: 'secret_text', name: 'UNLISTED_TOKEN', text: 'test-only-marker' }] }, 'create'),
     binding('Group', { bindings: [{ type: 'secret_text', name: 'TELEGRAM_BOT_TOKEN' }, { type: 'secret_text', name: 'TELEGRAM_WEBHOOK_SECRET' }] }, 'create'),
+    binding('Settings', { bindings: [{ type: 'plain_text', name: 'PRIVY_APP_ID', text: 'public-id' }, { type: 'plain_text', name: 'PRIVY_SIGNER_ID', text: 'public-id' }] }, 'create'),
     binding('RELAY_PRIVATE_KEY', { bindings: [{ type: 'plain_text', name: 'RELAY_PRIVATE_KEY', text: 'test-only-marker' }] }, 'update'),
     binding('RELAY_PRIVATE_KEY', { bindings: [] }, 'delete'),
     binding('NewSetting', { bindings: [{ type: 'plain_text', name: 'NewSetting' }] }, 'create'),

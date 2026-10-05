@@ -180,6 +180,14 @@ test('agent signing census requires a secret routine key and nonempty plain iden
   assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-authority-setting-missing/)
   for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) bindings.push({ name, type: 'plain_text', text: 'public-id' })
   validateCensus(live, { requireAgentSigning: true })
+  for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) {
+    const setting = bindings.find(binding => binding.name === name)
+    for (const text of ['', ' \t\n', undefined, null, 1]) {
+      setting.text = text
+      assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-authority-setting-missing/)
+    }
+    setting.text = 'public-id'
+  }
   bindings.find(binding => binding.name === 'PRIVY_SIGNER_KEY').type = 'plain_text'
   assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-signer-binding-missing/)
 })

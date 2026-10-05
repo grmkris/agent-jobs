@@ -33,8 +33,8 @@ function validPacketShape(bundle) {
   const bindingKeys = { Api: ['Database', 'Manifests', 'Board', 'DirectoryObject', 'DIRECTORY_DATABASE'], Indexer: ['Database'], Explore: ['API'] }
   if (!Array.isArray(bundle.live.workers) || !bundle.live.workers.every((worker) => onlyFields(worker, ['logicalId', 'resourceId', 'accountId', 'activeVersion', 'trafficPercent', 'bindings', 'cron'], ['logicalId', 'resourceId', 'accountId', 'activeVersion', 'trafficPercent', 'bindings']) && onlyFields(worker.bindings, bindingKeys[worker.logicalId] ?? [], []))) return false
   if (!Array.isArray(bundle.live.domains) || !bundle.live.domains.every(aliasShape)) return false
-  if (!onlyFields(bundle.plan, ['mode', 'observedAt', 'commit', 'tree', 'stateMigration', 'migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges', 'operations'])) return false
-  for (const field of ['migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges']) if (!Array.isArray(bundle.plan[field])) return false
+  if (!onlyFields(bundle.plan, ['mode', 'observedAt', 'commit', 'tree', 'stateMigration', 'migrations', 'secretChanges', 'settingsChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges', 'operations'])) return false
+  for (const field of ['migrations', 'secretChanges', 'settingsChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges']) if (!Array.isArray(bundle.plan[field])) return false
   if (!Array.isArray(bundle.plan.operations) || !bundle.plan.operations.every((operation) => {
     if (!onlyFields(operation, ['logicalId', 'resourceId', 'action', 'bindings', 'aliases'], ['logicalId', 'resourceId', 'action'])) return false
     if (targetOrder.includes(operation.logicalId)) return onlyFields(operation.bindings, bindingKeys[operation.logicalId], []) && Array.isArray(operation.aliases) && operation.aliases.every(aliasShape)
@@ -113,7 +113,7 @@ function reviewOnlyPlan(bundle, now) {
   for (const blocker of approved.blockers) blockers.add(blocker)
   const operations = Array.isArray(bundle?.plan?.operations) ? bundle.plan.operations : []
   const allowedBundleFields = ['wrapperSchemaVersion', 'schemaVersion', 'accountId', 'stage', 'network', 'release', 'state', 'live', 'plan', 'rollback', 'liveChecks', 'artifacts', 'migrationManifest', 'approvedChanges']
-  const allowedPlanFields = ['mode', 'observedAt', 'commit', 'tree', 'stateMigration', 'migrations', 'secretChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges', 'operations']
+  const allowedPlanFields = ['mode', 'observedAt', 'commit', 'tree', 'stateMigration', 'migrations', 'secretChanges', 'settingsChanges', 'resourceCreates', 'domainChanges', 'scheduleChanges', 'operations']
   if (Object.keys(bundle).some((key) => !allowedBundleFields.includes(key)) || Object.keys(bundle?.plan ?? {}).some((key) => !allowedPlanFields.includes(key))) blockers.add('undeclared-wrapper-field')
   const forbiddenExecutionFields = ['execute', 'apply', 'upload', 'providerCommand', 'alchemyCommand', 'cloudflareCommand']
   for (const field of forbiddenExecutionFields) {

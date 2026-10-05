@@ -36,7 +36,7 @@ export function syntheticEvidence(clock = Date.now()) {
     artifacts: ['Api', 'Indexer', 'Explore'].map((logicalId) => ({ logicalId, resourceId: expected.resources[logicalId], commit: expected.commit, tree: expected.tree, path: 'evidence.mjs', sha256: artifactHash })),
     state: { backend: 'local', root: expected.localStateRoot, accountId: expected.accountId, stack: 'AgentJobs', stage: 'staging', readable: true, readStatus: 200, readMethod: 'filesystem-read', observedAt: stamp, bootstrapAttempted: false, resources: Object.entries(expected.resources).map(([logicalId, resourceId]) => ({ logicalId, resourceId, accountId: expected.accountId, status: 'updated', providerMode: 'live', sha256: '4'.repeat(64) })) },
     live: { observedAt: stamp, workers, domains: expected.domains.map((hostname) => ({ hostname, service: expected.resources.Explore })) },
-    plan: { mode: 'review-only', observedAt: stamp, commit: expected.commit, tree: expected.tree, stateMigration: false, migrations: [], secretChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [], operations },
+    plan: { mode: 'review-only', observedAt: stamp, commit: expected.commit, tree: expected.tree, stateMigration: false, migrations: [], secretChanges: [], settingsChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [], operations },
     rollback: { versions: { ...expected.versions }, reviewed: true, storageCompatible: true },
     liveChecks: { health: true, protocolChainId: 10143, directory: true, domainOwner: true, indexerMaxAgeSeconds: 180, requireCheckpointProgress: true },
   }

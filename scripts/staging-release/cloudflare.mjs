@@ -170,7 +170,7 @@ export function validateCensus(live, options = {}) {
     if (get('Api', 'PRIVY_SIGNER_KEY')?.type !== 'secret_text') throw new StagingReleaseError('census-agent-signer-binding-missing')
     for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) {
       const binding = get('Api', name)
-      if (binding?.type !== 'plain_text' || typeof binding.text !== 'string' || binding.text.length === 0) throw new StagingReleaseError('census-agent-authority-setting-missing')
+      if (binding?.type !== 'plain_text' || typeof binding.text !== 'string' || binding.text.trim().length === 0) throw new StagingReleaseError('census-agent-authority-setting-missing')
     }
   }
 }

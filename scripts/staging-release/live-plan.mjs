@@ -1,4 +1,4 @@
-import { canonicalChange, plannedDomains, validatePlanChanges } from './approved-changes.mjs'
+import { canonicalChange, plannedDomains, settingAddition, validatePlanChanges } from './approved-changes.mjs'
 import { durableObjectTransition, migratesClasses, wireBindings } from './payload.mjs'
 
 const stack = { name: 'AgentJobs', stage: 'staging' }
@@ -58,7 +58,7 @@ export const nativeResource = (snapshot, logicalId) => snapshot?.native?.resourc
 export function reviewLivePlan(snapshot, live, reference, sameSecret) {
   const blockers = new Set()
   const refuse = (code, logicalId, name, action, field) => blockers.add(`${code}(${labelName(logicalId)}${name === undefined ? '' : `.${labelName(name)}`}${field === undefined ? '' : `: ${identityField(field)}`}${action === undefined ? '' : `: ${labelAction(action)}`})`)
-  const changes = { migrations: [], secretChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
+  const changes = { migrations: [], secretChanges: [], settingsChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
   const transitions = {}
   const operations = snapshot.resources.map(resource => ({
     fqn: resource.fqn, logicalId: resource.logicalId, type: resource.resourceType, action: resource.action,
@@ -90,7 +90,8 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
       const secrets = bound.filter(entry => entry.type === 'secret_text')
       // Secret creation and rotation can only be individual bindings. Grouped/inherited secrets stay unchanged.
       if (secrets.length !== 1 || bound.length !== 1 || secrets[0].name !== binding.sid) {
-        if (binding.action === 'create') refuse('binding-creation-refused', row.logicalId, binding.sid)
+        const setting = bound.length === 1 && bound[0].name === binding.sid ? settingAddition(row.logicalId, bound[0]) : undefined
+        if (binding.action === 'create' && (setting === undefined || observed?.bindings.some(old => old.name === setting.name))) refuse('binding-creation-refused', row.logicalId, binding.sid)
         for (const entry of bound) if (['secret_text', 'inherit', 'durable_object_namespace', 'd1', 'r2_bucket', 'service'].includes(entry.type)) refuse('resource-binding-change-refused', row.logicalId, entry.name)
         continue
       }
@@ -103,7 +104,12 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
       // Every planned binding, noop ones included, against the live wire identity.
       for (const wire of wires) {
         const old = observed.bindings.find(item => item.name === wire.name)
-        if (old === undefined || wire.type === 'inherit') continue
+        if (old === undefined) {
+          const addition = settingAddition(row.logicalId, wire)
+          if (addition !== undefined) changes.settingsChanges.push(addition)
+          continue
+        }
+        if (wire.type === 'inherit') continue
         if (wire.type !== old.type) refuse('binding-type-change-refused', row.logicalId, wire.name)
         else for (const field of sameIdentity(wire, old, observed.name, live.namespaces ?? [])) refuse('binding-identity-drift', row.logicalId, wire.name, undefined, field)
       }
@@ -118,7 +124,7 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
       const newNames = wires.map(binding => binding.name)
       for (const name of newNames) if (newNames.filter(candidate => candidate === name).length > 1) refuse('binding-deletion-refused', row.logicalId, name)
       for (const name of oldNames) if (!newNames.includes(name)) refuse('binding-deletion-refused', row.logicalId, name)
-      const allowedNewNames = changes.secretChanges.filter(change => change.logicalId === row.logicalId && change.action === 'add').map(change => change.name)
+      const allowedNewNames = [...changes.secretChanges, ...changes.settingsChanges].filter(change => change.logicalId === row.logicalId && change.action === 'add').map(change => change.name)
       for (const name of newNames) if (!oldNames.includes(name) && !allowedNewNames.includes(name)) refuse('binding-creation-refused', row.logicalId, name)
       const crons = [...new Set([...(props.crons ?? []), ...node.bindings.flatMap(binding => binding.data?.crons ?? [])])].toSorted()
       if (!same(crons, observed.crons)) changes.scheduleChanges.push({ logicalId: row.logicalId })
@@ -133,7 +139,7 @@ export function reviewLivePlan(snapshot, live, reference, sameSecret) {
   }
   const validation = validatePlanChanges(changes, reference)
   // Locate each rejected change without repeating its values. Keep manifest-wide failures separate.
-  const empty = { migrations: [], secretChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
+  const empty = { migrations: [], secretChanges: [], settingsChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
   for (const blocker of validation.blockers) {
     if (blocker === 'approved-change-manifest-mismatch') { refuse(blocker, 'ApprovedChanges'); continue }
     const before = blockers.size

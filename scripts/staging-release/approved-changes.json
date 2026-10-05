@@ -3,6 +3,11 @@
   "accountId": "bceaeae4788dce3493514fde194b4a7e",
   "stage": "staging",
   "network": "monad-testnet",
+  "settingsChanges": [
+    { "logicalId": "Api", "name": "PRIVY_APP_ID", "action": "add", "type": "plain_text" },
+    { "logicalId": "Api", "name": "PRIVY_SIGNER_ID", "action": "add", "type": "plain_text" },
+    { "logicalId": "Api", "name": "PRIVY_POLICY_ID", "action": "add", "type": "plain_text" }
+  ],
   "secretChanges": [
     { "logicalId": "Api", "name": "PRIVY_SIGNER_KEY", "action": "add" },
     { "logicalId": "Api", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },
