@@ -24,6 +24,7 @@ source /home/kristjan/code/agent-jobs/.env.local
 set +a
 export P8_RELEASED_SHA=<full released commit>
 export P8_RELEASE_STATUS_FILE=/home/kristjan/code/agent-jobs.wt/status/triage.md
+export P8_HARNESS_STATUS_FILE=/home/kristjan/code/agent-jobs.wt/status/harness.md
 export P8_RUN_ID=p8-fixture-20261005
 export P8_GROK_AGENT_ID=<reviewed registered Grok demo worker ID>
 pnpm live:deployed
@@ -35,7 +36,8 @@ is A01f, A02f, A03f, A04f, A05f, A07f, A08f, then A06f: revocation ends the clie
 connection. A03 proves the named-worker atomic publish; it does not wait for the
 Grok supervisor to accept or deliver. Build owns the creator-list change; Claude
 owns its coordination and restart. A01f appends `NOTE A01F-OPERATOR <address>` to
-the sibling `status/harness.md` after verified onboarding, including retained proofs.
+`P8_HARNESS_STATUS_FILE` after verified onboarding, including retained proofs.
+The explicit status file is checked before any live effect.
 
 The required environment names are `MONAD_TESTNET_RPC_URL`, `PRIVY_TEST_EMAIL`,
 `PRIVY_TEST_OTP`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_SIGNER_ID`,
@@ -75,7 +77,8 @@ shared runner lock. Temporary Codex homes retain OAuth credentials for retries.
 Never delete these records after an interruption. Rerun with the same release,
 run ID and arguments; passed proofs are retained. A failed case stops the suite,
 records sanitized blocked evidence, and retains pending reservations. Raw provider
-and browser error text is suppressed. Missing services or changed UI block a proof.
+and browser error text is suppressed. Cleanup errors are recorded separately in
+`cleanupError`, preserving the primary `error`. Missing services or changed UI block a proof.
 
 Sanitized results are written to `docs/evidence/agent-first-v2/p8-A01f.json` through
 `p8-A08f.json`, with source/release commits, network, fixture label, checks, receipt

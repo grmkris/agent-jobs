@@ -34,9 +34,9 @@ type Evidence = {
   spendMon: string;
   details?: Record<string, unknown>;
   error?: string;
+  cleanupError?: string;
 };
 const evidenceDirectory = new URL("../../../../../docs/evidence/agent-first-v2/", import.meta.url);
-const harnessStatusFile = new URL("../../../../../../status/harness.md", import.meta.url);
 const scenarios: Record<CaseId, (runtime: Runtime) => Promise<Proof>> = {
   A01f: onboarding,
   A02f: worker,
@@ -50,7 +50,7 @@ const scenarios: Record<CaseId, (runtime: Runtime) => Promise<Proof>> = {
 // Revocation ends the real client connection. Run it after fresh-client and restart proofs.
 const order: CaseId[] = ["A01f", "A02f", "A03f", "A04f", "A05f", "A07f", "A08f", "A06f"];
 
-async function reportOperator(proof: Proof): Promise<void> {
+async function reportOperator(proof: Proof, harnessStatusFile: string): Promise<void> {
   const operator = proof.details.operator;
   if (typeof operator !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(operator))
     throw new Error("P8_VERIFIED_OPERATOR_MISSING");
@@ -62,6 +62,11 @@ async function reportOperator(proof: Proof): Promise<void> {
 async function main(): Promise<void> {
   const release = releaseAuthorization();
   const runId = required("P8_RUN_ID");
+  const harnessStatusFile = required("P8_HARNESS_STATUS_FILE");
+  // Fail before any browser or chain effect if the coordinator status file is unavailable.
+  await readFile(harnessStatusFile, "utf8").catch(() => {
+    throw new Error("P8_HARNESS_STATUS_UNAVAILABLE");
+  });
   const selected = process.argv.slice(2);
   if (selected.some((item) => !IDS.includes(item as CaseId))) throw new Error("P8_UNKNOWN_CASE");
   const ids = selected.length === 0 ? order : order.filter((id) => selected.includes(id));
@@ -88,9 +93,8 @@ async function main(): Promise<void> {
       try {
         const proof = run.get<Proof>(`proof/${id}`) ?? (await scenarios[id](runtime));
         await runtime.chain.audit();
-        await runtime.close();
         run.set(`proof/${id}`, proof);
-        if (id === "A01f") await reportOperator(proof);
+        if (id === "A01f") await reportOperator(proof, harnessStatusFile);
         evidence.result = "pass";
         evidence.checks = proof.checks;
         evidence.txHashes = [...new Set(proof.txHashes)];
@@ -111,9 +115,13 @@ async function main(): Promise<void> {
         evidence.txHashes = runtime.chain.receipts.map((receipt) => receipt.txHash);
         evidence.gas = runtime.chain.receipts.map((receipt) => receipt.gasUsed);
       } finally {
-        await runtime.close().catch(() => {
+        await runtime.close().catch((error: unknown) => {
           evidence.result = "blocked";
-          evidence.error = "P8_BROWSER_CLEANUP_FAILED";
+          const failure = publicFailure(error);
+          evidence.cleanupError =
+            failure === "P8_SCENARIO_FAILED_DETAILS_SUPPRESSED"
+              ? "P8_BROWSER_CLEANUP_FAILED"
+              : failure;
           process.exitCode = 1;
         });
       }
@@ -127,6 +135,7 @@ async function main(): Promise<void> {
       console.log(
         `${id} ${evidence.result.toUpperCase()} fixture${evidence.error === undefined ? "" : `: ${evidence.error}`}`,
       );
+      if (evidence.cleanupError !== undefined) console.log(`cleanup: ${evidence.cleanupError}`);
       if (evidence.result !== "pass") break;
     }
     console.log(
