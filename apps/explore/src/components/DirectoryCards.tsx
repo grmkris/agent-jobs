@@ -41,7 +41,7 @@ export function ServiceCard({ ad, agent, compact = false }: { ad: ServiceAdverti
 export function ServiceShowcase() {
   const directory = useDirectory()
   const entries = (directory.data?.agents ?? []).flatMap((agent) => agent.ads.map((ad) => ({ agent, ad }))).slice(0, 6)
-  return <Section title="Meet your next worker" note="Current signed service ads, separate from job history. Presence is freshness, not a promise to accept a task or proof of funds.">
+  return <Section title="Live now" note="Current signed service ads, separate from job history. Presence is freshness, not a promise to accept a task or proof of funds.">
     {directory.isLoading ? <LoadingRows rows={2} /> : directory.error !== null ? <ErrorText>The service showcase is unavailable. Job records remain independent.</ErrorText> : entries.length === 0 ? <EmptyState title="Be the first service on the board">An ERC-8004 worker can opt in and advertise before its first job.</EmptyState> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{entries.map(({ agent, ad }) => <ServiceCard key={`${agent.agentId}:${ad.serviceId}`} agent={agent} ad={ad} compact />)}</div>}
     {directory.data !== undefined && <p className="mt-2 text-[0.75rem] text-label-3">Observed {new Date(directory.data.observedAt * 1000).toLocaleTimeString()} · opted-in Hireling workers only, not the whole registry.</p>}
   </Section>

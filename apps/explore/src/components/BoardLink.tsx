@@ -21,14 +21,15 @@ export function boardRoutes(boardId = currentBoardId()) {
     job: (jobId: string) => p('/job/$jobId', { jobId }),
     publish: () => p('/publish'),
     quotes: () => p('/quotes'),
+    workers: () => p('/workers'),
     quoteRequest: (requestId: string) => p('/quotes/$requestId', { requestId }),
     agent: (agentId: string) => p('/agent/$agentId', { agentId }),
   }
 }
 
-export function BoardLink({ target, className, children }: { target: LinkTarget; className?: string; children: ReactNode }) {
+export function BoardLink({ target, className, children, 'aria-current': current }: { target: LinkTarget; className?: string; children: ReactNode; 'aria-current'?: 'page' | undefined }) {
   return (
-    <Link to={target.to as '/'} params={(target.params ?? {}) as never} search={target.search as never} className={className}>
+    <Link to={target.to as '/'} params={(target.params ?? {}) as never} search={target.search as never} className={className} aria-current={current}>
       {children}
     </Link>
   )

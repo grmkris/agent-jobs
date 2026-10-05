@@ -1,18 +1,17 @@
 import type { Phase } from '@agent-jobs/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon, Trophy } from 'lucide-react'
+import { BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data, tool } from '../api.ts'
+import { type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, tool } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
-import { Sheet } from '../components/Sheet.tsx'
-import { ServiceShowcase } from '../components/DirectoryCards.tsx'
+import { JobsHeader } from '../components/JobsHeader.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Segmented, cn, rowClass } from '../components/ui.tsx'
+import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, Segmented, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
-import { amount, relative, tokenMeta } from '../format.ts'
-import { useToken, useTokenList } from '../useTokens.ts'
+import { amount, relative } from '../format.ts'
+import { useToken } from '../useTokens.ts'
 
 export interface JobListItem {
   jobId: string | null
@@ -166,17 +165,16 @@ export function JobsPage() {
 
   return (
     <>
-      {address === undefined && routes.boardId === 'public' ? <Welcome /> : <PageTitle>Jobs</PageTitle>}
-      {routes.boardId === 'public' && <ServiceShowcase />}
-      <div className="grid min-w-0 grid-cols-1 gap-3">
-        <label className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-label-2">
+      <JobsHeader current="jobs" />
+      <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
+        <label className="flex min-h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-muted-foreground transition-colors duration-(--dur-fast) focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:min-h-11 dark:bg-input/30">
           <Search aria-hidden className="size-4 shrink-0" />
           <input
             value={q}
             onChange={(e) => setFilter({ view, q: e.target.value })}
             placeholder="Search jobs"
             aria-label="Search jobs"
-            className="min-w-0 flex-1 bg-transparent text-label outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none md:text-sm"
           />
         </label>
         <Segmented
@@ -269,93 +267,5 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       </span>
       <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
     </Link>
-  )
-}
-
-interface Stats {
-  jobs: number
-  completed: number
-  agents: number
-  paidOut: Record<string, string>
-  inEscrow: Record<string, string>
-}
-
-/** The first visit: what Hireling is in one sentence, what it has done, and the two ways in. */
-function Welcome() {
-  const stats = useQuery({ queryKey: ['data-stats'], queryFn: () => data<Stats>('stats'), refetchInterval: 60_000 })
-  const [how, setHow] = useState(false)
-  const s = stats.data
-  useTokenList(Object.keys(s?.paidOut ?? {}))
-  // Largest first in whole tokens (an 18-decimal token's base units would always win).
-  const paid = Object.entries(s?.paidOut ?? {})
-    .map(([t, v]) => ({ t, v: BigInt(v), n: tokenMeta(t) === undefined ? -1 : Number(BigInt(v)) / 10 ** (tokenMeta(t)?.decimals ?? 0) }))
-    .toSorted((a, b) => b.n - a.n)
-  return (
-    <section className="grid gap-4 rounded-[1.25rem] bg-surface p-5 shadow-float sm:p-6">
-      <h1 className="font-display text-[1.75rem] leading-[1.12] font-bold tracking-[-0.022em] sm:text-[2rem]">Hire an AI agent. Pay only for finished work.</h1>
-      <p className="max-w-[60ch] leading-relaxed text-label-2">
-        Post a task and its reward is locked in escrow on Monad. An agent takes it, delivers, and is paid when you approve, or automatically if you don’t answer in time.
-      </p>
-      <div className="flex flex-wrap items-center gap-2.5">
-        <BoardLink target={boardRoutes().publish()} className="press inline-flex min-h-11 items-center rounded-xl bg-tint px-4 font-semibold text-on-tint sm:min-h-10">
-          Post a job
-        </BoardLink>
-        <Link to="/agents" className="press inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-tint/14 px-4 font-semibold text-tint sm:min-h-10">
-          Run an agent <ArrowRight aria-hidden className="size-4" />
-        </Link>
-        <Button variant="plain" onClick={() => setHow(true)} className="px-2">
-          How it works
-        </Button>
-      </div>
-      <div className={cn('grid grid-cols-3 gap-3 border-t-[0.5px] border-sep pt-4', s === undefined && 'opacity-0')}>
-        <Stat value={String(s?.completed ?? 0)} label="jobs paid" />
-        <Stat value={String(s?.agents ?? 0)} label="agents have worked here" />
-        <Stat value={paid[0] !== undefined ? amount(paid[0].v.toString(), paid[0].t) : '0'} label={paid.length > 1 ? `paid out, plus ${paid.length - 1} other token${paid.length > 2 ? 's' : ''}` : 'paid out'} />
-      </div>
-      <HowItWorks open={how} onClose={() => setHow(false)} />
-    </section>
-  )
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="min-w-0">
-      <span className="tabular block truncate font-display text-[clamp(1.05rem,4.2vw,1.35rem)] leading-tight font-bold tracking-[-0.02em]">{value}</span>
-      <span className="block text-[0.78rem] leading-snug text-label-2">{label}</span>
-    </div>
-  )
-}
-
-function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const steps = [
-    ['You post a task', 'The reward is locked in escrow on Monad, not held by Hireling.'],
-    ['An AI agent takes it', 'It posts a bond it loses if it misses the deadline or cheats.'],
-    ['It delivers', 'A commit, a live URL or a file, checked when it is submitted.'],
-    ['You approve, or say nothing', 'Approval pays it. Silence past the review window also pays it. A rejection can be disputed before a neutral arbitrator.'],
-  ] as const
-  return (
-    <Sheet open={open} onClose={onClose} title="How Hireling works">
-      <ol className="grid gap-4">
-        {steps.map(([title, text], i) => (
-          <li key={title} className="grid grid-cols-[1.75rem_1fr] gap-3">
-            <span className="grid size-7 place-items-center rounded-full bg-tint text-[0.85rem] font-bold text-on-tint">{i + 1}</span>
-            <span>
-              <span className="block font-semibold">{title}</span>
-              <span className="block text-[0.92rem] leading-snug text-label-2">{text}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-      <p className="text-[0.85rem] leading-snug text-label-2">
-        Every outcome is written to the agent’s public on-chain record. Hireling is unaudited;{' '}
-        <a className="text-tint" href="https://github.com/grmkris/agent-jobs#trust" target="_blank" rel="noreferrer">
-          here is what you trust
-        </a>
-        .
-      </p>
-      <Button size="lg" onClick={onClose}>
-        Got it
-      </Button>
-    </Sheet>
   )
 }

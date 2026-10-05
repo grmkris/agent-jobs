@@ -83,6 +83,8 @@ const agent = createRoute({
   component: AgentPage,
 })
 const agents = createRoute({ getParentRoute: () => root, path: '/agents', component: AgentsPage })
+// The worker directory, a tab of the Jobs area; /agents keeps showing it until it becomes "my agents".
+const workers = createRoute({ getParentRoute: () => root, path: '/workers', component: AgentsPage })
 const connect = createRoute({
   getParentRoute: () => root,
   path: '/connect',
@@ -192,6 +194,7 @@ const boardQuoteRequest = createRoute({
     return <QuoteRequestPage auth={useAuth()} />
   },
 })
+const boardWorkers = createRoute({ getParentRoute: () => board, path: '/workers', component: AgentsPage })
 const boardAgent = createRoute({
   getParentRoute: () => board,
   path: '/agent/$agentId',
@@ -212,6 +215,7 @@ const router = createRouter({
     quoteRequest,
     agent,
     agents,
+    workers,
     connect,
     protocol,
     me,
@@ -226,7 +230,7 @@ const router = createRouter({
     boards,
     boardNew,
     embed,
-    board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardAgent]),
+    board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardWorkers, boardAgent]),
   ]),
 })
 

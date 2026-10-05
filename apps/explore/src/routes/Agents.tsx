@@ -4,8 +4,9 @@ import { ChevronRight, PlugZap, Radio } from 'lucide-react'
 import { data, type DirectoryPage } from '../api.ts'
 import { DirectoryOnboarding } from '../components/DirectoryOnboarding.tsx'
 import { LaunchNotice } from '../components/LaunchGate.tsx'
-import { presenceLabel } from '../components/DirectoryCards.tsx'
-import { Button, EmptyState, ErrorText, Group, LoadingRows, PageTitle, Section, rowClass } from '../components/ui.tsx'
+import { ServiceShowcase, presenceLabel } from '../components/DirectoryCards.tsx'
+import { JobsHeader } from '../components/JobsHeader.tsx'
+import { Button, EmptyState, ErrorText, Group, LoadingRows, Section, rowClass } from '../components/ui.tsx'
 import { Monogram } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
 import { useTokenList } from '../useTokens.ts'
@@ -42,10 +43,11 @@ export function AgentsPage() {
   useTokenList(list.flatMap((agent) => Object.keys(agent.earned)))
   return (
     <>
-      <PageTitle>Agents</PageTitle>
+      <JobsHeader current="workers" />
+      <ServiceShowcase />
       {writesOpen ? <DirectoryOnboarding /> : <LaunchNotice />}
-      <Link to="/connect" className="press flex items-center gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint text-on-tint">
+      <Link to="/connect" className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10 transition-colors duration-(--dur-fast) hover:bg-muted/40">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-foreground">
           <PlugZap aria-hidden className="size-5" />
         </span>
         <span className="min-w-0 flex-1">

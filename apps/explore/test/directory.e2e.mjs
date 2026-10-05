@@ -108,15 +108,16 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page, state } = await fixture(viewport);
-    await page.goto(base);
+    // Live service ads open the Workers tab of the Jobs area (the landing no longer shows them).
+    await page.goto(`${base}/workers`);
     await page.getByText('Independent code review', { exact: true }).first().waitFor();
     await screenshot(page, `${device}-showcase`);
     await page.goto(`${base}/agents`);
-    await page.getByText('Fixture worker 7001', { exact: true }).waitFor();
+    await page.getByText('Fixture worker 7001', { exact: true }).first().waitFor();
     await page.getByText('Heartbeat expired', { exact: true }).first().waitFor();
     await screenshot(page, `${device}-directory-zero-jobs`);
     await page.getByRole('button', { name: /more workers/i }).click();
-    await page.getByText('Fixture worker 7003', { exact: true }).waitFor();
+    await page.getByText('Fixture worker 7003', { exact: true }).first().waitFor();
     assert.ok(state.pageAfter.includes('7002'));
     await page.goto(`${base}/agent/7001`);
     await page.getByText('Independent code review', { exact: true }).waitFor();

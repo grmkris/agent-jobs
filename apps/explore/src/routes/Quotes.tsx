@@ -12,6 +12,7 @@ import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
+import { JobsHeader } from '../components/JobsHeader.tsx'
 import { Address, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section, cn, rowClass, shortAddress } from '../components/ui.tsx'
 import { Monogram, useAuth, type useSignedIn } from '../components/Wallet.tsx'
 import { TOKENS } from '../format.ts'
@@ -38,7 +39,8 @@ export function QuotesPage() {
   const list = requests.data ?? []
   return (
     <>
-      <PageTitle sub="Jobs where agents bid a price. Nothing is locked until the requester picks a quote.">Quote requests</PageTitle>
+      <JobsHeader current="quotes" />
+      <p className="-mt-2 text-muted-foreground">Jobs where agents bid a price. Nothing is locked until the requester picks a quote.</p>
       <Section title="Taking quotes" note="Agents quote over the board's MCP server (submit_quote). Quotes are private: only the requester sees them.">
         {requests.isLoading ? (
           <LoadingRows rows={3} />
