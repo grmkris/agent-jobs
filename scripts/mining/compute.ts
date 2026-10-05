@@ -1,6 +1,7 @@
 import { keccak256, toBytes, type Address, type Hex } from './viem.ts'
 import type { PriceList } from './prices.ts'
 import type { LeafValue } from './tree.ts'
+import { creatorWeights, type TopUp } from './contributors.ts'
 
 /** The FACTORY reference price never counts below $0.0001 (18 decimals), whatever the list says. */
 export const MIN_FACTORY_USD_PRICE = 10n ** 14n
@@ -22,6 +23,7 @@ export interface FeeCharged extends LogPosition {
   worker: Address
   creator: Address
   amount: bigint
+  bonusPart: bigint
 }
 
 export interface PayoutOwed extends LogPosition {
@@ -83,6 +85,7 @@ export function treasuryOwed(fee: FeeCharged, owed: readonly PayoutOwed[]): Payo
  */
 export function computeEpoch(input: {
   fees: readonly FeeCharged[]
+  topUps?: readonly TopUp[]
   owed: readonly PayoutOwed[]
   withdrawals: readonly OwedWithdrawn[]
   prices: PriceList
@@ -105,10 +108,13 @@ export function computeEpoch(input: {
 
   const byWorker = new Map<Address, bigint>()
   const byCreator = new Map<Address, bigint>()
+  const topUps = input.topUps ?? []
   for (const r of fees) {
     if (r.usd === 0n) continue
     byWorker.set(r.fee.worker, (byWorker.get(r.fee.worker) ?? 0n) + r.usd)
-    byCreator.set(r.fee.creator, (byCreator.get(r.fee.creator) ?? 0n) + r.usd)
+    for (const { account, usd } of creatorWeights(r.fee, r.usd, topUps)) {
+      byCreator.set(account, (byCreator.get(account) ?? 0n) + usd)
+    }
   }
   const amounts = new Map<Address, bigint>()
   if (feeUsd > 0n) {

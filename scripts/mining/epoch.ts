@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { deploymentFromConfig, type DeploymentConfig, type Network } from '../../packages/sdk/src/deployment.ts'
-import { budgetOf, client, decimalsOf, distributorAbi, epochWindowOf, firstBlockAtOrAfter, holdingLogs, reserveAbi, safeOwners } from './chain.ts'
+import { budgetOf, client, decimalsOf, distributorAbi, epochWindowOf, firstBlockAtOrAfter, holdingLogs, reserveAbi, safeOwners, topUpLogs } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues } from './compute.ts'
 import { fundingRemainder } from './lots.ts'
 import { verifiedPriceList, type PriceListFile } from './prices.ts'
@@ -87,9 +87,10 @@ async function main() {
   const selectedPrice = selectFactoryPrice(epoch, sampledPrices, previousPrice?.prices.factoryUsdPrice)
   if (prices.factoryUsdPrice !== selectedPrice.factoryUsdPrice) throw new Error('signed FACTORY price differs from the conservative-high hourly rule')
   const logs = fromBlock <= toBlock ? await holdingLogs(c, uniqueHoldings, fromBlock, toBlock, page) : { fees: [], owed: [], withdrawals: [] }
+  const topUps = await topUpLogs(c, logs.fees, d.deployBlock < h.block ? d.deployBlock : h.block, toBlock, page)
   const budget = await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
 
-  const r = computeEpoch({ ...logs, prices, budget: budget.available })
+  const r = computeEpoch({ ...logs, topUps, prices, budget: budget.available })
   const toFund = fundingRemainder(r.emission, budget.fundedThis)
   const window = { start: s(start), end: s(end), fromBlock: s(fromBlock), toBlock: s(toBlock), toBlockHash }
   const priceList = {
@@ -118,8 +119,9 @@ async function main() {
     },
     fees: r.fees.map(({ fee: f, status, usd }) => ({
       block: s(f.block), logIndex: f.logIndex, tx: f.tx.toLowerCase(), holding: f.holding,
-      jobId: s(f.jobId), token: f.token, worker: f.worker, creator: f.creator, amount: s(f.amount), status, usd: s(usd),
+      jobId: s(f.jobId), token: f.token, worker: f.worker, creator: f.creator, amount: s(f.amount), bonusPart: s(f.bonusPart), status, usd: s(usd),
     })),
+    topUps: topUps.map(topUp => ({ ...topUp, block: s(topUp.block), jobId: s(topUp.jobId), amount: s(topUp.amount), bonus: s(topUp.bonus), tx: topUp.tx.toLowerCase() })),
   }
   const dataHash = dataHashOf(inputs)
 

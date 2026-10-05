@@ -1,5 +1,6 @@
 import { createPublicClient, http, parseAbi, parseAbiItem, type Address, type Hex, type PublicClient } from './viem.ts'
 import type { FeeCharged, OwedWithdrawn, PayoutOwed } from './compute.ts'
+import type { TopUp } from './contributors.ts'
 import { cumulativeBudget as scheduledBudget, replayLots, type EpochFunding } from './lots.ts'
 
 export const holdingEvents = [
@@ -7,6 +8,7 @@ export const holdingEvents = [
   parseAbiItem('event PayoutOwed(uint256 indexed jobId, address indexed to, address indexed token, uint256 amount)'),
   parseAbiItem('event OwedWithdrawn(address indexed to, address indexed token, uint256 amount)'),
 ] as const
+const toppedUp = parseAbiItem('event ToppedUp(uint256 indexed jobId, address indexed contributor, uint256 amount, uint256 bonus)')
 const epochFunded = parseAbiItem('event EpochFunded(uint256 indexed epoch, uint256 amount, uint256 totalFunded)')
 
 export const reserveAbi = parseAbi([
@@ -75,7 +77,7 @@ export async function holdingLogs(c: PublicClient, holdings: Address[], from: bi
   for (const log of logs) {
     const at = { block: log.blockNumber, logIndex: log.logIndex, tx: log.transactionHash as Hex, holding: lower(log.address) }
     if (log.eventName === 'FeeCharged') {
-      fees.push({ ...at, jobId: log.args.jobId, token: lower(log.args.token), worker: lower(log.args.worker), creator: lower(log.args.creator), amount: log.args.amount })
+      fees.push({ ...at, jobId: log.args.jobId, token: lower(log.args.token), worker: lower(log.args.worker), creator: lower(log.args.creator), amount: log.args.amount, bonusPart: log.args.bonusPart })
     } else if (log.eventName === 'PayoutOwed') {
       owed.push({ ...at, jobId: log.args.jobId, to: lower(log.args.to), token: lower(log.args.token), amount: log.args.amount })
     } else {
@@ -83,6 +85,28 @@ export async function holdingLogs(c: PublicClient, holdings: Address[], from: bi
     }
   }
   return { fees: fees.toSorted(chainOrder), owed: owed.toSorted(chainOrder), withdrawals: withdrawals.toSorted(chainOrder) }
+}
+
+/** Top-ups may precede this epoch. Read each paid job's full contribution history, not only the fee window. */
+export async function topUpLogs(c: PublicClient, fees: readonly FeeCharged[], deployBlock: bigint, toBlock: bigint, page: bigint): Promise<TopUp[]> {
+  const jobs = new Map<Address, bigint[]>()
+  for (const fee of fees) {
+    if (fee.bonusPart === 0n) continue
+    const ids = jobs.get(fee.holding) ?? []
+    if (!ids.includes(fee.jobId)) ids.push(fee.jobId)
+    jobs.set(fee.holding, ids)
+  }
+  const topUps: TopUp[] = []
+  for (const [holding, jobIds] of jobs) {
+    const logs = await pagedLogs(deployBlock, toBlock, page, (fromBlock, endBlock) => c.getLogs({
+      address: holding, event: toppedUp, args: { jobId: jobIds }, fromBlock, toBlock: endBlock, strict: true,
+    }))
+    for (const log of logs) {
+      topUps.push({ holding, block: log.blockNumber, logIndex: log.logIndex, tx: log.transactionHash,
+        jobId: log.args.jobId, contributor: lower(log.args.contributor), amount: log.args.amount, bonus: log.args.bonus })
+    }
+  }
+  return topUps.toSorted(chainOrder)
 }
 
 /**

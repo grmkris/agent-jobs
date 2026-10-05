@@ -48,7 +48,7 @@ test('partial funding reruns reproduce leaves/root and fund only emission remain
   const creator = `0x${'3'.repeat(40)}` as Address
   const args = {
     fees: [{ block: 1n, logIndex: 0, tx: `0x${'1'.repeat(64)}` as Hex, holding: token,
-      jobId: 1n, token, worker, creator, amount: 19n }],
+      jobId: 1n, token, worker, creator, amount: 19n, bonusPart: 0n }],
     owed: [], withdrawals: [],
     prices: { epoch: 0n, tokens: [{ token, decimals: 18, usdPrice: 10n ** 18n }], factoryUsdPrice: 10n ** 18n },
   }

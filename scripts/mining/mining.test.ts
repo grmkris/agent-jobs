@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { checkPasswordFile } from './password.ts'
 import { budgetOf, epochWindowOf, firstBlockAtOrAfter } from './chain.ts'
+import type { TopUp } from './contributors.ts'
 import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
 import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
 import { buildTree, leafHash, proofOf, verifyProof, type LeafValue } from './tree.ts'
@@ -54,7 +55,7 @@ const prices: PriceList = {
 let position = 0
 const at = (tx: number) => ({ block: BigInt(100 + tx), logIndex: position++, tx: `0x${tx.toString(16).padStart(64, '0')}` as Hex, holding: HOLDING })
 const fee = (tx: number, jobId: number, token: Address, worker: Address, creator: Address, dollars: number): FeeCharged =>
-  ({ ...at(tx), jobId: BigInt(jobId), token, worker, creator, amount: BigInt(dollars * 1_000_000) })
+  ({ ...at(tx), jobId: BigInt(jobId), token, worker, creator, amount: BigInt(dollars * 1_000_000), bonusPart: 0n })
 // A refused leg: the treasury's is always the fee's amount; a worker's is what the worker was due.
 const owedTo = (f: FeeCharged, to: Address, amount = f.amount): PayoutOwed => ({ ...at(Number(BigInt(f.tx))), jobId: f.jobId, to, token: f.token, amount })
 const withdrawn = (tx: number, to: Address, token: Address): OwedWithdrawn => ({ ...at(tx), to, token, amount: 1n })
@@ -85,6 +86,18 @@ test('one leaf per account: a worker who is also a creator gets both parts', () 
     { account: E, amount: factory(1_500) },
   ])
   expect(r.total).toBe(factory(15_000))
+})
+
+test('top-up contributors receive their pro-rata creator-side share', () => {
+  const f = { ...fee(8, 8, USDC, A, B, 10), bonusPart: 2_000_000n }
+  const topUp: TopUp = { ...at(7), jobId: f.jobId, contributor: C, amount: 20_000_000n, bonus: 20_000_000n }
+  const r = computeEpoch({ fees: [f], topUps: [topUp], owed: [], withdrawals: [], prices, budget: factory(10_000_000) })
+  // Base creator weight is 8 and the contributor's top-up weight is 2: the 40% pool splits 80/20.
+  expect(r.leaves).toEqual([
+    { account: A, amount: factory(15_000) },
+    { account: B, amount: factory(8_000) },
+    { account: C, amount: factory(2_000) },
+  ])
 })
 
 test('the budget caps the emission, and every part rounds down: total is the sum of the leaves', () => {

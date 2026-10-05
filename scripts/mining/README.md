@@ -74,6 +74,9 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
    - `fund` adds to what is already there, so the printed call is only right while `totalFunded()` is what the run
      read. `calls.fund.expect` records that value; if it has moved, run the tool again.
 8. **Split.** 60 % of the emission to workers and 40 % to creators, each pro rata by fee USD. Arbitrators get nothing.
+   - The base fee belongs to the original creator; `FeeCharged.bonusPart` belongs to top-up contributors pro rata
+     by contribution amount. Their complete `ToppedUp` history may precede the fee window. Cumulative bonus values
+     must match the replay; missing history refuses instead of assigning that share to the original creator.
    - An account that was both worker and creator gets one leaf with both parts.
    - Each part is rounded down, and zero leaves are dropped.
    - `total` is the sum of the leaves, so it can sit a few wei under the emission.
