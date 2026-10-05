@@ -100,6 +100,10 @@ export interface ChainJob {
   deliverable: string | null
   violation: string | null
   published_tx: string | null
+  /** Indexed Hireling v1 activation and settlement accounting; unknown before those events. */
+  net?: string | null
+  charged_fee?: string | null
+  bonus?: string | null
   /** ADR-0008: the board the offer was frozen on; null for a listing published outside any hosted board. */
   board_id?: string | null
 }

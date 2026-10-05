@@ -186,6 +186,25 @@ function sumBy(rows: ReadonlyArray<{ key: string; token: string | null; amount: 
   return new Map([...out].map(([k, per]) => [k, Object.fromEntries(Object.entries(per).map(([t, v]) => [t, v.toString()]))]))
 }
 
+function sumAccounting(rows: ReadonlyArray<{ token: string | null; reward: string; bonus: string; fee: string }>): Record<string, { gross: string; fee: string; net: string }> {
+  const totals = new Map<string, { gross: bigint; fee: bigint; net: bigint }>()
+  for (const row of rows) {
+    if (row.token === null) continue
+    const total = totals.get(row.token) ?? { gross: 0n, fee: 0n, net: 0n }
+    const gross = BigInt(row.reward) + BigInt(row.bonus)
+    const fee = BigInt(row.fee)
+    total.gross += gross
+    total.fee += fee
+    total.net += gross - fee
+    totals.set(row.token, total)
+  }
+  return Object.fromEntries([...totals].map(([token, total]) => [token, {
+    gross: total.gross.toString(),
+    fee: total.fee.toString(),
+    net: total.net.toString(),
+  }]))
+}
+
 async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly string[] | null, limit: number): Promise<AgentSummary[]> {
   const only = agentIds === null ? '' : `AND agent_id IN (${agentIds.map(() => '?').join(', ')})`
   const ids = agentIds ?? []
@@ -279,6 +298,24 @@ export async function networkStats(sql: AsyncSql, chainId: number) {
      WHERE r.chain_id = ? AND r.kind = 'paid'`,
     chainId,
   )
+  const accounting = await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
+    `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
+     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL
+       AND ((kind = 'hireling-v1' AND settlement_outcome = 'Paid') OR (kind = 'legacy' AND status = 'completed'))`,
+    chainId,
+  )
+  const workerTransfers = await sql.all<{ key: string; token: string | null; amount: string }>(
+    `SELECT 'all' AS key, j.token, r.amount FROM reward_outcomes r JOIN jobs j ON j.chain_id = r.chain_id AND j.job_id = r.job_id
+     WHERE r.chain_id = ? AND r.kind = 'paid' AND lower(r.recipient) = lower(j.worker)`,
+    chainId,
+  )
+  const workerPaid = sumBy(workerTransfers).get('all') ?? {}
+  const activity = await sql.all<{ demo: number; total: number }>(
+    `SELECT SUM(CASE WHEN stack LIKE 'demo%' THEN 1 ELSE 0 END) AS demo, COUNT(*) AS total FROM jobs WHERE chain_id = ?`,
+    chainId,
+  )
+  const demo = activity[0]?.demo ?? 0
+  const total = activity[0]?.total ?? 0
   // Held in escrow now: published jobs whose reward has not left Holding or the core.
   const held = await sql.all<{ key: string; token: string | null; amount: string }>(
     `SELECT 'all' AS key, token, reward AS amount FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND status IN ('open', ${IN_PROGRESS.map(() => '?').join(', ')})`,
@@ -290,5 +327,10 @@ export async function networkStats(sql: AsyncSql, chainId: number) {
     agents: counts?.agents ?? 0,
     paidOut: sumBy(paid).get('all') ?? {},
     inEscrow: sumBy(held).get('all') ?? {},
+    activity: { demo, unclassified: Math.max(0, total - demo), independent: null },
+    accounting: Object.fromEntries(Object.entries(sumAccounting(accounting)).map(([token, row]) => [token, {
+      ...row,
+      paid: workerPaid[token] ?? '0',
+    }])),
   }
 }

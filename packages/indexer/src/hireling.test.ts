@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import legacyLogs from '../test/fixtures/testnet-logs.json' with { type: 'json' }
 import {
   type AsyncSql, type IndexerConfig, type RawLog, contractsFromDeployment, decode, fromNodeSqlite,
-  configuredJobs, jobAvailability, jobDetail, listAgents, migrate, protocolEvents, resetIndex, runOnce, stmt,
+  configuredJobs, jobAvailability, jobDetail, listAgents, migrate, networkStats, protocolEvents, resetIndex, runOnce, stmt,
 } from './index.ts'
 
 const addr = (n: number): Address => `0x${n.toString(16).padStart(40, '0')}`
@@ -86,6 +86,14 @@ async function snapshot(sql: AsyncSql) {
 }
 
 describe('Hireling event indexing', () => {
+  it('headline accounting separates gross, fee, net earned and a refused worker transfer', async () => {
+    const sql = await db()
+    await runOnce(sql, cfg(paidLogs))
+    const stats = await networkStats(sql, contracts.chainId)
+    expect(stats.accounting[token]).toEqual({ gross: '1100', fee: '110', net: '990', paid: '0' })
+    expect(stats.activity).toEqual({ demo: 0, unclassified: 1, independent: null })
+  })
+
   it('chooses each address ABI and keeps the captured legacy logs readable beside v1', () => {
     expect(decode(contracts, published())?.args.reviewWindow).toBe(3600)
     expect(decode(contracts, { ...published(), address: legacy.legacyStacks['main-v3']!.holding })).toBeUndefined()

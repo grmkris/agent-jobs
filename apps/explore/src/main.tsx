@@ -8,6 +8,7 @@ import { ToastProvider } from './components/Sheet.tsx'
 import { AuthProvider, useAuth } from './components/Wallet.tsx'
 import { LaunchGate } from './components/LaunchGate.tsx'
 import { Shell } from './components/Shell.tsx'
+import { LandingShell } from './components/LandingShell.tsx'
 import { AgentsPage } from './routes/Agents.tsx'
 import { MePage } from './routes/Me.tsx'
 import { JobPage } from './routes/Job.tsx'
@@ -37,6 +38,7 @@ function Layout() {
   useTokenRegistry()
   // The embedded widget (ADR-0008) has no site chrome: the host page is the chrome.
   if (location.pathname.startsWith('/embed/')) return <Outlet />
+  if (location.pathname === '/') return <LandingShell><Outlet /></LandingShell>
   return (
     <Shell>
       <Outlet />
