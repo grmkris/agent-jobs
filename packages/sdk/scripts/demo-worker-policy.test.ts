@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Address } from 'viem'
 import { flowJson, type FlowState } from '../src/flow-journal.ts'
-import { demoPolicyBinding, migrateDemoPolicy, originalDemoBinding, reviewedCreators, type DemoBinding } from './demo-worker-policy.ts'
+import { crewPolicyBinding, demoPolicyBinding, migrateDemoPolicy, migrateOpenDemoPolicy, originalDemoBinding, reviewedCrewPolicy, reviewedCreators, type DemoBinding } from './demo-worker-policy.ts'
+import policyConfig from './demo-worker-policy.json' with { type: 'json' }
 
 const original = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471' as Address
 const agent = '0x1111111111111111111111111111111111111111' as Address
@@ -14,6 +15,29 @@ const state: FlowState = {
 }
 
 describe('explicit demo journal migration', () => {
+  it('widens the reviewed creator-list policy without changing any signed send or economic intent', () => {
+    const policy = reviewedCrewPolicy(policyConfig)
+    const reviewed = migrateDemoPolicy(state, binding, original, [original, agent], '2026-10-05')
+    const before = flowJson(reviewed)
+    const open = migrateOpenDemoPolicy(reviewed, binding, original, policy, '2026-10-05T12:00:00Z')
+    expect(open.binding).toBe(crewPolicyBinding(binding, policy))
+    expect(open.sends).toEqual(reviewed.sends)
+    expect(open.values['worker/entries']).toEqual(reviewed.values['worker/entries'])
+    expect(open.values.signature).toBe('saved-signature')
+    expect(open.values.amount).toBe(12n)
+    expect(open.values['policy/migrations']).toHaveLength(2)
+    expect(flowJson(reviewed)).toBe(before)
+    expect(migrateOpenDemoPolicy(open, binding, original, policy, 'later')).toBe(open)
+    expect(() => migrateOpenDemoPolicy(reviewed, { ...binding, token: original }, original, policy, '2026-10-05')).toThrow('binding')
+    expect(() => reviewedCrewPolicy({ ...policyConfig, maxDeliveriesPerDay: 5 })).toThrow('caps')
+  })
+  it('migrates the original journal and conservatively charges undated historic effects', () => {
+    const previous = { ...state, values: { ...state.values, 'canvas/entries': { old: { quoteId: 'quote' } } },
+      sends: { ...state.sends, 'canvas/old/activate/0/0': state.sends['worker/activate']! } }
+    const open = migrateOpenDemoPolicy(previous, binding, original, reviewedCrewPolicy(policyConfig), '2026-10-05T12:00:00Z')
+    expect(open.values['canvas/daily']).toEqual({ '2026-10-05': { quotes: ['old'], deliveries: ['old'] } })
+    expect(open.sends).toEqual(previous.sends)
+  })
   it('preserves pending sends, signatures, entries and intent values, then supports another reviewed addition', () => {
     const before = flowJson(state)
     const next = migrateDemoPolicy(state, binding, original, [original, agent], '2026-10-05')

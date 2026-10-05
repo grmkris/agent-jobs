@@ -21,7 +21,7 @@ export interface DemoRequest {
 }
 
 export interface DemoPolicy {
-  creators: readonly Address[]
+  creatorScope: 'any'
   token: Address
   maxBond: bigint
   minimumDeliverySeconds: number
@@ -41,7 +41,6 @@ export interface DemoBid {
 
 export function requestProblem(request: DemoRequest, policy: DemoPolicy, now: number): string | undefined {
   if (request.chainId !== 10143 || request.stack !== 'main') return 'Only the current Monad testnet v1 stack is supported'
-  if (!policy.creators.some(creator => sameAddress(request.creator, creator))) return 'Request is outside the demo creator scope'
   if (!request.tokens.some(token => token.toLowerCase() === policy.token.toLowerCase())) return 'Demo payment token is not accepted'
   if (request.quoteDeadline <= now || request.deliveryDeadline - now < policy.minimumDeliverySeconds) return 'Insufficient time to deliver'
   try { if (parseUnits(request.workerBond, 18) > policy.maxBond || parseUnits(request.workerBond, 18) < 0n) return 'Worker bond is outside policy' }
@@ -58,6 +57,8 @@ export function parseDemoBid(value: unknown): DemoBid | null {
   if (value === null || typeof value !== 'object') throw new Error('Invalid bid response')
   const v = value as Record<string, unknown>
   if (v.decline === true) return null
+  // The model must explicitly assess safety; missing or uncertain assessments decline.
+  if (v.safety !== 'safe') return null
   if ((v.kind !== 'image' && v.kind !== 'file') || typeof v.note !== 'string' || typeof v.prompt !== 'string'
     || typeof v.filename !== 'string' || typeof v.mediaType !== 'string') throw new Error('Invalid bid fields')
   if (v.note.length < 1 || v.note.length > 1000 || v.prompt.length < 1 || v.prompt.length > 6000) throw new Error('Bid exceeds text bounds')

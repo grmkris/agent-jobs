@@ -32,6 +32,7 @@
     "staging:release": "node scripts/staging-release/release.mjs",
     "testnet:v1:flows": "bun packages/sdk/scripts/v1-flows.ts",
     "demo:workers": "bun packages/sdk/scripts/demo-workers.ts",
+    "crew": "node scripts/crew.mjs",
     "live:deployed": "bun packages/sdk/scripts/live/deployed/acceptance.ts"
   },
   "devDependencies": {

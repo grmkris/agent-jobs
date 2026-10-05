@@ -1,0 +1,10 @@
+{
+  "chainId": 10143,
+  "creatorScope": "any",
+  "rewardToken": "mUSD",
+  "maxQuotesPerDay": 10,
+  "maxDeliveriesPerDay": 4,
+  "maxActiveJobs": 1,
+  "maxWorkerBond": "5",
+  "minimumDeliverySeconds": 900
+}
