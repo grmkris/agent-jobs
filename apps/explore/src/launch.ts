@@ -4,43 +4,84 @@
  * `writesOpen`; the pages show `LaunchGate`.
  */
 
-export const LAUNCH_MESSAGE = 'Hireling on mainnet opens soon. Until launch you can look around, but nothing can be published, taken, staked or paid.'
+export const LAUNCH_MESSAGE =
+  "Hireling on mainnet opens soon. Until launch you can look around, but nothing can be published, taken, staked or paid.";
 
 /** Board tools that only read (the board's `readOnlyHostedTools`, plus Collect's list): the only ones allowed while writes are closed. */
 export const READ_TOOLS: ReadonlySet<string> = new Set([
-  'protocol_info', 'whoami', 'list_tasks', 'get_task', 'list_quote_requests', 'list_quotes', 'get_budget', 'task_index',
-  'list_pools', 'get_pool', 'pledged_by', 'list_applications', 'list_candidates', 'list_disputes', 'get_dispute_bundle',
-  'settlement_actions', 'collect_actions', 'list_boards', 'get_board', 'auth_challenge', 'auth_login', 'list_directory',
-  'get_directory_agent', 'telegram_status', 'sponsor_status', 'sponsor_operation', 'fee_quote', 'get_stake', 'list_delegations', 'mining_proof',
-])
+  "protocol_info",
+  "whoami",
+  "list_tasks",
+  "get_task",
+  "list_quote_requests",
+  "list_quotes",
+  "get_budget",
+  "task_index",
+  "list_pools",
+  "get_pool",
+  "pledged_by",
+  "list_applications",
+  "list_candidates",
+  "list_disputes",
+  "get_dispute_bundle",
+  "settlement_actions",
+  "collect_actions",
+  "list_boards",
+  "get_board",
+  "auth_challenge",
+  "auth_login",
+  "list_directory",
+  "get_directory_agent",
+  "telegram_status",
+  "sponsor_status",
+  "sponsor_operation",
+  "fee_quote",
+  "get_stake",
+  "list_delegations",
+  "mining_proof",
+]);
 
 /** Whether a board tool may be called: any while writes are open, else only a read. Unknown tools count as writes. */
-export const toolAllowed = (name: string, open: boolean) => open || READ_TOOLS.has(name)
+export const toolAllowed = (name: string, open: boolean) => open || READ_TOOLS.has(name);
 
 /**
  * Wallet requests that send or sign something that acts on chain. Board sign-in (`personal_sign` of its challenge)
  * stays allowed: it reads who you are, and the pages that ask for any other message are closed.
  */
 export const WRITE_METHODS: ReadonlySet<string> = new Set([
-  'eth_sendTransaction', 'eth_sendRawTransaction', 'eth_signTransaction', 'eth_sign', 'eth_signTypedData',
-  'eth_signTypedData_v3', 'eth_signTypedData_v4', 'wallet_sendCalls', 'wallet_signAuthorization',
-])
+  "eth_sendTransaction",
+  "eth_sendRawTransaction",
+  "eth_signTransaction",
+  "eth_sign",
+  "eth_signTypedData",
+  "eth_signTypedData_v3",
+  "eth_signTypedData_v4",
+  "wallet_sendCalls",
+  "wallet_signAuthorization",
+]);
 
 interface Provider {
-  request(args: { method: string; params?: unknown }): Promise<unknown>
+  request(args: { method: string; params?: unknown }): Promise<unknown>;
 }
 
 /** The provider itself while writes are open; otherwise the same provider, refusing every write request (EIP-1193 4100). */
-export function closeWrites<P extends Provider>(provider: P | undefined, open: boolean): P | undefined {
-  if (open || provider === undefined) return provider
+export function closeWrites<P extends Provider>(
+  provider: P | undefined,
+  open: boolean,
+): P | undefined {
+  if (open || provider === undefined) return provider;
   return new Proxy(provider, {
     get(target, prop) {
-      if (prop === 'request') {
+      if (prop === "request") {
         return (args: { method: string; params?: unknown }) =>
-          WRITE_METHODS.has(args.method) ? Promise.reject(Object.assign(new Error(LAUNCH_MESSAGE), { code: 4100 })) : target.request(args)
+          WRITE_METHODS.has(args.method)
+            ? Promise.reject(Object.assign(new Error(LAUNCH_MESSAGE), { code: 4100 }))
+            : target.request(args);
       }
-      const value: unknown = Reflect.get(target, prop, target)
-      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value
+      const value: unknown = Reflect.get(target, prop, target);
+      return typeof value === "function"
+        ? (value as (...a: unknown[]) => unknown).bind(target)
+        : value;
     },
-  })
+  });
 }
