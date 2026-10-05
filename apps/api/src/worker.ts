@@ -27,7 +27,8 @@ import { TelegramError, enqueuePublicRequest, enqueueWalletNotification, handleT
 import { telegramTools } from './tools-telegram.ts'
 import type { OAuthReply, OAuthGrant } from './oauth.ts'
 import { mcpRoute } from './mcp.ts'
-import { toJson, tools } from './tools.ts'
+import { tools } from './tools.ts'
+import { jsonResponse } from './json.ts'
 import { permittedTool } from './mcp-policy.ts'
 import { agentRoute } from './routes/agents.ts'
 import { approvalRoute } from './routes/approvals.ts'
@@ -189,7 +190,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const origin = request.headers.origin
         const allowed = tenant === undefined ? false : isAllowedOrigin(tenant, origin, url.host)
         const cors = corsHeaders(origin, allowed)
-        const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => HttpServerResponse.jsonUnsafe(JSON.parse(toJson(body)), { status, headers: { ...cors, ...headers } })
+        const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => jsonResponse(body, { status, headers: { ...cors, ...headers } })
 
         if (request.method === 'OPTIONS') return HttpServerResponse.empty({ status: 204, headers: cors })
         if (tenant === undefined) return json({ ok: false, code: 'not-found', message: `no board "${boardId}"` }, 404)
