@@ -7,9 +7,15 @@ const core = '0x3333333333333333333333333333333333333333'
 const request: DemoRequest = { requestId: 'request', requestHash: 'hash', chainId: 10143, stack: 'main', creator,
   title: 'Cats', brief: 'Draw cats', acceptanceCriteria: ['PNG'], tokens: [token], workerBond: '1', quoteDeadline: 2000,
   deliveryDeadline: 3000, requiredChecks: ['test'], windows: { reviewSeconds: 120, disputeSeconds: 120, arbitrationSeconds: 300 }, arbitrator: core } as DemoRequest
-const policy = { creator, token, maxBond: 10n ** 19n, minimumDeliverySeconds: 600 } as const
+const policy = { creators: [creator], token, maxBond: 10n ** 19n, minimumDeliverySeconds: 600 } as const
 
 describe('demo worker admission', () => {
+  it('admits every reviewed creator, including a managed agent, and refuses others', () => {
+    const expanded = { ...policy, creators: [creator, core] as const }
+    expect(requestProblem({ ...request, creator: core.toUpperCase() }, expanded, 1000)).toBeUndefined()
+    expect(requestProblem({ ...request, creator: token }, expanded, 1000)).toBeDefined()
+    expect(requestProblem(request, { ...policy, creators: [] }, 1000)).toBeDefined()
+  })
   it('admits a scoped image request and a git-only image request', () => expect(requestProblem(request, policy, 1000)).toBeUndefined())
   it.each([{ chainId: 143 }, { creator: core }, { tokens: [core] }, { workerBond: '11' }, { quoteDeadline: 999 },
     { deliveryDeadline: 1200 }, { requiredChecks: ['deploy'] }, { deliverable: { accepts: ['onchain'] } },

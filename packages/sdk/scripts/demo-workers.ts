@@ -11,12 +11,16 @@ import { type DemoBid, type DemoRequest, parseDemoBid, requestProblem, verifyBud
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 import { envLocal } from './lib/common.ts'
 import config from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
+import creatorConfig from './demo-worker-creators.json' with { type: 'json' }
+import { demoPolicyBinding, migrateDemoPolicy, reviewedCreators } from './demo-worker-policy.ts'
 
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const directory = new URL('../../../.demo-workers/', import.meta.url)
 const command = process.argv[2] ?? 'status'
 const boardUrl = 'https://testnet.hireling.xyz'
-const creator = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471' as Address
+const originalCreator = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471' as Address
+if (creatorConfig.chainId !== 10143) throw new Error('Reviewed creator list must belong to testnet')
+const creators = reviewedCreators(creatorConfig.creators)
 const repository = envLocal('DEMO_ARTIFACT_REPO', 'grmkris/hireling-demo-deliveries')
 const proxyUrl = envLocal('DEMO_MODEL_BASE_URL', 'http://127.0.0.1:8317/v1')
 const chatModel = envLocal('DEMO_CHAT_MODEL', 'grok-4.7')
@@ -30,7 +34,7 @@ const profiles = [
   { slug: 'canvas', name: 'Grok Canvas', keyVar: 'DEMO_CANVAS_PRIVATE_KEY', price: '3', style: 'Bright, playful illustration and concise useful files' },
   { slug: 'studio', name: 'Grok Studio', keyVar: 'DEMO_STUDIO_PRIVATE_KEY', price: '5', style: 'Detailed, polished composition and carefully edited files' },
 ] as const
-const policy = { creator, token, maxBond: parseUnits('5', 18), minimumDeliverySeconds: 900 }
+const policy = { creators, token, maxBond: parseUnits('5', 18), minimumDeliverySeconds: 900 }
 const stamp = () => new Date().toISOString()
 const log = (worker: string, event: string, fields: Record<string, unknown> = {}) => console.log(JSON.stringify({ at: stamp(), worker, event, ...fields }))
 const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex')
@@ -64,11 +68,15 @@ interface Published { sha: string; branch: string; url: string; descriptor: Reco
 
 ensureFlowDirectory(directory)
 const stateUrl = new URL('journal.json', directory)
-const state: sdk.FlowState = existsSync(stateUrl) ? sdk.parseFlowJson(readFileSync(stateUrl, 'utf8')) : { binding: '', values: {}, sends: {} }
+let state: sdk.FlowState = existsSync(stateUrl) ? sdk.parseFlowJson(readFileSync(stateUrl, 'utf8')) : { binding: '', values: {}, sends: {} }
 const save = () => saveFlowState(directory, state)
-const binding = sdk.hashText(JSON.stringify({ chainId: 10143, factory, vault, core: ctx.deployment.core, identity: ctx.deployment.identity, boardUrl, creator, token, repository }))
-if (state.binding !== '' && state.binding !== binding) throw new Error('Demo journal belongs to a different deployment or policy')
-state.binding = binding
+const bindingFields = { chainId: 10143, factory, vault, core: ctx.deployment.core, identity: ctx.deployment.identity, boardUrl, token, repository }
+const binding = demoPolicyBinding(bindingFields, creators)
+if (!['migrate-policy', 'status', 'stop'].includes(command)) {
+  if (state.binding !== '' && state.binding !== binding) throw new Error('Demo policy changed; stop workers, review the creator list, then run migrate-policy')
+  state.binding = binding
+  state.values['policy/creators'] = creators
+}
 const journal = new sdk.FlowJournal(ctx, state, save, (operation, hash) => log('controller', 'transaction', { operation, hash }))
 const path = (name: string) => fileURLToPath(new URL(name, directory))
 const processFile = path('runner.pid')
@@ -420,7 +428,7 @@ async function initialize(): Promise<Runtime[]> {
 }
 
 function status(workers?: Runtime[]) {
-  const report = { updatedAt: stamp(), network: 'monad-testnet', creator, boardUrl, chatModel, imageModel, repository,
+  const report = { updatedAt: stamp(), network: 'monad-testnet', creators, boardUrl, chatModel, imageModel, repository,
     workers: profiles.map(profile => ({ name: profile.name, agentId: state.values[`${profile.slug}/agentId`] ?? null,
       wallet: state.values[`${profile.slug}/wallet`] ?? null, lastHeartbeat: workers?.find(worker => worker.profile.slug === profile.slug)?.lastHeartbeat ?? state.values[`${profile.slug}/lastHeartbeat`] ?? null,
       requests: Object.entries((state.values[`${profile.slug}/entries`] ?? {}) as Record<string, Entry>).map(([requestId, entry]) => ({
@@ -439,7 +447,7 @@ async function main() {
     if (!cmdline.includes('demo-workers.ts')) throw new Error('PID no longer belongs to the demo worker runner')
     process.kill(pid, 'SIGTERM'); console.log('Demo workers will stop after the current tick'); return
   }
-  if (!['setup', 'start', 'once'].includes(command)) throw new Error('Usage: demo-workers.ts setup|start|once|status|stop')
+  if (!['setup', 'start', 'once', 'migrate-policy'].includes(command)) throw new Error('Usage: demo-workers.ts setup|start|once|status|stop|migrate-policy')
   // Refuse to activate paid work when the provider credential is absent from this shell.
   if (command === 'start' || command === 'once') envLocal('CLIPROXY_API_KEY')
   if (existsSync(processFile)) {
@@ -451,6 +459,14 @@ async function main() {
   }
   const fd = openSync(processFile, 'wx', 0o600); writeFileSync(fd, String(process.pid)); closeSync(fd)
   process.once('exit', () => { if (existsSync(processFile) && readFileSync(processFile, 'utf8') === String(process.pid)) unlinkSync(processFile) })
+  if (command === 'migrate-policy') {
+    // The previous runner may have saved its final tick since this command started.
+    state = sdk.parseFlowJson(readFileSync(stateUrl, 'utf8'))
+    state = migrateDemoPolicy(state, bindingFields, originalCreator, creators, stamp())
+    save()
+    log('controller', 'policy-migrated', { creators, savedSendCount: Object.keys(state.sends).length })
+    return
+  }
   const workers = await initialize()
   if (command === 'setup') { console.log(JSON.stringify(status(workers), null, 2)); return }
   for (;;) {

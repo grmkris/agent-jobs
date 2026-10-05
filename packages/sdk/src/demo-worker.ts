@@ -21,7 +21,7 @@ export interface DemoRequest {
 }
 
 export interface DemoPolicy {
-  creator: Address
+  creators: readonly Address[]
   token: Address
   maxBond: bigint
   minimumDeliverySeconds: number
@@ -41,7 +41,7 @@ export interface DemoBid {
 
 export function requestProblem(request: DemoRequest, policy: DemoPolicy, now: number): string | undefined {
   if (request.chainId !== 10143 || request.stack !== 'main') return 'Only the current Monad testnet v1 stack is supported'
-  if (request.creator.toLowerCase() !== policy.creator.toLowerCase()) return 'Request is outside the demo creator scope'
+  if (!policy.creators.some(creator => sameAddress(request.creator, creator))) return 'Request is outside the demo creator scope'
   if (!request.tokens.some(token => token.toLowerCase() === policy.token.toLowerCase())) return 'Demo payment token is not accepted'
   if (request.quoteDeadline <= now || request.deliveryDeadline - now < policy.minimumDeliverySeconds) return 'Insufficient time to deliver'
   try { if (parseUnits(request.workerBond, 18) > policy.maxBond || parseUnits(request.workerBond, 18) < 0n) return 'Worker bond is outside policy' }
