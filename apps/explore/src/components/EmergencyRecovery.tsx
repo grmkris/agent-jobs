@@ -13,28 +13,21 @@ import {
   recoverAddress,
   toHex,
 } from "viem";
-import { agentEndpoint, type ManagedAgent, type TxRequest } from "../api.ts";
+import { agentEndpoint, type ManagedAgent } from "../api.ts";
 import { useAuth } from "./Wallet.tsx";
 import { Button, ErrorText, Input, Section, Select } from "./ui.tsx";
 import { TxSteps } from "./TxSteps.tsx";
 import { chain, deployment } from "../wallet.ts";
 import { typedDataArgs } from "../typed-data.ts";
+import { recoveryExpiry, recoveryReplacementAllowed, type RecoveryPlan } from "./recovery-plan.ts";
+import { initializeTxJournal, readTxJournal, txJournalKey } from "./txJournal.ts";
+import { withWalletStepLock } from "./txOperation.ts";
 
 interface KnownGrant {
   hash: Hex;
   delegation: unknown;
   status: string;
 }
-interface RecoveryPlan {
-  id: string;
-  operator: Address;
-  agent: Address;
-  call: { target: Address; value: string; callData: Hex };
-  grant: string | null;
-  description: string;
-  tx?: TxRequest;
-}
-
 export function EmergencyRecovery({ initialAgent }: { initialAgent?: ManagedAgent }) {
   const { address: operator } = useAuth();
   if (operator === undefined) return null;
@@ -44,6 +37,7 @@ export function EmergencyRecovery({ initialAgent }: { initialAgent?: ManagedAgen
 function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?: ManagedAgent }) {
   const cacheKey = `hireling.recovery:${operator.toLowerCase()}:${initialAgent?.id ?? "manual"}`;
   const planKey = `${cacheKey}:plan`;
+  const historyKey = `${cacheKey}:history`;
   const { signTypedData } = usePrivySignTypedData();
   const [address, setAddress] = useState(initialAgent?.address ?? "");
   const [action, setAction] = useState("cancel");
@@ -67,8 +61,10 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       return null;
     }
   });
+  const [safeToRestart, setSafeToRestart] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const expiry = plan === null ? null : recoveryExpiry(plan, deployment.delegation.enforcers.timestamp);
   useEffect(() => {
     if (initialAgent === undefined) return;
     void agentEndpoint<{ grants: KnownGrant[] }>(`/api/agents/${initialAgent.id}/recovery`)
@@ -85,6 +81,7 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       });
   }, [initialAgent?.id, operator]);
   function save(next: RecoveryPlan) {
+    if (next.tx !== undefined) initializeTxJournal(localStorage, `emergency-${next.id}`, [next.tx]);
     localStorage.setItem(planKey, JSON.stringify(next));
     if (localStorage.getItem(planKey) !== JSON.stringify(next))
       throw new Error("Recovery journal could not be saved; no transaction may start");
@@ -187,6 +184,9 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       call: { ...call, value: call.value.toString() },
       grant,
       description,
+      action,
+      token,
+      units,
     };
     if (direct)
       next.tx = {
@@ -202,6 +202,10 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
     if (plan === null || plan.grant === null) return;
     if (plan.operator.toLowerCase() !== operator.toLowerCase())
       throw new Error("This recovery journal belongs to another operator");
+    if (expiry !== null) {
+      const block = await createPublicClient({ chain, transport: http() }).getBlock();
+      if (Number(block.timestamp) >= expiry) throw new Error("This recovery permission expired; prepare a fresh action");
+    }
     const grant = sdk.parseDelegation(plan.grant);
     const typedData = sdk.delegationTypedData(deployment, grant);
     const signature = (await signTypedData(typedDataArgs(typedData), { address: plan.agent }))
@@ -222,6 +226,26 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
         value: "0",
         data: sdk.redeemCallsCalldata({ ...grant, signature }, [execution]),
       },
+    });
+  }
+  async function replaceExpired() {
+    if (plan === null || plan.tx === undefined || plan.operator.toLowerCase() !== operator.toLowerCase()) throw new Error("This recovery attempt is unavailable");
+    const key = txJournalKey(`emergency-${plan.id}`, [plan.tx]);
+    await withWalletStepLock(navigator.locks, key, async () => {
+      const journal = readTxJournal(localStorage, key, true)!;
+      const block = await createPublicClient({ chain, transport: http() }).getBlock();
+      if (!recoveryReplacementAllowed(expiry, Number(block.timestamp), safeToRestart) || journal.pending !== null || journal.hashes.some(hash => hash !== null))
+        throw new Error("Reconcile the old recovery attempt and wait for its permission to expire");
+      const history = [...(JSON.parse(localStorage.getItem(historyKey) ?? "[]") as RecoveryPlan[]), plan];
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      if (localStorage.getItem(historyKey) !== JSON.stringify(history)) throw new Error("Recovery history could not be saved");
+      localStorage.removeItem(planKey);
+      setAddress(plan.agent);
+      setAction(plan.action);
+      setToken(plan.token);
+      setUnits(plan.units);
+      setPlan(null);
+      setSafeToRestart(false);
     });
   }
   return (
@@ -310,11 +334,19 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
                 reportToBoard={false}
                 retainRecord
                 verifyReceipt
+                requireJournal
+                onSafeToRestartChange={setSafeToRestart}
+                sendGuard={async () => expiry !== null && Number((await createPublicClient({ chain, transport: http() }).getBlock()).timestamp) >= expiry ? "This recovery permission expired; prepare a fresh action" : null}
                 onDone={() => {
                   localStorage.removeItem(planKey);
                   setPlan(null);
                 }}
               />
+            )}
+            {plan.tx !== undefined && expiry !== null && safeToRestart && (
+              <Button variant="plain" busy={busy} onClick={() => void run(replaceExpired)}>
+                Prepare a fresh recovery attempt
+              </Button>
             )}
             {plan.tx === undefined && (
               <Button

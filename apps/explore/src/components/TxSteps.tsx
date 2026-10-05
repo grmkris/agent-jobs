@@ -103,7 +103,7 @@ export function TxSteps({
   allowBatch?: boolean
   allowSponsorship?: boolean
   /** Rechecked immediately after chain reads, before any new wallet prompt. */
-  sendGuard?: (() => string | null) | undefined
+  sendGuard?: (() => string | null | Promise<string | null>) | undefined
   requireJournal?: boolean
   verifyReceipt?: boolean
 }) {

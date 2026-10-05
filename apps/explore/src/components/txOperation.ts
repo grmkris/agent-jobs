@@ -55,11 +55,11 @@ export interface SendSnapshot {
 }
 
 /** Check approval freshness both before and after asynchronous pre-send reads. */
-export async function guardedSnapshot(reads: Pick<ChainReads, 'nonce' | 'blockNumber'>, guard?: (() => string | null)): Promise<SendSnapshot> {
-  const assert = () => { const problem = guard?.(); if (problem) throw new Error(problem) }
-  assert()
+export async function guardedSnapshot(reads: Pick<ChainReads, 'nonce' | 'blockNumber'>, guard?: (() => string | null | Promise<string | null>)): Promise<SendSnapshot> {
+  const assert = async () => { const problem = await guard?.(); if (problem) throw new Error(problem) }
+  await assert()
   const [nonce, block] = await Promise.all([reads.nonce('pending'), reads.blockNumber()])
-  assert()
+  await assert()
   return { nonce, block: block.toString() }
 }
 

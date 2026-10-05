@@ -126,4 +126,25 @@ suite('resumable agent registry onboarding', () => {
     expect(await ctx.publicClient.getBalance({ address: fixture.worker.account.address })).toBe(before - 7n)
   })
 
+  it('an expired signed recovery reverts without transferring, and a fresh exact permission executes once', async () => {
+    const before = await ctx.publicClient.getBalance({ address: fixture.worker.account.address })
+    const execution = { target: fixture.creator.account.address, value: 7n, callData: '0x' as const }
+    const old = sdk.recoveryGrant(ctx.deployment, fixture.worker.account.address, fixture.creator.account.address, execution, 913n, now)
+    const signature = await sdk.signTypedDataJson(fixture.worker, sdk.delegationTypedData(ctx.deployment, old))
+    now += sdk.ONE_OFF_VALIDITY + 1
+    await fixture.rpc('evm_setNextBlockTimestamp', [now])
+    await fixture.rpc('evm_mine')
+    const failed = await fixture.creator.sendTransaction({ to: ctx.deployment.delegation.manager, gas: 1_000_000n, data: sdk.redeemCallsCalldata({ ...old, signature }, [execution]) })
+    expect((await ctx.publicClient.waitForTransactionReceipt({ hash: failed })).status).toBe('reverted')
+    expect(await ctx.publicClient.getBalance({ address: fixture.worker.account.address })).toBe(before)
+    const fresh = sdk.recoveryGrant(ctx.deployment, fixture.worker.account.address, fixture.creator.account.address, execution, 914n, now)
+    const signed = { ...fresh, signature: await sdk.signTypedDataJson(fixture.worker, sdk.delegationTypedData(ctx.deployment, fresh)) }
+    expect(sdk.delegationHash(fresh)).not.toBe(sdk.delegationHash(old))
+    const hash = await fixture.creator.sendTransaction({ to: ctx.deployment.delegation.manager, data: sdk.redeemCallsCalldata(signed, [execution]) })
+    expect((await ctx.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
+    expect(await ctx.publicClient.getBalance({ address: fixture.worker.account.address })).toBe(before - 7n)
+    expect(await sdk.callsMade(ctx, sdk.delegationHash(old))).toBe(0n)
+    expect(await sdk.callsMade(ctx, sdk.delegationHash(fresh))).toBe(1n)
+  }, 120_000)
+
 })
