@@ -189,8 +189,8 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
 function Dot({ mark }: { mark: Mark }) {
   const base = 'relative z-10 mt-0.5 grid size-[1.375rem] place-items-center rounded-full'
   if (mark === 'done') return <span className={cn(base, 'bg-tint text-on-tint')}><Check aria-hidden className="size-3" strokeWidth={3.5} /></span>
-  if (mark === 'fail') return <span className={cn(base, 'bg-bad text-white')}><X aria-hidden className="size-3" strokeWidth={3.5} /></span>
-  if (mark === 'warn') return <span className={cn(base, 'bg-warn text-white')}><AlertTriangle aria-hidden className="size-3" strokeWidth={3} /></span>
+  if (mark === 'fail') return <span className={cn(base, 'bg-bad text-background')}><X aria-hidden className="size-3" strokeWidth={3.5} /></span>
+  if (mark === 'warn') return <span className={cn(base, 'bg-warn text-background')}><AlertTriangle aria-hidden className="size-3" strokeWidth={3} /></span>
   if (mark === 'now') return <span className={cn(base, 'bg-surface ring-2 ring-tint ring-inset')}><span className="size-2 rounded-full bg-tint" /></span>
   return <span className={cn(base, 'bg-fill-strong')} />
 }

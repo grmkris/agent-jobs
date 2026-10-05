@@ -94,6 +94,9 @@ describe.each([
   it('the focus ring reaches 3:1 on the page', () => {
     expect(contrast(t.ring!, t.background!)).toBeGreaterThanOrEqual(3)
   })
+  it('solid status fills carry the page colour as text (count badges, timeline marks)', () => {
+    for (const token of ['success-text', 'warning-text', 'info-text', 'destructive-text']) expect(contrast(t.background!, t[token]!)).toBeGreaterThanOrEqual(4.5)
+  })
   it('status dots read against the page', () => {
     for (const token of ['success', 'info', 'destructive']) expect(contrast(t[token]!, t.background!)).toBeGreaterThanOrEqual(3)
   })
@@ -111,6 +114,10 @@ const sources = (readdirSync(new URL('.', import.meta.url), { recursive: true, e
 describe('status colours as rendered', () => {
   it('text uses the -text shade: the base shade is for dots and tints, below 4.5:1 as text (VV2-010)', () => {
     const offenders = sources.flatMap(([file, text]) => [...text.matchAll(/\btext-(info|success|warning|destructive)(?:\/\d+)?\b(?!-)/g)].map((m) => `${file}: ${m[0]}`))
+    expect(offenders).toEqual([])
+  })
+  it('white text appears only on the decorative monogram gradients: a solid status fill takes text-background (VV2-010)', () => {
+    const offenders = sources.filter(([file, text]) => /\btext-white\b/.test(text) && !file.endsWith('components/Wallet.tsx')).map(([file]) => file)
     expect(offenders).toEqual([])
   })
   it('the legacy status text aliases point at the -text shades', () => {

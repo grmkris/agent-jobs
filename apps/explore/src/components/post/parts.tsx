@@ -178,7 +178,7 @@ export function Mark({ tone }: { tone: 'ok' | 'warn' | 'bad' | 'wait' | 'none' }
     <span
       aria-hidden
       className={cn(
-        'grid size-6 shrink-0 place-items-center rounded-full text-[0.8rem] font-bold text-white',
+        'grid size-6 shrink-0 place-items-center rounded-full text-[0.8rem] font-bold text-background',
         tone === 'ok' && 'bg-ok',
         tone === 'warn' && 'bg-warn',
         tone === 'bad' && 'bg-bad',

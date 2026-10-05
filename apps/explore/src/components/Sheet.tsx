@@ -186,7 +186,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               t.tone === 'error' && 'text-destructive-text',
             )}
           >
-            <span className={cn('grid size-5 shrink-0 place-items-center rounded-full text-micro font-semibold text-white', t.tone === 'error' ? 'bg-destructive' : 'bg-success')}>{t.tone === 'error' ? '!' : '✓'}</span>
+            <span className={cn('grid size-5 shrink-0 place-items-center rounded-full text-micro font-semibold text-background', t.tone === 'error' ? 'bg-destructive-text' : 'bg-success-text')}>{t.tone === 'error' ? '!' : '✓'}</span>
             {t.text}
           </div>
         ))}

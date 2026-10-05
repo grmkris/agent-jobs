@@ -159,7 +159,7 @@ export function Shell({ children }: { children: ReactNode }) {
 /** A small count, as on an app icon: the actions waiting in Collect. */
 function Count({ n, className }: { n: number; className?: string }) {
   return (
-    <span aria-label={`${n} to collect`} className={cn('tabular grid h-[1.1rem] min-w-[1.1rem] place-items-center rounded-full bg-bad px-1 text-[0.66rem] leading-none font-semibold text-white', className)}>
+    <span aria-label={`${n} to collect`} className={cn('tabular grid h-[1.1rem] min-w-[1.1rem] place-items-center rounded-full bg-destructive-text px-1 text-[0.66rem] leading-none font-semibold text-background', className)}>
       {n > 99 ? '99+' : n}
     </span>
   )

@@ -125,9 +125,9 @@ function StateIcon({ state }: { state: State }) {
       aria-label={state === 'ok' ? 'Done' : state === 'none' ? 'Not yet' : 'Needs a fix'}
       className={cn(
         'grid size-6 shrink-0 place-items-center rounded-full',
-        state === 'ok' && 'bg-ok text-white',
-        state === 'warn' && 'bg-warn text-white',
-        state === 'bad' && 'bg-bad text-white',
+        state === 'ok' && 'bg-ok text-background',
+        state === 'warn' && 'bg-warn text-background',
+        state === 'bad' && 'bg-bad text-background',
         state === 'none' && 'bg-fill-strong text-label-2',
       )}
     >

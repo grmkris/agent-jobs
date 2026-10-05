@@ -799,14 +799,14 @@ export function TxSteps({
 function StepIcon({ n, s }: { n: number; s: Status }) {
   if (s.at === 'recorded') {
     return (
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ok text-white">
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ok text-background">
         <Check aria-hidden className="size-3.5" strokeWidth={3} />
       </span>
     )
   }
   if (s.at === 'failed') {
     return (
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-bad text-white">
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-bad text-background">
         <X aria-hidden className="size-3.5" strokeWidth={3} />
       </span>
     )
