@@ -27,7 +27,7 @@ export type GrantSpec = GrantBase & (
   | { readonly kind: 'agent-work' }
   | { readonly kind: 'agent-approve' }
   | { readonly kind: 'agent-approve-once'; readonly token: Address; readonly amount: bigint; readonly operationId: Hex }
-  | { readonly kind: 'unstake' }
+  | { readonly kind: 'unstake'; readonly amount: bigint; readonly operationId: Hex }
   | { readonly kind: 'agent-sweep'; readonly operator: Address }
   | { readonly kind: 'allowance'; readonly agent: Address; readonly token: Address; readonly amount: bigint }
   | { readonly kind: 'allowance-once'; readonly agent: Address; readonly token: Address; readonly amount: bigint }
@@ -144,6 +144,10 @@ export function buildGrant(ctx: GrantContext, spec: GrantSpec): Delegation {
       caveats.push(caveat(e.allowedCalldata, encodePacked(['uint256', 'bytes'], [36n, uint(spec.amount)])))
     }
   }
+  if (spec.kind === 'unstake') {
+    if (spec.amount <= 0n || !/^0x[0-9a-fA-F]{64}$/.test(spec.operationId)) throw new Error('Unstake requires an exact positive approved operation')
+    caveats.push(caveat(e.allowedCalldata, encodePacked(['uint256', 'bytes'], [4n, uint(spec.amount)])))
+  }
   if (spec.kind === 'allowance') caveats.push(caveat(e.erc20PeriodTransfer, periodTransferTerms(spec.token, spec.amount, ALLOWANCE_PERIOD, spec.start)))
   if (spec.kind === 'allowance-once') {
     if (spec.amount <= 0n) throw new Error('One-off allowance requires a positive amount')
@@ -176,7 +180,7 @@ export function describeGrant(ctx: GrantContext, spec: GrantSpec, grant: Delegat
     recipient: spec.kind === 'agent-approve' || spec.kind === 'agent-approve-once' ? ctx.stack.holding : spec.kind === 'agent-sweep' ? spec.operator
       : spec.kind === 'allowance' || spec.kind === 'allowance-once' ? spec.agent : null,
     token: spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? spec.token : null,
-    amount: spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? spec.amount.toString() : null,
+    amount: spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' || spec.kind === 'unstake' ? spec.amount.toString() : null,
     periodSeconds: spec.kind === 'allowance' ? ALLOWANCE_PERIOD : null,
   }
 }

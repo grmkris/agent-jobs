@@ -154,6 +154,7 @@ export class SponsorDesk {
         if (agent === undefined || !eq(agent.operator, row.owner) || agent.chain_id !== ctx.deployment.chainId || agent.state === 'revoked') throw this.#d.fail('forbidden', 'the grant does not match a live bound agent and operator')
         if (spec.kind === 'agent-sweep' && !eq(spec.operator, row.owner)) throw this.#d.fail('forbidden', 'the sweep recipient is not this agent operator')
       }
+      if (spec.kind === 'unstake') store.approvedUnstake(row.owner, spec)
       const grant = store.signed(entry.grant)
       if (entry.calls.length === 0) throw this.#d.fail('invalid', 'each entry requires calls')
       for (const call of entry.calls) {
@@ -189,6 +190,13 @@ export class SponsorDesk {
   }
   #recovery() { return new SponsorRecovery(this.#d.sql, this.#ctx(), this.#d.now, this.#d.relay?.account) }
   #resume(op: Operation, broadcast = true) { return this.#recovery().resume(op, broadcast) }
+  ready(): Promise<void> {
+    return this.#grantSerial(async () => {
+      const relay = this.#relay()
+      await new RelaySender(this.#d.sql, this.#ctx(), relay.account, relay.rpcUrl, this.#d.now).checkPendingLocked()
+    })
+  }
+
   submit(walletText: string, entries: readonly NamedSponsorEntry[], key: string, agentOperationId?: Hex) { return this.#serial(async (): Promise<SponsorResult> => {
     const wallet = this.#wallet(walletText)
     const id = keccak256(stringToHex(JSON.stringify([wallet.toLowerCase(), key])))

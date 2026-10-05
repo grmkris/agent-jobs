@@ -66,12 +66,13 @@ export class AgentSigning {
     if (row === undefined || row.owner.toLowerCase() !== agent.operator.toLowerCase() || row.delegator.toLowerCase() !== agent.address.toLowerCase()
       || !['prepared', 'live'].includes(row.status)) throw new Error('Grant does not belong to this agent')
     const spec = this.grants.spec(hash)
-    if (!['agent-work', 'agent-approve', 'agent-approve-once', 'agent-sweep'].includes(spec.kind)) throw new Error('Grant kind is outside routine authority')
+    if (!['agent-work', 'agent-approve', 'agent-approve-once', 'agent-sweep', 'unstake'].includes(spec.kind)) throw new Error('Grant kind is outside routine authority')
     const typedData = sdk.delegationTypedData(this.context.deployment, sdk.parseDelegation(row.delegation_json))
     return this.#typed(id, `grant:${hash}`, typedData, async () => {
       if (row.expires_at <= this.now() || spec.start > this.now()) throw new Error('Grant is outside its signing window')
       if (spec.kind === 'agent-sweep' && spec.operator.toLowerCase() !== agent.operator.toLowerCase()) throw new Error('Sweep must name this operator')
       if (spec.kind === 'agent-approve-once') this.grants.approvedHire(agent.operator, spec)
+      if (spec.kind === 'unstake') this.grants.approvedUnstake(agent.operator, spec)
       return sdk.delegationTypedData(this.context.deployment, sdk.buildGrant(this.context, spec))
     })
   }

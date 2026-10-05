@@ -164,7 +164,7 @@ export class AgentStore {
     const allowed: Readonly<Record<AgentOperationStage, readonly AgentOperationStage[]>> = {
       intent: ['intent', 'prepared', 'signed', 'approval', 'sending', 'failed'],
       prepared: ['prepared', 'signed', 'approval', 'sending', 'failed'],
-      signed: ['signed', 'sending', 'failed'],
+      signed: ['signed', 'approval', 'sending', 'failed'],
       approval: ['approval', 'prepared', 'signed', 'sending', 'failed'],
       sending: ['sending', 'confirmed', 'failed'],
       confirmed: ['confirmed'],

@@ -34,6 +34,7 @@ export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call:
   if (pin !== undefined && (typeof args[0] !== 'string' || !same(args[0], pin))) throw new Error('Grant spender or recipient mismatch')
   if (spec.kind === 'allowance-once' && args[1] !== spec.amount) throw new Error('One-off allowance amount mismatch')
   if (spec.kind === 'agent-approve-once' && args[1] !== spec.amount) throw new Error('One-off approval amount mismatch')
+  if (spec.kind === 'unstake' && args[0] !== spec.amount) throw new Error('One-off unstake amount mismatch')
   if (fn.name === 'disableDelegation') {
     const disabled = args[0] as sdk.Delegation
     if (!same(disabled.delegator, spec.delegator)) throw new Error('Cannot disable another wallet delegation')

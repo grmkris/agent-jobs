@@ -9,6 +9,28 @@ import { encodeFunctionData } from 'viem'
 const d = sdk.deployment('monad-testnet')
 const ctx = { deployment: d, stack: sdk.stack(d, 'main') }
 describe('agent grant store', () => {
+  it('prepares exact unstaking authority only for the operator-approved operation', () => {
+    const db = new DatabaseSync(':memory:')
+    const sql = fromNodeSqlite(db)
+    const now = 1_800_000_000
+    const agents = new AgentStore(sql, () => now)
+    const store = new GrantStore(sql, ctx)
+    const operator = '0x1111111111111111111111111111111111111111'
+    const agent = '0x2222222222222222222222222222222222222222'
+    agents.create({ id: 'unstake-fixture', operator, privyUserId: 'did:privy:fixture', name: 'Fixture', registry: d.identity, chainId: d.chainId })
+    agents.bindWallet('unstake-fixture', 'fixture-wallet', agent)
+    const operation = agents.begin('unstake-fixture', 'unstake-one', 'public', 'request_unstake', { amount: '1' })
+    const call = { to: d.hireling!.vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUnstake', args: [17n] }) }
+    agents.requestApproval(operation, 'unstake', { amount: '17', call })
+    const spec: sdk.GrantSpec = { kind: 'unstake', delegator: agent, amount: 17n, operationId: operation.id, start: now, salt: 9n }
+    expect(() => store.prepare(operator, spec)).toThrow('verified operator decision')
+    agents.decide(operation.id, operator, true, {})
+    expect(store.prepare(operator, spec).description).toMatchObject({ amount: '17', calls: 1, expiresAt: now + 600 })
+    expect(() => store.prepare(operator, { ...spec, amount: 18n })).toThrow('exact operator approval')
+    expect(() => store.prepare(agent, spec)).toThrow('verified operator decision')
+    db.close()
+  })
+
   it('issues a one-off token approval only after the exact operation has a verified operator allowance', async () => {
     const db = new DatabaseSync(':memory:')
     const sql = fromNodeSqlite(db)

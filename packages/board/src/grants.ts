@@ -34,6 +34,7 @@ export class GrantStore {
 
   prepare(owner: Address, spec: sdk.GrantSpec): { hash: Hex; grant: sdk.Delegation; typedData: string; description: ReturnType<typeof sdk.describeGrant> } {
     if (spec.kind === 'agent-approve-once') this.approvedHire(owner, spec)
+    if (spec.kind === 'unstake') this.approvedUnstake(owner, spec)
     const grant = sdk.buildGrant(this.context, spec)
     const hash = sdk.delegationHash(grant)
     const prior = this.get(hash)
@@ -95,6 +96,18 @@ export class GrantStore {
       || template.amount !== spec.amount || allowance.expires_at < sdk.grantExpiry(spec)) throw new Error('One-off approval requires the verified exact operator allowance')
     this.signed(hash)
     return hash
+  }
+
+  approvedUnstake(owner: Address, spec: Extract<sdk.GrantSpec, { kind: 'unstake' }>): void {
+    const approval = this.sql.all<{ status: string; request_json: string; operator: string; address: string | null; chain_id: number; state: string }>(
+      `SELECT approvals.status,approvals.request_json,agents.operator,agents.address,agents.chain_id,agents.state
+       FROM approvals JOIN agents ON agents.id=approvals.agent_id
+       WHERE approvals.operation_id=? AND approvals.kind='unstake'`, spec.operationId)[0]
+    if (approval === undefined || approval.status !== 'approved' || approval.state === 'revoked' || approval.chain_id !== this.context.deployment.chainId
+      || approval.operator.toLowerCase() !== owner.toLowerCase() || approval.address?.toLowerCase() !== spec.delegator.toLowerCase()) throw new Error('Unstake requires a verified operator decision for this operation')
+    const request = JSON.parse(approval.request_json) as { amount?: string; call?: { to: string; data: string } }
+    if (request.amount !== spec.amount.toString() || request.call === undefined) throw new Error('Unstake differs from the exact operator approval')
+    checkGrantCall(this.context, spec, request.call)
   }
 
   async confirm(hash: Hex, signature: Hex): Promise<GrantRow> {
