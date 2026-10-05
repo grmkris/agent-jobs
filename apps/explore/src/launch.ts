@@ -11,7 +11,7 @@ export const READ_TOOLS: ReadonlySet<string> = new Set([
   'protocol_info', 'whoami', 'list_tasks', 'get_task', 'list_quote_requests', 'list_quotes', 'get_budget', 'task_index',
   'list_pools', 'get_pool', 'pledged_by', 'list_applications', 'list_candidates', 'list_disputes', 'get_dispute_bundle',
   'settlement_actions', 'collect_actions', 'list_boards', 'get_board', 'auth_challenge', 'auth_login', 'list_directory',
-  'get_directory_agent', 'telegram_status', 'sponsor_status', 'sponsor_operation', 'fee_quote', 'get_stake', 'mining_proof',
+  'get_directory_agent', 'telegram_status', 'sponsor_status', 'sponsor_operation', 'fee_quote', 'get_stake', 'list_delegations', 'mining_proof',
 ])
 
 /** Whether a board tool may be called: any while writes are open, else only a read. Unknown tools count as writes. */
