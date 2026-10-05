@@ -59,7 +59,7 @@ A06 aborts relay routes with Playwright, executes a real Privy-owner/RPC recover
 sweep, and checks receipt-confirmed disablement after restoring relay access.
 
 Private browser state, OAuth credentials, exact intents, signed bytes, spend and
-client logs stay in ignored `packages/sdk/scripts/live/.local/deployed/`, with a
+metadata-only client logs stay in ignored `packages/sdk/scripts/live/.local/deployed/`, with a
 shared runner lock. Temporary Codex homes retain OAuth credentials for retries.
 Never delete these records after an interruption. Rerun with the same release,
 run ID and arguments; passed proofs are retained. A failed case stops the suite,

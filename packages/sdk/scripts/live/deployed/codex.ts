@@ -157,7 +157,9 @@ export class CodingClient {
     };
     child.stdout.on("data", (chunk) => {
       stdout += String(chunk);
-      writeFileSync(path, stdout, { mode: 0o600 });
+      writeFileSync(path, JSON.stringify({ stream: "stdout", bytes: Buffer.byteLength(stdout) }), {
+        mode: 0o600,
+      });
       if (observe !== undefined)
         observation = observation
           .then(() => observe(stdout, (text) => child.stdin.write(text), kill))
@@ -168,7 +170,11 @@ export class CodingClient {
     });
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
-      writeFileSync(`${path}.stderr`, stderr, { mode: 0o600 });
+      writeFileSync(
+        `${path}.stderr`,
+        JSON.stringify({ stream: "stderr", bytes: Buffer.byteLength(stderr) }),
+        { mode: 0o600 },
+      );
       if (observe !== undefined)
         observation = observation
           .then(() => observe(`${stdout}\n${stderr}`, (text) => child.stdin.write(text), kill))
@@ -177,9 +183,7 @@ export class CodingClient {
             kill();
           });
     });
-    const timer = setTimeout(() => {
-      if (child.pid !== undefined) process.kill(-child.pid, "SIGTERM");
-    }, 180_000);
+    const timer = setTimeout(kill, 180_000);
     const terminate = () => {
       if (child.pid !== undefined) {
         try {
