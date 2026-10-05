@@ -1,4 +1,5 @@
 import * as Cloudflare from 'alchemy/Cloudflare'
+import type { RuntimeContext } from 'alchemy/RuntimeContext'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -28,6 +29,9 @@ import type { OAuthReply, OAuthGrant } from './oauth.ts'
 import { mcpRoute } from './mcp.ts'
 import { tools } from './tools.ts'
 import { permittedTool } from './mcp-policy.ts'
+import { agentRoute } from './routes/agents.ts'
+import { approvalRoute } from './routes/approvals.ts'
+import { agentTools } from './tools-agents.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -310,18 +314,35 @@ export default class Api extends Cloudflare.Worker<Api>()(
         // Hosted MCP OAuth is deliberately separate from the legacy website SIWE session.
         const rawBody = request.method === 'POST' ? yield* request.text : ''
         const oauthBody: Record<string, unknown> = rawBody === '' ? {} : (() => { if (request.headers['content-type']?.includes('application/x-www-form-urlencoded')) return Object.fromEntries(new URLSearchParams(rawBody)); try { return JSON.parse(rawBody) as Record<string, unknown> } catch { return {} } })()
+        const lifecycleRequest = agentRoute(request.method, path, oauthBody) ?? approvalRoute(request.method, path, oauthBody)
+        if (lifecycleRequest !== undefined) {
+          if (request.method === 'POST' && (origin === undefined || !allowed)) return json({ ok: false, code: 'forbidden', message: 'Agent decisions require the website origin' }, 403)
+          const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).agentManage({ env, request: lifecycleRequest, ...(bearer === undefined ? {} : { bearer }), ...(request.headers['x-privy-token'] === undefined ? {} : { privyToken: request.headers['x-privy-token'] }) })) as BoardReply
+          return json(reply, reply.ok ? 200 : STATUS[reply.code] ?? 503, { 'cache-control': 'no-store' })
+        }
         if (path.startsWith('/oauth/') || path.startsWith('/.well-known/oauth-')) {
           if (origin !== undefined && origin !== url.origin) return json({ error: 'invalid_request', error_description: 'OAuth requests require the website origin' }, 403)
           const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauth({ env, method: request.method, path: url.pathname, query: url.searchParams.toString(), body: oauthBody, origin: url.origin, ...(bearer === undefined ? {} : { bearer }) })) as OAuthReply | null
           if (reply !== null) return reply.redirect === undefined ? json(reply.body, reply.status, reply.headers) : HttpServerResponse.empty({ status: reply.status, headers: { ...reply.headers, location: reply.redirect } })
         }
         if (path === '/mcp') {
+          const runMcp = Effect.runPromiseWith(yield* Effect.context<RuntimeContext>())
           const resource = `${url.origin}${url.pathname}`
           const grant = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })) as OAuthGrant | null
           const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin,
-            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools }).filter(([name]) => grant !== null && permittedTool(grant, name))),
+            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools }).filter(([name]) => grant !== null && permittedTool(grant, name))),
             call: async (tool, args, agentId) => {
-              return JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as unknown
+              if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))
+              const result = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as BoardReply
+              if (result.ok) {
+                const executed = result.result as { status?: string; result?: { taskId?: string; termsHash?: string; manifest?: string } }
+                if (executed.status === 'confirmed' && typeof executed.result?.manifest === 'string' && typeof executed.result.termsHash === 'string' && typeof executed.result.taskId === 'string') {
+                  await runMcp(manifests.put(`offers/${executed.result.termsHash}.json`, executed.result.manifest))
+                  await recordOffer(sql, { boardId: tenant.id, termsHash: executed.result.termsHash, taskId: executed.result.taskId, now: now() })
+                  delete executed.result.manifest
+                }
+              }
+              return result
             },
           }))
           return reply.status === 204 || reply.status === 202 ? HttpServerResponse.empty({ status: reply.status, headers: { ...cors, ...reply.headers } }) : json(reply.body, reply.status, reply.headers)

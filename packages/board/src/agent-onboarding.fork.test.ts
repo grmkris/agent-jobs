@@ -5,6 +5,8 @@ import * as sdk from '@agent-jobs/sdk'
 import { type LocalAccount } from 'viem'
 import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
 import { fromNodeSqlite } from './store.ts'
+import { AgentLifecycle } from './agent-lifecycle.ts'
+import { GrantStore } from './grants.ts'
 import { AgentStore } from './agents.ts'
 import { AgentOnboarding } from './agent-onboarding.ts'
 import { AgentSigning } from './agent-signing.ts'
@@ -30,6 +32,12 @@ suite('resumable agent registry onboarding', () => {
       relay: new RelaySender(sql, ctx, fixture.admin.account as LocalAccount, fixture.url, () => now),
       sponsor: new SponsorDesk({ sql, ctx, now: () => now, relay: { account: fixture.admin.account as LocalAccount, rpcUrl: fixture.url }, fail: (code, message) => new BoardError(code, message) }),
     })
+  }
+
+  function lifecycle() {
+    const sql = fromNodeSqlite(db)
+    const sponsor = new SponsorDesk({ sql, ctx, now: () => now, relay: { account: fixture.admin.account as LocalAccount, rpcUrl: fixture.url }, fail: (code, message) => new BoardError(code, message) })
+    return new AgentLifecycle({ sql, context: ctx, now: () => now, sponsor })
   }
 
   beforeAll(async () => {
@@ -75,5 +83,37 @@ suite('resumable agent registry onboarding', () => {
     await fixture.rpc('evm_mine', [])
     expect((await boot().register('onboarding-fork', fixture.creator.account.address, request.hash, signature) as { state: string }).state).toBe('active')
     expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(after)
+  })
+
+  it('disables the old allowance before replacement, then stops OAuth and disables every known agent grant', async () => {
+    const operator = fixture.creator.account.address
+    const sponsor = lifecycle().deps.sponsor
+    const gas = await sponsor.prepare(operator)
+    await sponsor.confirm(operator, await sdk.signTypedDataJson(fixture.creator, gas.sign.typedData))
+    const token = ctx.deployment.rewardTokens[0]!
+    const first = lifecycle().prepareAllowance('onboarding-fork', operator, { key: 'first-allowance', token, amount: 25n })
+    await lifecycle().confirmAllowance('onboarding-fork', operator, 'first-allowance', first.hash, await sdk.signTypedDataJson(fixture.creator, first.typedData))
+    const replacement = lifecycle().prepareAllowance('onboarding-fork', operator, { key: 'replace-allowance', token, amount: 30n })
+    await expect(lifecycle().confirmAllowance('onboarding-fork', operator, 'replace-allowance', replacement.hash, await sdk.signTypedDataJson(fixture.worker, replacement.typedData))).rejects.toThrow('not the delegator')
+    expect(await sdk.isDisabled(ctx, first.hash)).toBe(false)
+    expect(new GrantStore(fromNodeSqlite(db), ctx).get(replacement.hash)!.status).toBe('prepared')
+    await lifecycle().confirmAllowance('onboarding-fork', operator, 'replace-allowance', replacement.hash, await sdk.signTypedDataJson(fixture.creator, replacement.typedData))
+    expect(await sdk.isDisabled(ctx, first.hash)).toBe(true)
+    expect(new GrantStore(fromNodeSqlite(db), ctx).get(first.hash)!.status).toBe('disabled')
+    const sql = fromNodeSqlite(db)
+    sql.run("INSERT INTO agent_oauth_families (id,client_id,agent_id,board_id,scopes_json,resource,created_at) VALUES ('revoke-fixture','fixture-client','onboarding-fork','public','[]','https://fixture.test/mcp',?)", now)
+    lifecycle().stopAccess('onboarding-fork', operator)
+    expect(agents.get('onboarding-fork').state).toBe('revoked')
+    expect(sql.all<{ revoked_at: number }>("SELECT revoked_at FROM agent_oauth_families WHERE id='revoke-fixture'")[0]!.revoked_at).toBe(now)
+    await expect(lifecycle().confirmAllowance('onboarding-fork', operator, 'replace-allowance', replacement.hash, await sdk.signTypedDataJson(fixture.creator, replacement.typedData))).rejects.toThrow('access has stopped')
+    const sweep = new GrantStore(sql, ctx).list(fixture.worker.account.address).find(row => row.kind === 'agent-sweep')!
+    await expect(sponsor.submit(fixture.worker.account.address, [{ grant: sweep.delegation_hash, calls: [{ to: token, data: sdk.advanceExecution(token, operator, 1n).callData }] }], 'revoked-sweep')).rejects.toThrow('live bound agent')
+    const result = await lifecycle().revoke('onboarding-fork', operator)
+    expect(result.revocation.onchainPermissionsDisabled).toBe(true)
+    for (const grant of new GrantStore(sql, ctx).list(fixture.worker.account.address)) expect(await sdk.isDisabled(ctx, grant.delegation_hash)).toBe(true)
+    expect(await sdk.isDisabled(ctx, replacement.hash)).toBe(true)
+    const nonce = await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })
+    await lifecycle().revoke('onboarding-fork', operator)
+    expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
   })
 })

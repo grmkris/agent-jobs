@@ -96,7 +96,7 @@ export class AgentStore {
   }
 
   create(input: { id: string; operator: Address; privyUserId: string; name: string; registry: Address; chainId: number }): AgentRow {
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(input.id) || input.name.trim().length < 1 || input.name.length > 100) throw new Error('Invalid agent identity')
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(input.id) || input.name.trim().length < 1 || input.name.length > 100) throw new Error('Invalid agent identity')
     const prior = this.sql.all<AgentRow>('SELECT * FROM agents WHERE id=?', input.id)[0]
     if (prior) {
       if (prior.operator.toLowerCase() !== input.operator.toLowerCase() || prior.privy_user_id !== input.privyUserId || prior.chain_id !== input.chainId || prior.registry.toLowerCase() !== input.registry.toLowerCase() || prior.name !== input.name.trim()) throw new Error('Agent creation key changed')

@@ -151,7 +151,9 @@ export class SponsorDesk {
       const spec = store.spec(entry.grant)
       if (spec.kind.startsWith('agent-') || spec.kind === 'unstake') {
         const agent = this.#d.sql.all<{ operator: string; state: string; chain_id: number }>('SELECT operator,state,chain_id FROM agents WHERE address=?', wallet.toLowerCase())[0]
-        if (agent === undefined || !eq(agent.operator, row.owner) || agent.chain_id !== ctx.deployment.chainId || agent.state === 'revoked') throw this.#d.fail('forbidden', 'the grant does not match a live bound agent and operator')
+        if (agent === undefined || !eq(agent.operator, row.owner) || agent.chain_id !== ctx.deployment.chainId || agent.state === 'revoked' && (spec.kind !== 'agent-work' || entry.calls.length === 0 || entry.calls.some((call: NamedSponsorEntry['calls'][number]) => {
+          try { return checkGrantCall(ctx, spec, call).method !== 'disableDelegation' } catch { return true }
+        }))) throw this.#d.fail('forbidden', 'the grant does not match a live bound agent and operator')
         if (spec.kind === 'agent-sweep' && !eq(spec.operator, row.owner)) throw this.#d.fail('forbidden', 'the sweep recipient is not this agent operator')
       }
       if (spec.kind === 'unstake') store.approvedUnstake(row.owner, spec)

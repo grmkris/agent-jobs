@@ -176,3 +176,17 @@ test('OAuth registration and authorize enforce exact redirect/resource and the w
     const consent = yield* postJson(`${apiUrl}/oauth/requests/oauth_${'a'.repeat(40)}/approve`, { agentIds: ['someone-else'] }, { origin: 'https://evil.example' })
     expect(consent.status).toBe(403)
   }))
+
+
+test('agent lifecycle and approval routes refuse unauthenticated and cross-origin decisions',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    for (const path of ['/api/agents', '/api/approvals', '/api/agents/not-owned/recovery']) {
+      const response = yield* HttpClient.get(`${apiUrl}${path}`)
+      expect(response.status).toBe(401)
+    }
+    const create = yield* postJson(`${apiUrl}/api/agents`, { id: 'fixture', name: 'fixture' }, { origin: new URL(apiUrl!).origin })
+    expect(create.status).toBe(401)
+    const foreign = yield* postJson(`${apiUrl}/api/agents/not-owned/stop-access`, {}, { origin: 'https://foreign.invalid' })
+    expect(foreign.status).toBe(403)
+  }))

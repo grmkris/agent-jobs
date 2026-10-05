@@ -110,7 +110,7 @@ export class GrantStore {
     checkGrantCall(this.context, spec, request.call)
   }
 
-  async confirm(hash: Hex, signature: Hex): Promise<GrantRow> {
+  async verifySignature(hash: Hex, signature: Hex): Promise<GrantRow> {
     const row = this.get(hash)
     if (!row || !['prepared', 'live'].includes(row.status)) throw new Error('Grant is not available for confirmation')
     const grant = sdk.parseDelegation(row.delegation_json)
@@ -118,6 +118,11 @@ export class GrantStore {
     const signer = await recoverAddress({ hash: sdk.delegationDigest(this.context.deployment, grant), signature })
     if (signer.toLowerCase() !== row.delegator.toLowerCase()) throw new Error('Grant signature is not the delegator')
     if (row.signature !== null && row.signature.toLowerCase() !== signature.toLowerCase()) throw new Error('Grant signature changed')
+    return row
+  }
+
+  async confirm(hash: Hex, signature: Hex): Promise<GrantRow> {
+    await this.verifySignature(hash, signature)
     this.sql.run("UPDATE grants SET signature=?,status='live' WHERE delegation_hash=?", signature, hash)
     return this.get(hash)!
   }
