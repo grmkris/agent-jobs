@@ -6,11 +6,11 @@ describe("vault intent lock", () => {
     let held = false;
     const queue: Array<() => void> = [];
     const locks = {
-      request: async (_name: string, work: () => Promise<void>) => {
+      request: async <T>(_name: string, work: () => Promise<T>): Promise<T> => {
         if (held) await new Promise<void>((resolve) => queue.push(resolve));
         held = true;
         try {
-          await work();
+          return await work();
         } finally {
           held = false;
           queue.shift()?.();
