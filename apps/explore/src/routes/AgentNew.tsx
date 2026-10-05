@@ -32,9 +32,11 @@ export function AgentNewPage() {
 export function AgentNew({
   initial,
   onReady,
+  context = "standalone",
 }: {
   initial?: ManagedAgent;
   onReady?: (agent: ManagedAgent) => void;
+  context?: "standalone" | "oauth";
 }) {
   const auth = useAuth();
   if (privyAppId === "" || !auth.signedIn || auth.address === undefined)
@@ -48,6 +50,7 @@ export function AgentNew({
     <AgentSetup
       key={initial?.id ?? auth.address}
       operator={auth.address}
+      context={context}
       {...(initial === undefined ? {} : { initial })}
       {...(onReady === undefined ? {} : { onReady })}
     />
@@ -58,10 +61,12 @@ function AgentSetup({
   operator,
   initial,
   onReady,
+  context,
 }: {
   operator: Address;
   initial?: ManagedAgent;
   onReady?: (agent: ManagedAgent) => void;
+  context: "standalone" | "oauth";
 }) {
   const { getAccessToken } = usePrivy();
   const queryClient = useQueryClient();
@@ -227,7 +232,7 @@ function AgentSetup({
             <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />
           </Section>
           <AgentStake agent={agent} operator={operator} />
-          <ConnectionCard />
+          {context === "standalone" && <ConnectionCard />}
           {onReady !== undefined && (
             <Button disabled={!fundingReady} onClick={() => onReady(agent)}>
               Use this agent for this connection

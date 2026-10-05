@@ -104,6 +104,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
         </Button>
         {creating && (
           <AgentNew
+            context="oauth"
             onReady={(created) => {
               setSelected(created.id);
               setCreating(false);
