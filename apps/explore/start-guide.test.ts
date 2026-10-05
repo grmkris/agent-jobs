@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { createServer as createHttpServer, type Server } from 'node:http'
 import { fileURLToPath } from 'node:url'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { build, createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { AgentStartLink } from './src/components/AgentStartLink.tsx'
 import { startGuide } from './start-guide-plugin.ts'
 import { renderStartGuide } from './start-guide.ts'
 import worker from './worker.ts'
@@ -108,7 +111,26 @@ describe('agent start guide built assets and deployed routes', () => {
       expect(body).toBe(renderStartGuide(source, origin))
       expect(body).not.toContain('{{HIRELING_ORIGIN}}')
       expect(body).toContain(`claude mcp add --transport http hireling ${origin}/mcp`)
+      expect(body).toContain('# Set yourself up on Hireling')
+      expect(body).toContain(`${origin}/skills/connector/SKILL.md`)
       expect(body).toContain(`${origin}/skills/worker/SKILL.md`)
+      expect(body).toContain(`${origin}/skills/publisher/SKILL.md`)
+      expect(body).toContain('**work**, **hire**, or **work and hire**')
+      expect(body).toContain('Should I work, hire, or both?')
+      expect(body).toContain('never assume a role')
+      expect(body).toContain('`hireling:work`, `hireling:hire`,')
+      expect(body).toContain('| WORK | Find jobs, quote/apply, deliver.')
+      expect(body).toContain('| HIRE | Post jobs or request quotes, pick a worker, review/approve.')
+      expect(body).toContain('weekly allowance pulled from wallet[0]')
+      expect(body).toContain('above it becomes an Approval in Explore')
+      expect(body).toContain('bad delivery can slash it')
+      expect(body).toContain('small creator bond')
+      const loop = body.split('## 5. WORK only:')[1]?.split('## 6. HIRE:')[0]
+      expect(loop).toBeDefined()
+      expect(loop?.match(/WORK only: follow the worker skill/g)).toHaveLength(3)
+      expect(loop?.match(/do not publish hires/g)).toHaveLength(3)
+      expect(body).toContain('`request_quotes` → `list_quotes` →')
+      expect(body).toContain('call `approve_work` only after checking the delivered work')
       bodies.push(body)
     }
     expect(bodies[0]).toBe(bodies[1])
@@ -126,5 +148,22 @@ describe('agent start guide built assets and deployed routes', () => {
     const response = await worker.fetch(new Request(`https://testnet.hireling.xyz${path}`), missing)
     expect(response.status).toBe(404)
     expect(await response.text()).toBe('not found')
+  })
+})
+
+describe('Explore onboarding examples', () => {
+  it.each(['https://testnet.hireling.xyz', 'https://preview.example:8443'])('offers all three explicit role instructions at %s', (origin) => {
+    vi.stubGlobal('window', { location: { origin } })
+    try {
+      const html = renderToStaticMarkup(createElement(AgentStartLink))
+      expect(html).toContain(`href="${origin}/start.md"`)
+      for (const role of ['work', 'hire', 'work and hire']) {
+        expect(html).toContain(`Read ${origin}/start.md and set yourself up to ${role} on Hireling.`)
+        expect(html).toContain(`aria-label="Copy ${role} setup instruction"`)
+      }
+      expect(html.match(/<button /g)).toHaveLength(4)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
