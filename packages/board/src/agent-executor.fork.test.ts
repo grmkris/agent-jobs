@@ -256,4 +256,42 @@ suite('agent executor through real contracts', () => {
     expect(grants.get(allowanceHash)).toEqual(allowance)
     expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
   }, 180_000)
+
+  it('remaps an unsent frozen hire after gas authority expires and produces one economic send', async () => {
+    const input = { agentId: 'creator-agent', boardId: 'public', operationKey: 'unsent-expired-mapping', tool: 'create_task',
+      args: { ...offer('1', 'Frozen mapping fixture'), deliveryDeadline: now + 7 * 86400 } }
+    const operation = agents.begin(input.agentId, input.operationKey, input.boardId, input.tool, input.args)
+    const relay = fixture.admin.account.address
+    const balance = await ctx.publicClient.getBalance({ address: relay })
+    const nonce = await ctx.publicClient.getTransactionCount({ address: relay })
+    await fixture.rpc('anvil_setBalance', [relay, '0x0'])
+    try {
+      await expect(boot().execute(input)).rejects.toThrow()
+    } finally {
+      await fixture.rpc('anvil_setBalance', [relay, `0x${balance.toString(16)}`])
+    }
+    const frozen = agents.step(operation.id, 'action')
+    const originalMappingStep = agents.step(operation.id, 'entries:1') === undefined ? 'entries' : 'entries:1'
+    const mapping = agents.step(operation.id, originalMappingStep)
+    expect(frozen).toBeDefined()
+    expect(mapping).toBeDefined()
+    expect(agents.operation(operation.id).sponsor_operation_id).toBeNull()
+    expect(await ctx.publicClient.getTransactionCount({ address: relay })).toBe(nonce)
+    const allowance = grants.get(allowanceHash)
+    await fixture.rpc('evm_setNextBlockTimestamp', [now + sdk.GRANT_VALIDITY + 1])
+    await fixture.rpc('evm_mine')
+    now = Number((await ctx.publicClient.getBlock()).timestamp)
+    const result = await boot().execute(input)
+    expect(result.status).toBe('confirmed')
+    expect(agents.step(operation.id, 'action')).toEqual(frozen)
+    expect(agents.step(operation.id, originalMappingStep)).toEqual(mapping)
+    expect(agents.step(operation.id, 'entries:2')).not.toEqual(mapping)
+    expect(grants.get(allowanceHash)).toEqual(allowance)
+    expect(db.prepare('SELECT count(*) AS count FROM sponsor_operations WHERE action_key=?').get(input.operationKey)).toEqual({ count: 1 })
+    expect(await ctx.publicClient.getTransactionCount({ address: relay })).toBe(nonce + 1)
+    const signatures = db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()
+    expect(await boot().execute(input)).toEqual(result)
+    expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()).toEqual(signatures)
+    expect(await ctx.publicClient.getTransactionCount({ address: relay })).toBe(nonce + 1)
+  }, 180_000)
 })

@@ -1,7 +1,7 @@
 /** Execute a hosted agent action from one frozen intent, signing request and relay journal. */
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex } from 'viem'
-import { AgentStore, type AgentOperationRow, type ApprovalRow } from './agents.ts'
+import { AgentStore, canonicalAgentArgs, type AgentOperationRow, type ApprovalRow } from './agents.ts'
 import { AgentSigning } from './agent-signing.ts'
 import { GrantStore, grantSpecJson, parseGrantSpec } from './grants.ts'
 import { ensureAgentGrants } from './agent-grant-renewal.ts'
@@ -149,6 +149,18 @@ export class AgentExecutor {
     return this.agents.freezeStep(operation.id, 'action', action)
   }
 
+  #freezeEntries(operationId: Hex, scope: string, entries: NamedSponsorEntry[]): NamedSponsorEntry[] {
+    const prefix = `${scope}:`
+    const prior = this.deps.sql.all<{ name: string; value_json: string }>(
+      'SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND name LIKE ?', operationId, `${prefix}%`,
+    ).filter(step => /^[1-9][0-9]*$/.test(step.name.slice(prefix.length)))
+      .toSorted((left, right) => Number(right.name.slice(prefix.length)) - Number(left.name.slice(prefix.length)))[0]
+    const saved = prior === undefined ? undefined : JSON.parse(prior.value_json) as NamedSponsorEntry[]
+    if (saved !== undefined && canonicalAgentArgs(saved) === canonicalAgentArgs(entries)) return saved
+    const attempt = prior === undefined ? 1 : Number(prior.name.slice(prefix.length)) + 1
+    return this.agents.freezeStep(operationId, `${prefix}${attempt}`, entries)
+  }
+
   async #execute(input: AgentExecuteInput): Promise<AgentExecuteResult> {
     const agent = this.agents.get(input.agentId)
     if (agent.address === null || agent.privy_wallet_id === null || agent.state !== 'active' || agent.chain_id !== this.deps.context.deployment.chainId) throw new Error('Agent is not active on this chain')
@@ -194,17 +206,16 @@ export class AgentExecutor {
       return { status: 'confirmed', operationId: operation.id, result }
     }
     const entriesStep = approved.allowanceHash === undefined ? 'entries' : `entries:${approved.allowanceHash}`
-    let entries = this.agents.step<NamedSponsorEntry[]>(operation.id, entriesStep)
-    if (entries === undefined) {
-      await ensureAgentGrants(this.deps.context, this.agents, this.grants, this.deps.signing, agent.id, operation.id, this.deps.now())
-      const mapped = await mapAgentCalls(this.deps.context, this.grants, { address: agent.address, operator: agent.operator }, transactions, this.deps.now(), approved)
-      if (mapped.approval !== undefined) {
-        if (approved.allowanceHash !== undefined) throw new Error('The approved exact allowance is unavailable; this operation has not been sent')
-        const approval = this.agents.requestApproval(this.agents.operation(operation.id), 'hire-over-limit', mapped.approval)
-        return { status: 'approval', operationId: operation.id, approval }
-      }
-      entries = this.agents.freezeStep(operation.id, entriesStep, mapped.entries)
+    // No sponsor link means there are no signed relay bytes. Recheck gas authority on every such retry;
+    // the economic calls stay frozen, while old mappings remain available for audit.
+    await ensureAgentGrants(this.deps.context, this.agents, this.grants, this.deps.signing, agent.id, operation.id, this.deps.now())
+    const mapped = await mapAgentCalls(this.deps.context, this.grants, { address: agent.address, operator: agent.operator }, transactions, this.deps.now(), approved)
+    if (mapped.approval !== undefined) {
+      if (approved.allowanceHash !== undefined) throw new Error('The approved exact allowance is unavailable; this operation has not been sent')
+      const approval = this.agents.requestApproval(this.agents.operation(operation.id), 'hire-over-limit', mapped.approval)
+      return { status: 'approval', operationId: operation.id, approval }
     }
+    const entries = this.#freezeEntries(operation.id, entriesStep, mapped.entries)
     const sent = await this.deps.sponsor.submit(agent.address, entries, operation.action_key, operation.id)
     return this.#finish(this.agents.operation(operation.id), agent.address, sent)
   }
