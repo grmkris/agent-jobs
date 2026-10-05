@@ -36,6 +36,7 @@ async function fixture(viewport, options = {}) {
     window.__hireling = fixtureOptions.deployed === false ? null : fixtureContracts;
     window.__agents = [fixtureAgent];
     window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: [] };
+    window.__balances = { native: 5n * 10n ** 17n };
     window.__stake = { wallet: 50000n * E, nonce: 0n, calls: [], cooldown: 600, down: fixtureOptions.down ?? false, open: fixtureOptions.open ?? true, pools: {
       [fixtureOwner]: { assets: 4000n * E, reserved: 1500n * E, shares: 4000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
       [fixtureAgentWallet]: { assets: 10000n * E, reserved: 8000n * E, shares: 10000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 6000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n }, [fixtureOther]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
@@ -277,6 +278,15 @@ try {
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
     await page.getByRole('heading', { name: 'Delegate backing to this agent' }).waitFor();
+    const delegate = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Delegate backing to this agent' }) });
+    const balances = delegate.getByLabel('Your operator wallet balances');
+    await balances.getByText('50,000', { exact: true }).waitFor();
+    await balances.getByText('25', { exact: true }).waitFor();
+    await balances.getByText('0.5', { exact: true }).waitFor();
+    await delegate.getByLabel('This agent’s backing').getByText('8,000 FACTORY', { exact: true }).waitFor();
+    await delegate.getByRole('button', { name: 'Max', exact: true }).click();
+    assert.equal(await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).inputValue(), '50000');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0, 'Max only fills the operator balance');
     for (const round of [1, 2]) {
       await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
       await page.getByRole('button', { name: 'Review delegation', exact: true }).click();

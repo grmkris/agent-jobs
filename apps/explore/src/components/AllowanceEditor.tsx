@@ -10,6 +10,7 @@ import { useToken } from "../useTokens.ts";
 import { AgentGrantReview } from "./AgentGrantReview.tsx";
 import { useAuth } from "./Wallet.tsx";
 import { Button, ErrorText, Input } from "./ui.tsx";
+import { OperatorBalances } from "./OperatorBalances.tsx";
 
 export function AllowanceEditor({
   agent,
@@ -76,6 +77,7 @@ export function AllowanceEditor({
   return (
     <div className="grid gap-3 border-t border-sep pt-4">
       <h3 className="font-semibold">Weekly spending allowance</h3>
+      <OperatorBalances operator={operator} token={token} />
       <p className="text-sm text-label-2">
         Fixed seven-day periods, lasting 30 days. Renewal disables the old allowance before the new
         one becomes usable.

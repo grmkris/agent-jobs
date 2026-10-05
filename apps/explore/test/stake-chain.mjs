@@ -29,7 +29,9 @@ export function answer({ functionName, address, args = [] }, historical = false)
     case 'pendingHolding': return s.proposal === undefined ? [zero, 0] : [s.proposal.holding, s.proposal.eta];
     case 'holdingDenied': return s.denied?.[args[1].toLowerCase()] === true;
     case 'schedule': return schedule;
-    case 'balanceOf': return args[0].toLowerCase() === window.__wallet.address.toLowerCase() ? s.wallet : 0n;
+    case 'balanceOf': return args[0].toLowerCase() === window.__wallet.address.toLowerCase()
+      ? address?.toLowerCase() === window.__hireling.factory.toLowerCase() ? s.wallet : s.reward ?? 25_000_000n
+      : 0n;
     case 'symbol': return 'FACTORY';
     case 'decimals': return 18;
     case 'nonces': return s.nonce;

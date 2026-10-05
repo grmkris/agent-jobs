@@ -1,7 +1,7 @@
 import * as sdk from "@agent-jobs/sdk";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { type Address, encodeFunctionData, erc20Abi } from "viem";
+import { type Address, encodeFunctionData, erc20Abi, formatUnits } from "viem";
 import type { ManagedAgent } from "../api.ts";
 import { chain } from "../wallet.ts";
 import { hireling } from "../hireling.ts";
@@ -9,6 +9,10 @@ import { factoryAmount } from "../stake.ts";
 import { Button, ErrorText, Input, Section } from "./ui.tsx";
 import { TxSteps } from "./TxSteps.tsx";
 import { initializeTxJournal } from "./txJournal.ts";
+import { useOperatorBalances } from "../operator-balances.ts";
+import { useBacking } from "../delegation-query.ts";
+import { factoryValue } from "./DelegationPositions.tsx";
+import { OperatorBalances } from "./OperatorBalances.tsx";
 import {
   type VaultIntent,
   clearOwnedIntent,
@@ -18,6 +22,8 @@ import {
 } from "../vault-lock.ts";
 
 export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator: string }) {
+  const balances = useOperatorBalances(operator as Address);
+  const backing = useBacking(agent.address === null ? undefined : agent.address as Address);
   const key = vaultIntentKey(chain.id, hireling?.vault ?? "unavailable", operator);
   const [initial] = useState(() => {
     try {
@@ -100,6 +106,16 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
       title="Delegate backing to this agent"
       note="Your operator wallet pays for the approval and delegation, and owns the position. The agent uses the backing for bonds and its fee tier. A slash reduces every backing position by the same share."
     >
+      <OperatorBalances operator={operator as Address} />
+      {backing.isError || backing.data === undefined ? (
+        <p className="text-sm text-label-2">Agent backing is unavailable.</p>
+      ) : (
+        <dl aria-label="This agent’s backing" className="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular">
+          <div><dt className="text-label-2">Total backing</dt><dd>{factoryValue(backing.data.backing.assets)}</dd></div>
+          <div><dt className="text-label-2">Active backing</dt><dd>{factoryValue(backing.data.backing.active)}</dd></div>
+          <div><dt className="text-label-2">Reserved for bonds</dt><dd>{factoryValue(backing.data.backing.reserved)}</dd></div>
+        </dl>
+      )}
       {intent === null ? (
         <div className="flex flex-wrap gap-2">
           <Input
@@ -109,6 +125,9 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             aria-label="FACTORY to delegate to agent"
             inputMode="decimal"
           />
+          <Button variant="plain" disabled={balances.factory === undefined || balances.factory === 0n || busy} onClick={() => setAmount(formatUnits(balances.factory!, 18))}>
+            Max
+          </Button>
           <Button disabled={initial.error !== null} busy={busy} onClick={() => void prepare()}>
             Review delegation
           </Button>
