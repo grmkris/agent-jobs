@@ -36,7 +36,6 @@ import {
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
 import { readWindowBounds, validateOfferWindows } from './clocks.ts'
-import { getBacking } from './staking.ts'
 import {
   type Authorization,
   type Ruling,
@@ -587,7 +586,11 @@ export async function getStake(ctx: Ctx, account: Address) {
 
 export async function requireStake(ctx: Ctx, account: Address, bond: bigint): Promise<void> {
   if (bond < 0n) throw new Error('bond cannot be negative')
-  if (bond > 0n && (await getBacking(ctx, account)).available < bond) throw new Error('Insufficient available stake for the bond; stake FACTORY before proceeding')
+  if (bond === 0n) return
+  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('Backing requires Hireling v1')
+  const available = await ctx.publicClient.readContract({ address: ctx.deployment.hireling.vault,
+    abi: stakeVaultAbi, functionName: 'availableOf', args: [account] })
+  if (available < bond) throw new Error('Insufficient available stake for the bond; back the account with FACTORY before proceeding')
 }
 
 export function quoteActivation(ctx: Ctx, jobId: bigint, worker: Address) {
