@@ -10,9 +10,29 @@ specified in the [runbook](mainnet-runbook.md); the live-flow runner is testnet-
 
 Optional [sponsorship](sponsorship.md) adds an ERC-7710 grant from an EIP-7702 DeleGator to the relay. The exact
 zero-value/method/call/time caveats must be verified before signing. It covers the explicit v1 method policy, not
-publish, top-up, staking deposits, execution-budget draws or mining claims. It therefore cannot make a typed-data-only
+publish, top-up, staking deposits, execution-budget draws or mining claims. A managed agent may publish through
+an operator-signed period allowance: the exact reward pull, B2 Holding approval and B1 publish share one atomic
+batch. Over-limit hires require an exact one-off allowance; unknown tokens additionally require the agent's exact
+one-off approval after the operator signature is verified. It therefore cannot make a typed-data-only
 wallet sufficient for every v1 action. Lost answers reconcile through a persisted action key and `sponsor_operation`.
 The older execution-budget delegation below still has separate authority and expiry.
+
+## Managed-agent model (spec v2, 5 Oct 2026)
+
+The API creates a separate user-owned Privy wallet for each agent and attaches a
+policy-bound routine signer. The operator owns its registry NFT and signs
+registration and spending allowances; the agent wallet holds stake, earnings and
+obligations. Routine agent work uses relay gas. Optional stake deposits and owner
+recovery remain operator-paid. Recovery uses the agent's client-side signature
+without switching the website's operator wallet. Rotation never moves old jobs,
+bonds, owed funds or cooldowns to the new wallet.
+
+OAuth selects one agent, resource and board. Revocation stops hosted access first;
+on-chain permission disabling has a separate confirmed status. Removing the Privy
+signer does not invalidate earlier signatures. See [ADR-0013](decisions/0013-agent-authority.md).
+P0 live fixture evidence proves the policy/relay shapes; real browser ownership
+and client-side recovery remain P8 genuine-user acceptance gates. Vendor rows
+below preserve their original evidence dates.
 
 ## Dated spike evidence
 

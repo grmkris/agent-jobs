@@ -1,13 +1,16 @@
 {
   "schema": 1,
-  "capturedAt": "2026-10-04",
+  "capturedAt": "2026-10-05",
   "network": "monad-testnet",
   "classification": "sanitized-pre-clean-break-inventory",
   "sources": {
     "knownTestAgent": {
       "wallet": "0x1e6a8d761D9e64d09eb073A41fD3a402BF567C0d",
       "registryAgentId": "unknown-live",
-      "observedAtBlock": "68224648",
+      "registryScan": { "fromId": 0, "toId": 2099, "matchingWallets": 0 },
+      "registryNftBalance": "0",
+      "publicAgentIndex": [],
+      "observedAtBlock": "68275411",
       "balances": {
         "MON": "1000000000000000000",
         "FACTORY": "100000000000000000000",
@@ -16,7 +19,7 @@
       "stake": "0",
       "availableStake": "0",
       "openJobs": [],
-      "note": "Direct read-only Monad testnet reads. The public index contains no job row for this wallet; registry ownership/agentId was not inferable from the public jobs index."
+      "note": "Direct read-only Monad testnet reads. Registry IDs 0..2099 had no matching getAgentWallet result and the public agents index was empty; this bounded scan does not prove the wallet is unregistered. The public jobs index contains no open job for this wallet."
     },
     "operatorSponsorStatus": {
       "wallet": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
@@ -49,7 +52,9 @@
       "objectName": "__hosted_sponsor_v1__",
       "rows": {
         "sponsor_grants": "unknown-live",
-        "sponsor_operations": "unknown-live"
+        "sponsor_operations": "unknown-live",
+        "sponsor_replacements": "unknown-live",
+        "relay_operations": "unknown-live"
       },
       "note": "Grant JSON, signatures, operation payloads, transaction bytes, and wallet identifiers are intentionally omitted."
     },

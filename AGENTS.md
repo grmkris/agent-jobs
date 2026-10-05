@@ -52,7 +52,10 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
   DeleGator to the activated worker, `salt = termsHash`. On-chain caveats enforce cap, recipient/function, call count
   and expiry. The board holds no user key. Grant only while active; ending the job does not revoke a live delegation.
 - Sponsorship is a separate, zero-value delegation to the relay over the explicit method policy in
-  `docs/sponsorship.md`. Publish, top-ups, stake deposits, budget draws and mining claims stay wallet-paid.
+  `docs/sponsorship.md`. Publish, top-ups, stake deposits, budget draws and mining claims stay wallet-paid,
+  except a managed agent's allowance-funded publish: redeem the exact operator-signed allowance amount,
+  approve the reward token to Holding and publish atomically. Unknown-token hires require a verified operator
+  decision for that exact token and amount before the routine signer may sign the one-off approval grant.
   Persist each action's key and signed bytes before broadcast; retries reconcile the original operation first.
 - Any ERC-20 can be a reward. `knownTokens` only orders discovery; tenant policies may narrow it. Exact inflows,
   non-reentrancy and bounded pushes isolate hostile rewards; refused payouts become `owed` without trapping bonds.
