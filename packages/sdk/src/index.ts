@@ -1,5 +1,6 @@
 export * from './abi/index.ts'
 export * from './actions.ts'
+export * from './staking.ts'
 export * from './client.ts'
 export * from './deployment.ts'
 export * from './clocks.ts'

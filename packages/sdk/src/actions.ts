@@ -508,16 +508,17 @@ export function claimTopUpRefund(ctx: Ctx, caller: Wallet, jobId: bigint, contri
   return write(ctx, caller, ctx.stack.holding, hirelingHoldingAbi, 'claimTopUpRefund', [jobId, contributor], V1_GAS.claimTopUpRefund)
 }
 
-export async function delegate(ctx: Ctx, staker: Wallet, amount: bigint) {
+export async function delegate(ctx: Ctx, staker: Wallet, amount: bigint, account: Address = staker.account.address) {
   if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegate is only available on hireling-v1')
-  if (amount <= 0n) throw new Error('stake amount must be positive')
+  if (amount <= 0n) throw new Error('delegation amount must be positive')
   await ensureAllowance(ctx, staker, ctx.deployment.hireling.factory, ctx.deployment.hireling.vault, amount)
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegate', [staker.account.address, amount])
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegate', [account, amount])
 }
 
-export function delegateWithPermit(ctx: Ctx, staker: Wallet, amount: bigint, permit: { deadline: bigint; v: number; r: Hex; s: Hex }) {
+export function delegateWithPermit(ctx: Ctx, staker: Wallet, amount: bigint, permit: { deadline: bigint; v: number; r: Hex; s: Hex }, account: Address = staker.account.address) {
   if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegateWithPermit is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegateWithPermit', [staker.account.address, amount, permit.deadline, permit.v, permit.r, permit.s])
+  if (amount <= 0n) throw new Error('delegation amount must be positive')
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegateWithPermit', [account, amount, permit.deadline, permit.v, permit.r, permit.s])
 }
 
 export async function delegatePermit(ctx: Ctx, staker: Address, amount: bigint, deadline: bigint) {
@@ -538,31 +539,36 @@ export async function undelegationShares(ctx: Ctx, account: Address, delegator: 
   if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('undelegation requires Hireling v1')
   if (amount <= 0n) throw new Error('undelegation amount must be positive')
   const vault = ctx.deployment.hireling.vault
-  const [position, shares] = await Promise.all([
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'positionOf', args: [account, delegator] }),
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToShares', args: [account, amount] }),
+  const blockNumber = await ctx.publicClient.getBlockNumber()
+  const [position, pool, converted] = await Promise.all([
+    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'positionOf', args: [account, delegator], blockNumber }),
+    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'poolOf', args: [account], blockNumber }),
+    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToShares', args: [account, amount], blockNumber }),
   ])
   const owned = position.shares - position.queuedShares
-  const value = await ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToAssets', args: [account, owned] })
-  if (amount > value || shares > owned) throw new Error('undelegation amount exceeds the owned position')
+  const value = pool.shares === 0n ? 0n : owned * pool.assets / pool.shares
+  if (amount > value) throw new Error('undelegation amount exceeds the owned position')
+  // MAX must redeem every owned share, including a remainder hidden by asset rounding.
+  const shares = amount === value ? owned : converted
+  if (shares > owned) throw new Error('undelegation amount exceeds the owned position')
   if (shares === 0n) throw new Error('undelegation amount rounds to zero shares')
   return shares
 }
 
-export async function requestUndelegate(ctx: Ctx, staker: Wallet, amount: bigint) {
+export async function requestUndelegate(ctx: Ctx, staker: Wallet, amount: bigint, account: Address = staker.account.address) {
   if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('requestUndelegate is only available on hireling-v1')
-  const shares = await undelegationShares(ctx, staker.account.address, staker.account.address, amount)
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'requestUndelegate', [staker.account.address, shares])
+  const shares = await undelegationShares(ctx, account, staker.account.address, amount)
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'requestUndelegate', [account, shares])
 }
 
-export function cancelUndelegate(ctx: Ctx, staker: Wallet) {
+export function cancelUndelegate(ctx: Ctx, staker: Wallet, account: Address = staker.account.address) {
   if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('cancelUndelegate is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'cancelUndelegate', [staker.account.address])
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'cancelUndelegate', [account])
 }
 
-export function withdraw(ctx: Ctx, staker: Wallet) {
+export function withdraw(ctx: Ctx, staker: Wallet, account: Address = staker.account.address) {
   if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('withdraw is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'withdraw', [staker.account.address])
+  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'withdraw', [account])
 }
 
 export async function getStake(ctx: Ctx, account: Address) {
