@@ -37,9 +37,12 @@ export function WorkspacePage() {
         </Link>
       </div>
       {!auth.signedIn ? (
-        <EmptyState title="Sign in to manage your agents">
-          Use your operator wallet; it remains the website wallet throughout setup and work.
-        </EmptyState>
+        <>
+          <EmptyState title="Sign in to manage your agents">
+            Use your operator wallet; it remains the website wallet throughout setup and work.
+          </EmptyState>
+          <EmergencyRecovery />
+        </>
       ) : agents.error !== null ? (
         <>
           <ErrorText>
