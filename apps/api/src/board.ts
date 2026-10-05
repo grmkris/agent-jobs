@@ -63,6 +63,11 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
     let limits: AdmissionRateLimits | undefined
     // Serialize across awaits and service/config replacement, including callers from different tenants.
     let callQueue: Promise<unknown> = Promise.resolve()
+    // Management execution may await a tenant object. Keep that queue separate from relay sends, which can be
+    // requested by the tenant while the management object is waiting.
+    let managementQueue: Promise<unknown> = Promise.resolve()
+    // Relay sends retain one nonce-serialized queue in the reserved object.
+    let relayQueue: Promise<unknown> = Promise.resolve()
 
     const boardFor = (env: BoardCall['env']): BoardService => {
       const key = JSON.stringify(env)
@@ -126,15 +131,15 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
 
     return Effect.succeed({
         agentExecute: (req: AgentExecuteRequest) => Effect.promise(() => {
-          const result = callQueue.then(async () => {
+          const result = managementQueue.then(async () => {
             try { return await executeAgent(req) }
             catch (error) { return toJson({ ok: false, code: error instanceof BoardError ? error.code : 'unavailable', message: error instanceof BoardError ? error.message : 'Hosted agent execution is unavailable' }) }
           })
-          callQueue = result.catch(() => undefined)
+          managementQueue = result.catch(() => undefined)
           return result
         }),
         agentManage: (req: { env: BoardCall['env']; request: AgentRouteRequest; bearer?: string; privyToken?: string }) => Effect.promise(() => {
-          const result = callQueue.then(async () => {
+          const result = managementQueue.then(async () => {
             try {
               const bindings = runtimeEnv as Record<string, unknown>
               const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
@@ -155,7 +160,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               return toJson({ ok: true, result: managementResult })
             } catch (error) { return toJson({ ok: false, code: error instanceof BoardError ? error.code : 'unavailable', message: error instanceof BoardError ? error.message : 'Agent management is unavailable; retry the same request' }) }
           })
-          callQueue = result.catch(() => undefined)
+          managementQueue = result.catch(() => undefined)
           return result
         }),
         operatorAgent: (req: { agentId: string; bearer?: string }) => Effect.promise(async () => {
@@ -212,7 +217,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         }),
         /** Internal relay RPC shares the reserved object's queue and durable nonce ledger with sponsorship. */
         relay: (req: { env: BoardCall['env']; request: RelayRequest }) => Effect.promise(() => {
-          const result = callQueue.then(async (): Promise<string> => {
+          const result = relayQueue.then(async (): Promise<string> => {
             try {
               const bindings = runtimeEnv as Record<string, unknown>
               const namespace = bindings.Board as { idFromName(name: string): { toString(): string } } | undefined
@@ -232,7 +237,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               return toJson({ ok: true, result: await boardFor(req.env).relayTransaction(request) })
             } catch (e) { return toJson({ ok: false, code: e instanceof BoardError ? e.code : 'chain', message: e instanceof Error ? e.message : String(e) }) }
           })
-          callQueue = result.catch(() => undefined)
+          relayQueue = result.catch(() => undefined)
           return result
         }),
         /** Private RPC, reachable only through the existing Board binding's reserved object. */
