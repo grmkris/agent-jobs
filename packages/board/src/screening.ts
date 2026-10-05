@@ -3,6 +3,7 @@
  * Its verdict is shown next to the listing and is never an input to settlement; when the model is unreachable the
  * listing is "unscreened". The brief is data, never instructions.
  */
+import { agentFailureReply, errorDiagnostics } from './agent-failure.ts'
 import { type ModelEndpoint, askJson } from './model.ts'
 import type { OfferTerms } from './terms.ts'
 
@@ -47,6 +48,10 @@ export async function screenOffer(
     const reasons = Array.isArray(answer.reasons) ? answer.reasons.filter((r): r is string => typeof r === 'string').slice(0, 5) : []
     return { verdict, reasons, model: endpoint.model, promptVersion: SCREENING_PROMPT_VERSION, at: now }
   } catch (e) {
-    return { verdict: 'unscreened', reasons: [`screening unavailable: ${(e as Error).message}`], model: endpoint.model, promptVersion: SCREENING_PROMPT_VERSION, at: now }
+    const failure = agentFailureReply(e, 'screening unavailable', (errorId, error) => {
+      console.error(JSON.stringify({ event: 'screening-failed', errorId, ...errorDiagnostics(error) }))
+    })
+    const reason = failure.errorId === undefined ? 'screening unavailable' : `screening unavailable (error ${failure.errorId})`
+    return { verdict: 'unscreened', reasons: [reason], model: endpoint.model, promptVersion: SCREENING_PROMPT_VERSION, at: now }
   }
 }
