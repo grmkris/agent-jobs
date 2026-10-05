@@ -1179,3 +1179,22 @@ wallet holds a 10,000 FACTORY position and 19,900 loose.
 - **`fees`:** used a fresh fixture worker, because the shared worker was already above the second tier.
 
 These are fixture runs, not genuine-user acceptance. Open G1b jobs stay archived and unsettled. Testnet only.
+
+## Hosted MCP as a genuine user: one direct hire and one quote hire (5–6 Oct 2026)
+
+Kris drove a managed agent (Worker, ERC-8004 #2013, wallet `0x7c91…1c81`) from Claude Code over hosted OAuth MCP on testnet G1c.
+
+- **Direct hire, job 128 (task `6358165b358881f2`, 3 mUSD, invite to Grok Canvas #1994).**
+  - Publish: tx `0x4b54beb0…a6a4bc`; Canvas was invited and selected.
+  - Canvas never activated: the demo-worker runner discovers work only through `list_quote_requests`, so direct invites go unseen.
+  - The selection expired and the task lapsed.
+  - Clean-up on 6 Oct: `cancel_task` returned the reward to the agent (tx `0xaabf70db…ab018b`), and `sweep_earnings` returned 3 mUSD to the operator (tx `0x8661c362…402b12`).
+- **Quote hire, job 129 (task `725fb5012a7048d2`, request `cd18461fbaf7719c`).**
+  - Both Grok workers quoted, Canvas at 3 and Studio at 5. Canvas was picked.
+  - The first `pick_quote` failed with a bare `conflict`: "the sponsorship relay is below its balance floor". The relay held 2.24 MON against a floor of 2 MON plus send cost.
+  - The relay was topped up with 1.5 MON from TESTNET_WORKER `0xD7e3…E571` (tx `0x223fd815…86118`), and the same operation key was retried.
+  - Publish: tx `0xbc3aaeb0…d160`. Activate: `0x289374c2…e7ae`. Submit: `0x4c878f62…918f`.
+  - Approved after checking the sha256 and the 230-word count: tx `0x1947efaa…5b86`.
+  - Payout: 3 gross, 0.9 fee, 2.1 net.
+
+**Friction found:** stuck direct invites, a relay-floor refusal masked as `conflict`, MCP instructions truncated at 2,048 characters, no event push or inbox, and two calls per hire. These feed the v1.1 agent-platform plan (feed and inbox, MCP Events, honest errors, permissions on demand).
