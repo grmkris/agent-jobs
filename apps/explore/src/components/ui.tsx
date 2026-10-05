@@ -1,17 +1,38 @@
 /**
- * Hireling's primitives: Apple-style inset grouped sections, rows, pills, buttons and fields, all drawn from the
- * tokens in styles.css (light and dark follow the system). Pages compose these; they carry no colours of their own.
+ * Hireling's primitives, drawn with the base-nova components in ./ui/ (shadcn on Base UI) and the tokens in
+ * styles.css. Pages compose these; they carry no colours of their own. The props are the ones pages have always used
+ * (a Button `variant` of primary/tinted/gray…, Badge tones), mapped onto base-nova's variants here, so a page moves to
+ * the new look without edits.
+ *
+ * Desktop is dense (32px controls, 40px rows, 14px text); on a coarse pointer every control and row grows to a 44px
+ * target. Semantics stay native on purpose: buttons are <button> (a real `disabled`), fields are wrapped in their
+ * <label>, and Segmented is a radiogroup with arrow-key selection; tests and the live harness query those.
  */
-import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react'
+import { Check, ChevronRight, Copy, ExternalLink } from 'lucide-react'
 import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useState } from 'react'
 import { amount as formatAmount } from '../format.ts'
 import { explorer } from '../wallet.ts'
 import { selectRadio } from './radio.ts'
 import { cn } from '../lib/cn.ts'
+import { Badge as BaseBadge } from './ui/badge.tsx'
+import { buttonVariants } from './ui/button.tsx'
+import { Spinner } from './ui/spinner.tsx'
 
 export { cn }
 
 type ButtonVariant = 'primary' | 'tinted' | 'gray' | 'danger' | 'destructive' | 'plain' | 'outline'
+
+/** Our names → base-nova's. `danger` is the soft red tint; `destructive` the solid one, for an irreversible action. */
+const BUTTON_VARIANT = {
+  primary: 'default',
+  tinted: 'secondary',
+  gray: 'secondary',
+  outline: 'outline',
+  danger: 'destructive',
+  destructive: 'danger',
+  plain: 'link',
+} as const
+const BUTTON_SIZE = { sm: 'sm', md: 'default', lg: 'lg' } as const
 
 export function Button({
   busy,
@@ -24,50 +45,47 @@ export function Button({
   return (
     <button
       type="button"
+      data-slot="button"
       {...props}
       disabled={busy === true || props.disabled}
       className={cn(
-        'press inline-flex items-center justify-center gap-2 font-semibold select-none disabled:pointer-events-none disabled:opacity-40',
-        size === 'sm' && 'min-h-11 rounded-lg px-3 text-sm',
-        size === 'md' && 'min-h-11 rounded-xl px-4 text-[0.95rem] sm:min-h-10',
-        size === 'lg' && 'min-h-[3.125rem] rounded-2xl px-5 text-base',
-        variant === 'primary' && 'bg-tint text-on-tint',
-        variant === 'tinted' && 'bg-tint/14 text-tint',
-        (variant === 'gray' || variant === 'outline') && 'bg-fill text-label',
-        variant === 'danger' && 'bg-bad-bg text-bad',
-        variant === 'destructive' && 'bg-bad text-white',
-        variant === 'plain' && 'min-h-0 px-0 font-medium text-tint',
+        buttonVariants({ variant: BUTTON_VARIANT[variant], size: BUTTON_SIZE[size] }),
+        // A long label wraps rather than overflowing a narrow screen; the height grows with it.
+        variant !== 'plain' && 'h-auto min-h-8 py-1 text-center whitespace-normal pointer-coarse:h-auto pointer-coarse:min-h-11',
+        variant !== 'plain' && size === 'sm' && 'min-h-7',
+        variant !== 'plain' && size === 'lg' && 'min-h-9',
+        variant === 'plain' && 'h-auto min-h-0 px-0 py-0 pointer-coarse:h-auto',
         className,
       )}
     >
-      {busy === true && <Loader2 aria-hidden className="size-4 animate-spin" />}
+      {busy === true && <Spinner data-icon="inline-start" />}
       {children}
     </button>
   )
 }
 
-/** A titled block: an uppercase header above an inset grouped surface, and an optional footnote below it. */
+/** A titled block: a quiet header above a surface, and an optional footnote below it. */
 export function Section({ title, note, children, className, action }: { title?: ReactNode; note?: ReactNode; children: ReactNode; className?: string; action?: ReactNode }) {
   return (
-    <section className={cn('grid min-w-0 content-start gap-1.5', className)}>
+    <section className={cn('grid min-w-0 content-start gap-2', className)}>
       {(title !== undefined || action !== undefined) && (
-        <div className="flex items-baseline justify-between gap-3 px-4">
-          {title !== undefined && <h2 className="text-[0.8rem] font-medium tracking-wide text-label-2 uppercase">{title}</h2>}
+        <div className="flex min-h-6 items-center justify-between gap-3 px-1">
+          {title !== undefined && <h2 className="text-ui font-medium text-muted-foreground">{title}</h2>}
           {action}
         </div>
       )}
       {children}
-      {note !== undefined && <p className="px-4 text-[0.8rem] leading-snug text-label-2">{note}</p>}
+      {note !== undefined && <p className="px-1 text-ui text-muted-foreground">{note}</p>}
     </section>
   )
 }
 
-/** The inset grouped surface: rows inside it are separated by hairlines that start at the text, as in Settings. */
+/** The card surface: a hairline ring rather than a border or a shadow; rows inside are separated by hairlines. */
 export function Group({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('overflow-hidden rounded-xl bg-surface', className)}>{children}</div>
+  return <div className={cn('overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10', className)}>{children}</div>
 }
 
-const ROW_SEP = "relative before:absolute before:top-0 before:right-0 before:left-4 before:border-t-[0.5px] before:border-sep first:before:hidden before:content-['']"
+const ROW_SEP = "relative before:absolute before:top-0 before:right-0 before:left-4 before:border-t before:border-border/70 first:before:hidden before:content-['']"
 
 /**
  * The classes of a Group row, for a row that is itself a link (`<Link className={rowClass({ interactive: true })}>`):
@@ -75,7 +93,12 @@ const ROW_SEP = "relative before:absolute before:top-0 before:right-0 before:lef
  * after a leading avatar.
  */
 export const rowClass = ({ inset = false, interactive = false }: { inset?: boolean; interactive?: boolean } = {}) =>
-  cn(ROW_SEP, inset && 'before:left-15', 'flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left', interactive && 'active:bg-fill [@media(hover:hover)]:hover:bg-fill')
+  cn(
+    ROW_SEP,
+    inset && 'before:left-14',
+    'flex min-h-10 w-full items-center gap-3 px-4 py-2 text-left pointer-coarse:min-h-11',
+    interactive && 'transition-colors duration-(--dur-fast) active:bg-muted [@media(hover:hover)]:hover:bg-muted/60',
+  )
 
 /** A row of a Group; an `onClick` row is a button with a pressed state. */
 export function ListRow({ children, className, onClick, inset = false }: { children: ReactNode; className?: string; onClick?: () => void; inset?: boolean }) {
@@ -99,35 +122,33 @@ export function Card({ title, children, className, note }: { title?: ReactNode; 
 /** A label and its value on one row. */
 export function Row({ label, children, hint }: { label: ReactNode; children: ReactNode; hint?: ReactNode }) {
   return (
-    <div className={cn(ROW_SEP, '-mx-4 flex min-h-11 items-center justify-between gap-4 px-4 py-2 text-[0.95rem] first:-mt-2 last:-mb-2')}>
+    <div className={cn(ROW_SEP, '-mx-4 flex min-h-10 items-center justify-between gap-4 px-4 py-2 text-sm first:-mt-2 last:-mb-2 pointer-coarse:min-h-11')}>
       <span className="min-w-0">
-        <span className="text-label">{label}</span>
-        {hint !== undefined && <span className="block text-[0.78rem] text-label-3">{hint}</span>}
+        <span className="text-foreground">{label}</span>
+        {hint !== undefined && <span className="block text-xs text-muted-foreground">{hint}</span>}
       </span>
-      <span className="min-w-0 text-right text-label-2 [overflow-wrap:anywhere]">{children}</span>
+      <span className="min-w-0 text-right text-muted-foreground [overflow-wrap:anywhere]">{children}</span>
     </div>
   )
 }
 
 export type Tone = 'info' | 'attention' | 'success' | 'danger' | 'neutral'
-const LEGACY: Record<string, Tone> = { green: 'success', red: 'danger', amber: 'attention', blue: 'info', gray: 'neutral' }
-const TONE: Record<Tone, string> = {
-  info: 'bg-info-bg text-info-text',
-  attention: 'bg-warn-bg text-warn',
-  success: 'bg-ok-bg text-ok',
-  danger: 'bg-bad-bg text-bad',
-  neutral: 'bg-gray-bg text-gray',
-}
+const LEGACY: Record<string, Tone | 'current'> = { green: 'success', red: 'danger', amber: 'attention', blue: 'info', gray: 'neutral', warning: 'attention', tint: 'current' }
+const BADGE = { info: 'info', attention: 'warning', success: 'success', danger: 'destructive', neutral: 'neutral', current: 'default' } as const
 
-/** A status pill. Tones are semantic (not the tint): info, attention, success, danger, neutral. */
+/** A status pill. Tones are semantic: info, attention, success, danger, neutral (`tint` marks the current step). */
 export function Badge({ tone = 'neutral', children, className }: { tone?: Tone | keyof typeof LEGACY; children: ReactNode; className?: string }) {
   const t = LEGACY[tone] ?? (tone as Tone)
-  return <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.74rem] font-semibold whitespace-nowrap', TONE[t], className)}>{children}</span>
+  return (
+    <BaseBadge variant={BADGE[t] ?? 'neutral'} className={className}>
+      {children}
+    </BaseBadge>
+  )
 }
 
 /** Marks sample or example content where it must not pass for real data. */
 export function Tag({ children }: { children: ReactNode }) {
-  return <span className="rounded-md border border-sep px-1.5 text-[0.66rem] font-bold tracking-wider text-label-3 uppercase">{children}</span>
+  return <span className="rounded-md border border-border px-1.5 text-micro font-medium tracking-wide text-muted-foreground uppercase">{children}</span>
 }
 
 export function statusTone(status: string): Tone {
@@ -155,9 +176,13 @@ export function CopyButton({ value, label = 'Copy', className }: { value: string
           () => undefined,
         )
       }}
-      className={cn('inline-grid size-11 shrink-0 place-items-center rounded-lg text-label-3 active:bg-fill [@media(hover:hover)]:hover:text-label', done && 'text-ok', className)}
+      className={cn(
+        'inline-grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-(--dur-fast) active:bg-muted pointer-coarse:size-11 [@media(hover:hover)]:hover:bg-muted [@media(hover:hover)]:hover:text-foreground',
+        done && 'text-success-text',
+        className,
+      )}
     >
-      {done ? <Check className="size-3.5" strokeWidth={3} /> : <Copy className="size-3.5" />}
+      {done ? <Check className="size-3.5" strokeWidth={2.5} /> : <Copy className="size-3.5" />}
     </button>
   )
 }
@@ -166,10 +191,10 @@ export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
 
 /** An address: shortened, linked to the explorer, copyable. */
 export function Address({ value, you = false }: { value: string | null | undefined; you?: boolean }) {
-  if (value === null || value === undefined) return <span className="text-label-3">—</span>
+  if (value === null || value === undefined) return <span className="text-muted-foreground">—</span>
   return (
-    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center justify-end gap-0.5 font-mono text-[0.82rem]">
-      <a href={explorer('address', value)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-label-2 hover:text-label">
+    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center justify-end gap-0.5 font-mono text-ui">
+      <a href={explorer('address', value)} target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center text-muted-foreground hover:text-foreground pointer-coarse:min-h-11">
         {shortAddress(value)}
       </a>
       {you && <Badge tone="info" className="ml-1 font-sans">You</Badge>}
@@ -182,7 +207,7 @@ export function TxLink({ hash, label }: { hash: string | null | undefined; label
   if (hash === null || hash === undefined) return null
   return (
     // py-3.5 -my-3.5: a 44 px target that takes no more room in its line.
-    <a href={explorer('tx', hash)} target="_blank" rel="noreferrer" className="-my-3.5 inline-flex items-center gap-1 py-3.5 font-mono text-[0.8rem] text-tint">
+    <a href={explorer('tx', hash)} target="_blank" rel="noreferrer" className="-my-3.5 inline-flex items-center gap-1 py-3.5 font-mono text-ui text-muted-foreground underline decoration-current/30 underline-offset-4 hover:text-foreground">
       {label ?? `${hash.slice(0, 10)}…`}
       <ExternalLink aria-hidden className="size-3" />
     </a>
@@ -191,42 +216,50 @@ export function TxLink({ hash, label }: { hash: string | null | undefined; label
 
 /** An amount in a token, with tabular figures. */
 export function Amount({ value, token, className }: { value: string | null | undefined; token: string | null | undefined; className?: string }) {
-  return <span className={cn('tabular font-semibold whitespace-nowrap', className)}>{formatAmount(value, token)}</span>
+  return <span className={cn('tabular font-medium whitespace-nowrap', className)}>{formatAmount(value, token)}</span>
 }
 
-// min-h-11: every field is at least a 44 px touch target (U-PERF-A11Y).
-const FIELD = 'w-full min-w-0 min-h-11 rounded-lg bg-fill px-3 py-2 text-[0.95rem] outline-none focus:ring-2 focus:ring-tint/40'
+/** A link in running text: the primary is near-black, so the underline is what says "link". */
+export const textLinkClass = 'text-foreground underline decoration-foreground/30 underline-offset-4 transition-colors duration-(--dur-fast) hover:decoration-foreground'
+
+/**
+ * The field look of base-nova's Input: a hairline border, a ring on focus. 16px text below `md` so iOS does not zoom
+ * the page on focus, 14px above; 32px tall on desktop, 44px on touch.
+ */
+const FIELD =
+  'w-full min-w-0 min-h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors duration-(--dur-fast) outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm pointer-coarse:min-h-11 dark:bg-input/30'
 
 export function Field({ label, children, hint, className }: { label: ReactNode; children: ReactNode; hint?: ReactNode; className?: string }) {
   return (
     <label className={cn('grid gap-1.5', className)}>
-      <span className="text-[0.82rem] text-label-2">{label}</span>
+      <span className="text-ui font-medium text-foreground">{label}</span>
       {children}
-      {hint !== undefined && <span className="text-[0.78rem] text-label-3">{hint}</span>}
+      {hint !== undefined && <span className="text-xs text-muted-foreground">{hint}</span>}
     </label>
   )
 }
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={cn(FIELD, className)} />
+  return <input data-slot="input" {...props} className={cn(FIELD, className)} />
 }
 
 export function TextArea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={cn(FIELD, 'min-h-24 leading-relaxed', className)} />
+  return <textarea data-slot="textarea" {...props} className={cn(FIELD, 'min-h-24 py-2 leading-relaxed', className)} />
 }
 
+/** A native <select>: a portalled Base UI menu would sit below a modal <dialog> sheet's top layer. */
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select {...props} className={cn(FIELD, 'appearance-auto pr-8', className)}>
+    <select data-slot="select" {...props} className={cn(FIELD, 'appearance-auto pr-8', className)}>
       {children}
     </select>
   )
 }
 
-/** The iOS segmented control. */
+/** The segmented control (a radiogroup): base-nova's tabs-list look, iOS semantics. */
 export function Segmented<T extends string>({ value, options, onChange, className, label }: { value: T; options: ReadonlyArray<readonly [T, ReactNode]>; onChange: (v: T) => void; className?: string; label?: string }) {
   return (
-    <div role="radiogroup" aria-label={label} className={cn('flex min-w-0 flex-wrap gap-0.5 rounded-[10px] bg-fill p-0.5', className)}>
+    <div role="radiogroup" aria-label={label} className={cn('flex min-w-0 flex-wrap gap-0.5 rounded-lg bg-muted p-[3px]', className)}>
       {options.map(([v, text]) => (
         <button
           key={v}
@@ -236,7 +269,10 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
           tabIndex={value === v ? 0 : -1}
           onClick={() => onChange(v)}
           onKeyDown={(event) => selectRadio(event, options.findIndex(([option]) => option === v), options.length, (index) => onChange(options[index]![0]))}
-          className={cn('min-h-11 min-w-min flex-1 rounded-lg px-2 py-1.5 text-[0.85rem] font-medium break-words transition-colors', value === v ? 'bg-surface font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-label')}
+          className={cn(
+            'min-h-8 min-w-min flex-1 rounded-md px-2.5 py-1 text-ui font-medium break-words transition-[background-color,color,box-shadow] duration-(--dur-fast) pointer-coarse:min-h-11',
+            value === v ? 'bg-background text-foreground shadow-sm ring-1 ring-foreground/5 dark:bg-input/40' : 'text-muted-foreground hover:text-foreground',
+          )}
         >
           {text}
         </button>
@@ -245,8 +281,9 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
   )
 }
 
+/** base-nova's skeleton, as a <span>: placeholders sit inside inline content (rows, paragraphs). */
 export function Skeleton({ className }: { className?: string }) {
-  return <span aria-hidden className={cn('block animate-pulse rounded-md bg-fill', className ?? 'h-4 w-full')} />
+  return <span aria-hidden data-slot="skeleton" className={cn('block animate-pulse rounded-md bg-muted', className ?? 'h-4 w-full')} />
 }
 
 /** Rows of placeholder while a list loads, so loading never reads as "empty". */
@@ -256,7 +293,7 @@ export function LoadingRows({ rows = 3 }: { rows?: number }) {
       {Array.from({ length: rows }, (_, i) => (
         <ListRow key={i}>
           <span className="grid flex-1 gap-2 py-1">
-            <Skeleton className="h-4 w-3/5" />
+            <Skeleton className="h-3.5 w-3/5" />
             <Skeleton className="h-3 w-2/5" />
           </span>
         </ListRow>
@@ -267,24 +304,40 @@ export function LoadingRows({ rows = 3 }: { rows?: number }) {
 
 export function EmptyState({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
-    <div className="grid justify-items-center gap-1 rounded-xl bg-surface px-6 py-8 text-center">
-      <p className="font-semibold">{title}</p>
-      {children !== undefined && <div className="max-w-sm text-[0.9rem] text-label-2">{children}</div>}
+    <div className="grid justify-items-center gap-1 rounded-xl border border-dashed px-6 py-10 text-center">
+      <p className="text-sm font-medium">{title}</p>
+      {children !== undefined && <div className="max-w-sm text-ui text-muted-foreground">{children}</div>}
     </div>
   )
 }
 
 /** An inline error line: what went wrong, in the tone of a failure. */
 export function ErrorText({ children }: { children: ReactNode }) {
-  return <p className="text-[0.88rem] text-bad [overflow-wrap:anywhere]">{children}</p>
+  return <p className="text-ui text-destructive-text [overflow-wrap:anywhere]">{children}</p>
 }
 
-/** The page's large title, Apple-style (tight tracking, balanced wrap). */
+/** The page's title: one size step up, semibold, tight; the sub line carries status and context. */
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
-    <header className="grid gap-1.5">
-      <h1 className="font-display text-[2rem] leading-[1.12] font-bold tracking-[-0.022em]">{children}</h1>
-      {sub !== undefined && <div className="flex flex-wrap items-center gap-2 text-[0.9rem] text-label-2">{sub}</div>}
+    <header className="grid gap-1">
+      <h1 className="text-2xl leading-tight font-semibold tracking-tight">{children}</h1>
+      {sub !== undefined && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{sub}</div>}
     </header>
+  )
+}
+
+/**
+ * Advanced detail kept out of the main path (0x addresses, 7702, delegation, raw allowance): a native disclosure, so
+ * it works without script and tests can find it by its summary text.
+ */
+export function Details({ summary, children, className, open }: { summary: ReactNode; children: ReactNode; className?: string; open?: boolean }) {
+  return (
+    <details open={open} className={cn('group/details rounded-xl bg-card ring-1 ring-foreground/10', className)}>
+      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-4 text-sm font-medium select-none pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+        <ChevronRight aria-hidden className="size-4 text-muted-foreground transition-transform duration-(--dur-fast) group-open/details:rotate-90" />
+        {summary}
+      </summary>
+      <div className="grid gap-3 px-4 pt-1 pb-4">{children}</div>
+    </details>
   )
 }

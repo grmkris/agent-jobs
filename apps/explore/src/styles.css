@@ -345,7 +345,7 @@
     color: var(--muted-foreground);
   }
   /* The primary is near-black, so a link styled with the legacy tint needs an underline to read as a link. */
-  a.text-tint:not([data-slot='button']):not([class*='bg-']) {
+  main a.text-tint:not([data-slot='button']):not([class*='bg-']) {
     text-decoration: underline;
     text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
     text-underline-offset: 3px;
@@ -518,29 +518,36 @@ dialog::backdrop {
 }
 .action-link {
   display: inline-flex;
-  min-height: 46px;
+  min-height: 2rem;
   align-items: center;
   justify-content: center;
-  gap: 0.65rem;
-  border: 1px solid var(--tint);
-  border-radius: 9px;
-  padding: 0.7rem 1.05rem;
-  background: var(--tint);
-  color: var(--on-tint);
-  font-size: 0.87rem;
-  font-weight: 600;
+  gap: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.25rem 0.625rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
   transition:
-    transform 150ms,
-    opacity 150ms;
+    transform var(--dur-fast) var(--ease-out-strong),
+    opacity var(--dur-fast);
 }
 .action-link:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  opacity: 0.88;
+}
+.action-link:active {
+  transform: scale(0.96);
 }
 .action-link.secondary {
-  color: var(--tint);
-  background: transparent;
-  border-color: var(--sep);
+  color: var(--foreground);
+  background: var(--background);
+  border-color: var(--border);
+}
+@media (pointer: coarse) {
+  .action-link {
+    min-height: 2.75rem;
+  }
 }
 .agent-blueprint {
   position: relative;

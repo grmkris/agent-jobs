@@ -87,26 +87,26 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
         // A click on the dialog itself (not its panel) is a click on the backdrop.
         if (e.target === ref.current) dismiss()
       }}
-      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-scrim sm:open:grid sm:open:place-items-center"
+      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-overlay sm:open:grid sm:open:place-items-center"
     >
       <div
         ref={panel}
         style={{ transform: dy === 0 ? undefined : `translateY(${dy}px)`, transition: drag.current === null ? undefined : 'none' }}
         className={cn(
-          'absolute inset-x-0 bottom-0 grid max-h-[90vh] gap-4 overflow-y-auto rounded-t-2xl bg-surface px-5 pt-2 pb-[calc(1.25rem+var(--safe-bottom))] text-label shadow-float',
-          // A grouped block inside the sheet is raised one step, not white on white.
-          '[&_.bg-surface]:bg-surface-2',
+          'absolute inset-x-0 bottom-0 grid max-h-[90vh] gap-4 overflow-y-auto rounded-t-xl bg-popover px-5 pt-2 pb-[calc(1.25rem+var(--safe-bottom))] text-sm text-popover-foreground shadow-popover',
+          // A grouped block inside the sheet sits one step down, not white on white.
+          '[&_.bg-card]:bg-muted/50 [&_.bg-surface]:bg-muted/50',
           'animate-[sheet-in_0.42s_var(--ease-spring)] transition-transform duration-300 ease-(--ease-spring)',
-          'sm:relative sm:inset-auto sm:w-[30rem] sm:max-w-[calc(100vw-2rem)] sm:rounded-2xl sm:px-6 sm:pt-5 sm:pb-6 sm:animate-[panel-in_0.3s_var(--ease-spring)]',
+          'sm:relative sm:inset-auto sm:w-[28rem] sm:max-w-[calc(100vw-2rem)] sm:rounded-xl sm:px-5 sm:pt-4 sm:pb-5 sm:animate-[panel-in_0.24s_var(--ease-out-strong)]',
           className,
         )}
       >
         <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} className="-mx-5 cursor-grab touch-none px-5 pt-1 pb-1 sm:hidden">
-          <div className="mx-auto h-1.5 w-9 rounded-full bg-fill-strong" />
+          <div className="mx-auto h-1 w-9 rounded-full bg-foreground/15" />
         </div>
         <div className="flex items-start justify-between gap-3">
-          <h2 id={titleId} className="font-display text-[1.3rem] leading-tight font-bold tracking-[-0.015em]">{title}</h2>
-          <button type="button" aria-label="Close" disabled={walletPrompt} onClick={dismiss} className="grid size-11 shrink-0 place-items-center rounded-full bg-fill text-label-2 disabled:opacity-40">
+          <h2 id={titleId} className="pt-1 text-base leading-snug font-semibold tracking-tight">{title}</h2>
+          <button type="button" aria-label="Close" disabled={walletPrompt} onClick={dismiss} className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition-colors duration-(--dur-fast) hover:text-foreground disabled:opacity-40 pointer-coarse:size-11">
             <X className="size-4" />
           </button>
         </div>
@@ -147,7 +147,7 @@ export function ConfirmSheet({
 }) {
   return (
     <Sheet open={open} onClose={onClose} title={title} walletPrompt={busy === true}>
-      {description !== undefined && <div className="-mt-2 leading-snug text-label-2">{description}</div>}
+      {description !== undefined && <div className="-mt-2 leading-snug text-muted-foreground">{description}</div>}
       {children}
       <div className="grid gap-2">
         <Button size="lg" variant={tone === 'destructive' ? 'destructive' : 'primary'} busy={busy} disabled={disabled} onClick={onConfirm}>
@@ -182,11 +182,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              'pointer-events-auto flex max-w-md animate-[toast-in_0.45s_var(--ease-spring)] items-center gap-2.5 rounded-full bg-surface px-4 py-2.5 text-[0.92rem] font-medium shadow-float',
-              t.tone === 'error' && 'text-bad',
+              'pointer-events-auto flex max-w-md animate-[toast-in_0.45s_var(--ease-spring)] items-center gap-2.5 rounded-full bg-popover px-4 py-2 text-sm font-medium text-popover-foreground shadow-popover',
+              t.tone === 'error' && 'text-destructive-text',
             )}
           >
-            <span className={cn('grid size-5 shrink-0 place-items-center rounded-full text-[0.7rem] font-bold text-white', t.tone === 'error' ? 'bg-bad' : 'bg-ok')}>{t.tone === 'error' ? '!' : '✓'}</span>
+            <span className={cn('grid size-5 shrink-0 place-items-center rounded-full text-micro font-semibold text-white', t.tone === 'error' ? 'bg-destructive' : 'bg-success')}>{t.tone === 'error' ? '!' : '✓'}</span>
             {t.text}
           </div>
         ))}

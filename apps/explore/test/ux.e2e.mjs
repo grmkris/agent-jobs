@@ -199,9 +199,11 @@ async function testControls(viewport) {
   await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
   });
+  // Touch targets are 44 px on a coarse pointer (the phone context has touch); desktop controls are 32 px.
+  const minTarget = viewport.width === 390 ? 44 : 32;
   const close = page.getByRole('button', { name: 'Close', exact: true });
   const bounds = await close.boundingBox();
-  assert.ok(bounds.width >= 44 && bounds.height >= 44, `Close target ${JSON.stringify(bounds)} at ${JSON.stringify(viewport)}`);
+  assert.ok(bounds.width >= minTarget && bounds.height >= minTarget, `Close target ${JSON.stringify(bounds)} at ${JSON.stringify(viewport)}`);
   await page.keyboard.press('Escape');
   assert.equal(await how.evaluate((button) => button === document.activeElement), true);
   const all = page.getByRole('radio', { name: /All/ });
@@ -232,7 +234,7 @@ async function testControls(viewport) {
   await page.getByText('Advanced', { exact: true }).click();
   const targets = await page.locator('[role="radio"], [role="switch"], [aria-pressed], button[aria-label^="Copy"]').evaluateAll((elements) => elements.filter((element) => element.getBoundingClientRect().width > 0).map((element) => ({ text: element.textContent, width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })));
   assert.ok(targets.length > 5);
-  assert.ok(targets.every(({ width, height }) => Math.round(width * 1000) >= 44000 && Math.round(height * 1000) >= 44000), JSON.stringify(targets));
+  assert.ok(targets.every(({ width, height }) => Math.round(width * 1000) >= minTarget * 1000 && Math.round(height * 1000) >= minTarget * 1000), JSON.stringify(targets));
   await snap(page, viewport.width === 390 ? 'mobile' : 'desktop', 'controls-44px-keyboard');
   results.push({ name: 'controls', viewport, targets });
   await context.close();
