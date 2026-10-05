@@ -1,3 +1,4 @@
+import { agentFailureReply } from '@agent-jobs/board'
 import type { OAuthGrant } from './oauth.ts'
 import { OAUTH_SCOPES } from './oauth-validation.ts'
 import { permittedTool, requiredToolScope } from './mcp-policy.ts'
@@ -80,7 +81,7 @@ export async function mcpRoute(input: {
       const failed = typeof output === 'object' && output !== null && (output as { ok?: boolean }).ok === false
       return respond({ content: [{ type: 'text', text: JSON.stringify(output) }], ...(failed ? { isError: true } : {}) })
     }
-    catch (error) { return respond({ content: [{ type: 'text', text: error instanceof Error ? error.message : 'tool failed' }], isError: true }) }
+    catch (error) { return respond({ content: [{ type: 'text', text: JSON.stringify(agentFailureReply(error, 'The tool failed')) }], isError: true }) }
   }
   return json({ jsonrpc: '2.0', id: id ?? null, error: { code: -32601, message: `method not found: ${methodName}` } }, 200)
 }

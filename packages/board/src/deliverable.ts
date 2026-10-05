@@ -247,6 +247,7 @@ export async function checkDeliverable(d: Deliverable, deps: CheckDeps): Promise
       }
     }
   } catch (e) {
-    return done(null, `could not check: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200))
+    // The check is public advisory output; a fetch or RPC error's text can name a provider URL, so give its class only.
+    return done(null, `could not check (${e instanceof Error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(e.name) ? e.name : 'error'})`)
   }
 }

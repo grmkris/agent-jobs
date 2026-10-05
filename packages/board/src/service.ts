@@ -58,7 +58,7 @@ import {
   migrate,
   type PoolRow,
 } from './store.ts'
-import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, callFunction, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
+import { type CallBudget, type ExecutionBudget, type OfferMode, type OfferTerms, TermsError, callFunction, canonicalJson, listingMatches, parseTerms, termsHash, validateOffer } from './terms.ts'
 import {
   type Deliverable,
   type DeliverableCheck,
@@ -184,6 +184,14 @@ export interface BudgetInput {
 }
 
 /** The spec as frozen into terms: kinds de-duplicated in canonical order, an empty target dropped. */
+/**
+ * A refusal from local offer validation (its try block does no I/O): our TermsError text, or a static message for
+ * anything else, so a caught error's own text never becomes a trusted reply.
+ */
+function invalidTerms(error: unknown): BoardError {
+  return new BoardError('invalid', error instanceof TermsError ? error.message : 'the offer terms are invalid')
+}
+
 function normalSpec(spec: DeliverableSpec): DeliverableSpec {
   const problem = validateSpec(spec)
   if (problem !== undefined) throw new BoardError('invalid', `deliverable: ${problem}`)
@@ -673,11 +681,13 @@ export class Board {
       ...(input.deliverable === undefined ? {} : { deliverable: normalSpec(input.deliverable) }),
       salt: `0x${randomId(32)}`,
     }
+    // The chain reads stay outside the catch: an RPC failure is not a refusal, and its text names the provider URL.
+    const enforced = hireling.isHireling(ctx) ? windows : await hireling.offerWindows(ctx)
+    const bounds = hireling.isHireling(ctx) ? await sdk.readWindowBounds(ctx) : undefined
     try {
-      const enforced = hireling.isHireling(ctx) ? windows : await hireling.offerWindows(ctx)
-      validateOffer(terms, enforced, this.#now(), ctx.stack.kind, hireling.isHireling(ctx) ? await sdk.readWindowBounds(ctx) : undefined)
+      validateOffer(terms, enforced, this.#now(), ctx.stack.kind, bounds)
     } catch (e) {
-      throw new BoardError('invalid', (e as Error).message)
+      throw invalidTerms(e)
     }
     const hash = termsHash(terms)
     const manifest = canonicalJson(terms)
@@ -1455,11 +1465,12 @@ export class Board {
       salt: `0x${randomId(32)}`,
     }
     if (hireling.isHireling(ctx)) {
+      const bounds = await sdk.readWindowBounds(ctx)
       try {
         validateOffer({ mode: 'hire', windows: request.windows!, arbitrator: request.arbitrator!, creator,
           approver: request.approver, reward: 1n, creatorBond: parseUnits(input.creatorBond, 18), workerBond: parseUnits(input.workerBond, 18),
-          deliveryDeadline: input.deliveryDeadline, selectionDeadline: null } as OfferTerms, request.windows!, now, 'hireling-v1', await sdk.readWindowBounds(ctx))
-      } catch (e) { throw new BoardError('invalid', (e as Error).message) }
+          deliveryDeadline: input.deliveryDeadline, selectionDeadline: null } as OfferTerms, request.windows!, now, 'hireling-v1', bounds)
+      } catch (e) { throw invalidTerms(e) }
     }
     const requestJson = canonicalJson(request)
     const requestHash = sdk.hashText(requestJson)

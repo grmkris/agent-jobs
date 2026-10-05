@@ -1,3 +1,5 @@
+import * as sdk from '@agent-jobs/sdk'
+import { ContractFunctionRevertedError, encodeErrorResult, parseAbi } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
 import { AgentFailure, agentFailureReply, errorDiagnostics, failureFromReply } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
@@ -49,11 +51,17 @@ describe('agentFailureReply', () => {
     expect(errorDiagnostics('plain string')).toEqual({ name: 'string' })
   })
 
-  it('reports a decoded revert by its ABI name only', () => {
-    const revert = Object.assign(new Error('execution reverted: https://rpc.example/KEY'), { cause: { data: { errorName: 'StillBonded', args: ['https://rpc.example/KEY'] } } })
-    expect(agentFailureReply(revert, 'fallback', vi.fn())).toEqual({ ok: false, code: 'chain', message: 'The chain refused this call: StillBonded', reason: 'revert', retry: 'none' })
-    const odd = Object.assign(new Error('x'), { data: { errorName: 'Not an ABI name: https://rpc.example/KEY' } })
-    expect(agentFailureReply(odd, 'fallback', vi.fn())).toMatchObject({ reason: 'internal' })
+  it('reports only a viem-decoded revert whose name our contracts declare', () => {
+    const decoded = new ContractFunctionRevertedError({ abi: sdk.stakeVaultAbi, functionName: 'withdraw', data: encodeErrorResult({ abi: sdk.stakeVaultAbi, errorName: 'StillBonded', args: [5n, 7n] }) })
+    const wrapped = new Error('execution reverted: https://rpc.example/KEY', { cause: decoded })
+    expect(agentFailureReply(wrapped, 'fallback', vi.fn())).toEqual({ ok: false, code: 'chain', message: 'The chain refused this call: StillBonded', reason: 'revert', retry: 'none' })
+    // A provider's JSON-RPC error body copied onto an RpcRequestError is not a decoded revert, whatever it claims.
+    const raw = Object.assign(new Error('RPC Request failed.'), { name: 'RpcRequestError', data: { errorName: 'StillBonded' } })
+    expect(agentFailureReply(raw, 'fallback', vi.fn())).toMatchObject({ reason: 'internal' })
+    // A decoded name outside our contracts' errors (a foreign ABI, Error(string), Panic) is not echoed either.
+    const foreignAbi = parseAbi(['error Leaked(string detail)'])
+    const foreign = new ContractFunctionRevertedError({ abi: foreignAbi, functionName: 'x', data: encodeErrorResult({ abi: foreignAbi, errorName: 'Leaked', args: ['https://rpc.example/KEY'] }) })
+    expect(agentFailureReply(foreign, 'fallback', vi.fn())).toMatchObject({ reason: 'internal' })
   })
 })
 

@@ -4,6 +4,7 @@
  * row is reserved before the transfer (R114-07); a reserved row without a hash is reconciled by the recipient's
  * balance before anything is resent. Never on mainnet.
  */
+import { errorDiagnostics } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 import type { AsyncSql } from '@agent-jobs/indexer'
 import { type Address, type Hex, formatEther, parseEther } from 'viem'
@@ -60,6 +61,7 @@ export async function dripOnce(deps: DripDeps, input: { boardId: string; address
     return { status: 'sent', txHash }
   } catch (e) {
     await dripFinish(deps.sql, input.boardId, input.address, 'failed', null)
-    return { status: 'failed', reason: e instanceof Error ? e.message.split('\n')[0] ?? 'send failed' : String(e) }
+    console.error(JSON.stringify({ event: 'drip-failed', ...errorDiagnostics(e) }))
+    return { status: 'failed', reason: 'the faucet send failed; try again later' }
   }
 }

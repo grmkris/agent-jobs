@@ -1,3 +1,4 @@
+import * as sdk from '@agent-jobs/sdk'
 import { BoardError } from './board-error.ts'
 
 /** What the caller should do next. `same-key` is safe: the operation journal resumes or reconciles it. */
@@ -59,12 +60,23 @@ export function failureFromReply(reply: { code: string; message: string; reason?
   return Object.assign(new BoardError(reply.code as BoardError['code'], reply.message), { reason: reply.reason, retry: reply.retry, retryAfter: reply.retryAfter, errorId: reply.errorId })
 }
 
-/** A decoded custom-error name from a viem revert anywhere in the cause chain: contract ABI names only, never free text. */
+/** The custom errors our contracts declare: the only revert names a reply may carry. */
+const KNOWN_REVERTS: ReadonlySet<string> = new Set(
+  [sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, sdk.factoryTokenAbi, sdk.faucetTokenAbi, sdk.jobPoolAbi, sdk.jobPoolFactoryAbi, sdk.hirelingHoldingAbi,
+    sdk.hirelingEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.miningReserveAbi, sdk.epochDistributorAbi]
+    .flatMap(abi => (abi as readonly { type: string; name?: string }[]).filter(item => item.type === 'error' && item.name !== undefined).map(item => item.name!)),
+)
+
+/**
+ * The error name viem decoded from a revert against our ABIs, anywhere in the cause chain. Only a
+ * ContractFunctionRevertedError carries a decoded name; a provider's raw `data` (an RpcRequestError copies the
+ * JSON-RPC error body) is never trusted, and a name outside our contracts' errors is never echoed.
+ */
 function revertName(error: unknown): string | undefined {
-  for (let current = error, depth = 0; typeof current === 'object' && current !== null && depth < 8; depth++) {
+  for (let current = error, depth = 0; current instanceof Error && depth < 8; depth++, current = current.cause) {
+    if (current.name !== 'ContractFunctionRevertedError') continue
     const name = (current as { data?: { errorName?: unknown } }).data?.errorName
-    if (typeof name === 'string' && /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)) return name
-    current = (current as { cause?: unknown }).cause
+    return typeof name === 'string' && KNOWN_REVERTS.has(name) ? name : undefined
   }
   return undefined
 }

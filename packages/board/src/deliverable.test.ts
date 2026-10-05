@@ -128,11 +128,11 @@ describe('the submission check', () => {
     expect((await checkDeliverable(elsewhere, deps({}, chain))).ok).toBeNull()
   })
 
-  it('never throws on a network failure', async () => {
+  it('never throws on a network failure, and names only the error class', async () => {
     const d = parseDeliverable({ kind: 'url', url: 'https://down.example/' })
-    const failing = { ...deps({}), fetch: (async () => { throw new Error('ECONNREFUSED') }) as typeof fetch }
+    const failing = { ...deps({}), fetch: (async () => { throw Object.assign(new Error('connect ECONNREFUSED https://rpc.example/v2/SECRETKEY'), { name: 'TypeError' }) }) as typeof fetch }
     const r = await checkDeliverable(d, failing)
     expect(r.ok).toBeNull()
-    expect(r.detail).toMatch(/ECONNREFUSED/)
+    expect(r.detail).toBe('could not check (TypeError)')
   })
 })
