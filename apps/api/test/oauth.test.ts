@@ -92,3 +92,19 @@ test('operator consent narrows the token scopes and cannot widen the requested a
     expect((await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], scopes: ['arbitrary:write'] })).status).toBe(400)
   } finally { f.db.close() }
 })
+
+test('consent identifies each requesting client and exact callback', async () => {
+  const f = fixture()
+  try {
+    const first = await f.route('/oauth/register', { redirect_uris: ['http://127.0.0.1:3210/callback'], client_name: 'First editor' })
+    const second = await f.route('/oauth/register', { redirect_uris: ['http://127.0.0.1:3211/callback'], client_name: 'Second editor' })
+    for (const [registered, callback, name] of [[first, 'http://127.0.0.1:3210/callback', 'First editor'], [second, 'http://127.0.0.1:3211/callback', 'Second editor']] as const) {
+      const clientId = (registered.body as { client_id: string }).client_id
+      const query = new URLSearchParams({ client_id: clientId, redirect_uri: callback, response_type: 'code', resource, code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier) })
+      const authorize = await f.route('/oauth/authorize', {}, query, 'GET')
+      const requestId = new URL(authorize.redirect!).searchParams.get('oauth_request')!
+      const consent = await f.route(`/oauth/requests/${requestId}`, {}, new URLSearchParams(), 'GET')
+      expect(consent.body).toMatchObject({ result: { request: { clientId, clientName: name, redirectUri: callback } } })
+    }
+  } finally { f.db.close() }
+})

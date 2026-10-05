@@ -6,6 +6,7 @@ import { AgentNew } from "../routes/AgentNew.tsx";
 import { AllowanceEditor } from "./AllowanceEditor.tsx";
 import { Button, EmptyState, ErrorText, Section, Select } from "./ui.tsx";
 import { useAuth } from "./Wallet.tsx";
+import { OAuthClient, type OAuthClientIdentity } from "./OAuthClient.tsx";
 
 export function OAuthConsent({ requestId }: { requestId: string }) {
   const auth = useAuth();
@@ -13,7 +14,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
     queryKey: ["oauth-request", requestId, auth.address],
     queryFn: () =>
       agentEndpoint<{
-        request: { scopes: string[]; resource: string; expiresAt: number };
+        request: OAuthClientIdentity & { scopes: string[]; resource: string; expiresAt: number };
         agents: ManagedAgent[];
       }>(`/oauth/requests/${requestId}`),
     enabled: auth.signedIn,
@@ -84,6 +85,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
         title="Connect one agent"
         note={request.data?.request.resource ?? "Loading connection request…"}
       >
+        {request.data !== undefined && <OAuthClient client={request.data.request} />}
         <label className="grid gap-2 text-sm">
           <span>Agent</span>
           <Select value={selected} onChange={(event) => setSelected(event.target.value)}>

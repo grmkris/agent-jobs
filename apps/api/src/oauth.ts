@@ -95,10 +95,10 @@ export async function oauthRoute(input: {
   const consent = /^\/oauth\/requests\/(oauth_[0-9a-f]+)(\/approve)?$/.exec(path)
   if (consent !== null) {
     if (owner === undefined) return failure('unauthorized', 'Sign in through the website', 401)
-    const request = (sql.all<{ id: string; client_id: string; redirect_uri: string; code_challenge: string; state: string | null; board_id: string; scopes_json: string; resource: string; expires_at: number }>('SELECT id,client_id,redirect_uri,code_challenge,state,board_id,scopes_json,resource,expires_at FROM agent_oauth_requests WHERE id=? AND status=\'pending\' AND expires_at>?', consent[1]!, now))[0]
+    const request = (sql.all<{ id: string; client_id: string; client_name: string; redirect_uri: string; code_challenge: string; state: string | null; board_id: string; scopes_json: string; resource: string; expires_at: number }>('SELECT r.id,r.client_id,c.name client_name,r.redirect_uri,r.code_challenge,r.state,r.board_id,r.scopes_json,r.resource,r.expires_at FROM agent_oauth_requests r JOIN agent_oauth_clients c ON c.id=r.client_id WHERE r.id=? AND r.status=\'pending\' AND r.expires_at>? ', consent[1]!, now))[0]
     if (request === undefined) return failure('invalid_request', 'This consent request expired or was already used')
     const agents = sql.all<{ id: string; operator: string; state: string; agent_id: string | null }>('SELECT id,operator,state,agent_id FROM agents WHERE operator=? ORDER BY created_at', owner.toLowerCase())
-    if (method === 'GET' && consent[2] === undefined) return good({ ok: true, result: { request: { id: request.id, scopes: JSON.parse(request.scopes_json), resource: request.resource, expiresAt: request.expires_at }, agents } })
+    if (method === 'GET' && consent[2] === undefined) return good({ ok: true, result: { request: { id: request.id, clientId: request.client_id, clientName: request.client_name, redirectUri: request.redirect_uri, scopes: JSON.parse(request.scopes_json), resource: request.resource, expiresAt: request.expires_at }, agents } })
     if (method !== 'POST' || consent[2] === undefined) return failure('invalid_request', 'Use the consent approval endpoint')
     const selected = body.agentIds
     const selectedAgentId = Array.isArray(selected) && typeof selected[0] === 'string' ? selected[0] : undefined
