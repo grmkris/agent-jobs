@@ -5,6 +5,22 @@ import { defineConfig } from 'vite-plus'
  * package's own `vite.config.ts`. The ruleset is the cloudflare-os one minus its repo-specific rules.
  */
 export default defineConfig({
+  run: {
+    tasks: {
+      typecheck: {
+        command: 'tsc -p scripts/mining/tsconfig.json',
+        input: [
+          { pattern: 'scripts/mining/**', base: 'package' },
+          { pattern: 'scripts/staging-release/state.ts', base: 'package' },
+          { pattern: 'packages/sdk/src/**', base: 'package' },
+          { pattern: 'contracts/config/**', base: 'package' },
+          { pattern: 'tsconfig.base.json', base: 'package' },
+          { pattern: 'pnpm-lock.yaml', base: 'package' },
+        ],
+        output: [],
+      },
+    },
+  },
   check: {
     fmt: false,
   },

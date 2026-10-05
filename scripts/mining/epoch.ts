@@ -4,7 +4,9 @@ import { deploymentFromConfig, type DeploymentConfig, type Network } from '../..
 import { budgetOf, client, decimalsOf, distributorAbi, epochWindowOf, firstBlockAtOrAfter, holdingLogs, reserveAbi, safeOwners } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues } from './compute.ts'
 import { fundingRemainder } from './lots.ts'
-import { parsePriceList, recoverPriceListSigner, type PriceListFile } from './prices.ts'
+import { verifiedPriceList, type PriceListFile } from './prices.ts'
+import { officialPoolOf, sampleOfficialPool } from './pool-chain.ts'
+import { selectFactoryPrice } from './pool.ts'
 import { buildTree, proofOf } from './tree.ts'
 import { encodeFunctionData, getAddress, type Address, type Hex } from './viem.ts'
 
@@ -30,6 +32,7 @@ const pageArg = flag('page') ?? '1000'
 if (!/^[1-9][0-9]*$/.test(pageArg)) throw new Error(`--page takes a positive number of blocks. ${usage}`)
 const page = BigInt(pageArg)
 const configPath = resolve(flag('config') ?? join(import.meta.dirname, '../../contracts/config', `${network}.json`))
+const previousPricesPath = flag('previous-prices') ?? join(outDir!, `epoch-${epoch - 1n}.json`)
 
 // Errors from the RPC client can quote the URL; it may carry a key.
 const redact = (text: string) => text.split(rpc).join('<rpc>')
@@ -37,7 +40,7 @@ const s = (v: bigint | number) => v.toString()
 const lower = (a: string) => a.toLowerCase() as Address
 
 async function main() {
-  const config = JSON.parse(readFileSync(configPath, 'utf8')) as DeploymentConfig
+  const config = JSON.parse(readFileSync(configPath, 'utf8')) as DeploymentConfig & { mining?: { officialPool?: unknown } }
   const d = deploymentFromConfig(network, config)
   if (d.hireling === null) throw new Error(`${configPath} records no v1 deployment`)
   const h = d.hireling
@@ -51,13 +54,8 @@ async function main() {
 
   // The signed price list: this chain, this distributor, this epoch, a current Safe owner, decimals as on chain.
   const file = JSON.parse(readFileSync(pricesPath!, 'utf8')) as PriceListFile
-  const prices = parsePriceList(file)
-  if (prices.epoch !== epoch) throw new Error(`the price list is for epoch ${prices.epoch}, not ${epoch}`)
-  if (typeof file.signature !== 'string' || !/^0x[0-9a-fA-F]{130}$/.test(file.signature)) throw new Error('the price list is not signed')
-  const signer = await recoverPriceListSigner(prices, file.signature as Hex, chainId, h.distributor)
-  if (file.signer !== undefined && lower(file.signer) !== signer) throw new Error(`the price list names signer ${file.signer} but ${signer} signed it`)
   const owners = await safeOwners(c, h.safe)
-  if (!owners.includes(signer)) throw new Error(`price list signer ${signer} is not an owner of the Safe ${h.safe}`)
+  const { prices, signer, signature } = await verifiedPriceList(file, { epoch, chainId, distributor: h.distributor, owners })
   for (const t of prices.tokens) {
     const onChain = await decimalsOf(c, t.token)
     if (onChain !== t.decimals) throw new Error(`price list: ${t.token} has ${onChain} decimals on chain, the list says ${t.decimals}`)
@@ -71,6 +69,23 @@ async function main() {
   const fromBlock = await firstBlockAtOrAfter(c, start, h.block, head.number)
   const toBlock = (await firstBlockAtOrAfter(c, end, h.block, head.number)) - 1n
   const toBlockHash = (await c.getBlock({ blockNumber: toBlock })).hash
+  const factoryPriceEvidence = await sampleOfficialPool({
+    c, pool: officialPoolOf(config), factory: h.factory, prices, start, end, fromBlock, toBlock,
+  })
+  const sampledPrices = factoryPriceEvidence.samples.flatMap(sample => sample.status === 'sampled' ? [BigInt(sample.factoryUsdPrice)] : [])
+  let previousPrice: Awaited<ReturnType<typeof verifiedPriceList>> | undefined
+  if (sampledPrices.length === 0 && epoch > 0n) {
+    let previousFile: PriceListFile
+    try {
+      const previous = JSON.parse(readFileSync(previousPricesPath, 'utf8')) as PriceListFile & { priceList?: PriceListFile }
+      previousFile = previous.priceList ?? previous
+    } catch (cause) {
+      throw new Error('no pool samples: provide the previous epoch signed prices with --previous-prices', { cause })
+    }
+    previousPrice = await verifiedPriceList(previousFile, { epoch: epoch - 1n, chainId, distributor: h.distributor, owners })
+  }
+  const selectedPrice = selectFactoryPrice(epoch, sampledPrices, previousPrice?.prices.factoryUsdPrice)
+  if (prices.factoryUsdPrice !== selectedPrice.factoryUsdPrice) throw new Error('signed FACTORY price differs from the conservative-high hourly rule')
   const logs = fromBlock <= toBlock ? await holdingLogs(c, uniqueHoldings, fromBlock, toBlock, page) : { fees: [], owed: [], withdrawals: [] }
   const budget = await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
 
@@ -80,7 +95,7 @@ async function main() {
   const priceList = {
     message: { epoch: s(prices.epoch), tokens: prices.tokens.map(t => ({ token: t.token, decimals: t.decimals, usdPrice: s(t.usdPrice) })), factoryUsdPrice: s(prices.factoryUsdPrice) },
     signer,
-    signature: (file.signature as string).toLowerCase(),
+    signature,
   }
   const inputs = {
     chainId,
@@ -88,6 +103,14 @@ async function main() {
     window,
     holdings: uniqueHoldings,
     priceList,
+    factoryPriceEvidence: {
+      ...factoryPriceEvidence, source: selectedPrice.source,
+      previousSignedPrice: previousPrice === undefined ? null : {
+        epoch: s(previousPrice.prices.epoch), factoryUsdPrice: s(previousPrice.prices.factoryUsdPrice),
+        signer: previousPrice.signer, signature: previousPrice.signature,
+        tokens: previousPrice.prices.tokens.map(token => ({ ...token, usdPrice: s(token.usdPrice) })),
+      },
+    },
     budget: {
       cumulativeBudget: s(budget.cumulativeBudget), fundedBefore: s(budget.fundedBefore), available: s(budget.available),
       usable: budget.usable.map(lot => ({ epoch: s(lot.epoch), scheduled: s(lot.scheduled), remaining: s(lot.remaining) })),

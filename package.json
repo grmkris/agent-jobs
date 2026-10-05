@@ -40,6 +40,7 @@
     "alchemy": "catalog:",
     "effect": "catalog:",
     "typescript": "catalog:",
+    "viem": "2.56.9",
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"

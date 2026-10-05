@@ -42,6 +42,23 @@ export interface PriceListFile {
   signature?: string
 }
 
+/** Current Safe ownership and the exact epoch/domain bind every signed input, including fallback prices. */
+export async function verifiedPriceList(file: PriceListFile, expected: {
+  epoch: bigint
+  chainId: number
+  distributor: Address
+  owners: readonly Address[]
+}) {
+  const prices = parsePriceList(file)
+  if (prices.epoch !== expected.epoch) throw new Error('signed price list has the wrong epoch')
+  if (typeof file.signature !== 'string' || !/^0x[0-9a-fA-F]{130}$/.test(file.signature)) throw new Error('price list is not signed')
+  const signature = file.signature.toLowerCase() as Hex
+  const signer = await recoverPriceListSigner(prices, signature, expected.chainId, expected.distributor)
+  if (file.signer !== undefined && file.signer.toLowerCase() !== signer) throw new Error('price list signer field differs from recovered signer')
+  if (!expected.owners.some(owner => owner.toLowerCase() === signer)) throw new Error('price list signer is not a current Safe owner')
+  return { prices, signature, signer }
+}
+
 export const priceListDomain = (chainId: number, distributor: Address) =>
   ({ name: PRICE_LIST_DOMAIN_NAME, version: PRICE_LIST_DOMAIN_VERSION, chainId, verifyingContract: distributor }) as const
 

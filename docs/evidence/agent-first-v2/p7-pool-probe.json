@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-10-05T02:14:50.771Z",
+  "chainId": 10143,
+  "classification": "read-only-liquidity-fixture-not-an-official-signed-price-list",
+  "quotePriceAssumption": "fixture mUSD at 1 USD",
+  "finalizedHead": "68279487",
+  "window": {
+    "start": "1791162000",
+    "end": "1791162600"
+  },
+  "pool": {
+    "kind": "uniswap-v4",
+    "poolManager": "0x451d64ab3b650040d2ae1886602b97ed6edc643d",
+    "stateView": "0xb639209539c61baf67ac04876315786f8d0b153c",
+    "quoteToken": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "hooks": "0x0000000000000000000000000000000000000000"
+  },
+  "poolId": "0x23b9d0c1f1df9e465e82cde50abaaa5608ae849a42efc27fbc8ca71d4f270c18",
+  "quote": {
+    "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+    "decimals": 6,
+    "usdPrice": "1000000000000000000"
+  },
+  "samples": [
+    {
+      "boundary": "1791162000",
+      "block": "68264624",
+      "blockHash": "0xe509043f93499d87b55c2aa494548f58067ae269bdde1cf9f01a129b10810e68",
+      "timestamp": "1791162000",
+      "status": "sampled",
+      "reservesKind": "virtual-active-liquidity",
+      "factoryReserve": "9998999999999900000005",
+      "quoteReserve": "999899",
+      "factoryUsdPrice": "100000000000000",
+      "sqrtPriceX96": "792281625142643375935",
+      "liquidity": "99989999999999"
+    }
+  ]
+}

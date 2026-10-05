@@ -32,7 +32,7 @@ coordinator runs live publication.
 
 ```
 pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir>
-                      [--rpc <url>] [--config <config JSON>] [--page <blocks>]
+                      [--rpc <url>] [--config <config JSON>] [--page <blocks>] [--previous-prices <signed JSON>]
 ```
 
 - **RPC.** `--rpc`, else `MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. It reads only and is never printed.
@@ -93,6 +93,29 @@ with `StandardMerkleTree.load(epoch.tree)`.
 A current Safe owner signs it. The tool recovers the signer and refuses unless it is in `Safe.getOwners()` (read
 live) and the list is for this chain, distributor and epoch. Every listed token's `decimals` must match the token on
 chain. Only EOA signatures (ECDSA) are accepted.
+
+FACTORY uses the highest available hourly mid price of `mining.officialPool` in the network config, floored at
+$0.0001. The first block at/after each UTC hour in the epoch supplies the reserves. The artifact retains every
+hour's block/hash, raw reserves (constant-product) or virtual active-liquidity reserves plus sqrt price and liquidity
+(Uniswap v4), and missing-hour reasons. The quote token must be priced by the signed list. Missing reads use the
+highest available sample; with none, epoch 0 uses the floor and later epochs require the immediately preceding
+signed price list (`--previous-prices`, default `<out>/epoch-<n-1>.json`). Its signature is checked against current
+Safe owners too. A signed FACTORY price that differs from this rule refuses the run.
+
+The official venue remains unset in the checked-in configs; this is recorded as `official-pool-unconfigured` and
+uses the documented no-sample fallback. Before launch the coordinator must name the official pool. Supported shapes:
+
+```json
+{"mining":{"officialPool":{"kind":"constant-product","address":"<pair>","quoteToken":"<token>"}}}
+```
+
+```json
+{"mining":{"officialPool":{"kind":"uniswap-v4","poolManager":"<manager>","stateView":"<view>","quoteToken":"<token>","fee":3000,"tickSpacing":60,"hooks":"0x0000000000000000000000000000000000000000"}}}
+```
+
+These examples are schema descriptions, not deployment addresses. No liquidity recipe is implicitly designated as
+the official pool. The launch pool is not an oracle: one high sample can suppress everyone's emission, never inflate
+it. There is no TWAP.
 
 ```ts
 domain = {
