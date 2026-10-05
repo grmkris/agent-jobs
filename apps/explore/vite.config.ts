@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
 import { MAINNET_LIVE } from './src/release.ts'
+import { startGuide } from './start-guide-plugin.ts'
 import { NotDeployedError, deployment } from '../../packages/sdk/src/deployment.ts'
 
 const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'
@@ -105,7 +106,7 @@ function skills() {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), manifest(), skills(), release()],
+  plugins: [react(), tailwindcss(), manifest(), skills(), startGuide(), release()],
   // The network is fixed per deploy stage (AGENT_JOBS_NETWORK, the same variable the API and indexer read).
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {
@@ -120,6 +121,8 @@ export default defineConfig({
           { pattern: 'src/**', base: 'package' },
           { pattern: 'worker.ts', base: 'package' },
           { pattern: 'routing.ts', base: 'package' },
+          { pattern: 'start-guide*.ts', base: 'package' },
+          { pattern: 'skill/start.md', base: 'workspace' },
           { pattern: 'contracts/config/**', base: 'workspace' },
           { pattern: 'tsconfig.json', base: 'package' },
           { pattern: 'tsconfig.base.json', base: 'workspace' },
@@ -131,6 +134,7 @@ export default defineConfig({
         command: 'vitest run',
         input: [
           { auto: true },
+          { pattern: 'skill/start.md', base: 'workspace' },
           { pattern: '!**/node_modules/.vite/**', base: 'workspace' },
           { pattern: '!**/node_modules/.vite-temp/**', base: 'workspace' },
         ],

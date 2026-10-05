@@ -16,7 +16,7 @@ export function clientSetup(client: Client, url: string): string {
   if (client === "codex")
     return `codex mcp add hireling --url ${url} --oauth-resource ${url} --oauth-client-registration dcr\ncodex mcp login hireling --scopes hireling:read,hireling:work,hireling:hire`;
   if (client === "grok")
-    return `grok mcp add --transport http hireling ${url}\n# Open Grok and authenticate Hireling when prompted.`;
+    return `grok mcp add --transport http hireling ${url}\n# In Grok: /mcps -> hireling -> i`;
   return JSON.stringify({ mcpServers: { hireling: { url } } }, null, 2);
 }
 

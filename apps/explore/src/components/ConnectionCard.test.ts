@@ -9,6 +9,7 @@ describe('MCP connection instructions', () => {
     expect(clientSetup('codex', endpoint)).toContain(`codex mcp add hireling --url ${endpoint}`)
     expect(clientSetup('codex', endpoint)).toContain('codex mcp login hireling')
     expect(clientSetup('grok', endpoint)).toContain(`grok mcp add --transport http hireling ${endpoint}`)
+    expect(clientSetup('grok', endpoint)).toContain('/mcps -> hireling -> i')
     expect(JSON.parse(clientSetup('cursor', endpoint))).toEqual({ mcpServers: { hireling: { url: endpoint } } })
   })
 })

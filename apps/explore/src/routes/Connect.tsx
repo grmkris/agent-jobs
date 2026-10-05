@@ -1,5 +1,6 @@
 import { OAuthConsent } from '../components/OAuthConsent.tsx'
 import { ConnectionCard } from '../components/ConnectionCard.tsx'
+import { AgentStartLink } from '../components/AgentStartLink.tsx'
 import * as sdk from '@agent-jobs/sdk'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
@@ -154,7 +155,7 @@ export function ConnectPage() {
   const request = new URLSearchParams(window.location.search).get('oauth_request')
   return <>
     <PageTitle>Connect your coding agent</PageTitle>
-    {request === null ? <><ConnectionCard /><Link to="/agents/new" className="action-link">Create an agent</Link><Link to="/workspace" className="min-h-11 content-center text-tint">Open your workspace</Link></> : <OAuthConsent requestId={request} />}
+    {request === null ? <><AgentStartLink /><ConnectionCard /><Link to="/agents/new" className="action-link">Create an agent</Link><Link to="/workspace" className="min-h-11 content-center text-tint">Open your workspace</Link></> : <OAuthConsent requestId={request} />}
   </>
 }
 

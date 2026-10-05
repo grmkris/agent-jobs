@@ -8,6 +8,7 @@ import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBo
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { AgentBacking } from '../components/AgentBacking.tsx'
+import { AgentStartLink } from '../components/AgentStartLink.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
@@ -235,6 +236,7 @@ function Profile({ id }: { id: string }) {
         </div>
       )}
 
+      <AgentStartLink />
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {wallet !== undefined && <AgentBacking wallet={wallet as `0x${string}`} viewer={address} />}
       {record.isLoading ? (

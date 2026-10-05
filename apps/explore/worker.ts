@@ -9,6 +9,7 @@
  * one page meant to be framed: only by the board's own `allowedOrigins`, read from its public `get_board`.
  */
 import { isApiPath, isFilePath } from './routing.ts'
+import { renderStartGuide, startGuideType } from './start-guide.ts'
 
 interface Env {
   readonly API: { fetch(request: Request): Promise<Response> }
@@ -99,7 +100,17 @@ export default {
     if (isFilePath(pathname) && !pathname.endsWith('.html') && asset.headers.get('content-type')?.startsWith('text/html')) {
       return withHeaders(new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }), env, request, pathname)
     }
-    const res = await withHeaders(asset, env, request, pathname)
+    let res = await withHeaders(asset, env, request, pathname)
+    const guideType = startGuideType(pathname)
+    if (guideType !== undefined && res.ok) {
+      const source = renderStartGuide(await res.text(), new URL(request.url).origin)
+      const headers = new Headers(res.headers)
+      headers.set('Content-Type', guideType)
+      // The served body includes this request's origin, so upstream byte metadata no longer applies.
+      headers.delete('Content-Length')
+      headers.delete('ETag')
+      res = new Response(request.method === 'HEAD' ? null : source, { status: res.status, headers })
+    }
     if (pathname.endsWith('.webmanifest')) res.headers.set('Content-Type', 'application/manifest+json')
     // The agent skills (/skills/<role>/SKILL.md): readable in a browser and by `curl`, in UTF-8.
     if (pathname.endsWith('.md')) res.headers.set('Content-Type', 'text/markdown; charset=utf-8')
