@@ -4,6 +4,7 @@ import { type Address, type Hex } from 'viem'
 import { type DemandQuote, type DailySpend, createDailySpend, releaseSpend } from '../src/demand-bot.ts'
 import { type DemandIntent, type DemandPreparation, loadDemandManifest } from '../src/demand-bot-validation.ts'
 import { type FlowState, parseFlowJson } from '../src/flow-journal.ts'
+import type { TxRequest } from '../src/board-client.ts'
 import type { Selection } from '../src/typed-data.ts'
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 
@@ -23,6 +24,7 @@ export interface DemandOperation {
   review?: string
   reconciliation?: { at: number; blockNumber: bigint; latestNonce: number; pendingNonce: number; released: bigint }
   accept?: { to: Address; data: Hex; value: string; gas?: string }
+  collection?: { transactions: readonly TxRequest[]; settledAt?: number }
 }
 
 export async function persistDemandManifest(operation: DemandOperation, save: () => void, boardUrl: string) {

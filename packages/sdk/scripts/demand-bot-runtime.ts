@@ -5,6 +5,7 @@ import { DEMAND_DAILY_CAP, DEMAND_INTERVAL_SECONDS, DEMAND_QUOTE_MARGIN_SECONDS,
 import { type DemandDescriptor, checkDemandDeliverable, demandDescriptorHash } from '../src/demand-bot-review.ts'
 import { assertDemandTransactions, demandAcceptTransaction, demandCanonicalJson, validateDemandPreparation, validateDemandSelection } from '../src/demand-bot-validation.ts'
 import { type DemandOperation, abandonDemandOperation, openDemandStore, persistDemandManifest } from './demand-bot-store.ts'
+import { collectDemandOperation } from './demand-bot-collect.ts'
 
 export const DEMAND_BOARD_URL = 'https://testnet.hireling.xyz'
 
@@ -47,6 +48,11 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
 
   async function exclusiveSend(keyName: string, tx: Pick<sdk.TxRequest, 'to' | 'data' | 'value' | 'gas'>) {
     if (store.state.sends[keyName] === undefined) {
+      // Backfilling an old terminal job must not take a nonce already saved for
+      // another operation, including signed bytes not yet broadcast.
+      for (const savedKey of Object.keys(store.state.sends)) {
+        if (!Object.hasOwn(store.state.values, `receipt/${savedKey}`) && await journal.mined(savedKey) === undefined) throw new Error('a saved demand send requires reconciliation before a new signature')
+      }
       const [latest, pending] = await Promise.all(['latest', 'pending'].map(blockTag => ctx.publicClient.getTransactionCount({ address: account.address, blockTag: blockTag as 'latest' | 'pending' })))
       if (latest !== pending) throw new Error('an external pending transaction requires reconciliation')
     }
@@ -269,6 +275,8 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
     await review(operation)
   }
 
+  const collect = (operation: DemandOperation) => collectDemandOperation({ ctx, creator: account.address, operation, state: store.state, save: store.save, board, send: exclusiveSend })
+
   async function tick(allowNew: () => boolean) {
     await validateChain()
     await board.signIn(account)
@@ -277,7 +285,11 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
     carryReservations(store.bot.spend, utcDay(now))
     store.save()
     // Any ambiguous send interrupts this tick before a fresh request or another signature.
-    for (const operation of store.bot.operations) {
+    const pending = (operation: DemandOperation) => Object.keys(store.state.sends).some(sendKey => sendKey.startsWith(`${operation.id}/`) && !Object.hasOwn(store.state.values, `receipt/${sendKey}`))
+    for (const operation of store.bot.operations.toSorted((a, b) => Number(pending(b)) - Number(pending(a)))) {
+      // Resume a saved approval first, then sweep even previously closed jobs.
+      if (operation.accept !== undefined && operation.closed === undefined) await review(operation)
+      await collect(operation)
       if (operation.closed !== undefined) continue
       if (operation.quote === undefined && now >= operation.intent.deliveryDeadline - 60) {
         operation.closed = 'request-expired'
@@ -297,6 +309,7 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
       await select(operation, now)
       if (operation.closed !== undefined) continue
       await review(operation)
+      await collect(operation)
     }
     const latestNow = Math.floor(Date.now() / 1000)
     const day = utcDay(latestNow)
@@ -306,5 +319,5 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
     if (allowNew() && latestNow >= store.bot.nextRequestAt && used < DEMAND_DAILY_CAP) await request(await newRequest(latestNow))
   }
 
-  return { account, wallet, ctx, token, store, board, journal, validateChain, reconcileLiveFix, tick }
+  return { account, wallet, ctx, token, store, board, journal, validateChain, reconcileLiveFix, collect, tick }
 }
