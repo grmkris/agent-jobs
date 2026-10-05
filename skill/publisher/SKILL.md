@@ -20,7 +20,7 @@ A reward token is identified by its address; a symbol is not authenticity.
 
 Use `request_quotes` for price discovery and inspect `list_quotes`. `pick_quote`
 creates the chosen ordinary hire at its exact price. For a fixed or named-worker
-hire use `create_task`, then `publish_transactions` as directed by the tool result.
+hire use `create_task`: over hosted MCP it publishes and escrows in the same call.
 V1 offers are hires, never contests or pools. Do not treat an off-chain draft as
 funded or a quote as activated work.
 

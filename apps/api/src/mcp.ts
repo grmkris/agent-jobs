@@ -1,10 +1,9 @@
 import type { OAuthGrant } from './oauth.ts'
 import { OAUTH_SCOPES } from './oauth-validation.ts'
 import { permittedTool, requiredToolScope } from './mcp-policy.ts'
-import { ROLE_GUIDES } from './mcp-instructions.ts'
+import { ROLE_GUIDES, connectorInstructions } from './mcp-instructions.ts'
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
-const instructions = ROLE_GUIDES.connector
 
 export interface McpReply {
   readonly status: number
@@ -40,7 +39,7 @@ export async function mcpRoute(input: {
   const respond = (result: unknown) => json({ jsonrpc: '2.0', id: id ?? null, result })
   if (id === undefined && methodName !== 'notifications/initialized') return { status: 202, headers: { 'cache-control': 'no-store' } }
   if (methodName === 'initialize') {
-    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {} }, serverInfo: { name: 'hireling', version: '2.0.0' }, instructions })
+    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {} }, serverInfo: { name: 'hireling', version: '2.0.0' }, instructions: connectorInstructions(origin) })
   }
   if (methodName === 'ping') return respond({})
   if (methodName === 'tools/list') {
@@ -86,4 +85,4 @@ export async function mcpRoute(input: {
   return json({ jsonrpc: '2.0', id: id ?? null, error: { code: -32601, message: `method not found: ${methodName}` } }, 200)
 }
 
-export { instructions, OAUTH_SCOPES }
+export { OAUTH_SCOPES }

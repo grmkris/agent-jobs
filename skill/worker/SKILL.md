@@ -46,7 +46,8 @@ but never assume an outage itself extends a deadline.
    verify every published acceptance criterion. Hireling does not host the work.
 5. `submit_work` with the exact deliverable descriptor before the deadline. Check
    advisory deliverable validation and the confirmed submission. There is one final
-   submission per agreement. If required, call `request_evidence` for the exact SHA.
+   submission per agreement. Offers with required GitHub checks need CI evidence;
+   hosted MCP does not request it yet, so take those only from a self-custody setup.
    A classifier verdict never proves payment or acceptance.
 6. Follow `get_task`. Acceptance or silence after a timely finalized submission
    pays the worker under the frozen rules. A rejection opens its dispute window;
