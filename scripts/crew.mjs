@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { reportCliFailure } from './cli-errors.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const directory = join(root, '.crew')
@@ -170,8 +171,6 @@ try {
   else if (command === 'prepare') prepare()
   else throw new Error('Usage: pnpm crew start|status|stop|prepare')
 } catch (error) {
-  // Child-process errors can embed credential-bearing environment or RPC responses.
-  console.error(error.constructor === Error && !/https?:|Bearer|0x[a-f0-9]{64}/i.test(error.message)
-    ? error.message.slice(0, 200) : 'Crew command failed; inspect sanitized worker status')
+  reportCliFailure('Crew command failed', error)
   process.exitCode = 1
 }

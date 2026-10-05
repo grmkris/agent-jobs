@@ -11,6 +11,7 @@ import { utcDay } from '../src/demand-bot.ts'
 import { ensureFlowDirectory } from './flow-persistence.ts'
 import { createDemandRuntime, demandLog, safeDemandError } from './demand-bot-runtime.ts'
 import { envLocal } from './lib/common.ts'
+import { reportCliFailure } from './lib/cli-errors.mjs'
 
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const directory = resolve(process.env.DEMAND_BOT_STATE_DIR ?? join(root, '.crew/demand'))
@@ -118,4 +119,7 @@ async function main() {
   demandLog('stopped', { creator: account.address })
 }
 
-try { await main() } catch (failure) { demandLog('failed', { error: safeDemandError(failure) }); process.exitCode = 1 }
+try { await main() } catch (failure) {
+  reportCliFailure('Demand command failed', failure)
+  process.exitCode = 1
+}

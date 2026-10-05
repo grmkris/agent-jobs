@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { reportCliFailure } from './cli-errors.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const directory = join(root, '.crew')
@@ -105,7 +106,7 @@ try {
   else if (command === 'stop') { if (containerState()?.Running) execute('docker', ['stop', '--time', '180', name], { timeout: 200_000 }); status() }
   else if (command === 'status') status()
   else throw new Error('unknown demand container command')
-} catch {
-  console.error('Demand container command failed; inspect sanitized demand status')
+} catch (error) {
+  reportCliFailure('Demand container command failed', error)
   process.exitCode = 1
 }

@@ -10,6 +10,7 @@ import * as sdk from '../src/index.ts'
 import { type DemoBid, type DemoRequest, assertSavedDemoArtifact, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from '../src/demo-worker.ts'
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 import { envLocal } from './lib/common.ts'
+import { reportCliFailure, safeCliClass } from './lib/cli-errors.mjs'
 import config from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import policyConfig from './demo-worker-policy.json' with { type: 'json' }
 import { crewPolicyBinding, migrateOpenDemoPolicy, reviewedCrewPolicy } from './demo-worker-policy.ts'
@@ -91,10 +92,7 @@ process.on('SIGTERM', () => { running = false })
 process.on('SIGINT', () => { running = false })
 
 function safeError(error: unknown) {
-  // RPC, provider and child-process errors may contain headers, raw signed bytes or credential URLs.
-  if (error instanceof sdk.BoardApiError) return `Board ${error.code}`
-  if (error instanceof Error && error.constructor === Error && !/https?:|0x[a-f0-9]{64}|Bearer/i.test(error.message)) return error.message.slice(0, 160)
-  return error instanceof Error ? error.name : 'UnknownError'
+  return `Worker step failed [${safeCliClass(error)}]`
 }
 
 function keyFor(name: string): Hex {
@@ -574,4 +572,4 @@ async function main() {
   }
 }
 
-main().catch(error => { console.error(safeError(error)); process.exitCode = 1 })
+main().catch(error => { reportCliFailure('Worker command failed', error); process.exitCode = 1 })
