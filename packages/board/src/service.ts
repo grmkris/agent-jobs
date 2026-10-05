@@ -2610,10 +2610,38 @@ export class Board {
     })
   }
 
-  async listTasks(caller: Caller, input: { limit?: number }) {
-    const rows = this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC').filter(t => this.#findTaskCtx(t) !== undefined).slice(0, Math.min(input.limit ?? 20, 50))
+  /**
+   * Newest tasks first, optionally only those where the caller holds a role and those in given chain statuses. Roles
+   * come from board records (no RPC). A status needs each task's chain view, so a status filter reads at most the
+   * newest LIST_STATUS_SCAN role-matching tasks and may return fewer than `limit`.
+   */
+  async listTasks(caller: Caller, input: { limit?: number; role?: TaskRole; status?: readonly TaskStatus[] }) {
+    const limit = Math.min(input.limit ?? 20, 50)
+    let rows = this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC').filter(t => this.#findTaskCtx(t) !== undefined)
+    if (input.role !== undefined) {
+      if (!TASK_ROLES.includes(input.role)) throw new BoardError('invalid', `role must be one of ${TASK_ROLES.join(', ')}`)
+      const me = caller.address
+      if (me === undefined) throw new BoardError('unauthenticated', 'a role filter needs a signed-in caller')
+      const role = input.role
+      const applied = role === 'worker' || role === 'invited'
+        ? new Set(this.#sql.all<{ task_id: string }>(
+          `SELECT DISTINCT task_id FROM applications WHERE lower(worker) = ?${role === 'invited' ? " AND (note = 'direct hire invitation' OR note LIKE 'picked quote %')" : ''}`,
+          me.toLowerCase(),
+        ).map(row => row.task_id))
+        : undefined
+      rows = rows.filter(t => role === 'creator' ? this.#actsForCreator(t, me) : role === 'approver' ? eq(parseTerms(t.terms_json).approver, me) : applied!.has(t.id))
+    }
+    const statuses = input.status === undefined ? undefined : new Set<string>(input.status)
+    if (statuses !== undefined && [...statuses].some(status => !(TASK_STATUSES as readonly string[]).includes(status))) {
+      throw new BoardError('invalid', `status must be among ${TASK_STATUSES.join(', ')}`)
+    }
     const out = []
-    for (const row of rows) out.push(await this.#summary(row, caller))
+    for (const row of statuses === undefined ? rows.slice(0, limit) : rows.slice(0, LIST_STATUS_SCAN)) {
+      const summary = await this.#summary(row, caller)
+      if (statuses !== undefined && !statuses.has(summary.chain.status)) continue
+      out.push(summary)
+      if (out.length >= limit) break
+    }
     return out
   }
 
@@ -2847,19 +2875,17 @@ export class Board {
   }
 }
 
-export type TaskStatus =
-  | 'awaiting-publish'
-  | 'open'
-  | 'lapsed'
-  | 'selection-closed'
-  | 'active'
-  | 'submitted'
-  | 'rejected-pending'
-  | 'disputed'
-  | 'completed'
-  | 'rejected'
-  | 'cancelled'
-  | 'expired'
+export const TASK_STATUSES = [
+  'awaiting-publish', 'open', 'lapsed', 'selection-closed', 'active', 'submitted', 'rejected-pending', 'disputed', 'completed', 'rejected', 'cancelled', 'expired',
+] as const
+export type TaskStatus = (typeof TASK_STATUSES)[number]
+
+/** list_tasks roles: creator includes a pool's curator; worker is any application; invited is a direct invite or a picked quote. */
+export const TASK_ROLES = ['creator', 'approver', 'worker', 'invited'] as const
+export type TaskRole = (typeof TASK_ROLES)[number]
+
+/** The most tasks a status filter reads chain views for in one list_tasks call. */
+const LIST_STATUS_SCAN = 40
 
 export interface ChainView {
   status: TaskStatus

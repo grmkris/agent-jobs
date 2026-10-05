@@ -5,7 +5,7 @@
  * caller's own wallet: `cast send <to> <data>` and `cast wallet sign --data '<typedData>'` for a key-holding agent,
  * `eth_sendTransaction` / `eth_signTypedData_v4` for a wallet.
  */
-import type { Board, BudgetInput, Caller, DeliverableSpec, NamedSponsorEntry } from '@agent-jobs/board'
+import { type Board, type BudgetInput, type Caller, type DeliverableSpec, type NamedSponsorEntry, TASK_ROLES, TASK_STATUSES, type TaskRole, type TaskStatus } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 import { deadlineArgs, deadlineSchema } from './deadlines.ts'
 
@@ -140,9 +140,21 @@ export const tools: Record<string, Tool> = {
   },
 
   list_tasks: {
-    description: 'Recent tasks with their live on-chain status.',
-    inputSchema: { type: 'object', properties: { limit: num('At most 50; default 20.') } },
-    run: (board, caller, a) => board.listTasks(caller, a.limit === undefined ? {} : { limit: n(a, 'limit') }),
+    description:
+      'Recent tasks with their live on-chain status, newest first. role keeps tasks where you are the creator, approver, a worker (any application) or invited (a direct invite or a picked quote); status keeps chain statuses, reading at most the newest 40 matches.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: num('At most 50; default 20.'),
+        role: { type: 'string', enum: [...TASK_ROLES], description: 'Optional: only tasks where the signed-in caller holds this role.' },
+        status: { type: 'array', items: { type: 'string', enum: [...TASK_STATUSES] }, description: 'Optional: only these chain statuses, e.g. ["open"] or ["active","submitted"].' },
+      },
+    },
+    run: (board, caller, a) => board.listTasks(caller, {
+      ...(a.limit === undefined ? {} : { limit: n(a, 'limit') }),
+      ...(a.role === undefined ? {} : { role: s(a, 'role') as TaskRole }),
+      ...(a.status === undefined ? {} : { status: (Array.isArray(a.status) ? a.status : [a.status]) as TaskStatus[] }),
+    }),
   },
 
   get_task: {
