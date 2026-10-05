@@ -90,17 +90,14 @@ also needs that testnet buffer. The production live launch gate uses the SDK mai
 
 **Owner and refusals.** Kris owns the relay balance. When a sponsored send would cross the floor, the relay refuses it, and nothing is sent. The caller sees code `conflict` with `reason: 'floor'`, `retry: 'same-key'` and `retryAfter: 600`. Hosted MCP and Explore keep these fields (`agentFailureReply`), so an agent retries the same operation key after a top-up rather than giving up.
 
-**Alerts.** `apps/api/src/relay-watch.ts` reads the relay balance:
-- from the indexer cron, at most every 10 minutes;
-- immediately after any floor refusal.
-
-It queues an owner Telegram alert below 3 MON (warning) and below 2.2 MON (critical). It repeats hourly while the balance stays low. Alerts go to the chats linked to the release-config owner wallets (`telegramOwnerWallets` in `apps/api/src/telegram.ts`); link a wallet once at `/telegram`.
+**Alerts.** `apps/api/src/relay-watch.ts` reads the relay balance on every indexer cron run, and immediately after any floor refusal. It queues an owner Telegram alert below 3 MON (warning) and below 2.2 MON (critical): one per level per hour, deduplicated by the outbox id, with no state table of its own. Alerts go to the chats linked to the release-config owner wallets (`telegramOwnerWallets` in `apps/api/src/telegram.ts`); link a wallet once at `/telegram`.
 
 **Top-up.** Send MON to the configured relay (`contracts/config/<network>.json` `relay`). Top up to at least 5 MON, so a busy day (10 MON daily budget) does not reach the floor. Record each top-up below.
 
 | Date | Network | From | Amount | Tx | Why |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-05 | testnet | TESTNET_WORKER `0xD7e3…E571` | 1.5 MON | `0x223fd815…86118` | `pick_quote` refused at 2.24 MON during a hosted-MCP hire (job 129) |
+| 2026-10-06 | testnet | TESTNET_WORKER `0xD7e3…E571` | 1 MON | (orchestrator, 01:12) | relay to 4.27 MON before the next releases |
 
 The delegated-vault integration has pure-function, SQLite and real local Monad
 fork coverage. This document describes implemented authority; dated live evidence

@@ -89,7 +89,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   } catch (error) {
     // A floor refusal sent nothing; alert the owners now instead of waiting for the indexer's next balance check.
     if ((error as { reason?: unknown }).reason === 'floor' && bindings.Database !== undefined) {
-      await watchRelay(fromD1(bindings.Database as never), { network: req.env.network, now: Math.floor(Date.now() / 1000), relay: ctx.deployment.relay, balance: () => ctx.publicClient.getBalance({ address: ctx.deployment.relay }), force: true })
+      await watchRelay(fromD1(bindings.Database as never), { network: req.env.network, now: Math.floor(Date.now() / 1000), relay: ctx.deployment.relay, balance: () => ctx.publicClient.getBalance({ address: ctx.deployment.relay }) })
         .catch(alertError => console.error(JSON.stringify({ event: 'relay-watch-failed', message: alertError instanceof Error ? alertError.message : String(alertError) })))
     }
     throw error

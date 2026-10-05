@@ -22,31 +22,22 @@ describe('relay balance watch', () => {
     expect(relayLevel(RELAY_ALERT.criticalWei - 1n)).toBe('critical')
   })
 
-  it('checks every 10 minutes, alerts the owner on a worse level and repeats hourly while low', async () => {
+  it('queues one owner alert per level per hour from every caller, with no state table of its own', async () => {
     const sql = await setup()
     let balance = 5n * MON
-    const watch = (now: number, force = false) => watchRelay(sql, { network: 'monad-testnet', now, relay, balance: async () => balance, force })
-    expect(await watch(1000)).toMatchObject({ checked: true, level: 'ok', alerted: false })
+    const watch = (now: number) => watchRelay(sql, { network: 'monad-testnet', now, relay, balance: async () => balance })
+    expect(await watch(3600)).toMatchObject({ level: 'ok', queued: false })
     balance = 2_240_000_000_000_000_000n
-    expect(await watch(1100)).toEqual({ checked: false })
-    expect(await watch(1100, true)).toMatchObject({ checked: true, level: 'warning', alerted: true })
-    expect(await watch(1800)).toMatchObject({ level: 'warning', alerted: false })
+    await Promise.all([watch(3660), watch(3660), watch(4000)])
     balance = 2n * MON
-    expect(await watch(2400)).toMatchObject({ level: 'critical', alerted: true })
-    expect(await watch(3000)).toMatchObject({ level: 'critical', alerted: false })
-    expect(await watch(2400 + RELAY_ALERT.repeatSeconds)).toMatchObject({ level: 'critical', alerted: true })
-    const sent = await sql.all<{ chat_id: string; text: string }>('SELECT chat_id, text FROM telegram_outbox ORDER BY created_at')
-    expect(sent).toHaveLength(3)
+    await watch(4100)
+    await watch(5000)
+    await watch(3600 + RELAY_ALERT.repeatSeconds)
+    const sent = await sql.all<{ chat_id: string; text: string }>('SELECT chat_id, text FROM telegram_outbox ORDER BY rowid')
+    expect(sent.map(row => row.text.match(/relay (\w+)/)?.[1])).toEqual(['warning', 'critical', 'critical'])
     expect(sent.every(row => row.chat_id === '42')).toBe(true)
-    expect(sent[0]!.text).toContain('relay warning')
     expect(sent[0]!.text).toContain('2.240 MON')
-    expect(sent[1]!.text).toContain('relay critical')
-  })
-
-  it('queues one alert when two callers race in the same hour', async () => {
-    const sql = await setup()
-    const input = { network: 'monad-testnet' as const, now: 7200, relay, balance: async () => 2n * MON, force: true }
-    await Promise.all([watchRelay(sql, input), watchRelay(sql, input)])
-    expect(await sql.all('SELECT id FROM telegram_outbox')).toHaveLength(1)
+    const tables = await sql.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'telegram_%'")
+    expect(tables).toEqual([])
   })
 })
