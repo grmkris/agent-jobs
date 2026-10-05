@@ -11,14 +11,14 @@ import { buildTree, proofOf } from './tree.ts'
 import { encodeFunctionData, getAddress, type Address, type Hex } from './viem.ts'
 
 // pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed JSON> --out <dir>
-//                       [--rpc <url>] [--config <config JSON>] [--page <blocks>]          (README.md)
+//                       [--rpc <url>] [--config <config JSON>] [--page <blocks>] [--previous-prices <signed JSON>] (README.md)
 
 const argv = process.argv.slice(2)
 const flag = (name: string) => {
   const i = argv.indexOf(`--${name}`)
   return i === -1 ? undefined : argv[i + 1]
 }
-const usage = 'usage: pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir> [--rpc <url>] [--config <path>] [--page <blocks>]'
+const usage = 'usage: pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed price list JSON> --out <dir> [--rpc <url>] [--config <path>] [--page <blocks>] [--previous-prices <signed JSON>]'
 const epochArg = argv[0]
 const network = (flag('network') ?? 'monad-testnet') as Network
 const pricesPath = flag('prices')
