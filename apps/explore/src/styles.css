@@ -1,139 +1,276 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/geist';
 
 /*
- * Hireling's design tokens: an Apple-native palette (grouped background, surfaces, labels, separators, one tint) in
- * light and dark, following the system setting. `[data-theme]` on <html> forces one (the widget's `data-theme`).
- * Every colour in the app comes from here: switching the tint is one line (`--tint: var(--tint-teal)`).
+ * Hireling's design tokens: shadcn's base-nova vocabulary (background, card, primary, muted, border, ring…) in oklch,
+ * after myplan and purrable. Surfaces are warm paper (hue 90, almost no chroma); ink, rings and the dark theme are
+ * cool slate (hue 255). The primary is near-black, so colour means status: success, warning, info, destructive.
+ *
+ * Light and dark follow the system setting. `[data-theme]` on <html> forces one (the widget's `?theme=`); the dark
+ * tokens are therefore written twice, under the media query and under `[data-theme='dark']`, and
+ * design-tokens.test.ts holds the two copies equal. There is no class-based init script: the CSP allows no inline JS.
  */
 :root {
-  --tint-indigo: #5452d4;
-  --tint-teal: #0a7f95;
-  --tint: var(--tint-teal);
-  --on-tint: #ffffff;
-  --bg: #f5f3ed;
-  --surface: #fffef9;
-  --surface-2: #eeede5;
-  --fill: rgba(118, 118, 128, 0.12);
-  --fill-strong: rgba(118, 118, 128, 0.2);
-  --label: #202a29;
-  --label-2: #5c6661;
-  --label-3: #727972;
-  --sep: rgba(60, 60, 67, 0.16);
-  --bar: rgba(247, 247, 250, 0.82);
-  --side: #ecece2;
-  --scrim: rgba(0, 0, 0, 0.28);
-  --info: #0066d6;
-  --info-bg: rgba(0, 122, 255, 0.12);
-  --warn: #b35900;
-  --warn-bg: rgba(255, 149, 0, 0.16);
-  --ok: #1d7a36;
-  --ok-bg: rgba(52, 199, 89, 0.16);
-  --bad: #c7161e;
-  --bad-bg: rgba(255, 59, 48, 0.13);
-  --gray: rgba(60, 60, 67, 0.7);
-  --gray-bg: rgba(118, 118, 128, 0.14);
-  --code: #f0f0f4;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.1);
+  --background: oklch(0.985 0.002 90);
+  --foreground: oklch(0.17 0.01 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.01 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.01 255);
+  --primary: oklch(0.22 0.012 255);
+  --primary-foreground: oklch(0.985 0.002 90);
+  --secondary: oklch(0.955 0.003 90);
+  --secondary-foreground: oklch(0.22 0.012 255);
+  --muted: oklch(0.955 0.003 90);
+  --muted-foreground: oklch(0.5 0.01 255);
+  --accent: oklch(0.955 0.003 90);
+  --accent-foreground: oklch(0.22 0.012 255);
+  --border: oklch(0.89 0.004 90);
+  --input: oklch(0.89 0.004 90);
+  --ring: oklch(0.62 0.02 255);
+  /* The sidebar is a shade heavier than the page, as a source list sits beside its content. */
+  --sidebar: oklch(0.967 0.003 90);
+  --sidebar-foreground: oklch(0.17 0.01 255);
+  --sidebar-primary: oklch(0.22 0.012 255);
+  --sidebar-primary-foreground: oklch(0.985 0.002 90);
+  --sidebar-accent: oklch(0.92 0.004 90);
+  --sidebar-accent-foreground: oklch(0.17 0.01 255);
+  --sidebar-border: oklch(0.91 0.003 90);
+  --sidebar-ring: oklch(0.62 0.02 255);
+  /* Status: a base colour for dots, fills and 12% tints, and a `-text` shade that reaches 4.5:1 as text. */
+  --success: oklch(0.6 0.15 150);
+  --success-text: oklch(0.42 0.11 150);
+  --warning: oklch(0.75 0.15 70);
+  --warning-text: oklch(0.47 0.11 60);
+  --info: oklch(0.58 0.16 255);
+  --info-text: oklch(0.45 0.14 255);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-text: oklch(0.48 0.19 27);
+  --overlay: oklch(0.17 0.01 255 / 0.25);
+  --elevation-popover: 0 0 0 1px oklch(0 0 0 / 0.06), 0 2px 4px oklch(0 0 0 / 0.04), 0 8px 24px oklch(0 0 0 / 0.08);
+  --elevation-chip: 0 0 0 1px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.06);
+  --radius: 0.5rem;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --tint-indigo: #7d7bff;
-    --tint-teal: #3cc3dc;
-    --on-tint: #0b0b12;
-    --bg: #000000;
-    --surface: #1c1c1e;
-    --surface-2: #2c2c2e;
-    --fill: rgba(118, 118, 128, 0.24);
-    --fill-strong: rgba(118, 118, 128, 0.36);
-    --label: #f5f5f7;
-    --label-2: rgba(235, 235, 245, 0.64);
-    --label-3: rgba(235, 235, 245, 0.36);
-    --sep: rgba(84, 84, 88, 0.58);
-    --bar: rgba(18, 18, 20, 0.78);
-    --side: #111113;
-    --scrim: rgba(0, 0, 0, 0.55);
-    --info: #4da3ff;
-    --info-bg: rgba(10, 132, 255, 0.2);
-    --warn: #ffb340;
-    --warn-bg: rgba(255, 159, 10, 0.2);
-    --ok: #4cd96a;
-    --ok-bg: rgba(48, 209, 88, 0.2);
-    --bad: #ff6961;
-    --bad-bg: rgba(255, 69, 58, 0.2);
-    --gray: rgba(235, 235, 245, 0.62);
-    --gray-bg: rgba(118, 118, 128, 0.28);
-    --code: #232326;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+    --background: oklch(0.2 0.006 255);
+    --foreground: oklch(0.94 0.004 90);
+    --card: oklch(0.245 0.007 255);
+    --card-foreground: oklch(0.94 0.004 90);
+    --popover: oklch(0.245 0.007 255);
+    --popover-foreground: oklch(0.94 0.004 90);
+    --primary: oklch(0.93 0.004 90);
+    --primary-foreground: oklch(0.2 0.006 255);
+    --secondary: oklch(0.3 0.007 255);
+    --secondary-foreground: oklch(0.94 0.004 90);
+    --muted: oklch(0.29 0.007 255);
+    --muted-foreground: oklch(0.74 0.008 90);
+    --accent: oklch(0.31 0.008 255);
+    --accent-foreground: oklch(0.96 0.004 90);
+    --border: oklch(0.34 0.008 255);
+    --input: oklch(0.34 0.008 255);
+    --ring: oklch(0.6 0.02 255);
+    --sidebar: oklch(0.175 0.006 255);
+    --sidebar-foreground: oklch(0.94 0.004 90);
+    --sidebar-primary: oklch(0.93 0.004 90);
+    --sidebar-primary-foreground: oklch(0.2 0.006 255);
+    --sidebar-accent: oklch(0.255 0.007 255);
+    --sidebar-accent-foreground: oklch(0.94 0.004 90);
+    --sidebar-border: oklch(0.27 0.007 255);
+    --sidebar-ring: oklch(0.6 0.02 255);
+    --success: oklch(0.75 0.14 150);
+    --success-text: oklch(0.82 0.12 150);
+    --warning: oklch(0.82 0.15 78);
+    --warning-text: oklch(0.85 0.13 80);
+    --info: oklch(0.72 0.13 250);
+    --info-text: oklch(0.8 0.1 250);
+    --destructive: oklch(0.72 0.19 22);
+    --destructive-text: oklch(0.8 0.13 25);
+    --overlay: oklch(0 0 0 / 0.5);
+    --elevation-popover: 0 0 0 1px oklch(1 0 0 / 0.08), 0 2px 4px oklch(0 0 0 / 0.3), 0 8px 24px oklch(0 0 0 / 0.4);
+    --elevation-chip: 0 0 0 1px oklch(1 0 0 / 0.09), 0 1px 2px oklch(0 0 0 / 0.3);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --tint-indigo: #7d7bff;
-  --tint-teal: #3cc3dc;
-  --on-tint: #0b0b12;
-  --bg: #000000;
-  --surface: #1c1c1e;
-  --surface-2: #2c2c2e;
-  --fill: rgba(118, 118, 128, 0.24);
-  --fill-strong: rgba(118, 118, 128, 0.36);
-  --label: #f5f5f7;
-  --label-2: rgba(235, 235, 245, 0.64);
-  --label-3: rgba(235, 235, 245, 0.36);
-  --sep: rgba(84, 84, 88, 0.58);
-  --bar: rgba(18, 18, 20, 0.78);
-  --side: #111113;
-  --scrim: rgba(0, 0, 0, 0.55);
-  --info: #4da3ff;
-  --info-bg: rgba(10, 132, 255, 0.2);
-  --warn: #ffb340;
-  --warn-bg: rgba(255, 159, 10, 0.2);
-  --ok: #4cd96a;
-  --ok-bg: rgba(48, 209, 88, 0.2);
-  --bad: #ff6961;
-  --bad-bg: rgba(255, 69, 58, 0.2);
-  --gray: rgba(235, 235, 245, 0.62);
-  --gray-bg: rgba(118, 118, 128, 0.28);
-  --code: #232326;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --background: oklch(0.2 0.006 255);
+  --foreground: oklch(0.94 0.004 90);
+  --card: oklch(0.245 0.007 255);
+  --card-foreground: oklch(0.94 0.004 90);
+  --popover: oklch(0.245 0.007 255);
+  --popover-foreground: oklch(0.94 0.004 90);
+  --primary: oklch(0.93 0.004 90);
+  --primary-foreground: oklch(0.2 0.006 255);
+  --secondary: oklch(0.3 0.007 255);
+  --secondary-foreground: oklch(0.94 0.004 90);
+  --muted: oklch(0.29 0.007 255);
+  --muted-foreground: oklch(0.74 0.008 90);
+  --accent: oklch(0.31 0.008 255);
+  --accent-foreground: oklch(0.96 0.004 90);
+  --border: oklch(0.34 0.008 255);
+  --input: oklch(0.34 0.008 255);
+  --ring: oklch(0.6 0.02 255);
+  --sidebar: oklch(0.175 0.006 255);
+  --sidebar-foreground: oklch(0.94 0.004 90);
+  --sidebar-primary: oklch(0.93 0.004 90);
+  --sidebar-primary-foreground: oklch(0.2 0.006 255);
+  --sidebar-accent: oklch(0.255 0.007 255);
+  --sidebar-accent-foreground: oklch(0.94 0.004 90);
+  --sidebar-border: oklch(0.27 0.007 255);
+  --sidebar-ring: oklch(0.6 0.02 255);
+  --success: oklch(0.75 0.14 150);
+  --success-text: oklch(0.82 0.12 150);
+  --warning: oklch(0.82 0.15 78);
+  --warning-text: oklch(0.85 0.13 80);
+  --info: oklch(0.72 0.13 250);
+  --info-text: oklch(0.8 0.1 250);
+  --destructive: oklch(0.72 0.19 22);
+  --destructive-text: oklch(0.8 0.13 25);
+  --overlay: oklch(0 0 0 / 0.5);
+  --elevation-popover: 0 0 0 1px oklch(1 0 0 / 0.08), 0 2px 4px oklch(0 0 0 / 0.3), 0 8px 24px oklch(0 0 0 / 0.4);
+  --elevation-chip: 0 0 0 1px oklch(1 0 0 / 0.09), 0 1px 2px oklch(0 0 0 / 0.3);
   color-scheme: dark;
 }
 
+/* Motion: strong curves (the built-in ones are too weak to read as intentional), short asymmetric durations. */
+:root {
+  --ease-out-strong: cubic-bezier(0.2, 0, 0, 1);
+  /* Every surface that slides in from an edge settles like an iOS sheet: fast out of the gate, a long soft landing. */
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: var(--ease-sheet);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+}
+
+/*
+ * Legacy names (the hand-rolled kit before base-nova), pointed at the new tokens so every page restyles at once.
+ * They go when the last page is migrated; design-tokens.test.ts will then guard against their return.
+ */
+:root {
+  --tint: var(--primary);
+  --on-tint: var(--primary-foreground);
+  --bg: var(--background);
+  --surface: var(--card);
+  --surface-2: var(--muted);
+  --fill: var(--muted);
+  --fill-strong: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --label: var(--foreground);
+  --label-2: var(--muted-foreground);
+  --label-3: var(--muted-foreground);
+  --sep: var(--border);
+  --bar: color-mix(in oklab, var(--background) 72%, transparent);
+  --side: var(--sidebar);
+  --scrim: var(--overlay);
+  --ok: var(--success-text);
+  --ok-bg: color-mix(in oklab, var(--success) 12%, transparent);
+  --warn: var(--warning-text);
+  --warn-bg: color-mix(in oklab, var(--warning) 14%, transparent);
+  --info-bg: color-mix(in oklab, var(--info) 12%, transparent);
+  --bad: var(--destructive-text);
+  --bad-bg: color-mix(in oklab, var(--destructive) 12%, transparent);
+  --gray: var(--muted-foreground);
+  --gray-bg: var(--muted);
+  --code: var(--muted);
+  --shadow: var(--elevation-popover);
+}
+
+/* `dark:` follows the same two switches as the tokens: the system setting, unless <html data-theme> forces one. */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
 @theme inline {
-  --font-sans: 'Trebuchet MS', 'Avenir Next', Verdana, sans-serif;
-  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-  --color-tint: var(--tint);
-  --color-on-tint: var(--on-tint);
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-fill: var(--fill);
-  --color-fill-strong: var(--fill-strong);
-  --color-label: var(--label);
-  --color-label-2: var(--label-2);
-  --color-label-3: var(--label-3);
-  --color-sep: var(--sep);
-  --color-bar: var(--bar);
-  --color-side: var(--side);
-  --color-scrim: var(--scrim);
+  /* Chrome type: one size for row titles, pills and secondary lines; micro for counts and initials. */
+  --text-ui: 0.8125rem;
+  --text-ui--line-height: 1.25rem;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
   --color-info: var(--info);
-  --color-info-bg: var(--info-bg);
-  --color-warn: var(--warn);
-  --color-warn-bg: var(--warn-bg);
-  --color-ok: var(--ok);
+  --color-info-text: var(--info-text);
+  --color-destructive: var(--destructive);
+  --color-destructive-text: var(--destructive-text);
+  --color-overlay: var(--overlay);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  /* One elevation recipe for everything that floats over the page, one for persistent chips. */
+  --shadow-popover: var(--elevation-popover);
+  --shadow-chip: var(--elevation-chip);
+  /* Legacy utilities (bg-surface, text-label-2, bg-tint/14…), on the new tokens until each page is migrated. */
+  --color-tint: var(--primary);
+  --color-on-tint: var(--primary-foreground);
+  --color-bg: var(--background);
+  --color-surface: var(--card);
+  --color-surface-2: var(--muted);
+  --color-fill: var(--muted);
+  --color-fill-strong: var(--fill-strong);
+  --color-label: var(--foreground);
+  --color-label-2: var(--muted-foreground);
+  --color-label-3: var(--muted-foreground);
+  --color-sep: var(--border);
+  --color-bar: var(--bar);
+  --color-side: var(--sidebar);
+  --color-scrim: var(--overlay);
+  --color-ok: var(--success-text);
   --color-ok-bg: var(--ok-bg);
-  --color-bad: var(--bad);
+  --color-warn: var(--warning-text);
+  --color-warn-bg: var(--warn-bg);
+  --color-info-bg: var(--info-bg);
+  --color-bad: var(--destructive-text);
   --color-bad-bg: var(--bad-bg);
-  --color-gray: var(--gray);
-  --color-gray-bg: var(--gray-bg);
-  --color-code: var(--code);
-  --shadow-float: var(--shadow);
-  /* Critically damped spring (no overshoot) for sheets and view changes; Apple's default feel. */
-  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --radius-group: 12px;
+  --color-gray: var(--muted-foreground);
+  --color-gray-bg: var(--muted);
+  --color-code: var(--muted);
+  --shadow-float: var(--elevation-popover);
+  --radius-group: calc(var(--radius) * 1.4);
 }
 
 @layer base {
@@ -143,15 +280,24 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
   }
+  /* In the base layer, so utilities such as `border-transparent` still win. */
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
   html,
   body {
-    background: var(--bg);
-    color: var(--label);
+    background: var(--background);
+    color: var(--foreground);
   }
   body {
-    font-family: var(--font-sans);
-    letter-spacing: -0.005em;
+    @apply text-sm;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-size-adjust: 100%;
     overscroll-behavior-y: none;
   }
@@ -160,6 +306,7 @@
   }
   button,
   [role='tab'],
+  [data-slot='button'],
   nav {
     touch-action: manipulation;
   }
@@ -172,20 +319,40 @@
   }
   h1,
   h2,
-  h3 {
+  h3,
+  [data-slot$='title'] {
     text-wrap: balance;
   }
+  p,
+  [data-slot$='description'] {
+    text-wrap: pretty;
+  }
   :focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--tint) 55%, transparent);
+    outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--ring) 30%, transparent);
   }
   input,
   textarea,
   select {
-    color: var(--label);
+    color: var(--foreground);
   }
   ::placeholder {
-    color: var(--label-3);
+    color: var(--muted-foreground);
+  }
+  /* The primary is near-black, so a link styled with the legacy tint needs an underline to read as a link. */
+  a.text-tint:not([data-slot='button']):not([class*='bg-']) {
+    text-decoration: underline;
+    text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+    text-underline-offset: 3px;
+  }
+}
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
   }
 }
 
@@ -193,27 +360,76 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Translucent chrome: a real background colour first (iOS 26 samples it for the status bar), then the blur. */
-@utility material {
-  background: var(--bar);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+/*
+ * Chrome that floats over content (bars, the landing composer): a translucent material the content scrolls under, as
+ * Apple's bars do. A real background colour comes first (iOS 26 samples it for the status bar), then the blur. It
+ * falls back to the opaque page where blur is unsupported, where the person asks for less transparency, and, with a
+ * defined border, where they ask for more contrast.
+ */
+@utility material-chrome {
+  background-color: color-mix(in oklab, var(--background) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  @supports not (backdrop-filter: blur(1px)) {
+    background-color: var(--background);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background-color: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--foreground);
+  }
 }
-
-@utility press {
-  transition:
-    transform 100ms ease-out,
-    opacity 150ms;
-  &:active {
-    transform: scale(0.97);
+/* The legacy name for the same material. */
+@utility material {
+  background-color: color-mix(in oklab, var(--background) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  @supports not (backdrop-filter: blur(1px)) {
+    background-color: var(--background);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background-color: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--foreground);
+  }
+}
+/* A soft fade below floating chrome instead of a hard divider: it shows only where content passes underneath. */
+@utility material-edge-bottom {
+  &::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 0.75rem;
+    pointer-events: none;
+    background: linear-gradient(to bottom, color-mix(in oklab, var(--background) 72%, transparent), transparent);
+  }
+  @media (prefers-contrast: more) {
+    &::after {
+      display: none;
+    }
   }
 }
 
-@media (prefers-reduced-transparency: reduce) {
-  .material {
-    background: var(--bg);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+/* Feedback on the press itself, instant. */
+@utility press {
+  transition:
+    transform var(--dur-fast) var(--ease-out-strong),
+    opacity var(--dur-fast);
+  &:active {
+    transform: scale(0.96);
   }
 }
 
@@ -247,10 +463,11 @@
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
 }
 dialog::backdrop {
+  background: var(--overlay);
   animation: scrim-in 0.3s ease;
 }
 @keyframes scrim-in {
@@ -259,15 +476,15 @@ dialog::backdrop {
   }
 }
 
+/* A quiet label above a group (no mono, no capitals): the page's structure should not shout. */
 .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1.6;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  color: var(--tint);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted-foreground);
 }
+
+/* Landing styles below: replaced with the new landing (plan C5). */
 .live-dot {
   display: inline-block;
   width: 7px;

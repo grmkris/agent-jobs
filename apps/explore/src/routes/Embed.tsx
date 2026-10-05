@@ -92,8 +92,9 @@ export function EmbedPage() {
     if (accent !== null && /^[0-9a-fA-F]{6}$/.test(accent)) {
       const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(accent.slice(i, i + 2), 16) / 255) as [number, number, number]
       const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6
-      root.style.setProperty('--tint', `#${accent}`)
-      root.style.setProperty('--on-tint', light ? '#111114' : '#ffffff')
+      root.style.setProperty('--primary', `#${accent}`)
+      root.style.setProperty('--primary-foreground', light ? '#111114' : '#ffffff')
+      root.style.setProperty('--ring', `#${accent}`)
     }
     document.body.style.background = 'transparent'
     root.style.background = 'transparent'

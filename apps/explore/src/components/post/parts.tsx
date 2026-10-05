@@ -38,7 +38,7 @@ export function Choices<T extends string>({
               aria-hidden
               className={cn(
                 'mt-0.5 grid size-[22px] shrink-0 place-items-center rounded-full transition-colors',
-                on ? 'bg-tint text-on-tint' : 'shadow-[inset_0_0_0_1.5px_var(--label-3)]',
+                on ? 'bg-tint text-on-tint' : 'shadow-[inset_0_0_0_1.5px_var(--muted-foreground)]',
               )}
             >
               {on && <Check className="size-3.5" strokeWidth={3.2} />}
