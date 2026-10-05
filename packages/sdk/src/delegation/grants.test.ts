@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { deployment, stack } from '../deployment.ts'
-import { buildGrant, describeGrant, periodTransferTerms } from './grants.ts'
+import { buildGrant, describeGrant, periodTransferTerms, workTargets } from './grants.ts'
 import { agentWalletTypes } from '../registry.ts'
 import { delegationHash } from './index.ts'
 import { createERC20TokenPeriodTransferTerms } from '@metamask/delegation-core'
-import { encodePacked } from 'viem'
+import { encodePacked, pad } from 'viem'
 
 const d = deployment('monad-testnet')
 const ctx = { deployment: d, stack: stack(d, 'main') }
@@ -48,5 +48,18 @@ describe('spec v2 grant templates', () => {
 
   it('publishes the ERC-8004 consent schema for the registry signer', () => {
     expect(agentWalletTypes.AgentWalletSet.map(field => field.name)).toEqual(['agentId', 'newWallet', 'owner', 'deadline'])
+  })
+
+  it('keeps vault recovery separate from one approved exact self-position exit', () => {
+    expect(workTargets(ctx).find(target => target.address === d.hireling!.vault)?.methods).toEqual(['cancelUndelegate', 'withdraw'])
+    const spec = { kind: 'unstake' as const, delegator: agent, shares: 17n, operationId: `0x${'12'.repeat(32)}` as const, salt: 12n, start: now }
+    const grant = buildGrant(ctx, spec)
+    expect(describeGrant(ctx, spec, grant)).toMatchObject({ calls: 1, expiresAt: now + 600 })
+    const pins = grant.caveats.filter(c => c.enforcer.toLowerCase() === d.delegation.enforcers.allowedCalldata.toLowerCase())
+    expect(pins.map(c => c.terms)).toEqual([
+      encodePacked(['uint256', 'bytes32'], [4n, pad(agent)]),
+      encodePacked(['uint256', 'uint256'], [36n, 17n]),
+    ])
+    expect(() => describeGrant(ctx, { ...spec, shares: 18n }, grant)).toThrow('approved template')
   })
 })

@@ -36,6 +36,20 @@ function checked(input = entries()) {
 const lookup = () => ({ spec: allowanceSpec, grant: allowance })
 
 describe('per-grant calls', () => {
+  it('pins routine vault recovery to self and one-off undelegation to the approved shares', () => {
+    const vault = d.hireling!.vault
+    for (const functionName of ['cancelUndelegate', 'withdraw'] as const) {
+      const call = { to: vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName, args: [agent] }) }
+      expect(checkGrantCall(ctx, workSpec, call).method).toBe(functionName)
+      expect(() => checkGrantCall(ctx, workSpec, { ...call, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName, args: [operator] }) })).toThrow('own position')
+    }
+    const spec: sdk.GrantSpec = { kind: 'unstake', delegator: agent, shares: 17n, salt: 17n, start, operationId: `0x${'17'.repeat(32)}` }
+    const call = { to: vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [agent, 17n] }) }
+    expect(checkGrantCall(ctx, spec, call).method).toBe('requestUndelegate')
+    expect(() => checkGrantCall(ctx, workSpec, call)).toThrow('outside')
+    expect(() => checkGrantCall(ctx, spec, { ...call, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [operator, 17n] }) })).toThrow('account or shares')
+    expect(() => checkGrantCall(ctx, spec, { ...call, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [agent, 18n] }) })).toThrow('account or shares')
+  })
   it('pins approval spender and sweep recipient, and rejects unsafe methods or values', () => {
     const approve = { to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [ctx.stack.holding, 100n] }) }
     expect(checkGrantCall(ctx, approvalSpec, approve).method).toBe('approve')
