@@ -10,6 +10,8 @@ import { backingCard, stakingSnapshot } from '../src/staking-index.ts'
 import { collectSnapshot } from '../src/collect-index.ts'
 import { tools } from '../src/tools.ts'
 import { permittedTool } from '../src/mcp-policy.ts'
+import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
+import { stakingDataRoute } from '../src/routes/staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('delegated backing API with a checked real event index', () => {
@@ -62,6 +64,24 @@ fork('delegated backing API with a checked real event index', () => {
     expect(await backingCard(fromNodeSqlite(db), f.ctx, account, wallet, clock)).toMatchObject({
       assets: parseEther('50'), delegatorCount: 2, position: { value: parseEther('30'), shareBps: 6000 },
     })
+  })
+
+  it('VV2-005 both public routes parse populated and empty results through their real HTTP response path', async () => {
+    const wallet = f.creator.account.address
+    const account = f.worker.account.address
+    const empty = f.arbitrator.account.address
+    for (const [path, expected] of [
+      [`/data/delegations?wallet=${wallet}`, { positions: [{ value: parseEther('30').toString() }] }],
+      [`/data/delegations?wallet=${empty}`, { positions: [] }],
+      [`/data/backing/${account}?wallet=${wallet}`, { assets: parseEther('50').toString(), delegatorCount: 2 }],
+      [`/data/backing/${empty}?wallet=${wallet}`, { assets: '0', delegatorCount: 0, topDelegators: [] }],
+    ] as const) {
+      const response = HttpServerResponse.toWeb(await stakingDataRoute(fromNodeSqlite(db), f.ctx, new URL(path, 'https://fork'), clock))
+      expect(response.status).toBe(200)
+      const body = await response.json() as { blockNumber: string }
+      expect(body).toMatchObject({ ok: true, ...expected })
+      expect(body.blockNumber).toMatch(/^\d+$/)
+    }
   })
 
   it('pins indexed values to the checkpoint and refuses a divergent or stale checkpoint', async () => {

@@ -6,7 +6,7 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { BoardError, delegationPositions, positionFilters, DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { BoardError, DirectoryError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, SessionError, type TenantConfig, TenantError, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
 import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
@@ -34,7 +34,7 @@ import { agentRoute } from './routes/agents.ts'
 import { approvalRoute } from './routes/approvals.ts'
 import { agentTools } from './tools-agents.ts'
 import { managementRequest } from './agent-requests.ts'
-import { backingCard, stakingSnapshot } from './staking-index.ts'
+import { isStakingDataPath, stakingDataRoute } from './routes/staking.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -343,6 +343,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
           return reply.status === 204 || reply.status === 202 ? HttpServerResponse.empty({ status: reply.status, headers: { ...cors, ...reply.headers } }) : json(reply.body, reply.status, reply.headers)
         }
         if (path.startsWith('/data/') && request.method === 'GET') {
+          if (isStakingDataPath(path)) {
+            const dataUrl = new URL(url)
+            dataUrl.pathname = path
+            return yield* Effect.promise(() => stakingDataRoute(sql, rpcUrl === '' ? undefined : sdk.context(network, 'main', rpcUrl), dataUrl, now(), cors))
+          }
           if (path === '/data/directory' || /^\/data\/directory\/\d{1,78}$/.test(path)) {
             const reply = yield* Effect.promise(async () => {
               try {
@@ -356,19 +361,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
           }
           const body = yield* Effect.promise(async () => {
             try {
-              if (path === '/data/delegations' || /^\/data\/backing\/0x[0-9a-fA-F]{40}$/.test(path)) {
-                if (rpcUrl === '') throw new BoardError('unavailable', 'vault reads are unavailable')
-                const ctx = sdk.context(network, 'main', rpcUrl)
-                const filters = positionFilters({
-                  ...(url.searchParams.has('wallet') ? { wallet: url.searchParams.get('wallet')! } : {}),
-                  ...(path.startsWith('/data/backing/') ? { account: path.slice('/data/backing/'.length) }
-                    : url.searchParams.has('account') ? { account: url.searchParams.get('account')! } : {}),
-                }, undefined, message => new BoardError('invalid', message))
-                const result = path === '/data/delegations'
-                  ? await delegationPositions(ctx, await stakingSnapshot(sql, ctx, filters, now()))
-                  : await backingCard(sql, ctx, filters.account!, filters.wallet, now())
-                return { ok: true, ...result }
-              }
               if (path === '/data/boards') {
                 const stored = await listBoards(sql)
                 const pub = publicTenant(deployment, await Promise.all(deployment.rewardTokens.map(tokenInfo)))
