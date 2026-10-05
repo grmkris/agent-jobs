@@ -17,6 +17,16 @@ export interface ManagedAgent {
   privy_user_id: string;
 }
 
+interface LoginPageState {
+  localStorage: { getItem(key: string): string | null };
+  document: {
+    querySelector(selector: string): unknown | null;
+    querySelectorAll(
+      selector: string,
+    ): ArrayLike<{ disabled: boolean; textContent: string | null }>;
+  };
+}
+
 export class HostedBrowser {
   readonly errors: string[] = [];
   readonly responses: Array<{ path: string; body: unknown }> = [];
@@ -132,46 +142,118 @@ export class HostedBrowser {
         // The site's normal login handles an expired session.
       }
     }
+    const email = this.page
+      .locator('input[type="email"], input[placeholder="your@email.com"]')
+      .first();
+    const boardSign = this.page
+      .getByRole("button", { name: "Sign and continue", exact: true })
+      .first();
+    // A retained Privy session can open SIWE automatically while disabling Sign in.
     await this.page
-      .getByRole("button", { name: "Sign in", exact: true })
-      .first()
-      .click()
+      .waitForFunction(
+        () => {
+          const { document, localStorage } = globalThis as unknown as LoginPageState;
+          const buttons = Array.from(document.querySelectorAll("button"));
+          return (
+            buttons.some(
+              (button) =>
+                (!button.disabled && /^sign in$/i.test(button.textContent?.trim() ?? "")) ||
+                /^Sign and continue$/.test(button.textContent?.trim() ?? ""),
+            ) ||
+            document.querySelector('input[type="email"]') !== null ||
+            (localStorage.getItem("agent-jobs.session") !== null &&
+              localStorage.getItem("agent-jobs.session-owner") !== null)
+          );
+        },
+        undefined,
+        { timeout: 30_000 },
+      )
       .catch(() => {
-        throw new Error("P8_PRIVY_LOGIN_OPEN_FAILED");
+        throw new Error("P8_PRIVY_LOGIN_UI_UNAVAILABLE");
       });
-    await this.page
-      .locator('input[type="email"]')
-      .waitFor({ timeout: 30_000 })
-      .catch(() => {
+    const ready = await this.page.evaluate(() => {
+      const { localStorage } = globalThis as unknown as LoginPageState;
+      return (
+        localStorage.getItem("agent-jobs.session") !== null &&
+        localStorage.getItem("agent-jobs.session-owner") !== null
+      );
+    });
+    if (ready) {
+      await this.api("/api/agents");
+      return this.operator();
+    }
+    if (!(await boardSign.isVisible())) {
+      if (!(await email.isVisible())) {
+        await this.page
+          .getByRole("button", { name: /sign in/i })
+          .first()
+          .click({ timeout: 30_000 })
+          .catch(() => {
+            throw new Error("P8_PRIVY_LOGIN_OPEN_FAILED");
+          });
+      }
+      await email.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {
         throw new Error("P8_PRIVY_EMAIL_FORM_UNAVAILABLE");
       });
-    await this.page.locator('input[type="email"]').fill(required("PRIVY_TEST_EMAIL"));
-    // Privy also offers "Continue with a wallet"; submit only the email form.
-    await this.page
-      .getByRole("button", { name: "Submit", exact: true })
-      .last()
-      .click()
-      .catch(() => {
-        throw new Error("P8_PRIVY_EMAIL_SUBMIT_FAILED");
-      });
-    const inputs = this.page.locator(
-      'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
-    );
-    await inputs
-      .first()
-      .waitFor({ timeout: 30_000 })
-      .catch(() => {
-        throw new Error("P8_PRIVY_OTP_FORM_UNAVAILABLE");
-      });
-    const otp = required("PRIVY_TEST_OTP");
-    const count = await inputs.count();
-    if (count === 1) await inputs.fill(otp);
-    else {
-      if (count !== otp.length) throw new Error("P8_UNRECOGNIZED_PRIVY_OTP_UI");
-      for (let i = 0; i < count; i++) await inputs.nth(i).fill(otp[i]!);
+      await email.fill(required("PRIVY_TEST_EMAIL"));
+      // Privy also offers "Continue with a wallet"; submit only the email form.
+      await this.page
+        .getByRole("button", { name: "Submit", exact: true })
+        .last()
+        .click()
+        .catch(() => {
+          throw new Error("P8_PRIVY_EMAIL_SUBMIT_FAILED");
+        });
+      const inputs = this.page.locator(
+        'input[autocomplete="one-time-code"], input[inputmode="numeric"]',
+      );
+      await inputs
+        .first()
+        .waitFor({ timeout: 30_000 })
+        .catch(() => {
+          throw new Error("P8_PRIVY_OTP_FORM_UNAVAILABLE");
+        });
+      const otp = required("PRIVY_TEST_OTP");
+      const count = await inputs.count();
+      if (count === 1) await inputs.fill(otp);
+      else {
+        if (count !== otp.length) throw new Error("P8_UNRECOGNIZED_PRIVY_OTP_UI");
+        for (let i = 0; i < count; i++) await inputs.nth(i).fill(otp[i]!);
+      }
+      const verify = this.page.getByRole("button", { name: /^(verify|continue|submit)$/i }).last();
+      if (await verify.isVisible()) await verify.click();
     }
-    const verify = this.page.getByRole("button", { name: /^(verify|continue|submit)$/i }).last();
-    if (await verify.isVisible()) await verify.click();
+    await this.page
+      .waitForFunction(
+        () => {
+          const { document, localStorage } = globalThis as unknown as LoginPageState;
+          return (
+            Array.from(document.querySelectorAll("button")).some((button) =>
+              /^Sign and continue$/.test(button.textContent?.trim() ?? ""),
+            ) ||
+            (localStorage.getItem("agent-jobs.session") !== null &&
+              localStorage.getItem("agent-jobs.session-owner") !== null)
+          );
+        },
+        undefined,
+        { timeout: 90_000 },
+      )
+      .catch(() => {
+        throw new Error("P8_PRIVY_BOARD_SIGN_UNAVAILABLE");
+      });
+    if (await boardSign.isVisible()) {
+      const message = await this.page.locator("#privy-modal-content").innerText();
+      if (
+        !message.includes(
+          "testnet.hireling.xyz wants you to sign in with your Ethereum account:",
+        ) ||
+        !message.includes("Chain ID: 10143")
+      )
+        throw new Error("P8_UNEXPECTED_BOARD_SIGN_MESSAGE");
+      await boardSign.click().catch(() => {
+        throw new Error("P8_PRIVY_BOARD_SIGN_FAILED");
+      });
+    }
     await this.page
       .waitForFunction(
         () => {
