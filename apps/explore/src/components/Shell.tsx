@@ -28,7 +28,7 @@ interface Place {
 
 /** Pages that belong to the account rather than to a job or an agent. */
 const ACCOUNT_PATHS = ['/me', '/collect', '/stake', '/sponsorship', '/telegram', '/admin']
-const AGENT_PATHS = ['/agents', '/workspace', '/approvals', '/connect']
+const AGENT_PATHS = ['/agents', '/connect']
 const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
 /**
@@ -146,7 +146,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main key={pathname} className={cn('mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-spring)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16', pathname === '/' || pathname.startsWith('/workspace') || pathname.startsWith('/approvals') ? 'max-w-7xl' : 'max-w-3xl')}>
+        <main key={pathname} className={cn('mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-spring)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16', pathname === '/' ? 'max-w-7xl' : 'max-w-3xl')}>
           <LaunchBanner />
           {paused && (
             <div role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive-text">

@@ -1,4 +1,5 @@
 // VV2-014: an agent's owner tabs and the operator's private decisions exist only while the board session is live.
+// C9: the retired /workspace and /approvals redirect, and an agent without an Agent ID resumes its setup.
 // Mocked Chromium on the delegation fixture, whose operator runs agent 1942. No real wallet, session or chain.
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
@@ -42,6 +43,28 @@ try {
     await page.getByRole('link', { name: 'Agents' }).first().click();
     await page.getByText('Sign in to see your agents', { exact: true }).waitFor();
     results.push({ test: 'sign-out drops owner tabs, nested agents and private data without a reload', passed: true });
+    await context.close();
+  }
+  {
+    // C9: /workspace and /approvals are retired; old links land on My agents. An agent with no Agent ID yet opens its
+    // resumed setup rather than a page it does not have.
+    const { context, page } = await fixture({ width: 1440, height: 900 });
+    for (const old of ['/workspace', '/approvals']) {
+      await page.goto(`${base}${old}`);
+      await page.waitForURL(`${base}/agents`);
+      await page.getByRole('main').getByText('My worker', { exact: true }).waitFor();
+    }
+    await context.route('**/api/agents', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: { agents: [{ id: 'draft-1', name: 'Draft worker', address: null, agent_id: null, state: 'created', last_activity_at: null, revoke_json: '{}' }] } }) }));
+    await page.goto(`${base}/agents`);
+    const row = page.getByRole('main').getByRole('link', { name: /Draft worker/ });
+    await row.getByText('No Agent ID yet · Setup not finished', { exact: true }).waitFor();
+    await row.click();
+    await page.waitForURL(`${base}/agents/new?resume=draft-1`);
+    await page.getByRole('heading', { name: 'Finish setting up your agent' }).waitFor();
+    await page.getByRole('button', { name: 'Resume wallet setup', exact: true }).waitFor();
+    await page.goto(`${base}/agents/new?resume=not-mine`);
+    await page.getByText('That agent is not one of yours', { exact: false }).waitFor();
+    results.push({ test: 'retired pages redirect to My agents; an unregistered agent resumes at /agents/new?resume', passed: true });
     await context.close();
   }
   assert.deepEqual(errors, []);

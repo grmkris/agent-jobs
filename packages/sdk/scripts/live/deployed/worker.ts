@@ -31,7 +31,7 @@ export async function ensureAllowance(runtime: Runtime): Promise<void> {
     )
   )
     return;
-  await runtime.browser.page.goto(`${ORIGIN}/workspace`);
+  await runtime.browser.page.goto(`${ORIGIN}/agent/${runtime.agent.agent_id}?tab=manage`);
   const card = runtime.browser.page.locator("article").filter({ hasText: runtime.agent.name });
   await card.locator("summary").filter({ hasText: "Change or renew the allowance" }).click();
   await card.getByRole("textbox", { name: "Allowance token", exact: true }).fill(token);

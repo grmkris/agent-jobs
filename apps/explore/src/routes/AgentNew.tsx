@@ -1,6 +1,6 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { type Address } from "viem";
 import { useSignTypedData } from "wagmi";
@@ -8,23 +8,37 @@ import { agentEndpoint, type ManagedAgent } from "../api.ts";
 import { agentAction, prepareRegistration } from "../agent-api.ts";
 import { reviewAgentGrant } from "../agent-grant.ts";
 import { AgentGrantReview } from "../components/AgentGrantReview.tsx";
+import { BoardLink } from "../components/BoardLink.tsx";
 import { OperatorGrant } from "../components/OperatorGrant.tsx";
 import { PrivyLogin } from "../components/Privy.tsx";
 import { Button, ErrorText, Input, PageTitle, Section } from "../components/ui.tsx";
 import { useAuth } from "../components/Wallet.tsx";
+import { agentHome, useManagedAgents } from "../managed.ts";
 import { AllowanceEditor } from "../components/AllowanceEditor.tsx";
 import { AgentStake } from "../components/AgentStake.tsx";
 import { ConnectionCard } from "../components/ConnectionCard.tsx";
 import { typedDataArgs } from "../typed-data.ts";
 import { privyAppId } from "../wallet.ts";
 
+/** Create an agent, or (`?resume=<id>`) continue the setup of one that has no Agent ID yet. */
 export function AgentNewPage() {
+  const { resume } = useSearch({ strict: false }) as { resume?: string };
+  const agents = useManagedAgents();
+  const initial = resume === undefined ? undefined : agents.data?.agents.find((agent) => agent.id === resume);
   return (
     <>
       <PageTitle sub="Your wallet owns the identity. The agent has its own wallet.">
-        Create an agent
+        {resume === undefined ? "Create an agent" : "Finish setting up your agent"}
       </PageTitle>
-      <AgentNew />
+      {resume !== undefined && initial === undefined ? (
+        agents.isLoading ? (
+          <p className="text-label-2">Reading your agent records…</p>
+        ) : (
+          <ErrorText>That agent is not one of yours, or its records are unavailable. Sign in with its operator wallet.</ErrorText>
+        )
+      ) : (
+        <AgentNew {...(initial === undefined ? {} : { initial })} />
+      )}
     </>
   );
 }
@@ -251,9 +265,9 @@ function AgentSetup({
             </Button>
           )}
           {onReady === undefined && (
-            <Link to="/workspace" className="min-h-11 content-center font-semibold text-tint">
-              Open your workspace
-            </Link>
+            <BoardLink target={agentHome(agent)} className="min-h-11 content-center font-semibold text-tint">
+              Open this agent
+            </BoardLink>
           )}
         </>
       )}

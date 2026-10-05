@@ -242,7 +242,7 @@ export async function limits(runtime: Runtime): Promise<Proof> {
     throw new Error("P8_CONCURRENT_LIMIT_NOT_ONE_HIRE_ONE_APPROVAL");
   const pending = object(results.find((result) => result.status === "approval")!.approval);
   const approvalId = text(pending.id);
-  await runtime.browser.page.goto(`${ORIGIN}/approvals`);
+  await runtime.browser.page.goto(`${ORIGIN}/agent/${runtime.agent.agent_id}?tab=approvals`);
   const section = runtime.browser.page
     .locator("section")
     .filter({ hasText: text(pending.operation_id) });

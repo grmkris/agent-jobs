@@ -72,5 +72,6 @@ export function ownerOf(query: { isSuccess: boolean; data?: { agents: ManagedAge
 
 export const useOwnedAgent = (agentId: string) => ownerOf(useManagedAgents(), agentId)
 
-/** Where a managed agent lives: its public page once registered, its setup until then. */
-export const agentHome = (agent: Pick<ManagedAgent, 'agent_id'>): LinkTarget => (agent.agent_id === null ? { to: '/workspace' } : { to: '/agent/$agentId', params: { agentId: String(agent.agent_id) } })
+/** Where a managed agent lives: its page once it has an Agent ID, its resumed setup until then. */
+export const agentHome = (agent: Pick<ManagedAgent, 'id' | 'agent_id'>): LinkTarget =>
+  agent.agent_id === null ? { to: '/agents/new', search: { resume: agent.id } } : { to: '/agent/$agentId', params: { agentId: String(agent.agent_id) } }

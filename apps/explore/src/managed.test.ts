@@ -26,8 +26,8 @@ describe('managed agents', () => {
     expect(ownedAgent(undefined, '1942')).toBeUndefined()
   })
   it('sends a registered agent to its page and an unregistered one to its setup', () => {
-    expect(agentHome({ agent_id: '1942' } as ManagedAgent)).toEqual({ to: '/agent/$agentId', params: { agentId: '1942' } })
-    expect(agentHome({ agent_id: null } as ManagedAgent)).toEqual({ to: '/workspace' })
+    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent)).toEqual({ to: '/agent/$agentId', params: { agentId: '1942' } })
+    expect(agentHome({ id: 'm2', agent_id: null } as ManagedAgent)).toEqual({ to: '/agents/new', search: { resume: 'm2' } })
   })
   it('draws an agent’s monogram from up to two initials', () => {
     expect(initials('My worker')).toBe('MW')

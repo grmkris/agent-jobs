@@ -51,7 +51,12 @@ export async function onboarding(runtime: Runtime): Promise<Proof> {
     await chain.finish("onboarding/create", await browser.cachedHashes());
   } else {
     run.set("managed-agent", agent);
-    await browser.page.goto(`${ORIGIN}/workspace`);
+    // Setup resumes on the agent's page once it has an Agent ID, at /agents/new?resume=<id> before.
+    await browser.page.goto(
+      agent.agent_id === null
+        ? `${ORIGIN}/agents/new?resume=${encodeURIComponent(agent.id)}`
+        : `${ORIGIN}/agent/${agent.agent_id}?tab=manage`,
+    );
   }
   if (agent.state === "created" || agent.state === "upgraded") {
     const response = browser.page.waitForResponse(

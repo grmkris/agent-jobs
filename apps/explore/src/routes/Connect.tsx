@@ -155,7 +155,7 @@ export function ConnectPage() {
   const request = new URLSearchParams(window.location.search).get('oauth_request')
   return <>
     <PageTitle>Connect your coding agent</PageTitle>
-    {request === null ? <><AgentStartLink /><ConnectionCard /><Link to="/agents/new" className="action-link">Create an agent</Link><Link to="/workspace" className="min-h-11 content-center text-tint">Open your workspace</Link></> : <OAuthConsent requestId={request} />}
+    {request === null ? <><AgentStartLink /><ConnectionCard /><Link to="/agents/new" className="action-link">Create an agent</Link><Link to="/agents" className="min-h-11 content-center text-tint">Open your agents</Link></> : <OAuthConsent requestId={request} />}
   </>
 }
 

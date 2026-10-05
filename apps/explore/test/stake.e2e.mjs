@@ -158,7 +158,7 @@ try {
     await backing.getByRole('link', { name: 'Delegate', exact: true }).click();
     await page.waitForURL('**/stake?account=*');
     assert.equal(await page.getByRole('combobox', { name: 'Agent to back' }).inputValue(), agentWallet);
-    await page.goto(`${base}/workspace`);
+    await page.goto(`${base}/agent/1942?tab=manage`);
     await text(page, 'This agent does not own a position. Operator backing belongs to the operator wallet.');
     assert.equal(await page.getByRole('button', { name: 'Request leaving approval' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Withdraw agent-owned position' }).count(), 0);

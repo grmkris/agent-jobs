@@ -14,7 +14,7 @@ export async function clients(runtime: Runtime): Promise<Proof> {
     !result.output.includes("not worker liveness")
   )
     throw new Error("P8_FRESH_INSTRUCTIONS_MISSING");
-  await runtime.browser.page.goto(`${ORIGIN}/workspace`);
+  await runtime.browser.page.goto(`${ORIGIN}/agent/${runtime.agent.agent_id}?tab=manage`);
   const card = runtime.browser.page.locator("article").filter({ hasText: runtime.agent.name });
   await card.getByText(/Last activity:/).waitFor({ timeout: 30_000 });
   if (!/Last activity:[\s\S]*not a health signal/i.test(await card.innerText()))

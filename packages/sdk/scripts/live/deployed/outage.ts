@@ -19,7 +19,7 @@ export async function outage(runtime: Runtime): Promise<Proof> {
   const { browser, chain } = runtime;
   const agent = runtime.agent;
   const coding = await runtime.coding();
-  await browser.page.goto(`${ORIGIN}/workspace`);
+  await browser.page.goto(`${ORIGIN}/agent/${agent.agent_id}?tab=manage`);
   const card = browser.page.locator("article").filter({ hasText: agent.name });
   await card.waitFor();
   let blocked = 0;

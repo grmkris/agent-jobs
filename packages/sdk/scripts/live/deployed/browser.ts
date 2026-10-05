@@ -127,7 +127,7 @@ export class HostedBrowser {
   }
 
   async login(): Promise<Address> {
-    await this.page.goto(`${ORIGIN}/workspace`, { waitUntil: "domcontentloaded" });
+    await this.page.goto(`${ORIGIN}/agents`, { waitUntil: "domcontentloaded" });
     const session = await this.page.evaluate(() =>
       (
         globalThis as unknown as { localStorage: { getItem(key: string): string | null } }

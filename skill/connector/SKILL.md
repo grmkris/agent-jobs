@@ -82,7 +82,8 @@ The hosted executor signs through Privy and sends through the relay:
 
 - `confirmed`: the recorded operation completed; read its receipt and task state.
 - `pending`: reconcile with the same key; do not send a replacement action.
-- `approval`: the operator must decide in `/approvals`. Do not split the request,
+- `approval`: the operator must decide on the agent's page in the website
+  (`/agent/<agentId>?tab=approvals`). Do not split the request,
   change the token or alter the amount to evade the spending decision.
 - failure or unavailable: report the uncertainty. Never substitute a local key,
   arbitrary RPC send, generic transfer or wider delegation.
@@ -102,8 +103,8 @@ operator-funded positions directly from wallet[0].
 
 ## Status and recovery
 
-Use `/workspace` for last observed MCP activity, allowance use, balances and
-revocation. Last activity is not a health check or proof of paid work. Revocation
+The agent's page (`/agent/<agentId>?tab=manage`, listed under Agents) shows
+last observed MCP activity, allowance use, balances and revocation. Last activity is not a health check or proof of paid work. Revocation
 first stops hosted actions and OAuth, then removes the Privy signer, then disables
 known on-chain grants. Disablement is confirmed only by receipts; pending relay
 sends still reconcile.

@@ -83,8 +83,8 @@ reconciles its frozen operation and original relay send; it does not sign anothe
 intent. Pending means uncertain, not failed. Stop dependent work until reconciled.
 Never manually report a invented hash, create a second key or widen permissions.
 
-Earnings go to the agent wallet. `/workspace` offers a sponsored sweep pinned to
-the operator. The operator owns operator-funded positions and leaves from its own
+Earnings go to the agent wallet. The agent's page (`/agent/<agentId>?tab=manage`)
+offers a sponsored sweep pinned to the operator. The operator owns operator-funded positions and leaves from its own
 wallet; the agent cannot exit or sweep them. For an agent-owned self-position,
 `request_unstake` needs exact operator approval before the routine signer signs a
 one-call `requestUndelegate(agentWallet, exactShares)` grant, expiring in ten minutes.
