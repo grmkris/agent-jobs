@@ -60,15 +60,15 @@ test('native Alchemy describePlan format preserves inherited and provider-genera
   assert.ok(!JSON.stringify(review(input)).includes('test-only-marker'))
 })
 
-test('live runner admits a listed rotation and individual Telegram addition with names only', () => {
+test('live runner admits a listed rotation and individual Privy signer addition with names only', () => {
   const input = fixture()
   nativeResource(input.snapshot, 'Api').bindings[0].action = 'update'
-  nativeResource(input.snapshot, 'Api').bindings.push(binding('TELEGRAM_BOT_TOKEN', { bindings: [{ type: 'secret_text', name: 'TELEGRAM_BOT_TOKEN', text: 'test-only-marker' }] }, 'create'))
+  nativeResource(input.snapshot, 'Api').bindings.push(binding('PRIVY_SIGNER_KEY', { bindings: [{ type: 'secret_text', name: 'PRIVY_SIGNER_KEY', text: 'test-only-marker' }] }, 'create'))
   const result = review(input)
   assert.equal(result.ok, true)
   assert.deepEqual(result.changes.secretChanges, [
     { logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' },
-    { logicalId: 'Api', name: 'TELEGRAM_BOT_TOKEN', action: 'add' },
+    { logicalId: 'Api', name: 'PRIVY_SIGNER_KEY', action: 'add' },
   ])
   assert.ok(!JSON.stringify(result).includes('test-only-marker'))
 })
@@ -93,7 +93,7 @@ test('the live plan admits reviewed Api settings from env or native bindings and
   }
 })
 
-test('the reviewed Privy overwrite permits only the exact inherited Budget singleton', () => {
+test('the completed Privy inheritance rewrite cannot be approved again', () => {
   for (const extra of [false, true]) {
     const input = fixture()
     input.live.workers.Api.bindings.find(item => item.name === 'Legacy').name = 'BUDGET_SIGNER_PRIVATE_KEY'
@@ -105,7 +105,7 @@ test('the reviewed Privy overwrite permits only the exact inherited Budget singl
     if (extra) legacy.data.bindings.push({ name: 'UNLISTED_SECRET', type: 'inherit' })
     node.bindings.push(binding('PRIVY_APP_SECRET', { bindings: [{ name: 'PRIVY_APP_SECRET', type: 'secret_text', text: 'test-only-marker' }] }, 'update'))
     Object.assign(input.snapshot, describePlan(input.snapshot.native))
-    assert.equal(reviewLivePlan(input.snapshot, input.live, readApprovedChanges().reference, () => false).ok, !extra)
+    assert.equal(reviewLivePlan(input.snapshot, input.live, readApprovedChanges().reference, () => false).ok, false)
   }
 })
 

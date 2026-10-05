@@ -54,9 +54,16 @@ test('a listed rotation is allowed', () => {
   assert.deepEqual(result, { ok: true, blockers: [] })
 })
 
-test('the reviewed Privy app-secret overwrite is Api-only and cannot become an addition', () => {
+test('the retired Privy overwrite and stale Telegram additions are refused after release', () => {
   const change = { logicalId: 'Api', name: 'PRIVY_APP_SECRET', action: 'rotate' }
-  assert.deepEqual(validatePlanChanges({ ...empty, secretChanges: [change] }, readApprovedChanges().reference), { ok: true, blockers: [] })
+  for (const retired of [
+    change,
+    { logicalId: 'Api', name: 'TELEGRAM_BOT_TOKEN', action: 'add' },
+    { logicalId: 'Api', name: 'TELEGRAM_WEBHOOK_SECRET', action: 'add' },
+    { logicalId: 'Indexer', name: 'TELEGRAM_BOT_TOKEN', action: 'add' },
+  ]) {
+    assert.equal(validatePlanChanges({ ...empty, secretChanges: [retired] }, readApprovedChanges().reference).ok, false)
+  }
   assert.equal(validatePlanChanges({ ...empty, secretChanges: [{ ...change, logicalId: 'Indexer' }] }, readApprovedChanges().reference).ok, false)
   assert.equal(validatePlanChanges({ ...empty, secretChanges: [{ ...change, action: 'add' }] }, readApprovedChanges().reference).ok, false)
 })

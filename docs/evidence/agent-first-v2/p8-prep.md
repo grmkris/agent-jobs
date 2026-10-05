@@ -11,7 +11,9 @@ Claude authorized overwriting only the Worker `PRIVY_APP_SECRET` binding in
 `status/triage.md`. A fresh read-only authenticated Privy quorum request returned
 PASS before the duplicate inheritance was removed. The source now supplies that
 secret once, through the runtime secret binding. The Privy-side secret was not
-rotated. The temporary manifest rotation must be removed after release verifies.
+rotated. Claude recorded release and readback for `f2dc8ed` in
+`status/triage.md`; the temporary Privy overwrite and stale Telegram additions
+have now been removed from the approved manifest.
 
 `pnpm exec bun packages/sdk/scripts/privy/setup.ts --verify` passed against the
 real Privy API, using only GET requests. Both authorization thresholds remain

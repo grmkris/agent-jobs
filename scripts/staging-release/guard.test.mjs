@@ -67,7 +67,7 @@ test('guard admits only the manifest-pinned secret rotations and additions', () 
   bundle.approvedChanges = readApprovedChanges().reference
   bundle.plan.secretChanges = [
     { logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' },
-    { logicalId: 'Api', name: 'TELEGRAM_WEBHOOK_SECRET', action: 'add' },
+    { logicalId: 'Api', name: 'PRIVY_SIGNER_KEY', action: 'add' },
   ]
   assert.equal(evaluateExistingStackRelease(bundle, now).ok, true)
   const digest = evaluateExistingStackRelease(bundle, now).reviewDigest

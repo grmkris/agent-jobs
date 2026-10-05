@@ -135,10 +135,11 @@ to the **existing** D1. The DO initializes `directory_state` and
 `directory_projection` on use. Existing `Board` state remains untouched. The
 legacy `BUDGET_SIGNER_PRIVATE_KEY` binding remains inherited without fetching
 its value. `PRIVY_APP_SECRET` now has one source: the reviewed `.env.local`
-secret binding. The approved manifest permits overwriting that Worker binding
-with the locally authenticated app secret; this does not rotate the Privy-side
-secret. Remove that manifest entry after release verification. Normalizing the
-existing GitHub PEM's escaped newlines does not change the underlying key.
+secret binding. The release manifest temporarily permitted overwriting that
+Worker binding with the locally authenticated app secret; release verification
+completed and that temporary entry has been removed. This did not rotate the
+Privy-side secret. Normalizing the existing GitHub PEM's escaped newlines does
+not change the underlying key.
 
 Cloudflare settings omit the prior migration tag. An isolated live rehearsal with
 the same pinned Alchemy provider demonstrated an additive class migration with

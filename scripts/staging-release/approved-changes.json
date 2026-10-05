@@ -9,11 +9,7 @@
     { "logicalId": "Api", "name": "PRIVY_POLICY_ID", "action": "add", "type": "plain_text" }
   ],
   "secretChanges": [
-    { "logicalId": "Api", "name": "PRIVY_APP_SECRET", "action": "rotate" },
     { "logicalId": "Api", "name": "PRIVY_SIGNER_KEY", "action": "add" },
-    { "logicalId": "Api", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },
-    { "logicalId": "Api", "name": "TELEGRAM_WEBHOOK_SECRET", "action": "add" },
-    { "logicalId": "Indexer", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },
     { "logicalId": "Api", "name": "RELAY_PRIVATE_KEY", "action": "rotate" },
     { "logicalId": "Api", "name": "ATTESTER_PRIVATE_KEY", "action": "rotate" },
     { "logicalId": "Api", "name": "AI_GATEWAY_API_KEY", "action": "rotate" },
