@@ -58,7 +58,7 @@ export async function agentManagement(input: {
   if (action === 'revoke') return lifecycle.revoke(id, operator)
   if (action === 'approval-prepare') return lifecycle.prepareApproval(id, operator)
   if (action === 'approval-decide' || action === 'approval-retry') {
-    const approval = action === 'approval-decide' ? await lifecycle.decideApproval(id, operator, body.approved === true, body.signature === undefined ? undefined : hex(body, 'signature', 130)) : agents.approval(id)
+    const approval = action === 'approval-decide' ? await lifecycle.decideApproval(id, operator, body.approved === true, body.signature === undefined ? undefined : hex(body, 'signature', 130)) : lifecycle.recoverApproval(id, operator)
     const agent = agents.owned(approval.agent_id, operator)
     if (approval.status !== 'approved') return { approval }
     const operation = agents.operation(approval.operation_id)

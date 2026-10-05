@@ -125,6 +125,18 @@ export class AgentLifecycle {
     return this.agents.decide(id, operator, true, { allowanceHash: prepared.hash })
   }
 
+  recoverApproval(id: string, operator: Address) {
+    const approval = this.agents.approval(id)
+    this.agents.owned(approval.agent_id, operator)
+    if (approval.status !== 'approved' || approval.kind !== 'hire-over-limit') return approval
+    const operation = this.agents.operation(approval.operation_id)
+    if (operation.sponsor_operation_id !== null || ['sending', 'confirmed', 'failed'].includes(operation.stage)) return approval
+    const decision = JSON.parse(approval.decision_json ?? '{}') as { allowanceHash?: Hex }
+    const current = decision.allowanceHash === undefined ? undefined : this.grants.get(decision.allowanceHash)
+    if (current?.status === 'live' && current.expires_at > this.deps.now()) return approval
+    return this.agents.reopenApproval(id)
+  }
+
   async #disable(wallet: Address, hash: Hex, key: string): Promise<void> {
     const row = this.grants.get(hash)
     if (row === undefined || row.signature === null) return

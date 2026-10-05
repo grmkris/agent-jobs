@@ -8,6 +8,7 @@ import { ensureAgentGrants } from './agent-grant-renewal.ts'
 import { mapAgentCalls, type ApprovedAgentAction } from './agent-call-mapper.ts'
 import { SponsorDesk, type NamedSponsorEntry, type SponsorResult } from './sponsor.ts'
 import type { Sql } from './store.ts'
+import { AgentLifecycle } from './agent-lifecycle.ts'
 
 export interface AgentPreparedCall {
   readonly transactions?: readonly sdk.TxRequest[]
@@ -99,7 +100,8 @@ export class AgentExecutor {
     const agent = this.agents.get(operation.agent_id)
     const request = JSON.parse(approval.request_json) as { token: Address; amount: string }
     const decision = JSON.parse(approval.decision_json ?? '{}') as { allowanceHash: Hex }
-    let spec = this.agents.step<string>(operation.id, 'approved-grant-spec')
+    const step = approval.kind === 'unstake' ? 'approved-grant-spec' : `approved-grant-spec:${decision.allowanceHash}`
+    let spec = this.agents.step<string>(operation.id, step)
     if (spec === undefined) {
       const base = { delegator: agent.address!, salt: BigInt(operation.id), operationId: operation.id, amount: BigInt(request.amount) }
       let template: sdk.GrantSpec
@@ -109,7 +111,7 @@ export class AgentExecutor {
         if (allowance.kind !== 'allowance-once') throw new Error('Approved hire requires an exact one-off allowance')
         template = { ...base, kind: 'agent-approve-once', start: allowance.start, token: request.token }
       }
-      spec = this.agents.freezeStep(operation.id, 'approved-grant-spec', grantSpecJson(template))
+      spec = this.agents.freezeStep(operation.id, step, grantSpecJson(template))
     }
     const prepared = this.grants.prepare(agent.operator, parseGrantSpec(spec))
     await this.grants.confirm(prepared.hash, await this.deps.signing.signGrant(agent.id, prepared.hash))
@@ -165,7 +167,7 @@ export class AgentExecutor {
     }
     let approved: ApprovedAgentAction = {}
     if (operation.stage === 'approval') {
-      const approval = this.agents.approval(operation.id)
+      const approval = new AgentLifecycle({ sql: this.deps.sql, context: this.deps.context, now: this.deps.now, sponsor: this.deps.sponsor }).recoverApproval(operation.id, agent.operator)
       if (approval.status === 'pending') return { status: 'approval', operationId: operation.id, approval }
       if (approval.status === 'rejected') {
         this.agents.saveOperation(operation.id, 'failed', { result: approval })
@@ -188,7 +190,8 @@ export class AgentExecutor {
       this.agents.saveOperation(operation.id, 'confirmed', { result })
       return { status: 'confirmed', operationId: operation.id, result }
     }
-    let entries = this.agents.step<NamedSponsorEntry[]>(operation.id, 'entries')
+    const entriesStep = approved.allowanceHash === undefined ? 'entries' : `entries:${approved.allowanceHash}`
+    let entries = this.agents.step<NamedSponsorEntry[]>(operation.id, entriesStep)
     if (entries === undefined) {
       await ensureAgentGrants(this.deps.context, this.agents, this.grants, this.deps.signing, agent.id, operation.id, this.deps.now())
       const mapped = await mapAgentCalls(this.deps.context, this.grants, { address: agent.address, operator: agent.operator }, transactions, this.deps.now(), approved)
@@ -197,7 +200,7 @@ export class AgentExecutor {
         const approval = this.agents.requestApproval(this.agents.operation(operation.id), 'hire-over-limit', mapped.approval)
         return { status: 'approval', operationId: operation.id, approval }
       }
-      entries = this.agents.freezeStep(operation.id, 'entries', mapped.entries)
+      entries = this.agents.freezeStep(operation.id, entriesStep, mapped.entries)
     }
     const sent = await this.deps.sponsor.submit(agent.address, entries, operation.action_key, operation.id)
     return this.#finish(this.agents.operation(operation.id), agent.address, sent)

@@ -225,4 +225,18 @@ export class AgentStore {
     this.sql.run('UPDATE approvals SET status=?,decision_json=?,decided_at=? WHERE id=?', approved ? 'approved' : 'rejected', canonicalAgentArgs(decision), this.now(), id)
     return this.approval(id)
   }
+
+  reopenApproval(id: string): ApprovalRow {
+    const row = this.approval(id)
+    const operation = this.operation(row.operation_id)
+    if (row.status !== 'approved' || row.kind !== 'hire-over-limit' || operation.sponsor_operation_id !== null || operation.stage === 'sending' || operation.stage === 'confirmed' || operation.stage === 'failed') throw new Error('Only an approved unsent hire can return to review')
+    const decision = JSON.parse(row.decision_json!) as { allowanceHash: Hex }
+    if (this.sql.atomic === undefined) throw new Error('Approval recovery requires atomic storage')
+    this.sql.atomic(() => {
+      this.freezeStep(operation.id, `operator-decision:${decision.allowanceHash}`, { decision, decidedAt: row.decided_at })
+      this.sql.run("UPDATE approvals SET status='pending',decision_json=NULL,decided_at=NULL WHERE id=?", id)
+      this.saveOperation(operation.id, 'approval')
+    })
+    return this.approval(id)
+  }
 }

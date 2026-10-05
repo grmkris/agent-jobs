@@ -13,6 +13,7 @@ import { GrantStore } from './grants.ts'
 import { SponsorDesk } from './sponsor.ts'
 import { mapAgentCalls } from './agent-call-mapper.ts'
 import { ensureAgentGrants } from './agent-grant-renewal.ts'
+import { AgentLifecycle } from './agent-lifecycle.ts'
 
 const suite = forkEnabled ? describe : describe.skip
 const fixtureWallet = (fixture: Awaited<ReturnType<typeof startHirelingFork>>, id: string) => id === 'creator-agent-wallet' ? fixture.contributor : fixture.worker
@@ -194,4 +195,34 @@ suite('agent executor through real contracts', () => {
     expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()).toEqual(count)
     expect(grants.get(allowanceHash)).toMatchObject({ status: 'live', expires_at: now - 2 * 86400 + sdk.ALLOWANCE_VALIDITY })
   }, 120_000)
+
+  it('returns an expired approved unsent hire to review and preserves its operation and publish bytes', async () => {
+    const lifecycle = new AgentLifecycle({ sql: fromNodeSqlite(db), context: ctx, now: () => now, sponsor: bootSponsor() })
+    const input = { agentId: 'creator-agent', boardId: 'public', operationKey: 'expired-approved-hire', tool: 'create_task', args: offer('30', 'Expired approval fixture') }
+    const waiting = await boot().execute(input)
+    expect(waiting.status).toBe('approval')
+    const prepared = lifecycle.prepareApproval(waiting.operationId, fixture.creator.account.address)
+    if (!('hash' in prepared)) throw new Error('Expected an exact hire allowance')
+    await lifecycle.decideApproval(waiting.operationId, fixture.creator.account.address, true, await sdk.signTypedDataJson(fixture.creator, prepared.typedData))
+    const frozen = agents.step(waiting.operationId, 'action')
+    const nonce = await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })
+    await fixture.rpc('evm_setNextBlockTimestamp', [now + sdk.ONE_OFF_VALIDITY + 1])
+    await fixture.rpc('evm_mine')
+    now = Number((await ctx.publicClient.getBlock()).timestamp)
+    const retried = await boot().execute(input)
+    expect(retried.status).toBe('approval')
+    expect(agents.approval(waiting.operationId).status).toBe('pending')
+    expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
+    const renewed = lifecycle.prepareApproval(waiting.operationId, fixture.creator.account.address)
+    if (!('hash' in renewed)) throw new Error('Expected a fresh exact allowance')
+    expect(renewed.hash).not.toBe(prepared.hash)
+    await expect(lifecycle.decideApproval(waiting.operationId, fixture.creator.account.address, true, await sdk.signTypedDataJson(fixture.creator, prepared.typedData))).rejects.toThrow()
+    await lifecycle.decideApproval(waiting.operationId, fixture.creator.account.address, true, await sdk.signTypedDataJson(fixture.creator, renewed.typedData))
+    expect((await boot().execute(input)).status).toBe('confirmed')
+    expect(agents.step(waiting.operationId, 'action')).toEqual(frozen)
+    expect(await sdk.callsMade(ctx, renewed.hash)).toBe(1n)
+    expect(await sdk.callsMade(ctx, prepared.hash)).toBe(0n)
+    expect(agents.step(waiting.operationId, `operator-decision:${prepared.hash}`)).toBeDefined()
+  }, 180_000)
+
 })
