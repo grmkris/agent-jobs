@@ -47,6 +47,7 @@ const typedData = JSON.stringify({
     ],
   },
 });
+const delegationHash = `0x${'d'.repeat(64)}`;
 
 const results = [];
 const errors = [];
@@ -89,7 +90,7 @@ async function fixture(viewport, options = {}) {
     if (url.pathname.endsWith('/api/collect_actions')) return reply({ ok: true, result: state.actions });
     if (url.pathname.endsWith('/api/sponsor_status')) {
       assert.deepEqual(route.request().postDataJSON(), { wallet: me });
-      return reply({ ok: true, result: { status: 'live', typedData, callsUsed: state.callsUsed } });
+      return reply({ ok: true, result: { status: 'live', typedData, delegationHash, callsUsed: state.callsUsed } });
     }
     if (url.pathname.endsWith('/api/sponsor_submit')) {
       const body = route.request().postDataJSON();
@@ -104,11 +105,12 @@ async function fixture(viewport, options = {}) {
       if (state.dropExisting && state.operations.has(id)) state.operations.get(id).status = 'dropped';
       if (!state.operations.has(id)) {
         const n = state.operations.size + 1;
-        state.operations.set(id, { operationId: `0x${n.toString(16).padStart(64, 'a')}`, status: step === 'reverted' ? 'reverted' : 'pending', txHash: `0x${n.toString(16).padStart(64, 'b')}`, callsUsed: (state.callsUsed += body.calls.length) });
+        state.operations.set(id, { operationId: `0x${n.toString(16).padStart(64, 'a')}`, status: step === 'reverted' ? 'reverted' : 'pending', txHash: `0x${n.toString(16).padStart(64, 'b')}`, callsUsed: (state.callsUsed += body.entries.reduce((total, entry) => total + entry.calls.length, 0)) });
       }
       return reply({ ok: true, result: state.operations.get(id) });
     }
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: [], index: { next_block: 100, updated_at: Math.floor(Date.now() / 1000) } });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
@@ -144,7 +146,7 @@ try {
     assert.equal(state.submits.length, 2);
     assert.match(state.submits[0].key, KEY);
     assert.equal(state.submits[1].key, state.submits[0].key);
-    assert.deepEqual(state.submits[0].calls, [{ to: contracts.holding, data: ACTIONS[0].transactions[0].data, value: '0' }]);
+    assert.deepEqual(state.submits[0].entries, [{ grant: delegationHash, calls: [{ to: contracts.holding, data: ACTIONS[0].transactions[0].data, value: '0' }] }]);
     assert.equal(state.operations.size, 1);
     assert.equal(await sends(page), 0);
     await page.getByText('Settle job #72', { exact: true }).waitFor({ state: 'hidden' });

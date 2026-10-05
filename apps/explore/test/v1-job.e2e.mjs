@@ -43,6 +43,7 @@ const delegation = JSON.stringify({
     ],
   },
 });
+const delegationHash = `0x${'d'.repeat(64)}`;
 const results = [];
 const errors = [];
 
@@ -81,6 +82,7 @@ async function fixture(viewport, account, sponsored = false, clocks = {}) {
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (!url.pathname.includes('/api/')) return route.continue();
     const name = url.pathname.replace(/^.*\/api\//, '');
@@ -97,7 +99,7 @@ async function fixture(viewport, account, sponsored = false, clocks = {}) {
     if (name === 'approve_work') return reply({ ok: true, result: { transactions: [tx('Approve and pay', contracts.evaluator, encodeFunctionData({ abi: evaluatorAbi, functionName: 'accept', args: [jobId] }))] } });
     if (name === 'reject_work') return reply({ ok: true, result: { transactions: [tx('Reject', contracts.evaluator, encodeFunctionData({ abi: evaluatorAbi, functionName: 'reject', args: [jobId, 1, keccak256(toHex(body().reason))] }))] } });
     if (name === 'dispute') return reply({ ok: true, result: { transactions: [tx('Dispute the rejection', contracts.evaluator, encodeFunctionData({ abi: evaluatorAbi, functionName: 'dispute', args: [jobId] }))] } });
-    if (sponsored && name === 'sponsor_status') return reply({ ok: true, result: { status: 'live', typedData: delegation, callsUsed: state.submits.length } });
+    if (sponsored && name === 'sponsor_status') return reply({ ok: true, result: { status: 'live', typedData: delegation, delegationHash, callsUsed: state.submits.length } });
     if (sponsored && name === 'sponsor_submit') {
       state.submits.push(body());
       const n = state.submits.length;
@@ -203,9 +205,9 @@ try {
     await page.getByRole('button', { name: 'Send · Hireling pays the gas', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Paid 4.5 mUSD' }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-    assert.deepEqual(state.submits.map((x) => x.calls), [
-      [{ to: contracts.holding, data: encodeFunctionData({ abi: holdingAbi, functionName: 'cancel', args: [80n] }), value: '0' }],
-      [{ to: contracts.evaluator, data: encodeFunctionData({ abi: evaluatorAbi, functionName: 'accept', args: [81n] }), value: '0' }],
+    assert.deepEqual(state.submits.map((x) => x.entries), [
+      [{ grant: delegationHash, calls: [{ to: contracts.holding, data: encodeFunctionData({ abi: holdingAbi, functionName: 'cancel', args: [80n] }), value: '0' }] }],
+      [{ grant: delegationHash, calls: [{ to: contracts.evaluator, data: encodeFunctionData({ abi: evaluatorAbi, functionName: 'accept', args: [81n] }), value: '0' }] }],
     ]);
     assert.notEqual(state.submits[0].key, state.submits[1].key);
     assert.deepEqual(state.reports.map((r) => r.txHash), [`0x${'1'.padStart(64, 'b')}`, `0x${'2'.padStart(64, 'b')}`]);

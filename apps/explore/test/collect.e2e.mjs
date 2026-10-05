@@ -69,6 +69,7 @@ async function fixture(viewport, options = {}) {
       return state.error ? reply({ ok: false, message: 'Fixture board unavailable' }, 503) : reply({ ok: true, result: state.actions });
     }
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: [], index: { next_block: 100, updated_at: Math.floor(Date.now() / 1000) } });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
@@ -91,7 +92,7 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page, state } = await fixture(viewport);
-    await page.goto(base);
+    await page.goto(`${base}/jobs`);
     const nav = viewport.width === 390 ? page.getByRole('navigation', { name: 'Sections' }).last() : page.getByRole('complementary', { name: 'Sections' });
     await nav.getByLabel('3 to collect').waitFor();
     const collectNav = viewport.width === 390 ? null : nav.getByRole('link', { name: /Collect/ });

@@ -17,7 +17,7 @@ export function boardRoutes(boardId = currentBoardId()) {
   const p = (to: string, params: Record<string, string> = {}): LinkTarget => (on ? { to: `/b/$boardId${to === '/' ? '' : to}`, params: { boardId, ...params } } : { to, params })
   return {
     boardId,
-    jobs: () => p('/'),
+    jobs: () => p(on ? '/' : '/jobs'),
     job: (jobId: string) => p('/job/$jobId', { jobId }),
     publish: () => p('/publish'),
     quotes: () => p('/quotes'),

@@ -53,7 +53,7 @@ async function fixture(viewport) {
     }
     if (url.pathname.startsWith('/data/directory/')) return reply({ ok: true, agent: agent(url.pathname.split('/').at(-1)) });
     if (url.pathname.startsWith('/data/agents/')) return reply({ ok: false, code: 'not-found', message: 'fixture has no job history' }, 404);
-    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.includes('/api/')) {
       const name = url.pathname.split('/').at(-1);

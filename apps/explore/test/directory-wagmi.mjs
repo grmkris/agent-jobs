@@ -1,6 +1,6 @@
-import { fixtureAddress, useReadContracts as useFixtureReadContracts } from './wagmi.mjs';
+import { fixtureAddress, useReadContracts as useFixtureReadContracts } from './v1-wagmi.mjs';
 
-export * from './wagmi.mjs';
+export * from './v1-wagmi.mjs';
 
 export const useReadContracts = (options) => {
   const reads = useFixtureReadContracts(options);

@@ -88,6 +88,7 @@ async function fixture(viewport, account = creator) {
       if (state.jobs[detail] === undefined) return reply({ ok: false, code: 'not-found', message: 'No such job' }, 404);
       return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: state.jobs[detail].ruling ?? null, feedback: null });
     }
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (!url.pathname.includes('/api/')) return route.continue();
     const name = url.pathname.replace(/^.*\/api\//, '');

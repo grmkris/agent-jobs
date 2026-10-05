@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
+import { PRODUCTION_CLOCKS } from '../../../packages/sdk/src/deployment.ts';
 
 // The mainnet launch gate (PROD-GATE-006, D16). A mainnet build with MAINNET_LIVE false is reads only: every page that
 // writes says "launching soon" when opened by its URL (also under a board and in the widget), a banner says so on every
@@ -32,7 +33,10 @@ async function serve(port, network, live) {
     if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
   }, transform(source, id) {
     if (live && id.endsWith('/src/release.ts')) return source.replace('export const MAINNET_LIVE = false', 'export const MAINNET_LIVE = true');
-    if (borrowed && id.endsWith('/contracts/config/monad-mainnet.json')) return JSON.stringify({ ...JSON.parse(source), deployment: readConfig('monad-testnet').deployment });
+    if (borrowed && id.endsWith('/contracts/config/monad-mainnet.json')) {
+      const deployment = readConfig('monad-testnet').deployment;
+      return JSON.stringify({ ...JSON.parse(source), deployment: { ...deployment, hireling: { ...deployment.hireling, clocks: PRODUCTION_CLOCKS } } });
+    }
   } }] });
   await server.listen();
   return server;
@@ -58,6 +62,7 @@ async function open(base, chainId, viewport = { width: 390, height: 844 }) {
       return reply({ ok: false, code: 'not-found', message: 'Fixture has nothing here' }, 404);
     }
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: [], index: { next_block: 100, updated_at: Math.floor(Date.now() / 1000) } });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [], next: null });
     return route.continue();
   });

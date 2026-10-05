@@ -60,6 +60,7 @@ async function fixture(viewport, account = creator, options = {}) {
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(v1Jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: Object.keys(v1Jobs).map((id) => offer(id, v1Jobs[id])) });
     if (url.pathname.endsWith('/api/create_task')) {

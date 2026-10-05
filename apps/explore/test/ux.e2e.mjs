@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
@@ -9,6 +9,7 @@ const output = process.argv[2] ?? '/tmp/hireling-ux-evidence';
 const base = 'http://127.0.0.1:5190';
 const creator = '0x1111111111111111111111111111111111111111';
 const token = '0x2222222222222222222222222222222222222222';
+const arbitrator = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.hireling.defaultArbitrator;
 const transactions = ['Approve reward token', 'Approve FACTORY bond', 'Publish job'].map((description, index) => ({ description, chainId: 10143, to: token, data: `0x0${index}`, value: '0' }));
 const now = Math.floor(Date.now() / 1000);
 const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job', creator, approver: creator, mode: 'hire', stack: 'main', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: '0xabcdef', manifestUrl: '/offers/fixture.json', terms: { brief: `Long URL https://example.test/${'long-segment'.repeat(60)}`, acceptanceCriteria: [`Long criterion ${'unbroken'.repeat(60)}`], evidencePolicy: { checks: [] }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } }, deliverable: { accepts: ['url'] }, screening: { verdict: 'ok', reasons: [] }, executionBudget: null, requiredChecks: [], brief: `https://example.test/${'segment'.repeat(100)}`, acceptanceCriteria: ['Readable on a phone'], status: 'completed' };
@@ -16,7 +17,7 @@ const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job
 // test double (privy.mjs, privy-react-auth.mjs) and nothing reaches Privy.
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
 const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5190, strictPort: true }, plugins: [{ name: 'ux-wallet-fixtures', enforce: 'pre', resolveId(source) {
-  if (source === 'wagmi') return `${directory}wagmi.mjs`;
+  if (source === 'wagmi') return `${directory}v1-wagmi.mjs`;
   if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
@@ -28,7 +29,8 @@ const failures = [];
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390, colorScheme: options.dark ? 'dark' : 'light' });
-  await context.addInitScript(({ owner, batch, connected, session }) => {
+  await context.addInitScript(({ owner, batch, connected, session, arbiter }) => {
+    window.__v1 = { arbiter, free: 100n * 10n ** 18n, bonus: 0n, topUp: 0n, quote: [3000, 1500000n, 3500000n] };
     window.__wallet = { sends: JSON.parse(localStorage.getItem('fixture-wallet-sends') ?? '[]'), connected, batch, address: localStorage.getItem('fixture-wallet-address') ?? owner };
     if (!session) {
       // Signed out: the automatic sign-in prompt was already asked (and declined) in this tab.
@@ -37,7 +39,7 @@ async function fixture(viewport, options = {}) {
     }
     if (!localStorage.getItem('agent-jobs.session')) localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     if (!localStorage.getItem('agent-jobs.session-owner')) localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { owner: options.address ?? creator, batch: options.batch ?? false, connected: options.connected ?? true, session: options.session ?? true });
+  }, { owner: options.address ?? creator, batch: options.batch ?? false, connected: options.connected ?? true, session: options.session ?? true, arbiter: arbitrator });
   const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false, signIns: 0 };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -76,7 +78,7 @@ async function fixture(viewport, options = {}) {
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
       : reply({ ok: true, jobs: [{ job_id: '60', status: 'completed', mode: 'hire', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0' }], index: { next_block: 100, updated_at: now } });
     if (url.pathname === '/data/boards') return reply({ ok: true, boards: [] });
-    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 1, completed: 1, agents: 1, paidOut: { [token]: '5000000' }, inEscrow: {} });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 1, completed: 1, agents: 1, activity: { demo: 1, unclassified: 0, independent: null }, accounting: { [token]: { gross: '5000000', fee: '0', net: '5000000', paid: '5000000' } } });
     if (url.pathname.startsWith('/data/jobs/')) return (state.chainError || state.detailError)
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
       : reply({ ok: true, job: { job_id: '60', status: state.jobStatus, mode: 'hire', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', violation: null }, rewards: [{ amount: '5000000', to_worker: 1 }], evidence: [], timeline: [], ruling: null, board: null });
@@ -148,7 +150,7 @@ async function testPublish(viewport, batch = false) {
 
 async function testTokenAmounts() {
   const { context, page } = await fixture({ width: 390, height: 844 }, { tokenDelay: 1500 });
-  await page.goto(base);
+  await page.goto(`${base}/jobs`);
   await page.waitForTimeout(500);
   assert.equal(await page.getByText('0 tokens', { exact: true }).count(), 0);
   await page.getByText('5 OPEN', { exact: true }).waitFor();
@@ -156,11 +158,12 @@ async function testTokenAmounts() {
   await page.getByRole('link', { name: /Wallet fixture job/ }).click();
   await page.getByText('5 OPEN', { exact: true }).first().waitFor();
   await page.getByRole('link', { name: 'Jobs', exact: true }).first().click();
+  await page.waitForURL('**/jobs');
   await page.getByText('5 OPEN', { exact: true }).waitFor();
   results.push({ name: 'token-cold-pending-resolved-list-detail-list', passed: true });
   await context.close();
   const failure = await fixture({ width: 390, height: 844 }, { tokenError: true });
-  await failure.page.goto(base);
+  await failure.page.goto(`${base}/jobs`);
   await failure.page.getByText('Token unavailable', { exact: true }).waitFor();
   assert.equal(await failure.page.getByText('0 tokens', { exact: true }).count(), 0);
   await snap(failure.page, 'mobile', 'token-failure');
@@ -188,7 +191,7 @@ async function testLayout(viewport, dark = false, enlarged = false) {
 
 async function testControls(viewport) {
   const { context, page } = await fixture(viewport, { connected: false });
-  await page.goto(base);
+  await page.goto(`${base}/jobs`);
   const how = page.getByRole('button', { name: 'How it works' });
   await how.click();
   const dialog = page.getByRole('dialog', { name: 'How Hireling works' });
@@ -237,7 +240,7 @@ async function testControls(viewport) {
 
 async function testChainFailure() {
   const { context, page, state } = await fixture({ width: 390, height: 844 }, { chainError: true });
-  await page.goto(base);
+  await page.goto(`${base}/jobs`);
   await page.getByText('Chain jobs are unavailable', { exact: true }).waitFor();
   assert.equal(await page.getByText('Indexing…', { exact: true }).count(), 0);
   assert.match(await page.getByRole('radio', { name: /Done/ }).innerText(), /—/);
@@ -266,6 +269,7 @@ async function testUncertainSend() {
     await page.goto(`${base}/publish?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
     await page.evaluate(() => { window.__wallet.ambiguous = true; });
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
     await page.getByText('Checking the chain…', { exact: true }).waitFor();
@@ -282,6 +286,7 @@ async function testUncertainSend() {
     await page.goto(`${base}/publish?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
     await page.evaluate(() => { window.__wallet.ambiguous = true; window.__wallet.chainDown = true; });
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
     await page.getByRole('button', { name: 'Check the chain again' }).waitFor({ timeout: 30000 });
@@ -302,6 +307,7 @@ async function testUncertainSend() {
     await page.goto(`${base}/publish?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
     await page.evaluate(() => { window.__wallet.ambiguous = true; window.__wallet.chainDown = true; });
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
     await page.getByText('Checking the chain…', { exact: true }).waitFor();
@@ -318,6 +324,7 @@ async function testUncertainSend() {
     await page.goto(`${base}/publish?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
+    await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
     await page.evaluate(() => { window.__wallet.dropped = true; });
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
     await page.getByRole('button', { name: 'Try again' }).waitFor({ timeout: 20000 });
@@ -523,7 +530,7 @@ async function testChainDetailFailureWithBoardData() {
 
 async function testLongToken() {
   const { context, page } = await fixture({ width: 390, height: 844 }, { tokenSymbol: 'LONG'.repeat(30), tokenDecimals: 0 });
-  await page.goto(base);
+  await page.goto(`${base}/jobs`);
   await page.getByText(`5,000,000 ${'LONG'.repeat(30)}`, { exact: true }).waitFor();
   await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
   const bounds = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth, outside: [...document.querySelectorAll('body *')].filter((element) => element.getBoundingClientRect().right > document.documentElement.clientWidth).map((element) => ({ tag: element.tagName, className: element.className, text: element.textContent?.slice(0, 80), right: element.getBoundingClientRect().right })) }));
@@ -535,7 +542,9 @@ async function testLongToken() {
 
 try {
   // One case by name (`node test/ux.e2e.mjs <dir> uncertain-send`), or all of them.
-  const only = { 'long-token': testLongToken, 'uncertain-send': testUncertainSend, 'signed-out-settle': testSignedOutSettle }[process.argv[3] ?? ''];
+  const only = { 'long-token': testLongToken, 'uncertain-send': testUncertainSend, 'signed-out-settle': testSignedOutSettle, 'new-publish-owner': testNewPublishOwner,
+    'conflicting-actions': testConflictingActions, 'frozen-recovery': testFrozenRecovery, 'frozen-prefill': testFrozenPrefill,
+    'stale-board-detail': testStaleBoardDetail, 'chain-detail-failure': testChainDetailFailureWithBoardData }[process.argv[3] ?? ''];
   if (only !== undefined) {
     await only();
   } else {

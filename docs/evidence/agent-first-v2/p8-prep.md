@@ -32,3 +32,19 @@ browser and MCP acceptance remain separate checks after Claude's release.
 `pnpm dlx node@24` reported v24.21.0 for both its process and a `node` child. The
 system executable was preserved. Exact coordinator invocations are documented
 in the staging release runbook.
+
+All fifteen existing local Chromium suites passed through `heavy`, serially:
+`admin`, `collect`, `directory`, `hire-again`, `launch`, `live-ui-plan`,
+`mainnet-empty`, `onboarding`, `publish-v1`, `selection`, `sponsored`, `stake`,
+`ux`, `v1-flows` and `v1-job`. Logs and screenshots are retained locally under
+`/tmp/hireling-p8-browser/`. Each suite closed its browser and local Vite server.
+
+These results are mocked-browser coverage (the UI-plan suite uses local DOM),
+separate from deployed fixture acceptance. Fixtures now supply current stats,
+v1 reads and grant-keyed sponsor entries. The UX run found a real public Jobs
+backlink still targeting the landing page; the shared route helper now returns
+`/jobs`, and the list-detail-list click assertion verifies the fix. Uncertain-send
+fault injection waits for the wallet prompt before taking the fixture RPC down.
+
+`heavy pnpm check` passed after the browser and navigation changes. The mining
+unit suite reported 47 pass, one fork test skipped without its RPC opt-in.

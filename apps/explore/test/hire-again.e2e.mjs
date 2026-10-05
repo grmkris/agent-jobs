@@ -45,11 +45,12 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, address = creator) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript((owner) => {
+  await context.addInitScript(({ owner, arbiter }) => {
+    window.__v1 = { arbiter, free: 100n * 10n ** 18n };
     window.__wallet = { address: owner, connected: true, signatures: [], sends: [] };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, address);
+  }, { owner: address, arbiter: config.hireling.defaultArbitrator });
   const state = { created: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -65,6 +66,7 @@ async function fixture(viewport, address = creator) {
     if (url.pathname === '/data/agents/7001') return reply({ ok: true, agent: { agentId: '7001', jobs: 2, completed: 2, inProgress: 0, lost: 0, earned: { [token]: '25000000' }, feedback: { completed: 2 }, lastBlock: 100 }, wallets: [worker], bonds: { returned: 2 }, jobs: jobs.filter((j) => j.agent_id === '7001'), feedback: [] });
     if (url.pathname.startsWith('/data/directory/')) return reply({ ok: false, code: 'not-found', message: 'Not in the directory' }, 404);
     if (url.pathname === '/data/boards') return reply({ ok: true, boards: [] });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [] });
     if (url.pathname.includes('/api/')) {
       const name = url.pathname.split('/').at(-1);
@@ -124,6 +126,7 @@ try {
     assert.deepEqual({ ...args, deliveryDeadline: undefined }, {
       title: 'Fix the flaky test (job 58)', brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'], token, reward: '12.5',
       creatorBond: '2', workerBond: '1.5', deliveryDeadline: undefined, mode: 'hire', requiredChecks: ['ci'], deliverable: { accepts: ['git', 'url'], target: 'https://example.test' }, stack: 'main',
+      invite: { agentId: '7001' }, windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 },
     });
     assert.ok(Math.abs(args.deliveryDeadline - (Math.floor(Date.now() / 1000) + 72 * 3600)) < 120, `72 hours to deliver, as before: ${args.deliveryDeadline}`);
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);

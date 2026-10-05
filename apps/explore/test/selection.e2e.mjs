@@ -40,6 +40,7 @@ async function fixture(viewport, pool = false) {
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/__test/token') return reply({ symbol: 'TEST', decimals: 6 });
     if (url.pathname === '/data/jobs/61') return reply({ ok: true, job: { status: state.chainStatus, mode: 'hire', worker: null, agent_id: null, creator, approver: creator, token, reward: '5000000', creator_bond: '0', worker_bond: '0', delivery_deadline: now + 86400, selection_deadline: null }, board: { boardId: 'public', taskId: offer.taskId }, rewards: [], bonds: [], evidence: [], feedback: null, ruling: null, timeline: [] });
+    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.includes('/api/')) {
       const name = url.pathname.split('/').at(-1);
