@@ -7,6 +7,12 @@ import { type AsyncSql, type Statement, stmt } from '@agent-jobs/indexer'
 /** D9: release configuration, not Worker bindings. Kris supplies the real public handles. */
 const PUBLIC_CHANNEL_BY_NETWORK: Record<Network, string> = { 'monad-testnet': '', 'monad-mainnet': '' }
 export const telegramPublicChannel = (network: Network): string => PUBLIC_CHANNEL_BY_NETWORK[network]
+/** Release configuration: wallets whose linked Telegram chats receive operator alerts (relay balance). Kris links once at /telegram. */
+const OWNER_WALLETS_BY_NETWORK: Record<Network, readonly string[]> = {
+  'monad-testnet': ['0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471'],
+  'monad-mainnet': ['0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471'],
+}
+export const telegramOwnerWallets = (network: Network): readonly string[] => OWNER_WALLETS_BY_NETWORK[network]
 export const telegramSite = (network: Network): string => network === 'monad-mainnet' ? 'https://hireling.xyz' : 'https://testnet.hireling.xyz'
 export const telegramChainId = (network: Network) => network === 'monad-mainnet' ? 143 : 10143
 const chainIdOf = telegramChainId

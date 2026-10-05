@@ -12,6 +12,7 @@ import { rpcUrlForNetwork } from '../../api/src/network.ts'
 import { runtimeSecret } from '../../api/src/prod-config.ts'
 import { queueTelegramNotifications } from '../../api/src/telegram-notifications.ts'
 import { drainTelegramOutbox, migrateTelegram, telegramTransport } from '../../api/src/telegram.ts'
+import { watchRelay } from '../../api/src/relay-watch.ts'
 
 const secret = (name: string) =>
   Config.Redacted(name).pipe(Effect.map((v) => (Redacted.value(v) === 'unset' ? '' : Redacted.value(v))))
@@ -89,6 +90,9 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
               return Number(await client.readContract({ address: pair.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }))
             } })
             allowSilence = !notifications.stale
+            // Owner alert when the sponsorship relay nears its floor; never fails the indexing run.
+            await watchRelay(sql, { network, now, relay: deployment.relay, balance: () => client.getBalance({ address: deployment.relay }) })
+              .catch(error => console.error(JSON.stringify({ event: 'relay-watch-failed', message: error instanceof Error ? error.message : String(error) })))
           }
           return result
         } finally {
