@@ -8,6 +8,7 @@ import { budgetOf, epochWindowOf, firstBlockAtOrAfter } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues, treasuryOwed, type FeeCharged, type OwedWithdrawn, type PayoutOwed } from './compute.ts'
 import { parsePriceList, priceListDomain, PRICE_LIST_TYPES, recoverPriceListSigner, typedMessage, type PriceList } from './prices.ts'
 import { buildTree, leafHash, proofOf, verifyProof, type LeafValue } from './tree.ts'
+import { cumulativeBudget, replayLots, scheduledLot } from './lots.ts'
 import { privateKeyToAccount, type Address, type Hex, type PublicClient } from './viem.ts'
 
 // Run: bun test scripts/mining
@@ -214,8 +215,8 @@ test('the price list file refuses duplicates, zero prices and bad decimals', () 
 const reserveAt = (finalized: bigint, latest: bigint, funded: { epoch: bigint; amount: bigint }[]) => {
   let scans = 0
   const c = {
-    readContract: async ({ functionName, blockNumber }: { functionName: string; blockNumber?: bigint }) =>
-      functionName === 'cumulativeBudget' ? factory(4_000_000) : blockNumber === undefined ? latest : finalized,
+    readContract: async ({ functionName, blockNumber, args }: { functionName: string; blockNumber?: bigint; args?: [bigint] }) =>
+      functionName === 'cumulativeBudget' ? cumulativeBudget(args?.[0] ?? 0n) : blockNumber === undefined ? latest : finalized,
     getLogs: async () => {
       scans++
       return funded.map(f => ({ args: { epoch: f.epoch, amount: f.amount, totalFunded: 0n } }))
@@ -234,10 +235,24 @@ test('B8-SEC-004: a funding transaction that is not final yet refuses, so fund i
 test('the budget is the cumulative cap less earlier epochs; what this epoch has is reported apart', async () => {
   const funded = reserveAt(factory(10), factory(10), [{ epoch: 0n, amount: factory(4) }, { epoch: 1n, amount: factory(6) }])
   const b = await budgetOf(funded.c, a(1), 1n, 1n, 100n, 1000n)
-  expect([b.fundedBefore, b.fundedThis, b.totalFunded, b.available]).toEqual([factory(4), factory(6), factory(10), factory(4_000_000 - 4)])
+  expect([b.fundedBefore, b.fundedThis, b.totalFunded, b.available]).toEqual([factory(4), factory(6), factory(10), cumulativeBudget(1n) - factory(4)])
   const fresh = reserveAt(0n, 0n, [])
-  expect((await budgetOf(fresh.c, a(1), 0n, 1n, 100n, 1000n)).available).toBe(factory(4_000_000))
+  expect((await budgetOf(fresh.c, a(1), 0n, 1n, 100n, 1000n)).available).toBe(scheduledLot(0n))
   expect(fresh.scans()).toBe(0)
+})
+
+test('note 17 lots roll over four epochs, expire oldest first and halve at epoch 27', () => {
+  expect(scheduledLot(0n)).toBe(cumulativeBudget(0n))
+  expect(scheduledLot(1n)).toBe(cumulativeBudget(1n) - cumulativeBudget(0n))
+  expect(scheduledLot(27n)).toBe(scheduledLot(1n) / 2n)
+  const first = scheduledLot(0n), second = scheduledLot(1n)
+  const replay = replayLots(4n, [{ epoch: 0n, amount: first - 10n }, { epoch: 1n, amount: second }])
+  expect(replay.expired).toEqual([])
+  expect(replay.usable.find(lot => lot.epoch === 0n)?.remaining).toBe(0n)
+  expect(replay.usable.find(lot => lot.epoch === 1n)?.remaining).toBe(10n)
+  const expired = replayLots(5n, [{ epoch: 0n, amount: first - 10n }])
+  expect(expired.expired.find(lot => lot.epoch === 0n)?.remaining).toBe(10n)
+  expect(expired.usable.some(lot => lot.epoch === 0n)).toBe(false)
 })
 
 // KEYSTORE-SEC-003: a keystore password file is checked before any signer starts.

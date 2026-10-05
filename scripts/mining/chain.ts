@@ -1,5 +1,6 @@
 import { createPublicClient, http, parseAbi, parseAbiItem, type Address, type Hex, type PublicClient } from './viem.ts'
 import type { FeeCharged, OwedWithdrawn, PayoutOwed } from './compute.ts'
+import { cumulativeBudget as scheduledBudget, replayLots, type EpochFunding } from './lots.ts'
 
 export const holdingEvents = [
   parseAbiItem('event FeeCharged(uint256 indexed jobId, address indexed token, address indexed worker, address creator, uint256 amount, uint256 bonusPart)'),
@@ -85,30 +86,29 @@ export async function holdingLogs(c: PublicClient, holdings: Address[], from: bi
 }
 
 /**
- * `cumulativeBudget(n)` less what was funded for earlier epochs (EpochFunded logs), and what epoch n already has, all
+ * Replay four-epoch lots from EpochFunded logs, and report what epoch n already has, all
  * at the finalized `head`. `fund` adds to what is there, so a funding transaction that is mined but not yet final would
  * otherwise be missed and funded twice (B8-SEC-004): refuse until `totalFunded` agrees at latest and at `head`, and
  * until the logs add up to it.
  */
 export async function budgetOf(c: PublicClient, reserve: Address, epoch: bigint, deployBlock: bigint, head: bigint, page: bigint) {
   const cumulativeBudget = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'cumulativeBudget', args: [epoch] })
+  if (cumulativeBudget !== scheduledBudget(epoch)) throw new Error('deployed mining schedule differs from note 17')
   const totalFunded = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'totalFunded', blockNumber: head })
   const totalFundedLatest = await c.readContract({ address: reserve, abi: reserveAbi, functionName: 'totalFunded' })
   if (totalFundedLatest !== totalFunded) throw new Error('a MiningReserve funding transaction is not final yet; wait for finality and run again')
-  let fundedBefore = 0n
-  let fundedThis = 0n
+  const funding: EpochFunding[] = []
   if (totalFunded > 0n) {
     let sum = 0n
     const logs = await pagedLogs(deployBlock, head, page, (fromBlock, toBlock) => c.getLogs({ address: reserve, event: epochFunded, fromBlock, toBlock, strict: true }))
     for (const log of logs) {
       sum += log.args.amount
-      if (log.args.epoch < epoch) fundedBefore += log.args.amount
-      else if (log.args.epoch === epoch) fundedThis += log.args.amount
+      funding.push({ epoch: log.args.epoch, amount: log.args.amount })
     }
     if (sum !== totalFunded) throw new Error(`the EpochFunded logs add up to ${sum}, but totalFunded() is ${totalFunded} at block ${head}`)
   }
-  const available = cumulativeBudget > fundedBefore ? cumulativeBudget - fundedBefore : 0n
-  return { cumulativeBudget, fundedBefore, fundedThis, totalFunded, available }
+  const replay = replayLots(epoch, funding)
+  return { cumulativeBudget, totalFunded, ...replay }
 }
 
 export async function safeOwners(c: PublicClient, safe: Address): Promise<Address[]> {

@@ -64,8 +64,11 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
      balance, so any later `OwedWithdrawn` to the same address and token clears it.
 5. **Fee value.** `fee USD = amount × usdPrice ÷ 10^decimals`, 18 decimals, rounded down.
 6. **Emission.** `min(budget, 0.5 × Σ fee USD ÷ max(factoryUsdPrice, 10^14))`, in FACTORY wei. `10^14` is $0.0001.
-7. **Budget.** `MiningReserve.cumulativeBudget(n)` minus everything already funded for earlier epochs: the sum of
-   `EpochFunded(epoch < n)` logs. Unspent budget rolls over. Run epochs in order.
+7. **Budget.** Each scheduled epoch budget is one lot. Replay `EpochFunded(epoch < n)` oldest-first against the
+   unspent lots of that epoch and its four predecessors. Only lots `n-4..n` remain usable; older balances expire
+   permanently in the reserve and never become a new lot. Epoch 0 gets `3W/7`, epochs 1–26 get `W`, and epoch 27
+   starts halving every 26 epochs, capped at the 500M reserve. The tool verifies the deployed cumulative schedule.
+   Run epochs in order; funding after a later epoch or funding beyond live lots refuses.
    - The tool refuses while `totalFunded()` differs between latest and the finalized head (a funding transaction not
      yet final), and when the logs don't add up to it.
    - `fund` adds to what is already there, so the printed call is only right while `totalFunded()` is what the run
@@ -163,7 +166,7 @@ Integers are decimal strings, and addresses are lowercase.
   `EpochDistributor.claim(epoch, account, amount, proof)`.
 - **`calls`** are for the Safe, in this order:
   1. `calls.fund`, present only while the epoch still needs funding. It is `MiningReserve.fund(n, amount)`, where
-     `amount` is the remainder (`total` minus what `n` already has), not `total`. Its `expect` records `totalFunded()`
+     `amount` is the remainder (`emission` minus what `n` already has), including any leaf-rounding dust. Its `expect` records `totalFunded()`
      and the epoch's funded amount as this run read them.
   2. `calls.setRoot`: `EpochDistributor.setRoot(n, root, total, dataHash)`.
 

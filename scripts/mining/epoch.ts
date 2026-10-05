@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { deploymentFromConfig, type DeploymentConfig, type Network } from '../../packages/sdk/src/deployment.ts'
 import { budgetOf, client, decimalsOf, distributorAbi, epochWindowOf, firstBlockAtOrAfter, holdingLogs, reserveAbi, safeOwners } from './chain.ts'
 import { computeEpoch, dataHashOf, leafValues } from './compute.ts'
+import { fundingRemainder } from './lots.ts'
 import { parsePriceList, recoverPriceListSigner, type PriceListFile } from './prices.ts'
 import { buildTree, proofOf } from './tree.ts'
 import { encodeFunctionData, getAddress, type Address, type Hex } from './viem.ts'
@@ -74,6 +75,7 @@ async function main() {
   const budget = await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
 
   const r = computeEpoch({ ...logs, prices, budget: budget.available })
+  const toFund = fundingRemainder(r.emission, budget.fundedThis)
   const window = { start: s(start), end: s(end), fromBlock: s(fromBlock), toBlock: s(toBlock), toBlockHash }
   const priceList = {
     message: { epoch: s(prices.epoch), tokens: prices.tokens.map(t => ({ token: t.token, decimals: t.decimals, usdPrice: s(t.usdPrice) })), factoryUsdPrice: s(prices.factoryUsdPrice) },
@@ -86,7 +88,11 @@ async function main() {
     window,
     holdings: uniqueHoldings,
     priceList,
-    budget: { cumulativeBudget: s(budget.cumulativeBudget), fundedBefore: s(budget.fundedBefore), available: s(budget.available) },
+    budget: {
+      cumulativeBudget: s(budget.cumulativeBudget), fundedBefore: s(budget.fundedBefore), available: s(budget.available),
+      usable: budget.usable.map(lot => ({ epoch: s(lot.epoch), scheduled: s(lot.scheduled), remaining: s(lot.remaining) })),
+      expired: budget.expired.map(lot => ({ epoch: s(lot.epoch), scheduled: s(lot.scheduled), remaining: s(lot.remaining) })),
+    },
     fees: r.fees.map(({ fee: f, status, usd }) => ({
       block: s(f.block), logIndex: f.logIndex, tx: f.tx.toLowerCase(), holding: f.holding,
       jobId: s(f.jobId), token: f.token, worker: f.worker, creator: f.creator, amount: s(f.amount), status, usd: s(usd),
@@ -102,7 +108,6 @@ async function main() {
     tree = buildTree(leafValues(epoch, r.leaves))
     root = tree.tree[0]!
     tree.values.forEach((v, i) => { claims[v.value[1]] = { amount: v.value[2], proof: proofOf(tree!, i) } })
-    const toFund = r.total > budget.fundedThis ? r.total - budget.fundedThis : 0n
     // fund adds to what is there: it is right only while totalFunded() is still what this run read (B8-SEC-004).
     if (toFund > 0n) {
       calls.fund = {
@@ -133,7 +138,7 @@ async function main() {
   if (budget.fundedThis > 0n) console.log(`  epoch ${epoch} already has ${budget.fundedThis} funded; fund adds only the rest`)
   for (const [name, call] of Object.entries(calls)) console.log(`  Safe call ${name}: to ${getAddress(call.to)} data ${call.data}`)
   if (calls.fund !== undefined) {
-    console.log(`  fund adds ${r.total - budget.fundedThis}: send it only while MiningReserve.totalFunded() is ${budget.totalFunded} (epoch ${epoch} has ${budget.fundedThis}); if it moved, run this again`)
+    console.log(`  fund adds ${r.emission - budget.fundedThis}: send it only while MiningReserve.totalFunded() is ${budget.totalFunded} (epoch ${epoch} has ${budget.fundedThis}); if it moved, run this again`)
   }
   console.log(`wrote ${path}`)
 }
