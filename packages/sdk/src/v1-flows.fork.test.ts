@@ -1,7 +1,7 @@
 import { parseAbi, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
-import { getStake, registerAgent, delegate } from './actions.ts'
+import { registerAgent, delegate } from './actions.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 import { FlowWaiting, V1_CORE_FLOWS, runV1CoreFlow } from './v1-flows.ts'
 import { coreAbi, factoryTokenAbi, hirelingHoldingAbi } from './abi/index.ts'
@@ -171,9 +171,9 @@ fork('live matrix runner against real v1 bytecode', () => {
     const snapshot = await f.rpc('evm_snapshot')
     try {
       const token = await f.deploy('BlocklistUSD', [f.admin.account.address], 'OddTokens')
-      const scope = 'owed-interleaved', originalStake = (await getStake(f.ctx, f.worker.account.address)).staked
+      const scope = 'owed-interleaved', originalStake = (await getBacking(f.ctx, f.worker.account.address)).active
       // Reproduce an old journal's stale global baseline; the runner must preserve it, not rewrite history.
-      const before = { creatorReward: 0n, workerReward: 0n, creatorStake: (await getStake(f.ctx, f.creator.account.address)).staked, workerStake: originalStake }
+      const before = { creatorReward: 0n, workerReward: 0n, creatorStake: (await getBacking(f.ctx, f.creator.account.address)).active, workerStake: originalStake }
       let durable: FlowState = { binding: 'odd-interleaved', values: { [`${scope}/before`]: before }, sends: {} }, interrupt = false
       const boot = () => new FlowJournal(f.ctx, parseFlowJson(flowJson(durable)), state => {
         durable = parseFlowJson(flowJson(state))
@@ -188,7 +188,7 @@ fork('live matrix runner against real v1 bytecode', () => {
       expect(durable.sends[`${scope}/publish`]).toBeUndefined()
       await f.send(token, parseAbi(['function mint(address,uint256)']), 'mint', [f.creator.account.address, 1000n])
       for (const flow of ['violation', 'missed'] as const) await runV1CoreFlow({ ...base, token: f.ctx.stack.factory, journal: boot() }, flow)
-      expect((await getStake(f.ctx, f.worker.account.address)).staked).toBe(originalStake - 2n * base.bond)
+      expect((await getBacking(f.ctx, f.worker.account.address)).active).toBe(originalStake - 2n * base.bond)
       interrupt = true
       await expect(runV1CoreFlow({ ...odd, journal: boot() }, 'hire', scope)).rejects.toThrow('crash after settlement receipt')
       const settleHash = durable.sends[`${scope}/settle`]!.hash
@@ -199,7 +199,7 @@ fork('live matrix runner against real v1 bytecode', () => {
       expect(durable.values[`${scope}/done`]).toBe(true)
       expect(durable.values[`${scope}/before`]).toEqual(before)
       expect(durable.sends[`${scope}/settle`]!.hash).toBe(settleHash)
-      expect((await getStake(f.ctx, f.worker.account.address)).staked).toBe(originalStake - 2n * base.bond)
+      expect((await getBacking(f.ctx, f.worker.account.address)).active).toBe(originalStake - 2n * base.bond)
       expect(await f.ctx.publicClient.readContract({ address: token, abi: factoryTokenAbi, functionName: 'balanceOf', args: [f.worker.account.address] })).toBe(credit)
       const nonces = await Promise.all([f.creator, f.worker, f.admin, f.contributor].map(w => f.ctx.publicClient.getTransactionCount({ address: w.account.address })))
       await runV1CoreFlow({ ...odd, journal: boot() }, 'hire', scope)

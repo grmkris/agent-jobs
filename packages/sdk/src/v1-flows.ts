@@ -54,10 +54,10 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     const amount = parseUnits('1', 18)
     const shares = await j.once(`${scope}/shares`, () => sdk.undelegationShares(ctx, worker.account.address, worker.account.address, amount))
     await call('request-unstake', worker, h.vault, sdk.stakeVaultAbi, 'requestUndelegate', [worker.account.address, shares])
-    const unlock = await j.once(`${scope}/unlock`, async () => (await sdk.getStake(ctx, worker.account.address)).unlockAt)
+    const unlock = await j.once(`${scope}/unlock`, async () => (await sdk.getPosition(ctx, worker.account.address, worker.account.address)).unlockAt)
     await d.waitUntil(flow, unlock)
     await call('withdraw', worker, h.vault, sdk.stakeVaultAbi, 'withdraw', [worker.account.address])
-    check('cooldown amount withdrawn', (await sdk.getStake(ctx, worker.account.address)).unstaking, 0n)
+    check('cooldown amount withdrawn', (await sdk.getPosition(ctx, worker.account.address, worker.account.address)).queuedShares, 0n)
   } else if (flow.startsWith('legacy-')) {
     const pair = Object.values(ctx.deployment.legacyStacks).find(p => p.kind === 'legacy' && p.openTokens)
     if (pair === undefined) throw new Error(`${flow}: no configured legacy open-token pair`)
@@ -80,7 +80,7 @@ export async function runV1CoreFlow(d: V1FlowDeps, flow: V1CoreFlow, scope = flo
     if (oldJob.statusName !== 'Completed' && !(await sdk.getListing(legacy, x.jobId)).rewardSettled) await settle(x.jobId, legacy)
   } else {
     if (flow === 'fees') {
-      const { tiers, staked } = await j.once(`${scope}/tier-input`, async () => ({ tiers: await ctx.publicClient.readContract({ address: h.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'schedule' }), staked: (await sdk.getStake(ctx, worker.account.address)).staked }))
+      const { tiers, staked } = await j.once(`${scope}/tier-input`, async () => ({ tiers: await ctx.publicClient.readContract({ address: h.feeSchedule, abi: sdk.feeScheduleAbi, functionName: 'schedule' }), staked: (await sdk.getBacking(ctx, worker.account.address)).active }))
       if (staked >= tiers.thresholds[1]) throw new Error('fees needs a worker below the second fee tier; use a fresh journal/wallet')
       // One completed job below the threshold; the second snapshots the new tier after stake increases.
       await runV1CoreFlow(d, 'hire', `${scope}/low`)
