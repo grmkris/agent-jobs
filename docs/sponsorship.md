@@ -22,6 +22,12 @@ account and calldata pinned, one call and 600-second expiry. The routine signer
 signs only after verifying that exact decision. Operator-funded positions are
 outside agent exits and sweeps.
 
+Managed-agent exits and earnings sweeps now require Hireling's hosted API and the
+relay: Explore's browser emergency recovery (Privy owner + plain RPC) was removed on
+6 Oct 2026. During an API or relay outage, funds and permissions stay at their
+recorded on-chain addresses until service returns; nothing moves them in the
+meantime. See the ADR-0013 amendment.
+
 Active backing sets the tier and supports new bonds. Queueing is allowed while
 bonded, stops the queued shares counting immediately and restarts the whole
 queue's cooldown (600 seconds on testnet, seven days in production). All shares
@@ -41,8 +47,7 @@ call and ten-minute expiry.
 Agent B1 covers D15 plus publish and delegation redemption/disable; B2 approves
 known reward tokens to Holding (FACTORY is excluded); B3 transfers configured
 tokens, including FACTORY, only to the operator. The browser always uses the
-operator wallet. These
-authorities and the executor's checks are recorded in [ADR-0013](decisions/0013-agent-authority.md).
+operator wallet. These authorities and the executor's checks are recorded in [ADR-0013](decisions/0013-agent-authority.md).
 
 Within the permitted methods, a compromised relay could still accept, reject, dispute, cancel or settle jobs as the
 user until the delegation expires or the user disables it on-chain. The wallet reviews the actual typed-data

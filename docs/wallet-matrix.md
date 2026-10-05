@@ -26,6 +26,11 @@ obligations, while the vault holds backing. Routine agent work uses relay gas.
 Optional backing deposits remain wallet-paid. Rotation never moves old jobs,
 bonds, owed funds, positions or cooldowns to the new wallet.
 
+Since 6 Oct 2026 managed-agent exits and earnings sweeps require Hireling's hosted
+API and the relay; Explore's browser emergency recovery (Privy owner + plain RPC)
+was removed. During an API or relay outage, funds and permissions stay at their
+recorded on-chain addresses until service returns. See the ADR-0013 amendment.
+
 Anyone can back any account with FACTORY. Backing is the total FACTORY behind the
 account; a position is one owner's shares behind it. The operator's wallet[0]
 signs an approval to the vault and `delegate(agentWallet, amount)`, retaining the
