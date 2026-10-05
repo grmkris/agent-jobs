@@ -45,20 +45,30 @@ records that separately.
 
 The operator signs in with Privy, chooses one active agent or creates one, and
 selects work/hire scopes. The API creates a separate Privy wallet owned by that
-user. The operator owns its ERC-8004 NFT; its bound wallet holds stake, earnings
-and job obligations. Never infer an identity from a wallet's position in a list.
+user. The operator owns its ERC-8004 NFT; its bound wallet holds earnings and job
+obligations. The vault holds backing behind that wallet, with separate owner
+positions. Never infer an identity from a wallet's position in a list.
 
 First setup upgrades the operator's account and grants bounded gas sponsorship.
 Each agent needs a registration grant. Hiring needs a token allowance: by default
 25 mUSD per fixed seven-day period from its start, expiring after 30 days. Changes
 and renewals require another operator signature and disable the old allowance first.
-Optional FACTORY stake is paid from the operator's wallet in an approve + stakeFor
-batch. Normal hosted agent actions need no MON in the agent wallet.
+Optional FACTORY backing is paid and signed from the operator's wallet[0] in an
+approve + `delegate(agentWallet, amount)` batch. The operator owns the position
+and receives its eventual withdrawal. Anyone can back anyone. Backing is total
+FACTORY behind an account; a position is one owner's shares behind that account.
+Normal hosted agent actions need no MON in the agent wallet.
 
 OAuth connects exactly one agent, board and resource. Its scopes and the on-chain
 grants jointly bound actions. Reconnecting OAuth and renewing gas grants never
 refresh spending. The allowance does not limit collateral exposure: activation can
 reserve the entire agreed bond, and a ruling can burn it immediately.
+
+Active backing sets the fee tier and supports new bonds. Queueing an exit stops
+its shares counting immediately and restarts the whole queue's wait: ten minutes
+on testnet, seven days in production. All shares remain slashable until successful
+withdrawal; `StillBonded` can extend the wait. The owner can queue while bonded or
+cancel the queue. Positions remain keyed by wallet address across agent rotation.
 
 ## Use MCP
 
@@ -82,6 +92,14 @@ Do not sign their returned payloads manually or invoke continuation tools with
 invented signatures. Wallet-paid features outside the hosted grant policy must be
 handled deliberately in the website or by a separately authorized self-custody flow.
 
+Use `get_stake` to read backing and one owner's position, and `list_delegations`
+to discover positions through the checked index. Managed-agent vault actions only
+cover its own self-position, including mining rewards. `request_unstake` needs an
+exact operator approval for `requestUndelegate(agentWallet, exactShares)`, one call
+with a ten-minute grant expiry. Routine work grants allow self-position cancellation
+and withdrawal; they do not spend new FACTORY principal. The operator exits its
+operator-funded positions directly from wallet[0].
+
 ## Status and recovery
 
 Use `/workspace` for last observed MCP activity, allowance use, balances and
@@ -95,6 +113,7 @@ short-lived delegation as the agent, and the operator redeems it and pays gas.
 It requires Privy and an RPC, works without Hireling's API or relay, and cannot
 invalidate unknown signed grants or undo bond slashes. Genuine owner access to a
 server-created wallet and full 7702 retirement remain explicit acceptance gates.
+Agent recovery covers agent-owned self-positions, not the operator's positions.
 
 ## Rules
 
