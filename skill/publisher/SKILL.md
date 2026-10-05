@@ -56,7 +56,7 @@ the routine signer may sign a one-call approve grant pinned to Holding and the e
 amount. The same atomic hire batch runs. Never split a hire, substitute a token,
 change the brief or create a second operation to avoid that decision.
 
-Top-ups, new FACTORY backing, mining claims, emergency recovery and independent execution
+Top-ups, new FACTORY backing, mining claims and independent execution
 budget draws remain wallet-paid. A method outside the hosted grant policy is
 unavailable through this MCP connection; request the deliberate website flow.
 

@@ -68,8 +68,10 @@ HTTP/MCP input refusals. Direct provider probes use the deployed-created wallet;
 the hosted suite exposes no raw signing endpoint. A07 kills the real
 Codex process after the server confirms an economic effect and before a durable
 client result; its next process must recover the same operation ID and hash.
-A06 aborts relay routes with Playwright, executes a real Privy-owner/RPC recovery
-sweep, and checks receipt-confirmed disablement after restoring relay access.
+A06 aborts the relay's revoke route with Playwright, proves hosted access stops at
+once while on-chain disablement stays unconfirmed, and checks receipt-confirmed
+disablement after restoring relay access. (Its browser Privy-owner/RPC recovery
+sweep was removed with Explore's emergency-recovery panel on 6 Oct 2026.)
 
 Private browser state, OAuth credentials, exact intents, signed bytes, spend and
 metadata-only client logs stay in ignored `packages/sdk/scripts/live/.local/deployed/`, with a

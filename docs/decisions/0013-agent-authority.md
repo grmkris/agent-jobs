@@ -56,3 +56,9 @@ address when the agent rotates. See [ADR-0014](0014-delegated-stake.md).
 
 An approval is not acceptance of paid work. Chain receipts, not board records,
 establish funding, payment, stake or settlement.
+
+**Amendment, 6 Oct 2026.** Explore's browser emergency recovery (the owner signing a fresh short-lived grant as the
+agent in Privy, the operator redeeming it over plain RPC without Hireling's API or relay) was removed in the Explore
+redesign. Agent exits and earnings sweeps now run only through the hosted API and relay; while those are down, funds
+and permissions stay at their recorded on-chain addresses until service returns. `GET /api/agents/:id/recovery` and
+`sdk.recoveryGrant` remain for scripts and tests. The sentence above about exit and emergency recovery is history.

@@ -11,7 +11,6 @@ import { useAuth } from "../components/Wallet.tsx";
 import { useNow } from "../components/Time.tsx";
 import { AgentNew } from "./AgentNew.tsx";
 import { AgentBalances } from "../components/AgentBalances.tsx";
-import { EmergencyRecovery } from "../components/EmergencyRecovery.tsx";
 import { amount } from "../format.ts";
 import { useTokenList } from "../useTokens.ts";
 
@@ -37,20 +36,14 @@ export function WorkspacePage() {
         </Link>
       </div>
       {!auth.signedIn ? (
-        <>
-          <EmptyState title="Sign in to manage your agents">
-            Use your operator wallet; it remains the website wallet throughout setup and work.
-          </EmptyState>
-          <EmergencyRecovery />
-        </>
+        <EmptyState title="Sign in to manage your agents">
+          Use your operator wallet; it remains the website wallet throughout setup and work.
+        </EmptyState>
       ) : agents.error !== null ? (
-        <>
-          <ErrorText>
-            Agent records are unavailable. Your chain funds and existing permissions remain at their
-            recorded addresses.
-          </ErrorText>
-          <EmergencyRecovery />
-        </>
+        <ErrorText>
+          Agent records are unavailable. Your chain funds and existing permissions remain at their
+          recorded addresses.
+        </ErrorText>
       ) : agents.isLoading ? (
         <p className="text-label-2">Reading your agent records…</p>
       ) : agents.data?.agents.length === 0 ? (
@@ -109,7 +102,7 @@ function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
         await agentAction(agent.id, "revoke");
       } catch {
         failures.push(
-          "On-chain disablement is incomplete. Reconcile again, renew operator sponsorship if needed, or use emergency recovery.",
+          "On-chain disablement is incomplete. Reconcile again, or renew operator sponsorship if needed.",
         );
       }
       await refresh();
@@ -210,7 +203,6 @@ function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
         </Button>
         {error !== null && <ErrorText>{error}</ErrorText>}
       </Section>
-      {agent.address !== null && <EmergencyRecovery initialAgent={agent} />}
     </article>
   );
 }

@@ -156,7 +156,7 @@ export class AgentLifecycle {
           break
         }
       }
-      if (authority === undefined) throw new Error('No usable gas grant remains to disable this permission; renew operator sponsorship or use emergency recovery')
+      if (authority === undefined) throw new Error('No usable gas grant remains to disable this permission; renew operator sponsorship')
       const grant = { ...sdk.parseDelegation(row.delegation_json), signature: row.signature }
       const result = await this.deps.sponsor.submit(wallet, [{ grant: authority.delegation_hash, calls: [{ to: this.deps.context.deployment.delegation.manager, data: sdk.disableCalldata(grant) }] }], key)
       if (result.status !== 'confirmed') throw new Error(`Permission disable is ${result.status}; retry the original operation`)

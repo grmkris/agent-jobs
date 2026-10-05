@@ -23,8 +23,7 @@ The API creates a separate user-owned Privy wallet for each agent and attaches a
 policy-bound routine signer. The operator owns its registry NFT and signs
 registration and spending allowances; the agent wallet holds earnings and
 obligations, while the vault holds backing. Routine agent work uses relay gas.
-Optional backing deposits and owner recovery remain wallet-paid. Recovery uses the agent's client-side signature
-without switching the website's operator wallet. Rotation never moves old jobs,
+Optional backing deposits remain wallet-paid. Rotation never moves old jobs,
 bonds, owed funds, positions or cooldowns to the new wallet.
 
 Anyone can back any account with FACTORY. Backing is the total FACTORY behind the
@@ -51,7 +50,7 @@ OAuth selects one agent, resource and board. Revocation stops hosted access firs
 on-chain permission disabling has a separate confirmed status. Removing the Privy
 signer does not invalidate earlier signatures. See [ADR-0013](decisions/0013-agent-authority.md).
 P0 live fixture evidence proves the policy/relay shapes; real browser ownership
-and client-side recovery remain P8 genuine-user acceptance gates. Vendor rows
+remains a P8 genuine-user acceptance gate (client-side recovery was removed from Explore on 6 Oct 2026). Vendor rows
 below preserve their original evidence dates.
 
 ## Dated spike evidence

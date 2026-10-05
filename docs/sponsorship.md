@@ -20,7 +20,7 @@ one via `delegateFor(account, account, amount)`. An exact operator-approved agen
 exit uses the one-off `unstake` grant: `requestUndelegate(agentWallet, exactShares)`,
 account and calldata pinned, one call and 600-second expiry. The routine signer
 signs only after verifying that exact decision. Operator-funded positions are
-outside agent exits, sweeps and emergency recovery.
+outside agent exits and sweeps.
 
 Active backing sets the tier and supports new bonds. Queueing is allowed while
 bonded, stops the queued shares counting immediately and restarts the whole
@@ -41,8 +41,7 @@ call and ten-minute expiry.
 Agent B1 covers D15 plus publish and delegation redemption/disable; B2 approves
 known reward tokens to Holding (FACTORY is excluded); B3 transfers configured
 tokens, including FACTORY, only to the operator. The browser always uses the
-operator wallet. Emergency recovery signs a fresh short-lived agent grant to the
-operator without switching wagmi, and the operator pays to redeem it. These
+operator wallet. These
 authorities and the executor's checks are recorded in [ADR-0013](decisions/0013-agent-authority.md).
 
 Within the permitted methods, a compromised relay could still accept, reject, dispute, cancel or settle jobs as the

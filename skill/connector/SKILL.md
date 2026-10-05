@@ -108,12 +108,12 @@ first stops hosted actions and OAuth, then removes the Privy signer, then disabl
 known on-chain grants. Disablement is confirmed only by receipts; pending relay
 sends still reconcile.
 
-Emergency recovery belongs to the owner in the browser: the owner signs a fresh,
-short-lived delegation as the agent, and the operator redeems it and pays gas.
-It requires Privy and an RPC, works without Hireling's API or relay, and cannot
-invalidate unknown signed grants or undo bond slashes. Genuine owner access to a
-server-created wallet and full 7702 retirement remain explicit acceptance gates.
-Agent recovery covers agent-owned self-positions, not the operator's positions.
+There is no browser emergency recovery (removed from Explore on 6 Oct 2026):
+exits and earnings sweeps run only through Hireling's hosted API and relay. If
+those are unavailable, wait; funds and permissions stay at their recorded
+on-chain addresses. Genuine owner access to a server-created wallet and full 7702
+retirement remain explicit acceptance gates. Agent exits cover agent-owned
+self-positions, not the operator's positions.
 
 ## Rules
 
