@@ -4,25 +4,25 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 
-// The stake page (U2) against a fixture vault, fee schedule and FACTORY v2 (stake-wagmi.mjs): stake with a permit,
-// the fee tier and the next one, reserved stake that cannot be unstaked, the cooldown with its countdown, cancel and
-// withdraw; a chain that does not answer, v1 not deployed, signed out. Mocked Chromium only: no signing or sends.
+// Mocked Chromium only: the real SDK reads encoded responses from a test-only RPC transport.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-stake-evidence';
+const output = process.argv[2] ?? '/tmp/hireling-delegation-evidence';
 const base = 'http://127.0.0.1:5194';
 const owner = '0x1111111111111111111111111111111111111111';
+const agentWallet = '0x2222222222222222222222222222222222222222';
+const other = '0x3333333333333333333333333333333333333333';
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
-const results = [];
+const agent = { chainId: 10143, identityRegistry: contracts.factory, agentId: '1942', wallet: agentWallet, profile: { name: 'My worker', description: 'Fixture worker', services: [] }, profileSource: 'operator-supplied', agentURI: '', enrolled: true, ownership: 'verified', presence: { freshness: 'fresh', state: 'available', accepting: true, lastSeenBucket: null }, ads: [], observedAt: 100, projectionAt: 100, revision: 1 };
 const errors = [];
-
+const results = [];
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
-const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5194, strictPort: true }, plugins: [{ name: 'stake-fixtures', enforce: 'pre', resolveId(source) {
+const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5194, strictPort: true }, plugins: [{ name: 'delegation-fixtures', enforce: 'pre', resolveId(source) {
   if (source === 'wagmi') return `${directory}stake-wagmi.mjs`;
   if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
+  if (source.endsWith('/stake-context.ts')) return `${directory}stake-chain.mjs`;
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  // v1's addresses come from the test (`window.__hireling`), so one run covers deployed and not deployed.
   if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
 } }] });
 await server.listen();
@@ -31,242 +31,197 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling, connected, down, open, proposal, staked, clocks, unreadableClocks }) => {
-    const K = 10n ** 21n;
-    window.__hireling = hireling;
-    window.__wallet = { address: account, connected, signatures: [], sends: [] };
-    window.__stake = { wallet: 50n * K, staked: staked === null ? 4n * K : BigInt(staked), reserved: 1500n * 10n ** 18n, unstaking: 0n, unlockAt: 0, nonce: 0n, calls: [], down, open, denied: {}, clocks, unreadableClocks };
-    if (proposal !== null) window.__stake.proposal = proposal;
+  await context.addInitScript(({ owner, agentWallet, other, contracts, agent, options }) => {
+    const E = 10n ** 18n;
+    window.__hireling = options.deployed === false ? null : contracts;
+    window.__agents = [agent];
+    window.__wallet = { address: owner, connected: options.connected ?? true, signatures: [], sends: [] };
+    window.__stake = { wallet: 50000n * E, nonce: 0n, calls: [], cooldown: 600, down: options.down ?? false, open: options.open ?? true, pools: {
+      [owner]: { assets: 4000n * E, reserved: 1500n * E, shares: 4000n * E, queuedShares: 0n, generation: 0n, positions: { [owner]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
+      [agentWallet]: { assets: 10000n * E, reserved: 8000n * E, shares: 10000n * E, queuedShares: 0n, generation: 0n, positions: { [owner]: { shares: 6000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n }, [other]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
+    } };
+    if (options.proposal) window.__stake.proposal = options.proposal;
+    if (options.retired) {
+      const pool = window.__stake.pools[agentWallet];
+      Object.assign(pool, { assets: 0n, reserved: 0n, shares: 0n, queuedShares: 0n, generation: 1n });
+      window.__stake.historical = { [agentWallet]: '0' };
+    }
+    if (options.dust) {
+      const pool = window.__stake.pools[agentWallet];
+      Object.assign(pool, { assets: 6n, shares: 10n, reserved: 0n });
+      pool.positions[owner].shares = 4n;
+      pool.positions[other].shares = 6n;
+    }
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: owner, hireling: options.deployed === false ? null : contracts, connected: options.connected ?? true, down: options.down ?? false, open: options.open ?? true, proposal: options.proposal ?? null, staked: options.staked ?? null, clocks: options.clocks, unreadableClocks: options.unreadableClocks });
-  await context.route('**/*', async (route) => {
+    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { owner, agentWallet, other, contracts, agent, options });
+  await context.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: [], index: { next_block: 100, updated_at: Math.floor(Date.now() / 1000) } });
-    if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
+    if (url.pathname === '/data/directory') return reply({ ok: true, agents: [agent], nextCursor: null, observedAt: 100, chainId: 10143, identityRegistry: contracts.factory, scope: 'fixture' });
+    if (url.pathname === '/data/directory/1942') return reply({ ok: true, agent });
+    if (url.pathname === '/api/agents') return reply({ ok: true, result: { agents: [{ id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' }] } });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     return route.continue();
   });
   const page = await context.newPage();
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.setDefaultTimeout(20000);
+  page.on('pageerror', error => errors.push(error.message));
   return { context, page };
 }
-
+const text = (page, value) => page.getByText(value, { exact: true }).first().waitFor();
+const position = page => page.getByRole('article', { name: 'Position in My worker', exact: true });
+const amount = page => page.locator('#stake-amount');
 async function capture(page, name) {
-  const width = await page.evaluate(() => ({ actual: document.documentElement.scrollWidth, expected: innerWidth }));
-  assert.ok(width.actual <= width.expected, `${name}: horizontal overflow`);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: horizontal overflow`);
   await page.screenshot({ path: `${output}/${name}.png`, fullPage: true });
 }
-
-const text = (page, value) => page.getByText(value, { exact: true }).first().waitFor();
-const confirm = async (page, toast) => {
+async function confirm(page, message) {
   await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm fixture' }).click();
-  await page.getByRole('status').filter({ hasText: toast }).waitFor();
-};
-const amount = page => page.locator('#stake-amount');
-
+  await page.getByRole('status').filter({ hasText: message }).waitFor();
+}
+async function refresh(page) {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+}
 try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-    const device = viewport.width === 390 ? 'mobile' : 'desktop';
+    const name = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page } = await fixture(viewport);
     await page.goto(`${base}/me`);
-    await page.getByRole('link', { name: /Stake/ }).first().click();
+    await page.getByRole('link', { name: /Stake & delegate/ }).click();
     await page.waitForURL('**/stake');
-    // What is staked, reserved and free, and the tier: all from the reads, the tiers from the fee schedule.
-    await text(page, '4,000 FACTORY');
-    await text(page, '1,500 FACTORY');
-    await text(page, '2,500 FACTORY');
     await text(page, '50,000 FACTORY');
-    await text(page, '30 %');
-    await page.getByText('Stake 6,000 FACTORY more to pay 10 %.', { exact: false }).waitFor();
-    await capture(page, `${device}-stake`);
-
-    // More than the wallet holds is refused before anything is signed.
+    await position(page).getByText('6,000 FACTORY', { exact: true }).waitFor();
+    await position(page).getByText('60 % of total backing', { exact: true }).waitFor();
+    await text(page, 'If the agent is slashed for bad work, everyone backing it loses the same share. Leaving takes 10 minutes on testnet (7 days on mainnet), and your FACTORY stays at risk until then.');
+    assert.ok((await page.locator('article[aria-label^="Position in"]').first().innerText()).includes('My worker'), 'operator agent position first');
+    await capture(page, `${name}-positions`);
+    await page.getByRole('combobox', { name: 'Agent to back' }).selectOption(agentWallet);
     await amount(page).fill('60000');
-    await page.getByText('That is more FACTORY than your wallet holds.', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('button', { name: /^Stake 60,000/ }).isDisabled(), true);
-
-    // A declined permit sends nothing.
-    await amount(page).fill('7000');
+    await text(page, 'That is more FACTORY than your wallet holds.');
+    assert.equal(await page.getByRole('button', { name: 'Delegate 60,000 FACTORY', exact: true }).isDisabled(), true);
+    await amount(page).fill('1000');
     await page.evaluate(() => { window.__wallet.declineSign = true; });
-    await page.getByRole('button', { name: 'Stake 7,000 FACTORY', exact: true }).click();
-    await page.getByText('You cancelled in your wallet. Nothing was sent.', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Delegate 1,000 FACTORY', exact: true }).click();
+    await text(page, 'You cancelled in your wallet. Nothing was sent.');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-
-    // Stake with a permit: one signature for exactly this amount and the vault, then one transaction.
     await page.evaluate(() => { window.__wallet.declineSign = false; });
-    await page.getByRole('button', { name: 'Stake 7,000 FACTORY', exact: true }).click();
-    const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { type: p.primaryType, spender: p.message.spender, value: String(p.message.value), nonce: String(p.message.nonce), contract: p.domain.verifyingContract }; });
-    assert.deepEqual(permit, { type: 'Permit', spender: contracts.vault, value: (7000n * 10n ** 18n).toString(), nonce: '0', contract: contracts.factory });
-    await capture(page, `${device}-stake-wallet-step`);
-    await confirm(page, 'Staked. Your fee tier counts it now.');
-    await text(page, '11,000 FACTORY');
-    await text(page, '10 %');
-    await page.getByText('Stake 89,000 FACTORY more to pay 3 %.', { exact: false }).waitFor();
-
-    // Reserved stake cannot be unstaked.
-    await page.getByRole('radio', { name: 'Unstake' }).click();
-    await amount(page).fill('10000');
-    await page.getByText(/reserved stake stays until its jobs settle/).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Unstake 10,000 FACTORY' }).isDisabled(), true);
-
-    // Unstake starts the cooldown, with a countdown; withdrawing waits for it; cancelling restakes.
-    await amount(page).fill('2000');
-    await page.getByText('It stops counting for your fee tier now and can be withdrawn after 7 days. You can cancel until you withdraw.', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Unstake 2,000 FACTORY' }).click();
-    await confirm(page, 'Unstaking started. The cooldown is running.');
-    await page.getByText(/Withdrawable in 6 d 23 h/).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
-    await text(page, '9,000 FACTORY');
-    await text(page, '30 %');
-    await capture(page, `${device}-unstaking`);
-    await page.getByRole('button', { name: 'Keep it staked' }).click();
-    await confirm(page, 'Unstaking cancelled. It is staked again.');
-    await text(page, '11,000 FACTORY');
-    assert.equal(await page.getByRole('button', { name: 'Keep it staked' }).count(), 0);
-
-    // After the cooldown, withdraw pays it out to the wallet.
-    await page.getByRole('radio', { name: 'Unstake' }).click();
-    await amount(page).fill('2000');
-    await page.getByRole('button', { name: 'Unstake 2,000 FACTORY' }).click();
-    await confirm(page, 'Unstaking started. The cooldown is running.');
-    await page.evaluate(() => { window.__stake.unlockAt = Math.floor(Date.now() / 1000) - 1; window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
-    await page.getByText('Ready to withdraw', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Withdraw', exact: true }).click();
+    await page.getByRole('button', { name: 'Delegate 1,000 FACTORY', exact: true }).click();
+    await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
+    const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { owner: p.message.owner, spender: p.message.spender, amount: String(p.message.value) }; });
+    assert.deepEqual(permit, { owner, spender: contracts.vault, amount: (1000n * 10n ** 18n).toString() });
+    await capture(page, `${name}-delegation-review`);
+    await confirm(page, 'Delegated. You own the position.');
+    await position(page).getByText('7,000 FACTORY', { exact: true }).waitFor();
+    const call = await page.evaluate(() => window.__stake.calls.at(-1));
+    assert.equal(call.functionName, 'delegateWithPermit');
+    assert.equal(call.args[0], agentWallet);
+    // Queue the entire owned position despite 8,000 reserved and only 3,000 available.
+    await position(page).getByRole('button', { name: 'Leave', exact: true }).click();
+    await page.getByRole('button', { name: 'Max', exact: true }).click();
+    assert.equal(await amount(page).inputValue(), '7000');
+    await page.getByRole('button', { name: 'Leave 7,000 FACTORY', exact: true }).click();
+    await confirm(page, 'Leaving started. Your position stays at risk.');
+    await position(page).getByText('Leaving', { exact: true }).waitFor();
+    assert.equal(await position(page).getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
+    await capture(page, `${name}-leaving`);
+    // Slash reaches the queued shares pro-rata; mature withdrawal remains blocked by the remaining bond.
+    await page.evaluate(({ account }) => {
+      const pool = window.__stake.pools[account];
+      pool.assets -= 2000n * 10n ** 18n;
+      pool.reserved -= 2000n * 10n ** 18n;
+      pool.positions[window.__wallet.address].unlockAt = Math.floor(Date.now() / 1000) - 1;
+    }, { account: agentWallet });
+    await refresh(page);
+    await position(page).getByText('Waiting for bonds to clear', { exact: true }).waitFor();
+    const value = await page.evaluate(({ account }) => { const pool = window.__stake.pools[account]; return String(pool.positions[window.__wallet.address].shares * pool.assets / pool.shares); }, { account: agentWallet });
+    assert.equal(value, (7000n * 10n ** 18n * 9000n / 11000n).toString());
+    assert.equal(await position(page).getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
+    await capture(page, `${name}-queued-slash-bonds`);
+    await position(page).getByRole('button', { name: 'Cancel leaving', exact: true }).click();
+    await confirm(page, 'Leaving cancelled. Your backing is active again.');
+    await position(page).getByText('Active', { exact: true }).waitFor();
+    await position(page).getByRole('button', { name: 'Leave', exact: true }).click();
+    await page.getByRole('button', { name: 'Max', exact: true }).click();
+    await page.getByRole('button', { name: /^Leave .* FACTORY$/ }).click();
+    await confirm(page, 'Leaving started. Your position stays at risk.');
+    assert.equal((await page.evaluate(() => window.__stake.calls.at(-1))).args[1], (7000n * 10n ** 18n).toString(), 'MAX owns all shares after rounding');
+    await page.evaluate(({ account }) => { const pool = window.__stake.pools[account]; pool.reserved = 0n; pool.positions[window.__wallet.address].unlockAt = Math.floor(Date.now() / 1000) - 1; }, { account: agentWallet });
+    await refresh(page);
+    await position(page).getByText('Ready to withdraw', { exact: true }).waitFor();
+    await position(page).getByRole('button', { name: 'Withdraw', exact: true }).click();
     await confirm(page, 'Withdrawn to your wallet.');
-    await text(page, '45,000 FACTORY');
-    assert.deepEqual(await page.evaluate(() => window.__stake.calls), ['stakeWithPermit', 'requestUnstake', 'cancelUnstake', 'requestUnstake', 'withdraw']);
-
-    // A ruling burns the reserved bond: the vault takes it from the stake, so the page shows the stake and the
-    // reservation both down by it, and the whole remaining stake can be unstaked.
-    await text(page, '9,000 FACTORY');
-    await page.evaluate(() => { window.__stake.staked -= 1500n * 10n ** 18n; window.__stake.reserved = 0n; document.dispatchEvent(new Event('visibilitychange')); });
-    await page.getByText('9,000 FACTORY', { exact: true }).waitFor({ state: 'detached' });
-    await page.getByText('1,500 FACTORY', { exact: true }).waitFor({ state: 'detached' });
-    await text(page, '7,500 FACTORY');
-    await page.getByRole('radio', { name: 'Unstake' }).click();
-    await amount(page).fill('7500');
-    assert.equal(await page.getByRole('button', { name: 'Unstake 7,500 FACTORY' }).isDisabled(), false);
-    results.push({ device, checks: ['amounts and tiers from reads', 'next tier and amount needed', 'over-balance refused', 'declined permit sends nothing', 'permit for exact amount and vault', 'reserved cannot be unstaked', 'cooldown countdown', 'cancel restakes', 'withdraw after cooldown', 'a burned bond leaves stake and reservation both down'], passed: true });
+    await position(page).getByText('Exited', { exact: true }).waitFor();
+    const balances = await page.evaluate(({ account }) => ({ wallet: String(window.__stake.wallet), other: String(window.__stake.pools[account].positions['0x3333333333333333333333333333333333333333'].shares) }), { account: agentWallet });
+    assert.equal(balances.wallet, (49000n * 10n ** 18n + BigInt(value)).toString());
+    assert.equal(balances.other, (4000n * 10n ** 18n).toString());
+    results.push({ name, checks: ['operator-owned position first', 'position values and percentage', 'permit ownership and target', 'reserved-bond full queue', 'queued pro-rata slash', 'StillBonded display', 'cancel', 'MAX rounding', 'post-cooldown payout to owner'], passed: true });
     await context.close();
   }
-
-  // A Holding the Safe proposed: the staker sees when it can go live and lapse, refuses it, and can allow it again; a
-  // refusal of the Holding in use shows with its undo.
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-    const device = viewport.width === 390 ? 'mobile' : 'desktop';
-    const proposed = '0xf000000000000000000000000000000000000009';
-    const { context, page } = await fixture(viewport, { proposal: { holding: proposed, eta: Math.floor(Date.now() / 1000) + 2 * 86400 } });
-    await page.goto(`${base}/stake`);
-    const section = page.locator('section').filter({ has: page.getByRole('heading', { name: 'A new Holding is proposed', exact: true }) });
-    await section.getByText(/^in 1 d 23 h/).waitFor();
-    await section.getByText('Expires', { exact: true }).waitFor();
-    await section.getByText('unless accepted by then', { exact: true }).waitFor();
-    await capture(page, `${device}-holding-proposed`);
-    await section.getByRole('button', { name: /let it reserve my stake/ }).click();
-    await confirm(page, 'Refused. That Holding can never reserve your stake.');
-    await section.getByText('Refused', { exact: true }).waitFor();
-    await section.getByRole('button', { name: 'Allow it again' }).click();
-    await confirm(page, 'Allowed again. That Holding can reserve your stake for bonds.');
-    await section.getByRole('button', { name: /let it reserve my stake/ }).waitFor();
-    assert.deepEqual(await page.evaluate(() => ({ calls: window.__stake.calls, denied: window.__stake.denied })), { calls: ['setHoldingDenied', 'setHoldingDenied'], denied: { [proposed]: false } });
-
-    await page.evaluate((holding) => { window.__stake.denied[holding] = true; window.dispatchEvent(new Event('visibilitychange')); }, contracts.holding.toLowerCase());
-    await text(page, 'You refused the Holding in use');
-    await capture(page, `${device}-holding-refused`);
-    await page.getByRole('button', { name: 'Allow it again' }).click();
-    await confirm(page, 'Allowed again. That Holding can reserve your stake for bonds.');
-    await page.getByText('You refused the Holding in use', { exact: true }).waitFor({ state: 'hidden' });
-    results.push({ device, checks: ['proposed Holding with go-live and lapse times', 'refuse sends setHoldingDenied(holding, true)', 'allow again', 'refusal of the Holding in use shows its undo'], passed: true });
-    await context.close();
-  }
-
-  // Each tier of the schedule (thresholds 0 / 10k / 100k / 1M FACTORY at 30 / 10 / 3 / 1 %): the page names the tier
-  // the stake is in and what the next one needs.
   {
-    const E = 10n ** 18n;
-    for (const [staked, pct, next] of [[2000n * E, '30 %', 'Stake 8,000 FACTORY more to pay 10 %.'], [10_000n * E, '10 %', 'Stake 90,000 FACTORY more to pay 3 %.'], [250_000n * E, '3 %', 'Stake 750,000 FACTORY more to pay 1 %.'], [1_000_000n * E, '1 %', 'You are in the lowest fee tier.']]) {
-      const { context, page } = await fixture({ width: 390, height: 844 }, { staked: String(staked) });
-      await page.goto(`${base}/stake`);
-      const fee = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Your fee as a worker', exact: true }) });
-      await fee.getByText(pct, { exact: true }).first().waitFor();
-      await fee.getByText(next, { exact: true }).waitFor();
-      const mine = await fee.getByText('You', { exact: true }).locator('xpath=ancestor::*[contains(@class, "flex")][1]').innerText();
-      assert.ok(mine.includes(pct), `${pct}: the "You" row reads ${mine}`);
-      if (pct === '3 %') await capture(page, 'tier-3');
-      await context.close();
-    }
-    results.push({ checks: ['30 % tier', '10 % tier', '3 % tier', '1 % tier (lowest)', 'next tier and amount needed'], passed: true });
+    const { context, page } = await fixture({ width: 390, height: 844 }, { dust: true });
+    await page.goto(`${base}/stake?account=${agentWallet}`);
+    await position(page).waitFor();
+    await page.getByRole('radio', { name: 'Leave', exact: true }).click();
+    await page.getByRole('button', { name: 'Max', exact: true }).click();
+    assert.equal(await amount(page).inputValue(), '0.000000000000000002');
+    await page.getByRole('button', { name: /^Leave .* FACTORY$/ }).click();
+    await confirm(page, 'Leaving started. Your position stays at risk.');
+    assert.equal((await page.evaluate(() => window.__stake.calls.at(-1))).args[1], '4');
+    await context.close();
+    results.push({ checks: ['2-wei MAX queues all 4 owned shares rather than partial floor(2*10/6)=3'], passed: true });
   }
-
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 }, { retired: true });
+    await page.goto(`${base}/stake`);
+    await position(page).getByText('Lost in a full slash', { exact: true }).waitFor();
+    assert.equal(await position(page).getByRole('button', { name: 'Leave', exact: true }).count(), 0);
+    await capture(page, 'retired-generation');
+    await context.close();
+    results.push({ checks: ['retired generation zero value cannot exit twice'], passed: true });
+  }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { down: true });
     await page.goto(`${base}/stake`);
-    await page.getByText('Your stake cannot be read from the chain right now. This does not mean it is gone.', { exact: true }).waitFor({ timeout: 20000 });
-    assert.equal(await page.getByText('4,000 FACTORY', { exact: true }).count(), 0);
+    await text(page, 'Your positions could not be read. This does not mean they are gone.');
+    assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true);
     await page.evaluate(() => { window.__stake.down = false; });
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
-    await text(page, '4,000 FACTORY');
-    results.push({ checks: ['unavailable chain shows no numbers, then retry'], passed: true });
+    await position(page).getByText('6,000 FACTORY', { exact: true }).waitFor();
+    await page.evaluate(() => { window.__stake.down = true; });
+    await refresh(page);
+    await text(page, 'Showing last-known positions. Actions are paused until chain facts refresh.');
+    assert.equal(await position(page).getByRole('button', { name: 'Leave', exact: true }).isDisabled(), true);
     await context.close();
+    results.push({ checks: ['unavailable reads', 'retry', 'stale facts disable actions'], passed: true });
   }
-  {
-    // Before launch the vault is not bootstrapped: no stake form, a plain note instead of a reverting transaction.
-    const { context, page } = await fixture({ width: 390, height: 844 }, { open: false });
+  for (const options of [{ deployed: false }, { connected: false }, { open: false }]) {
+    const { context, page } = await fixture({ width: 390, height: 844 }, options);
     await page.goto(`${base}/stake`);
-    await page.getByText('Staking opens at launch', { exact: true }).waitFor();
-    await text(page, '30 %');
-    assert.equal(await page.locator('#stake-amount').count(), 0);
-    assert.equal(await page.getByRole('button', { name: /^Stake/ }).count(), 0);
-    await capture(page, 'not-open');
-    results.push({ checks: ['vault not bootstrapped: staking opens at launch, no form'], passed: true });
+    if (options.deployed === false) await page.getByText(/Backing is not on .* yet/).waitFor();
+    if (options.connected === false) await text(page, 'Sign in to see your positions');
+    if (options.open === false) { await page.getByText(/Delegating opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true); }
     await context.close();
-  }
-  {
-    const { context, page } = await fixture({ width: 390, height: 844 }, { deployed: false });
-    await page.goto(`${base}/stake`);
-    await page.getByText(/Staking is not on .* yet/).waitFor();
-    await capture(page, 'not-deployed');
-    await context.close();
-    const signedOut = await fixture({ width: 390, height: 844 }, { connected: false });
-    await signedOut.page.goto(`${base}/stake`);
-    await signedOut.page.getByText('Sign in to stake', { exact: true }).waitFor();
-    await signedOut.context.close();
-    results.push({ checks: ['not deployed says so', 'signed out asks to sign in'], passed: true });
-  }
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
-    const { context, page } = await fixture(viewport, { clocks: { unstake: 600, holding: 900, grace: 1800 } });
-    await page.goto(`${base}/stake`);
-    await page.getByText('Why unstaking waits 10 minutes.', { exact: true }).waitFor();
-    await page.getByText(/Adding one takes the Safe 15 minutes, longer than the cooldown\./).waitFor();
-    await page.getByRole('radio', { name: 'Unstake', exact: true }).click();
-    await amount(page).fill('1');
-    await page.getByText('It stops counting for your fee tier now and can be withdrawn after 10 minutes. You can cancel until you withdraw.', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Unstake 1 FACTORY', exact: true }).click();
-    await confirm(page, 'Unstaking started. The cooldown is running.');
-    await page.getByText(/Withdrawable in (9|10) min/).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
-    await capture(page, `clocks-${viewport.width}-unstake`);
-    await context.close();
-    results.push({ width: viewport.width, checks: ['chain-derived 10-minute cooldown and 15-minute Holding delay', 'minute countdown; early withdraw disabled'], passed: true });
-  }
-  {
-    const { context, page } = await fixture({ width: 390, height: 844 }, { unreadableClocks: ['HOLDING_DELAY'] });
-    await page.goto(`${base}/stake`);
-    await page.getByText(/The Holding admission delay cannot be read from the chain right now\./).waitFor();
-    assert.equal((await page.locator('body').innerText()).includes('8 days'), false);
-    await context.close();
-    results.push({ checks: ['unreadable Holding delay has no fixed fallback'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live vault, signing or sends', results, errors }, null, 2));
-  console.log(`PASS: stake, ${results.length} evidence records`);
+  console.log(`PASS: delegated staking, ${results.length} evidence records`);
+} catch (error) {
+  for (const context of browser.contexts()) for (const page of context.pages()) {
+    console.error((await page.locator("body").innerText()).slice(-5000));
+    await page.screenshot({ path: `${output}/failure.png`, fullPage: true });
+  }
+  throw error;
 } finally {
   await browser.close();
   await server.close();

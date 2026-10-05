@@ -101,8 +101,9 @@ const me = createRoute({ getParentRoute: () => root, path: '/me', component: MeP
 const stake = createRoute({
   getParentRoute: () => root,
   path: '/stake',
+  validateSearch: (search: Record<string, unknown>): { account?: string } => typeof search.account === 'string' ? { account: search.account } : {},
   component: () => (
-    <LaunchGate title="Stake">
+    <LaunchGate title="Stake & delegate">
       <StakePage />
     </LaunchGate>
   ),

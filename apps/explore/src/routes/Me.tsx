@@ -49,8 +49,8 @@ export function MePage() {
         <Group>
           <Link to="/stake" className={rowClass({ interactive: true })}>
             <span className="flex-1">
-              Stake
-              <span className="block text-[0.78rem] text-label-3">Your fee tier, bonds and unstaking</span>
+              Stake &amp; delegate
+              <span className="block text-[0.78rem] text-label-3">Your positions, backing and leaving</span>
             </span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
