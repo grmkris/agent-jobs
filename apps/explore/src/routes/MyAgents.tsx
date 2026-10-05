@@ -64,7 +64,7 @@ function AgentRow({ agent, waiting }: { agent: ManagedAgent; waiting: number }) 
   const state = agent.state === 'active' ? 'Active' : agent.state === 'revoked' ? 'Stopped' : 'Setup not finished'
   return (
     <BoardLink target={agentHome(agent)} className={rowClass({ inset: true, interactive: true })}>
-      <Monogram seed={agent.agent_id ?? agent.id} label={agent.name} size="md" />
+      <Monogram seed={agent.agent_id ?? agent.id} label={initials(agent.name)} size="md" />
       <span className="grid min-w-0 flex-1">
         <span className="truncate font-medium">{agent.name}</span>
         <span className="truncate text-ui text-muted-foreground">
@@ -76,3 +76,12 @@ function AgentRow({ agent, waiting }: { agent: ManagedAgent; waiting: number }) 
     </BoardLink>
   )
 }
+
+/** Up to two initials for a name's monogram: "My worker" → "MW". */
+export const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter((word) => word !== '')
+    .slice(0, 2)
+    .map((word) => [...word][0]?.toUpperCase() ?? '')
+    .join('')

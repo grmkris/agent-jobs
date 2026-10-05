@@ -7,6 +7,7 @@ import { type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, tool } fr
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
+import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, Segmented, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
@@ -209,11 +210,14 @@ export function JobsPage() {
           ) : null}
         </EmptyState>
       ) : (
-        <Group>
+        <>
+          {view === 'mine' && <NeedsYou rows={shown} />}
+          <Group>
           {shown.map(({ item, phase }) => (
             <JobRow key={item.jobId ?? item.task?.taskId} item={item} phase={phase} note={phase === null ? 'Status unavailable · retry chain data' : rowNote(phase, now, item.chain?.agent_id)} />
           ))}
-        </Group>
+          </Group>
+        </>
       )}
       <p className="px-4 text-[0.75rem] text-label-3">
         {!chainReady ? 'Chain facts are unavailable.' : index === null ? 'The chain index is not built yet.' : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`} Jobs from before titles were

@@ -95,23 +95,25 @@ try {
     await page.goto(`${base}/jobs`);
     const nav = viewport.width === 390 ? page.getByRole('navigation', { name: 'Sections' }).last() : page.getByRole('complementary', { name: 'Sections' });
     await nav.getByLabel('3 to collect').waitFor();
-    const collectNav = viewport.width === 390 ? null : nav.getByRole('link', { name: /Collect/ });
-    if (collectNav !== null) await collectNav.getByLabel('3 to collect').waitFor();
     if (viewport.width === 390) {
       const tabs = await nav.getByRole('link').evaluateAll((links) => links.map((l) => ({ text: l.textContent, width: l.getBoundingClientRect().width, height: l.getBoundingClientRect().height })));
-      assert.equal(tabs.length, 5, JSON.stringify(tabs));
-      assert.deepEqual(tabs.map((t) => t.text?.replace(/3$/, '')), ['Home', 'Jobs', 'Agents', 'Approvals', 'Me']);
+      assert.equal(tabs.length, 3, JSON.stringify(tabs));
+      assert.deepEqual(tabs.map((t) => t.text?.replace(/3$/, '')), ['Jobs', 'Agents', 'Account']);
       assert.ok(tabs.every((t) => t.width >= 44 && t.height >= 44), JSON.stringify(tabs));
     }
     if (viewport.width === 390) {
-      await nav.getByRole('link', { name: /^Me/ }).click();
+      await nav.getByRole('link', { name: /^Account/ }).click();
       const mobileCollect = page.getByRole('main').getByRole('link', { name: /^Collect/ });
       await mobileCollect.getByLabel('3 to collect').waitFor();
       const target = await mobileCollect.boundingBox();
       assert.ok(target.width >= 44 && target.height >= 44, JSON.stringify(target));
       await mobileCollect.click();
     } else {
-      await collectNav.click();
+      // On a wide screen Collect is in the account menu, its count on the menu's trigger and on the item.
+      await nav.getByRole('button', { name: /^Account/ }).click();
+      const collectItem = page.getByRole('menuitem', { name: /^Collect/ });
+      await collectItem.getByLabel('3 to collect').waitFor();
+      await collectItem.click();
     }
     await page.waitForURL('**/collect');
     await page.getByText('Settle job #72', { exact: true }).waitFor();

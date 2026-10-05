@@ -8,13 +8,15 @@ import { agentEndpoint, type ManagedAgent } from './api.ts'
 import type { AgentApproval } from './agent-api.ts'
 import type { LinkTarget } from './components/BoardLink.tsx'
 import { useAuth } from './components/Wallet.tsx'
+import { writesOpen } from './wallet.ts'
 
 export function useManagedAgents() {
   const auth = useAuth()
   return useQuery({
     queryKey: ['managed-agents', auth.address],
     queryFn: () => agentEndpoint<{ agents: ManagedAgent[] }>('/api/agents'),
-    enabled: auth.signedIn,
+    // Before a network's launch there are no managed agents to read.
+    enabled: auth.signedIn && writesOpen,
     refetchInterval: 15_000,
   })
 }
@@ -24,7 +26,8 @@ export function useManagedApprovals() {
   return useQuery({
     queryKey: ['managed-approvals', auth.address],
     queryFn: () => agentEndpoint<{ approvals: AgentApproval[] }>('/api/approvals'),
-    enabled: auth.signedIn,
+    // Before a network's launch there are no managed agents to read.
+    enabled: auth.signedIn && writesOpen,
     refetchInterval: 15_000,
   })
 }

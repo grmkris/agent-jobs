@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ManagedAgent } from './api.ts'
 import { agentHome, ownedAgent, pendingByAgent } from './managed.ts'
+import { initials } from './routes/MyAgents.tsx'
 
 const agent = (id: string, agentId: string | null): ManagedAgent => ({ id, name: id, address: null, agent_id: agentId, state: 'active', last_activity_at: null, revoke_json: null }) as unknown as ManagedAgent
 
@@ -27,5 +28,10 @@ describe('managed agents', () => {
   it('sends a registered agent to its page and an unregistered one to its setup', () => {
     expect(agentHome({ agent_id: '1942' } as ManagedAgent)).toEqual({ to: '/agent/$agentId', params: { agentId: '1942' } })
     expect(agentHome({ agent_id: null } as ManagedAgent)).toEqual({ to: '/workspace' })
+  })
+  it('draws an agent’s monogram from up to two initials', () => {
+    expect(initials('My worker')).toBe('MW')
+    expect(initials('  code   review bot ')).toBe('CR')
+    expect(initials('')).toBe('')
   })
 })
