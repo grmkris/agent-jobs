@@ -48,6 +48,7 @@ export function Button({
       data-slot="button"
       {...props}
       disabled={busy === true || props.disabled}
+      aria-busy={busy === true ? true : undefined}
       className={cn(
         buttonVariants({ variant: BUTTON_VARIANT[variant], size: BUTTON_SIZE[size] }),
         // A long label wraps rather than overflowing a narrow screen; the height grows with it.
@@ -58,7 +59,8 @@ export function Button({
         className,
       )}
     >
-      {busy === true && <Spinner data-icon="inline-start" />}
+      {/* The label stays the button's whole name while it works: tests and the live harness find buttons by it. */}
+      {busy === true && <Spinner data-icon="inline-start" role={undefined} aria-label={undefined} aria-hidden />}
       {children}
     </button>
   )
