@@ -82,7 +82,10 @@ export class SponsorDesk {
     return getAddress(text)
   }
   #refuse(reason: 'policy' | 'simulation' | 'cap' | 'floor' | 'rate' | 'unavailable' | 'pending', message: string): Error {
-    return Object.assign(this.#d.fail(reason === 'policy' ? 'forbidden' : reason === 'simulation' ? 'chain' : 'conflict', message), { reason })
+    // Nothing was sent: a same-key retry is safe. Policy and simulation refusals will not change on retry.
+    const retry = reason === 'policy' || reason === 'simulation' ? 'none' : 'same-key'
+    const retryAfter = reason === 'floor' ? 600 : reason === 'pending' ? 15 : reason === 'rate' ? 300 : reason === 'cap' ? 3600 : undefined
+    return Object.assign(this.#d.fail(reason === 'policy' ? 'forbidden' : reason === 'simulation' ? 'chain' : 'conflict', message), { reason, retry, ...(retryAfter === undefined ? {} : { retryAfter }) })
   }
   #row(wallet: string): Grant | undefined { return this.#d.sql.all<Grant>("SELECT * FROM grants WHERE delegator = ? AND kind='operator' ORDER BY expires_at DESC, rowid DESC LIMIT 1", wallet.toLowerCase())[0] }
   #delegation(wallet: Address, salt: bigint, expires: number): Delegation {

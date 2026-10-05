@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, type AgentRetry } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -48,7 +48,7 @@ const key32 = (k: string) => /^0x[0-9a-fA-F]{64}$/.test(k)
 
 export type BoardReply =
   | { readonly ok: true; readonly result: unknown }
-  | { readonly ok: false; readonly code: string; readonly message: string; readonly retryAfter?: number; readonly reason?: string }
+  | { readonly ok: false; readonly code: string; readonly message: string; readonly retryAfter?: number; readonly reason?: string; readonly retry?: AgentRetry; readonly errorId?: string }
 
 /**
  * One Durable Object per hosted board (spec §5). It owns the board's SQLite (tasks, applications, selections,
@@ -135,7 +135,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         agentExecute: (req: AgentExecuteRequest) => Effect.promise(() => {
           const result = managementQueue.then(async () => {
             try { return await executeAgent(req) }
-            catch (error) { return toJson({ ok: false, code: error instanceof BoardError ? error.code : 'unavailable', message: error instanceof BoardError ? error.message : 'Hosted agent execution is unavailable' }) }
+            catch (error) { return toJson(agentFailureReply(error, 'Hosted agent execution failed')) }
           })
           managementQueue = result.catch(() => undefined)
           return result
@@ -155,12 +155,12 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
                 ...(req.privyToken === undefined ? {} : { privyToken: req.privyToken }),
                 execute: async (agentId, tool, args, key, _approvalId, originalBoard) => {
                   const reply = JSON.parse(await executeAgent(operatorRequest(req, session.address, { agentId, tool, args, key, boardId: originalBoard }))) as BoardReply
-                  if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
+                  if (!reply.ok) throw Object.assign(new BoardError(reply.code as never, reply.message), { reason: reply.reason, retry: reply.retry, retryAfter: reply.retryAfter })
                   return reply.result
                 },
               })
               return toJson({ ok: true, result: managementResult })
-            } catch (error) { return toJson({ ok: false, code: error instanceof BoardError ? error.code : 'unavailable', message: error instanceof BoardError ? error.message : 'Agent management is unavailable; retry the same request' }) }
+            } catch (error) { return toJson(agentFailureReply(error, 'Agent management failed')) }
           })
           managementQueue = result.catch(() => undefined)
           return result
@@ -304,8 +304,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
             } catch (e) {
               const code = e instanceof BoardError ? e.code : 'error'
               const message = e instanceof Error ? (e as { shortMessage?: string }).shortMessage ?? e.message : String(e)
-              const reason = e instanceof Error ? (e as { reason?: string }).reason : undefined
-              return toJson({ ok: false, code, message, ...(reason === undefined ? {} : { reason }) } satisfies BoardReply)
+              const { reason, retry, retryAfter } = e instanceof Error ? e as { reason?: string; retry?: AgentRetry; retryAfter?: number } : {}
+              return toJson({ ok: false, code, message, ...(reason === undefined ? {} : { reason }), ...(retry === undefined ? {} : { retry }), ...(retryAfter === undefined ? {} : { retryAfter }) } satisfies BoardReply)
             }
             })
             callQueue = result.catch(() => undefined)

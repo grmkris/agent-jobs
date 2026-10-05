@@ -44,6 +44,7 @@ import { screenOffer } from './screening.ts'
 import { creatorSelectionProjection } from './selection.ts'
 import { assertAgentEnvelope, assertExactAgentTypedData } from './agent-signing-scope.ts'
 import { typedDataJson } from './typed-data.ts'
+import { BoardError } from './board-error.ts'
 import {
   type ApplicationRow,
   type CandidateRow,
@@ -90,14 +91,7 @@ function authorizationFromRlp(rlp: string): Record<string, unknown> {
 /** RLP writes zero as empty bytes. */
 const rlpInt = (x: Hex) => (x === '0x' ? '0' : x)
 
-export class BoardError extends Error {
-  constructor(
-    readonly code: 'unauthenticated' | 'forbidden' | 'not-found' | 'invalid' | 'conflict' | 'chain' | 'unavailable',
-    message: string,
-  ) {
-    super(message)
-  }
-}
+export { BoardError }
 
 export interface BoardConfig {
   readonly network: sdk.Network

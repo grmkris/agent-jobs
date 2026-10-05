@@ -3,6 +3,7 @@ import { type Address, type Hex, keccak256, stringToHex } from 'viem'
 import { migrateAgentSchema } from './agent-schema.ts'
 import type { Sql } from './store.ts'
 import { SPONSOR_OBJECT_NAME } from './sponsor.ts'
+import { AgentFailure } from './agent-failure.ts'
 
 export const AGENTS_OBJECT_NAME = SPONSOR_OBJECT_NAME
 export type AgentState = 'created' | 'upgraded' | 'grants-live' | 'registered' | 'active' | 'revoked'
@@ -138,14 +139,14 @@ export class AgentStore {
   }
 
   begin(id: string, key: string, boardId: string, tool: string, args: Record<string, unknown>): AgentOperationRow {
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new Error('Every agent action requires a stable operation key')
-    if (this.get(id).state === 'revoked') throw new Error('Agent access is revoked')
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new AgentFailure('invalid', 'Every agent action requires a stable operationKey (1-128 letters, digits, _ or -)', 'operation-key', 'new-key')
+    if (this.get(id).state === 'revoked') throw new AgentFailure('forbidden', 'Agent access is revoked', 'agent-revoked', 'none')
     const intent = canonicalAgentArgs(args)
     const hash = keccak256(stringToHex(intent))
     const operationId = keccak256(stringToHex(JSON.stringify([id, key])))
     const prior = this.sql.all<AgentOperationRow>('SELECT * FROM agent_operations WHERE id=?', operationId)[0]
     if (prior) {
-      if (prior.board_id !== boardId || prior.tool !== tool || prior.args_hash !== hash) throw new Error('Operation key names a different action')
+      if (prior.board_id !== boardId || prior.tool !== tool || prior.args_hash !== hash) throw new AgentFailure('conflict', 'This operationKey already names a different action; use a new key for a new action', 'operation-key-reused', 'new-key')
       return prior
     }
     this.sql.run(`INSERT INTO agent_operations (id,agent_id,action_key,board_id,tool,args_hash,stage,intent_json,signatures_json,created_at,updated_at)

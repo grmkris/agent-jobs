@@ -1,0 +1,53 @@
+import { BoardError } from './board-error.ts'
+
+/** What the caller should do next. `same-key` is safe: the operation journal resumes or reconciles it. */
+export type AgentRetry = 'same-key' | 'new-key' | 'after-operator' | 'none'
+
+/** A refusal an agent can act on: a stable reason, a retry rule and, when known, how long to wait. */
+export class AgentFailure extends BoardError {
+  constructor(
+    code: BoardError['code'],
+    message: string,
+    readonly reason: string,
+    readonly retry: AgentRetry,
+    readonly retryAfter?: number,
+  ) {
+    super(code, message)
+  }
+}
+
+export interface AgentFailureReply {
+  readonly ok: false
+  readonly code: string
+  readonly message: string
+  readonly reason?: string
+  readonly retry?: AgentRetry
+  readonly retryAfter?: number
+  readonly errorId?: string
+}
+
+const RETRIES = new Set<string>(['same-key', 'new-key', 'after-operator', 'none'])
+
+/**
+ * The reply for a failed hosted action. Board errors keep their code, message and any reason, retry and retryAfter
+ * (sponsor refusals attach these to a BoardError). Anything else is internal: its text may carry RPC URLs or keys,
+ * so the caller sees only an error id that the server logs beside the real error.
+ */
+export function agentFailureReply(error: unknown, fallback: string, log: (errorId: string, error: unknown) => void = defaultLog): AgentFailureReply {
+  if (error instanceof BoardError) {
+    const extra = error as unknown as { reason?: unknown; retry?: unknown; retryAfter?: unknown }
+    return {
+      ok: false, code: error.code, message: error.message,
+      ...(typeof extra.reason === 'string' ? { reason: extra.reason } : {}),
+      ...(typeof extra.retry === 'string' && RETRIES.has(extra.retry) ? { retry: extra.retry as AgentRetry } : {}),
+      ...(typeof extra.retryAfter === 'number' && Number.isFinite(extra.retryAfter) && extra.retryAfter > 0 ? { retryAfter: Math.ceil(extra.retryAfter) } : {}),
+    }
+  }
+  const errorId = Array.from(crypto.getRandomValues(new Uint8Array(6)), byte => byte.toString(16).padStart(2, '0')).join('')
+  log(errorId, error)
+  return { ok: false, code: 'unavailable', message: `${fallback} (error ${errorId}); retry the same operationKey`, reason: 'internal', retry: 'same-key', errorId }
+}
+
+function defaultLog(errorId: string, error: unknown): void {
+  console.error(JSON.stringify({ event: 'agent-failure', errorId, name: error instanceof Error ? error.name : typeof error, message: error instanceof Error ? error.message : String(error) }))
+}

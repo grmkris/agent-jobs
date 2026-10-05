@@ -4,6 +4,7 @@ import { type Address, type Hex, decodeFunctionData, encodeFunctionData, erc20Ab
 import { GrantStore, type GrantRow } from './grants.ts'
 import { checkGrantCall, type GrantCall } from './grant-calls.ts'
 import type { NamedSponsorEntry } from './sponsor.ts'
+import { AgentFailure } from './agent-failure.ts'
 
 const periodAvailableAbi = parseAbi(['function getAvailableAmount(bytes32 hash,address manager,bytes terms) view returns (uint256,bool,uint256)'])
 const same = (left: string, right: string) => left.toLowerCase() === right.toLowerCase()
@@ -64,7 +65,7 @@ function liveGrants(grants: GrantStore, wallet: Address, operator: Address, now:
 
 function oneGrant(rows: readonly GrantRow[], kind: sdk.GrantKind, hash?: Hex): GrantRow {
   const row = hash === undefined ? rows.find(item => item.kind === kind) : rows.find(item => item.kind === kind && same(item.delegation_hash, hash))
-  if (row === undefined) throw new Error(`No live ${kind} grant covers this agent action`)
+  if (row === undefined) throw new AgentFailure('unavailable', `No live ${kind} grant covers this agent action; it renews on retry`, 'grant-missing', 'same-key', 60)
   return row
 }
 
@@ -132,9 +133,9 @@ export async function mapAgentCalls(ctx: sdk.Ctx, grants: GrantStore, agent: { a
         // Try only the other explicit routine template; no fallback broadens authority.
       }
     }
-    if (matched === undefined) throw new Error('Call is outside this agent action and grant policy')
+    if (matched === undefined) throw new AgentFailure('forbidden', 'Call is outside this agent action and grant policy', 'outside-policy', 'none')
     entries.push(matched)
   }
-  if (entries.length === 0 || entries.length > 8) throw new Error('Agent action requires 1-8 sponsored entries')
+  if (entries.length === 0 || entries.length > 8) throw new AgentFailure('invalid', 'Agent action requires 1-8 sponsored entries', 'batch-size', 'none')
   return { entries }
 }

@@ -9,6 +9,7 @@ import { mapAgentCalls, type ApprovedAgentAction } from './agent-call-mapper.ts'
 import { SponsorDesk, type NamedSponsorEntry, type SponsorResult } from './sponsor.ts'
 import type { Sql } from './store.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
+import { AgentFailure } from './agent-failure.ts'
 
 export interface AgentPreparedCall {
   readonly transactions?: readonly sdk.TxRequest[]
@@ -98,7 +99,7 @@ export class AgentExecutor {
 
   async #approved(operation: AgentOperationRow): Promise<ApprovedAgentAction> {
     const approval = this.agents.approval(operation.id)
-    if (approval.status !== 'approved') throw new Error('Action requires an approved operator decision')
+    if (approval.status !== 'approved') throw new AgentFailure('conflict', 'This action waits for the operator\'s decision', 'approval-required', 'after-operator')
     const agent = this.agents.get(operation.agent_id)
     const request = JSON.parse(approval.request_json) as { token: Address; amount: string; shares?: string }
     const decision = JSON.parse(approval.decision_json ?? '{}') as { allowanceHash: Hex }
@@ -163,10 +164,10 @@ export class AgentExecutor {
 
   async #execute(input: AgentExecuteInput): Promise<AgentExecuteResult> {
     const agent = this.agents.get(input.agentId)
-    if (agent.address === null || agent.privy_wallet_id === null || agent.state !== 'active' || agent.chain_id !== this.deps.context.deployment.chainId) throw new Error('Agent is not active on this chain')
+    if (agent.address === null || agent.privy_wallet_id === null || agent.state !== 'active' || agent.chain_id !== this.deps.context.deployment.chainId) throw new AgentFailure('forbidden', 'Agent is not active on this chain', 'agent-unavailable', 'none')
     if (['stake', 'request_unstake', 'cancel_unstake', 'withdraw_stake'].includes(input.tool) && input.args.account !== undefined
       && (typeof input.args.account !== 'string' || input.args.account.toLowerCase() !== agent.address.toLowerCase())) {
-      throw new Error('Managed vault actions require the agent own account and position')
+      throw new AgentFailure('forbidden', 'Managed vault actions require the agent own account and position', 'outside-policy', 'none')
     }
     const operation = this.agents.begin(input.agentId, input.operationKey, input.boardId, input.tool, input.args)
     if (operation.stage === 'confirmed') return { status: 'confirmed', operationId: operation.id, result: JSON.parse(operation.result_json!) }
@@ -175,7 +176,7 @@ export class AgentExecutor {
       const sent = await this.deps.sponsor.submit(agent.address, [], operation.action_key)
       return this.#finish(operation, agent.address, sent)
     }
-    if (operation.stage === 'failed') throw new Error('This operation is terminal; inspect its stored result')
+    if (operation.stage === 'failed') throw new AgentFailure('conflict', 'This operation is terminal; inspect it with check_operation, or start a new action with a new operationKey', 'operation-terminal', 'new-key')
     if (operation.stage === 'sending') {
       const action = this.agents.step<AgentPreparedCall>(operation.id, 'action')
       if (action === undefined || (action.transactions?.length ?? 0) !== 0) throw new Error('Sending operation is missing its relay link')
