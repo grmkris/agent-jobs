@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, AgentSigning, AgentExecutor, SponsorDesk } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -9,6 +9,10 @@ import { type ToolContext, toJson, tools } from './tools.ts'
 import { admissionIdentity, admissionIpHash, enforceHostedRate, needsWriteRate, type AdmissionCall, type AdmissionNamespace, type AdmissionReply } from './admission-rate.ts'
 import { collectSnapshot } from './collect-index.ts'
 import { r2MiningSource, type EpochBucket } from './mining.ts'
+import { oauthRoute, resolveOAuth } from './oauth.ts'
+import type { OAuthGrant } from './oauth.ts'
+import { permittedTool, requiredToolScope } from './mcp-policy.ts'
+import { resourceBoard } from './oauth-validation.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
 export interface BoardCall {
@@ -19,6 +23,7 @@ export interface BoardCall {
   /** The signed-in wallet, when the Worker already resolved it from the shared session store (ADR-0008). */
   readonly caller?: string | undefined
   readonly ip?: string | undefined
+  readonly agentAuth?: { readonly agentId: string; readonly resource: string }
   readonly env: {
     readonly network: sdk.Network
     readonly boardId: string
@@ -96,7 +101,96 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
       return board
     }
 
+    const authenticatedAgent = async (req: BoardCall): Promise<OAuthGrant> => {
+      if (req.agentAuth === undefined) throw new BoardError('forbidden', 'Agent authentication is required')
+      const bindings = runtimeEnv as Record<string, unknown>
+      const namespace = bindings.Board as { idFromName(name: string): unknown; get(id: unknown): { oauthResolve(req: { resource: string; bearer?: string }): Promise<string> } }
+      const grant = JSON.parse(await namespace.get(namespace.idFromName(SPONSOR_OBJECT_NAME)).oauthResolve({ resource: req.agentAuth.resource, ...(req.bearer === undefined ? {} : { bearer: req.bearer }) })) as OAuthGrant | null
+      const origin = new URL(req.agentAuth.resource).origin
+      if (grant === null || !grant.agentIds.includes(req.agentAuth.agentId) || grant.chainId !== sdk.deployment(req.env.network).chainId
+        || resourceBoard(grant.resource, origin) !== req.env.boardId || !permittedTool(grant, req.tool, true)
+        || req.caller?.toLowerCase() !== grant.address.toLowerCase()) throw new BoardError('forbidden', 'Agent scope, board or wallet mismatch')
+      return grant
+    }
+
     return Effect.succeed({
+        agentExecute: (req: { env: BoardCall['env']; tool: string; args: Record<string, unknown>; agentId: string; resource: string; bearer?: string; ip?: string }) => Effect.promise(() => {
+          const result = callQueue.then(async () => {
+            try {
+              const bindings = runtimeEnv as Record<string, unknown>
+              const namespace = bindings.Board as { idFromName(name: string): { toString(): string }; get(id: unknown): { call(req: BoardCall): Promise<string>; verifyAgentSigning(req: BoardCall & { typedData: string }): Promise<string> } }
+              if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString() || req.env.network !== bindings.NETWORK) throw new BoardError('forbidden', 'management object identity mismatch')
+              const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+              migrateAgentSchema(sql)
+              const grant = await resolveOAuth(sql, req.bearer, req.resource, Math.floor(Date.now() / 1000))
+              if (grant === undefined || !grant.agentIds.includes(req.agentId) || !permittedTool(grant, req.tool)
+                || resourceBoard(req.resource, new URL(req.resource).origin) !== req.env.boardId) throw new BoardError('forbidden', 'This connection does not grant this agent, tool or board')
+              const agents = new AgentStore(sql, () => Math.floor(Date.now() / 1000))
+              const agent = agents.get(req.agentId)
+              agents.touch(agent.id)
+              const { operationKey, managedAgentId: _managedAgentId, ...args } = req.args
+              if (requiredToolScope(req.tool) !== 'hireling:read' && typeof operationKey !== 'string') throw new BoardError('invalid', 'Every write requires a stable operationKey; retry with the same key')
+              if (req.tool === 'apply' || req.tool === 'submit_quote') {
+                if (args.agentId !== undefined && args.agentId !== agent.agent_id) throw new BoardError('forbidden', 'Use this connection\'s registered agentId')
+                args.agentId = agent.agent_id
+              }
+              const ctx = sdk.context(req.env.network, 'main', req.env.rpcUrl)
+              const signerKey = typeof bindings.PRIVY_SIGNER_KEY === 'string' ? bindings.PRIVY_SIGNER_KEY : ''
+              const appSecret = typeof bindings.PRIVY_APP_SECRET === 'string' ? bindings.PRIVY_APP_SECRET : ''
+              if (signerKey === '' || signerKey === 'unset' || appSecret === '' || appSecret === 'unset' || !key32(req.env.relayKey)) throw new BoardError('unavailable', 'Hosted agent signing is unavailable')
+              const provider = new sdk.PrivyServer({ appId: String(bindings.PRIVY_APP_ID ?? ''), appSecret, sign: await sdk.p256AuthorizationSigner(signerKey) })
+              const signing = new AgentSigning(sql, ctx, provider, () => Math.floor(Date.now() / 1000))
+              const auth = { agentId: agent.id, resource: req.resource }
+              const prepare = (tool: string, input: Record<string, unknown>): BoardCall => ({ tool, args: input, env: req.env, caller: agent.address!, agentAuth: auth, ...(req.ip === undefined ? {} : { ip: req.ip }), ...(req.bearer === undefined ? {} : { bearer: req.bearer }) })
+              const tenant = namespace.get(namespace.idFromName(req.env.boardId))
+              const executor = new AgentExecutor({ sql, now: () => Math.floor(Date.now() / 1000), context: ctx, signing,
+                sponsor: new SponsorDesk({ sql, ctx, now: () => Math.floor(Date.now() / 1000), relay: { account: privateKeyToAccount(req.env.relayKey as Hex), rpcUrl: req.env.rpcUrl }, fail: (code, message) => new BoardError(code, message) }),
+                prepareTool: async input => {
+                  const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
+                  if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
+                  return reply.result as import('@agent-jobs/board').AgentPreparedCall
+                },
+                verifyToolSigning: input => tenant.verifyAgentSigning({ ...prepare(input.tool, input.args), typedData: input.typedData }),
+              })
+              return toJson({ ok: true, result: await executor.execute({ agentId: agent.id, boardId: req.env.boardId, tool: req.tool, args, operationKey: typeof operationKey === 'string' ? operationKey : crypto.randomUUID() }) })
+            } catch (error) {
+              return toJson({ ok: false, code: error instanceof BoardError ? error.code : 'unavailable', message: error instanceof BoardError ? error.message : 'Hosted agent execution is unavailable' })
+            }
+          })
+          callQueue = result.catch(() => undefined)
+          return result
+        }),
+        verifyAgentSigning: (req: BoardCall & { typedData: string }) => Effect.promise(async () => {
+          await authenticatedAgent(req)
+          return boardFor(req.env).verifyAgentSigning({ address: getAddress(req.caller!) }, { tool: req.tool, args: req.args, typedData: req.typedData })
+        }),
+        /** OAuth lives beside the agent and sponsor journals, under this object's single-writer queue. */
+        oauth: (req: { env: BoardCall['env']; method: string; path: string; query: string; body: Record<string, unknown>; origin: string; bearer?: string }) => Effect.promise(() => {
+          const result = callQueue.then(async () => {
+            const bindings = runtimeEnv as Record<string, unknown>
+            const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
+            if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString() || req.env.network !== bindings.NETWORK) throw new Error('management object identity mismatch')
+            const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+            migrateAgentSchema(sql)
+            const desk = new SessionDesk({ sql: fromD1(bindings.Database as never), now: () => Math.floor(Date.now() / 1000), verify: async () => false })
+            const session = await desk.resolve({ bearer: req.bearer })
+            return toJson(await oauthRoute({ sql, method: req.method, path: req.path, query: new URLSearchParams(req.query), body: req.body, origin: req.origin, siteOrigin: req.origin, ...(session === undefined ? {} : { owner: session.address }), now: Math.floor(Date.now() / 1000) }) ?? null)
+          })
+          callQueue = result.catch(() => undefined)
+          return result
+        }),
+        oauthResolve: (req: { resource: string; bearer?: string; activity?: boolean }) => Effect.sync(() => {
+          const bindings = runtimeEnv as Record<string, unknown>
+          const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
+          if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString()) throw new Error('management object identity mismatch')
+          const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+          migrateAgentSchema(sql)
+          return sql
+        }).pipe(Effect.flatMap(sql => Effect.promise(async () => {
+          const grant = await resolveOAuth(sql, req.bearer, req.resource, Math.floor(Date.now() / 1000))
+          if (grant !== undefined && req.activity === true) new AgentStore(sql, () => Math.floor(Date.now() / 1000)).touch(grant.agentIds[0]!)
+          return toJson(grant ?? null)
+        }))),
         /** Private management storage remains in the existing reserved object. */
         management: (req: { kind: 'migrate' | 'retire' }) => Effect.sync(() => {
           const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName(name: string): { toString(): string } } | undefined
@@ -169,7 +263,12 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const objectName = sponsored ? SPONSOR_OBJECT_NAME : req.env.boardId
               if ((sponsored || network === 'monad-mainnet') && (namespace === undefined || namespace.idFromName(objectName).toString() !== state.id.toString())) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object board identity mismatch' })
               let directCaller = req.caller !== undefined ? { address: getAddress(req.caller) } : undefined
-              if (network === 'monad-mainnet') {
+              if (req.agentAuth !== undefined) {
+                const grant = await authenticatedAgent(req)
+                directCaller = { address: getAddress(grant.address) }
+                const rate = await enforceHostedRate(bindings, { network, tool: req.tool, boardId: req.env.boardId, bearer: req.bearer, caller: req.caller, ip: req.ip, agentAuth: req.agentAuth })
+                if (!rate.ok) return toJson(rate)
+              } else if (network === 'monad-mainnet') {
                 const desk = new SessionDesk({ sql: fromD1((runtimeEnv as Record<string, unknown>).Database as never), now: () => Math.floor(Date.now() / 1000), verify: async () => false })
                 const session = await desk.resolve({ bearer: req.bearer, mcpSession: req.mcpSession })
                 if (req.caller !== undefined && session?.address.toLowerCase() !== req.caller.toLowerCase()) return toJson({ ok: false, code: 'forbidden', message: 'Durable Object caller is not the authenticated session wallet' })

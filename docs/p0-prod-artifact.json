@@ -18,8 +18,12 @@
     "approved": false
   },
   "remoteState": true,
-  "admission": { "drain": true },
-  "explore": { "mainnetLive": false },
+  "admission": {
+    "drain": true
+  },
+  "explore": {
+    "mainnetLive": false
+  },
   "secretSources": {
     "MONAD_RPC_URL": "HIRELING_PROD_MONAD_RPC_URL",
     "RELAY_PRIVATE_KEY": "HIRELING_PROD_RELAY_PRIVATE_KEY",
@@ -28,7 +32,9 @@
     "GITHUB_APP_PRIVATE_KEY": "HIRELING_PROD_GITHUB_APP_PRIVATE_KEY",
     "HYPERSYNC_API_TOKEN": "HIRELING_PROD_HYPERSYNC_API_TOKEN",
     "TELEGRAM_BOT_TOKEN": "HIRELING_PROD_TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_WEBHOOK_SECRET": "HIRELING_PROD_TELEGRAM_WEBHOOK_SECRET"
+    "TELEGRAM_WEBHOOK_SECRET": "HIRELING_PROD_TELEGRAM_WEBHOOK_SECRET",
+    "PRIVY_APP_SECRET": "HIRELING_PROD_PRIVY_APP_SECRET",
+    "PRIVY_SIGNER_KEY": "HIRELING_PROD_PRIVY_SIGNER_KEY"
   },
   "addresses": {
     "admin": null,

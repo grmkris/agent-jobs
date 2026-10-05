@@ -158,3 +158,28 @@ test('deployment history refuses equal older timestamps across a page boundary',
   try { await assert.rejects(liveDeployment('test-script'), { message: 'census-deployment-order-invalid' }) }
   finally { globalThis.fetch = originalFetch }
 })
+
+test('agent signing census requires a secret routine key and nonempty plain identifiers after release', async () => {
+  const { validateCensus } = await import('./cloudflare.mjs')
+  const { expected } = await import('./evidence.mjs')
+  const bindings = [
+    { name: 'Database', id: expected.resources.Database },
+    { name: 'Manifests', bucket_name: expected.resources.Manifests },
+    { name: 'Board', namespace_id: expected.boardNamespace },
+    ...['AI_GATEWAY_API_KEY', 'ATTESTER_PRIVATE_KEY', 'RELAY_PRIVATE_KEY', 'GITHUB_APP_PRIVATE_KEY', 'BUDGET_SIGNER_PRIVATE_KEY', 'PRIVY_APP_SECRET'].map(name => ({ name, type: 'secret_text' })),
+  ]
+  const live = {
+    databaseId: expected.resources.Database, bucketName: expected.resources.Manifests,
+    domains: expected.domains.map(hostname => ({ hostname, service: expected.resources.Explore, zone_id: 'd4ad1574270cad47f2e33381dba31f84' })),
+    namespaces: [{ id: expected.boardNamespace, className: 'Board' }],
+    workers: Object.fromEntries(['Api', 'Indexer', 'Explore'].map(id => [id, { name: expected.resources[id], tags: ['alchemy:stack:AgentJobs', 'alchemy:stage:staging'], crons: id === 'Indexer' ? ['* * * * *'] : [], bindings: id === 'Api' ? bindings : id === 'Indexer' ? [{ name: 'Database', id: expected.resources.Database }] : [{ name: 'API', service: expected.resources.Api }] }])),
+  }
+  validateCensus(live)
+  assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-signer-binding-missing/)
+  bindings.push({ name: 'PRIVY_SIGNER_KEY', type: 'secret_text' })
+  assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-authority-setting-missing/)
+  for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) bindings.push({ name, type: 'plain_text', text: 'public-id' })
+  validateCensus(live, { requireAgentSigning: true })
+  bindings.find(binding => binding.name === 'PRIVY_SIGNER_KEY').type = 'plain_text'
+  assert.throws(() => validateCensus(live, { requireAgentSigning: true }), /census-agent-signer-binding-missing/)
+})

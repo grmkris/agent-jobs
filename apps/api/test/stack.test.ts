@@ -139,3 +139,40 @@ test.skipIf(!rpcSet)('tenant boards: sign in over REST, create a board, use its 
     const who = yield* rest<{ address: string; boardId: string }>('whoami', {}, login.result.session)
     expect(who.result.address).toBe(account.address)
   }))
+
+test('hosted MCP requires OAuth and advertises exact public and tenant protected resources',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    for (const resourcePath of ['/mcp', '/b/public/mcp']) {
+      const denied = yield* postJson(`${apiUrl}${resourcePath}`, { jsonrpc: '2.0', id: 1, method: 'initialize' })
+      expect(denied.status).toBe(401)
+      expect(denied.headers['www-authenticate']).toContain(`/.well-known/oauth-protected-resource${resourcePath}`)
+      const metadata = yield* HttpClient.get(`${apiUrl}/.well-known/oauth-protected-resource${resourcePath}`)
+      expect(metadata.status).toBe(200)
+      expect(yield* metadata.json).toMatchObject({ resource: `${apiUrl}${resourcePath}`, authorization_servers: [apiUrl], scopes_supported: ['hireling:read', 'hireling:hire', 'hireling:work'] })
+    }
+    const discovery = yield* HttpClient.get(`${apiUrl}/.well-known/oauth-authorization-server`)
+    expect(discovery.status).toBe(200)
+    expect(yield* discovery.json).toMatchObject({ token_endpoint: `${apiUrl}/oauth/token`, code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none'] })
+  }))
+
+test('OAuth registration and authorize enforce exact redirect/resource and the website origin in workerd',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    const bad = yield* postJson(`${apiUrl}/oauth/register`, { redirect_uris: ['http://untrusted.example/callback'] })
+    expect(bad.status).toBe(400)
+    const registration = yield* postJson(`${apiUrl}/oauth/register`, { redirect_uris: ['http://localhost:3333/callback'], client_name: 'Workerd OAuth client' })
+    expect(registration.status).toBe(201)
+    const client = (yield* registration.json) as { client_id: string }
+    const query = new URLSearchParams({ client_id: client.client_id, redirect_uri: 'http://localhost:3333/callback', response_type: 'code', code_challenge: 'a'.repeat(43), code_challenge_method: 'S256', scope: 'hireling:read', resource: `${apiUrl}/mcp` })
+    const evilOrigin = yield* HttpClient.get(`${apiUrl}/oauth/authorize?${query}`, { headers: { origin: 'https://evil.example' } })
+    expect(evilOrigin.status).toBe(403)
+    query.set('resource', 'https://evil.example/mcp')
+    const evilResource = yield* HttpClient.get(`${apiUrl}/oauth/authorize?${query}`)
+    expect(evilResource.status).toBe(400)
+    query.set('resource', `${apiUrl}/b/public/mcp`)
+    query.set('redirect_uri', 'http://localhost:3334/callback')
+    expect((yield* HttpClient.get(`${apiUrl}/oauth/authorize?${query}`)).status).toBe(400)
+    const consent = yield* postJson(`${apiUrl}/oauth/requests/oauth_${'a'.repeat(40)}/approve`, { agentIds: ['someone-else'] }, { origin: 'https://evil.example' })
+    expect(consent.status).toBe(403)
+  }))

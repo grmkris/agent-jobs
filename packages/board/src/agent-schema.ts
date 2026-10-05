@@ -78,7 +78,7 @@ export function migrateAgentSchema(sql: Sql): void {
     sql.run(`CREATE TABLE agent_oauth_requests (
       id TEXT PRIMARY KEY, client_id TEXT NOT NULL, redirect_uri TEXT NOT NULL,
       code_challenge TEXT NOT NULL, state TEXT NOT NULL, board_id TEXT NOT NULL,
-      scopes_json TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL
+      scopes_json TEXT NOT NULL, resource TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL
     )`)
     sql.run(`CREATE TABLE agent_oauth_codes (
       hash TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, agent_id TEXT NOT NULL,
@@ -86,7 +86,7 @@ export function migrateAgentSchema(sql: Sql): void {
     )`)
     sql.run(`CREATE TABLE agent_oauth_families (
       id TEXT PRIMARY KEY, client_id TEXT NOT NULL, agent_id TEXT NOT NULL,
-      board_id TEXT NOT NULL, scopes_json TEXT NOT NULL, revoked_at INTEGER, created_at INTEGER NOT NULL
+      board_id TEXT NOT NULL, scopes_json TEXT NOT NULL, resource TEXT NOT NULL, revoked_at INTEGER, created_at INTEGER NOT NULL
     )`)
     sql.run(`CREATE TABLE agent_oauth_tokens (
       hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, kind TEXT NOT NULL,

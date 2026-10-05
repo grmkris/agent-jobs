@@ -1,7 +1,10 @@
 import { isIP } from 'node:net'
-import { ADMISSION_OBJECT_NAME, admissionFailure, parseHostedAdmission, readOnlyHostedTools, SessionDesk } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, admissionFailure, parseHostedAdmission, readOnlyHostedTools, SessionDesk } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import type { Network } from '@agent-jobs/sdk'
+import type { OAuthGrant } from './oauth.ts'
+import { resourceBoard } from './oauth-validation.ts'
+import { permittedTool } from './mcp-policy.ts'
 
 export interface AdmissionCall {
   network: Network
@@ -12,6 +15,7 @@ export interface AdmissionCall {
   caller?: string | undefined
   /** Only the host Worker supplies this, from CF-Connecting-IP; never from tool arguments. */
   ip?: string | undefined
+  agentAuth?: { agentId: string; resource: string }
 }
 
 export type AdmissionReply = { ok: true } | { ok: false; code: string; message: string; retryAfter?: number }
@@ -26,11 +30,18 @@ export async function admissionIdentity(bindings: Record<string, unknown>, input
   if (bindings.NETWORK !== input.network || input.network !== 'monad-mainnet' || bindings.DEPLOY_STAGE !== 'prod') throw new Error('admission runtime network/stage mismatch')
   const desk = new SessionDesk({ sql: fromD1(bindings.Database as never), verify: async () => false })
   const session = await desk.resolve(input)
-  if (input.caller !== undefined && input.caller.toLowerCase() !== session?.address.toLowerCase()) throw new Error('caller is not the authenticated session wallet')
+  let address = session?.address
+  if (input.agentAuth !== undefined) {
+    const namespace = bindings.Board as { idFromName(name: string): unknown; get(id: unknown): { oauthResolve(req: { resource: string; bearer?: string }): Promise<string> } }
+    const grant = JSON.parse(await namespace.get(namespace.idFromName(SPONSOR_OBJECT_NAME)).oauthResolve({ resource: input.agentAuth.resource, ...(input.bearer === undefined ? {} : { bearer: input.bearer }) })) as OAuthGrant | null
+    if (grant === null || !grant.agentIds.includes(input.agentAuth.agentId) || resourceBoard(grant.resource, new URL(grant.resource).origin) !== input.boardId || !permittedTool(grant, input.tool, true)) throw new Error('OAuth admission scope mismatch')
+    address = grant.address as typeof address
+  }
+  if (input.caller !== undefined && input.caller.toLowerCase() !== address?.toLowerCase()) throw new Error('caller is not the authenticated wallet')
   const policy = parseHostedAdmission(typeof bindings.PROD_ADMISSION_DRAIN === 'string' ? bindings.PROD_ADMISSION_DRAIN : '1')
-  const denied = admissionFailure(policy, input.network, input.boardId, input.tool, session?.address)
+  const denied = admissionFailure(policy, input.network, input.boardId, input.tool, address)
   if (denied !== undefined) throw new Error(denied)
-  return session?.address
+  return address
 }
 
 /** Canonicalize before hashing, so alternate IPv6 spellings share a counter. Never store the raw IP. */

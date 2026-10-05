@@ -188,7 +188,7 @@ async function run() {
         }
         if (!verified) fail('guard-post-upload-verification-failed')
       }
-      const after = yield* Effect.promise(() => census({ domains: safe.expectedDomains }))
+      const after = yield* Effect.promise(() => census({ domains: safe.expectedDomains, requireAgentSigning: true }))
       journal.status = 'verified'
       journal.versions = Object.fromEntries(Object.entries(after.workers).map(([id, worker]) => [id, worker.version]))
       writeFileSync(resolve(runRoot, 'journal.json'), JSON.stringify(journal, null, 2), { mode: 0o600 })

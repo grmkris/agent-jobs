@@ -165,6 +165,14 @@ export function validateCensus(live, options = {}) {
   for (const name of ['AI_GATEWAY_API_KEY', 'ATTESTER_PRIVATE_KEY', 'RELAY_PRIVATE_KEY', 'GITHUB_APP_PRIVATE_KEY', 'BUDGET_SIGNER_PRIVATE_KEY', 'PRIVY_APP_SECRET']) {
     if (get('Api', name)?.type !== 'secret_text') throw new StagingReleaseError('census-secret-binding-missing')
   }
+  // Before P8 the current Worker has no routine signer. After apply all four bindings must be present.
+  if (options.requireAgentSigning === true || get('Api', 'PRIVY_SIGNER_KEY') !== undefined) {
+    if (get('Api', 'PRIVY_SIGNER_KEY')?.type !== 'secret_text') throw new StagingReleaseError('census-agent-signer-binding-missing')
+    for (const name of ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID']) {
+      const binding = get('Api', name)
+      if (binding?.type !== 'plain_text' || typeof binding.text !== 'string' || binding.text.length === 0) throw new StagingReleaseError('census-agent-authority-setting-missing')
+    }
+  }
 }
 
 export async function verifyWorker(id) {

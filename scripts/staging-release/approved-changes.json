@@ -4,6 +4,7 @@
   "stage": "staging",
   "network": "monad-testnet",
   "secretChanges": [
+    { "logicalId": "Api", "name": "PRIVY_SIGNER_KEY", "action": "add" },
     { "logicalId": "Api", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },
     { "logicalId": "Api", "name": "TELEGRAM_WEBHOOK_SECRET", "action": "add" },
     { "logicalId": "Indexer", "name": "TELEGRAM_BOT_TOKEN", "action": "add" },

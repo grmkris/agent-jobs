@@ -24,6 +24,10 @@ import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
 import { TelegramError, enqueuePublicRequest, enqueueWalletNotification, handleTelegramWebhook, migrateTelegram, telegramPublicChannel } from './telegram.ts'
 import { telegramTools } from './tools-telegram.ts'
+import type { OAuthReply, OAuthGrant } from './oauth.ts'
+import { mcpRoute } from './mcp.ts'
+import { tools } from './tools.ts'
+import { permittedTool } from './mcp-policy.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -81,6 +85,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
       GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
       GITHUB_APP_INSTALLATION_ID: process.env.GITHUB_APP_INSTALLATION_ID || '',
       GITHUB_APP_PRIVATE_KEY: Redacted.make(runtimeSecret('GITHUB_APP_PRIVATE_KEY') || 'unset'),
+      PRIVY_APP_ID: process.env.PRIVY_APP_ID || '',
+      PRIVY_SIGNER_ID: process.env.PRIVY_SIGNER_ID || '',
+      PRIVY_POLICY_ID: process.env.PRIVY_POLICY_ID || '',
+      PRIVY_APP_SECRET: Redacted.make(runtimeSecret('PRIVY_APP_SECRET') || 'unset'),
+      PRIVY_SIGNER_KEY: Redacted.make(runtimeSecret('PRIVY_SIGNER_KEY') || 'unset'),
       TELEGRAM_BOT_TOKEN: Redacted.make(runtimeSecret('TELEGRAM_BOT_TOKEN') || 'unset'),
       TELEGRAM_WEBHOOK_SECRET: Redacted.make(runtimeSecret('TELEGRAM_WEBHOOK_SECRET') || 'unset'),
       // Retain existing binding names for guarded staging updates; these obsolete lists are ignored.
@@ -301,6 +310,22 @@ export default class Api extends Cloudflare.Worker<Api>()(
         // Hosted MCP OAuth is deliberately separate from the legacy website SIWE session.
         const rawBody = request.method === 'POST' ? yield* request.text : ''
         const oauthBody: Record<string, unknown> = rawBody === '' ? {} : (() => { if (request.headers['content-type']?.includes('application/x-www-form-urlencoded')) return Object.fromEntries(new URLSearchParams(rawBody)); try { return JSON.parse(rawBody) as Record<string, unknown> } catch { return {} } })()
+        if (path.startsWith('/oauth/') || path.startsWith('/.well-known/oauth-')) {
+          if (origin !== undefined && origin !== url.origin) return json({ error: 'invalid_request', error_description: 'OAuth requests require the website origin' }, 403)
+          const reply = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauth({ env, method: request.method, path: url.pathname, query: url.searchParams.toString(), body: oauthBody, origin: url.origin, ...(bearer === undefined ? {} : { bearer }) })) as OAuthReply | null
+          if (reply !== null) return reply.redirect === undefined ? json(reply.body, reply.status, reply.headers) : HttpServerResponse.empty({ status: reply.status, headers: { ...reply.headers, location: reply.redirect } })
+        }
+        if (path === '/mcp') {
+          const resource = `${url.origin}${url.pathname}`
+          const grant = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })) as OAuthGrant | null
+          const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin,
+            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools }).filter(([name]) => grant !== null && permittedTool(grant, name))),
+            call: async (tool, args, agentId) => {
+              return JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as unknown
+            },
+          }))
+          return reply.status === 204 || reply.status === 202 ? HttpServerResponse.empty({ status: reply.status, headers: { ...cors, ...reply.headers } }) : json(reply.body, reply.status, reply.headers)
+        }
         if (path.startsWith('/data/') && request.method === 'GET') {
           if (path === '/data/directory' || /^\/data\/directory\/\d{1,78}$/.test(path)) {
             const reply = yield* Effect.promise(async () => {
