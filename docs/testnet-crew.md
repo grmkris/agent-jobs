@@ -55,5 +55,29 @@ The kill switch `pnpm crew stop` stops all named crew containers, including
 `start` resumes existing containers at their pinned source version. To upgrade,
 stop the crew, remove only its stopped containers, then start at a new gated commit.
 
-C2 demand and C3 managed Codex containers are pending their own setup and live proofs.
-The deployed acceptance harness remains stopped.
+The G1c restart uses the refunded **20 FACTORY self-owned position** behind each
+worker. `scripts/crew-migrate-g1c.ts` explicitly moves the binding from the committed
+G1b archive to G1c after reconciling every historical signed send. It archives G1b
+job entries under their old Holding and retains identities, receipts, signed bytes,
+artifact intents and daily reservations. It never broadcasts or resets a journal:
+
+```sh
+pnpm exec bun scripts/crew-migrate-g1c.ts workers .crew/canvas
+pnpm exec bun scripts/crew-migrate-g1c.ts workers .crew/canvas --yes
+pnpm exec bun scripts/crew-migrate-g1c.ts workers .crew/studio --yes
+pnpm exec bun scripts/crew-migrate-g1c.ts demand .crew/demand --yes
+```
+
+Stop and remove the old immutable G1b containers before starting G1c, keeping their
+state mounts. The demand migration accepts only its held, unused creator journal;
+it retains the original funding receipts and schedule. In this worktree `.crew/demand`
+points to the canonical private demand state created in the main checkout, so there
+is still one journal. Worktree launchers read private environment values from the
+main checkout unless `CREW_SOURCE_ROOT` selects another source.
+
+When the demand journal is configured, `pnpm crew start` also starts
+`hireling-crew-demand` using the reviewed standalone launcher. Status includes its
+heartbeat, operation IDs and cap ledger, and stop retains its journal. Demand posts
+every 90 minutes and caps committed plus reserved rewards at **12 mUSD per UTC day**;
+see [testnet-demand-bot.md](testnet-demand-bot.md) for its exact approval policy.
+C3 remains paused. The deployed acceptance harness remains stopped.

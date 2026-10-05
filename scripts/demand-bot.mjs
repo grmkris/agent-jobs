@@ -1,4 +1,4 @@
-/** Standalone C2 container handoff. Build uses prepare/spec; Claude owns start. */
+/** Standalone demand launcher, also used by the authorized testnet crew supervisor. */
 import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -22,7 +22,9 @@ function prepare() {
   mkdirSync(directory, { recursive: true, mode: 0o700 })
   chmodSync(directory, 0o700)
   const values = {}
-  const file = join(root, '.env.local')
+  const common = resolve(root, execute('git', ['rev-parse', '--git-common-dir']).trim())
+  const sourceRoot = process.env.CREW_SOURCE_ROOT ?? dirname(common)
+  const file = join(sourceRoot, '.env.local')
   if (existsSync(file)) {
     for (const line of readFileSync(file, 'utf8').split('\n')) {
       const match = /^([A-Z0-9_]+)=(.*)$/.exec(line)
@@ -66,18 +68,24 @@ function snapshot(sha) {
 }
 
 function start() {
-  prepare()
   const sha = execute('git', ['rev-parse', 'HEAD']).trim()
   const files = ['scripts/demand-bot.mjs', ...execute('git', ['ls-files', 'packages/sdk/*demand*', 'packages/sdk/src/demand-bot*', 'packages/sdk/scripts/demand-bot*']).trim().split('\n')]
   if (execute('git', ['status', '--porcelain', '--', ...files]).trim()) throw new Error('Commit demand source before starting')
-  try { execute('docker', ['network', 'inspect', 'hireling-crew']) } catch { execute('docker', ['network', 'create', 'hireling-crew']) }
+  let driver
+  try { driver = execute('docker', ['network', 'inspect', '--format', '{{.Driver}}', 'hireling-crew']).trim() }
+  catch { execute('docker', ['network', 'create', '--driver', 'bridge', 'hireling-crew']); driver = 'bridge' }
+  if (driver !== 'bridge') throw new Error('Demand requires the dedicated bridge network')
   const existing = containerState()
   if (existing) {
     const config = JSON.parse(execute('docker', ['inspect', '--format', '{{json .HostConfig}}', name]))
     if (config.NetworkMode !== 'hireling-crew' || config.Memory !== 2 * 1024 ** 3 || config.RestartPolicy.Name !== 'unless-stopped' || Object.keys(config.PortBindings ?? {}).length !== 0) throw new Error('Existing demand container does not match the reviewed bridge and resource policy')
-    execute('docker', ['start', name])
+    if (!existing.Running) {
+      prepare()
+      execute('docker', ['start', name])
+    }
   }
   else {
+    prepare()
     snapshot(sha)
     execute('docker', runSpec(sha))
   }

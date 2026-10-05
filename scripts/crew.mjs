@@ -127,12 +127,20 @@ function start() {
       'aj-worker:latest', 'flock', '--nonblock', '--no-fork', '/state/journal.lock', 'bun', 'packages/sdk/scripts/demo-workers.ts', 'start'])
     console.log(`${worker.container}: started at ${sha}`)
   }
+  if (existsSync(join(directory, 'demand/journal.json'))) {
+    console.log(execute('node', ['scripts/demand-bot.mjs', 'start']))
+  }
   status()
 }
 
 function stop() {
   for (const name of containers) {
     if (!dockerState(name)?.Running) continue
+    if (name === 'hireling-crew-demand') {
+      execute('node', ['scripts/demand-bot.mjs', 'stop'], { timeout: 200_000 })
+      console.log(`${name}: stopped; journal retained`)
+      continue
+    }
     execute('docker', ['stop', '--time', '180', name], { timeout: 200_000 })
     console.log(`${name}: stopped; journal retained`)
   }
@@ -140,12 +148,14 @@ function stop() {
 }
 
 function status() {
+  const demandFile = join(directory, 'demand/status.json')
   const report = { updatedAt: new Date().toISOString(), network: 'monad-testnet',
     containers: containers.map(name => ({ name, state: dockerState(name) })),
     workers: workers.flatMap(worker => {
       const file = join(directory, worker.slug, 'status.json')
       return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')).workers.filter(entry => entry.name === (worker.slug === 'canvas' ? 'Grok Canvas' : 'Grok Studio')) : []
     }),
+    demand: existsSync(demandFile) ? JSON.parse(readFileSync(demandFile, 'utf8')) : null,
   }
   mkdirSync(directory, { recursive: true, mode: 0o700 })
   writeFileSync(join(directory, 'status.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 })
