@@ -116,4 +116,14 @@ suite('resumable agent registry onboarding', () => {
     await lifecycle().revoke('onboarding-fork', operator)
     expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
   })
+  it('owner recovery redeems a fresh exact grant after all hosted permissions were disabled', async () => {
+    const before = await ctx.publicClient.getBalance({ address: fixture.worker.account.address })
+    const execution = { target: fixture.creator.account.address, value: 7n, callData: '0x' as const }
+    const grant = sdk.recoveryGrant(ctx.deployment, fixture.worker.account.address, fixture.creator.account.address, execution, 912n, now)
+    const signature = await sdk.signTypedDataJson(fixture.worker, sdk.delegationTypedData(ctx.deployment, grant))
+    const hash = await fixture.creator.sendTransaction({ to: ctx.deployment.delegation.manager, data: sdk.redeemCallsCalldata({ ...grant, signature }, [execution]) })
+    expect((await ctx.publicClient.waitForTransactionReceipt({ hash })).status).toBe('success')
+    expect(await ctx.publicClient.getBalance({ address: fixture.worker.account.address })).toBe(before - 7n)
+  })
+
 })

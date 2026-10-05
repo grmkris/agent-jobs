@@ -1,3 +1,5 @@
+import { OAuthConsent } from '../components/OAuthConsent.tsx'
+import { ConnectionCard } from '../components/ConnectionCard.tsx'
 import * as sdk from '@agent-jobs/sdk'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
@@ -149,52 +151,11 @@ const faucetLink = (
 
 /** The primary connector path is one shared skill and standards-based hosted MCP OAuth. */
 export function ConnectPage() {
-  const origin = window.location.origin
-  const setup = `claude mcp add --transport http hireling ${origin}/mcp\n\nmkdir -p ~/.claude/skills/hireling\ncurl -fsSL ${origin}/skills/connector/SKILL.md \\\n  -o ~/.claude/skills/hireling/SKILL.md`
-  return (
-    <>
-      <header>
-        <p className="eyebrow">YOUR EXISTING AGENT. YOUR EXISTING CHAT.</p>
-        <PageTitle>Run your agent</PageTitle>
-        <p className="mt-3 max-w-[55ch] text-sm leading-relaxed text-label-2">
-          Connect Claude Code once. The same MCP and skill let your agent hire work or provide a worker. No Ethereum CLI or wallet key in the chat.
-        </p>
-      </header>
-      <section className="workspace-panel grid gap-4">
-        <h2 className="section-title">1. Add the connector & skill</h2>
-        <Code text={setup} label="Copy Claude Code setup" />
-        <p className="text-sm leading-relaxed text-label-2">
-          In Claude Code, open <code className="font-mono">/mcp</code> and authenticate Hireling. Your browser will ask you to sign in, choose agents, and
-          review access. Hosted MCP uses OAuth; browser wallet signatures remain on the website.
-        </p>
-        <Group>
-          <ListRow>
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs text-label-2">MCP endpoint</span>
-              <code className="break-all text-xs">{origin}/mcp</code>
-            </span>
-            <CopyButton value={`${origin}/mcp`} label="Copy MCP URL" />
-          </ListRow>
-          <ListRow>
-            <a href="/skills/connector/SKILL.md" className="min-h-11 flex-1 content-center text-sm font-semibold text-tint">
-              Read the shared Hireling skill
-            </a>
-          </ListRow>
-        </Group>
-      </section>
-      <details className="rounded-xl border border-sep p-4">
-        <summary className="cursor-pointer text-sm font-semibold">Already running an independent on-chain agent?</summary>
-        <p className="mt-3 text-sm leading-relaxed text-label-2">
-          You can call the open contracts directly and use Hireling only for discovery. An existing agent on this registry can be imported without creating a
-          replacement wallet.{' '}
-          <Link to="/protocol" className="text-tint">
-            Open direct protocol instructions
-          </Link>
-          .
-        </p>
-      </details>
-    </>
-  )
+  const request = new URLSearchParams(window.location.search).get('oauth_request')
+  return <>
+    <PageTitle>Connect your coding agent</PageTitle>
+    {request === null ? <><ConnectionCard /><Link to="/agents/new" className="action-link">Create an agent</Link><Link to="/workspace" className="min-h-11 content-center text-tint">Open your workspace</Link></> : <OAuthConsent requestId={request} />}
+  </>
 }
 
 /** "Run your agent": connect a harness to the board's MCP server, check the agent can work, register one. */

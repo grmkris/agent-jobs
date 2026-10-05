@@ -28,13 +28,13 @@ function fixture() {
   return { db, sql, agents, route }
 }
 
-async function connection(f: ReturnType<typeof fixture>) {
+async function connection(f: ReturnType<typeof fixture>, scopes?: string[]) {
   const registered = await f.route('/oauth/register', { redirect_uris: [redirectUri], client_name: 'SQLite client' })
   const clientId = (registered.body as { client_id: string }).client_id
   const query = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', scope: 'hireling:read hireling:work hireling:hire', resource, code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier), state: 'state-one' })
   const authorize = await f.route('/oauth/authorize', {}, query, 'GET')
   const requestId = new URL(authorize.redirect!).searchParams.get('oauth_request')!
-  const approve = await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'] })
+  const approve = await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], ...(scopes === undefined ? {} : { scopes }) })
   const code = new URL((approve.body as { result: { redirectUrl: string } }).result.redirectUrl).searchParams.get('code')!
   const tokenBody = { grant_type: 'authorization_code', client_id: clientId, redirect_uri: redirectUri, resource, code, code_verifier: verifier }
   return { clientId, tokenBody, requestId, query }
@@ -77,5 +77,18 @@ test('revoked agents cannot use or refresh an OAuth token and consent cannot gra
     f.agents.advance('one', 'revoked')
     expect(await resolveOAuth(f.sql, tokens.access_token, resource, 1000)).toBeUndefined()
     expect((await f.route('/oauth/token', { grant_type: 'refresh_token', client_id: c.clientId, resource, refresh_token: tokens.refresh_token })).status).toBe(400)
+  } finally { f.db.close() }
+})
+
+
+test('operator consent narrows the token scopes and cannot widen the requested authority', async () => {
+  const f = fixture()
+  try {
+    const c = await connection(f, ['hireling:read'])
+    const tokens = (await f.route('/oauth/token', c.tokenBody)).body as Tokens
+    expect((await resolveOAuth(f.sql, tokens.access_token, resource, 1000))?.scopes).toEqual(['hireling:read'])
+    const next = await f.route('/oauth/authorize', {}, c.query, 'GET')
+    const requestId = new URL(next.redirect!).searchParams.get('oauth_request')!
+    expect((await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], scopes: ['arbitrary:write'] })).status).toBe(400)
   } finally { f.db.close() }
 })

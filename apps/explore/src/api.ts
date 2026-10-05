@@ -97,3 +97,25 @@ export interface DirectoryPage {
 export const fetchDirectory = (after?: string) => data<DirectoryPage>(`directory${after === undefined ? '' : `?after=${encodeURIComponent(after)}`}`)
 
 export const fetchDirectoryAgent = (agentId: string) => data<{ agent: DirectoryAgent }>(`directory/${encodeURIComponent(agentId)}`)
+
+export interface ManagedAgent {
+  id: string
+  name: string
+  address: string | null
+  agent_id: string | null
+  state: string
+  last_activity_at: number | null
+  revoke_json: string
+}
+
+export async function agentEndpoint<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: Record<string, unknown>, privyToken?: string): Promise<T> {
+  if (method === 'POST' && !writesOpen) throw new ApiError('launching', LAUNCH_MESSAGE)
+  const response = await fetch(boardPrefix() + path, {
+    method,
+    headers: { ...(method === 'POST' ? { 'content-type': 'application/json' } : {}), ...(session() === null ? {} : { authorization: 'Bearer ' + session() }), ...(privyToken === undefined ? {} : { 'x-privy-token': privyToken }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  const json = await response.json() as { ok?: boolean; result?: T; code?: string; message?: string }
+  if (!response.ok || json.ok === false) throw new ApiError(json.code ?? 'error', json.message ?? 'Agent request failed')
+  return (json.result ?? json) as T
+}

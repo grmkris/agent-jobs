@@ -27,6 +27,9 @@ import { CollectPage } from './routes/Collect.tsx'
 import { SponsorshipPage } from './routes/Sponsorship.tsx'
 import { TelegramPage } from './routes/Telegram.tsx'
 import { useTokenRegistry } from './useTokens.ts'
+import { WorkspacePage } from './routes/Workspace.tsx'
+import { ApprovalsPage } from './routes/Approvals.tsx'
+import { AgentNewPage } from './routes/AgentNew.tsx'
 import { HomePage } from './routes/Home.tsx'
 
 function Layout() {
@@ -88,6 +91,9 @@ const protocol = createRoute({
   path: '/protocol',
   component: ProtocolConnectPage,
 })
+const workspace = createRoute({ getParentRoute: () => root, path: '/workspace', component: () => <LaunchGate title="Workspace"><WorkspacePage /></LaunchGate> })
+const approvals = createRoute({ getParentRoute: () => root, path: '/approvals', component: () => <LaunchGate title="Approvals"><ApprovalsPage /></LaunchGate> })
+const agentNew = createRoute({ getParentRoute: () => root, path: '/agents/new', component: () => <LaunchGate title="Create an agent"><AgentNewPage /></LaunchGate> })
 const me = createRoute({ getParentRoute: () => root, path: '/me', component: MePage })
 // Staking is the protocol's, not a board's: one page for every board.
 const stake = createRoute({
@@ -206,6 +212,9 @@ const router = createRouter({
     connect,
     protocol,
     me,
+    workspace,
+    approvals,
+    agentNew,
     stake,
     admin,
     collect,

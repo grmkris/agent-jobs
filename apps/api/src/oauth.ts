@@ -84,7 +84,7 @@ export async function oauthRoute(input: {
     const redirectUri = query.get('redirect_uri') ?? ''
     const client = (sql.all<{ redirect_uris_json: string }>('SELECT redirect_uris_json FROM agent_oauth_clients WHERE id=?', clientId))[0]
     if (client === undefined || !(JSON.parse(client.redirect_uris_json) as string[]).includes(redirectUri)) return failure('invalid_request', 'Unknown client or redirect URI')
-    const scopes = parseScopes(query.get('scope') ?? 'hireling:read')
+    const scopes = parseScopes(query.get('scope') ?? OAUTH_SCOPES.join(' '))
     const challenge = query.get('code_challenge') ?? ''
     const resource = query.get('resource')
     if (query.get('response_type') !== 'code' || query.get('code_challenge_method') !== 'S256' || !/^[-_A-Za-z0-9]{43}$/.test(challenge) || scopes === undefined || resourceBoard(resource, origin) === undefined) return failure('invalid_request', 'Require authorization code, PKCE S256, supported scope and explicit MCP resource')
@@ -104,13 +104,19 @@ export async function oauthRoute(input: {
     const selectedAgentId = Array.isArray(selected) && typeof selected[0] === 'string' ? selected[0] : undefined
     const approve = body.decision !== 'reject'
     if (approve && (!Array.isArray(selected) || selected.length !== 1 || typeof selected[0] !== 'string' || !agents.some(agent => agent.id === selectedAgentId && agent.state === 'active'))) return failure('invalid_request', 'Select one active agent owned by this operator')
+    const requested = JSON.parse(request.scopes_json) as string[]
+    const selectedScopes = body.scopes === undefined ? requested : body.scopes
+    if (!Array.isArray(selectedScopes) || selectedScopes.length === 0 || !selectedScopes.every(scope => typeof scope === 'string' && requested.includes(scope))) return failure('invalid_request', 'Consent scopes must be a subset of the client request')
     const code = randomToken()
     const codeHash = await tokenHash(code)
     let consumed = false
     sql.atomic!(() => {
       const changed = sql.all<{ id: string }>('UPDATE agent_oauth_requests SET status=? WHERE id=? AND status=\'pending\' AND expires_at>? RETURNING id', approve ? 'approved' : 'rejected', request.id, now)
       consumed = changed[0] !== undefined
-      if (consumed && approve) sql.run('INSERT INTO agent_oauth_codes (hash,request_id,agent_id,expires_at) VALUES (?,?,?,?)', codeHash, request.id, selectedAgentId!, now + 120)
+      if (consumed && approve) {
+        sql.run('UPDATE agent_oauth_requests SET scopes_json=? WHERE id=?', JSON.stringify([...new Set(selectedScopes)]), request.id)
+        sql.run('INSERT INTO agent_oauth_codes (hash,request_id,agent_id,expires_at) VALUES (?,?,?,?)', codeHash, request.id, selectedAgentId!, now + 120)
+      }
     })
     if (!consumed) return failure('invalid_request', 'Consent already used')
     const target = new URL(request.redirect_uri)

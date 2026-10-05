@@ -4,7 +4,7 @@
  * the secondary ones (quotes, boards), the network and the account. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bot, BriefcaseBusiness, CircleUserRound, HandCoins, House, type LucideIcon, MessagesSquare, PlusCircle, SquareStack } from 'lucide-react'
+import { Bot, BriefcaseBusiness, ShieldCheck, CircleUserRound, HandCoins, House, type LucideIcon, MessagesSquare, PlusCircle, SquareStack } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { isMainnet, usePaused } from '../wallet.ts'
@@ -31,7 +31,8 @@ function places(): { main: Place[]; more: Place[] } {
     main: [
       { label: 'Home', icon: House, target: { to: '/' }, active: (p) => p === '/' },
       { label: 'Jobs', icon: BriefcaseBusiness, target: base === '' ? { to: '/jobs' } : r.jobs(), active: (p) => p === `${base}/jobs` || (base !== '' && (p === base || p === `${base}/`)) || under('/job/')(p) },
-      { label: 'Connect', icon: Bot, target: { to: '/connect' }, active: (p) => p.startsWith('/connect') },
+      { label: 'Workspace', icon: Bot, target: { to: '/workspace' }, active: (p) => p.startsWith('/workspace') },
+      { label: 'Approvals', icon: ShieldCheck, target: { to: '/approvals' }, active: (p) => p.startsWith('/approvals') },
       { label: 'Me', icon: CircleUserRound, target: { to: '/me' }, active: (p) => p.startsWith('/me') },
     ],
     more: [

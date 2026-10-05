@@ -1,0 +1,213 @@
+import * as sdk from "@agent-jobs/sdk";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { type Address, decodeFunctionData } from "viem";
+import { useSignTypedData } from "wagmi";
+import { agentEndpoint, type ManagedAgent } from "../api.ts";
+import type { AgentApproval } from "../agent-api.ts";
+import { reviewAgentGrant, type PreparedGrant } from "../agent-grant.ts";
+import { AgentGrantReview } from "../components/AgentGrantReview.tsx";
+import { Badge, Button, EmptyState, ErrorText, PageTitle, Section } from "../components/ui.tsx";
+import { useAuth } from "../components/Wallet.tsx";
+import { amount } from "../format.ts";
+import { useTokenList } from "../useTokens.ts";
+import { typedDataArgs } from "../typed-data.ts";
+import { deployment } from "../wallet.ts";
+
+export function ApprovalsPage() {
+  const auth = useAuth();
+  const queryClient = useQueryClient();
+  const approvals = useQuery({
+    queryKey: ["managed-approvals", auth.address],
+    queryFn: () => agentEndpoint<{ approvals: AgentApproval[] }>("/api/approvals"),
+    enabled: auth.signedIn,
+    refetchInterval: 15000,
+  });
+  const agents = useQuery({
+    queryKey: ["managed-agents", auth.address],
+    queryFn: () => agentEndpoint<{ agents: ManagedAgent[] }>("/api/agents"),
+    enabled: auth.signedIn,
+  });
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["managed-approvals", auth.address] });
+  return (
+    <>
+      <PageTitle sub="Your decisions set exact spending and unstake authority.">
+        Approvals
+      </PageTitle>
+      {!auth.signedIn ? (
+        <EmptyState title="Sign in to review decisions">Use your operator wallet.</EmptyState>
+      ) : approvals.error !== null || agents.error !== null ? (
+        <ErrorText>Approval records are unavailable. No decision has been submitted.</ErrorText>
+      ) : approvals.isLoading ? (
+        <p className="text-label-2">Reading your pending decisions…</p>
+      ) : approvals.data?.approvals.length === 0 ? (
+        <EmptyState title="No decisions waiting">
+          Within-limit work uses the agent grants.
+        </EmptyState>
+      ) : (
+        approvals.data?.approvals.map((approval) => {
+          const agent = agents.data?.agents.find((row) => row.id === approval.agent_id);
+          return agent === undefined ? null : (
+            <Approval
+              key={approval.id}
+              approval={approval}
+              agent={agent}
+              operator={auth.address!}
+              refresh={refresh}
+            />
+          );
+        })
+      )}
+    </>
+  );
+}
+
+function Approval({
+  approval,
+  agent,
+  operator,
+  refresh,
+}: {
+  approval: AgentApproval;
+  agent: ManagedAgent;
+  operator: Address;
+  refresh: () => Promise<unknown>;
+}) {
+  const request = JSON.parse(approval.request_json) as {
+    token?: Address;
+    amount: string;
+    publish?: `0x${string}`;
+    call?: { to: string; data: `0x${string}` };
+  };
+  useTokenList(request.token === undefined ? [] : [request.token]);
+  const { signTypedDataAsync } = useSignTypedData();
+  const [review, setReview] = useState<ReturnType<typeof reviewAgentGrant> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      await refresh();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Decision is unavailable; retry this operation",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function prepare() {
+    if (request.publish === undefined || request.token === undefined || agent.address === null)
+      throw new Error("The exact hire request is incomplete");
+    const decoded = decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: request.publish });
+    if (decoded.functionName !== "publish")
+      throw new Error("This decision does not name a publish");
+    const params = decoded.args[0];
+    if (
+      params.token.toLowerCase() !== request.token.toLowerCase() ||
+      params.reward !== BigInt(request.amount)
+    )
+      throw new Error("The reward differs from the frozen publish");
+    const prepared = await agentEndpoint<PreparedGrant>(
+      `/api/approvals/${approval.id}/prepare`,
+      "POST",
+    );
+    setReview(
+      reviewAgentGrant(prepared, {
+        kind: "allowance-once",
+        delegator: operator,
+        agent: agent.address as Address,
+        token: request.token,
+        amount: BigInt(request.amount),
+      }),
+    );
+  }
+  async function decide(approved: boolean) {
+    if (approved && approval.kind === "unstake") {
+      if (
+        request.call === undefined ||
+        request.call.to.toLowerCase() !== deployment.hireling?.vault.toLowerCase()
+      )
+        throw new Error("The unstake target is not the vault");
+      const decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data: request.call.data });
+      if (decoded.functionName !== "requestUnstake" || decoded.args[0] !== BigInt(request.amount))
+        throw new Error("The unstake call differs from the displayed amount");
+    }
+    let signature: string | undefined;
+    if (approved && approval.kind === "hire-over-limit") {
+      if (review === null) throw new Error("Review the exact one-off allowance first");
+      signature = await signTypedDataAsync(typedDataArgs(review.typedData));
+    }
+    await agentEndpoint(`/api/approvals/${approval.id}/decide`, "POST", {
+      approved,
+      ...(signature === undefined ? {} : { signature }),
+    });
+    setReview(null);
+  }
+  return (
+    <Section
+      title={`${agent.name} · ${approval.kind === "unstake" ? "Unstake request" : "Hire approval"}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-display text-xl font-semibold">
+          {request.token === undefined
+            ? `${amount(request.amount, deployment.factory)} FACTORY stake`
+            : amount(request.amount, request.token)}
+        </p>
+        <Badge tone={approval.status === "pending" ? "warning" : "neutral"}>
+          {approval.status}
+        </Badge>
+      </div>
+      <p className="text-sm leading-relaxed text-label-2">
+        {approval.kind === "unstake"
+          ? "Approval permits this exact amount once. The seven-day cooldown starts when the vault confirms it."
+          : "Your wallet signs one exact token and amount allowance. After verification, the agent signs a one-call approval pinned to Holding and this operation; allowance pull, token approval and publish execute atomically."}
+      </p>
+      <p className="break-all font-mono text-[0.65rem] text-label-3">
+        Operation {approval.operation_id}
+      </p>
+      {review !== null && <AgentGrantReview description={review.description} />}
+      {approval.status === "pending" && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            busy={busy}
+            onClick={() =>
+              void run(
+                approval.kind === "hire-over-limit" && review === null
+                  ? prepare
+                  : () => decide(true),
+              )
+            }
+          >
+            {approval.kind === "hire-over-limit"
+              ? review === null
+                ? "Review exact allowance"
+                : "Sign and approve hire"
+              : "Approve exact unstake"}
+          </Button>
+          <Button variant="danger" disabled={busy} onClick={() => void run(() => decide(false))}>
+            Reject
+          </Button>
+        </div>
+      )}
+      {approval.status === "approved" && (
+        <Button
+          busy={busy}
+          onClick={() =>
+            void run(async () => {
+              await agentEndpoint(`/api/approvals/${approval.id}/retry`, "POST");
+            })
+          }
+        >
+          Reconcile and continue approved operation
+        </Button>
+      )}
+      {error !== null && <ErrorText>{error}</ErrorText>}
+    </Section>
+  );
+}
