@@ -2,6 +2,7 @@
 import * as sdk from "@agent-jobs/sdk";
 import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
+import { data } from "./api.ts";
 import { type HirelingContracts, hireling } from "./hireling.ts";
 import { stakeContext } from "./stake-context.ts";
 
@@ -12,11 +13,66 @@ export interface BackedPosition {
   backing: Backing;
 }
 
+type Wire<T> = T extends bigint ? string : T extends object ? { [K in keyof T]: Wire<T[K]> } : T;
+
+type WirePosition = Wire<Position>;
+type WireBacking = Wire<Backing>;
+
+export function parseBacking(backing: WireBacking): Backing {
+  return {
+    ...backing,
+    blockNumber: BigInt(backing.blockNumber),
+    assets: BigInt(backing.assets),
+    reserved: BigInt(backing.reserved),
+    shares: BigInt(backing.shares),
+    queuedShares: BigInt(backing.queuedShares),
+    generation: BigInt(backing.generation),
+    active: BigInt(backing.active),
+    queued: BigInt(backing.queued),
+    available: BigInt(backing.available),
+    tier: {
+      ...backing.tier,
+      threshold: BigInt(backing.tier.threshold),
+      nextThreshold:
+        backing.tier.nextThreshold === null ? null : BigInt(backing.tier.nextThreshold),
+      needed: BigInt(backing.tier.needed),
+    },
+  };
+}
+
+export function parsePosition(position: WirePosition): Position {
+  return {
+    ...position,
+    blockNumber: BigInt(position.blockNumber),
+    shares: BigInt(position.shares),
+    activeShares: BigInt(position.activeShares),
+    queuedShares: BigInt(position.queuedShares),
+    value: BigInt(position.value),
+    activeValue: BigInt(position.activeValue),
+    queued: BigInt(position.queued),
+    generation: BigInt(position.generation),
+  };
+}
+
 export async function readDelegations(contracts: HirelingContracts, delegator: Address) {
+  const snapshot = await data<{
+    source: "index+vault";
+    blockNumber: string;
+    token: Address;
+    vault: Address;
+    positions: Array<WirePosition & { backing: WireBacking }>;
+  }>(`delegations?wallet=${encodeURIComponent(delegator)}`);
+  if (
+    snapshot.vault.toLowerCase() !== contracts.vault.toLowerCase() ||
+    snapshot.token.toLowerCase() !== contracts.factory.toLowerCase()
+  ) {
+    throw new Error(
+      "The delegation index describes a different deployment. Refresh after the release.",
+    );
+  }
+  const blockNumber = BigInt(snapshot.blockNumber);
   const ctx = stakeContext(contracts);
-  const blockNumber = await ctx.publicClient.getBlockNumber({ cacheTime: 0 });
-  const [ledger, wallet, open, cooldown] = await Promise.all([
-    sdk.listDelegations(ctx, delegator, { blockNumber }),
+  const [wallet, open, cooldown] = await Promise.all([
     ctx.publicClient.readContract({
       address: contracts.factory,
       abi: sdk.factoryV2Abi,
@@ -37,20 +93,51 @@ export async function readDelegations(contracts: HirelingContracts, delegator: A
       blockNumber,
     }),
   ]);
-  const positions = await Promise.all(
-    ledger.positions.map(async (position): Promise<BackedPosition> => ({
-      position,
-      backing: await sdk.getBacking(ctx, position.account, { blockNumber }),
-    })),
-  );
+  const positions = snapshot.positions.map((entry): BackedPosition => ({
+    position: parsePosition(entry),
+    backing: parseBacking(entry.backing),
+  }));
   return {
     positions,
     wallet,
     open,
     cooldown: Number(cooldown),
     blockNumber,
-    source: ledger.source,
+    source: snapshot.source,
   };
+}
+
+export function useIndexedBacking(account: Address, wallet?: Address) {
+  return useQuery({
+    queryKey: ["indexed-backing", hireling?.vault, account.toLowerCase(), wallet?.toLowerCase()],
+    enabled: hireling !== null,
+    queryFn: async () => {
+      const snapshot = await data<
+        WireBacking & {
+          source: "index+vault";
+          token: Address;
+          vault: Address;
+          delegatorCount: number;
+          topDelegators: WirePosition[];
+          position: WirePosition | null;
+        }
+      >(`backing/${account}${wallet === undefined ? "" : `?wallet=${encodeURIComponent(wallet)}`}`);
+      if (
+        snapshot.vault.toLowerCase() !== hireling!.vault.toLowerCase() ||
+        snapshot.token.toLowerCase() !== hireling!.factory.toLowerCase()
+      ) {
+        throw new Error("The backing index describes a different deployment.");
+      }
+      return {
+        backing: parseBacking(snapshot),
+        position: snapshot.position === null ? null : parsePosition(snapshot.position),
+        delegatorCount: snapshot.delegatorCount,
+        topDelegators: snapshot.topDelegators.map(parsePosition),
+      };
+    },
+    refetchInterval: 15_000,
+    retry: false,
+  });
 }
 
 export function useDelegations(contracts: HirelingContracts, delegator: Address) {
@@ -62,11 +149,12 @@ export function useDelegations(contracts: HirelingContracts, delegator: Address)
   });
 }
 
-export function useBacking(account: Address, delegator?: Address) {
+export function useBacking(account: Address | undefined, delegator?: Address) {
   return useQuery({
-    queryKey: ["backing", hireling?.vault, account.toLowerCase(), delegator?.toLowerCase()],
-    enabled: hireling !== null,
+    queryKey: ["backing", hireling?.vault, account?.toLowerCase(), delegator?.toLowerCase()],
+    enabled: hireling !== null && account !== undefined,
     queryFn: async () => {
+      if (account === undefined) throw new Error("Choose a backing wallet");
       const ctx = stakeContext();
       const blockNumber = await ctx.publicClient.getBlockNumber({ cacheTime: 0 });
       const [backing, position] = await Promise.all([

@@ -218,7 +218,7 @@ function AgentSetup({
         <>
           <Section
             title={`Agent #${agent.agent_id} is registered`}
-            note="Its NFT belongs to your operator wallet. The agent wallet holds its stake, earnings and job obligations."
+            note="Its NFT belongs to your operator wallet. The agent wallet holds its earnings and job obligations. Each backer keeps ownership of its FACTORY position."
           >
             <p className="text-sm text-label-2">
               Work and hire are available by default. Review the connection permissions when your

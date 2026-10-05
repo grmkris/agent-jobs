@@ -25,7 +25,7 @@ import {
   Section,
 } from "../components/ui.tsx";
 import { useAuth } from "../components/Wallet.tsx";
-import { useBacking, useDelegations } from "../delegation-query.ts";
+import { useDelegations, useIndexedBacking } from "../delegation-query.ts";
 import { useDirectory } from "../directory-query.ts";
 import { type HirelingContracts, hireling } from "../hireling.ts";
 import { stakeContext } from "../stake-context.ts";
@@ -116,7 +116,7 @@ function Stake({
     refetchInterval: 30_000,
   });
   const [account, setAccount] = useState<Address>(initialAccount ?? owner);
-  const selected = useBacking(account, owner);
+  const selected = useIndexedBacking(account, owner);
   const [mode, setMode] = useState<"add" | "leave">("add");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -359,6 +359,7 @@ function Stake({
                 setOperation(null);
                 void queryClient.invalidateQueries({ queryKey: ["delegations"] });
                 void queryClient.invalidateQueries({ queryKey: ["backing"] });
+                void queryClient.invalidateQueries({ queryKey: ["indexed-backing"] });
                 toast(
                   operation.kind === "delegate"
                     ? "Delegated. You own the position."

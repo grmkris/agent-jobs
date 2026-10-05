@@ -1,5 +1,8 @@
-import * as sdk from "@agent-jobs/sdk";
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useBacking } from "../delegation-query.ts";
+import { factoryAmount } from "../stake.ts";
+import { Countdown, useNow } from "./Time.tsx";
 import { type Address, erc20Abi } from "viem";
 import { useReadContracts } from "wagmi";
 import type { ManagedAgent } from "../api.ts";
@@ -18,37 +21,22 @@ export function AgentBalances({
   operationKey: string;
   onConfirmed: () => void;
 }) {
-  const tokens = [...new Set([...deployment.rewardTokens, deployment.factory])];
+  const tokens = [...new Set(deployment.rewardTokens.concat(deployment.factory))];
   useTokenList(tokens);
-  const vault = deployment.hireling!.vault;
+  const wallet = agent.address as Address;
+  const backingRead = useBacking(wallet, wallet);
+  const now = useNow();
   const reads = useReadContracts({
-    contracts: [
-      ...tokens.map(
-        (token) =>
-          ({
-            address: token,
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [agent.address as Address],
-            chainId: chain.id,
-          }) as const,
-      ),
-      {
-        address: vault,
-        abi: sdk.stakeVaultAbi,
-        functionName: "stakeOf",
-        args: [agent.address as Address],
-        chainId: chain.id,
-      },
-      {
-        address: vault,
-        abi: sdk.stakeVaultAbi,
-        functionName: "positionOf",
-        args: [agent.address as Address, agent.address as Address],
-        chainId: chain.id,
-      },
-      { address: vault, abi: sdk.stakeVaultAbi, functionName: "poolOf", args: [agent.address as Address], chainId: chain.id },
-    ],
+    contracts: tokens.map(
+      (token) =>
+        ({
+          address: token,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [agent.address as Address],
+          chainId: chain.id,
+        }) as const,
+    ),
     query: { refetchInterval: 15000 },
   });
   const [unstake, setUnstake] = useState("");
@@ -94,11 +82,12 @@ export function AgentBalances({
         setPending(null);
         onConfirmed();
         await reads.refetch();
+        await backingRead.refetch();
       } else if (result.status === "approval") {
         localStorage.removeItem(journalKey);
         setPending(null);
         onConfirmed();
-        setError("Exact unstake approval is waiting in Approvals.");
+        setError("Approval to leave the exact agent-owned shares is waiting in Approvals.");
       } else
         setError(
           `Operation ${result.operationId} is ${result.status}. Retry the same action to reconcile.`,
@@ -113,15 +102,24 @@ export function AgentBalances({
       setBusy(false);
     }
   }
-  const unstaking = reads.data?.[tokens.length + 1];
-  const cooldown =
-    unstaking?.status === "success" ? (unstaking.result as { queuedShares: bigint; unlockAt: number }) : undefined;
-  const pool = reads.data?.[tokens.length + 2]?.result as { assets: bigint; shares: bigint } | undefined;
-  const queued = cooldown === undefined || pool === undefined || pool.shares === 0n ? 0n : cooldown.queuedShares * pool.assets / pool.shares;
+  const backing = backingRead.data?.backing;
+  const position = backingRead.data?.position;
+  const stale = backingRead.isError || reads.isError;
+  const quantity = factoryAmount(unstake);
+  const requestReady =
+    !stale &&
+    position !== null &&
+    position !== undefined &&
+    quantity !== null &&
+    quantity <= position.activeValue;
+  const queued = position !== null && position !== undefined && position.queuedShares > 0n;
+  const leaving = queued && position.unlockAt > now;
+  const bonded =
+    queued && backing !== undefined && backing.assets - position.queued < backing.reserved;
   return (
     <Section
-      title="Agent earnings and stake"
-      note="Balances and cooldown are read from Monad. Sweeps are pinned to your operator wallet."
+      title="Agent earnings and backing"
+      note="Earnings are held by the agent wallet. Operator-funded backing belongs to the operator; only agent-owned mining positions can be left here."
     >
       {tokens.map((token, index) => {
         const balance = reads.data?.[index];
@@ -139,7 +137,7 @@ export function AgentBalances({
               variant="tinted"
               size="sm"
               busy={busy}
-              disabled={balance?.status !== "success" || balance.result === 0n}
+              disabled={reads.isError || balance?.status !== "success" || balance.result === 0n}
               onClick={() => void execute("sweep_earnings", { token })}
             >
               Move earnings to my wallet
@@ -148,38 +146,75 @@ export function AgentBalances({
         );
       })}
       <p className="text-sm">
-        Stake:{" "}
-        {reads.data?.[tokens.length]?.status === "success"
-          ? amount(String(reads.data[tokens.length]!.result), deployment.factory)
-          : "unavailable"}
+        Total backing:{" "}
+        {backing === undefined ? "unavailable" : amount(String(backing.assets), deployment.factory)}
       </p>
-      {cooldown !== undefined && queued > 0n && (
-        <p role="alert" className="rounded-xl bg-warn-bg p-3 text-sm text-warn">
-          Unstaking {amount(queued.toString(), deployment.factory)}. Withdraws after{" "}
-          {new Date(Number(cooldown.unlockAt) * 1000).toLocaleString()}. Emergency recovery can cancel an
-          unstake.
+      {position === undefined || position === null || stale ? (
+        <p className="text-sm text-label-2">
+          The agent-owned position is unavailable. Actions wait for current chain facts.
         </p>
-      )}
-      <div className="flex gap-2">
-        <Input
-          value={unstake}
-          onChange={(event) => setUnstake(event.target.value)}
-          placeholder="FACTORY amount"
-          aria-label="Amount to request unstaking"
-          inputMode="decimal"
-        />
-        <Button
-          variant="gray"
-          busy={busy}
-          onClick={() => void execute("request_unstake", { amount: unstake })}
-        >
-          Request operator approval
-        </Button>
-      </div>
-      {cooldown !== undefined && queued > 0n && (
-        <Button variant="tinted" busy={busy} onClick={() => void execute("withdraw_stake", {})}>
-          Withdraw after cooldown
-        </Button>
+      ) : (
+        <>
+          <p className="text-sm">
+            Agent-owned position: {amount(String(position.value), deployment.factory)}
+          </p>
+          {position.shares === 0n && (
+            <p className="rounded-xl bg-tint/10 p-3 text-sm text-label-2">
+              This agent does not own a position. Operator backing belongs to the operator wallet.
+            </p>
+          )}
+          <Link
+            to="/stake"
+            search={{ account: wallet }}
+            className="min-h-11 content-center text-sm text-tint"
+          >
+            Manage your operator position in Stake &amp; delegate
+          </Link>
+          {queued && (
+            <p role="status" className="rounded-xl bg-warn-bg p-3 text-sm text-warn">
+              Leaving {amount(String(position.queued), deployment.factory)}.{" "}
+              {leaving ? (
+                <>
+                  <Countdown to={position.unlockAt} /> remaining.
+                </>
+              ) : bonded ? (
+                "Waiting for bonds to clear."
+              ) : (
+                "Ready to withdraw."
+              )}{" "}
+              Queued shares stay exposed to slashes.
+            </p>
+          )}
+          {position.activeShares > 0n && (
+            <div className="flex flex-wrap gap-2">
+              <Input
+                value={unstake}
+                onChange={(event) => setUnstake(event.target.value)}
+                placeholder="FACTORY amount"
+                aria-label="Agent-owned amount to leave"
+                inputMode="decimal"
+              />
+              <Button
+                variant="gray"
+                busy={busy}
+                disabled={!requestReady}
+                onClick={() => void execute("request_unstake", { amount: unstake })}
+              >
+                Request leaving approval
+              </Button>
+            </div>
+          )}
+          {queued && (
+            <Button
+              variant="tinted"
+              busy={busy}
+              disabled={leaving || bonded}
+              onClick={() => void execute("withdraw_stake", {})}
+            >
+              Withdraw agent-owned position
+            </Button>
+          )}
+        </>
       )}
       {pending !== null && (
         <Button

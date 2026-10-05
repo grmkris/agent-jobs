@@ -35,7 +35,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
           <ListRow>
             <span className="flex-1">
               <span className="block">Hireling’s fee{bps === undefined ? '' : ` · ${percent(Number(bps))}`}</span>
-              <span className="block text-[0.78rem] leading-snug text-label-3">Your rate, set by how much you stake</span>
+              <span className="block text-[0.78rem] leading-snug text-label-3">Your rate, set by total backing</span>
             </span>
             {/* min-w-24: the value's room is kept while it loads, so the label does not rewrap when it lands. */}
             <span className="tabular min-w-24 text-right text-label-2">{fee === undefined ? '…' : `− ${amount(fee.toString(), token)}`}</span>
@@ -45,7 +45,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
             <span className="tabular min-w-24 text-right font-semibold">{net === undefined ? '…' : amount(net.toString(), token)}</span>
           </ListRow>
           <Link to="/stake" className="flex min-h-11 items-center px-4 text-[0.9rem] text-tint">
-            Stake more to pay a lower fee
+            Delegate more to pay a lower fee
           </Link>
         </Group>
       )}

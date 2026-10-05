@@ -29,7 +29,9 @@ export function answer({ functionName, address, args = [] }, historical = false)
     case 'pendingHolding': return s.proposal === undefined ? [zero, 0] : [s.proposal.holding, s.proposal.eta];
     case 'holdingDenied': return s.denied?.[args[1].toLowerCase()] === true;
     case 'schedule': return schedule;
-    case 'balanceOf': return s.wallet;
+    case 'balanceOf': return args[0].toLowerCase() === window.__wallet.address.toLowerCase() ? s.wallet : 0n;
+    case 'symbol': return 'FACTORY';
+    case 'decimals': return 18;
     case 'nonces': return s.nonce;
     case 'name': return 'Factory';
     case 'bootstrapped': return s.open;
@@ -51,6 +53,7 @@ function decode(data) {
 const transport = custom({ request: async ({ method, params }) => {
   await chainLatency();
   const s = window.__stake;
+  (s.rpcMethods ??= []).push(method);
   if (s.down) throw new Error('Fixture RPC unavailable');
   if (method === 'eth_blockNumber') return '0x' + (110 + window.__wallet.sends.length).toString(16);
   if (method === 'eth_call') {
@@ -103,3 +106,21 @@ export function apply({ data }) {
     s.wallet += value; pool.assets -= value; pool.shares -= position.queuedShares; pool.queuedShares -= position.queuedShares; position.shares -= position.queuedShares; position.queuedShares = 0n; position.unlockAt = 0;
   }
 }
+
+// Public index API fixture, computed with the SDK's pure valuation helpers at the fixture checkpoint.
+window.__stakingSnapshot = (account, wallet) => {
+  const s = window.__stake;
+  const blockNumber = 110n + BigInt(window.__wallet.sends.length);
+  const backing = account => ({ account, blockNumber, ...sdk.backingOf(poolOf(account), schedule) });
+  const position = (account, delegator) => ({ account, delegator, blockNumber,
+    ...sdk.positionIn(poolOf(account), positionOf(account, delegator), BigInt(s.historical?.[account] ?? '0')) });
+  const positions = Object.keys(s.pools).filter(key => account === undefined || account.toLowerCase() === key).flatMap(key =>
+    Object.keys(s.pools[key].positions).filter(delegator => account !== undefined || wallet === undefined || wallet.toLowerCase() === delegator)
+      .map(delegator => ({ ...position(key, delegator), backing: backing(key) })));
+  const common = { source: 'index+vault', blockNumber, vault: window.__hireling.vault, token: window.__hireling.factory };
+  const result = account === undefined ? { ...common, positions } : { ...common, ...backing(account),
+    delegatorCount: positions.filter(p => p.shares > 0n).length,
+    topDelegators: positions.filter(p => p.shares > 0n).sort((a, b) => a.value > b.value ? -1 : a.value < b.value ? 1 : 0),
+    position: wallet === undefined ? null : position(account, wallet) };
+  return JSON.parse(JSON.stringify(result, (_key, value) => typeof value === 'bigint' ? String(value) : value));
+};

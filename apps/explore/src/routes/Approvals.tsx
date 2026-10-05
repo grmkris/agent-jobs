@@ -32,7 +32,7 @@ export function ApprovalsPage() {
     queryClient.invalidateQueries({ queryKey: ["managed-approvals", auth.address] });
   return (
     <>
-      <PageTitle sub="Your decisions set exact spending and unstake authority.">
+      <PageTitle sub="Your decisions set exact spending and leaving authority.">
         Approvals
       </PageTitle>
       {!auth.signedIn ? (
@@ -134,10 +134,14 @@ function Approval({
         request.call === undefined ||
         request.call.to.toLowerCase() !== deployment.hireling?.vault.toLowerCase()
       )
-        throw new Error("The unstake target is not the vault");
+        throw new Error("The leaving target is not the vault");
       const decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data: request.call.data });
-      if (decoded.functionName !== "requestUndelegate" || decoded.args[0].toLowerCase() !== agent.address?.toLowerCase() || decoded.args[1] !== BigInt(request.shares!))
-        throw new Error("The unstake call differs from the displayed amount");
+      if (
+        decoded.functionName !== "requestUndelegate" ||
+        decoded.args[0].toLowerCase() !== agent.address?.toLowerCase() ||
+        decoded.args[1] !== BigInt(request.shares!)
+      )
+        throw new Error("The leaving call differs from the displayed account or shares");
     }
     let signature: string | undefined;
     if (approved && approval.kind === "hire-over-limit") {
@@ -152,12 +156,12 @@ function Approval({
   }
   return (
     <Section
-      title={`${agent.name} · ${approval.kind === "unstake" ? "Unstake request" : "Hire approval"}`}
+      title={`${agent.name} · ${approval.kind === "unstake" ? "Leave agent-owned position" : "Hire approval"}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-display text-xl font-semibold">
           {request.token === undefined
-            ? `${amount(request.amount, deployment.factory)} FACTORY stake`
+            ? `${amount(request.amount, deployment.factory)} FACTORY position value`
             : amount(request.amount, request.token)}
         </p>
         <Badge tone={approval.status === "pending" ? "warning" : "neutral"}>
@@ -166,9 +170,15 @@ function Approval({
       </div>
       <p className="text-sm leading-relaxed text-label-2">
         {approval.kind === "unstake"
-          ? "Approval permits this exact amount once. The seven-day cooldown starts when the vault confirms it."
+          ? "Approval permits this exact share count once. The vault values those shares at execution time; the cooldown comes from the active network and a slash can change the asset value while they leave."
           : "Your wallet signs one exact token and amount allowance. After verification, the agent signs a one-call approval pinned to Holding and this operation; allowance pull, token approval and publish execute atomically."}
       </p>
+      {approval.kind === "unstake" && (
+        <p className="break-all text-xs text-label-2">
+          Agent-owned shares: {request.shares}. Operator-funded positions are managed from Stake
+          &amp; delegate.
+        </p>
+      )}
       <p className="break-all font-mono text-[0.65rem] text-label-3">
         Operation {approval.operation_id}
       </p>
@@ -189,7 +199,7 @@ function Approval({
               ? review === null
                 ? "Review exact allowance"
                 : "Sign and approve hire"
-              : "Approve exact unstake"}
+              : "Approve exact shares"}
           </Button>
           <Button variant="danger" disabled={busy} onClick={() => void run(() => decide(false))}>
             Reject

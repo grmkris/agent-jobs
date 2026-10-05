@@ -7,6 +7,7 @@ import { useReadContracts } from 'wagmi'
 import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data, fetchDirectoryAgent } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
+import { AgentBacking } from '../components/AgentBacking.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
@@ -235,6 +236,7 @@ function Profile({ id }: { id: string }) {
       )}
 
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
+      {wallet !== undefined && <AgentBacking wallet={wallet as `0x${string}`} viewer={address} />}
       {record.isLoading ? (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">

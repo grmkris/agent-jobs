@@ -62,7 +62,19 @@ async function fixture(viewport, options = {}) {
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
     if (url.pathname === '/data/directory') return reply({ ok: true, agents: [agent], nextCursor: null, observedAt: 100, chainId: 10143, identityRegistry: contracts.factory, scope: 'fixture' });
     if (url.pathname === '/data/directory/1942') return reply({ ok: true, agent });
+    if (url.pathname === '/data/agents/1942') return reply({ ok: false, message: 'Fixture has no job history' }, 404);
+    if (url.pathname === '/api/agents/managed') return reply({ ok: true, result: { allowances: [], grants: [], revocation: {} } });
+    if (url.pathname === '/api/agents/managed/recovery') return reply({ ok: true, result: { grants: [] } });
     if (url.pathname === '/api/agents') return reply({ ok: true, result: { agents: [{ id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' }] } });
+    if (url.pathname === '/data/delegations' || url.pathname.startsWith('/data/backing/')) {
+      const down = await page.evaluate(() => window.__stake.down);
+      if (down) return reply({ ok: false, message: 'Fixture index unavailable' }, 503);
+      const snapshot = await page.evaluate(({ account, wallet }) => window.__stakingSnapshot(account, wallet), {
+        account: url.pathname.startsWith('/data/backing/') ? url.pathname.split('/').at(-1) : undefined,
+        wallet: url.searchParams.get('wallet') ?? undefined,
+      });
+      return reply({ ok: true, ...snapshot });
+    }
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
@@ -121,6 +133,8 @@ try {
     const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { owner: p.message.owner, spender: p.message.spender, amount: String(p.message.value) }; });
     assert.deepEqual(permit, { owner, spender: contracts.vault, amount: (1000n * 10n ** 18n).toString() });
     await capture(page, `${name}-delegation-review`);
+    await page.reload();
+    await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
     await confirm(page, 'Delegated. You own the position.');
     await position(page).getByText('7,000 FACTORY', { exact: true }).waitFor();
     const call = await page.evaluate(() => window.__stake.calls.at(-1));
@@ -212,6 +226,50 @@ try {
     if (options.connected === false) await text(page, 'Sign in to see your positions');
     if (options.open === false) { await page.getByText(/Delegating opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true); }
     await context.close();
+  }
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 });
+    await page.goto(`${base}/agent/1942`);
+    const backing = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Backing', exact: true }) });
+    await backing.getByText('10,000 FACTORY', { exact: true }).first().waitFor();
+    await backing.getByText('8,000 FACTORY', { exact: true }).waitFor();
+    await backing.getByText('2,000 FACTORY', { exact: true }).waitFor();
+    await backing.getByText('2', { exact: true }).waitFor();
+    await backing.getByRole('heading', { name: 'Top delegators' }).waitFor();
+    await backing.getByText('6,000 FACTORY · 60 %', { exact: true }).waitFor();
+    await capture(page, 'agent-backing');
+    await backing.getByRole('link', { name: 'Delegate', exact: true }).click();
+    await page.waitForURL('**/stake?account=*');
+    assert.equal(await page.getByRole('combobox', { name: 'Agent to back' }).inputValue(), agentWallet);
+    await page.goto(`${base}/workspace`);
+    await text(page, 'This agent does not own a position. Operator backing belongs to the operator wallet.');
+    assert.equal(await page.getByRole('button', { name: 'Request leaving approval' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Withdraw agent-owned position' }).count(), 0);
+    await capture(page, 'operator-owned-agent-backing');
+    await page.evaluate(({ account }) => {
+      const E = 10n ** 18n;
+      const pool = window.__stake.pools[account];
+      pool.assets += 1000n * E;
+      pool.shares += 1000n * E;
+      pool.positions[account] = { shares: 1000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n };
+    }, { account: agentWallet });
+    await refresh(page);
+    await page.getByRole('button', { name: 'Request leaving approval' }).waitFor();
+    await page.evaluate(({ account }) => {
+      const pool = window.__stake.pools[account];
+      pool.positions[account].queuedShares = pool.positions[account].shares;
+      pool.queuedShares = pool.positions[account].shares;
+      pool.positions[account].unlockAt = Math.floor(Date.now() / 1000) - 1;
+      pool.reserved = 0n;
+    }, { account: agentWallet });
+    await refresh(page);
+    await page.getByRole('button', { name: 'Withdraw agent-owned position' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Withdraw agent-owned position' }).isDisabled(), false);
+    assert.equal(await page.getByRole('button', { name: 'Request leaving approval' }).count(), 0);
+    assert.equal(await page.evaluate(() => window.__stake.rpcMethods.includes('eth_getLogs')), false, 'product discovery never scans RPC logs');
+    await capture(page, 'agent-owned-mining-withdraw');
+    await context.close();
+    results.push({ checks: ['public backing values, tier, delegator count and ranking', 'viewer ownership', 'delegate target prefilled', 'operator-only backing has no agent exits', 'agent-owned mining full queue still withdrawable', 'no browser log scans'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live vault, signing or sends', results, errors }, null, 2));

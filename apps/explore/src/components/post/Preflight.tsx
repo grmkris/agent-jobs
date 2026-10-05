@@ -54,7 +54,7 @@ export function Preflight({
 
   const note = isMainnet
     ? 'Read live from your wallet.'
-    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; FACTORY v2 is transferred by the ecosystem/coordinator, and mUSD/mEUR each have an on-chain faucet().'
+    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; FACTORY is transferred by the ecosystem/coordinator, and mUSD/mEUR each have an on-chain faucet().'
   if (!on) {
     return (
       <Section title="Ready to publish" note={token === undefined ? 'Sign in, and this checks your wallet has the gas and the bond.' : 'Sign in, and this checks your wallet has the gas, the reward and the bond.'}>
@@ -129,17 +129,17 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
       <span className="min-w-0 flex-1">
         <span className="block">
           {prefix}
-          {need > 0n ? `Your bond · ${formatNumber(need, 18)} FACTORY from stake` : 'No bond from you'}
+          {need > 0n ? `Your bond · ${formatNumber(need, 18)} FACTORY from backing` : 'No bond from you'}
         </span>
         {free !== undefined && free < need && (
           <span className="block text-[0.8rem] text-warn">
-            Stake {formatNumber(need - free, 18)} FACTORY more.{' '}
+            Delegate {formatNumber(need - free, 18)} FACTORY more.{' '}
             <Link to="/stake" className="font-semibold text-tint">
-              Stake
+              Stake &amp; delegate
             </Link>
           </span>
         )}
-        {unavailable && <span className="block text-[0.8rem] text-warn">Your stake cannot be read right now.</span>}
+        {unavailable && <span className="block text-[0.8rem] text-warn">Available backing cannot be read right now.</span>}
       </span>
       <span className="tabular text-right text-label-2">{free === undefined ? '…' : `${formatNumber(free, 18)} free`}</span>
     </ListRow>

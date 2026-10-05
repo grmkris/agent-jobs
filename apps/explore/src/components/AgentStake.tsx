@@ -43,7 +43,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
         },
         {
           chainId: chain.id,
-          description: `Stake ${amount} FACTORY for ${agent.name}`,
+          description: `Delegate ${amount} FACTORY to ${agent.name}`,
           to: vault,
           value: "0",
           data: encodeFunctionData({
@@ -56,12 +56,12 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
       localStorage.setItem(`hireling.agent-stake:${agent.id}`, JSON.stringify(calls));
       setTxs(calls);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Stake preparation failed");
+      setError(failure instanceof Error ? failure.message : "Delegation preparation failed");
     }
   }
   return (
     <Section
-      title="Optional · stake for the agent"
+      title="Delegate backing to this agent"
       note="Your operator wallet pays for one approve + delegate batch and keeps ownership of the position. Backing secures the agent’s bonds and sets its fee tier. A slash reduces your position pro-rata."
     >
       {txs === null ? (
@@ -70,10 +70,10 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             placeholder="FACTORY amount"
-            aria-label="FACTORY to stake for agent"
+            aria-label="FACTORY to delegate to agent"
             inputMode="decimal"
           />
-          <Button onClick={prepare}>Review stake batch</Button>
+          <Button onClick={prepare}>Review delegation</Button>
         </div>
       ) : (
         <TxSteps

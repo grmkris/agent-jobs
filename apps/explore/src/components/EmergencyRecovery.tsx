@@ -22,6 +22,7 @@ import { typedDataArgs } from "../typed-data.ts";
 import { recoveryExpiry, recoveryReplacementAllowed, type RecoveryPlan } from "./recovery-plan.ts";
 import { initializeTxJournal, readTxJournal, txJournalKey } from "./txJournal.ts";
 import { withWalletStepLock } from "./txOperation.ts";
+import { useBacking } from "../delegation-query.ts";
 
 interface KnownGrant {
   hash: Hex;
@@ -40,7 +41,10 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
   const historyKey = `${cacheKey}:history`;
   const { signTypedData } = usePrivySignTypedData();
   const [address, setAddress] = useState(initialAgent?.address ?? "");
-  const [action, setAction] = useState("cancel");
+  const [action, setAction] = useState("sweep");
+  const recoveryWallet = isAddress(address) ? address : undefined;
+  const owned = useBacking(recoveryWallet, recoveryWallet);
+  const ownPosition = owned.isError ? undefined : owned.data?.position;
   const [token, setToken] = useState<string>(deployment.factory);
   const [units, setUnits] = useState("");
   const [known, setKnown] = useState<KnownGrant[]>(() => {
@@ -64,7 +68,8 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
   const [safeToRestart, setSafeToRestart] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const expiry = plan === null ? null : recoveryExpiry(plan, deployment.delegation.enforcers.timestamp);
+  const expiry =
+    plan === null ? null : recoveryExpiry(plan, deployment.delegation.enforcers.timestamp);
   useEffect(() => {
     if (initialAgent === undefined) return;
     void agentEndpoint<{ grants: KnownGrant[] }>(`/api/agents/${initialAgent.id}/recovery`)
@@ -112,7 +117,15 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       const quantity = action === "request" ? parseUnits(units, 18) : 0n;
       if (action === "request" && quantity <= 0n)
         throw new Error("Enter a positive FACTORY amount");
-      const shares = action === "request" ? await rpc.readContract({ address: deployment.hireling.vault, abi: sdk.stakeVaultAbi, functionName: "convertToShares", args: [address, quantity] }) : 0n;
+      const shares =
+        action === "request"
+          ? await sdk.undelegationShares(
+              { publicClient: rpc, deployment, stack: deployment.stacks.main! },
+              address,
+              address,
+              quantity,
+            )
+          : 0n;
       call = {
         target: deployment.hireling.vault,
         value: 0n,
@@ -124,14 +137,22 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
                 args: [address, shares],
               })
             : action === "cancel"
-              ? encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "cancelUndelegate", args: [address] })
-              : encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "withdraw", args: [address] }),
+              ? encodeFunctionData({
+                  abi: sdk.stakeVaultAbi,
+                  functionName: "cancelUndelegate",
+                  args: [address],
+                })
+              : encodeFunctionData({
+                  abi: sdk.stakeVaultAbi,
+                  functionName: "withdraw",
+                  args: [address],
+                }),
       };
       description =
         action === "request"
-          ? `Request unstaking ${units} FACTORY from the agent`
+          ? `Request leaving ${units} FACTORY from the agent-owned position`
           : action === "cancel"
-            ? "Cancel the agent unstake request"
+            ? "Cancel leaving the agent-owned position"
             : "Withdraw unlocked FACTORY to the agent wallet";
     } else if (action === "native") {
       const balance = await rpc.getBalance({ address });
@@ -205,7 +226,8 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       throw new Error("This recovery journal belongs to another operator");
     if (expiry !== null) {
       const block = await createPublicClient({ chain, transport: http() }).getBlock();
-      if (Number(block.timestamp) >= expiry) throw new Error("This recovery permission expired; prepare a fresh action");
+      if (Number(block.timestamp) >= expiry)
+        throw new Error("This recovery permission expired; prepare a fresh action");
     }
     const grant = sdk.parseDelegation(plan.grant);
     const typedData = sdk.delegationTypedData(deployment, grant);
@@ -230,16 +252,29 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
     });
   }
   async function replaceExpired() {
-    if (plan === null || plan.tx === undefined || plan.operator.toLowerCase() !== operator.toLowerCase()) throw new Error("This recovery attempt is unavailable");
+    if (
+      plan === null ||
+      plan.tx === undefined ||
+      plan.operator.toLowerCase() !== operator.toLowerCase()
+    )
+      throw new Error("This recovery attempt is unavailable");
     const key = txJournalKey(`emergency-${plan.id}`, [plan.tx]);
     await withWalletStepLock(navigator.locks, key, async () => {
       const journal = readTxJournal(localStorage, key, true)!;
       const block = await createPublicClient({ chain, transport: http() }).getBlock();
-      if (!recoveryReplacementAllowed(expiry, Number(block.timestamp), safeToRestart) || journal.pending !== null || journal.hashes.some(hash => hash !== null))
+      if (
+        !recoveryReplacementAllowed(expiry, Number(block.timestamp), safeToRestart) ||
+        journal.pending !== null ||
+        journal.hashes.some((hash) => hash !== null)
+      )
         throw new Error("Reconcile the old recovery attempt and wait for its permission to expire");
-      const history = [...(JSON.parse(localStorage.getItem(historyKey) ?? "[]") as RecoveryPlan[]), plan];
+      const history = [
+        ...(JSON.parse(localStorage.getItem(historyKey) ?? "[]") as RecoveryPlan[]),
+        plan,
+      ];
       localStorage.setItem(historyKey, JSON.stringify(history));
-      if (localStorage.getItem(historyKey) !== JSON.stringify(history)) throw new Error("Recovery history could not be saved");
+      if (localStorage.getItem(historyKey) !== JSON.stringify(history))
+        throw new Error("Recovery history could not be saved");
       localStorage.removeItem(planKey);
       setAddress(plan.agent);
       setAction(plan.action);
@@ -256,9 +291,10 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
       </summary>
       <Section note="You sign one fresh permission as the agent, without changing the website wallet. Your operator redeems it and pays gas. This works without Hireling’s API or relay, provided Privy and the RPC are available.">
         <p className="mt-3 text-xs text-label-2">
-          Only known delegations can be individually disabled. Funds reserved for jobs and immediate
-          bond slashes cannot be recovered by this panel. Full 7702 retirement remains a separate
-          verification gate.
+          Only known permissions can be individually disabled. This panel can leave only the
+          agent-owned mining position; operator-funded backing belongs to the operator. Funds
+          reserved for jobs and immediate bond slashes cannot be recovered by this panel. Full 7702
+          retirement remains a separate verification gate.
         </p>
         {plan === null ? (
           <>
@@ -275,9 +311,21 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
               onChange={(event) => setAction(event.target.value)}
               aria-label="Recovery action"
             >
-              <option value="cancel">Cancel unstake</option>
-              <option value="request">Request unstake</option>
-              <option value="withdraw">Withdraw after cooldown</option>
+              {ownPosition !== null &&
+                ownPosition !== undefined &&
+                ownPosition.queuedShares > 0n && (
+                  <option value="cancel">Cancel leaving (agent-owned)</option>
+                )}
+              {ownPosition !== null &&
+                ownPosition !== undefined &&
+                ownPosition.activeShares > 0n && (
+                  <option value="request">Request leaving (agent-owned)</option>
+                )}
+              {ownPosition !== null &&
+                ownPosition !== undefined &&
+                ownPosition.queuedShares > 0n && (
+                  <option value="withdraw">Withdraw after cooldown (agent-owned)</option>
+                )}
               <option value="sweep">Sweep token earnings</option>
               <option value="native">Sweep native MON</option>
               <option value="disable">Disable a known permission</option>
@@ -287,7 +335,7 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
                 value={units}
                 onChange={(event) => setUnits(event.target.value)}
                 placeholder="FACTORY amount"
-                aria-label="Recovery unstake amount"
+                aria-label="Recovery agent-owned amount to leave"
               />
             )}
             {action === "sweep" && (
@@ -337,7 +385,14 @@ function Recovery({ operator, initialAgent }: { operator: Address; initialAgent?
                 verifyReceipt
                 requireJournal
                 onSafeToRestartChange={setSafeToRestart}
-                sendGuard={async () => expiry !== null && Number((await createPublicClient({ chain, transport: http() }).getBlock()).timestamp) >= expiry ? "This recovery permission expired; prepare a fresh action" : null}
+                sendGuard={async () =>
+                  expiry !== null &&
+                  Number(
+                    (await createPublicClient({ chain, transport: http() }).getBlock()).timestamp,
+                  ) >= expiry
+                    ? "This recovery permission expired; prepare a fresh action"
+                    : null
+                }
                 onDone={() => {
                   localStorage.removeItem(planKey);
                   setPlan(null);
