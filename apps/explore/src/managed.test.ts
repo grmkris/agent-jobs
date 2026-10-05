@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ManagedAgent } from './api.ts'
-import { agentHome, ownedAgent, pendingByAgent } from './managed.ts'
+import { agentHome, ownedAgent, ownerOf, pendingByAgent } from './managed.ts'
 import { initials } from './routes/MyAgents.tsx'
 
 const agent = (id: string, agentId: string | null): ManagedAgent => ({ id, name: id, address: null, agent_id: agentId, state: 'active', last_activity_at: null, revoke_json: null }) as unknown as ManagedAgent
@@ -33,5 +33,12 @@ describe('managed agents', () => {
     expect(initials('My worker')).toBe('MW')
     expect(initials('  code   review bot ')).toBe('CR')
     expect(initials('')).toBe('')
+  })
+  it('takes owner authority only from a list the board just confirmed (VV2-014)', () => {
+    const agents = [agent('y', '1942')]
+    expect(ownerOf({ isSuccess: true, data: { agents } }, '1942')?.id).toBe('y')
+    // A failed refetch (expired session) keeps the last data; it no longer makes the viewer the owner.
+    expect(ownerOf({ isSuccess: false, data: { agents } }, '1942')).toBeUndefined()
+    expect(ownerOf({ isSuccess: true, data: undefined }, '1942')).toBeUndefined()
   })
 })

@@ -16,7 +16,7 @@ import { useNow } from '../components/Time.tsx'
 import { Address, Amount, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, Skeleton, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, useAuth } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
-import { ownedAgent, useManagedAgents } from '../managed.ts'
+import { useOwnedAgent } from '../managed.ts'
 import { useTokenList } from '../useTokens.ts'
 import { chain, deployment } from '../wallet.ts'
 import type { AgentSummary } from './Agents.tsx'
@@ -213,7 +213,7 @@ function Profile({ id }: { id: string }) {
   const { address } = useAuth()
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
-  const managed = ownedAgent(useManagedAgents().data?.agents, id)
+  const managed = useOwnedAgent(id)
   const header = (
     <>
       <header className="flex items-center gap-4">
