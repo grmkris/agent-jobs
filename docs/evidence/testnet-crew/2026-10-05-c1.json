@@ -1,10 +1,10 @@
 {
   "id": "C1",
-  "at": "2026-10-05T13:12:55.094Z",
+  "at": "2026-10-05T13:36:34.923Z",
   "network": "monad-testnet",
   "chainId": 10143,
-  "result": "live-workers-with-unfunded-non-kris-proof-pending",
-  "sourceCommit": "bd120b81d2dda27d767f94e468868d5dba6a10b2",
+  "result": "live-verified",
+  "sourceCommit": "fc4ea03397667368f810b566d3d91f8c8f1e8638",
   "policy": {
     "chainId": 10143,
     "creatorScope": "any",
@@ -22,7 +22,8 @@
       "memoryBytes": 2147483648,
       "restartPolicy": "unless-stopped",
       "publishedPorts": {},
-      "sourceCommit": "bd120b81d2dda27d767f94e468868d5dba6a10b2"
+      "sourceCommit": "fc4ea03397667368f810b566d3d91f8c8f1e8638",
+      "networkMode": "hireling-crew"
     },
     {
       "name": "hireling-crew-grok-studio",
@@ -30,11 +31,12 @@
       "memoryBytes": 2147483648,
       "restartPolicy": "unless-stopped",
       "publishedPorts": {},
-      "sourceCommit": "bd120b81d2dda27d767f94e468868d5dba6a10b2"
+      "sourceCommit": "fc4ea03397667368f810b566d3d91f8c8f1e8638",
+      "networkMode": "hireling-crew"
     }
   ],
   "directoryAndHeartbeat": {
-    "at": "2026-10-05T13:12:55.094Z",
+    "at": "2026-10-05T13:36:34.923Z",
     "observations": [
       {
         "slug": "canvas",
@@ -46,7 +48,7 @@
           "freshness": "fresh",
           "state": "available",
           "accepting": true,
-          "lastSeenBucket": 1791205920
+          "lastSeenBucket": 1791207360
         },
         "ads": [
           {
@@ -65,8 +67,8 @@
             "expiresAt": 1791291906
           }
         ],
-        "observedAt": 1791205974,
-        "heartbeatAgeMs": 11068
+        "observedAt": 1791207394,
+        "heartbeatAgeMs": 19111
       },
       {
         "slug": "studio",
@@ -78,7 +80,7 @@
           "freshness": "fresh",
           "state": "available",
           "accepting": true,
-          "lastSeenBucket": 1791205920
+          "lastSeenBucket": 1791207360
         },
         "ads": [
           {
@@ -97,8 +99,8 @@
             "expiresAt": 1791291906
           }
         ],
-        "observedAt": 1791205974,
-        "heartbeatAgeMs": 11543
+        "observedAt": 1791207394,
+        "heartbeatAgeMs": 20093
       }
     ],
     "allFresh": true
@@ -139,7 +141,7 @@
     "freshReadbackAfterResume": true
   },
   "nonKrisQuote": {
-    "result": "not-run-unfunded",
+    "result": "deferred-to-C2-first-demand-job",
     "balanceReadback": {
       "at": "2026-10-05",
       "operator": "0xBd3F394940474c31fA444B102AF0a8043a1FCCA6",
@@ -148,21 +150,26 @@
       "balanceBaseUnits": "0",
       "oneMUSDRequestFunded": false
     },
-    "needed": "1 mUSD at the retained A01f operator before the permitted request can be posted",
     "fixedQuotesMUSD": {
       "canvas": "3",
       "studio": "5"
-    }
+    },
+    "directive": "ANSWER C1-NON-KRIS-MUSD: skip the separate A01f operator request; C2 supplies the any-creator proof"
   },
   "newOnChainSends": 0,
   "validation": {
     "heavyPnpmCheck": "passed",
-    "sdkWithRealMonadFork": "273 tests passed, 27 files, no skips",
+    "sdkWithRealMonadFork": "280 tests passed, 27 files, no skips",
     "provider": "real grok-4.7 safe image bid accepted; unsafe prompt declined"
   },
   "boundaries": [
-    "Any-creator admission and caps are unit-verified; current non-Kris live quote proof awaits fixture funding.",
+    "Any-creator admission and caps are unit-verified; the non-Kris live quote proof is assigned to C2 first demand job.",
     "No new paid delivery was performed under this policy; job 106 is historical evidence.",
     "C2 demand and C3 managed Codex runtimes are pending. The deployed acceptance harness remains stopped."
-  ]
+  ],
+  "reviewFixes": {
+    "C1-001": "Reserve rollover capacity before quoteId/phase persistence and before recovered submitted/completed returns",
+    "C1-002": "Both containers use dedicated bridge hireling-crew; authenticated cliproxy models read returned 200 from inside the Canvas container",
+    "C1-003": "Migration file extensions derive from the shared allowlist including JSON; missing saved artifacts fail closed with a clear error"
+  }
 }
