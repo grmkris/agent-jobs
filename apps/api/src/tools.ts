@@ -7,6 +7,7 @@
  */
 import type { Board, BudgetInput, Caller, DeliverableSpec, NamedSponsorEntry } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
+import { deadlineArgs, deadlineSchema } from './deadlines.ts'
 
 export interface Tool {
   readonly description: string
@@ -38,7 +39,7 @@ const budgetSchema = (tokenHelp: string) => ({
     target: str('Call budget: the contract address.'),
     function: str('Call budget: the one allowed function, human-readable ABI, e.g. "function create((string name,string symbol,string tokenURI,uint256 amountOut,bytes32 salt,uint8 actionId) params) payable".'),
     cap: str('Maximum, e.g. "2": token units for an advance, native units (MON) for a call budget.'),
-    expiresAt: num('Unix seconds; default and maximum: the delivery deadline.'),
+    expiresAt: deadlineSchema('Default and maximum: the delivery deadline.'),
   },
   required: ['kind', 'cap'],
 })
@@ -163,10 +164,10 @@ export const tools: Record<string, Tool> = {
         reward: str('Reward in token units, e.g. "25".'),
         creatorBond: str('Your FACTORY bond, e.g. "5".'),
         workerBond: str('The worker FACTORY bond, e.g. "3" ("0" for a contest).'),
-        deliveryDeadline: num('Unix seconds.'),
+        deliveryDeadline: deadlineSchema('When delivery is due.'),
         mode: { type: 'string', enum: ['hire', 'contest'] },
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
-        selectionDeadline: num('Contest only: unix seconds, before the delivery deadline.'),
+        selectionDeadline: deadlineSchema('Contest only: before the delivery deadline.'),
         approver: str('Optional: who judges the work (default you).'),
         windows: { type: 'object', properties: { reviewSeconds: num('Review window in seconds.'), disputeSeconds: num('Dispute window in seconds.'), arbitrationSeconds: num('Arbitration window in seconds.') }, required: ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'], additionalProperties: false },
         arbitrator: str('V1: named arbitrator address; omitted uses the deployed default resolved into this offer.'),
@@ -178,8 +179,11 @@ export const tools: Record<string, Tool> = {
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'token', 'reward', 'creatorBond', 'workerBond', 'deliveryDeadline', 'mode'],
     },
-    run: (board, caller, a) =>
-      board.createTask(caller, {
+    run: async (board, caller, a) => {
+      const d = deadlineArgs(a, ['deliveryDeadline', 'selectionDeadline'])
+      const budget = a.executionBudget as BudgetInput | undefined
+      const budgetExpiry = budget?.expiresAt === undefined ? undefined : deadlineArgs(budget as unknown as Record<string, unknown>, ['expiresAt']).values.expiresAt
+      return d.echo(await board.createTask(caller, {
         title: s(a, 'title'),
         brief: s(a, 'brief'),
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
@@ -187,21 +191,22 @@ export const tools: Record<string, Tool> = {
         reward: s(a, 'reward'),
         creatorBond: s(a, 'creatorBond'),
         workerBond: s(a, 'workerBond'),
-        deliveryDeadline: n(a, 'deliveryDeadline'),
+        deliveryDeadline: d.values.deliveryDeadline!,
         mode: s(a, 'mode') as 'hire' | 'contest',
-        ...(a.selectionDeadline === undefined ? {} : { selectionDeadline: n(a, 'selectionDeadline') }),
+        ...(d.values.selectionDeadline === undefined ? {} : { selectionDeadline: d.values.selectionDeadline }),
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
         ...(a.windows === undefined ? {} : { windows: a.windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }),
         ...(a.arbitrator === undefined ? {} : { arbitrator: s(a, 'arbitrator') }),
         ...(a.invite === undefined ? {} : { invite: a.invite as { agentId: string } }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
-        ...(a.executionBudget === undefined
+        ...(budget === undefined
           ? {}
-          : { executionBudget: a.executionBudget as BudgetInput }),
+          : { executionBudget: budgetExpiry === undefined ? budget : { ...budget, expiresAt: budgetExpiry } }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
         ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
-      }),
+      }))
+    },
   },
 
   request_quotes: {
@@ -216,8 +221,8 @@ export const tools: Record<string, Tool> = {
         tokens: { type: 'array', items: { type: 'string' }, description: 'Tokens you will pay in: known symbols or any ERC-20 addresses.' },
         creatorBond: str('Your FACTORY bond, e.g. "5".'),
         workerBond: str('The worker FACTORY bond, e.g. "3".'),
-        deliveryDeadline: num('Unix seconds.'),
-        quoteDeadline: num('Unix seconds; quotes close then. Before the delivery deadline.'),
+        deliveryDeadline: deadlineSchema('When delivery is due.'),
+        quoteDeadline: deadlineSchema('Quotes close then; before the delivery deadline.'),
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
         approver: str('Optional: who judges the work (default you).'),
         windows: { type: 'object', properties: { reviewSeconds: num('Review window in seconds.'), disputeSeconds: num('Dispute window in seconds.'), arbitrationSeconds: num('Arbitration window in seconds.') }, required: ['reviewSeconds', 'disputeSeconds', 'arbitrationSeconds'], additionalProperties: false },
@@ -228,16 +233,17 @@ export const tools: Record<string, Tool> = {
       },
       required: ['title', 'brief', 'acceptanceCriteria', 'tokens', 'creatorBond', 'workerBond', 'deliveryDeadline', 'quoteDeadline'],
     },
-    run: (board, caller, a) =>
-      board.requestQuotes(caller, {
+    run: async (board, caller, a) => {
+      const d = deadlineArgs(a, ['deliveryDeadline', 'quoteDeadline'])
+      return d.echo(await board.requestQuotes(caller, {
         title: s(a, 'title'),
         brief: s(a, 'brief'),
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
         tokens: (a.tokens as string[] | undefined) ?? [],
         creatorBond: s(a, 'creatorBond'),
         workerBond: s(a, 'workerBond'),
-        deliveryDeadline: n(a, 'deliveryDeadline'),
-        quoteDeadline: n(a, 'quoteDeadline'),
+        deliveryDeadline: d.values.deliveryDeadline!,
+        quoteDeadline: d.values.quoteDeadline!,
         ...(a.approver === undefined ? {} : { approver: s(a, 'approver') }),
         ...(a.windows === undefined ? {} : { windows: a.windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }),
         ...(a.arbitrator === undefined ? {} : { arbitrator: s(a, 'arbitrator') }),
@@ -245,7 +251,8 @@ export const tools: Record<string, Tool> = {
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
         ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
-      }),
+      }))
+    },
   },
 
   list_quote_requests: {
@@ -511,15 +518,17 @@ export const tools: Record<string, Tool> = {
       'Creator: pick one applicant. Returns the Selection to sign; nothing is on-chain until the worker activates.',
     inputSchema: {
       type: 'object',
-      properties: { ...taskId, applicationId: str('From list_applications.'), activateBy: num('Optional unix seconds.') },
+      properties: { ...taskId, applicationId: str('From list_applications.'), activateBy: deadlineSchema('Optional; when the selection lapses.') },
       required: ['taskId', 'applicationId'],
     },
-    run: (board, caller, a) =>
-      board.selectWorker(caller, {
+    run: async (board, caller, a) => {
+      const d = deadlineArgs(a, ['activateBy'])
+      return d.echo(await board.selectWorker(caller, {
         taskId: s(a, 'taskId'),
         applicationId: s(a, 'applicationId'),
-        ...(a.activateBy === undefined ? {} : { activateBy: n(a, 'activateBy') }),
-      }),
+        ...(d.values.activateBy === undefined ? {} : { activateBy: d.values.activateBy }),
+      }))
+    },
   },
 
   submit_selection: {
