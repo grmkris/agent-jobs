@@ -65,6 +65,7 @@ async function fixture(viewport, options = {}) {
     if (url.pathname === '/data/agents/1942') return reply({ ok: false, message: 'Fixture has no job history' }, 404);
     if (url.pathname === '/api/agents/managed') return reply({ ok: true, result: { allowances: [], grants: [], revocation: {} } });
     if (url.pathname === '/api/agents/managed/recovery') return reply({ ok: true, result: { grants: [] } });
+    if (url.pathname === '/api/agents' && route.request().method() === 'POST') return reply({ ok: true, result: { id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' } });
     if (url.pathname === '/api/agents') return reply({ ok: true, result: { agents: [{ id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' }] } });
     if (url.pathname === '/data/delegations' || url.pathname.startsWith('/data/backing/')) {
       const down = await page.evaluate(() => window.__stake.down);
@@ -115,7 +116,7 @@ try {
     await text(page, '50,000 FACTORY');
     await position(page).getByText('6,000 FACTORY', { exact: true }).waitFor();
     await position(page).getByText('60 % of total backing', { exact: true }).waitFor();
-    await text(page, 'If the agent is slashed for bad work, everyone backing it loses the same share. Leaving takes 10 minutes on testnet (7 days on mainnet), and your FACTORY stays at risk until then.');
+    await text(page, 'If the agent is slashed for bad work, everyone backing it loses the same share. Your FACTORY stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.');
     assert.ok((await page.locator('article[aria-label^="Position in"]').first().innerText()).includes('My worker'), 'operator agent position first');
     await capture(page, `${name}-positions`);
     await page.getByRole('combobox', { name: 'Agent to back' }).selectOption(agentWallet);
@@ -270,6 +271,55 @@ try {
     await capture(page, 'agent-owned-mining-withdraw');
     await context.close();
     results.push({ checks: ['public backing values, tier, delegator count and ranking', 'viewer ownership', 'delegate target prefilled', 'operator-only backing has no agent exits', 'agent-owned mining full queue still withdrawable', 'no browser log scans'], passed: true });
+  }
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 });
+    await page.goto(`${base}/agents/new`);
+    await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
+    await page.getByRole('heading', { name: 'Delegate backing to this agent' }).waitFor();
+    for (const round of [1, 2]) {
+      await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
+      await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
+      for (const step of [1, 2]) {
+        await page.getByRole('button', { name: `Confirm step ${step} of 2`, exact: true }).click();
+        await page.getByRole('button', { name: 'Confirm fixture' }).click();
+      }
+      await page.getByRole('button', { name: 'Review delegation', exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => window.__wallet.sends.length), round * 2, 'each repeated amount is a fresh approval and owned delegation');
+    }
+    await context.close();
+    results.push({ checks: ['repeated onboarding delegation has a distinct durable intent and two fresh confirmations'], passed: true });
+  }
+  {
+    const { context, page } = await fixture({ width: 1440, height: 900 });
+    const second = await context.newPage();
+    second.setDefaultTimeout(20000);
+    second.on('pageerror', error => errors.push(error.message));
+    await Promise.all([page.goto(`${base}/stake?account=${agentWallet}`), second.goto(`${base}/stake?account=${agentWallet}`)]);
+    await Promise.all([amount(page).fill('1'), amount(second).fill('1')]);
+    await page.evaluate(() => { window.__wallet.signGate = true; });
+    await page.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await page.waitForFunction(() => window.__wallet.signatures.length === 1 && window.__releasePermit !== undefined);
+    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock => lock.name.includes('vault:')));
+    assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'second tab waits before signing');
+    await page.evaluate(() => window.__releasePermit());
+    await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
+    await text(second, 'Another Stake tab has an unfinished position action. Reconcile it before starting another.');
+    assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'lock reread prevents a second prepared effect');
+    const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
+    const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), pointerKey);
+    await page.getByRole('button', { name: 'Not now', exact: true }).waitFor();
+    await second.evaluate(({ key, saved }) => localStorage.setItem(key, JSON.stringify({ ...saved, id: 'newer-tab-intent' })), { key: pointerKey, saved });
+    await page.getByRole('button', { name: 'Not now', exact: true }).click();
+    await text(page, 'A newer position action is saved in another tab; keep it for reconciliation.');
+    assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).id, pointerKey), 'newer-tab-intent', 'stale dismissal preserves the new pointer');
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await page.getByText(/This position action changed in another tab/).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Confirm fixture', exact: true }).count(), 0, 'stale action cannot open a wallet prompt');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await context.close();
+    results.push({ checks: ['two origin-sharing tabs serialize preparation and permit signing', 'persisted intent reread under Web Lock', 'stale Not now compare-delete', 'stale prepared send blocked'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live vault, signing or sends', results, errors }, null, 2));

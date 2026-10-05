@@ -4,7 +4,7 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { type Address, encodeFunctionData, isAddress, parseSignature } from "viem";
 import { useSignTypedData } from "wagmi";
-import { type ManagedAgent, type TxRequest, agentEndpoint } from "../api.ts";
+import { type ManagedAgent, agentEndpoint } from "../api.ts";
 import { DelegationForm } from "../components/DelegationForm.tsx";
 import {
   DELEGATION_RISK,
@@ -15,7 +15,13 @@ import { HoldingControls } from "../components/HoldingControls.tsx";
 import { PrivyLogin } from "../components/Privy.tsx";
 import { useToast } from "../components/Sheet.tsx";
 import { TxSteps } from "../components/TxSteps.tsx";
-import { emptyJournal, txJournalKey, writeTxJournal } from "../components/txJournal.ts";
+import {
+  emptyJournal,
+  readTxJournal,
+  txJournalKey,
+  writeTxJournal,
+} from "../components/txJournal.ts";
+import { withWalletStepLock } from "../components/txOperation.ts";
 import {
   Button,
   EmptyState,
@@ -32,30 +38,19 @@ import { stakeContext } from "../stake-context.ts";
 import { factoryAmount } from "../stake.ts";
 import { friendlyError } from "../txErrors.ts";
 import { chain } from "../wallet.ts";
+import {
+  type VaultIntent as Operation,
+  clearOwnedIntent,
+  readVaultIntent,
+  vaultIntentKey,
+  withVaultIntentLock,
+} from "../vault-lock.ts";
 
-interface Operation {
-  id: string;
-  kind: "delegate" | "leave" | "cancel" | "withdraw" | "veto";
-  account: Address;
-  txs: TxRequest[];
-}
-
-const intentKey = (contracts: HirelingContracts, owner: Address) =>
-  `hireling.delegation-op:${chain.id}:${contracts.vault.toLowerCase()}:${owner.toLowerCase()}`;
-
-function readOperation(key: string): Operation | null {
-  const saved = localStorage.getItem(key);
-  return saved === null ? null : (JSON.parse(saved) as Operation);
-}
-
-function persistOperation(key: string, operation: Operation | null) {
-  if (operation === null) localStorage.removeItem(key);
-  else {
-    const json = JSON.stringify(operation);
-    localStorage.setItem(key, json);
-    if (localStorage.getItem(key) !== json)
-      throw new Error("The operation could not be saved. Nothing may be sent.");
-  }
+function persistOperation(key: string, operation: Operation) {
+  const json = JSON.stringify(operation);
+  localStorage.setItem(key, json);
+  if (localStorage.getItem(key) !== json)
+    throw new Error("The operation could not be saved. Nothing may be sent.");
 }
 
 export function StakePage() {
@@ -121,10 +116,10 @@ function Stake({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const key = intentKey(contracts, owner);
+  const key = vaultIntentKey(chain.id, contracts.vault, owner);
   const [initial] = useState(() => {
     try {
-      return { operation: readOperation(key), error: null };
+      return { operation: readVaultIntent(localStorage, key), error: null };
     } catch {
       return {
         operation: null,
@@ -146,7 +141,7 @@ function Stake({
       agent.address === null ? [] : [agent.address.toLowerCase()],
     ),
   );
-  const rank = (wallet: string) => mine.has(wallet) ? 0 : wallet === owner.toLowerCase() ? 1 : 2;
+  const rank = (wallet: string) => (mine.has(wallet) ? 0 : wallet === owner.toLowerCase() ? 1 : 2);
   const positions = (reads.data?.positions ?? []).toSorted((left, right) => {
     const a = left.position.account.toLowerCase();
     const b = right.position.account.toLowerCase();
@@ -160,7 +155,7 @@ function Stake({
     initial.error !== null;
   const disabled = unavailable || busy || operation !== null || reads.data?.open !== true;
 
-  function prepare(
+  function savePrepared(
     kind: Operation["kind"],
     target: Address,
     description: string,
@@ -179,26 +174,47 @@ function Stake({
     setText("");
   }
 
+  async function prepare(
+    kind: Operation["kind"],
+    target: Address,
+    description: string,
+    data: `0x${string}`,
+  ) {
+    await withVaultIntentLock(navigator.locks, key, async () => {
+      if (readVaultIntent(localStorage, key) !== null)
+        throw new Error(
+          "Another Stake tab has an unfinished position action. Reconcile it before starting another.",
+        );
+      savePrepared(kind, target, description, data);
+    });
+  }
+
   async function submit() {
     const amount = factoryAmount(text);
     if (disabled || amount === null) return;
     setBusy(true);
     setError(null);
     try {
-      const ctx = stakeContext(contracts);
-      if (mode === "leave") {
-        const shares = await sdk.undelegationShares(ctx, account, owner, amount);
-        prepare(
-          "leave",
-          account,
-          `Leave ${factoryValue(amount)} behind ${account}`,
-          encodeFunctionData({
-            abi: sdk.stakeVaultAbi,
-            functionName: "requestUndelegate",
-            args: [account, shares],
-          }),
-        );
-      } else {
+      await withVaultIntentLock(navigator.locks, key, async () => {
+        if (readVaultIntent(localStorage, key) !== null)
+          throw new Error(
+            "Another Stake tab has an unfinished position action. Reconcile it before starting another.",
+          );
+        const ctx = stakeContext(contracts);
+        if (mode === "leave") {
+          const shares = await sdk.undelegationShares(ctx, account, owner, amount);
+          savePrepared(
+            "leave",
+            account,
+            `Leave ${factoryValue(amount)} behind ${account}`,
+            encodeFunctionData({
+              abi: sdk.stakeVaultAbi,
+              functionName: "requestUndelegate",
+              args: [account, shares],
+            }),
+          );
+          return;
+        }
         const balance = await ctx.publicClient.readContract({
           address: contracts.factory,
           abi: sdk.factoryV2Abi,
@@ -227,7 +243,7 @@ function Stake({
         );
         const signature = await signTypedDataAsync(permit);
         const { r, s, v, yParity } = parseSignature(signature);
-        prepare(
+        savePrepared(
           "delegate",
           account,
           `Delegate ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
@@ -244,7 +260,7 @@ function Stake({
             ],
           }),
         );
-      }
+      });
     } catch (failure) {
       setError(friendlyError(failure));
     } finally {
@@ -254,26 +270,18 @@ function Stake({
 
   function direct(kind: "cancel" | "withdraw", target: Address) {
     if (disabled) return;
-    try {
-      prepare(
-        kind,
-        target,
-        kind === "cancel" ? `Cancel leaving ${target}` : `Withdraw your position from ${target}`,
-        kind === "cancel"
-          ? encodeFunctionData({
-              abi: sdk.stakeVaultAbi,
-              functionName: "cancelUndelegate",
-              args: [target],
-            })
-          : encodeFunctionData({
-              abi: sdk.stakeVaultAbi,
-              functionName: "withdraw",
-              args: [target],
-            }),
-      );
-    } catch (failure) {
-      setError(friendlyError(failure));
-    }
+    void prepare(
+      kind,
+      target,
+      kind === "cancel" ? `Cancel leaving ${target}` : `Withdraw your position from ${target}`,
+      kind === "cancel"
+        ? encodeFunctionData({
+            abi: sdk.stakeVaultAbi,
+            functionName: "cancelUndelegate",
+            args: [target],
+          })
+        : encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "withdraw", args: [target] }),
+    ).catch((failure) => setError(friendlyError(failure)));
   }
 
   return (
@@ -353,9 +361,17 @@ function Stake({
             verifyReceipt
             allowSponsorship={false}
             onSafeToRestartChange={setSafeToDismiss}
+            sendGuard={() =>
+              readVaultIntent(localStorage, key)?.id === operation.id
+                ? null
+                : "This position action changed in another tab. Reload to reconcile the saved action."
+            }
             onDone={() => {
-              try {
-                persistOperation(key, null);
+              void withVaultIntentLock(navigator.locks, key, async () => {
+                if (!clearOwnedIntent(localStorage, key, operation.id))
+                  throw new Error(
+                    "A newer position action is saved in another tab; keep it for reconciliation.",
+                  );
                 setOperation(null);
                 void queryClient.invalidateQueries({ queryKey: ["delegations"] });
                 void queryClient.invalidateQueries({ queryKey: ["backing"] });
@@ -371,9 +387,7 @@ function Stake({
                           ? "Withdrawn to your wallet."
                           : "Holding permission updated.",
                 );
-              } catch (failure) {
-                setError(friendlyError(failure));
-              }
+              }).catch((failure) => setError(friendlyError(failure)));
             }}
           />
           {error !== null && <ErrorText>{error}</ErrorText>}
@@ -381,12 +395,25 @@ function Stake({
             <Button
               variant="plain"
               onClick={() => {
-                try {
-                  persistOperation(key, null);
-                  setOperation(null);
-                } catch (failure) {
-                  setError(friendlyError(failure));
-                }
+                const journalKey = txJournalKey(`delegation:${operation.id}`, operation.txs);
+                void withWalletStepLock(navigator.locks, journalKey, async () => {
+                  const journal = readTxJournal(localStorage, journalKey, true)!;
+                  if (
+                    journal.pending !== null ||
+                    journal.hashes.some((hash) => hash !== null) ||
+                    journal.sponsor != null
+                  )
+                    throw new Error(
+                      "This action started in another tab. Reconcile it before preparing another.",
+                    );
+                  await withVaultIntentLock(navigator.locks, key, async () => {
+                    if (!clearOwnedIntent(localStorage, key, operation.id))
+                      throw new Error(
+                        "A newer position action is saved in another tab; keep it for reconciliation.",
+                      );
+                    setOperation(null);
+                  });
+                }).catch((failure) => setError(friendlyError(failure)));
               }}
             >
               Not now
@@ -426,20 +453,16 @@ function Stake({
         account={owner}
         disabled={disabled}
         onVeto={(holding, denied) => {
-          try {
-            prepare(
-              "veto",
-              owner,
-              denied ? "Refuse the Holding for my wallet" : "Allow the Holding for my wallet",
-              encodeFunctionData({
-                abi: sdk.stakeVaultAbi,
-                functionName: "setHoldingDenied",
-                args: [holding, denied],
-              }),
-            );
-          } catch (failure) {
-            setError(friendlyError(failure));
-          }
+          void prepare(
+            "veto",
+            owner,
+            denied ? "Refuse the Holding for my wallet" : "Allow the Holding for my wallet",
+            encodeFunctionData({
+              abi: sdk.stakeVaultAbi,
+              functionName: "setHoldingDenied",
+              args: [holding, denied],
+            }),
+          ).catch((failure) => setError(friendlyError(failure)));
         }}
       />
     </>

@@ -10,7 +10,7 @@ import { Address as AddressText, Badge, Button, EmptyState, Section } from "./ui
 export const factoryValue = (value: bigint) => `${formatNumber(value, 18)} FACTORY`;
 
 export const DELEGATION_RISK =
-  "If the agent is slashed for bad work, everyone backing it loses the same share. Leaving takes 10 minutes on testnet (7 days on mainnet), and your FACTORY stays at risk until then.";
+  "If the agent is slashed for bad work, everyone backing it loses the same share. Your FACTORY stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.";
 
 export function DelegationPositions({
   positions,

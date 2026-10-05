@@ -1,6 +1,6 @@
 // Browser-only RPC double. The real SDK reads, conversions and ABI decoding run against this transport.
 import * as sdk from '@agent-jobs/sdk';
-import { createPublicClient, custom, decodeFunctionData, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
+import { createPublicClient, custom, erc20Abi, decodeFunctionData, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
 import { chainLatency } from './wagmi.mjs';
 import { chain, deployment } from '../src/wallet.ts';
 
@@ -83,14 +83,18 @@ export function stakeContext(contracts = window.__hireling) {
 
 export function apply({ data }) {
   const s = window.__stake;
-  const { functionName, args } = decodeFunctionData({ abi: sdk.stakeVaultAbi, data });
+  let decoded;
+  try { decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data }); }
+  catch { decoded = decodeFunctionData({ abi: erc20Abi, data }); }
+  const { functionName, args } = decoded;
+  if (functionName === 'approve') { s.approvals = (s.approvals ?? 0) + 1; return; }
   s.calls.push({ functionName, args: args.map(arg => typeof arg === 'bigint' ? String(arg) : arg) });
   if (functionName === 'setHoldingDenied') { s.denied = { ...s.denied, [args[0].toLowerCase()]: args[1] }; return; }
   const account = args[0].toLowerCase();
   const owner = window.__wallet.address.toLowerCase();
   const pool = s.pools[account] ??= { ...emptyPool, positions: {} };
   const position = pool.positions[owner] ??= emptyPosition(pool.generation);
-  if (functionName === 'delegateWithPermit') {
+  if (functionName === 'delegateWithPermit' || functionName === 'delegate') {
     const shares = pool.shares === 0n ? args[1] : args[1] * pool.shares / pool.assets;
     if (position.generation !== pool.generation) Object.assign(position, emptyPosition(pool.generation));
     s.wallet -= args[1]; s.nonce += 1n; pool.assets += args[1]; pool.shares += shares; position.shares += shares;

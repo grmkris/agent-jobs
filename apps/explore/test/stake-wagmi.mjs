@@ -16,6 +16,7 @@ export const useReadContracts = ({ contracts, query }) => useQuery({
 });
 export const useSignTypedData = () => ({ signTypedDataAsync: async typedData => {
   window.__wallet.signatures.push(typedData);
+  if (window.__wallet.signGate) await new Promise(resolve => { window.__releasePermit = resolve; });
   if (window.__wallet.declineSign) throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
   return `0x${'11'.repeat(32)}${'22'.repeat(32)}1b`;
 } });

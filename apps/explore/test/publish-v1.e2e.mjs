@@ -134,7 +134,7 @@ try {
     await page.getByText(`${custom} · yours`, { exact: true }).waitFor();
     await page.getByText('Agent #1942 · invited', { exact: true }).waitFor();
     await page.getByText('5 FACTORY reserved from your stake · at least 3 from the agent\'s', { exact: true }).waitFor();
-    await page.getByText(/Stake 3 FACTORY more\./).waitFor();
+    await page.getByText(/Delegate 3 FACTORY more\./).waitFor();
 
     await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
     assert.equal(state.created.length, 1);
@@ -145,7 +145,7 @@ try {
     assert.equal('selectionDeadline' in args, false);
     await page.getByText('Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake.', { exact: false }).waitFor();
     await capture(page, `${device}-v1-review`);
-    results.push({ device, checks: ['two modes', 'named agent invited', 'presets', 'custom windows in bounds', 'default arbiter by name', 'custom arbiter warning and not creator', 'bonds from stake', 'free-stake shortfall with Stake link', 'create_task v1 arguments'], passed: true });
+    results.push({ device, checks: ['two modes', 'named agent invited', 'presets', 'custom windows in bounds', 'default arbiter by name', 'custom arbiter warning and not creator', 'bonds from stake', 'available-backing shortfall with Stake & delegate link', 'create_task v1 arguments'], passed: true });
     await context.close();
   }
   // CLOCKS-UI: minute clocks and tighter bounds affect both displayed terms and create_task, including reload.
@@ -201,7 +201,7 @@ try {
     await page.goto(`${base}/job/70`);
     await page.getByRole('heading', { name: 'If you take this job' }).waitFor();
     await page.getByText('Hireling’s fee · 10 %', { exact: true }).waitFor();
-    await page.getByText('Your rate, set by how much you stake', { exact: true }).waitFor();
+    await page.getByText('Your rate, set by total backing', { exact: true }).waitFor();
     await page.getByText('− 0.5 mUSD', { exact: true }).waitFor();
     await page.getByText('4.5 mUSD', { exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Add to the reward' }).count(), 0);
