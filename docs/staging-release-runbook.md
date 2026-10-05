@@ -10,6 +10,21 @@ is historical evidence, not the current release procedure.
 
 Use Node 24 and pnpm from the canonical checkout, on `main`:
 
+On the build box, the system Node remains v22. Use `pnpm dlx node@24` for each
+release command. Verified on 5 October 2026: both the command process and its
+`node` child report `v24.21.0`. This does not replace the system executable.
+For the live runner, the exact invocations are:
+
+```sh
+heavy pnpm dlx node@24 scripts/staging-release/release.mjs plan
+heavy pnpm dlx node@24 scripts/staging-release/release.mjs apply <digest-from-plan>
+```
+
+Use the same prefix for `scripts/staging-release/guard.mjs` and
+`scripts/staging-release/digests.mjs`; their review digests include
+`process.version`, so regenerate evidence when changing the Node runtime.
+Only the release coordinator runs plan/apply.
+
 ```sh
 pnpm db:generate --check
 heavy pnpm check
@@ -118,9 +133,12 @@ bookkeeping. It does not rebuild, delete or rewrite existing job/session tables.
 The API adds the SQLite `DirectoryObject` class and aliases `DIRECTORY_DATABASE`
 to the **existing** D1. The DO initializes `directory_state` and
 `directory_projection` on use. Existing `Board` state remains untouched. The
-legacy `BUDGET_SIGNER_PRIVATE_KEY` and `PRIVY_APP_SECRET` bindings are inherited
-without fetching their values. Normalizing the existing GitHub PEM's escaped
-newlines does not change the underlying key.
+legacy `BUDGET_SIGNER_PRIVATE_KEY` binding remains inherited without fetching
+its value. `PRIVY_APP_SECRET` now has one source: the reviewed `.env.local`
+secret binding. The approved manifest permits overwriting that Worker binding
+with the locally authenticated app secret; this does not rotate the Privy-side
+secret. Remove that manifest entry after release verification. Normalizing the
+existing GitHub PEM's escaped newlines does not change the underlying key.
 
 Cloudflare settings omit the prior migration tag. An isolated live rehearsal with
 the same pinned Alchemy provider demonstrated an additive class migration with
