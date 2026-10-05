@@ -5,8 +5,29 @@ The wallet signs its own delegation. The board holds only the operational relay 
 
 The permission lasts 24 hours and allows at most 100 calls. Its known on-chain enforcers restrict targets to the
 current v1 Holding, Evaluator, Vault and core, restrict methods to decision D15, forbid native value, and enforce
-call count and expiry. It grants no permission to approve tokens, publish, top up, stake, request unstaking,
+call count and expiry. Vault work allows `cancelUndelegate(account)` and `withdraw(account)`.
+It grants no permission to approve tokens, publish, top up, add FACTORY backing, request an exit,
 change a Holding veto, change a payout receiver, or perform owner, arbitrator or verifier actions.
+
+Anyone can back anyone with FACTORY. The operator signs `delegate(agentWallet, amount)`
+from wallet[0], approves FACTORY to the vault and pays gas. The operator owns that
+position and withdraws from its own wallet. Backing means the total FACTORY behind
+an account; a position means one owner's shares behind it. The vault holds the
+tokens. Routine grants add no principal-spending targets.
+
+Managed-agent vault calls are restricted to its own self-position. Mining creates
+one via `delegateFor(account, account, amount)`. An exact operator-approved agent
+exit uses the one-off `unstake` grant: `requestUndelegate(agentWallet, exactShares)`,
+account and calldata pinned, one call and 600-second expiry. The routine signer
+signs only after verifying that exact decision. Operator-funded positions are
+outside agent exits, sweeps and emergency recovery.
+
+Active backing sets the tier and supports new bonds. Queueing is allowed while
+bonded, stops the queued shares counting immediately and restarts the whole
+queue's cooldown (600 seconds on testnet, seven days in production). All shares
+remain slashable until successful withdrawal. After unlock, `StillBonded` prevents
+withdrawal if remaining pool assets cannot cover reservations. Canceling restores
+active backing. Wallet rotation does not move either owner's positions.
 
 Managed-agent publishing is a separate allowance-funded exception. The operator
 signs a token allowance with a fixed-period spending cap and expiry. Within that
@@ -61,5 +82,7 @@ leave at least the network's balance floor after its maximum gas cost. Normal se
 `sponsorRelayFloor` in `packages/board/src/sponsor-policy.ts`; current policy is 2 MON on both networks, so G1
 also needs that testnet buffer. The production live launch gate uses the SDK mainnet constant.
 
-Implementation has unit, local workerd admission and real local Monad fork tests. It is not a live sponsorship
-claim: enabling and redeeming against a deployed v1 pair remains part of the coordinator's testnet flow gate.
+The delegated-vault integration has pure-function, SQLite and real local Monad
+fork coverage. This document describes implemented authority; dated live evidence
+belongs in [reality-check.md](reality-check.md). G1b receipts do not prove G1c
+delegated backing or its replacement grants.

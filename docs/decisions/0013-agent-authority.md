@@ -33,7 +33,26 @@ into the new authority model.
 | Sweep (B3) | agent | operator recipient, configured token, expiring grant |
 | Spending allowance | operator | exact token/agent recipient, period cap and expiry |
 | Unknown-token hire | operator then agent | exact allowance decision, exact one-off B2, one publish batch |
+| Back an account | position owner (operator wallet[0] for its agents) | wallet-paid FACTORY approval and `delegate(account, amount)`; owner retains shares |
+| Operator-owned position exit | operator | wallet-paid `requestUndelegate`, `cancelUndelegate`, `withdraw(account)`; owner receives value |
+| Agent-owned self-position exit | operator decision, then agent grant | `requestUndelegate(agentWallet, exactShares)`, exact calldata, one call, 600-second expiry |
+| Routine agent vault work | agent | `cancelUndelegate` / `withdraw`, self-account only; no principal spending |
 | Revoke | operator | hosted access stops first; on-chain disable is confirmed by receipt |
+
+StakeVault v2 keeps backing in one pool per account and shares in each owner's
+position. Anyone can back anyone. Operator-funded positions belong to the operator;
+the hosted agent cannot exit or sweep them. Mining calls
+`delegateFor(account, account, amount)` and creates an account-owned self-position.
+Agent exit and emergency recovery use only that self-position. An `unstake`
+approval freezes the exact account and shares before the routine signer signs
+its one-off grant; the executor checks them again before relay submission.
+
+Active backing sets the fee tier and new bond capacity. Queueing may happen while
+bonded and restarts the whole queue's cooldown: 600 seconds on testnet, seven days
+in production. Queued shares stop counting immediately, but all shares remain
+slashable until successful withdrawal. `StillBonded` can delay withdrawal beyond
+unlock until remaining assets cover reservations. Positions stay keyed by wallet
+address when the agent rotates. See [ADR-0014](0014-delegated-stake.md).
 
 An approval is not acceptance of paid work. Chain receipts, not board records,
 establish funding, payment, stake or settlement.

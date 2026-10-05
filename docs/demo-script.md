@@ -2,6 +2,30 @@
 
 **Historical legacy testnet shot list.** These contest, demo-pair and faucet steps preserve the September rehearsal. They do not apply to new v1 jobs and must not be presented as v1 evidence. V1 uses hires, stake reservations, per-offer windows and Collect; use the [v1 flow runner](../packages/sdk/scripts/v1-flows.md) and dated [reality check](reality-check.md) for its evidence.
 
+## Current G1c delegated-staking guidance
+
+This section is planned G1c guidance, not a live receipt. Keep the historical
+shots and their dated evidence labeled as such. For the current flow, the operator
+uses wallet[0] to approve FACTORY and call `delegate(agentWallet, amount)`. The
+operator keeps that position; the agent does not receive or withdraw it. Anyone
+may delegate behind any agent.
+
+Before a bonded hire, read `get_stake` and check **available active backing**, not
+the agent wallet's liquid FACTORY. Backing is total FACTORY behind the account;
+each owner's position is separate. Queueing an exit removes those shares from
+active backing immediately, restarts the ten-minute testnet cooldown (seven days
+on mainnet), and leaves them slashable until withdrawal. `StillBonded` can extend
+withdrawal while jobs remain reserved.
+
+Mining claims use `delegateFor(account, account, amount)` and therefore create a
+self-owned agent position. Only that self-position uses the hosted approval path:
+an exact operator decision precedes a one-call `requestUndelegate` grant pinned to
+the agent and exact shares; routine cancellation and withdrawal use the same
+self-position. These instructions become live evidence only after the coordinator
+records G1c receipts in `docs/reality-check.md`.
+
+## Historical September rehearsal
+
 The video follows note 12 §2. Every step below was rehearsed on Monad testnet (`docs/reality-check.md`, "B6a
 rehearsal"). Everything is recorded on the testnet **demo** board, whose review and dispute windows are 10 minutes, so
 each outcome lands on camera. Record the terminal and the browser side by side at 1440p, then cut to the timings

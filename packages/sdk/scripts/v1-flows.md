@@ -42,7 +42,7 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Undisputed violation and missed delivery | `violation`, `missed` |
 | Arbitration timeout | `arbitration-timeout` (deployed per-job window) |
 | Top-up payment and contributor pull refund | `topup-paid`, `topup-refund` |
-| Stake, reservations, slash, cooldown | Setup, the hire/slash cases, `stake-cooldown` (vault unlock time) |
+| Delegated backing, reservations, slash, cooldown | Setup delegates with `delegate`; the hire/slash cases; `delegate`, `slash-pro-rata`, `undelegate-pending-slash`, and `stake-cooldown` (vault unlock time) |
 | Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid FACTORY to reach it) |
 | Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
 | Legacy contracts and immutable key | `legacy-contest`, `legacy-dispute` |
@@ -54,6 +54,14 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Epoch compute/root/fund/claim/stake | Contracts' `pnpm mining:epoch`, Safe root/fund, then `mining` |
 | Telegram notifications | `telegram` (linked creator/worker; produces a real hire; human DM/channel receipt is recorded separately) |
 | Safe ownership, fee delay, vault delay, pause | `admin-ownership`, `admin-fees`, `admin-vault-refusal`, `admin-pause` |
+
+The G1c candidate adds `delegate`, `slash-pro-rata` and `undelegate-pending-slash`,
+bringing the default board-free rehearsal from 21 to 24 cases. Use `--list` to
+confirm the runner candidate is adopted before starting them. Outside delegators
+retain their positions; a slash reduces self and outside positions pro-rata,
+including queued shares. The pending-slash case proves `StillBonded` refusal and
+then withdrawal of the post-slash value after release. These cases and local fork
+results are not live G1c evidence.
 
 Hosted cases require `V1_BOARD_URL` pointing to this testnet deployment. Each wallet signs in with SIWE.
 The runner checks `protocol_info` before hosted writes and reports each canonical receipt. Sponsor action keys
@@ -75,7 +83,9 @@ G1 prepares fee and Holding proposals. `admin-fees` consumes that existing propo
 MultiSendCallOnly pause/notePause and unpause/notePause pairs (the Safe needs the core admin role).
 
 Long cases print their chain-time wait and resume from the saved journal after interruption. Start the
-12-hour arbitration row in time for G3; start the seven-day cooldown immediately after G1. Use at most two
+12-hour arbitration row in time for G3; start the testnet vault's 600-second cooldown immediately after G1
+(production uses seven days). A queued position remains slashable until withdrawal and may be delayed by
+`StillBonded` while a bond is reserved. Use at most two
 isolated wallet sets when running long cases in parallel. Mining waits for B8/B8b and a published/funded root;
 Telegram waits for the real bot and wallet links. Missing dependencies error rather than count as evidence.
 Set `V1_FLOW_YIELD=1` when starting several long cases together: each case journals its pending chain timestamp,

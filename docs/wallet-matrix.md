@@ -1,16 +1,16 @@
 # Agent wallet compatibility matrix (spike S3, 2026-09-25)
 
-## V1 requirements (2 Oct 2026)
+## V1 requirements (updated for StakeVault v2, 5 Oct 2026)
 
 The vendor rows below retain their dated evidence; v1 source and local fork tests do not promote a documented wallet
-to live-tested. A v1 worker needs its current ERC-8004 agent wallet, available FACTORY v2 stake for the reservation,
+to live-tested. A v1 worker needs its current ERC-8004 agent wallet, available active FACTORY backing for the reservation,
 and SIWE/EIP-712 support. At activation it signs the freshly quoted net reward, not the gross listing reward.
 Wallet-paid methods need MON and must preserve the returned gas floors. Mainnet signers use encrypted keystores as
 specified in the [runbook](mainnet-runbook.md); the live-flow runner is testnet-only.
 
 Optional [sponsorship](sponsorship.md) adds an ERC-7710 grant from an EIP-7702 DeleGator to the relay. The exact
 zero-value/method/call/time caveats must be verified before signing. It covers the explicit v1 method policy, not
-publish, top-up, staking deposits, execution-budget draws or mining claims. A managed agent may publish through
+publish, top-up, new backing deposits, execution-budget draws or mining claims. A managed agent may publish through
 an operator-signed period allowance: the exact reward pull, B2 Holding approval and B1 publish share one atomic
 batch. Over-limit hires require an exact one-off allowance; unknown tokens additionally require the agent's exact
 one-off approval after the operator signature is verified. It therefore cannot make a typed-data-only
@@ -21,11 +21,31 @@ The older execution-budget delegation below still has separate authority and exp
 
 The API creates a separate user-owned Privy wallet for each agent and attaches a
 policy-bound routine signer. The operator owns its registry NFT and signs
-registration and spending allowances; the agent wallet holds stake, earnings and
-obligations. Routine agent work uses relay gas. Optional stake deposits and owner
-recovery remain operator-paid. Recovery uses the agent's client-side signature
+registration and spending allowances; the agent wallet holds earnings and
+obligations, while the vault holds backing. Routine agent work uses relay gas.
+Optional backing deposits and owner recovery remain wallet-paid. Recovery uses the agent's client-side signature
 without switching the website's operator wallet. Rotation never moves old jobs,
-bonds, owed funds or cooldowns to the new wallet.
+bonds, owed funds, positions or cooldowns to the new wallet.
+
+Anyone can back any account with FACTORY. Backing is the total FACTORY behind the
+account; a position is one owner's shares behind it. The operator's wallet[0]
+signs an approval to the vault and `delegate(agentWallet, amount)`, retaining the
+position rather than sending FACTORY to the agent. The operator signs its own
+`requestUndelegate`, `cancelUndelegate` and `withdraw(account)` calls; withdrawal
+pays that owner. Self-backing is `delegate(self, amount)`.
+
+Active backing determines fee tiers and new bond capacity. Queueing is allowed
+while bonded, removes those shares from active backing immediately and restarts
+the whole queue's cooldown: ten minutes on testnet, seven days in production.
+All shares remain slashable until successful withdrawal. `StillBonded` can extend
+the wait if the remaining assets cannot cover open reservations.
+
+Mining claims use `delegateFor(account, account, amount)`, creating agent-owned
+self-positions. Only those self-positions use the managed-agent exit/recovery path.
+After exact operator approval, the routine signer can sign a one-call grant for
+`requestUndelegate(agentWallet, exactShares)` with a ten-minute expiry. Routine
+vault grants cover self-position cancellation and withdrawal, without new
+principal-spending targets. See the [staking API reference](staking-api.md).
 
 OAuth selects one agent, resource and board. Revocation stops hosted access first;
 on-chain permission disabling has a separate confirmed status. Removing the Privy

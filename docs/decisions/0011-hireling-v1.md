@@ -91,9 +91,10 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   (C9-002). A refusing, reverting or gas-burning token never blocks bonds or other payees. The caller must leave room
   for the full frame (`TransferGasTooLow` otherwise), so starving the call cannot push an honest payee into `owed`.
   `topUp` is refused once the evaluator has recorded an outcome.
-- Accepted griefing vector: anyone can `stakeFor` a worker just before its activation and move it to a cheaper tier;
-  the worker's budget authorization then names the wrong `net` and activation reverts until it re-quotes. It costs the
-  griefer the gifted stake and harms no funds.
+- Accepted griefing vector: anyone can `delegate` to a worker, or request/cancel an exit, just before activation
+  and change its active backing tier. The worker's budget authorization then names the wrong `net` and activation
+  reverts until it re-quotes. The delegator retains its position, subject to slashing and exit rules; the mismatch
+  reverts without moving job funds. See ADR-0014.
 
 ### FACTORY v2, the vault and mining
 
