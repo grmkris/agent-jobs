@@ -42,7 +42,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
   }
   async function listed(token: Address = ctx.stack.factory) {
     for (const wallet of [f.creator, f.worker]) {
-      const state = await sdk.getStake(ctx, wallet.account.address)
+      const state = await sdk.getBacking(ctx, wallet.account.address)
       if (state.available < parseEther('10')) await sdk.sendAll(wallet, ctx.publicClient, (await board.stake(actor(wallet), { amount: '100' })).transactions)
     }
     const now = Number((await ctx.publicClient.getBlock()).timestamp)
@@ -70,7 +70,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     const x = await listed()
     expect(await board.getStake({}, { wallet: f.worker.account.address })).toMatchObject({ staked: parseEther('100').toString(), reserved: parseEther('10').toString(), available: parseEther('90').toString() })
     expect(await board.feeQuote({}, { taskId: x.taskId, worker: f.worker.account.address })).toEqual({ feeBps: 3000, fee: parseEther('0.3').toString(), net: parseEther('0.7').toString() })
-    await expect(board.requestUnstake(actor(f.worker), { amount: '91' })).rejects.toThrow('reserved')
+    await expect(board.requestUnstake(actor(f.worker), { amount: '101' })).rejects.toThrow('owned position')
     const top = await board.topUp(actor(f.contributor), { taskId: x.taskId, amount: '0.25' })
     expect(top.transactions).toHaveLength(2)
     const topHashes = await sdk.sendAll(f.contributor, ctx.publicClient, top.transactions)
@@ -94,7 +94,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     await sdk.sendAll(f.creator, ctx.publicClient, actions.find(a => a.jobId === x.jobId.toString() && a.kind === 'settle')!.transactions)
     await indexNow()
     expect((await board.collectActions({}, { wallet: f.creator.account.address })).some(a => a.jobId === x.jobId.toString())).toBe(false)
-    const state = await sdk.getStake(ctx, f.contributor.account.address)
+    const state = await sdk.getPosition(ctx, f.contributor.account.address, f.contributor.account.address)
     await f.rpc('evm_setNextBlockTimestamp', [state.unlockAt]); await f.rpc('evm_mine')
     await indexNow()
     const stake = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'stakeWithdraw')!
@@ -211,10 +211,10 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
       expect(proof).toMatchObject({ amount: amount.toString(), eligible: true, claimed: false })
       const action = (await board.collectActions({}, { wallet: f.worker.account.address })).find(a => a.kind === 'miningClaim' && a.epoch === epoch)!
       expect(action.amount).toBe(amount.toString()); expect(action.transactions).toEqual(proof.transactions)
-      const before = await sdk.getStake(ctx, f.worker.account.address)
+      const before = await sdk.getBacking(ctx, f.worker.account.address)
       // Claims are permissionless, but the account in the verified leaf is the only beneficiary.
       await sdk.sendAll(f.contributor, ctx.publicClient, action.transactions); await indexNow()
-      expect((await sdk.getStake(ctx, f.worker.account.address)).staked).toBe(before.staked + amount)
+      expect((await sdk.getBacking(ctx, f.worker.account.address)).assets).toBe(before.assets + amount)
       expect(await board.miningProof({}, { wallet: f.worker.account.address, epoch })).toMatchObject({ claimed: true, transactions: [] })
       expect((await board.collectActions({}, { wallet: f.worker.account.address })).some(a => a.kind === 'miningClaim')).toBe(false)
       expect((await board.collectActions({}, { wallet: f.creator.account.address })).some(a => a.kind === 'miningClaim')).toBe(true)

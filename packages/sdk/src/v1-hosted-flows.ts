@@ -67,10 +67,10 @@ export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
       check(selected.length > 0, `no ${flow} action is ready; do not count an empty read as live evidence`)
       return selected
     })
-    const before = await once('stake-before', () => sdk.getStake(ctx, worker.account.address))
+    const before = await once('stake-before', () => sdk.getBacking(ctx, worker.account.address))
     for (const [i, action] of saved.entries()) await send(`action-${i}`, worker, action)
     if (flow === 'mining') {
-      check((await sdk.getStake(ctx, worker.account.address)).staked - before.staked === saved.reduce((sum, a) => sum + BigInt(a.amount!), 0n), 'mining claim did not stake the exact leaf amount')
+      check((await sdk.getBacking(ctx, worker.account.address)).assets - before.assets === saved.reduce((sum, a) => sum + BigInt(a.amount!), 0n), 'mining claim did not stake the exact leaf amount')
     }
   } else if (flow === 'sponsor-caps') {
     await enableSponsor(worker)

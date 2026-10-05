@@ -36,6 +36,7 @@ import {
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
 import { readWindowBounds, validateOfferWindows } from './clocks.ts'
+import { getBacking } from './staking.ts'
 import {
   type Authorization,
   type Ruling,
@@ -586,7 +587,7 @@ export async function getStake(ctx: Ctx, account: Address) {
 
 export async function requireStake(ctx: Ctx, account: Address, bond: bigint): Promise<void> {
   if (bond < 0n) throw new Error('bond cannot be negative')
-  if (bond > 0n && (await getStake(ctx, account)).available < bond) throw new Error('Insufficient available stake for the bond; stake FACTORY before proceeding')
+  if (bond > 0n && (await getBacking(ctx, account)).available < bond) throw new Error('Insufficient available stake for the bond; stake FACTORY before proceeding')
 }
 
 export function quoteActivation(ctx: Ctx, jobId: bigint, worker: Address) {

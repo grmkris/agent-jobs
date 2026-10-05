@@ -110,7 +110,7 @@ async function setupStake() {
   const decimals = await ctx.publicClient.readContract({ address: h.factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
   const target = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
   for (const [name, wallet] of [['creator', creator], ['worker', worker] ] as const) {
-    const amount = await journal.once(`setup/${name}/stakeAmount`, async () => { const current = await sdk.getStake(ctx, wallet.account.address); return current.staked >= target ? 0n : target - current.staked })
+    const amount = await journal.once(`setup/${name}/stakeAmount`, async () => { const current = await sdk.getBacking(ctx, wallet.account.address); return current.active >= target ? 0n : target - current.active })
     if (amount === 0n) continue
     const allowance = await ctx.publicClient.readContract({ address: h.factory, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [wallet.account.address, h.vault] })
     if (allowance < amount) await journal.contract(`setup/${name}/approve`, wallet, h.factory, sdk.factoryTokenAbi, 'approve', [h.vault, amount])

@@ -376,7 +376,7 @@ async function advance(worker: Runtime, entry: Entry) {
     if (!reserve(worker, 'deliveries', entry.request.requestId)) return
     entry.phase = 'activating'
     save()
-    if ((await sdk.getStake(ctx, worker.account.address)).available < BigInt(task.workerBond)) throw new Error('Worker has insufficient available stake')
+    if ((await sdk.getBacking(ctx, worker.account.address)).available < BigInt(task.workerBond)) throw new Error('Worker has insufficient available stake')
     const prepared = state.values[`${key}/activation`] as { transactions: sdk.TxRequest[] } | undefined
     let activation = prepared
     if (!activation) {

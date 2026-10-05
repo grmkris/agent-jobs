@@ -156,7 +156,7 @@ suite('agent executor through real contracts', () => {
     expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()).toEqual(before)
     agents.decide(result.operationId, fixture.creator.account.address, true, {})
     expect((await boot().execute(input)).status).toBe('confirmed')
-    expect((await sdk.getStake(ctx, fixture.worker.account.address)).unstaking).toBe(parseEther('1'))
+    expect((await sdk.getPosition(ctx, fixture.worker.account.address, fixture.worker.account.address)).queued).toBe(parseEther('1'))
     const row = grants.list(fixture.worker.account.address).find(item => item.kind === 'unstake')!
     expect(await sdk.callsMade(ctx, row.delegation_hash)).toBe(1n)
   }, 120_000)

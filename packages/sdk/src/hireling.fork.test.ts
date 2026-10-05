@@ -1,8 +1,9 @@
 import { parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
-import { activate, balanceOf, cancel, claimTopUpRefund, getJob, getStake, getV1Listing, hashText, publish, quoteActivation,
+import { activate, balanceOf, cancel, claimTopUpRefund, getJob, getV1Listing, hashText, publish, quoteActivation,
   registerAgent, requestUndelegate, settle, settleDeferred, signSelection, delegate, submit, accept, topUp, withdraw, type ActivationTerms } from './actions.ts'
+import { getBacking, getPosition } from './staking.ts'
 import { coreAbi } from './abi/index.ts'
 import { factoryV2Abi, jobHoldingAbi, jobPoolAbi } from './abi/index.ts'
 import { hirelingLifecycle, hirelingState } from './hireling.ts'
@@ -43,7 +44,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     await activate(f.ctx, f.worker, x.selection, x.creatorSig, x.expected)
     expect((await getJob(f.ctx, x.jobId)).budget).toBe(70n)
     expect((await getV1Listing(f.ctx, x.jobId)).fee).toBe(31n)
-    expect((await getStake(f.ctx, f.worker.account.address)).reserved).toBe(parseEther('10'))
+    expect((await getBacking(f.ctx, f.worker.account.address)).reserved).toBe(parseEther('10'))
     await expect(requestUndelegate(f.ctx, f.worker, parseEther('101'))).rejects.toThrow()
     await topUp(f.ctx, f.contributor, x.jobId, 11n)
     const before = await balanceOf(f.ctx, f.ctx.stack.factory, f.worker.account.address)
@@ -54,7 +55,7 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     expect(lifecycle(await hirelingLifecycle(f.ctx, x.jobId), f.worker.account.address).key).toBe('collect')
     await settle(f.ctx, f.contributor, x.jobId)
     expect((await balanceOf(f.ctx, f.ctx.stack.factory, f.worker.account.address)) - before).toBe(77n)
-    expect((await getStake(f.ctx, f.worker.account.address)).reserved).toBe(0n)
+    expect((await getBacking(f.ctx, f.worker.account.address)).reserved).toBe(0n)
     expect(lifecycle(await hirelingLifecycle(f.ctx, x.jobId)).key).toBe('completed')
   }, 120_000)
 
@@ -91,12 +92,12 @@ fork('SDK v1 against real bytecode on a local Monad fork', () => {
     await claimTopUpRefund(f.ctx, f.creator, x.jobId, f.contributor.account.address)
     expect((await balanceOf(f.ctx, f.ctx.stack.factory, f.contributor.account.address)) - before).toBe(12n)
     await requestUndelegate(f.ctx, f.worker, parseEther('10'))
-    const state = await getStake(f.ctx, f.worker.account.address)
+    const state = await getPosition(f.ctx, f.worker.account.address, f.worker.account.address)
     await expect(withdraw(f.ctx, f.worker)).rejects.toThrow()
     await f.rpc('evm_setNextBlockTimestamp', [state.unlockAt + 1])
     await f.rpc('evm_mine')
     await withdraw(f.ctx, f.worker)
-    expect((await getStake(f.ctx, f.worker.account.address)).unstaking).toBe(0n)
+    expect((await getPosition(f.ctx, f.worker.account.address, f.worker.account.address)).queued).toBe(0n)
   }, 120_000)
 
   it('creates a legacy pool using only its old FACTORY after the global token changes to v2', async () => {

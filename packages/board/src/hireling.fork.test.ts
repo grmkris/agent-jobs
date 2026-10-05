@@ -137,7 +137,7 @@ fork('Hireling board on a local Monad fork', () => {
     await expect(board.buildActivation({ address: f.worker.account.address }, { taskId: x.taskId, budgetSignature: oldSignature })).rejects.toThrow('current net quote')
     await activate(x.taskId)
     expect((await sdk.getJob(f.ctx, x.jobId)).budget).toBe(90n)
-    expect((await sdk.getStake(f.ctx, f.worker.account.address)).reserved).toBe(parseEther('10'))
+    expect((await sdk.getBacking(f.ctx, f.worker.account.address)).reserved).toBe(parseEther('10'))
     await sdk.submit(f.ctx, f.worker, x.jobId, sdk.hashText('delivery'))
     const accepted = await board.approveWork({ address: f.creator.account.address }, { taskId: x.taskId })
     expect(accepted.transactions[0]!.gas).toBe('1200000')
