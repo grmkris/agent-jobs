@@ -339,9 +339,11 @@ async function advance(worker: Runtime, entry: Entry) {
     if (mine && (mine.amount !== proposal.amount || mine.token.toLowerCase() !== token.toLowerCase())) throw new Error('Existing quote differs from the saved quote intent')
     if (!mine && (existing.picked || entry.request.quoteDeadline <= Math.floor(Date.now() / 1000))) { entry.phase = 'lost'; save(); return }
     if (!mine && Object.values(worker.entries).some(other => other !== entry && occupiesWorker(other.phase))) return
-    if (!mine && !reserve(worker, 'quotes', entry.request.requestId)) return
+    if (!reserve(worker, 'quotes', entry.request.requestId)) return
     const quoted = mine ?? await worker.board.call<{ quoteId: string }>('submit_quote', proposal)
     entry.quoteId = quoted.quoteId; save()
+    // A response (or reconciliation after a crash) can arrive on another UTC day.
+    if (!reserve(worker, 'quotes', entry.request.requestId)) throw new Error('Quote crossed into a full UTC day; operator reconciliation required')
   }
   if (!entry.taskId) {
     const quotes = await worker.board.call<{ picked: string | null; quotes: Array<{ quoteId: string; agentId: string }> }>('list_quotes', { requestId: entry.request.requestId })
@@ -402,8 +404,10 @@ async function advance(worker: Runtime, entry: Entry) {
   if (submission.check.ok !== true) throw new Error('Board has not verified the hosted deliverable')
   if (submission.transactions.some(tx => tx.to.toLowerCase() !== ctx.deployment.core.toLowerCase()
     || decodeFunctionData({ abi: sdk.coreAbi, data: tx.data }).functionName !== 'submit')) throw new Error('Unexpected submission destination or method')
+  if (!reserve(worker, 'deliveries', entry.request.requestId)) return
   await sendTask(worker, task.taskId, `${entry.request.requestId}/submit`, submission.transactions)
   entry.phase = 'submitted'; save()
+  if (!reserve(worker, 'deliveries', entry.request.requestId)) throw new Error('Delivery crossed into a full UTC day; operator reconciliation required')
   if (entry.request.requiredChecks?.length) await worker.board.call('request_evidence', { taskId: task.taskId })
   log(worker.profile.name, 'submitted', { taskId: task.taskId, jobId: task.jobId, artifactUrl: published.url })
 }
