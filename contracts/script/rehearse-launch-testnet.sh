@@ -129,18 +129,18 @@ cast send --rpc-url "$LOCAL" --unlocked --from "$REAL_ADMIN" "$CORE" "grantRole(
 cast rpc --rpc-url "$LOCAL" anvil_stopImpersonatingAccount "$REAL_ADMIN" >/dev/null 2>&1
 ok "dev0 stands in for roles.admin as the core's admin (DEFAULT_ADMIN_ROLE, granted by an impersonated roles.admin)"
 
-# The G1b rehearsal prepares a verbatim G1 copy before replacing signers/Safe with local fork stand-ins.
+# The G1c rehearsal prepares a verbatim G1b copy before replacing signers/Safe with local fork stand-ins.
 cp config/monad-testnet.json "$CONFIG"
 if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
-  ARCHIVE="$FOUNDRY_BROADCAST/monad-testnet-g1.json"
-  RPC_ENV=REHEARSAL_RPC bash script/prepare-redeploy-testnet.sh --config "$CONFIG" --archive "$ARCHIVE"
+  ARCHIVE="$FOUNDRY_BROADCAST/monad-testnet-g1b.json"
+  RPC_ENV=REHEARSAL_RPC bash script/prepare-redeploy-testnet.sh --from g1b --config "$CONFIG" --archive "$ARCHIVE"
   jq -e --slurpfile original config/monad-testnet.json '
     del(.archive) == $original[0] and (.archive.reason | length > 0) and (.archive.date | length > 0)' "$ARCHIVE" >/dev/null \
-    || fail "G1 archive differs from the original record"
+    || fail "G1b archive differs from the original record"
   jq -e --slurpfile original config/monad-testnet.json '
     . == ($original[0] | del(.deployment.hireling, .deployment.main, .deployment.oddTokens))' "$CONFIG" >/dev/null \
-    || fail "preparation changed more than the G1 deployment output"
-  ok "G1 archived verbatim; main absent; legacy pairs, core, roles, oddTokens/liquidity/fast inputs preserved"
+    || fail "preparation changed more than the G1b deployment output"
+  ok "G1b archived verbatim; main absent; legacy pairs, core, roles, oddTokens/liquidity/fast inputs preserved"
 fi
 
 # The scratch config: testnet's prepared input, with the fork's deployer, fresh Safe and odd-token wallets.
@@ -196,7 +196,7 @@ if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
     and .deployment.factory != $old[0].deployment.factory
     and .deployment.hireling.clocks == .hireling.clocks
     and (.deployment.hireling.clocks | keys | length) == 9' "$CONFIG" >/dev/null \
-    || fail "G1b promotion kept G1 as legacy or reused its FACTORY/pair"
+    || fail "G1c promotion kept G1b as legacy or reused its FACTORY/pair"
   # The nine promoted values and all duplicated clocks must match deployed getters, not just the input file.
   H=$(jq -r .deployment.main.holding "$CONFIG")
   V=$(jq -r .deployment.hireling.vault "$CONFIG")

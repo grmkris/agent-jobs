@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Coordinator-only G1 -> G1b preparation. Read-only RPC check, local archive/config writes; no signing or broadcasts.
+# Coordinator-only reviewed testnet generation preparation. Read-only RPC check, local archive/config writes; no signing or broadcasts.
 # Run at repo root after CLOCKS-PARAM review/merge, with MONAD_TESTNET_RPC_URL exported:
-#   bash contracts/script/prepare-redeploy-testnet.sh --check
-#   bash contracts/script/prepare-redeploy-testnet.sh
+#   bash contracts/script/prepare-redeploy-testnet.sh --from g1b --check
+#   bash contracts/script/prepare-redeploy-testnet.sh --from g1b
 # A rehearsal can pass --config and --archive for its own scratch paths. Existing archives never overwrite.
 set -euo pipefail
 cd "$(dirname "$0")/.."
