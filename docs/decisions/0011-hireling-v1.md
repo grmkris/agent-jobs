@@ -162,6 +162,14 @@ plus intrinsic gas, calldata and a margin for state that is colder than in the t
 | `HirelingEvaluator.ruleWithSignature` (with a slash) | 1,035k | 1,200,000 |
 | `HirelingEvaluator.rejectAfterDeliveryDeadline` | 1,034k | 1,200,000 |
 | `HirelingEvaluator.retryDeferred` | 133k | 300,000 |
+| `StakeVault.reserve` | 88,474 | 200,000 |
+| `StakeVault.delegate`, new pool and position | 132,602 | 300,000 |
+| `StakeVault.requestUndelegate` | 70,179 | 200,000 |
+| `StakeVault.withdraw` | 81,968 | 200,000 |
+
+The vault v2 floors were measured on 5 Oct after the VV2-001 share cap, with the same binary-search harness.
+These are local Monad-priced execution floors, rather than live receipt gas. Limits include intrinsic/calldata
+and a margin; wallet estimation against the deployed state remains the final check.
 
 The evaluator limits rose from 1.1M because each decision now reserves the full `CORE_GAS` before the core call
 (C9-001). A gas-burning token costs a decision no more than this: the core call is capped, the second core attempt

@@ -183,6 +183,17 @@ one queue. After repeated near-total slashes, a pool may refuse new backing unti
 Reservations and unreserved dust are preserved; share/asset products use full-precision `Math.mulDiv`.
 The legacy vault methods and totals are removed; this is a clean redeploy, with no compatibility shims.
 
+Vault v2 gas floors (5 Oct, `GasFloors.t.sol`, local Monad pricing; execution gas excludes intrinsic/calldata):
+
+| Call | Measured floor | Client limit with margin |
+| :--- | ---: | ---: |
+| `reserve` | 88,474 | 200,000 |
+| `delegate`, new pool and position | 132,602 | 300,000 |
+| `requestUndelegate` | 70,179 | 200,000 |
+| `withdraw` | 81,968 | 200,000 |
+
+These are tested local floors. Check live estimation against actual state before sending.
+
 ## FeeSchedule, Factory, mining
 
 | Contract | Surface |

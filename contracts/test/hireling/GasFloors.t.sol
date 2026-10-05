@@ -17,6 +17,10 @@ contract GasFloorsTest is BaseV1 {
     uint256 constant TOPUP_REFUND_LIMIT = 450_000;
     uint256 constant EVALUATOR_LIMIT = 1_100_000;
     uint256 constant CANCEL_LIMIT = 600_000;
+    uint256 constant RESERVE_LIMIT = 200_000;
+    uint256 constant DELEGATE_LIMIT = 300_000;
+    uint256 constant REQUEST_UNDELEGATE_LIMIT = 200_000;
+    uint256 constant WITHDRAW_LIMIT = 200_000;
 
     function _floor(address from, address target, bytes memory data) internal returns (uint256 lo) {
         lo = 21_000;
@@ -35,20 +39,20 @@ contract GasFloorsTest is BaseV1 {
     function test_gas_reserve() public {
         uint256 gas = _floor(address(holding), address(vault), abi.encodeCall(IStakeVault.reserve, (worker, 1e18)));
         console.log("vault reserve:", gas);
-        assertLt(gas, 250_000);
+        assertLt(gas, RESERVE_LIMIT);
     }
 
     function test_gas_delegate() public {
         address account = makeAddr("new-delegated-pool");
         uint256 gas = _floor(worker, address(vault), abi.encodeCall(IStakeVault.delegate, (account, 1e18)));
         console.log("vault delegate (new pool and position):", gas);
-        assertLt(gas, 500_000);
+        assertLt(gas, DELEGATE_LIMIT);
     }
 
     function test_gas_requestUndelegate() public {
         uint256 gas = _floor(worker, address(vault), abi.encodeCall(IStakeVault.requestUndelegate, (worker, 100e18)));
         console.log("vault requestUndelegate:", gas);
-        assertLt(gas, 250_000);
+        assertLt(gas, REQUEST_UNDELEGATE_LIMIT);
     }
 
     function test_gas_withdraw() public {
@@ -57,7 +61,7 @@ contract GasFloorsTest is BaseV1 {
         vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
         uint256 gas = _floor(worker, address(vault), abi.encodeCall(IStakeVault.withdraw, (worker)));
         console.log("vault withdraw:", gas);
-        assertLt(gas, 300_000);
+        assertLt(gas, WITHDRAW_LIMIT);
     }
 
     function test_gas_settle_worstCase() public {
