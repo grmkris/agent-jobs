@@ -57,8 +57,10 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   if (requiredToolScope(req.tool) === 'hireling:read') return tenant.call(prepare(req.tool, args))
   const signerKey = typeof bindings.PRIVY_SIGNER_KEY === 'string' ? bindings.PRIVY_SIGNER_KEY : ''
   const appSecret = typeof bindings.PRIVY_APP_SECRET === 'string' ? bindings.PRIVY_APP_SECRET : ''
-  if (signerKey === '' || signerKey === 'unset' || appSecret === '' || appSecret === 'unset' || !key32(req.env.relayKey)) throw new BoardError('unavailable', 'Hosted agent signing is unavailable')
-  const provider = new sdk.PrivyServer({ appId: String(bindings.PRIVY_APP_ID ?? ''), appSecret, sign: await sdk.p256AuthorizationSigner(signerKey) })
+  const provider = new sdk.PrivyServer({ appId: String(bindings.PRIVY_APP_ID ?? ''), appSecret, sign: async payload => {
+    if (signerKey === '' || signerKey === 'unset') throw new BoardError('unavailable', 'Hosted agent signing is unavailable')
+    return (await sdk.p256AuthorizationSigner(signerKey))(payload)
+  } })
   const signing = new AgentSigning(sql, ctx, provider, () => Math.floor(Date.now() / 1000))
   const executor = new AgentExecutor({ sql, now: () => Math.floor(Date.now() / 1000), context: ctx, signing,
     sponsor,

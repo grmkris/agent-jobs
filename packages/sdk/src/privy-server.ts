@@ -31,6 +31,7 @@ export class PrivyServer {
   constructor(private readonly config: PrivyServerConfig) {}
 
   async #request(method: 'GET' | 'POST', route: string, body: Record<string, unknown>, key?: string, signed = false): Promise<Record<string, unknown>> {
+    if (this.config.appId === '' || this.config.appSecret === '' || this.config.appSecret === 'unset') throw new PrivyServerError(0, 'unavailable')
     const url = `https://api.privy.io/v1${route}`
     const cleanBody = JSON.parse(JSON.stringify(body)) as Record<string, unknown>
     const privyHeaders: Record<string, string> = { 'privy-app-id': this.config.appId }

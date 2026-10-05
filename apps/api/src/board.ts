@@ -146,8 +146,8 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
               const managementResult = await agentManagement({ request: req.request, sql, context, operator: session.address, bindings, rpcUrl: req.env.rpcUrl, relayKey: req.env.relayKey as Hex, now: () => Math.floor(Date.now() / 1000),
                 ...(req.privyToken === undefined ? {} : { privyToken: req.privyToken }),
-                execute: async (agentId, tool, args, key) => {
-                  const reply = JSON.parse(await executeAgent({ env: req.env, tool, args: { ...args, operationKey: key }, agentId, resource: `${req.env.uri}${req.env.boardId === 'public' ? '' : `/b/${req.env.boardId}`}/mcp`, operator: session.address, ...(req.bearer === undefined ? {} : { bearer: req.bearer }) })) as BoardReply
+                execute: async (agentId, tool, args, key, _approvalId, originalBoard) => {
+                  const reply = JSON.parse(await executeAgent({ env: { ...req.env, boardId: originalBoard ?? req.env.boardId }, tool, args: { ...args, operationKey: key }, agentId, resource: `${req.env.uri}${req.env.boardId === 'public' ? '' : `/b/${req.env.boardId}`}/mcp`, operator: session.address, ...(req.bearer === undefined ? {} : { bearer: req.bearer }) })) as BoardReply
                   if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
                   return reply.result
                 },

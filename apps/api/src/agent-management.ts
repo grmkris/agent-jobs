@@ -28,7 +28,7 @@ export async function agentManagement(input: {
   readonly relayKey: Hex
   readonly rpcUrl: string
   readonly now: () => number
-  readonly execute: (agentId: string, tool: string, args: Record<string, unknown>, key: string, approvalId?: string) => Promise<unknown>
+  readonly execute: (agentId: string, tool: string, args: Record<string, unknown>, key: string, approvalId?: string, boardId?: string) => Promise<unknown>
 }) {
   const { request, sql, context, operator, bindings, now } = input
   const { action, body } = request
@@ -62,7 +62,7 @@ export async function agentManagement(input: {
     const agent = agents.owned(approval.agent_id, operator)
     if (approval.status !== 'approved') return { approval }
     const operation = agents.operation(approval.operation_id)
-    return input.execute(agent.id, operation.tool, JSON.parse(operation.intent_json) as Record<string, unknown>, operation.action_key, approval.id)
+    return input.execute(agent.id, operation.tool, JSON.parse(operation.intent_json) as Record<string, unknown>, operation.action_key, approval.id, operation.board_id)
   }
   if (action === 'execute') {
     const agent = agents.owned(id, operator)
