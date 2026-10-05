@@ -334,14 +334,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
             call: async (tool, args, agentId) => {
               if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))
               const result = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as BoardReply
-              if (result.ok) {
-                const executed = result.result as { status?: string; result?: { taskId?: string; termsHash?: string; manifest?: string } }
-                if (executed.status === 'confirmed' && typeof executed.result?.manifest === 'string' && typeof executed.result.termsHash === 'string' && typeof executed.result.taskId === 'string') {
-                  await runMcp(manifests.put(`offers/${executed.result.termsHash}.json`, executed.result.manifest))
-                  await recordOffer(sql, { boardId: tenant.id, termsHash: executed.result.termsHash, taskId: executed.result.taskId, now: now() })
-                  delete executed.result.manifest
-                }
-              }
               return result
             },
           }))

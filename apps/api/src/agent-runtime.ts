@@ -8,6 +8,8 @@ import { resolveOAuth } from './oauth.ts'
 import { permittedTool, requiredToolScope } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
 import { toJson } from './tools.ts'
+import { fromD1 } from '@agent-jobs/indexer'
+import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -74,7 +76,10 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
       }
       const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
       if (!reply.ok) throw new BoardError(reply.code as never, reply.message)
-      return reply.result as import('@agent-jobs/board').AgentPreparedCall
+      const action = reply.result as import('@agent-jobs/board').AgentPreparedCall
+      await publishAgentOffer({ sql: fromD1(bindings.Database as never), bucket: bindings.Manifests as OfferBucket | undefined,
+        boardId: req.env.boardId, action, now: Math.floor(Date.now() / 1000) })
+      return action
     },
     verifyToolSigning: input => tenant.verifyAgentSigning({ ...prepare(input.tool, input.args), typedData: input.typedData }),
   })
