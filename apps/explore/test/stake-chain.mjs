@@ -112,19 +112,19 @@ export function apply({ data }) {
 }
 
 // Public index API fixture, computed with the SDK's pure valuation helpers at the fixture checkpoint.
-window.__stakingSnapshot = (account, wallet) => {
+window.__stakingSnapshot = (poolAccount, wallet) => {
   const s = window.__stake;
   const blockNumber = 110n + BigInt(window.__wallet.sends.length);
   const backing = account => ({ account, blockNumber, ...sdk.backingOf(poolOf(account), schedule) });
   const position = (account, delegator) => ({ account, delegator, blockNumber,
     ...sdk.positionIn(poolOf(account), positionOf(account, delegator), BigInt(s.historical?.[account] ?? '0')) });
-  const positions = Object.keys(s.pools).filter(key => account === undefined || account.toLowerCase() === key).flatMap(key =>
-    Object.keys(s.pools[key].positions).filter(delegator => account !== undefined || wallet === undefined || wallet.toLowerCase() === delegator)
+  const positions = Object.keys(s.pools).filter(key => poolAccount === undefined || poolAccount.toLowerCase() === key).flatMap(key =>
+    Object.keys(s.pools[key].positions).filter(delegator => poolAccount !== undefined || wallet === undefined || wallet.toLowerCase() === delegator)
       .map(delegator => ({ ...position(key, delegator), backing: backing(key) })));
   const common = { source: 'index+vault', blockNumber, vault: window.__hireling.vault, token: window.__hireling.factory };
-  const result = account === undefined ? { ...common, positions } : { ...common, ...backing(account),
+  const result = poolAccount === undefined ? { ...common, positions } : { ...common, ...backing(poolAccount),
     delegatorCount: positions.filter(p => p.shares > 0n).length,
-    topDelegators: positions.filter(p => p.shares > 0n).sort((a, b) => a.value > b.value ? -1 : a.value < b.value ? 1 : 0),
-    position: wallet === undefined ? null : position(account, wallet) };
+    topDelegators: positions.filter(p => p.shares > 0n).toSorted((a, b) => a.value > b.value ? -1 : a.value < b.value ? 1 : 0),
+    position: wallet === undefined ? null : position(poolAccount, wallet) };
   return JSON.parse(JSON.stringify(result, (_key, value) => typeof value === 'bigint' ? String(value) : value));
 };

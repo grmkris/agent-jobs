@@ -31,29 +31,29 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ owner, agentWallet, other, contracts, agent, options }) => {
+  await context.addInitScript(({ owner: fixtureOwner, agentWallet: fixtureAgentWallet, other: fixtureOther, contracts: fixtureContracts, agent: fixtureAgent, options: fixtureOptions }) => {
     const E = 10n ** 18n;
-    window.__hireling = options.deployed === false ? null : contracts;
-    window.__agents = [agent];
-    window.__wallet = { address: owner, connected: options.connected ?? true, signatures: [], sends: [] };
-    window.__stake = { wallet: 50000n * E, nonce: 0n, calls: [], cooldown: 600, down: options.down ?? false, open: options.open ?? true, pools: {
-      [owner]: { assets: 4000n * E, reserved: 1500n * E, shares: 4000n * E, queuedShares: 0n, generation: 0n, positions: { [owner]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
-      [agentWallet]: { assets: 10000n * E, reserved: 8000n * E, shares: 10000n * E, queuedShares: 0n, generation: 0n, positions: { [owner]: { shares: 6000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n }, [other]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
+    window.__hireling = fixtureOptions.deployed === false ? null : fixtureContracts;
+    window.__agents = [fixtureAgent];
+    window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: [] };
+    window.__stake = { wallet: 50000n * E, nonce: 0n, calls: [], cooldown: 600, down: fixtureOptions.down ?? false, open: fixtureOptions.open ?? true, pools: {
+      [fixtureOwner]: { assets: 4000n * E, reserved: 1500n * E, shares: 4000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
+      [fixtureAgentWallet]: { assets: 10000n * E, reserved: 8000n * E, shares: 10000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 6000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n }, [fixtureOther]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
     } };
-    if (options.proposal) window.__stake.proposal = options.proposal;
-    if (options.retired) {
-      const pool = window.__stake.pools[agentWallet];
+    if (fixtureOptions.proposal) window.__stake.proposal = fixtureOptions.proposal;
+    if (fixtureOptions.retired) {
+      const pool = window.__stake.pools[fixtureAgentWallet];
       Object.assign(pool, { assets: 0n, reserved: 0n, shares: 0n, queuedShares: 0n, generation: 1n });
-      window.__stake.historical = { [agentWallet]: '0' };
+      window.__stake.historical = { [fixtureAgentWallet]: '0' };
     }
-    if (options.dust) {
-      const pool = window.__stake.pools[agentWallet];
+    if (fixtureOptions.dust) {
+      const pool = window.__stake.pools[fixtureAgentWallet];
       Object.assign(pool, { assets: 6n, shares: 10n, reserved: 0n });
-      pool.positions[owner].shares = 4n;
-      pool.positions[other].shares = 6n;
+      pool.positions[fixtureOwner].shares = 4n;
+      pool.positions[fixtureOther].shares = 6n;
     }
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: fixtureOwner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { owner, agentWallet, other, contracts, agent, options });
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -310,7 +310,7 @@ try {
     const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), pointerKey);
     await page.getByRole('button', { name: 'Not now', exact: true }).waitFor();
-    await second.evaluate(({ key, saved }) => localStorage.setItem(key, JSON.stringify({ ...saved, id: 'newer-tab-intent' })), { key: pointerKey, saved });
+    await second.evaluate(({ key, saved: priorIntent }) => localStorage.setItem(key, JSON.stringify({ ...priorIntent, id: 'newer-tab-intent' })), { key: pointerKey, saved });
     await page.getByRole('button', { name: 'Not now', exact: true }).click();
     await text(page, 'A newer position action is saved in another tab; keep it for reconciliation.');
     assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).id, pointerKey), 'newer-tab-intent', 'stale dismissal preserves the new pointer');
