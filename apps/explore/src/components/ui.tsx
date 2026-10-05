@@ -2,15 +2,14 @@
  * Hireling's primitives: Apple-style inset grouped sections, rows, pills, buttons and fields, all drawn from the
  * tokens in styles.css (light and dark follow the system). Pages compose these; they carry no colours of their own.
  */
-import { type ClassValue, clsx } from 'clsx'
 import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react'
 import { type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useState } from 'react'
-import { twMerge } from 'tailwind-merge'
 import { amount as formatAmount } from '../format.ts'
 import { explorer } from '../wallet.ts'
 import { selectRadio } from './radio.ts'
+import { cn } from '../lib/cn.ts'
 
-export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
+export { cn }
 
 type ButtonVariant = 'primary' | 'tinted' | 'gray' | 'danger' | 'destructive' | 'plain' | 'outline'
 
@@ -113,7 +112,7 @@ export function Row({ label, children, hint }: { label: ReactNode; children: Rea
 export type Tone = 'info' | 'attention' | 'success' | 'danger' | 'neutral'
 const LEGACY: Record<string, Tone> = { green: 'success', red: 'danger', amber: 'attention', blue: 'info', gray: 'neutral' }
 const TONE: Record<Tone, string> = {
-  info: 'bg-info-bg text-info',
+  info: 'bg-info-bg text-info-text',
   attention: 'bg-warn-bg text-warn',
   success: 'bg-ok-bg text-ok',
   danger: 'bg-bad-bg text-bad',

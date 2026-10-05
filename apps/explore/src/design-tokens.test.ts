@@ -3,7 +3,7 @@
  * reaches WCAG 4.5:1, the focus ring 3:1, borders stay visible, status text reads on its own 12% tint, and the two
  * copies of the dark theme (system setting and `data-theme='dark'`) stay identical. Parses the oklch() values directly.
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8')
@@ -100,5 +100,26 @@ describe.each([
   it('borders are visible and cards sit above the page', () => {
     expect(contrast(t.border!, t.background!)).toBeGreaterThanOrEqual(1.3)
     expect(contrast(t.card!, t.background!)).toBeGreaterThan(1.02)
+  })
+})
+
+/** Every .tsx under src, to check the classes as rendered rather than the tokens alone. */
+const sources = (readdirSync(new URL('.', import.meta.url), { recursive: true, encoding: 'utf8' }) as string[])
+  .filter((file) => file.endsWith('.tsx'))
+  .map((file) => [file, readFileSync(new URL(file, import.meta.url), 'utf8')] as const)
+
+describe('status colours as rendered', () => {
+  it('text uses the -text shade: the base shade is for dots and tints, below 4.5:1 as text (VV2-010)', () => {
+    const offenders = sources.flatMap(([file, text]) => [...text.matchAll(/\btext-(info|success|warning|destructive)(?:\/\d+)?\b(?!-)/g)].map((m) => `${file}: ${m[0]}`))
+    expect(offenders).toEqual([])
+  })
+  it('the legacy status text aliases point at the -text shades', () => {
+    for (const [legacy, token] of [
+      ['ok', 'success-text'],
+      ['warn', 'warning-text'],
+      ['bad', 'destructive-text'],
+    ]) {
+      expect(css).toContain(`--color-${legacy}: var(--${token});`)
+    }
   })
 })
