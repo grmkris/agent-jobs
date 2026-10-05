@@ -216,6 +216,39 @@ contract HirelingHoldingTest is BaseV1 {
         assertEq(pay.balanceOf(address(holding)), kept, "Holding keeps exactly the fees");
     }
 
+    function test_activate_tierCountsDelegatedBackingAndSnapshotsIt() public {
+        vm.startPrank(contributor);
+        factory.approve(address(vault), 9_000e18);
+        vault.delegate(worker, 9_000e18);
+        vm.stopPrank();
+        uint256 job = fundedJob();
+        assertEq(listing(job).feeBps, 1000);
+        assertEq(vault.positionOf(worker, contributor).shares, 9_000e18);
+        vm.prank(contributor);
+        vault.requestUndelegate(worker, 9_000e18);
+        assertEq(listing(job).feeBps, 1000, "activation keeps the original tier");
+        uint256 next = publish();
+        (uint16 bps,,) = holding.quoteActivation(next, worker);
+        assertEq(bps, 3000, "new activation excludes queued backing");
+    }
+
+    function test_activate_workerBondUsesBackingTheWorkerDoesNotOwn() public {
+        vm.prank(worker);
+        vault.requestUndelegate(worker, WORKER_STAKE);
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        vm.prank(worker);
+        vault.withdraw(worker);
+        vm.startPrank(contributor);
+        factory.approve(address(vault), WORKER_BOND);
+        vault.delegate(worker, WORKER_BOND);
+        vm.stopPrank();
+        uint256 job = fundedJob();
+        assertTrue(listing(job).workerBondReserved);
+        assertEq(vault.reservedOf(worker), WORKER_BOND);
+        assertEq(vault.positionOf(worker, worker).shares, 0);
+        assertEq(vault.positionOf(worker, contributor).shares, WORKER_BOND);
+    }
+
     function test_activate_reservationsIncludedInTier() public {
         // 9_990 staked + 10 reserved elsewhere = 10_000: the 10 % tier counts reserved stake.
         vm.prank(worker);

@@ -77,7 +77,8 @@ contract MiningTest is Test {
         vm.warp(GENESIS + 72 hours + 7 days);
         assertEq(reserve.currentEpoch(), 2);
 
-        MiningReserve later = new MiningReserve(token, address(distributor), GENESIS + 1 days, HirelingClocks.production());
+        MiningReserve later =
+            new MiningReserve(token, address(distributor), GENESIS + 1 days, HirelingClocks.production());
         vm.warp(GENESIS);
         vm.expectRevert(IMiningReserve.BeforeGenesis.selector);
         later.currentEpoch();
@@ -291,6 +292,9 @@ contract MiningTest is Test {
         emit IEpochDistributor.Claimed(0, bob, 200e18);
         distributor.claim(0, bob, 200e18, _proof(t, 1));
         assertEq(vault.stakeOf(bob), 200e18, "staked, not sent");
+        assertEq(vault.positionOf(bob, bob).shares, 200e18, "mining creates account-owned shares");
+        assertEq(vault.positionOf(bob, relayer).shares, 0, "permissionless claimer gains no ownership");
+        assertEq(vault.positionOf(bob, address(distributor)).shares, 0, "payer gains no ownership");
         assertEq(token.balanceOf(bob), 0);
         assertEq(token.balanceOf(relayer), 0);
         assertTrue(distributor.isClaimed(0, bob));

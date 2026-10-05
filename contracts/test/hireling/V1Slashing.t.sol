@@ -3,10 +3,57 @@ pragma solidity ^0.8.28;
 
 import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
 import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseV1} from "./BaseV1.t.sol";
 
 /// @dev Ports of the legacy Slashing suite to v1: a slash burns the reserved FACTORY in the vault.
 contract V1SlashingTest is BaseV1 {
+    function test_noShowSlash_sharedProRataIncludingQueuedDelegator() public {
+        vm.startPrank(contributor);
+        factory.approve(address(vault), WORKER_STAKE);
+        vault.delegate(worker, WORKER_STAKE);
+        vm.stopPrank();
+        uint256 job = fundedJob();
+        vm.prank(contributor);
+        vault.requestUndelegate(worker, WORKER_STAKE);
+        vm.warp(listing(job).deliveryDeadline + 1);
+        evaluator.rejectAfterDeliveryDeadline(job);
+        uint256 remaining = 2 * WORKER_STAKE - WORKER_BOND;
+        uint256 selfValue = vault.convertToAssets(worker, vault.positionOf(worker, worker).shares);
+        uint256 delegatedValue = vault.convertToAssets(worker, vault.positionOf(worker, contributor).shares);
+        assertEq(selfValue, remaining / 2);
+        assertEq(delegatedValue, remaining / 2, "queued backing cannot dodge a slash");
+        assertEq(vault.reservedOf(worker), 0);
+        assertEq(vault.stakeOf(worker), selfValue);
+    }
+
+    function testFuzz_qualitySlash_proRataAcrossThreeOwners(uint96 first, uint96 second) public {
+        uint256 a = bound(first, 1, 100_000e18);
+        uint256 b = bound(second, 1, 100_000e18);
+        vm.startPrank(contributor);
+        factory.approve(address(vault), a);
+        vault.delegate(worker, a);
+        vm.stopPrank();
+        vm.prank(deployer);
+        factory.transfer(stranger, b);
+        vm.startPrank(stranger);
+        factory.approve(address(vault), b);
+        vault.delegate(worker, b);
+        vm.stopPrank();
+        uint256 job = submittedJob();
+        rejectAs(job, IHirelingEvaluator.Violation.Quality);
+        vm.warp(vm.getBlockTimestamp() + DISPUTE + 1);
+        evaluator.rejectAfterWindow(job);
+        uint256 total = WORKER_STAKE + a + b;
+        address[3] memory owners = [worker, contributor, stranger];
+        uint256[3] memory deposits = [WORKER_STAKE, a, b];
+        for (uint256 i; i < 3; ++i) {
+            uint256 value = vault.convertToAssets(worker, vault.positionOf(worker, owners[i]).shares);
+            uint256 expectedLoss = Math.mulDiv(deposits[i], WORKER_BOND, total);
+            assertApproxEqAbs(deposits[i] - value, expectedLoss, 1);
+        }
+    }
+
     function test_undisputed_noneQualityFalsified() public {
         IHirelingEvaluator.Violation[3] memory vs = [
             IHirelingEvaluator.Violation.None,

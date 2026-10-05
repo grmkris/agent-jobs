@@ -156,18 +156,29 @@ arbitrator from `holding.termsOf`.
 | Admin | `setVerifier` (owner). |
 | Gas | Floors (Monad pricing): `accept`/`completeAfterSilence` 987k, `rule` 1,011k, `ruleWithSignature` 1,035k, `rejectAfterDeliveryDeadline` 1,034k, driven by the reserves for `CORE_GAS` and the feedback; send 1,200,000. `retryDeferred` 133k → 300,000. |
 
-## StakeVault
+## StakeVault v2 (ADR-0014)
 
 | Function | Who | Effect |
 | :--- | :--- | :--- |
-| `stake`, `stakeWithPermit`, `stakeFor` | anyone | FACTORY in; `stakeFor` credits another account (the mining distributor). |
-| `requestUnstake(amount)` | staker | Unreserved stake into a 7-day cooldown (restarts for the whole amount). |
-| `cancelUnstake` / `withdraw` | staker | Cooldown back to stake / paid out after `unlockAt`. |
-| `reserve` | authorized Holding | Reserves unreserved stake as a bond; a zero amount still checks authorization. Refused for a Holding the account denied (`HoldingDenied`). |
-| `setHoldingDenied(holding, denied)` | any staker | The account's veto on a Holding taking new bonds from its stake (C9 ACL-1); existing reservations still settle. |
-| `release` / `slash` | the Holding that reserved | Up to its own `reservedBy`; `slash` burns. Works after revocation. |
-| `proposeHolding` → `acceptHolding` → `revokeHolding` | owner / anyone from 8 d to 15 d / owner, instant | Holding authorization. A proposal expires 7 days after its eta, is cancelled (with its event) when replaced, when its Holding is revoked, and when ownership changes. |
-| `bootstrapHolding` | owner, once, while `totalStaked == 0` and nothing is proposed | The first Holding without the delay. |
+| `delegate(account, amount)` / `delegateWithPermit(account, amount, ...)` | any payer | Caller owns shares backing `account`; self-delegation names the caller. Permit front-running is tolerated when allowance remains sufficient. |
+| `delegateFor(account, delegator, amount)` | any payer | `delegator` owns the minted shares; mining names `(account, account)`. |
+| `requestUndelegate(account, shares)` | position owner | Queues owned active shares even while bonded; restarts the whole queue's cooldown (production 7 days, testnet 600 s). Queue stops counting for the tier/new bonds but remains slashable. |
+| `cancelUndelegate(account)` / `withdraw(account)` | position owner | Restores queued backing / pays its current asset value after unlock. Withdrawal reverts `StillBonded(remaining, reserved)` if remaining assets do not cover existing reservations. |
+| `poolOf(account)` / `positionOf(account, delegator)` | anyone | Pool assets, reserved, shares, queued shares, generation; position total/queued shares, unlock and generation. An old-generation position reads zero in the current generation. |
+| `convertToAssets(account, shares)` / `convertToShares(account, assets)` | anyone | Full-precision floor quotes. Empty pools quote shares 1:1 and assets zero; the last redeemed shares receive all assets. |
+| `stakeOf` / `availableOf` / `reservedOf` / `reservedBy` | anyone | Active total backing sets the fee tier; available is `max(active - reserved, 0)`; reservations are per account and per Holding. |
+| `totalAssets` / `totalReserved` | anyone | Sum of pool assets, including queued backing / sum of reservations. No aggregate `totalQueued`; value each pool's queue at its current price. |
+| `reserve` | authorized Holding | Reserves active unreserved backing; zero still checks authorization. Account-owned veto remains (`HoldingDenied`). |
+| `setHoldingDenied(holding, denied)` | backed account | Vetoes new bonds for that account; existing reservations still settle. Delegators do not control the backed account's veto. |
+| `release` / `slash` | the Holding that reserved | Up to its own `reservedBy`, even after revocation. Slash burns assets pro-rata across active and queued shares. A full slash resets shares/queue and advances the generation. |
+| `proposeHolding` → `acceptHolding` → `revokeHolding` | owner / anyone in acceptance window / owner, instant | Existing admission and proposal cancellation rules; notice outlasts exit cooldown. Production delay is 8 days, acceptance grace 7 days. |
+| `bootstrapHolding` | owner, once, while `totalAssets == 0` and nothing proposed | Opens delegation and authorizes the first Holding without delay. |
+
+Pool invariant: `reserved <= assets`, including when reservations exceed active backing after a queue request.
+The vault FACTORY balance is at least `totalAssets`; unsolicited token transfers do not affect share prices.
+`Delegated`, `UndelegateRequested`, `UndelegateCancelled`, `Withdrawn`, `PoolReset`, and the unchanged
+`Reserved`/`Released`/`Slashed` events reconstruct every pool and position for future profit-sharing epochs.
+The legacy vault methods and totals are removed; this is a clean redeploy, with no compatibility shims.
 
 ## FeeSchedule, Factory, mining
 
@@ -176,7 +187,7 @@ arbitrator from `holding.termsOf`.
 | `FeeSchedule` | `feeBps(stake)`, `treasury()`, `schedule()`, `pending()`; owner `propose` / `cancel`, anyone `execute` from 3 d to 10 d (then `ScheduleExpired`); an ownership change drops the proposal. Starts at 0 / 10k / 100k / 1M FACTORY → 30 / 10 / 3 / 1 %. |
 | `Factory` | ERC-20 + permit + burn, 18 decimals, 1e9 minted once to the genesis allocation, no owner. |
 | `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52), itself capped at 500M; `budget(epoch)` is cut at that cap (zero from epoch 182). |
-| `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; owner `resizeRoot(epoch, newTotal)` corrects a total (≥ claimed; increases only from unpromised funds); anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.stakeFor`. One leaf per account and epoch: the tree builder must aggregate, and `total` should equal the leaf sum. |
+| `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; owner `resizeRoot(epoch, newTotal)` corrects a total (≥ claimed; increases only from unpromised funds); anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.delegateFor(account, account, amount)`. One leaf per account and epoch: the tree builder must aggregate, and `total` should equal the leaf sum. |
 
 ## Deploy (C8): `script/HirelingRecipe.sol`, `script/DeployHireling.s.sol`, `script/PromoteHireling.s.sol`
 

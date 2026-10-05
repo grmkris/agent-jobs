@@ -9,7 +9,7 @@ import {Factory} from "../../src/hireling/Factory.sol";
 import {StakeVault} from "../../src/hireling/StakeVault.sol";
 import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
 
-contract StakeVaultTest is Test {
+abstract contract StakeVaultFixture is Test {
     uint256 constant SUPPLY = 1_000_000_000e18;
 
     address safe = makeAddr("safe");
@@ -21,7 +21,7 @@ contract StakeVaultTest is Test {
     StakeVault vault;
     uint256 t0;
 
-    function setUp() public {
+    function setUp() public virtual {
         t0 = vm.getBlockTimestamp();
         address[] memory to = new address[](1);
         uint256[] memory amounts = new uint256[](1);
@@ -55,7 +55,9 @@ contract StakeVaultTest is Test {
         assertEq(token.balanceOf(address(vault)), vault.totalAssets(), "balance");
         assertLe(vault.totalReserved(), vault.totalAssets(), "reserved <= staked");
     }
+}
 
+contract StakeVaultTest is StakeVaultFixture {
     // ---------------------------------------------------------------------------------------------
     // Staking
     // ---------------------------------------------------------------------------------------------
@@ -110,6 +112,30 @@ contract StakeVaultTest is Test {
         vault.delegateWithPermit(carol, 10e18, deadline, v, r, s);
         assertEq(vault.stakeOf(carol), 10e18);
         assertEq(token.allowance(carol, address(vault)), 0);
+    }
+
+    function test_delegateWithPermit_backingAnotherAccountKeepsSignerOwnership() public {
+        (address carol, uint256 key) = makeAddrAndKey("permit-delegator");
+        token.transfer(carol, 10e18);
+        uint256 deadline = block.timestamp + 1 hours;
+        (uint8 v, bytes32 r, bytes32 sigS) = _signPermit(key, carol, 10e18, 0, deadline);
+        vm.prank(carol);
+        vault.delegateWithPermit(alice, 10e18, deadline, v, r, sigS);
+        assertEq(vault.positionOf(alice, carol).shares, 10e18);
+        assertEq(vault.positionOf(alice, alice).shares, 0);
+        assertEq(vault.stakeOf(alice), 10e18);
+        assertEq(vault.stakeOf(carol), 0);
+    }
+
+    function test_delegateWithPermit_invalidPermitWithoutAllowanceLeavesBooksUntouched() public {
+        vm.startPrank(alice);
+        token.approve(address(vault), 0);
+        vm.expectRevert();
+        vault.delegateWithPermit(bob, 1, block.timestamp, 0, bytes32(0), bytes32(0));
+        vm.stopPrank();
+        assertEq(vault.poolOf(bob).assets, 0);
+        assertEq(vault.positionOf(bob, alice).shares, 0);
+        _assertConserved();
     }
 
     function _signPermit(uint256 key, address owner, uint256 value, uint256 nonce, uint256 deadline)

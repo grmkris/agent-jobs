@@ -15,6 +15,28 @@ contract V1LifecycleTest is BaseV1 {
     // Lifecycle
     // ------------------------------------------------------------------------------------------
 
+    function test_delegatorExitsAfterSuccessfulHireWithoutTakingWorkerPay() public {
+        vm.startPrank(contributor);
+        factory.approve(address(vault), 9_000e18);
+        vault.delegate(worker, 9_000e18);
+        vm.stopPrank();
+        uint256 job = submittedJob();
+        vm.prank(contributor);
+        vault.requestUndelegate(worker, 9_000e18);
+        vm.prank(creator);
+        evaluator.accept(job);
+        holding.settle(job);
+        assertEq(pay.balanceOf(worker), 90e6, "worker earns the snapshotted 10% tier net");
+        assertEq(pay.balanceOf(contributor), 10 * REWARD, "delegation pays no profit share yet");
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        uint256 before = factory.balanceOf(contributor);
+        vm.prank(contributor);
+        vault.withdraw(worker);
+        assertEq(factory.balanceOf(contributor) - before, 9_000e18);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        assertEq(vault.totalReserved(), 0);
+    }
+
     function test_happyPath_directWorker() public {
         uint256 jobId = submittedJob();
         (uint256 fee, uint256 net) = feeOf(REWARD, WORKER_STAKE);

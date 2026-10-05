@@ -102,18 +102,16 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   can freeze stake or bonds. Allocation: mining 500M (`MiningReserve`), treasury 200M (Safe), team 150M (OZ
   `VestingWalletCliff`, parameters from config, default `start = T0 + 1 y`, duration 3 y), ecosystem 100M (Safe; the
   deployer on testnet), liquidity 50M (deployer, then the pool seed).
-- `StakeVault` (`Ownable2Step`, owner the Safe; `ReentrancyGuardTransient`) holds all stake and every bond. A bond is a
-  reservation, so no token moves at publish or activate: `reserve` (authorized Holding only), `release`, `slash`
-  (burns via `Factory.burn`). A Holding can release or slash only its own reservations (`reservedBy`), so a revoked
-  Holding still settles its live jobs and no Holding can touch another's bonds. `reserve(account, 0)` still checks
-  authorization, so revoking a Holding is also the stop switch for its new listings and activations. Unstaking:
-  `requestUnstake` (unreserved stake only; restarts the 7-day cooldown for the whole amount) → `withdraw`, or
-  `cancelUnstake`. Holdings are authorized through `proposeHolding` → `acceptHolding` (anyone, after 8 days, longer than
-  the cooldown, and within 7 days after that) and removed instantly with `revokeHolding`. `bootstrapHolding` authorizes
-  the first Holding without the delay, once, and only while nothing is staked or proposed. The delay lets free stake
-  leave before a new Holding goes live; stake that is still bonded then, and mining rewards claimed for an account, are
-  protected by the account's own veto, `setHoldingDenied` (C9 ACL-1). Invariants: `reserved ≤ staked` per account, `totalReserved ≤
-  totalStaked`, balance ≥ `totalStaked + totalUnstaking`.
+- `StakeVault` v2 (ADR-0014, 5 Oct) keeps per-Holding bond reservations and account-owned vetoes, with
+  `Ownable2Step` and `ReentrancyGuardTransient`. Wallets retain shares when delegating behind another account;
+  `stakeOf` is total active backing, including reservations, while queued shares remain slashable but no longer
+  count for the tier or new bonds. `requestUndelegate(account, shares)` is allowed while bonded and restarts the
+  whole queue's cooldown. `withdraw(account)` pays its owner after unlock only when remaining pool assets cover
+  reservations (`StillBonded`); `cancelUndelegate(account)` restores active backing. Slashes burn FACTORY pro-rata,
+  including queued shares, and a full slash advances the generation and invalidates older positions. Invariants:
+  per-pool `reserved <= assets`, `totalReserved <= totalAssets`, vault balance >= `totalAssets` (queue included).
+  Admission/bootstrap/revocation remain unchanged; revoked Holdings still settle only their own `reservedBy`.
+  See ADR-0014 for the four accepted testnet edges and the event ledger for future profit-sharing epochs.
 - `MiningReserve` holds the 500M and funds the distributor for epochs that have ended, capped so the total ever funded
   stays within the cumulative schedule (epoch 0: 72 h and W · 3/7; epoch k ≥ 1: a week and `W >> ((k − 1) / 26)`,
   W = 500M / 52). Unspent budget rolls over. The α = 0.5 cap on emissions against fee value is applied off-chain.
@@ -124,7 +122,7 @@ suite and the indexer's decoding of the live testnet pairs depend on them. Every
   there is no implicit "now", so they can never disagree on an epoch boundary (review C6-001).
 - `EpochDistributor`: the Safe posts `setRoot(epoch, root, total, dataHash)` after the epoch ends, backed by funds
   already in the distributor and not promised to an earlier root. `claim` is permissionless and stakes straight into
-  the vault with `stakeFor`. Leaves are OZ double-hashed `(epoch, account, amount)`. A root can be replaced only while
+  the vault with `delegateFor(account, account, amount)`. Leaves are OZ double-hashed `(epoch, account, amount)`. A root can be replaced only while
   nothing was claimed from it, so a wrong root is correctable and a bad one can drain at most its own funded total.
   `resizeRoot` corrects a total after claims (never below what was claimed), so a total above the leaf sum no longer
   locks mining funds (C9 MATH-5). One leaf per account and epoch; the tree builder aggregates.

@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {console} from "forge-std/Test.sol";
 import {IHirelingHolding} from "../../src/hireling/interfaces/IHirelingHolding.sol";
 import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
+import {IStakeVault} from "../../src/hireling/interfaces/IStakeVault.sol";
 import {BaseV1} from "./BaseV1.t.sol";
 
 /// @dev The smallest gas each payout call succeeds with (execution gas without the 21k intrinsic and calldata), found
@@ -29,6 +30,34 @@ contract GasFloorsTest is BaseV1 {
             if (ok) hi = mid;
             else lo = mid + 1;
         }
+    }
+
+    function test_gas_reserve() public {
+        uint256 gas = _floor(address(holding), address(vault), abi.encodeCall(IStakeVault.reserve, (worker, 1e18)));
+        console.log("vault reserve:", gas);
+        assertLt(gas, 250_000);
+    }
+
+    function test_gas_delegate() public {
+        address account = makeAddr("new-delegated-pool");
+        uint256 gas = _floor(worker, address(vault), abi.encodeCall(IStakeVault.delegate, (account, 1e18)));
+        console.log("vault delegate (new pool and position):", gas);
+        assertLt(gas, 500_000);
+    }
+
+    function test_gas_requestUndelegate() public {
+        uint256 gas = _floor(worker, address(vault), abi.encodeCall(IStakeVault.requestUndelegate, (worker, 100e18)));
+        console.log("vault requestUndelegate:", gas);
+        assertLt(gas, 250_000);
+    }
+
+    function test_gas_withdraw() public {
+        vm.prank(worker);
+        vault.requestUndelegate(worker, 100e18);
+        vm.warp(vm.getBlockTimestamp() + vault.UNSTAKE_DELAY());
+        uint256 gas = _floor(worker, address(vault), abi.encodeCall(IStakeVault.withdraw, (worker)));
+        console.log("vault withdraw:", gas);
+        assertLt(gas, 300_000);
     }
 
     function test_gas_settle_worstCase() public {

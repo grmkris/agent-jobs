@@ -157,11 +157,13 @@ contract HirelingRehearsalForkTest is Test {
         uint256 agentId = c.identity.register();
         assertEq(c.identity.getAgentWallet(agentId), worker);
         vm.prank(c.admin);
-        d.factory.transfer(worker, 20_000e18);
-        vm.startPrank(worker);
-        d.factory.approve(address(d.vault), type(uint256).max);
+        d.factory.transfer(creator, 20_000e18);
+        vm.startPrank(creator);
+        d.factory.approve(address(d.vault), 20_000e18);
         d.vault.delegate(worker, 20_000e18);
         vm.stopPrank();
+        assertEq(d.vault.positionOf(worker, worker).shares, 0);
+        assertEq(d.vault.positionOf(worker, creator).shares, 20_000e18);
 
         uint48 deadline = uint48(vm.getBlockTimestamp() + 2 days);
         IHirelingHolding.PublishParams memory p = IHirelingHolding.PublishParams({
@@ -193,6 +195,8 @@ contract HirelingRehearsalForkTest is Test {
             _budgetAuth(d.core, workerPk, worker, jobId, address(token), net);
         vm.prank(worker);
         d.holding.activate(sel, abi.encodePacked(r, s, v), auth);
+        assertEq(d.holding.getListing(jobId).feeBps, 1000, "delegated total backing sets the tier");
+        assertEq(d.vault.reservedOf(worker), 10e18, "bond uses creator-owned backing");
         vm.prank(worker);
         d.core.submit(jobId, keccak256("rehearsal-work"), "");
         vm.prank(creator);
@@ -211,6 +215,13 @@ contract HirelingRehearsalForkTest is Test {
         assertEq(token.balanceOf(worker) - workerBefore, net);
         assertEq(token.balanceOf(safe), fee);
         assertEq(d.vault.reservedOf(worker), 0);
+        vm.prank(creator);
+        d.vault.requestUndelegate(worker, 20_000e18);
+        vm.warp(vm.getBlockTimestamp() + d.vault.UNSTAKE_DELAY());
+        uint256 creatorBefore = d.factory.balanceOf(creator);
+        vm.prank(creator);
+        d.vault.withdraw(worker);
+        assertEq(d.factory.balanceOf(creator) - creatorBefore, 20_000e18, "delegator retains exit ownership");
     }
 
     function test_fork_testnet_reusedCore_oneHire() public {
@@ -239,6 +250,7 @@ contract HirelingRehearsalForkTest is Test {
         vm.stopPrank();
         d.distributor.claim(0, stranger, 1e18, new bytes32[](0));
         assertEq(d.vault.stakeOf(stranger), 1e18);
+        assertEq(d.vault.positionOf(stranger, stranger).shares, 1e18, "mining owns its self position");
         assertEq(d.reserve.epochEnd(1), end + 3600);
     }
 
