@@ -1,11 +1,14 @@
 import * as sdk from "@agent-jobs/sdk";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { type Address, encodeFunctionData, erc20Abi, formatUnits } from "viem";
+import { type Address, encodeFunctionData, erc20Abi, formatUnits, parseSignature } from "viem";
+import { useSignTypedData } from "wagmi";
 import type { ManagedAgent } from "../api.ts";
-import { chain } from "../wallet.ts";
+import { chain, deployment } from "../wallet.ts";
 import { hireling } from "../hireling.ts";
 import { factoryAmount } from "../stake.ts";
+import { stakeContext } from "../stake-context.ts";
+import { friendlyError } from "../txErrors.ts";
 import { Button, ErrorText, Input, Section } from "./ui.tsx";
 import { TxSteps } from "./TxSteps.tsx";
 import { initializeTxJournal } from "./txJournal.ts";
@@ -24,6 +27,7 @@ import {
 export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator: string }) {
   const balances = useOperatorBalances(operator as Address);
   const backing = useBacking(agent.address === null ? undefined : agent.address as Address);
+  const { signTypedDataAsync } = useSignTypedData();
   const key = vaultIntentKey(chain.id, hireling?.vault ?? "unavailable", operator);
   const [initial] = useState(() => {
     try {
@@ -54,38 +58,55 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             "Another tab has an unfinished position action. Open Stake & delegate to reconcile it first.",
           );
         const units = factoryAmount(amount);
-        if (agent.address === null || hireling === null || units === null) {
+        if (agent.address === null || agent.agent_id === null || hireling === null || units === null) {
           throw new Error("Enter a positive FACTORY amount");
         }
         const vault = hireling.vault;
+        const ctx = stakeContext();
+        const [balance, wallet] = await Promise.all([
+          ctx.publicClient.readContract({ address: hireling.factory, abi: sdk.factoryV2Abi, functionName: "balanceOf", args: [operator as Address] }),
+          ctx.publicClient.readContract({ address: deployment.identity, abi: sdk.identityAbi, functionName: "getAgentWallet", args: [BigInt(agent.agent_id)] }),
+        ]);
+        if (units > balance)
+          throw new Error("That is more FACTORY than your wallet holds");
+        if (wallet.toLowerCase() !== agent.address.toLowerCase())
+          throw new Error("This agent changed its wallet. Refresh before delegating.");
+        const target = agent.address as Address;
+        const approval = {
+          chainId: chain.id,
+          description: `Approve ${amount} FACTORY for the vault`,
+          to: hireling.factory,
+          value: "0",
+          data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, units] }),
+        };
+        const delegation = {
+          chainId: chain.id,
+          description: `Delegate ${amount} FACTORY to ${agent.name}`,
+          to: vault,
+          value: "0",
+          data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegate", args: [target, units] }),
+        };
+        const delegatedTo = await sdk.delegationOf(ctx.publicClient, operator as Address);
+        let txs: VaultIntent["txs"];
+        if (delegatedTo?.toLowerCase() === deployment.delegation.delegator.toLowerCase()) {
+          txs = [{ chainId: chain.id, description: `Delegate ${amount} FACTORY to ${agent.name}`, to: operator as Address, value: "0", data: sdk.batchCalldata([approval, delegation]) }];
+        } else {
+          const permit = await sdk.delegatePermit(ctx, operator as Address, units, BigInt(Math.floor(Date.now() / 1000) + 3600));
+          const signature = await signTypedDataAsync(permit);
+          const { r, s, v, yParity } = parseSignature(signature);
+          txs = [{
+            chainId: chain.id,
+            description: `Delegate ${amount} FACTORY to ${agent.name}`,
+            to: vault,
+            value: "0",
+            data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegateWithPermit", args: [target, units, permit.message.deadline, Number(v ?? BigInt(yParity + 27)), r, s] }),
+          }];
+        }
         const next: VaultIntent = {
           id: crypto.randomUUID(),
           kind: "delegate",
           account: agent.address as Address,
-          txs: [
-            {
-              chainId: chain.id,
-              description: `Approve ${amount} FACTORY for the vault`,
-              to: hireling.factory,
-              value: "0",
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [vault, units],
-              }),
-            },
-            {
-              chainId: chain.id,
-              description: `Delegate ${amount} FACTORY to ${agent.name}`,
-              to: vault,
-              value: "0",
-              data: encodeFunctionData({
-                abi: sdk.stakeVaultAbi,
-                functionName: "delegate",
-                args: [agent.address as Address, units],
-              }),
-            },
-          ],
+          txs,
         };
         initializeTxJournal(localStorage, `delegation:${next.id}`, next.txs);
         const bytes = JSON.stringify(next);
@@ -95,7 +116,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
         setIntent(next);
       });
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Delegation preparation failed");
+      setError(friendlyError(failure));
     } finally {
       setBusy(false);
     }
@@ -104,7 +125,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
   return (
     <Section
       title="Delegate backing to this agent"
-      note="Your operator wallet pays for the approval and delegation, and owns the position. The agent uses the backing for bonds and its fee tier. A slash reduces every backing position by the same share."
+      note="Your operator wallet delegates in one transaction and owns the position. The agent uses the backing for bonds and its fee tier. A slash reduces every backing position by the same share."
     >
       <OperatorBalances operator={operator as Address} />
       {backing.isError || backing.data === undefined ? (
@@ -144,16 +165,19 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           txs={intent.txs}
           owner={operator}
           reportToBoard={false}
-          allowBatch
+          allowBatch={false}
           allowSponsorship={false}
           retainRecord
           requireJournal
           verifyReceipt
-          sendGuard={() =>
-            readVaultIntent(localStorage, key)?.id === intent.id
+          sendGuard={async () => {
+            if (intent.txs[0]?.to.toLowerCase() === operator.toLowerCase() &&
+                (await sdk.delegationOf(stakeContext().publicClient, operator as Address))?.toLowerCase() !== deployment.delegation.delegator.toLowerCase())
+              return "Your wallet's batch delegation changed. Reconcile the saved action before continuing.";
+            return readVaultIntent(localStorage, key)?.id === intent.id
               ? null
-              : "This position action changed in another tab. Reload to reconcile the saved action."
-          }
+              : "This position action changed in another tab. Reload to reconcile the saved action.";
+          }}
           onDone={() => {
             void withVaultIntentLock(navigator.locks, key, async () => {
               if (!clearOwnedIntent(localStorage, key, intent.id))

@@ -1,92 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
-import { createServer } from 'vite';
+import { writeFileSync } from 'node:fs';
+import { output, base, owner, agentWallet, contracts, errors, results, server, browser, fixture } from './stake-fixture.mjs';
 
-// Mocked Chromium only: the real SDK reads encoded responses from a test-only RPC transport.
-const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-delegation-evidence';
-const base = 'http://127.0.0.1:5194';
-const owner = '0x1111111111111111111111111111111111111111';
-const agentWallet = '0x2222222222222222222222222222222222222222';
-const other = '0x3333333333333333333333333333333333333333';
-const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
-const agent = { chainId: 10143, identityRegistry: contracts.factory, agentId: '1942', wallet: agentWallet, profile: { name: 'My worker', description: 'Fixture worker', services: [] }, profileSource: 'operator-supplied', agentURI: '', enrolled: true, ownership: 'verified', presence: { freshness: 'fresh', state: 'available', accepting: true, lastSeenBucket: null }, ads: [], observedAt: 100, projectionAt: 100, revision: 1 };
-const errors = [];
-const results = [];
-process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
-const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5194, strictPort: true }, plugins: [{ name: 'delegation-fixtures', enforce: 'pre', resolveId(source) {
-  if (source === 'wagmi') return `${directory}stake-wagmi.mjs`;
-  if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
-  if (source.endsWith('/stake-context.ts')) return `${directory}stake-chain.mjs`;
-  if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
-  if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
-}, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
-} }] });
-await server.listen();
-const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
-mkdirSync(output, { recursive: true });
-
-async function fixture(viewport, options = {}) {
-  const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ owner: fixtureOwner, agentWallet: fixtureAgentWallet, other: fixtureOther, contracts: fixtureContracts, agent: fixtureAgent, options: fixtureOptions }) => {
-    const E = 10n ** 18n;
-    window.__hireling = fixtureOptions.deployed === false ? null : fixtureContracts;
-    window.__agents = [fixtureAgent];
-    window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: [] };
-    window.__balances = { native: 5n * 10n ** 17n };
-    window.__stake = { wallet: 50000n * E, nonce: 0n, calls: [], cooldown: 600, down: fixtureOptions.down ?? false, open: fixtureOptions.open ?? true, pools: {
-      [fixtureOwner]: { assets: 4000n * E, reserved: 1500n * E, shares: 4000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
-      [fixtureAgentWallet]: { assets: 10000n * E, reserved: 8000n * E, shares: 10000n * E, queuedShares: 0n, generation: 0n, positions: { [fixtureOwner]: { shares: 6000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n }, [fixtureOther]: { shares: 4000n * E, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
-    } };
-    if (fixtureOptions.proposal) window.__stake.proposal = fixtureOptions.proposal;
-    if (fixtureOptions.retired) {
-      const pool = window.__stake.pools[fixtureAgentWallet];
-      Object.assign(pool, { assets: 0n, reserved: 0n, shares: 0n, queuedShares: 0n, generation: 1n });
-      window.__stake.historical = { [fixtureAgentWallet]: '0' };
-    }
-    if (fixtureOptions.dust) {
-      const pool = window.__stake.pools[fixtureAgentWallet];
-      Object.assign(pool, { assets: 6n, shares: 10n, reserved: 0n });
-      pool.positions[fixtureOwner].shares = 4n;
-      pool.positions[fixtureOther].shares = 6n;
-    }
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: fixtureOwner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { owner, agentWallet, other, contracts, agent, options });
-  await context.route('**/*', async route => {
-    const url = new URL(route.request().url());
-    if (url.origin !== base) return route.abort('blockedbyclient');
-    const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    if (url.pathname === '/data/directory') return reply({ ok: true, agents: [agent], nextCursor: null, observedAt: 100, chainId: 10143, identityRegistry: contracts.factory, scope: 'fixture' });
-    if (url.pathname === '/data/directory/1942') return reply({ ok: true, agent });
-    if (url.pathname === '/data/agents/1942') return reply({ ok: false, message: 'Fixture has no job history' }, 404);
-    if (url.pathname === '/api/agents/managed') return reply({ ok: true, result: { allowances: [], grants: [], revocation: {} } });
-    if (url.pathname === '/api/agents/managed/recovery') return reply({ ok: true, result: { grants: [] } });
-    if (url.pathname === '/api/agents' && route.request().method() === 'POST') return reply({ ok: true, result: { id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' } });
-    if (url.pathname === '/api/agents') return reply({ ok: true, result: { agents: [{ id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' }] } });
-    if (url.pathname === '/data/delegations' || url.pathname.startsWith('/data/backing/')) {
-      const down = await page.evaluate(() => window.__stake.down);
-      if (down) return reply({ ok: false, message: 'Fixture index unavailable' }, 503);
-      const snapshot = await page.evaluate(({ account, wallet }) => window.__stakingSnapshot(account, wallet), {
-        account: url.pathname.startsWith('/data/backing/') ? url.pathname.split('/').at(-1) : undefined,
-        wallet: url.searchParams.get('wallet') ?? undefined,
-      });
-      return reply({ ok: true, ...snapshot });
-    }
-    if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
-    if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
-    if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
-    return route.continue();
-  });
-  const page = await context.newPage();
-  page.setDefaultTimeout(20000);
-  page.on('pageerror', error => errors.push(error.message));
-  return { context, page };
-}
 const text = (page, value) => page.getByText(value, { exact: true }).first().waitFor();
 const position = page => page.getByRole('article', { name: 'Position in My worker', exact: true });
 const amount = page => page.locator('#stake-amount');
@@ -291,18 +206,64 @@ try {
     await delegate.getByRole('button', { name: 'Max', exact: true }).click();
     assert.equal(await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).inputValue(), '50000');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0, 'Max only fills the operator balance');
+    await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
+    await page.evaluate(() => { window.__wallet.declineSign = true; });
+    await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
+    await text(page, 'You cancelled in your wallet. Nothing was sent.');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await page.evaluate(() => { window.__wallet.declineSign = false; });
     for (const round of [1, 2]) {
-      await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
+      await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1.000000000000000001');
       await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
-      for (const step of [1, 2]) {
-        await page.getByRole('button', { name: `Confirm step ${step} of 2`, exact: true }).click();
-        await page.getByRole('button', { name: 'Confirm fixture' }).click();
+      await text(page, 'Delegate 1.000000000000000001 FACTORY to My worker');
+      const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { owner: p.message.owner, spender: p.message.spender, value: String(p.message.value) }; });
+      assert.deepEqual(permit, { owner, spender: contracts.vault, value: '1000000000000000001' });
+      if (round === 1) {
+        await page.reload();
+        await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
+        await text(page, 'Delegate 1.000000000000000001 FACTORY to My worker');
+        assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'reload resumes the saved permit without signing again');
       }
+      await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+      await page.getByRole('button', { name: 'Confirm fixture' }).click();
       await page.getByRole('button', { name: 'Review delegation', exact: true }).waitFor();
-      assert.equal(await page.evaluate(() => window.__wallet.sends.length), round * 2, 'each repeated amount is a fresh approval and owned delegation');
+      assert.equal(await page.evaluate(() => window.__wallet.sends.length), round, 'each delegation needs exactly one transaction');
+      const call = await page.evaluate(() => window.__stake.calls.at(-1));
+      assert.equal(call.functionName, 'delegateWithPermit');
+      assert.equal(call.args[0], agentWallet);
+      assert.equal(call.args[1], '1000000000000000001');
+      assert.equal(await page.evaluate(() => window.__stake.approvals ?? 0), 0, 'no separate approve transaction');
     }
     await context.close();
-    results.push({ checks: ['repeated onboarding delegation has a distinct durable intent and two fresh confirmations'], passed: true });
+    results.push({ checks: ['balances and named token', 'Max fills only', 'refused permit has no effect', 'exact amount permit', 'reload reuses saved permit', 'repeated onboarding delegation has a distinct durable intent and one transaction'], passed: true });
+  }
+  {
+    const { context, page } = await fixture({ width: 390, height: 844 }, { delegated: true });
+    await page.goto(`${base}/agents/new`);
+    await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
+    await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('100');
+    await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
+    await text(page, 'Delegate 100 FACTORY to My worker');
+    assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'already-upgraded wallet needs no permit or upgrade signature');
+    const code = await page.evaluate(() => window.__stake.code[window.__wallet.address]);
+    await page.evaluate(() => { window.__stake.code = {}; });
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await page.getByText(/Your wallet's batch delegation changed/).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Confirm fixture', exact: true }).count(), 0);
+    await page.evaluate(savedCode => { window.__stake.code[window.__wallet.address] = savedCode; }, code);
+    await page.getByRole('button', { name: 'Try again', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture' }).click();
+    await page.getByRole('button', { name: 'Review delegation', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    assert.equal(await page.evaluate(() => window.__wallet.sends[0].to), owner);
+    const calls = await page.evaluate(() => ({ approval: window.__stake.approvalCalls, delegation: window.__stake.calls.at(-1) }));
+    assert.deepEqual(calls.approval, [{ spender: contracts.vault, amount: (100n * 10n ** 18n).toString() }]);
+    assert.equal(calls.delegation.functionName, 'delegate');
+    assert.equal(calls.delegation.args[0], agentWallet);
+    assert.equal(calls.delegation.args[1], (100n * 10n ** 18n).toString());
+    await capture(page, 'onboarding-atomic-delegation');
+    await context.close();
+    results.push({ checks: ['7702 exact approve+delegate in one self-call', 'no permit or upgrade prompt', 'account-code change blocks wallet prompt'], passed: true });
   }
   {
     const { context, page } = await fixture({ width: 1440, height: 900 });

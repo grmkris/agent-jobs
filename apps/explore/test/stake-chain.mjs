@@ -1,6 +1,6 @@
 // Browser-only RPC double. The real SDK reads, conversions and ABI decoding run against this transport.
 import * as sdk from '@agent-jobs/sdk';
-import { createPublicClient, custom, erc20Abi, decodeFunctionData, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
+import { createPublicClient, custom, erc20Abi, decodeFunctionData, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
 import { chainLatency } from './wagmi.mjs';
 import { chain, deployment } from '../src/wallet.ts';
 
@@ -58,6 +58,7 @@ const transport = custom({ request: async ({ method, params }) => {
   (s.rpcMethods ??= []).push(method);
   if (s.down) throw new Error('Fixture RPC unavailable');
   if (method === 'eth_blockNumber') return '0x' + (110 + window.__wallet.sends.length).toString(16);
+  if (method === 'eth_getCode') return window.__stake.code?.[params[0].toLowerCase()] ?? '0x';
   if (method === 'eth_call') {
     const { abi, functionName, args } = decode(params[0].data);
     if (s.unreadable?.includes(functionName)) throw new Error('Fixture read unavailable');
@@ -85,11 +86,22 @@ export function stakeContext(contracts = window.__hireling) {
 
 export function apply({ data }) {
   const s = window.__stake;
+  if (data.startsWith('0xe9ae5c53')) {
+    const { args } = decodeFunctionData({ abi: sdk.delegatorAbi, data });
+    if (args[0] !== sdk.BATCH_DEFAULT_MODE) throw new Error('Fixture refuses non-atomic execution');
+    const [calls] = decodeAbiParameters([{ type: 'tuple[]', components: [{ name: 'target', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'callData', type: 'bytes' }] }], args[1]);
+    for (const call of calls) apply({ data: call.callData });
+    return;
+  }
   let decoded;
   try { decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data }); }
   catch { decoded = decodeFunctionData({ abi: erc20Abi, data }); }
   const { functionName, args } = decoded;
-  if (functionName === 'approve') { s.approvals = (s.approvals ?? 0) + 1; return; }
+  if (functionName === 'approve') {
+    s.approvals = (s.approvals ?? 0) + 1;
+    (s.approvalCalls ??= []).push({ spender: args[0], amount: String(args[1]) });
+    return;
+  }
   s.calls.push({ functionName, args: args.map(arg => typeof arg === 'bigint' ? String(arg) : arg) });
   if (functionName === 'setHoldingDenied') { s.denied = { ...s.denied, [args[0].toLowerCase()]: args[1] }; return; }
   const account = args[0].toLowerCase();
