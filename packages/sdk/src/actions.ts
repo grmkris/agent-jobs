@@ -571,19 +571,6 @@ export function withdraw(ctx: Ctx, staker: Wallet, account: Address = staker.acc
   return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'withdraw', [account])
 }
 
-export async function getStake(ctx: Ctx, account: Address) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('getStake is only available on hireling-v1')
-  const vault = ctx.deployment.hireling.vault
-  const [staked, reserved, available, unstake] = await Promise.all([
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'stakeOf', args: [account] }),
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'reservedOf', args: [account] }),
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'availableOf', args: [account] }),
-    ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'positionOf', args: [account, account] }),
-  ])
-  const unstaking = await ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'convertToAssets', args: [account, unstake.queuedShares] })
-  return { staked, reserved, available, unstaking, unlockAt: Number(unstake.unlockAt) }
-}
-
 export async function requireStake(ctx: Ctx, account: Address, bond: bigint): Promise<void> {
   if (bond < 0n) throw new Error('bond cannot be negative')
   if (bond === 0n) return
