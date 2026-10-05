@@ -225,4 +225,35 @@ suite('agent executor through real contracts', () => {
     expect(agents.step(waiting.operationId, `operator-decision:${prepared.hash}`)).toBeDefined()
   }, 180_000)
 
+  it('replaces expired signed and prepared gas renewal attempts under the same unsent operation', async () => {
+    const operation = agents.begin('creator-agent', 'interrupted-renewal', 'public', 'renew', {})
+    const original = [] as Hex[]
+    for (const [index, kind] of (['agent-work', 'agent-approve', 'agent-sweep'] as const).entries()) {
+      const base = { delegator: fixture.contributor.account.address, start: now, salt: BigInt(index + 500) }
+      const spec: sdk.GrantSpec = kind === 'agent-sweep' ? { ...base, kind, operator: fixture.creator.account.address } : { ...base, kind }
+      const prepared = grants.prepare(fixture.creator.account.address, spec)
+      if (kind === 'agent-work') await grants.confirm(prepared.hash, await sdk.signTypedDataJson(fixture.contributor, prepared.typedData))
+      agents.freezeStep(operation.id, `renew:${kind}:1`, { hash: prepared.hash, replaces: null })
+      original.push(prepared.hash)
+    }
+    const prior = original.map(hash => grants.get(hash))
+    const allowance = grants.get(allowanceHash)
+    await fixture.rpc('evm_setNextBlockTimestamp', [now + sdk.GRANT_VALIDITY + 1])
+    await fixture.rpc('evm_mine')
+    now = Number((await ctx.publicClient.getBlock()).timestamp)
+    const nonce = await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })
+    await ensureAgentGrants(ctx, agents, grants, signing, 'creator-agent', operation.id, now)
+    for (const [index, kind] of (['agent-work', 'agent-approve', 'agent-sweep'] as const).entries()) {
+      const replacement = agents.step<{ hash: Hex }>(operation.id, `renew:${kind}:2`)!
+      expect(replacement.hash).not.toBe(original[index])
+      expect(grants.get(replacement.hash)).toMatchObject({ status: 'live', expires_at: now + sdk.GRANT_VALIDITY })
+      expect(grants.get(original[index]!)).toMatchObject({ delegation_json: prior[index]!.delegation_json, signature: prior[index]!.signature })
+      expect(agents.step(operation.id, `renew:${kind}:1`)).toEqual({ hash: original[index], replaces: null })
+    }
+    const signatures = db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()
+    await ensureAgentGrants(ctx, agents, grants, signing, 'creator-agent', operation.id, now)
+    expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()).toEqual(signatures)
+    expect(grants.get(allowanceHash)).toEqual(allowance)
+    expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
+  }, 180_000)
 })
