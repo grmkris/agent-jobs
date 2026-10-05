@@ -4,6 +4,23 @@ import { getAddress, isAddress, parseUnits } from 'viem'
 export const DEMAND_DAILY_CAP = 12_000_000n
 export const DEMAND_INTERVAL_SECONDS = 90 * 60
 export const DEMAND_TOKEN_DECIMALS = 6
+export const DEMAND_COLLECTION_SECONDS = 20 * 60
+export const DEMAND_QUOTE_MARGIN_SECONDS = 10 * 60
+
+export function demandQuoteWindow(now: number) {
+  return { quoteCollectionEndsAt: now + DEMAND_COLLECTION_SECONDS, quoteDeadline: now + DEMAND_COLLECTION_SECONDS + DEMAND_QUOTE_MARGIN_SECONDS }
+}
+
+export function demandQuotePhase(collectionEndsAt: number, quoteDeadline: number, now: number): 'collect' | 'pick' | 'expired' {
+  if (now >= quoteDeadline) return 'expired'
+  return now < collectionEndsAt ? 'collect' : 'pick'
+}
+
+/** Recheck at dispatch, after slow quote/registry/balance reads have finished. */
+export async function pickDemandQuoteBeforeDeadline<T>(quoteDeadline: number, pick: () => Promise<T>, now = () => Math.floor(Date.now() / 1000)): Promise<T | undefined> {
+  if (now() >= quoteDeadline) return undefined
+  return pick()
+}
 
 export type DemandKind = 'image' | 'code'
 
@@ -113,6 +130,22 @@ export function commitSpend(spend: DailySpend, operationId: string, receiptDay: 
     if (spend.reserved[day] === 0n) delete spend.reserved[day]
   }
   add(spend.committed, receiptDay, prior.amount)
+  delete spend.reservations[operationId]
+  return prior.amount
+}
+
+/** Only a reconciled operation with no economic effect may release its reservation. */
+export function releaseSpend(spend: DailySpend, operationId: string): bigint {
+  const prior = spend.reservations[operationId]
+  if (prior === undefined) return 0n
+  for (const day of prior.days) {
+    if ((spend.reserved[day] ?? 0n) < prior.amount) throw new Error('reservation accounting differs')
+  }
+  for (const day of prior.days) {
+    const remaining = spend.reserved[day]! - prior.amount
+    if (remaining === 0n) delete spend.reserved[day]
+    else spend.reserved[day] = remaining
+  }
   delete spend.reservations[operationId]
   return prior.amount
 }

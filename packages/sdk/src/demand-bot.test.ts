@@ -1,11 +1,36 @@
 import { getAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { DEMAND_DAILY_CAP, chooseCheapestQuote, carryReservations, commitSpend, createDailySpend, parseMUsdAmount, reserveSpend, templateForSequence, utcDay } from './demand-bot.ts'
+import { DEMAND_DAILY_CAP, chooseCheapestQuote, carryReservations, commitSpend, createDailySpend, demandQuotePhase, demandQuoteWindow, parseMUsdAmount, pickDemandQuoteBeforeDeadline, reserveSpend, templateForSequence, utcDay } from './demand-bot.ts'
 import { demandArtifactUrl, demandDescriptorHash, latestDemandTestPassed, validDemandImage } from './demand-bot-review.ts'
 
 const token = getAddress('0x0000000000000000000000000000000000000001')
 
 describe('demand bot policy', () => {
+  it('collects for 20 minutes with a further 10-minute quote lifetime and never picks at or after expiry', async () => {
+    const start = 1000
+    const window = demandQuoteWindow(start)
+    expect(window).toEqual({ quoteCollectionEndsAt: 2200, quoteDeadline: 2800 })
+    expect(demandQuotePhase(window.quoteCollectionEndsAt, window.quoteDeadline, 2199)).toBe('collect')
+    expect(demandQuotePhase(window.quoteCollectionEndsAt, window.quoteDeadline, 2200)).toBe('pick')
+    expect(demandQuotePhase(window.quoteCollectionEndsAt, window.quoteDeadline, 2799)).toBe('pick')
+    let picks = 0
+    const pick = async () => { picks++; return 'prepared' }
+    expect(await pickDemandQuoteBeforeDeadline(window.quoteDeadline, pick, () => 2799)).toBe('prepared')
+    for (const now of [2800, 2801, 4000]) {
+      expect(demandQuotePhase(window.quoteCollectionEndsAt, window.quoteDeadline, now)).toBe('expired')
+      expect(await pickDemandQuoteBeforeDeadline(window.quoteDeadline, pick, () => now)).toBeUndefined()
+    }
+    expect(picks).toBe(1)
+  })
+
+  it('rechecks the deadline after slow quote validation instead of using the tick start time', async () => {
+    const window = demandQuoteWindow(1000)
+    expect(demandQuotePhase(window.quoteCollectionEndsAt, window.quoteDeadline, 2799)).toBe('pick')
+    let picks = 0
+    expect(await pickDemandQuoteBeforeDeadline(window.quoteDeadline, async () => { picks++; return 'late' }, () => 2800)).toBeUndefined()
+    expect(picks).toBe(0)
+  })
+
   it('alternates image and code without backfill', () => {
     expect(templateForSequence(0).kind).toBe('image')
     expect(templateForSequence(1).kind).toBe('code')

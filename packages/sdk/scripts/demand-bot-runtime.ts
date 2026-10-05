@@ -1,10 +1,10 @@
 import { type Hex, decodeEventLog, getAddress, isAddress, zeroAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
-import { DEMAND_DAILY_CAP, DEMAND_INTERVAL_SECONDS, carryReservations, chooseCheapestQuote, commitSpend, normalizeAddress, parseMUsdAmount, reserveSpend, templateForSequence, utcDay } from '../src/demand-bot.ts'
+import { DEMAND_DAILY_CAP, DEMAND_INTERVAL_SECONDS, DEMAND_QUOTE_MARGIN_SECONDS, carryReservations, chooseCheapestQuote, commitSpend, demandQuotePhase, demandQuoteWindow, normalizeAddress, parseMUsdAmount, pickDemandQuoteBeforeDeadline, reserveSpend, templateForSequence, utcDay } from '../src/demand-bot.ts'
 import { type DemandDescriptor, checkDemandDeliverable, demandDescriptorHash } from '../src/demand-bot-review.ts'
 import { assertDemandTransactions, demandAcceptTransaction, demandCanonicalJson, validateDemandPreparation, validateDemandSelection } from '../src/demand-bot-validation.ts'
-import { type DemandOperation, openDemandStore } from './demand-bot-store.ts'
+import { type DemandOperation, abandonDemandOperation, openDemandStore, persistDemandManifest } from './demand-bot-store.ts'
 
 export const DEMAND_BOARD_URL = 'https://testnet.hireling.xyz'
 
@@ -53,18 +53,43 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
     return journal.send(keyName, wallet, tx)
   }
 
+  async function reconcileLiveFix() {
+    const operation = store.bot.operations.find(value => value.request?.requestId === 'fbf0e1288716ad34' && value.prepared?.taskId === '5b6bb5e461f9e85f')
+    if (operation === undefined || operation.closed === 'abandoned') return
+    if (parseMUsdAmount(operation.quote!.amount) !== 3_000_000n || store.bot.spend.reservations[operation.id]?.amount !== 3_000_000n) throw new Error('live-fix reservation differs from reviewed operation')
+    const [task, latestNonce, pendingNonce, blockNumber, code] = await Promise.all([
+      board.call<TaskView>('get_task', { taskId: operation.prepared!.taskId }),
+      ctx.publicClient.getTransactionCount({ address: account.address, blockTag: 'latest' }),
+      ctx.publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' }),
+      ctx.publicClient.getBlockNumber(), ctx.publicClient.getCode({ address: account.address }),
+    ])
+    // This incident's independent EOA never sent a transaction. A new nonce or
+    // delegated account code makes that no-effect proof insufficient: fail closed.
+    if (task.jobId !== null || latestNonce !== 0 || pendingNonce !== 0 || (code !== undefined && code !== '0x')) throw new Error('live-fix operation needs chain reconciliation')
+    const released = abandonDemandOperation(store.state, store.bot, operation, 'C2-LIVE-FIX: expired quote, verified no chain effect; never republish')
+    operation.reconciliation = { at: Math.floor(Date.now() / 1000), blockNumber, latestNonce, pendingNonce, released }
+    store.save()
+    demandLog('abandoned', { operation: operation.id, requestId: operation.request!.requestId, taskId: operation.prepared!.taskId, releasedMUsdUnits: released.toString(), blockNumber: blockNumber.toString() })
+  }
+
+  function expireQuote(operation: DemandOperation) {
+    abandonDemandOperation(store.state, store.bot, operation, 'quote-deadline-elapsed before pick; no signed sends')
+    store.save()
+  }
+
   async function newRequest(now: number) {
     const template = templateForSequence(store.bot.sequence)
     const bounds = await sdk.readWindowBounds(ctx)
     const arbitrator = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'defaultArbitrator' })
     const id = `demand-${store.bot.sequence}`
+    const window = demandQuoteWindow(now)
     const operation: DemandOperation = {
-      id, sequence: store.bot.sequence,
+      id, sequence: store.bot.sequence, quoteCollectionEndsAt: window.quoteCollectionEndsAt,
       intent: {
         creator: account.address, token, template,
         title: `${template.title} (${store.bot.sequence + 1})`,
         brief: `${template.brief}\nDemand operation ${id}. Deliver files in a new directory demand/${store.bot.sequence}; use a new branch. Quote only in mUSD, within the creator's remaining daily cap.`,
-        deliveryDeadline: now + 3 * 3600, quoteDeadline: now + 20 * 60,
+        deliveryDeadline: now + 3 * 3600, quoteDeadline: window.quoteDeadline,
         arbitrator, windows: { reviewSeconds: Math.max(3600, bounds.review.min), disputeSeconds: bounds.dispute.min, arbitrationSeconds: bounds.arbitration.min },
       },
     }
@@ -129,10 +154,12 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
   async function publish(operation: DemandOperation) {
     if (operation.publishedAt !== undefined) return
     if (operation.prepared === undefined) {
-      operation.prepared = await board.call('pick_quote', { requestId: operation.request!.requestId, quoteId: operation.quote!.quoteId, idempotencyKey: `${operation.id}-pick` })
+      const picked = await pickDemandQuoteBeforeDeadline(operation.intent.quoteDeadline, () => board.call('pick_quote', { requestId: operation.request!.requestId, quoteId: operation.quote!.quoteId, idempotencyKey: `${operation.id}-pick` }))
+      if (picked === undefined) { expireQuote(operation); return }
+      operation.prepared = picked
       store.save()
     }
-    const prepared = operation.prepared
+    const prepared = await persistDemandManifest(operation, store.save, DEMAND_BOARD_URL)
     const intent = operation.intent
     const expiredAt = await sdk.minExpiry(ctx, intent.deliveryDeadline, { reviewWindow: intent.windows.reviewSeconds, disputeWindow: intent.windows.disputeSeconds, arbitrationWindow: intent.windows.arbitrationSeconds })
     validateDemandPreparation(ctx, intent, operation.request!.requestHash, operation.quote!, prepared, expiredAt)
@@ -245,6 +272,7 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
   async function tick(allowNew: () => boolean) {
     await validateChain()
     await board.signIn(account)
+    await reconcileLiveFix()
     const now = Math.floor(Date.now() / 1000)
     carryReservations(store.bot.spend, utcDay(now))
     store.save()
@@ -257,10 +285,15 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
         continue
       }
       await request(operation)
-      if (now < operation.intent.quoteDeadline && operation.quote === undefined) continue
+      if (operation.quote === undefined) {
+        const phase = demandQuotePhase(operation.quoteCollectionEndsAt ?? operation.intent.quoteDeadline - DEMAND_QUOTE_MARGIN_SECONDS, operation.intent.quoteDeadline, Math.floor(Date.now() / 1000))
+        if (phase === 'collect') continue
+        if (phase === 'expired') { expireQuote(operation); continue }
+      }
       await choose(operation)
       if (operation.closed !== undefined) continue
       await publish(operation)
+      if (operation.closed !== undefined) continue
       await select(operation, now)
       if (operation.closed !== undefined) continue
       await review(operation)
@@ -273,5 +306,5 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
     if (allowNew() && latestNow >= store.bot.nextRequestAt && used < DEMAND_DAILY_CAP) await request(await newRequest(latestNow))
   }
 
-  return { account, wallet, ctx, token, store, board, journal, validateChain, tick }
+  return { account, wallet, ctx, token, store, board, journal, validateChain, reconcileLiveFix, tick }
 }

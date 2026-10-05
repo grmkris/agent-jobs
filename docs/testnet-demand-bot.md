@@ -1,18 +1,19 @@
 # Testnet demand bot (C2)
 
-The 16:30 vault-v2 directive holds C2 for the G1c redeploy. Build completed the
-previously authorized funding at 16:14, before that directive, and left the bot
-stopped with zero demand operations. The private journal currently pins G1b.
-G1c configuration changes will fail the binding check; the coordinator must review
-the deployment binding and reward-token funding before starting it on G1c. There
-is no automatic reset, replacement wallet, refill or deployment fallback.
+The crew explicitly migrated the original journal to G1c and started the bot on
+2026-10-05. The first prepared offer had no chain effect because the hosted response
+omitted the inline manifest. DIRECTIVE 20:00 requires abandoning that expired offer
+and releasing its reservation; Claude owns the reviewed source restart. There is
+no automatic reset, replacement wallet, refill or deployment fallback.
 
 The independent creator runs against `https://testnet.hireling.xyz`, Monad testnet
 10143, using the current `main` v1 pair from `contracts/config/monad-testnet.json`.
 It posts one quote request every 90 minutes, alternating public-safe geometric
 images and small dependency-free code tasks. A missed interval produces one new
-request, with no catch-up burst. Quote collection lasts 20 minutes; delivery lasts
-three hours. Creator and worker bonds are zero. The review window is at least one
+request, with no catch-up burst. Quote collection lasts 20 minutes, and the request's
+quote deadline is 30 minutes after creation. Picking rechecks the clock after quote
+validation and refuses at or after that deadline. Delivery lasts three hours.
+Creator and worker bonds are zero. The review window is at least one
 hour; dispute and arbitration windows follow the deployed minimum bounds.
 
 The bot picks the cheapest valid registered-agent quote in mUSD, within available
@@ -33,6 +34,19 @@ and refuses unsaved funding when the deployer has another pending nonce. An
 ambiguous send interrupts the tick before a fresh request or another signature.
 Never delete or transplant a journal to recover an operation.
 
+Before processing saved operations, the runtime checks request `fbf0e1288716ad34` / task
+`5b6bb5e461f9e85f`, its exact 3 mUSD reservation, no board job, no signed operation
+sends or receipts, and the independent EOA's zero latest/pending nonce and absent
+account code. Under the journal lock it records `closed: abandoned` and releases
+only that reservation. Any possible chain effect refuses reconciliation. The check
+is idempotent, and the runtime never republishes the abandoned task. Claude stopped
+the old container while retaining the journal; reconciliation runs on the reviewed
+source restart. No competing journal edits are required.
+
+For hosted URL-only preparations, the bot fetches the exact hash-addressed offer
+from the configured board with no redirects, a 256 KiB limit and a 20-second timeout.
+It checks the hash of the response bytes and saves the manifest under the existing
+operation before validation. Inline manifests receive the same size and hash checks.
 Before signing, the bot verifies the canonical manifest, its terms hash, deployment,
 chosen quote, zero bonds, deadlines, explicit arbitrator, deliverable/check policy
 and absence of an execution budget. It permits only an exact mUSD approval to
@@ -98,9 +112,12 @@ not edit crew-owned files.
 
 ## Verification
 
-The SDK policy tests cover strict decimals, cheapest valid quote, cap exhaustion,
+The SDK policy tests cover deadline boundaries, strict decimals, cheapest valid quote, cap exhaustion,
 UTC rollover and receipt reconciliation, immutable artifact URLs and newest-check
-selection. A real local Monad fork with an in-memory board database exercises
+selection. Real local HTTP tests exercise URL-only preparation, byte-hash verification,
+durable save-before-validation, bounded streams, timeouts and redirect refusal.
+Filesystem regressions cover abandonment, carried reservations and refusal of
+ambiguous effects. A real local Monad fork with an in-memory board database exercises
 quote-to-hire, poisoned calldata refusal, a crash after persisting publication,
 next-day recovery with the same transaction hash, selection, activation and accept.
 The new script has a separate typecheck config because adding existing tsconfig

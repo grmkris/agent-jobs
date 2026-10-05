@@ -1,5 +1,5 @@
 /** Validate hosted preparations against the bot's frozen decision before any signing. */
-import { type Address, type Hex, encodeFunctionData, getAddress } from 'viem'
+import { type Address, type Hex, encodeFunctionData, getAddress, keccak256 } from 'viem'
 import type { Ctx } from './actions.ts'
 import { hashText } from './actions.ts'
 import { factoryTokenAbi, hirelingEvaluatorAbi, hirelingHoldingAbi } from './abi/index.ts'
@@ -32,8 +32,47 @@ export interface DemandPreparation {
   readonly taskId: string
   readonly applicationId: string
   readonly termsHash: Hex
-  readonly manifest: string
+  readonly manifest?: string
+  readonly manifestUrl?: string
+  readonly manifestHash?: Hex
   readonly transactions: readonly TxRequest[]
+}
+
+export const DEMAND_MANIFEST_MAX_BYTES = 256 * 1024
+export const DEMAND_MANIFEST_TIMEOUT_MS = 20_000
+
+/** Hash the exact hosted bytes, without JSON normalization or authenticated fetches. */
+export async function loadDemandManifest(prepared: DemandPreparation, boardUrl: string, timeoutMs = DEMAND_MANIFEST_TIMEOUT_MS): Promise<string> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(prepared.termsHash) || (prepared.manifestHash !== undefined && prepared.manifestHash !== prepared.termsHash)) throw new Error('manifest hash differs from prepared terms')
+  let bytes: Uint8Array
+  if (prepared.manifest !== undefined) {
+    if (typeof prepared.manifest !== 'string') throw new Error('invalid inline manifest')
+    bytes = new TextEncoder().encode(prepared.manifest)
+  } else {
+    const expected = new URL(`/offers/${prepared.termsHash}.json`, boardUrl)
+    if (prepared.manifestUrl !== expected.href) throw new Error('manifest URL differs from prepared terms')
+    const response = await fetch(expected, { redirect: 'error', signal: AbortSignal.timeout(timeoutMs), headers: { accept: 'application/json' } })
+    if (!response.ok || response.body === null) throw new Error('offer manifest is unavailable')
+    const reader = response.body.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    try {
+      if (Number(response.headers.get('content-length') ?? '0') > DEMAND_MANIFEST_MAX_BYTES) throw new Error('offer manifest is too large')
+      for (;;) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        size += chunk.value.length
+        if (size > DEMAND_MANIFEST_MAX_BYTES) throw new Error('offer manifest is too large')
+        chunks.push(chunk.value)
+      }
+    } finally { await reader.cancel() }
+    bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
+  }
+  if (bytes.length > DEMAND_MANIFEST_MAX_BYTES) throw new Error('offer manifest is too large')
+  if (keccak256(bytes) !== prepared.termsHash) throw new Error('manifest hash differs from prepared terms')
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
 }
 
 export function assertDemandTransactions(actual: readonly TxRequest[], expected: readonly TxRequest[]) {
@@ -46,6 +85,7 @@ export function assertDemandTransactions(actual: readonly TxRequest[], expected:
 }
 
 export function validateDemandPreparation(ctx: Ctx, intent: DemandIntent, requestHash: string, quote: DemandQuote, prepared: DemandPreparation, expiredAt: number) {
+  if (prepared.manifest === undefined) throw new Error('offer manifest must be persisted before validation')
   const manifest = JSON.parse(prepared.manifest) as Record<string, unknown>
   const reward = parseMUsdAmount(quote.amount)
   const expectedFields = {
