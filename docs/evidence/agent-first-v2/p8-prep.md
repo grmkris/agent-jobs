@@ -3,9 +3,10 @@
 This is release preparation and provider configuration verification. It does
 not establish deployed v2 or genuine-user acceptance.
 
-The three approved plain-text API settings are exactly `PRIVY_APP_ID`,
-`PRIVY_SIGNER_ID` and `PRIVY_POLICY_ID`. The census retains their nonempty-value
-results without retaining any binding value.
+The plain-text API settings `PRIVY_APP_ID`, `PRIVY_SIGNER_ID` and
+`PRIVY_POLICY_ID`, plus the `PRIVY_SIGNER_KEY` secret, were applied in the
+released stack and have been removed from the follow-up approval manifest. The
+census retains their nonempty-value results without retaining any binding value.
 
 Claude authorized overwriting only the Worker `PRIVY_APP_SECRET` binding in
 `status/triage.md`. A fresh read-only authenticated Privy quorum request returned
@@ -13,7 +14,10 @@ PASS before the duplicate inheritance was removed. The source now supplies that
 secret once, through the runtime secret binding. The Privy-side secret was not
 rotated. Claude recorded release and readback for `f2dc8ed` in
 `status/triage.md`; the temporary Privy overwrite and stale Telegram additions
-have now been removed from the approved manifest.
+have now been removed from the approved manifest. Directive 13:15 also retired
+the applied Privy additions and the stale `RELAY_PRIVATE_KEY` rotation approval.
+The apex domain-release entry remains pending; Claude verifies these bindings
+are unchanged in the next read-only release plan.
 
 `pnpm exec bun packages/sdk/scripts/privy/setup.ts --verify` passed against the
 real Privy API, using only GET requests. Both authorization thresholds remain

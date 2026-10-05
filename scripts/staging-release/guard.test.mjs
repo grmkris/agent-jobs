@@ -62,12 +62,12 @@ test('synthetic evidence validates only an offline packet and produces no deploy
   assert.deepEqual(result.targets.map((target) => target.resourceId), [expected.resources.Api, expected.resources.Indexer, expected.resources.Explore])
 })
 
-test('guard admits only the manifest-pinned secret rotations and additions', () => {
+test('guard admits only the manifest-pinned secret rotations', () => {
   const bundle = fixture()
   bundle.approvedChanges = readApprovedChanges().reference
   bundle.plan.secretChanges = [
-    { logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' },
-    { logicalId: 'Api', name: 'PRIVY_SIGNER_KEY', action: 'add' },
+    { logicalId: 'Api', name: 'ATTESTER_PRIVATE_KEY', action: 'rotate' },
+    { logicalId: 'Api', name: 'AI_GATEWAY_API_KEY', action: 'rotate' },
   ]
   assert.equal(evaluateExistingStackRelease(bundle, now).ok, true)
   const digest = evaluateExistingStackRelease(bundle, now).reviewDigest
@@ -90,7 +90,7 @@ test('guard refuses tampered manifests, wrong secret actions, values, and migrat
   ]) {
     const bundle = fixture()
     bundle.approvedChanges = readApprovedChanges().reference
-    bundle.plan.secretChanges = [{ logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' }]
+    bundle.plan.secretChanges = [{ logicalId: 'Api', name: 'ATTESTER_PRIVATE_KEY', action: 'rotate' }]
     mutate(bundle)
     const result = evaluateExistingStackRelease(bundle, now)
     assert.equal(result.ok, false)
@@ -98,18 +98,19 @@ test('guard refuses tampered manifests, wrong secret actions, values, and migrat
   }
 })
 
-test('guard pins the reviewed settings addition subset and refuses extra settings fields', () => {
+test('guard refuses applied settings additions and extra settings fields', () => {
   const bundle = fixture()
   bundle.approvedChanges = readApprovedChanges().reference
-  bundle.plan.settingsChanges = readApprovedChanges().manifest.settingsChanges
+  bundle.plan.settingsChanges = []
   const result = evaluateExistingStackRelease(bundle, now)
   assert.equal(result.ok, true)
-  bundle.plan.settingsChanges = bundle.plan.settingsChanges.slice(1)
-  assert.notEqual(evaluateExistingStackRelease(bundle, now).reviewDigest, result.reviewDigest)
-  bundle.plan.settingsChanges[0].text = 'untrusted-marker'
-  const refused = evaluateExistingStackRelease(bundle, now)
-  assert.equal(refused.ok, false)
-  assert.ok(!JSON.stringify(refused).includes('untrusted-marker'))
+  bundle.plan.settingsChanges = [{ logicalId: 'Api', name: 'PRIVY_APP_ID', action: 'add', type: 'plain_text' }]
+  for (const extraField of [false, true]) {
+    if (extraField) bundle.plan.settingsChanges[0].text = 'untrusted-marker'
+    const refused = evaluateExistingStackRelease(bundle, now)
+    assert.equal(refused.ok, false)
+    assert.ok(!JSON.stringify(refused).includes('untrusted-marker'))
+  }
 })
 
 test('the exact apex alias release preserves observed ownership and the testnet alias', () => {

@@ -60,17 +60,17 @@ test('native Alchemy describePlan format preserves inherited and provider-genera
   assert.ok(!JSON.stringify(review(input)).includes('test-only-marker'))
 })
 
-test('live runner admits a listed rotation and individual Privy signer addition with names only', () => {
-  const input = fixture()
-  nativeResource(input.snapshot, 'Api').bindings[0].action = 'update'
-  nativeResource(input.snapshot, 'Api').bindings.push(binding('PRIVY_SIGNER_KEY', { bindings: [{ type: 'secret_text', name: 'PRIVY_SIGNER_KEY', text: 'test-only-marker' }] }, 'create'))
-  const result = review(input)
-  assert.equal(result.ok, true)
-  assert.deepEqual(result.changes.secretChanges, [
-    { logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' },
-    { logicalId: 'Api', name: 'PRIVY_SIGNER_KEY', action: 'add' },
-  ])
-  assert.ok(!JSON.stringify(result).includes('test-only-marker'))
+test('live runner refuses the retired relay rotation and Privy signer addition', () => {
+  for (const name of ['RELAY_PRIVATE_KEY', 'PRIVY_SIGNER_KEY']) {
+    const input = fixture()
+    const node = nativeResource(input.snapshot, 'Api')
+    if (name === 'RELAY_PRIVATE_KEY') node.bindings[0].action = 'update'
+    else node.bindings.push(binding(name, { bindings: [{ name, type: 'secret_text', text: 'test-only-marker' }] }, 'create'))
+    const result = review(input)
+    assert.equal(result.ok, false)
+    assert.ok(result.blockers.some(blocker => blocker.includes(name)))
+    assert.ok(!JSON.stringify(result).includes('test-only-marker'))
+  }
 })
 
 test('an unchanged secret after newline normalization does not require rotation approval', () => {
@@ -79,17 +79,20 @@ test('an unchanged secret after newline normalization does not require rotation 
   assert.deepEqual(review(input, () => true).changes.secretChanges, [])
 })
 
-test('the live plan admits reviewed Api settings from env or native bindings and emits names only', () => {
-  const additions = readApprovedChanges().manifest.settingsChanges
+test('applied Privy settings remain unchanged while repeated additions refuse from env or native bindings', () => {
+  const additions = ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID'].map(name => ({ logicalId: 'Api', name, action: 'add', type: 'plain_text' }))
   for (const source of ['env', 'bindings']) {
-    const input = fixture()
-    const node = nativeResource(input.snapshot, 'Api')
-    if (source === 'env') node.props.env = Object.fromEntries(additions.map(change => [change.name, 'public-id-marker']))
-    else for (const change of additions) node.bindings.push(binding(change.name, { bindings: [{ name: change.name, type: 'plain_text', text: 'public-id-marker' }] }, 'create'))
-    const result = review(input)
-    assert.equal(result.ok, true, result.blockers.join(','))
-    assert.deepEqual(result.changes.settingsChanges, additions)
-    assert.ok(!JSON.stringify(result).includes('public-id-marker'))
+    for (const applied of [false, true]) {
+      const input = fixture()
+      const node = nativeResource(input.snapshot, 'Api')
+      if (applied) input.live.workers.Api.bindings.push(...additions.map(change => ({ name: change.name, type: 'plain_text' })))
+      if (source === 'env') node.props.env = Object.fromEntries(additions.map(change => [change.name, 'public-id-marker']))
+      else for (const change of additions) node.bindings.push(binding(change.name, { bindings: [{ name: change.name, type: 'plain_text', text: 'public-id-marker' }] }, applied ? 'noop' : 'create'))
+      const result = review(input)
+      assert.equal(result.ok, applied, result.blockers.join(','))
+      assert.deepEqual(result.changes.settingsChanges, applied ? [] : additions)
+      assert.ok(!JSON.stringify(result).includes('public-id-marker'))
+    }
   }
 })
 
@@ -197,7 +200,8 @@ test('omitting the deployed migration input requests a Database update under the
 test('aggregate duplicate approval failures remain refused after adding contextual labels', () => {
   const input = fixture()
   const node = nativeResource(input.snapshot, 'Api')
-  node.bindings[0].action = 'update'
+  input.live.workers.Api.bindings.push({ name: 'ATTESTER_PRIVATE_KEY', type: 'secret_text' })
+  node.bindings.push(binding('ATTESTER_PRIVATE_KEY', { bindings: [{ name: 'ATTESTER_PRIVATE_KEY', type: 'secret_text', text: 'test-only-marker' }] }, 'update'))
   input.snapshot.native.resources['DuplicateApi'] = { ...node, resource: { ...node.resource, FQN: 'DuplicateApi' } }
   const result = review(input)
   assert.equal(result.ok, false)

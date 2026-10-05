@@ -5,25 +5,33 @@ import { readApprovedChanges, settingAddition, validateManifestShape, validatePl
 const reference = readApprovedChanges().reference
 const empty = { migrations: [], secretChanges: [], settingsChanges: [], resourceCreates: [], domainChanges: [], scheduleChanges: [] }
 
-test('the reviewed settings manifest permits exactly three Api plain-text additions', () => {
+test('applied Privy settings are absent while the historical setting allowlist remains strict', () => {
   const { manifest } = readApprovedChanges()
   assert.equal(validateManifestShape(manifest), true)
-  assert.deepEqual(manifest.settingsChanges.map(change => change.name).toSorted(), ['PRIVY_APP_ID', 'PRIVY_POLICY_ID', 'PRIVY_SIGNER_ID'])
+  assert.deepEqual(manifest.settingsChanges, [])
+  const historicalSettings = [
+    { logicalId: 'Api', name: 'PRIVY_APP_ID', action: 'add', type: 'plain_text' },
+    { logicalId: 'Api', name: 'PRIVY_SIGNER_ID', action: 'add', type: 'plain_text' },
+    { logicalId: 'Api', name: 'PRIVY_POLICY_ID', action: 'add', type: 'plain_text' },
+  ]
   assert.deepEqual(validatePlanChanges({ ...empty, settingsChanges: manifest.settingsChanges }, reference), { ok: true, blockers: [] })
+  for (const settingsChanges of [historicalSettings, ...historicalSettings.map(change => [change])]) {
+    assert.equal(validateManifestShape({ ...manifest, settingsChanges }), true)
+    assert.equal(validatePlanChanges({ ...empty, settingsChanges }, reference).ok, false)
+  }
   for (const patch of [
     { name: 'PRIVY_APP_SECRET' }, { name: 'UNLISTED_SETTING' }, { logicalId: 'Indexer' },
     { action: 'rotate' }, { type: 'json' }, { type: 'secret_text' }, { value: '' }, { text: 'untrusted-marker' },
   ]) {
-    const invalid = structuredClone(manifest)
+    const invalid = { ...structuredClone(manifest), settingsChanges: structuredClone(historicalSettings) }
     Object.assign(invalid.settingsChanges[0], patch)
     assert.equal(validateManifestShape(invalid), false)
     assert.equal(validatePlanChanges({ ...empty, settingsChanges: invalid.settingsChanges }, reference).ok, false)
   }
-  for (const settingsChanges of [[], manifest.settingsChanges.slice(1), [...manifest.settingsChanges, manifest.settingsChanges[0]], [manifest.settingsChanges[0], manifest.settingsChanges[0], manifest.settingsChanges[2]]]) {
+  for (const settingsChanges of [[...historicalSettings, historicalSettings[0]], [historicalSettings[0], historicalSettings[0], historicalSettings[2]]]) {
     assert.equal(validateManifestShape({ ...manifest, settingsChanges }), false)
   }
-  assert.equal(validatePlanChanges({ ...empty, settingsChanges: [...manifest.settingsChanges, manifest.settingsChanges[0]] }, reference).ok, false)
-  assert.equal(validatePlanChanges({ ...empty, settingsChanges: manifest.settingsChanges }, undefined).ok, false)
+  assert.equal(validatePlanChanges({ ...empty, settingsChanges: historicalSettings }, undefined).ok, false)
 })
 
 test('settings validation checks the wire type and a nonempty value without returning its value', () => {
@@ -44,20 +52,22 @@ test('an unlisted secret is refused', () => {
 })
 
 test('a tampered manifest digest is refused', () => {
-  const result = validatePlanChanges({ ...empty, secretChanges: [{ logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' }] }, { ...reference, sha256: '0'.repeat(64) })
+  const result = validatePlanChanges({ ...empty, secretChanges: [{ logicalId: 'Api', name: 'ATTESTER_PRIVATE_KEY', action: 'rotate' }] }, { ...reference, sha256: '0'.repeat(64) })
   assert.equal(result.ok, false)
   assert.ok(result.blockers.includes('approved-change-manifest-mismatch'))
 })
 
-test('a listed rotation is allowed', () => {
-  const result = validatePlanChanges({ ...empty, secretChanges: [{ logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' }] }, reference)
+test('a remaining listed rotation is allowed', () => {
+  const result = validatePlanChanges({ ...empty, secretChanges: [{ logicalId: 'Api', name: 'ATTESTER_PRIVATE_KEY', action: 'rotate' }] }, reference)
   assert.deepEqual(result, { ok: true, blockers: [] })
 })
 
-test('the retired Privy overwrite and stale Telegram additions are refused after release', () => {
+test('the retired secret approvals are refused after release', () => {
   const change = { logicalId: 'Api', name: 'PRIVY_APP_SECRET', action: 'rotate' }
   for (const retired of [
     change,
+    { logicalId: 'Api', name: 'PRIVY_SIGNER_KEY', action: 'add' },
+    { logicalId: 'Api', name: 'RELAY_PRIVATE_KEY', action: 'rotate' },
     { logicalId: 'Api', name: 'TELEGRAM_BOT_TOKEN', action: 'add' },
     { logicalId: 'Api', name: 'TELEGRAM_WEBHOOK_SECRET', action: 'add' },
     { logicalId: 'Indexer', name: 'TELEGRAM_BOT_TOKEN', action: 'add' },

@@ -27,7 +27,7 @@ export function validateManifestShape(manifest) {
   return exact(manifest, ['schemaVersion', 'accountId', 'stage', 'network', 'secretChanges', 'settingsChanges', 'domainChanges']) &&
     manifest.schemaVersion === 1 && manifest.accountId === 'bceaeae4788dce3493514fde194b4a7e' && manifest.stage === 'staging' && manifest.network === 'monad-testnet' &&
     Array.isArray(manifest.secretChanges) && manifest.secretChanges.length <= 16 && manifest.secretChanges.every(secretShape) && unique(manifest.secretChanges) &&
-    Array.isArray(manifest.settingsChanges) && manifest.settingsChanges.length === 3 && manifest.settingsChanges.every(settingShape) && unique(manifest.settingsChanges) &&
+    Array.isArray(manifest.settingsChanges) && manifest.settingsChanges.length <= 3 && manifest.settingsChanges.every(settingShape) && unique(manifest.settingsChanges) &&
     Array.isArray(manifest.domainChanges) && manifest.domainChanges.length <= 1 && manifest.domainChanges.every(domainShape)
 }
 

@@ -141,6 +141,11 @@ completed and that temporary entry has been removed. This did not rotate the
 Privy-side secret. Normalizing the existing GitHub PEM's escaped newlines does
 not change the underlying key.
 
+The applied `PRIVY_APP_ID`, `PRIVY_SIGNER_ID`, `PRIVY_POLICY_ID` and
+`PRIVY_SIGNER_KEY` additions, plus the old `RELAY_PRIVATE_KEY` rotation approval,
+have also been removed from the manifest. Future additions or a changed relay
+key need a newly reviewed entry. The apex domain release remains pending.
+
 Cloudflare settings omit the prior migration tag. An isolated live rehearsal with
 the same pinned Alchemy provider demonstrated an additive class migration with
 that same untagged metadata shape, a same-Worker old-version rollback, and a new
