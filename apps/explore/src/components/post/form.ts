@@ -91,6 +91,15 @@ export function prefillToken(prefill: Record<string, string>, tokens: TokenList)
 const KINDS = new Set<string>(DELIVERABLE_KINDS.map((k) => k.kind))
 
 /**
+ * `?invite=<agentId>` (an agent profile's "Hire this agent"): the Agent ID to invite, or undefined. The router quotes an
+ * all-digit value (`"1942"`), and a hand-typed link does not; anything but digits is ignored.
+ */
+export function inviteFrom(search: string): string | undefined {
+  const raw = new URLSearchParams(search).get('invite')?.replace(/^"(\d+)"$/, '$1')
+  return raw !== undefined && /^\d+$/.test(raw) ? raw : undefined
+}
+
+/**
  * A fresh form: the defaults, with whatever was prefilled. The embed widget names the title, brief, reward, token
  * and mode; Hire again (`hireAgainPrefill`) also names the rest of a past offer's terms.
  */

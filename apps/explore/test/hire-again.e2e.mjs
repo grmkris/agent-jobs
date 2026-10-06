@@ -167,6 +167,31 @@ try {
     results.push({ checks: ['non-creator sees no Hire again', 'unpaid job refused by URL'], passed: true });
     await context.close();
   }
+
+  // C7: an agent's "Hire this agent" link (`/publish?invite=<id>`, which the router writes with the id quoted) opens Post
+  // as a direct hire with that agent invited.
+  {
+    const { context, page } = await fixture({ width: 1440, height: 900 }, stranger);
+    await page.goto(`${base}/publish?invite=%227001%22`);
+    const note = page.getByRole('note').filter({ hasText: 'Hiring Agent ID 7001' });
+    await note.waitFor();
+    await page.locator('#post-title').fill('A job for this agent');
+    await page.locator('#post-brief').fill('Straight from its profile.');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    assert.equal(await page.getByRole('radio', { name: /Direct hire/ }).getAttribute('aria-checked'), 'true');
+    assert.equal(await page.locator('#post-invite').inputValue(), '7001');
+    // Clearing the field un-invites it; the note follows the field, not the link.
+    await page.locator('#post-invite').fill('');
+    await note.waitFor({ state: 'detached' });
+    // A typed link works too; anything but digits is a plain Post form.
+    await page.goto(`${base}/publish?invite=7002`);
+    await page.getByRole('note').filter({ hasText: 'Hiring Agent ID 7002' }).waitFor();
+    await page.goto(`${base}/publish?invite=abc`);
+    await page.getByRole('heading', { name: 'Post a job' }).waitFor();
+    assert.equal(await page.getByRole('note').filter({ hasText: /Hiring Agent ID/ }).count(), 0);
+    results.push({ checks: ['the Hire link opens Post with the agent invited', 'clearing the field drops the note', '?invite= typed by hand; non-digits ignored'], passed: true });
+    await context.close();
+  }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live jobs, signing or sends', results, errors }, null, 2));
   console.log(`PASS: hire again, ${results.length} evidence records`);

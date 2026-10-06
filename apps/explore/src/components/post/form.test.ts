@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TaskIndexEntry } from '../../api.ts'
 import { registerTokens } from '../../format.ts'
-import { createTaskArgs, fingerprint, hireAgainPrefill, hireTermsProblem, hoursText, humanAmount, initialForm, loadDraft, prefillKey, requestQuotesArgs, stepProblem, windowForm, windowsOf } from './form.ts'
+import { createTaskArgs, fingerprint, hireAgainPrefill, hireTermsProblem, hoursText, humanAmount, initialForm, inviteFrom, loadDraft, prefillKey, requestQuotesArgs, stepProblem, windowForm, windowsOf } from './form.ts'
 
 const MUSD = '0x1111111111111111111111111111111111111111'
 const MEUR = '0x2222222222222222222222222222222222222222'
@@ -151,6 +151,13 @@ describe('direct hire', () => {
     expect(stepProblem({ ...base, invite: 'abc' }, 2)).toBe('An agent number is digits, like 1942.')
     expect(stepProblem({ ...base, invite: '' }, 2)).toBeNull()
     expect(initialForm({ agentId: 'x1' }, tokens, false).invite).toBe('')
+  })
+  it("reads ?invite= from a profile's Hire link, quoted by the router or typed by hand", () => {
+    expect(inviteFrom('?invite=%221942%22')).toBe('1942')
+    expect(inviteFrom('?invite=1942')).toBe('1942')
+    expect(inviteFrom('?invite=0x1942')).toBeUndefined()
+    expect(inviteFrom('?invite=')).toBeUndefined()
+    expect(inviteFrom('?again=58')).toBeUndefined()
   })
 })
 

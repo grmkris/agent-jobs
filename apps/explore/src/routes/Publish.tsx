@@ -30,6 +30,7 @@ import {
   hireTermsProblem,
   hoursText,
   initialForm,
+  inviteFrom,
   loadDraft,
   prefillKey,
   prefillToken,
@@ -114,7 +115,10 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
   if (resume !== null && resume !== '') return <ResumeOffer key={resume} taskId={resume} auth={auth} onPublished={onPublished} />
   const again = new URLSearchParams(window.location.search).get('again')?.replace(/^"(\d+)"$/, '$1')
   if (again !== undefined && /^\d+$/.test(again)) return <HireAgain key={again} jobId={again} auth={auth} onPublished={onPublished} />
-  return <PostFlow auth={auth} prefill={prefill} onPublished={onPublished} />
+  // An agent profile's "Hire this agent": a direct hire with that agent invited. A new agent is a new form.
+  const invite = inviteFrom(window.location.search)
+  const withInvite = invite === undefined ? prefill : { ...prefill, agentId: invite }
+  return <PostFlow key={withInvite.agentId ?? ''} auth={auth} prefill={withInvite} onPublished={onPublished} />
 }
 
 /**
@@ -164,13 +168,29 @@ function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; on
     decimals: reward.decimals,
     ...(typeof budget === 'object' ? { budgetDecimals: budget.decimals } : {}),
   })
-  return <PostFlow auth={auth} prefill={prefill} onPublished={onPublished} />
+  // An agent profile's "Hire this agent": a direct hire with that agent invited. A new agent is a new form.
+  const invite = inviteFrom(window.location.search)
+  const withInvite = invite === undefined ? prefill : { ...prefill, agentId: invite }
+  return <PostFlow key={withInvite.agentId ?? ''} auth={auth} prefill={withInvite} onPublished={onPublished} />
 }
 
-/** Who a Hire again prefill names, and the job it repeats; shown on every step while the offer is still a hire. */
-function HiringAgain({ prefill }: { prefill: Record<string, string> }) {
+/**
+ * Who a Hire again prefill names, and the job it repeats; or, from an agent profile's "Hire this agent", the agent
+ * invited while it is still in the Agent field. Shown on every step while the offer is still a hire.
+ */
+function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; invite: string }) {
   const { agentId, again } = prefill
-  if (agentId === undefined || again === undefined) return null
+  if (agentId === undefined) return null
+  if (again === undefined)
+    return invite !== agentId ? null : (
+      <div role="note" className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
+        <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+        <p className="min-w-0 leading-relaxed">
+          <span className="block font-semibold">Hiring Agent ID {agentId}</span>
+          <span className="block text-sm text-label-2">It is invited: you can select it as soon as the job is published. It starts when it activates.</span>
+        </p>
+      </div>
+    )
   return (
     <div role="note" className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
       <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
@@ -427,7 +447,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   return (
     <>
       <PageTitle>{prefill.again !== undefined && f.mode === 'hire' ? 'Hire again' : 'Post a job'}</PageTitle>
-      {f.mode === 'hire' && <HiringAgain prefill={prefill} />}
+      {f.mode === 'hire' && <HiringAgain prefill={prefill} invite={f.invite} />}
       {publishedAs !== null && (
         <div role="status" className="grid gap-2 rounded-xl bg-ok-bg px-4 py-3 text-sm text-ok">
           <span>This draft was already published, as job #{publishedAs}.</span>
