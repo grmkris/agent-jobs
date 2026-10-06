@@ -1474,3 +1474,25 @@ payment used a local test-wallet signature. Real-user Privy/OAuth consent,
 authenticated MCP/inbox/events/webhooks and hosted managed `x402_pay` await
 V11's separate acceptance receipts. Existing dated deployments, legacy
 resources/journals and owner worktrees remain intact; mainnet is separate.
+
+## Kris's SIDE test funding (6 Oct 2026)
+
+At Kris's request, the configured Sidequest ecosystem allocation wallet
+`0xeF41b657Ecc8b710e6e32c7c255B891836F060b7` transferred **100,000 SIDE** to
+`0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471` on Monad testnet (chain 10143).
+The token is the current fixed-supply SIDE v2 at
+`0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d`, with 18 decimals. This is separate
+from the earlier 30,000 FACTORY funding on the retired G1b token contract.
+
+The exact transfer was simulated, the sender's latest and pending nonces agreed,
+and the intent and signed bytes were persisted and fsynced before broadcast.
+Transaction
+`0xe3a107dbd4911baafa3a6cc6a2e170dadb2ee263cbf7ce7fa891a295d4190959`
+succeeded at block **68653795**, with exactly one matching ERC-20 Transfer event.
+Its chain, sender, nonce, token target, calldata and zero native value were read
+back. The recipient's SIDE balance increased from 0 to 100,000 at the receipt
+block and remained 100,000 at block **68653808**. The fee was **0.01 testnet MON**.
+See the [sanitized receipt](evidence/testnet-funding/2026-10-06-kris-side.json).
+
+This establishes current testnet wallet funding. It does not establish staking,
+a faucet, a swap pool, authenticated acceptance or a mainnet deployment.
