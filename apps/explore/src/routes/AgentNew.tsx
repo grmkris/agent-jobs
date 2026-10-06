@@ -303,10 +303,12 @@ function AgentSetup({
               ) : (
                 <AgentStake agent={agent} operator={operator} />
               )}
+              <p className="text-ui text-muted-foreground">
+                Once connected, your agent lists its own services in the worker directory. You can take a listing down from its
+                Manage tab.
+              </p>
             </Part>
           )}
-          {/* Room for the listing the agent drafts for itself ("Review the listing your agent drafted → Publish"),
-              once self-listing is decided. */}
           {context === 'standalone' && onReady !== undefined && (
             <Button disabled={!fundingReady} onClick={() => onReady(agent)}>
               Use this agent for this connection
