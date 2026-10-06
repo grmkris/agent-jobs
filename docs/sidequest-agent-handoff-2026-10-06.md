@@ -219,3 +219,42 @@ finds seven open/active jobs: 81, 59, 58, 48, 45, 44, 40. Index data is not fina
 contract reconciliation. Keep the old board/indexer recovery reachable and retain
 job 131's original intent; no provider deletion or shared policy cutover is safe
 from this audit alone.
+
+## 05:09 UTC provider hold and concrete policy plan
+
+Explore and FINALIZE-UI have now explicitly acknowledged the cutover in triage;
+Explore's new `rebase-sidequest.md` brief owns the frontend rebase/S4/S5 work.
+The new Sidequest notice `op_01m47hy28e000000000000000c` remains `tmuxAccepted`,
+`delivery: unknown`; it is not counted as delivered. Explicit ACKs and local
+triage readback are separate evidence.
+
+`d24fc74` passed `heavy pnpm check`, `pnpm sidequest:test`,
+`pnpm db:generate --check`, whitespace checks and the read-only dev release plan.
+Gitleaks scanned `origin/main..d24fc74` with full redaction and returned 33 matches:
+29 public chain addresses, two operation identifiers, one environment variable
+name and the existing fake redaction-test key. All are reviewed false positives;
+its raw exit was 1. No push or new release apply is claimed by these checks.
+
+A configuration search's context lines exposed the app secret and routine-signer
+key in this turn. Treat both as compromised; do not copy them into notes or
+restart old workers. Fresh Sidequest app credentials and an isolated signer are
+required before managed signing acceptance. The policy-admin key was not part
+of that output; that statement is an exposure boundary, not a security audit.
+Coordinate old app credential/signer rotation with legacy recovery so old
+wallets and the original job 131 journal stay reconcilable.
+
+The new `packages/sdk/scripts/privy/sidequest-policy-plan.ts` is read-only and
+has no apply mode. Fourteen guard tests, SDK typecheck and scoped lint passed.
+Live GET at 05:08:57 UTC passed the exact drift guard and produced
+`/tmp/sidequest-privy-separate-policy-plan.json`: name Sidequest, the same 11
+rules, fresh Holding/core/relay pins, unchanged legacy policy ID
+`s06i5eramn0plwdunkvxf8aj` and fingerprint
+`583e2367d975b6276eadad9245f94c9fd8eaac18e9a08570c178c0e0706d3dbd`.
+Create a separate policy from that reviewed payload after credential rotation;
+verify its readback, provision fresh routine authority and bind only Sidequest
+dev. This plan does not grant or prove provider creation.
+
+The Privy name/credential dashboard flow remains unverified. Automatic review
+rejected an Enter keypress because its focused control/payload were unverified;
+no creation or credential mutation was performed. Use an explicit narrow form
+and readback. Real login, authenticated MCP and managed signing remain open.

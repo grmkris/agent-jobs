@@ -1298,3 +1298,23 @@ V1.1 committed `fd76d04` on the renamed tree and cancelled the old staging
 follow-up; it is not yet in the deployed Sidequest source. Explore owns the
 FINALIZE-UI rebase/S4/S5 and subsequent profile base-ready. Their retained
 worktrees and historical deployment receipts remain intact.
+
+**05:09 UTC continuation:** the read-only separate-policy planner's live GET passed
+the exact legacy-to-Sidequest guard. It preserves all 11 rules and the legacy
+policy, changing only the proposed name/four pins. Fourteen guard tests, SDK
+typecheck and scoped lint passed. [Plan evidence](evidence/sidequest-dev/2026-10-06-separate-policy-plan.json)
+does not establish creation, managed signing or authenticated acceptance.
+
+`d24fc74` passed the full `heavy pnpm check`, Sidequest runner tests, database
+generation check and owned-resource dev release plan. [Gate evidence](evidence/sidequest-dev/2026-10-06-gates.json)
+records the exact candidate. The redacted Gitleaks scan found 33 reviewed false
+positives (29 public chain addresses, two operation identifiers, one environment
+variable name and one fake test key); raw scanner exit 1 is retained.
+
+An accidental configuration-context search exposed the app and routine-signer
+credentials in this turn. Both are treated as compromised. No secret values are
+copied into these records. Fresh app credentials, isolated Sidequest authority and coordinated legacy recovery rotation, remain required; the policy-admin key
+was outside that output. No provider credential, policy, quorum or deployment
+was changed in response. Automatic review refused an unverified Enter keypress
+in the Privy dashboard. App name, real login, authenticated MCP and managed
+signing remain open; source `e6aeb3b` is still the live dev source.

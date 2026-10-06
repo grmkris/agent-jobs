@@ -83,3 +83,11 @@ track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, compani
 deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
 the new repository. Local reset commits await the checked push candidate.
 Physical checkout/worktree/tmux paths stay stable while their owners integrate.
+
+The read-only policy planner is
+`pnpm exec bun packages/sdk/scripts/privy/sidequest-policy-plan.ts`. It verifies
+the archived policy differs only in the reviewed name/four pins and produces a
+separate-policy payload; it never updates legacy recovery authority. App and
+routine-signer credentials exposed during a search are treated as compromised.
+Credential rotation, isolated Sidequest authority and provider readback precede
+managed signing acceptance; the old recovery journals/resources remain retained.

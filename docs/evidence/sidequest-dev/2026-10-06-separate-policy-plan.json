@@ -1,0 +1,58 @@
+{
+  "observedAt": "2026-10-06T05:08:57.404Z",
+  "mode": "read-only",
+  "appId": "cmui9skoc01zr0dl03tyahirs",
+  "legacyPolicyId": "s06i5eramn0plwdunkvxf8aj",
+  "legacyPolicySha256": "583e2367d975b6276eadad9245f94c9fd8eaac18e9a08570c178c0e0706d3dbd",
+  "action": "create-separate-policy",
+  "changes": [
+    {
+      "rule": "Allow Selection",
+      "field": "verifyingContract",
+      "before": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+      "after": "0xfa52B3d905346c53436B6F4824A7c6F0439A0614"
+    },
+    {
+      "rule": "Allow SetBudgetAuthorization",
+      "field": "verifyingContract",
+      "before": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+      "after": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32"
+    },
+    {
+      "rule": "Allow SubmitAuthorization",
+      "field": "verifyingContract",
+      "before": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+      "after": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32"
+    },
+    {
+      "rule": "Allow Delegation",
+      "field": "delegate",
+      "before": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
+      "after": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058"
+    }
+  ],
+  "desiredPolicyName": "Sidequest v2 Monad testnet routine signer",
+  "ruleNames": [
+    "Allow Selection",
+    "Allow SetBudgetAuthorization",
+    "Allow SubmitAuthorization",
+    "Allow Delegation",
+    "Allow AgentWalletSet",
+    "Allow TransferWithAuthorization",
+    "Allow Enrollment",
+    "Allow ServiceAd",
+    "Allow RevokeAd",
+    "Allow DeleGator upgrade",
+    "Deny export"
+  ],
+  "guardTests": {
+    "passed": 14,
+    "sdkTypecheck": "passed",
+    "scopedLint": "passed"
+  },
+  "limits": [
+    "No policy or quorum was created or updated.",
+    "Full desired payload retained in /tmp/sidequest-privy-separate-policy-plan.json; no secret values are present.",
+    "Rotate exposed app/routine-signer credentials and provision isolated Sidequest authority before managed signing acceptance."
+  ]
+}
