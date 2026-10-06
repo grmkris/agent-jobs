@@ -12,11 +12,23 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest guarded dev application release is `4dc03be`, deployed on 6 October 2026
+The latest guarded dev application release is `760b0a7`, deployed on 6 October 2026
+at 19:38:24 UTC at V11's READY-FOR-DEV-CUT request for `3109c14` (`760b0a7` adds only a
+crew scenario document, so the deployed application source is `3109c14`). The
+[dated live receipt](evidence/sidequest-dev/2026-10-06-760b0a7-live.json) records the
+source/tree, V11's green `heavy pnpm check` on `3109c14`, the runner tests and migration
+drift check, the successful guarded update and the anonymous readback: health, release and
+OAuth metadata 200; every anonymous MCP method 401. It carries the V11 Explore fixes
+(first-login signature, error pages, `/agents/<id>` redirect, role-scoped consent, budget
+editor, MON gas wording, 1 s receipt polling, http(s)-only deliverables, screening verdict
+placement) and the board fixes that name a short-backing conflict and an approved-hire
+validation failure instead of an internal error. Host acceptance and authenticated MCP
+calls remain unverified.
+
+The previous guarded dev application release was `4dc03be`, deployed on 6 October 2026
 at 14:33:59 UTC. The [host-parity live receipt](evidence/sidequest-dev/2026-10-06-4dc03be-live.json)
 records its source/tree, green gates, successful guarded update and anonymous readback.
 Health and OAuth metadata returned 200; MCP discovery, tools, App and skills returned 401.
-Host acceptance and authenticated MCP calls remain unverified.
 
 The previous signed-off dev application release was `e90b9f5`, deployed on 6 October 2026
 at 11:51:14 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json)
