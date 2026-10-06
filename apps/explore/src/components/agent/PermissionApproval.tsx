@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { type Address, parseUnits } from "viem";
+import { type Address, type Hex, parseUnits } from "viem";
 import { useSignTypedData } from "wagmi";
 import { agentEndpoint, type ManagedAgent } from "../../api.ts";
 import type { AgentApproval } from "../../agent-api.ts";
-import { amount, localTime, relative, tokenInfo } from "../../format.ts";
+import { formatNumber, localTime, relative, tokenMeta } from "../../format.ts";
 import {
+  decodeExactCall,
   expectedPermission,
   permissionRequest,
   reviewPermission,
+  tokenAmountText,
   type PreparedPermission,
 } from "../../permission-review.ts";
 import { typedDataArgs } from "../../typed-data.ts";
@@ -20,6 +22,36 @@ const TYPE_WORDS: Record<string, string> = {
   "erc20-token-allowance": "One token allowance",
   "hireling:contract-call": "One exact contract call",
 };
+
+/** The one exact call, in full: decoded arguments when the method is known, and always the raw call data (VV2-022). */
+function ExactCall({ target, value, callData }: { target: Address; value: bigint; callData: Hex }) {
+  const decoded = decodeExactCall(callData);
+  const meta = tokenMeta(target);
+  return (
+    <div className="grid gap-1 text-sm leading-relaxed text-label-2">
+      <p className="break-all">
+        Your account makes this one call, once, to {target}
+        {value > 0n ? `, sending ${value.toString()} wei` : ""}:
+      </p>
+      {decoded === null ? (
+        <p>Unrecognised method {callData.slice(0, 10)}: only the call data below says what it does.</p>
+      ) : (
+        <ul className="grid gap-0.5">
+          <li className="font-mono">{decoded.functionName}</li>
+          {decoded.args.map((arg) => (
+            <li key={arg.name} className="break-all">
+              {arg.name}:{" "}
+              {arg.name === "amount" && meta !== undefined
+                ? `${formatNumber(BigInt(arg.value), meta.decimals)} ${meta.symbol} (${arg.value} base units)`
+                : arg.value}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="break-all font-mono text-micro text-label-3">Call data {callData}</p>
+    </div>
+  );
+}
 
 /**
  * A permission a managed agent asked for (ERC-7715 envelope, ADR-0015 draft). The operator may shorten the expiry or
@@ -40,6 +72,7 @@ export function PermissionApproval({
   const request = permissionRequest(approval.request_json);
   const t = request.parsed;
   const token = t.type === "hireling:contract-call" ? null : t.token;
+  const meta = token === null ? undefined : tokenMeta(token);
   useTokenList(token === null ? [] : [token]);
   const { signTypedDataAsync } = useSignTypedData();
   const [limit, setLimit] = useState("");
@@ -64,7 +97,8 @@ export function PermissionApproval({
   }
   /** The operator's adjustment in base units and unix seconds; empty fields keep the agent's request. */
   function adjustment(): { expiry?: number; amount?: bigint } {
-    const lower = limit.trim() === "" || token === null ? undefined : parseUnits(limit.trim(), tokenInfo(token).decimals);
+    // An unknown token is entered in base units: guessing decimals would sign a different amount than shown.
+    const lower = limit.trim() === "" || token === null ? undefined : meta === undefined ? BigInt(limit.trim()) : parseUnits(limit.trim(), meta.decimals);
     const shorter = days.trim() === "" ? undefined : Math.floor(Date.now() / 1000) + Math.round(Number(days) * 86_400);
     if (shorter !== undefined && !Number.isFinite(shorter)) throw new Error("Days must be a number");
     return { ...(lower === undefined ? {} : { amount: lower }), ...(shorter === undefined ? {} : { expiry: Math.min(shorter, request.expiry) }) };
@@ -99,12 +133,22 @@ export function PermissionApproval({
         <p className="text-xl font-semibold">{TYPE_WORDS[t.type] ?? t.type}</p>
         <Badge tone={approval.status === "pending" ? "warning" : "neutral"}>{approval.status}</Badge>
       </div>
+      {t.type === "hireling:contract-call" ? (
+        <ExactCall target={t.target} value={t.value} callData={t.callData} />
+      ) : (
+        <p className="break-words text-sm leading-relaxed text-label-2">
+          Up to {tokenAmountText(shown !== undefined && "amount" in shown ? shown.amount : requested!, t.token)}
+          {t.type === "erc20-token-periodic" ? ` every ${Math.round(t.periodDuration / 3600)} h` : " in total"} from your wallet, only to {t.recipient}.
+        </p>
+      )}
       <p className="text-sm leading-relaxed text-label-2">
-        {t.type === "hireling:contract-call"
-          ? `Your account makes this one call, once: ${t.callData.slice(0, 10)} on ${t.target}${t.value > 0n ? `, sending ${t.value.toString()} wei` : ""}.`
-          : `Up to ${amount(shown !== undefined && "amount" in shown ? shown.amount : requested!.toString(), token)}${t.type === "erc20-token-periodic" ? ` every ${Math.round(t.periodDuration / 3600)} h` : " in total"} from your wallet, only to ${t.recipient}.`}{" "}
         It ends {localTime(shown?.expiresAt ?? request.expiry)} ({relative(shown?.expiresAt ?? request.expiry)}). The chain enforces every limit.
       </p>
+      {review?.schedule != null && (
+        <p className="text-sm leading-relaxed text-label-2">
+          Periods count from {localTime(review.schedule.start)}; the first refill is {localTime(review.schedule.firstRefill)} ({relative(review.schedule.firstRefill)}).
+        </p>
+      )}
       {request.justification !== null && (
         <p className="break-words text-sm text-label-2">Agent's reason (its own words): {request.justification}</p>
       )}
@@ -112,7 +156,7 @@ export function PermissionApproval({
       {approval.status === "pending" && review === null && request.adjustable && (
         <div className="grid gap-3 sm:grid-cols-2">
           {token !== null && (
-            <Field label={`Lower the amount (${tokenInfo(token).symbol})`} hint="Empty keeps the request; you can only lower it.">
+            <Field label={`Lower the amount (${meta?.symbol ?? "base units"})`} hint="Empty keeps the request; you can only lower it.">
               <Input inputMode="decimal" value={limit} onChange={(event) => setLimit(event.target.value)} />
             </Field>
           )}

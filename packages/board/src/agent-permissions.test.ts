@@ -25,7 +25,8 @@ function fixture() {
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const sql = fromNodeSqlite(db)
   const sponsor = { ready: async () => {}, submit: async () => { throw new Error('a permission request sends nothing') } } as unknown as SponsorDesk
-  const deps = { sql, context: ctx, now: () => now }
+  const clock = { now }
+  const deps = { sql, context: ctx, now: () => clock.now }
   const permissions = new AgentPermissions(deps)
   const prepareTool = async (request: AgentToolRequest) => {
     if (request.tool !== 'request_permissions') throw new Error(`unexpected tool ${request.tool}`)
@@ -43,7 +44,7 @@ function fixture() {
   const request = (key: string, permission: sdk.PermissionRequest, standing = false) =>
     executor.execute({ agentId: 'agent', boardId: 'public', operationKey: key, tool: 'request_permissions', args: { permission, standing } })
   const sign = async (hash: Hex) => operatorAccount.sign({ hash: sdk.delegationDigest(ctx.deployment, sdk.parseDelegation(permissions.grants.get(hash)!.delegation_json)) })
-  return { ctx, operator, token, permissions, lifecycle, periodic, request, sign, db }
+  return { ctx, operator, token, permissions, lifecycle, periodic, request, sign, db, clock }
 }
 
 it('asks the operator, who may shorten or lower before signing; the retry returns the signed permission', async () => {
@@ -110,4 +111,19 @@ it('use builds one manager redemption inside the terms, and refuses more', async
   expect(() => f.permissions.use(agent, prepared.hash, { transfer: { amount: '6' } })).toThrow(/exceeds/)
   expect(() => f.permissions.use(agent, prepared.hash, { transfer: { amount: '1', recipient: agentAddress as Address } })).toThrow(/different recipient/)
   expect(() => f.permissions.use(agent, `0x${'11'.repeat(32)}`, { transfer: { amount: '1' } })).toThrow(/No such permission/)
+})
+
+it('replaces a stale unsigned template so the operator never signs a backdated period anchor (VV2-023)', async () => {
+  const f = fixture()
+  const asked = await f.request('fresh', f.periodic(10n), false)
+  if (asked.status !== 'approval') throw new Error('expected an approval')
+  const first = f.lifecycle.prepareApproval(asked.approval.id, f.operator) as { hash: Hex; description: { validAfter: number } }
+  f.clock.now = now + 599
+  expect((f.lifecycle.prepareApproval(asked.approval.id, f.operator) as { hash: Hex }).hash).toBe(first.hash)
+  f.clock.now = now + 601
+  const fresh = f.lifecycle.prepareApproval(asked.approval.id, f.operator) as { hash: Hex; description: { validAfter: number } }
+  expect(fresh.hash).not.toBe(first.hash)
+  expect(fresh.description.validAfter).toBe(now + 601)
+  const decided = await f.lifecycle.decideApproval(asked.approval.id, f.operator, true, await f.sign(fresh.hash), { hash: fresh.hash })
+  expect(decided).toMatchObject({ status: 'approved' })
 })

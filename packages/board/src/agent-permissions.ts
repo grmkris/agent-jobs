@@ -51,6 +51,9 @@ function covers(have: sdk.PermissionTerms, want: sdk.PermissionTerms): boolean {
   return false
 }
 
+/** Seconds one prepared permission template is reused; Explore refuses anchors older than this plus clock skew. */
+export const PERMISSION_TEMPLATE_WINDOW = 600
+
 export class AgentPermissions {
   readonly agents: AgentStore
   readonly grants: GrantStore
@@ -138,10 +141,11 @@ export class AgentPermissions {
     catch (error) { throw error instanceof sdk.PermissionError ? new Error(error.message) : error }
     if (final.expiry <= this.deps.now()) throw new Error('This permission request has expired; the agent must ask again')
     const adjusted = final.expiry !== requested.expiry || termsJson(final.terms) !== termsJson(requested.terms)
-    // One salt per approval and adjustment: re-preparing the same choice returns the same template.
+    // One salt per approval and adjustment, one template per ten-minute window: re-preparing the same choice returns the
+    // same template, and a stale one is replaced, so Explore can refuse a backdated period anchor (VV2-023).
     const salt = BigInt(keccak256(stringToHex(JSON.stringify([approval.id, final.expiry, termsJson(final.terms)]))))
     const spec: sdk.PermissionSpec = { kind: 'permission', delegator: operator, agent: agent.address, salt, start: this.deps.now(), expiry: final.expiry, terms: final.terms }
-    const step = `operator-permission:${salt.toString(16).slice(0, 16)}`
+    const step = `operator-permission:${salt.toString(16).slice(0, 16)}:${Math.floor(this.deps.now() / PERMISSION_TEMPLATE_WINDOW)}`
     const frozen = this.agents.step<string>(approval.operation_id, step)
     const prepared = this.grants.prepare(operator, frozen === undefined ? spec : sdk.parsePermissionSpec(frozen))
     if (frozen === undefined) this.agents.freezeStep(approval.operation_id, step, sdk.permissionSpecJson(spec))

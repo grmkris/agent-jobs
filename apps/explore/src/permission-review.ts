@@ -4,7 +4,8 @@
  * it exactly, so the server's display text is never signing authority (as with agent grants).
  */
 import * as sdk from "@agent-jobs/sdk";
-import type { Address, Hex } from "viem";
+import { type Address, type Hex, decodeFunctionData, erc20Abi } from "viem";
+import { formatNumber, tokenMeta } from "./format.ts";
 
 /** An approval of kind "permission": the agent's validated request, as the board froze it. */
 export interface PermissionRequestView {
@@ -62,6 +63,37 @@ export function expectedPermission(
   );
 }
 
+/** The board reuses a template for ten minutes; anything older, beyond clock skew, is a backdated anchor (VV2-023). */
+export const PREPARED_MAX_AGE_SECONDS = 900;
+
+const TOKEN_CALL_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  transfer: ["recipient", "amount"],
+  approve: ["spender", "amount"],
+  transferFrom: ["from", "recipient", "amount"],
+};
+
+/** An exact call's arguments when its selector is a token method; null means only the raw call data says what it does. */
+export function decodeExactCall(callData: Hex): { functionName: string; args: { name: string; value: string }[] } | null {
+  try {
+    const decoded = decodeFunctionData({ abi: erc20Abi, data: callData });
+    const names = TOKEN_CALL_PARAMS[decoded.functionName] ?? [];
+    return {
+      functionName: decoded.functionName,
+      args: (decoded.args ?? []).map((value, index) => ({ name: names[index] ?? `arg${index}`, value: String(value) })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** A token amount as the operator should read it: symbol and decimals when known, else base units and the address. */
+export function tokenAmountText(value: bigint | string, token: Address): string {
+  const meta = tokenMeta(token);
+  return meta === undefined
+    ? `${value.toString()} base units of token ${token}`
+    : `${formatNumber(BigInt(value), meta.decimals)} ${meta.symbol}`;
+}
+
 export function reviewPermission(
   deployment: sdk.Deployment,
   prepared: PreparedPermission,
@@ -82,11 +114,14 @@ export function reviewPermission(
   if (sdk.delegationHash(grant) !== prepared.hash)
     throw new Error("The permission hash does not match the review");
   if (spec.start > now + 60) throw new Error("The permission starts too far in the future");
+  if (spec.start < now - PREPARED_MAX_AGE_SECONDS) throw new Error("This prepared permission is out of date; review it again");
   if (spec.expiry <= now) throw new Error("This permission expired; the agent must ask again");
   return {
     hash: prepared.hash,
     typedData: sdk.delegationTypedData(deployment, grant),
     description: sdk.describePermission(spec),
     risks: sdk.permissionRisks(deployment, spec, { now, adjusted: expected.adjusted }),
+    // When each period starts and first refills; part of what the operator agrees to (VV2-023).
+    schedule: spec.terms.type === "erc20-token-periodic" ? { start: spec.start, firstRefill: spec.start + spec.terms.periodDuration } : null,
   };
 }
