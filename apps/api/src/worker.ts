@@ -8,7 +8,7 @@ import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
-import { type AsyncSql, agentDetail, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
+import { type AsyncSql, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import type { Address } from 'viem'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
@@ -35,6 +35,7 @@ import { approvalRoute } from './routes/approvals.ts'
 import { agentTools } from './tools-agents.ts'
 import { managementRequest } from './agent-requests.ts'
 import { isStakingDataPath, stakingDataRoute } from './routes/staking.ts'
+import { agentDataBody, identityReads } from './routes/agent-data.ts'
 import { workerFailure as failure } from './worker-failure.ts'
 
 const STATUS: Record<string, number> = {
@@ -381,11 +382,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 return { ok: true, agents: await listAgents(sql, chainId, limit) }
               }
               const agent = /^\/data\/agents\/(\d{1,78})$/.exec(path)
-              if (agent !== null) {
-                const detail = await agentDetail(sql, chainId, agent[1] as string)
-                if (detail === undefined) return { ok: false, code: 'not-found', message: 'this agent has taken no job here' }
-                return { ok: true, ...detail }
-              }
+              if (agent !== null) return await agentDataBody(sql, chainId, agent[1] as string, reads === undefined ? undefined : identityReads(reads, deployment.identity))
               return { ok: false, code: 'not-found', message: 'no such data route' }
             } catch (error) {
               if (error instanceof BoardError) return { ok: false, code: error.code, message: error.message }

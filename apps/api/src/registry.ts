@@ -99,6 +99,21 @@ export async function boardOfTerms(sql: AsyncSql, termsHash: string): Promise<{ 
 export type JobWithBoard = JobRow & { board_id: string | null }
 
 /** Chain jobs with the board each offer belongs to (null: published outside any hosted board). */
+/** The boards that froze these terms (a job's policy hash), by lowercase hash; hashes no board froze are absent. */
+export async function boardsOfTerms(sql: AsyncSql, termsHashes: ReadonlyArray<string | null>): Promise<Map<string, string>> {
+  const hashes = [...new Set(termsHashes.filter((h): h is string => h !== null).map((h) => h.toLowerCase()))]
+  const out = new Map<string, string>()
+  // D1 binds at most 100 parameters per query.
+  for (let i = 0; i < hashes.length; i += 90) {
+    const page = hashes.slice(i, i + 90)
+    const rows = await sql.all<{ terms_hash: string; board_id: string }>(
+      `SELECT terms_hash, board_id FROM board_offers WHERE terms_hash IN (${page.map(() => '?').join(', ')})`, ...page,
+    )
+    for (const row of rows) out.set(row.terms_hash, row.board_id)
+  }
+  return out
+}
+
 export async function jobsWithBoards(sql: AsyncSql, deployment: Deployment, limit = 200): Promise<JobWithBoard[]> {
   const configured = configuredJobs(deployment, 'j')
   return sql.all<JobWithBoard>(
