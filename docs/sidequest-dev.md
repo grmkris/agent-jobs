@@ -19,7 +19,9 @@ passed without page errors or overflow. The narrow Privy origin update has since
 saved successfully, and the repeated sign-in modal smoke has no provider errors.
 The Privy display name, evergreen color and Sidequest icon were saved and read
 back through the narrow branding form. Authenticated MCP enumeration and real
-human login remain unverified. The routine signer still pins archived contracts; a separate Sidequest
+human login remain unverified. Anonymous 390px/1440px browser checks visually
+confirmed the deployed icon in the live sign-in modal with no provider errors.
+The routine signer still pins archived contracts; a separate Sidequest
 policy must preserve the legacy policy and its recovery authority. See
 [the cutover handoff](sidequest-agent-handoff-2026-10-06.md) for dated readbacks.
 The indexer cron has produced progressing checkpoints with no jobs in this fresh

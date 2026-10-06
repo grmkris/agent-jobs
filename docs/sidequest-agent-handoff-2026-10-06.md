@@ -575,3 +575,9 @@ redirects or authority changed. A redundant browser reload later reported an
 extension-offline error; that failed observation does not override the
 successful post-save snapshot readback. Real OAuth login, authenticated MCP,
 managed signing, credential rotation and isolated policy authority remain open.
+
+The follow-up anonymous browser receipt
+[`2026-10-06-privy-brand-signin.json`](evidence/sidequest-dev/2026-10-06-privy-brand-signin.json)
+shows the deployed icon in the visible Privy sign-in modal at 390px and 1440px,
+with no page or provider errors. It intentionally stops before identity,
+wallet or signature submission.

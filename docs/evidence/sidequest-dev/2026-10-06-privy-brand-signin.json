@@ -1,0 +1,35 @@
+{
+  "observedAt": "2026-10-06T06:23:47.761Z",
+  "origin": "https://dev.sidequest.exchange",
+  "route": "/agents/new",
+  "evidenceTier": "anonymous-live-browser-signin-modal",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 900,
+      "pageTitle": "Sidequest",
+      "dialogText": "Log in or sign up / Submit / Twitter / Continue with a wallet",
+      "pageErrors": [],
+      "providerErrors": [],
+      "logo": { "src": "https://dev.sidequest.exchange/icons/icon-512.png", "loaded": true, "naturalWidth": 512 },
+      "screenshot": "/tmp/sidequest-brand-login-diagnose/390.png"
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "pageTitle": "Sidequest",
+      "dialogText": "Log in or sign up / Submit / Twitter / Continue with a wallet",
+      "pageErrors": [],
+      "providerErrors": [],
+      "logo": { "src": "https://dev.sidequest.exchange/icons/icon-512.png", "loaded": true, "naturalWidth": 512 },
+      "screenshot": "/tmp/sidequest-brand-login-diagnose/1440.png"
+    }
+  ],
+  "noAuthentication": true,
+  "noWalletPromptSubmission": true,
+  "noEconomicOperation": true,
+  "notes": [
+    "The Privy animated outer container reports a zero-height offscreen bounding rect while the visible child modal is rendered; screenshot and body/dialog text are the authoritative visual evidence.",
+    "The displayed icon is the deployed Sidequest asset and matches the repository PNG hash recorded in the branding receipt."
+  ]
+}

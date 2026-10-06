@@ -1368,3 +1368,10 @@ evergreen `#124230`, and load the deployed Sidequest icon. The immediate
 snapshot readback showed the new title and logo preview; no credentials,
 policies, keys, wallets, origins, redirects or authority were changed.
 [Sanitized receipt](evidence/sidequest-dev/2026-10-06-privy-branding.json).
+
+**6 October 2026, 06:23 UTC sign-in branding:** anonymous live browser checks
+at `/agents/new` on 390px and 1440px showed the new Sidequest icon in Privy's
+visible sign-in modal. The PNG loaded at its expected width with no page or
+provider errors. Screenshots were visually inspected. This proves provider
+branding delivery, not a completed login, consent, authenticated MCP or signing.
+[Sanitized browser receipt](evidence/sidequest-dev/2026-10-06-privy-brand-signin.json).
