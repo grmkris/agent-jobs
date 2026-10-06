@@ -25,7 +25,7 @@ export interface AgentApproval {
   id: string;
   agent_id: string;
   operation_id: string;
-  kind: "hire-over-limit" | "unstake";
+  kind: "hire-over-limit" | "unstake" | "permission";
   /** pending, approved, rejected or executed. */
   status: string;
   request_json: string;

@@ -6,17 +6,23 @@ import { agentEndpoint, type ManagedAgent } from "../../api.ts";
 import type { AgentApproval } from "../../agent-api.ts";
 import { reviewAgentGrant, type PreparedGrant } from "../../agent-grant.ts";
 import { AgentGrantReview } from "../AgentGrantReview.tsx";
+import { PermissionApproval } from "./PermissionApproval.tsx";
 import { Badge, Button, ErrorText, Section } from "../ui.tsx";
 import { amount } from "../../format.ts";
 import { useTokenList } from "../../useTokens.ts";
 import { typedDataArgs } from "../../typed-data.ts";
 import { deployment } from "../../wallet.ts";
 
+/** One decision a managed agent waits on; a requested permission has its own card. */
+export function Approval(props: Parameters<typeof OperationApproval>[0]) {
+  return props.approval.kind === "permission" ? <PermissionApproval {...props} /> : <OperationApproval {...props} />;
+}
+
 /**
  * One decision a managed agent waits on: an over-limit hire (the operator signs an exact one-off allowance) or an
  * agent-owned position leaving the vault (exact shares, once). Shown in the agent's Approvals tab and on /approvals.
  */
-export function Approval({
+function OperationApproval({
   approval,
   agent,
   operator,
