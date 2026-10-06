@@ -1,5 +1,5 @@
 /**
- * Renders the app icons from the one brand mark (src/brand/mark.svg's "H" on the Indigo tint) with the headless
+ * Renders the app icons from the one brand mark (src/brand/mark.svg's white "H" on the near-black ink) with the headless
  * Chromium that playwright-core already brings, so no image library is needed. Run by hand after changing the mark;
  * the PNGs are committed (`bun apps/explore/scripts/icons.ts`). Icons are opaque and full-bleed: iOS applies its own
  * mask, and a transparent icon would sit on black.
@@ -8,7 +8,8 @@ import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
-const TINT = '#5452d4'
+/** --primary, oklch(0.22 0.012 255), in sRGB. */
+const INK = '#171b20'
 const out = (p: string) => fileURLToPath(new URL(`../public/${p}`, import.meta.url))
 
 /** The glyph at `scale` of the canvas (the maskable icon keeps it inside Android's 80% safe circle). */
@@ -16,7 +17,7 @@ const icon = (size: number, scale: number) => {
   const g = size * scale
   const o = (size - g) / 2
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" fill="${TINT}"/>
+  <rect width="${size}" height="${size}" fill="${INK}"/>
   <g transform="translate(${o} ${o}) scale(${g / 32})"><path d="M10 8v16M22 8v16M10 16h12" stroke="#fff" stroke-width="3.5" stroke-linecap="round" fill="none"/></g>
 </svg>`
 }
@@ -30,7 +31,7 @@ const targets: Array<[string, number, number]> = [
 ]
 
 mkdirSync(out('icons'), { recursive: true })
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_PATH === undefined ? {} : { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }) })
 for (const [file, size, scale] of targets) {
   const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 })
   await page.setContent(`<html><body style="margin:0">${icon(size, scale)}</body></html>`)
