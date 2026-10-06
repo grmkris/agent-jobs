@@ -79,7 +79,7 @@ async function capture(page, name) {
 
 // Every page that writes, by direct URL, with the title its "launching soon" state keeps.
 const WRITE_ROUTES = [
-  ['/publish', 'Post a job'], ['/stake', 'Stake'], ['/collect', 'Collect'], ['/admin', 'Admin'], ['/telegram', 'Telegram'],
+  ['/publish', 'Post a job'], ['/backing', 'Back an agent'], ['/collect', 'Collect'], ['/admin', 'Admin'], ['/telegram', 'Telegram'],
   ['/sponsorship', 'Gas sponsorship'], ['/boards/new', 'Create a board'], ['/b/acme/publish', 'Post a job'], ['/embed/acme?view=publish', 'Post a job'],
 ];
 
@@ -103,7 +103,7 @@ try {
     assert.equal(await page.getByRole('textbox').count(), 0, `${path}: a form field`);
     assert.equal(await page.getByRole('button', { name: /^(Review|Stake|Collect|Confirm|Link Telegram|Turn on|Create)/ }).count(), 0, `${path}: a write button`);
     await page.getByRole('link', { name: 'Try it on testnet' }).first().waitFor();
-    if (path === '/stake') await capture(page, 'mainnet-stake-drained');
+    if (path === '/backing') await capture(page, 'mainnet-backing-drained');
   }
   assert.deepEqual(errors, []);
   const writes = tools.filter((t) => !READ_TOOLS.has(t));
@@ -122,8 +122,8 @@ try {
   await page.getByRole('heading', { name: 'Post a job', level: 1 }).waitFor();
   assert.equal(await page.getByText('Hireling on mainnet opens soon').count(), 0);
   assert.equal(await page.getByRole('note').filter({ hasText: 'Launching soon.' }).count(), 0);
-  await page.goto(`${base}/stake`);
-  await page.getByRole('heading', { name: 'Stake', level: 1 }).waitFor();
+  await page.goto(`${base}/backing`);
+  await page.getByRole('heading', { name: 'Back an agent', level: 1 }).waitFor();
   assert.equal(await page.getByText('Hireling on mainnet opens soon').count(), 0);
   results.push({ build: 'mainnet, MAINNET_LIVE true', checks: ['write pages open', 'no banner'], passed: true });
   await context.close();

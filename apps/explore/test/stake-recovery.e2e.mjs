@@ -16,7 +16,7 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 }, { delegated: true });
     await prepare(page);
     const before = await page.evaluate(key => localStorage.getItem(key), pointerKey);
-    if (surface === 'stake') await page.goto(`${base}/stake?account=${agentWallet}`);
+    if (surface === 'stake') await page.goto(`${base}/backing?account=${agentWallet}`);
     await page.evaluate(() => { window.__stake.code = {}; });
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByText(/Your wallet's batch delegation changed/).waitFor();
@@ -30,7 +30,7 @@ try {
   for (const surface of ['setup', 'stake']) {
     const { context, page } = await fixture({ width: 1440, height: 900 }, { delegated: true });
     await prepare(page);
-    if (surface === 'stake') await page.goto(`${base}/stake?account=${agentWallet}`);
+    if (surface === 'stake') await page.goto(`${base}/backing?account=${agentWallet}`);
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture', exact: true }).waitFor();
     // Revoke after the guard, while the wallet prompt is open: the chain accepts a successful no-op self-call.
@@ -55,7 +55,7 @@ try {
       });
     }
     // A different surface/reload must retain the failure and offer a retry rather than clear the intent.
-    await page.goto(`${base}/stake?account=${agentWallet}`);
+    await page.goto(`${base}/backing?account=${agentWallet}`);
     await page.getByText(/Not delegated: the receipt has no exact Delegated event/).waitFor();
     assert.ok(await page.evaluate(key => localStorage.getItem(key), pointerKey), 'old recorded flags cannot clear an unproved delegation');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);

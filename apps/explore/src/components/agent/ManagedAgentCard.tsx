@@ -14,7 +14,7 @@ import { useTokenList } from "../../useTokens.ts";
 
 /**
  * One managed agent, for its operator: last activity, setup (when incomplete), its weekly budget, earnings and
- * backing, and revocation. Shown on the agent's page and in the workspace. The live harness finds it as an
+ * backing, and revocation. Shown on the agent's page. The live harness finds it as an
  * <article> carrying the agent's name and drives revocation by the button text below.
  */
 export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {

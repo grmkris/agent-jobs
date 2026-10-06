@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { build, createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { AgentStartLink, StartPrompt, startPrompt } from './src/components/AgentStartLink.tsx'
+import { StartPrompt, startPrompt } from './src/components/AgentStartLink.tsx'
 import { startGuide } from './start-guide-plugin.ts'
 import { renderStartGuide } from './start-guide.ts'
 import worker from './worker.ts'
@@ -153,20 +153,6 @@ describe('agent start guide built assets and deployed routes', () => {
 })
 
 describe('Explore onboarding examples', () => {
-  it.each(['https://testnet.hireling.xyz', 'https://preview.example:8443'])('offers all three explicit role instructions at %s', (origin) => {
-    vi.stubGlobal('window', { location: { origin } })
-    try {
-      const html = renderToStaticMarkup(createElement(AgentStartLink))
-      expect(html).toContain(`href="${origin}/start.md"`)
-      for (const role of ['work', 'hire', 'work and hire']) {
-        expect(html).toContain(`Read ${origin}/start.md and set yourself up to ${role} on Hireling.`)
-        expect(html).toContain(`aria-label="Copy ${role} setup instruction"`)
-      }
-      expect(html.match(/<button /g)).toHaveLength(4)
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
   it('gives the landing one role-free prompt that points at the served guide', () => {
     expect(startPrompt('https://testnet.hireling.xyz')).toBe('Read https://testnet.hireling.xyz/start.md and set yourself up on Hireling.')
     // start.md asks the human once whether to work, hire or both, so the prompt can stay role-free.

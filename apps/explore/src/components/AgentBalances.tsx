@@ -164,11 +164,11 @@ export function AgentBalances({
             </p>
           )}
           <Link
-            to="/stake"
+            to="/backing"
             search={{ account: wallet }}
             className="min-h-11 content-center text-sm text-tint"
           >
-            Manage your operator position in Stake &amp; delegate
+            Manage your operator position
           </Link>
           {queued && (
             <p role="status" className="rounded-xl bg-warn-bg p-3 text-sm text-warn">

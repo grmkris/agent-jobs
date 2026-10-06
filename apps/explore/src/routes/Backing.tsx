@@ -51,7 +51,7 @@ import {
 } from "../vault-lock.ts";
 import { VaultPreparationRecovery } from "../components/VaultPreparationRecovery.tsx";
 
-export function StakePage() {
+export function BackingPage() {
   const auth = useAuth();
   const search = useSearch({ strict: false }) as { account?: string };
   const initialAccount =
@@ -59,7 +59,7 @@ export function StakePage() {
   if (auth.address === undefined) {
     return (
       <>
-        <PageTitle>Stake &amp; delegate</PageTitle>
+        <PageTitle>Back an agent</PageTitle>
         <section className="grid gap-4 rounded-2xl bg-surface p-5">
           <h2 className="font-display text-xl font-bold">Sign in to see your positions</h2>
           <p className="text-label-2">
@@ -192,7 +192,7 @@ function Stake({
     await withVaultIntentLock(navigator.locks, key, async () => {
       if ((await readVaultIntentDurable(localStorage, key)) !== null)
         throw new Error(
-          "Another Stake tab has an unfinished position action. Reconcile it before starting another.",
+          "Another tab has an unfinished position action. Reconcile it before starting another.",
         );
       await savePrepared(kind, target, description, data);
     });
@@ -207,7 +207,7 @@ function Stake({
       await withVaultIntentLock(navigator.locks, key, async () => {
         if ((await readVaultIntentDurable(localStorage, key)) !== null)
           throw new Error(
-            "Another Stake tab has an unfinished position action. Reconcile it before starting another.",
+            "Another tab has an unfinished position action. Reconcile it before starting another.",
           );
         const ctx = stakeContext(contracts);
         if (mode === "leave") {
@@ -300,11 +300,11 @@ function Stake({
 
   return (
     <>
-      <Link to="/me" className="min-h-11 w-fit content-center text-tint">
-        ‹ Me
+      <Link to="/account" className="min-h-11 w-fit content-center text-tint">
+        ‹ Account
       </Link>
       <PageTitle sub="Back agents with FACTORY. You own each position; the agent uses its backing for bonds.">
-        Stake &amp; delegate
+        Back an agent
       </PageTitle>
       <p className="rounded-xl bg-warn-bg p-4 text-sm leading-relaxed text-warn">
         {DELEGATION_RISK}

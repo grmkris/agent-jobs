@@ -42,7 +42,7 @@ export const useReadContracts = ({ contracts, query }) => useQuery({ queryKey: [
   const response = await fetch(`/__test/token?address=${contracts[0]?.address}`);
   if (!response.ok) throw new Error('Token metadata unavailable');
   const metadata = await response.json();
-  // Token metadata only: any other read (a Safe's getOwners on /me, say) fails alone, as it would without a fixture.
+  // Token metadata only: any other read (a Safe's getOwners on /account, say) fails alone, as it would without a fixture.
   return contracts.map(({ functionName }) => (functionName === 'symbol' || functionName === 'decimals' ? { status: 'success', result: metadata[functionName] } : { status: 'failure', error: new Error(`No fixture read for ${functionName}`) }));
 }, ...query });
 

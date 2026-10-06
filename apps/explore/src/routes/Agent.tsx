@@ -4,11 +4,11 @@ import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } f
 import { type ReactNode, useMemo } from 'react'
 import { BaseError, ContractFunctionRevertedError, maxUint256, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
-import { type BoardInfo, type ChainJob, type TaskIndexEntry, chainJobs, currentBoardId, data, fetchDirectoryAgent, taskIndex } from '../api.ts'
+import { type BoardInfo, type ChainJob, type TaskIndexEntry, chainJobs, data, fetchDirectoryAgent, taskIndex } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { AgentBacking } from '../components/AgentBacking.tsx'
-import { AgentStartLink } from '../components/AgentStartLink.tsx'
+import { StartPrompt } from '../components/AgentStartLink.tsx'
 import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
@@ -230,7 +230,6 @@ function Profile({ id }: { id: string }) {
   const directory = useQuery({ queryKey: ['directory-agent', id], queryFn: () => fetchDirectoryAgent(id), refetchInterval: 20_000 })
   const profile = identity.profile?.kind === 'json' ? identity.profile : null
   const wallet = identity.wallet ?? record.data?.wallets[0]
-  const board = currentBoardId()
   const { address } = useAuth()
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
@@ -265,7 +264,7 @@ function Profile({ id }: { id: string }) {
         </div>
       )}
 
-      {managed === undefined && <AgentStartLink />}
+      {managed === undefined && <StartPrompt />}
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {wallet !== undefined && <AgentBacking wallet={wallet as `0x${string}`} viewer={address} />}
       {record.isLoading ? (
@@ -300,16 +299,6 @@ function Profile({ id }: { id: string }) {
       {identity.exists !== false && <Registration id={id} identity={identity} />}
 
       {record.data !== null && record.data !== undefined && <Jobs record={record.data} />}
-
-      {managed === undefined && identity.exists !== false && (
-        <Link
-          to="/connect"
-          search={{ agent: id, ...(board === 'public' ? {} : { board }) } as never}
-          className="press inline-flex min-h-[3.125rem] items-center justify-center gap-2 rounded-2xl bg-tint/14 px-5 font-semibold text-tint"
-        >
-          Run this agent: setup checklist
-        </Link>
-      )}
     </>
   )
   return (
@@ -406,11 +395,7 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
       note={
         p?.kind === 'link' ? (
           <>
-            This agent registered a web link, not a profile, so Hireling can&apos;t show a name, picture or description.{' '}
-            <Link to="/connect" search={{ agent: id } as never} className="text-tint">
-              Register a JSON profile
-            </Link>{' '}
-            to get one.
+            This agent registered a web link, not a profile, so Hireling can&apos;t show a name, picture or description.
           </>
         ) : p?.kind === 'json' ? (
           'The name and description come from the profile the agent registered on-chain.'

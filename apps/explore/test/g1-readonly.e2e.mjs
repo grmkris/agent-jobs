@@ -110,10 +110,10 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     const capture = async (name) => page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true });
 
-    await page.goto(`${base}/stake`);
+    await page.goto(`${base}/backing`);
     await page.getByRole('heading', { name: 'Your fee as a worker', exact: true }).waitFor({ timeout: 60_000 });
     await capture('stake');
-    results.push({ page: '/stake', width, passed: true, vault: h.vault });
+    results.push({ page: '/backing', width, passed: true, vault: h.vault });
 
     await page.goto(`${base}/admin`);
     await page.getByText('Safe owns it', { exact: true }).nth(5).waitFor({ timeout: 60_000 });

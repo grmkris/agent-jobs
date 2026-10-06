@@ -46,13 +46,13 @@ try {
     await context.close();
   }
   {
-    // C9: /workspace and /approvals are retired; old links land on My agents. An agent with no Agent ID yet opens its
-    // resumed setup rather than a page it does not have.
+    // The retired /workspace, /approvals, /protocol, /me and /stake have no page and no redirect. An agent with no
+    // Agent ID yet opens its resumed setup rather than a page it does not have.
     const { context, page } = await fixture({ width: 1440, height: 900 });
-    for (const old of ['/workspace', '/approvals']) {
+    for (const old of ['/workspace', '/approvals', '/protocol', '/me', '/stake']) {
       await page.goto(`${base}${old}`);
-      await page.waitForURL(`${base}/agents`);
-      await page.getByRole('main').getByText('My worker', { exact: true }).waitFor();
+      await page.getByRole('heading', { name: 'Page not found', level: 1 }).waitFor();
+      assert.equal(new URL(page.url()).pathname, old);
     }
     await context.route('**/api/agents', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: { agents: [{ id: 'draft-1', name: 'Draft worker', address: null, agent_id: null, state: 'created', last_activity_at: null, revoke_json: '{}' }] } }) }));
     await page.goto(`${base}/agents`);
@@ -64,7 +64,7 @@ try {
     await page.getByRole('button', { name: 'Resume wallet setup', exact: true }).waitFor();
     await page.goto(`${base}/agents/new?resume=not-mine`);
     await page.getByText('That agent is not one of yours', { exact: false }).waitFor();
-    results.push({ test: 'retired pages redirect to My agents; an unregistered agent resumes at /agents/new?resume', passed: true });
+    results.push({ test: 'retired paths show Page not found; an unregistered agent resumes at /agents/new?resume', passed: true });
     await context.close();
   }
   assert.deepEqual(errors, []);

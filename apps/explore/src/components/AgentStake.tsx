@@ -75,7 +75,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
       await withVaultIntentLock(navigator.locks, key, async () => {
         if ((await readVaultIntentDurable(localStorage, key)) !== null)
           throw new Error(
-            "Another tab has an unfinished position action. Open Stake & delegate to reconcile it first.",
+            "Another tab has an unfinished position action. Open your backing to reconcile it first.",
           );
         const units = factoryAmount(amount);
         if (agent.address === null || agent.agent_id === null || units === null) {
@@ -179,8 +179,8 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
         </div>
       ) : intent.account.toLowerCase() !== agent.address?.toLowerCase() ||
         intent.kind !== "delegate" ? (
-        <Link to="/stake" className="min-h-11 content-center font-semibold text-tint">
-          Open Stake &amp; delegate to reconcile your saved position action
+        <Link to="/backing" className="min-h-11 content-center font-semibold text-tint">
+          Open your backing to reconcile your saved position action
         </Link>
       ) : (
         <TxSteps

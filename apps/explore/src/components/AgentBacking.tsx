@@ -101,7 +101,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
           )}
           <p className="mt-3 text-sm leading-relaxed text-label-2">{DELEGATION_RISK}</p>
           <Link
-            to="/stake"
+            to="/backing"
             search={{ account: wallet }}
             className="mt-2 inline-flex min-h-11 items-center justify-center rounded-xl bg-tint/14 px-4 font-semibold text-tint"
           >

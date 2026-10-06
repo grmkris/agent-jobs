@@ -1,13 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { type ReactNode, useEffect, useState } from 'react'
 import type { Address } from 'viem'
-import { type ManagedAgent, currentBoardId } from '../../api.ts'
+import type { ManagedAgent } from '../../api.ts'
 import { useManagedApprovals } from '../../managed.ts'
-import { AgentStartLink } from '../AgentStartLink.tsx'
+import { StartPrompt } from '../AgentStartLink.tsx'
 import { ConnectionCard } from '../ConnectionCard.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs.tsx'
-import { EmptyState, ErrorText, textLinkClass } from '../ui.tsx'
+import { EmptyState, ErrorText } from '../ui.tsx'
 import { useAuth } from '../Wallet.tsx'
 import { Approval } from './Approval.tsx'
 import { ManagedAgentCard } from './ManagedAgentCard.tsx'
@@ -30,7 +29,6 @@ const triggerClass =
  */
 export function OwnerTabs({ id, managed, overview }: { id: string; managed: ManagedAgent; overview: ReactNode }) {
   const [tab, setTab] = useState(() => ownerTab(window.location.search))
-  const board = currentBoardId()
   const approvals = useManagedApprovals()
   const pending = (approvals.data?.approvals ?? []).filter((a) => a.agent_id === managed.id && a.status === 'pending').length
   useEffect(() => {
@@ -72,11 +70,8 @@ export function OwnerTabs({ id, managed, overview }: { id: string; managed: Mana
         <ManagedAgentCard agent={managed} />
       </TabsContent>
       <TabsContent value="connect" className="grid gap-7 text-base">
-        <AgentStartLink />
+        <StartPrompt />
         <ConnectionCard />
-        <Link to="/connect" search={{ agent: id, ...(board === 'public' ? {} : { board }) } as never} className={textLinkClass}>
-          Run this agent: setup checklist
-        </Link>
       </TabsContent>
     </Tabs>
   )

@@ -27,9 +27,9 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const name = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page } = await fixture(viewport);
-    await page.goto(`${base}/me`);
-    await page.getByRole('link', { name: /Stake & delegate/ }).click();
-    await page.waitForURL('**/stake');
+    await page.goto(`${base}/account`);
+    await page.getByRole('link', { name: /Back an agent/ }).click();
+    await page.waitForURL('**/backing');
     await text(page, '50,000 FACTORY');
     await position(page).getByText('6,000 FACTORY', { exact: true }).waitFor();
     await position(page).getByText('60 % of total backing', { exact: true }).waitFor();
@@ -102,7 +102,7 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { dust: true });
-    await page.goto(`${base}/stake?account=${agentWallet}`);
+    await page.goto(`${base}/backing?account=${agentWallet}`);
     await position(page).waitFor();
     await page.getByRole('radio', { name: 'Leave', exact: true }).click();
     await page.getByRole('button', { name: 'Max', exact: true }).click();
@@ -115,7 +115,7 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { retired: true });
-    await page.goto(`${base}/stake`);
+    await page.goto(`${base}/backing`);
     await position(page).getByText('Lost in a full slash', { exact: true }).waitFor();
     assert.equal(await position(page).getByRole('button', { name: 'Leave', exact: true }).count(), 0);
     await capture(page, 'retired-generation');
@@ -124,7 +124,7 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { down: true });
-    await page.goto(`${base}/stake`);
+    await page.goto(`${base}/backing`);
     await text(page, 'Your positions could not be read. This does not mean they are gone.');
     assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true);
     await page.evaluate(() => { window.__stake.down = false; });
@@ -139,7 +139,7 @@ try {
   }
   for (const options of [{ connected: false }, { open: false }]) {
     const { context, page } = await fixture({ width: 390, height: 844 }, options);
-    await page.goto(`${base}/stake`);
+    await page.goto(`${base}/backing`);
     if (options.connected === false) await text(page, 'Sign in to see your positions');
     if (options.open === false) { await page.getByText(/Delegating opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true); }
     await context.close();
@@ -156,7 +156,7 @@ try {
     await backing.getByText('6,000 FACTORY · 60 %', { exact: true }).waitFor();
     await capture(page, 'agent-backing');
     await backing.getByRole('link', { name: 'Delegate', exact: true }).click();
-    await page.waitForURL('**/stake?account=*');
+    await page.waitForURL('**/backing?account=*');
     assert.equal(await page.getByRole('combobox', { name: 'Agent to back' }).inputValue(), agentWallet);
     await page.goto(`${base}/agent/1942?tab=manage`);
     await text(page, 'This agent does not own a position. Operator backing belongs to the operator wallet.');
@@ -271,7 +271,7 @@ try {
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
-    await Promise.all([page.goto(`${base}/stake?account=${agentWallet}`), second.goto(`${base}/stake?account=${agentWallet}`)]);
+    await Promise.all([page.goto(`${base}/backing?account=${agentWallet}`), second.goto(`${base}/backing?account=${agentWallet}`)]);
     await Promise.all([amount(page).fill('1'), amount(second).fill('1')]);
     await page.evaluate(() => { window.__wallet.signGate = true; });
     await page.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
@@ -291,7 +291,7 @@ try {
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'second tab waits before signing');
     await page.evaluate(() => window.__releasePermit());
     await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
-    await second.waitForFunction(() => document.body.textContent.includes('Another Stake tab has an unfinished position action.') ||
+    await second.waitForFunction(() => document.body.textContent.includes('Another tab has an unfinished position action.') ||
       Array.from(document.querySelectorAll('h2')).some(heading => heading.textContent === 'Confirm your position action'));
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'lock reread prevents a second prepared effect');
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), pointerKey);
@@ -342,12 +342,12 @@ try {
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
-    await page.goto(`${base}/${surface === 'stake' ? `stake?account=${agentWallet}` : 'agents/new'}`);
+    await page.goto(`${base}/${surface === 'stake' ? `backing?account=${agentWallet}` : 'agents/new'}`);
     if (surface === 'setup') await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
     const firstAmount = surface === 'stake' ? amount(page) : page.getByRole('textbox', { name: 'FACTORY to delegate to agent' });
     const review = () => page.getByRole('button', { name: surface === 'stake' ? 'Delegate 1 FACTORY' : 'Review delegation', exact: true });
     await firstAmount.fill('1');
-    await second.goto(`${base}/stake?account=${agentWallet}`);
+    await second.goto(`${base}/backing?account=${agentWallet}`);
     await amount(second).fill('1');
     await review().click();
     await text(page, 'vault intent write aborted');
@@ -400,7 +400,7 @@ try {
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
-    await second.goto(`${base}/stake?account=${agentWallet}`);
+    await second.goto(`${base}/backing?account=${agentWallet}`);
     await second.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
     await second.evaluate(({ key, raw }) => {
       const getItem = Storage.prototype.getItem;

@@ -14,7 +14,7 @@ import { useSafeOwner } from './Admin.tsx'
  * The signed-in person's account: their wallet, what is ready to collect, backing, gas sponsorship, Telegram, admin,
  * and sign out. What waits on them in jobs is under Jobs › Mine; their agents are under Agents.
  */
-export function MePage() {
+export function AccountPage() {
   const auth = useAuth()
   const signOut = useSignOut(auth)
   const owner = useSafeOwner(auth.address)
@@ -51,9 +51,9 @@ export function MePage() {
             {collect > 0 && <span aria-label={`${collect} to collect`}><Badge>{collect}</Badge></span>}
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
-          <Link to="/stake" className={rowClass({ interactive: true })}>
+          <Link to="/backing" className={rowClass({ interactive: true })}>
             <span className="flex-1">
-              Stake &amp; delegate
+              Back an agent
               <span className="block text-xs text-label-3">Your positions, backing and leaving</span>
             </span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />

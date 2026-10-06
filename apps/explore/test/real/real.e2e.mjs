@@ -222,7 +222,7 @@ async function stakePage() {
   await capture(page, 'stake-done');
   assert.equal(await nonceOf(staker) - sentBefore, 5, 'five transactions from the staker: stakeWithPermit, requestUnstake, cancelUnstake, requestUnstake, withdraw');
   await context.close();
-  record('/stake', ['stake with permit: one eth_signTypedData_v4 then stakeWithPermit; stakeOf 20,000 on chain', 'a Holding reservation of 5 shows; unstaking 20,000 refused', 'unstake 1,000: cooldown countdown from the vault, withdraw disabled', 'keep it staked: cancelUnstake, stakeOf 20,000 again', 'after 7 days of chain time: withdraw, 1,000 back in the wallet']);
+  record('/backing', ['stake with permit: one eth_signTypedData_v4 then stakeWithPermit; stakeOf 20,000 on chain', 'a Holding reservation of 5 shows; unstaking 20,000 refused', 'unstake 1,000: cooldown countdown from the vault, withdraw disabled', 'keep it staked: cancelUnstake, stakeOf 20,000 again', 'after 7 days of chain time: withdraw, 1,000 back in the wallet']);
 }
 
 async function adminPage() {
@@ -338,7 +338,7 @@ async function adminPage() {
 }
 
 try {
-  for (const [name, run] of [['/stake', stakePage], ['/admin', adminPage]]) {
+  for (const [name, run] of [['/backing', stakePage], ['/admin', adminPage]]) {
     try {
       await fresh();
       await run();

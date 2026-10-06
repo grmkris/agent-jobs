@@ -137,7 +137,7 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page } = await fixture(viewport);
-    await page.goto(`${base}/me`);
+    await page.goto(`${base}/account`);
     await page.getByRole('link', { name: /Admin/ }).click();
     await page.waitForURL('**/admin');
 
@@ -510,8 +510,8 @@ try {
 
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { account: stranger });
-    await page.goto(`${base}/me`);
-    await page.getByRole('link', { name: /Stake/ }).waitFor();
+    await page.goto(`${base}/account`);
+    await page.getByRole('link', { name: /Back an agent/ }).waitFor();
     assert.equal(await page.getByRole('link', { name: /Admin/ }).count(), 0);
     await page.goto(`${base}/admin`);
     await page.getByText("Only the Safe's owners see this", { exact: true }).waitFor();

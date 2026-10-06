@@ -130,7 +130,7 @@ export function AccountControl({ auth, account, full = false }: { auth: ReturnTy
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       {auth.signedIn ? (
         // The link is the 44 px target; the pill inside it is what shows.
-        <Link to="/me" className="flex min-h-11 min-w-0 items-center" aria-label="Your wallet">
+        <Link to="/account" className="flex min-h-11 min-w-0 items-center" aria-label="Your wallet">
           <span className="flex min-w-0 items-center gap-2 rounded-full bg-fill py-1 pr-3 pl-1 text-ui font-medium">
             <Monogram seed={auth.address} />
             <span className="truncate font-mono text-ui">{auth.address.slice(0, 6)}…{auth.address.slice(-4)}</span>

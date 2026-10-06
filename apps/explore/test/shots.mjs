@@ -159,7 +159,7 @@ const lifecycle = (name, status, timeline, ruled = null) => ({
 });
 const PAGES = [
   {
-    name: 'stake', wagmi: 'stake-wagmi.mjs', path: '/stake',
+    name: 'backing', wagmi: 'stake-wagmi.mjs', path: '/backing',
     init: () => { window.__stake = { wallet: 18_400n * 10n ** 18n, staked: 25_000n * 10n ** 18n, reserved: 1500n * 10n ** 18n, unstaking: 2000n * 10n ** 18n, unlockAt: Math.floor(Date.now() / 1000) + 3 * 86400, nonce: 0n, calls: [], open: true, denied: {}, proposal: { holding: '0x000000000000000000000000000000000000dEaD', eta: Math.floor(Date.now() / 1000) + 5 * 86400 } }; },
   },
   {
@@ -207,7 +207,7 @@ const PAGES = [
     },
   },
   {
-    name: 'me', ...onboarding, path: '/me',
+    name: 'account', ...onboarding, path: '/account',
     api: { sponsor_status: () => ({ status: 'none', typedData: null, callsUsed: 0 }), telegram_status: () => ({ linked: false, username: null, linkedAt: null }) },
   },
   {
@@ -248,7 +248,7 @@ const PAGES = [
   },
   // The production mainnet build as it is before launch day (no deployment in the config, MAINNET_LIVE false): Explore's
   // own wagmi and Privy, no fixture modules, nothing indexed yet.
-  ...['/', '/stake'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Hireling directory' }) } })),
+  ...['/', '/backing'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Hireling directory' }) } })),
 ];
 
 mkdirSync(output, { recursive: true });

@@ -44,7 +44,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
             <span className="flex-1 font-semibold">You receive</span>
             <span className="tabular min-w-24 text-right font-semibold">{net === undefined ? '…' : amount(net.toString(), token)}</span>
           </ListRow>
-          <Link to="/stake" className="flex min-h-11 items-center px-4 text-sm text-tint">
+          <Link to="/backing" className="flex min-h-11 items-center px-4 text-sm text-tint">
             Delegate more to pay a lower fee
           </Link>
         </Group>

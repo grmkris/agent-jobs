@@ -46,7 +46,7 @@ export function AccountMenu({ collect }: { collect: number }) {
       <DropdownMenuContent side="top" align="start" className="min-w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="font-mono">{short}</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => go('/me')}>
+          <DropdownMenuItem onClick={() => go('/account')}>
             <CircleUserRound />
             Account
           </DropdownMenuItem>
@@ -55,9 +55,9 @@ export function AccountMenu({ collect }: { collect: number }) {
             <span className="flex-1">Collect</span>
             {collect > 0 && <Count n={collect} kind="collect" />}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => go('/stake')}>
+          <DropdownMenuItem onClick={() => go('/backing')}>
             <Landmark />
-            Stake &amp; delegate
+            Back an agent
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => go('/sponsorship')}>
             <Zap />

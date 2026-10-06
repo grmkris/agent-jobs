@@ -143,7 +143,7 @@ try {
     // Telegram: from Me, link with a signed text, open the bot, survive a reload, then the bot links the chat.
     {
       const { context, page, state } = await fixture(viewport);
-      await page.goto(`${base}/me`);
+      await page.goto(`${base}/account`);
       await page.getByRole('link', { name: /Telegram/ }).click();
       await page.waitForURL('**/telegram');
       await page.getByRole('button', { name: 'Link Telegram' }).click();
@@ -192,7 +192,7 @@ try {
       await page.getByText('@kris_fixture', { exact: true }).waitFor();
       assert.equal(await open.count(), 0);
       await capture(page, `${device}-telegram-linked`);
-      await page.goto(`${base}/me`);
+      await page.goto(`${base}/account`);
       await page.getByRole('link', { name: /Telegram/ }).getByText('Linked', { exact: true }).waitFor();
 
       await page.goto(`${base}/telegram`);
@@ -220,7 +220,7 @@ try {
     // Sponsorship: from Me, read the limits from the caveats, upgrade then sign, on; turn off on-chain.
     {
       const { context, page, state } = await fixture(viewport);
-      await page.goto(`${base}/me`);
+      await page.goto(`${base}/account`);
       await page.getByRole('link', { name: /Gas sponsorship/ }).click();
       await page.waitForURL('**/sponsorship');
       await page.getByRole('button', { name: 'Turn on' }).click();
@@ -241,7 +241,7 @@ try {
       assert.deepEqual(state.sponsorConfirmed, [{ wallet: me, signature: `0x${'44'.repeat(65)}` }]);
       await page.getByText('0 of 50', { exact: true }).waitFor();
       await capture(page, `${device}-sponsor-on`);
-      await page.goto(`${base}/me`);
+      await page.goto(`${base}/account`);
       await page.getByRole('link', { name: /Gas sponsorship/ }).getByText('On', { exact: true }).waitFor();
 
       await page.goto(`${base}/sponsorship`);

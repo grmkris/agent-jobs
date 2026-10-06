@@ -488,7 +488,7 @@
         },
         {
           "action": "goto",
-          "path": "/stake"
+          "path": "/backing"
         },
         {
           "action": "wait",

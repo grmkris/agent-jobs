@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, redirect, useLocation } from '@tanstack/react-router'
+import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
@@ -11,19 +11,19 @@ import { Shell } from './components/Shell.tsx'
 import { LandingShell } from './components/LandingShell.tsx'
 import { AgentsPage } from './routes/Agents.tsx'
 import { MyAgentsPage } from './routes/MyAgents.tsx'
-import { MePage } from './routes/Me.tsx'
+import { AccountPage } from './routes/Account.tsx'
 import { JobPage } from './routes/Job.tsx'
 import { JobsPage } from './routes/Jobs.tsx'
 import './styles.css'
 import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
-import { ConnectPage, ProtocolConnectPage } from './routes/Connect.tsx'
+import { ConnectPage } from './routes/Connect.tsx'
 import { PublishPage } from './routes/Publish.tsx'
 import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
 import { BoardsPage } from './routes/Boards.tsx'
 import { BoardNewPage } from './routes/BoardNew.tsx'
 import { EmbedPage } from './routes/Embed.tsx'
-import { StakePage } from './routes/Stake.tsx'
+import { BackingPage } from './routes/Backing.tsx'
 import { AdminPage } from './routes/Admin.tsx'
 import { CollectPage } from './routes/Collect.tsx'
 import { SponsorshipPage } from './routes/Sponsorship.tsx'
@@ -31,6 +31,7 @@ import { TelegramPage } from './routes/Telegram.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 import { AgentNewPage } from './routes/AgentNew.tsx'
 import { HomePage } from './routes/Home.tsx'
+import { EmptyState, PageTitle } from './components/ui.tsx'
 
 function Layout() {
   const location = useLocation()
@@ -45,7 +46,19 @@ function Layout() {
   )
 }
 
-const root = createRootRoute({ component: Layout })
+/** Any path without a page, including the retired /me, /stake, /workspace, /approvals and /protocol. */
+function NotFoundPage() {
+  return (
+    <>
+      <PageTitle>Page not found</PageTitle>
+      <EmptyState title="Nothing lives at this address">
+        <Link to="/jobs" className="text-tint">Browse jobs</Link>
+      </EmptyState>
+    </>
+  )
+}
+
+const root = createRootRoute({ component: Layout, notFoundComponent: NotFoundPage })
 const jobs = createRoute({ getParentRoute: () => root, path: '/', component: HomePage })
 const listings = createRoute({ getParentRoute: () => root, path: '/jobs', component: JobsPage })
 const job = createRoute({
@@ -90,25 +103,16 @@ const connect = createRoute({
   path: '/connect',
   component: ConnectPage,
 })
-const protocol = createRoute({
-  getParentRoute: () => root,
-  path: '/protocol',
-  component: ProtocolConnectPage,
-})
-// Retired on 6 Oct 2026: each agent's page holds its management and approvals. Old links (skills, bot messages,
-// bookmarks) land on My agents.
-const workspace = createRoute({ getParentRoute: () => root, path: '/workspace', beforeLoad: () => { throw redirect({ to: '/agents', replace: true }) } })
-const approvals = createRoute({ getParentRoute: () => root, path: '/approvals', beforeLoad: () => { throw redirect({ to: '/agents', replace: true }) } })
 const agentNew = createRoute({ getParentRoute: () => root, path: '/agents/new', component: () => <LaunchGate title="Create an agent"><AgentNewPage /></LaunchGate> })
-const me = createRoute({ getParentRoute: () => root, path: '/me', component: MePage })
-// Staking is the protocol's, not a board's: one page for every board.
-const stake = createRoute({
+const account = createRoute({ getParentRoute: () => root, path: '/account', component: AccountPage })
+// Backing is the protocol's, not a board's: one page for every board.
+const backing = createRoute({
   getParentRoute: () => root,
-  path: '/stake',
+  path: '/backing',
   validateSearch: (search: Record<string, unknown>): { account?: string } => typeof search.account === 'string' ? { account: search.account } : {},
   component: () => (
-    <LaunchGate title="Stake & delegate">
-      <StakePage />
+    <LaunchGate title="Back an agent">
+      <BackingPage />
     </LaunchGate>
   ),
 })
@@ -219,12 +223,9 @@ const router = createRouter({
     agents,
     workers,
     connect,
-    protocol,
-    me,
-    workspace,
-    approvals,
+    account,
     agentNew,
-    stake,
+    backing,
     admin,
     collect,
     telegram,

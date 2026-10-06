@@ -27,7 +27,7 @@ interface Place {
 }
 
 /** Pages that belong to the account rather than to a job or an agent. */
-const ACCOUNT_PATHS = ['/me', '/collect', '/stake', '/sponsorship', '/telegram', '/admin']
+const ACCOUNT_PATHS = ['/account', '/collect', '/backing', '/sponsorship', '/telegram', '/admin']
 const AGENT_PATHS = ['/agents', '/connect']
 const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
@@ -45,7 +45,7 @@ function places(mine: ReadonlySet<string>): Place[] {
   return [
     { label: 'Jobs', icon: BriefcaseBusiness, target: r.boardId === 'public' ? { to: '/jobs' } : r.jobs(), active: (p) => p !== '/' && !agents(p) && !onAccount(p) },
     { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: agents },
-    { label: 'Account', icon: CircleUserRound, target: { to: '/me' }, active: onAccount },
+    { label: 'Account', icon: CircleUserRound, target: { to: '/account' }, active: onAccount },
   ]
 }
 

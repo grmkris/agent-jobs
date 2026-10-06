@@ -147,7 +147,7 @@
       "row": "K6-A-stake",
       "coordinatorChecksBefore": ["Fresh UI FACTORY wallet balance >=20, new vault bootstrapped, sufficient MON, no unresolved stake operation; record starting wallet/stake/reserved/available."],
       "steps": [
-        {"action": "goto", "path": "/stake"},
+        {"action": "goto", "path": "/backing"},
         {"action": "wait", "id": "stake-amount"},
         {"action": "capture", "name": "k6-a-stake-before"},
         {"action": "fill", "id": "stake-amount", "value": "20"},

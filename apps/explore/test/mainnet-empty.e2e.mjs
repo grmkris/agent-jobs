@@ -29,7 +29,7 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 
 // Every route, by URL, as a visitor (signed out) and with a wallet session in storage.
 const ROUTES = [
-  '/', '/job/12', '/publish', '/quotes', '/quotes/req-1', '/agent/1942', '/agents', '/connect', '/me', '/stake', '/admin',
+  '/', '/job/12', '/publish', '/quotes', '/quotes/req-1', '/agent/1942', '/agents', '/connect', '/account', '/backing', '/admin',
   '/collect', '/telegram', '/sponsorship', '/boards', '/boards/new', '/b/acme', '/b/acme/job/12', '/b/acme/publish',
   '/b/acme/quotes', '/b/acme/quotes/req-1', '/b/acme/agent/1942', '/embed/acme', '/embed/acme?view=publish', '/no-such-page',
 ];
@@ -78,12 +78,12 @@ try {
       assert.equal(await page.getByText('Something went wrong', { exact: false }).count(), 0, `${path}: the error screen`);
       if (!path.startsWith('/embed')) await page.getByRole('note').filter({ hasText: 'Launching soon.' }).first().waitFor({ timeout: 10_000 });
       assert.ok((await page.locator('body').innerText()).trim().length > 0, `${path}: blank`);
-      if (['/stake', '/admin', '/collect', '/publish', '/telegram', '/sponsorship', '/boards/new', '/b/acme/publish'].includes(path)) {
+      if (['/backing', '/admin', '/collect', '/publish', '/telegram', '/sponsorship', '/boards/new', '/b/acme/publish'].includes(path)) {
         await page.getByRole('status').filter({ hasText: 'Hireling on mainnet opens soon' }).waitFor({ timeout: 10_000 });
         await page.getByRole('link', { name: 'Try it on testnet' }).first().waitFor();
       }
       assert.deepEqual(errors, [], `${path}: ${errors.join(' | ')}`);
-      if (['/', '/stake', '/job/12', '/me'].includes(path)) await page.screenshot({ path: `${output}/${session ? 'session' : 'visitor'}${path.replaceAll('/', '-') || '-home'}.png`, fullPage: true });
+      if (['/', '/backing', '/job/12', '/account'].includes(path)) await page.screenshot({ path: `${output}/${session ? 'session' : 'visitor'}${path.replaceAll('/', '-') || '-home'}.png`, fullPage: true });
     }
     const rpc = blocked.filter((b) => /monad|rpc/i.test(b));
     assert.deepEqual(rpc, [], `requests to a Monad RPC: ${rpc.join(' | ')}`);

@@ -108,8 +108,8 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
         {free !== undefined && free < need && (
           <span className="block text-ui text-warn">
             Delegate {formatNumber(need - free, 18)} FACTORY more.{' '}
-            <Link to="/stake" className="font-semibold text-tint">
-              Stake &amp; delegate
+            <Link to="/backing" className="font-semibold text-tint">
+              Back an agent
             </Link>
           </span>
         )}
