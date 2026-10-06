@@ -28,7 +28,8 @@ import { SignInToPublish } from '../post/SignInToPublish.tsx'
 import { ConfirmSheet, useToast } from '../Sheet.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 
-import { Monogram, type useSignedIn } from '../Wallet.tsx'
+import type { useSignedIn } from '../Wallet.tsx'
+import { AgentOrb } from '../agent/AgentOrb.tsx'
 import { paidJob } from './HireAgain.tsx'
 
 export type JobEvent = 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
@@ -541,7 +542,7 @@ function Applications({
           {list.map((a) => (
             <Item key={a.id} className="before:left-14">
               <ItemMedia>
-                <Monogram seed={`agent-${a.agent_id}`} label={a.agent_id.slice(-2)} size="md" />
+                <AgentOrb agentId={a.agent_id} />
               </ItemMedia>
               <ItemContent className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

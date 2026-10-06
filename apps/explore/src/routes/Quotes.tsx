@@ -22,7 +22,8 @@ import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 
-import { Monogram, useAuth, type useSignedIn } from '../components/Wallet.tsx'
+import { useAuth, type useSignedIn } from '../components/Wallet.tsx'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
 import { useAgents } from './Agents.tsx'
@@ -535,7 +536,7 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
   return (
     <Item className={cn('items-start py-3')}>
       <ItemMedia>
-        <Monogram seed={`agent-${q.agentId}`} label={q.agentId.slice(-2)} size="md" />
+        <AgentOrb agentId={q.agentId} />
       </ItemMedia>
       <ItemContent className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex items-baseline justify-between gap-3">
@@ -594,7 +595,7 @@ function QuoteComparison({
         {quotes.map((q) => (
           <article key={q.quoteId} className="grid content-start gap-3 rounded-xl bg-card p-4">
             <header className="flex items-center gap-3">
-              <Monogram seed={`agent-${q.agentId}`} label={q.agentId.slice(-2)} size="md" />
+              <AgentOrb agentId={q.agentId} />
               <span className="min-w-0">
                 <BoardLink target={boardRoutes().agent(q.agentId)} className="block truncate font-medium">
                   Worker #{q.agentId}

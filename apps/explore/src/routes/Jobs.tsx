@@ -16,7 +16,8 @@ import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useNow } from '../components/Time.tsx'
 
-import { Monogram, useAuth } from '../components/Wallet.tsx'
+import { useAuth } from '../components/Wallet.tsx'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { amount, relative } from '../format.ts'
 import { useToken } from '../useTokens.ts'
 
@@ -336,7 +337,7 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       }
     >
       {agentId != null && agentId !== '0' ? (
-        <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+        <AgentOrb agentId={agentId} />
       ) : (
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-muted-foreground">
           <Icon aria-hidden className="size-[1.1rem]" />

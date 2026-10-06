@@ -22,7 +22,8 @@ import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 
-import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
+import type { useSignedIn } from '../components/Wallet.tsx'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
 import { sidequest } from '../sidequest.ts'
 import { percent } from '../stake.ts'
@@ -636,7 +637,7 @@ function People({
         {agentId !== null && (
           <Item render={<BoardLink target={boardRoutes().agent(agentId)} />}>
             <ItemMedia>
-              <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+              <AgentOrb agentId={agentId} />
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
               <ItemTitle className="block font-medium">Worker #{agentId}</ItemTitle>

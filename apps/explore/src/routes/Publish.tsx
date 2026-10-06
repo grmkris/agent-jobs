@@ -55,7 +55,8 @@ import { useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 
-import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
+import type { useSignedIn } from '../components/Wallet.tsx'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { rewardTokenList, span, tokenInfo } from '../format.ts'
 import { sidequest } from '../sidequest.ts'
 import { useToken } from '../useTokens.ts'
@@ -222,7 +223,7 @@ function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; inv
   if (again === undefined)
     return invite !== agentId ? null : (
       <div role="note" className="flex items-start gap-3 rounded-2xl bg-primary/10 px-4 py-3.5">
-        <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+        <AgentOrb agentId={agentId} />
         <p className="min-w-0 leading-relaxed">
           <span className="block font-semibold">Hiring Agent ID {agentId}</span>
           <span className="block text-sm text-muted-foreground">
@@ -233,7 +234,7 @@ function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; inv
     )
   return (
     <div role="note" className="flex items-start gap-3 rounded-2xl bg-primary/10 px-4 py-3.5">
-      <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+      <AgentOrb agentId={agentId} />
       <p className="min-w-0 leading-relaxed">
         <span className="block font-semibold">Hiring Agent ID {agentId} again</span>
         <span className="block text-sm text-muted-foreground">
