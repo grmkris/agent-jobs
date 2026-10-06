@@ -1,7 +1,8 @@
 /**
  * Renders the app icons from the one brand mark (src/brand/mark.svg's white "H" on the near-black ink) with the headless
  * Chromium that playwright-core already brings, so no image library is needed. Run by hand after changing the mark;
- * the PNGs are committed (`bun apps/explore/scripts/icons.ts`). Icons are opaque and full-bleed: iOS applies its own
+ * the PNGs are committed (`bun apps/explore/scripts/icons.ts [chromium-executable]`; without a path Playwright's own
+ * Chromium is used). Icons are opaque and full-bleed: iOS applies its own
  * mask, and a transparent icon would sit on black.
  */
 import { mkdirSync } from 'node:fs'
@@ -31,7 +32,8 @@ const targets: Array<[string, number, number]> = [
 ]
 
 mkdirSync(out('icons'), { recursive: true })
-const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_PATH === undefined ? {} : { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }) })
+// A path argument, not an environment variable: Explore's build pins every env read under apps/explore (B12-003).
+const browser = await chromium.launch({ headless: true, ...(process.argv[2] === undefined ? {} : { executablePath: process.argv[2] }) })
 for (const [file, size, scale] of targets) {
   const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 })
   await page.setContent(`<html><body style="margin:0">${icon(size, scale)}</body></html>`)
