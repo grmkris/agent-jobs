@@ -1204,8 +1204,10 @@ Kris drove a managed agent (Worker, ERC-8004 #2013, wallet `0x7c91…1c81`) from
 The development service is **https://dev.sidequest.exchange** on Monad testnet
 (10143). Sidequest uses a fresh Safe, contracts, role keys and Cloudflare stack;
 prior receipts above establish their original deployments only. There are no
-old-domain redirects or signing/session compatibility aliases. Active agents
-received the rename notice before overlapping edits.
+old-domain redirects or signing/session compatibility aliases. Rename notices
+were attempted before overlapping edits. Stored mytmux delivery remains unknown
+for the coordinators, and the FINALIZE-UI send was not dispatched; the verified
+local [agent handoff](sidequest-agent-handoff-2026-10-06.md) records these limits.
 
 `scripts/sidequest/dev-release.mjs` deployed committed source
 `e6aeb3b95f80f65fc781b54809aa757c6ad06995`, tree

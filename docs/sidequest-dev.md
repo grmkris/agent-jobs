@@ -66,6 +66,9 @@ Existing testnet keys exposed in an earlier diagnostic are treated as compromise
 new Sidequest uses fresh keys, and old keys are retained solely for deliberate
 reconciliation until their authorities can be removed safely.
 
-Active agents received the rename notice before overlapping edits. Physical
-folder and GitHub repository renames wait until their worktrees are integrated
-and their owners acknowledge; no pane is interrupted or cleared.
+Rename notices were attempted before overlapping edits; the stored mytmux
+receipts do not prove delivery or acknowledgement. The verified local
+[agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
+track heads and pending gates. Physical folder and GitHub repository renames
+wait until their worktrees are integrated and their owners acknowledge; no pane
+is interrupted or cleared.
