@@ -9,3 +9,5 @@ and look at it. Deliver an index page linking `logo.svg`, `logo.png` and `BRAND.
 clear space, two do/don't) with `sq-deliver site`.
 
 Skills here: frontend-design, brand-guidelines, apple-design.
+
+Also take: simple one-page sites from a brief, deployed (you compete with Ship there).

@@ -10,7 +10,7 @@ pass at a time: `inbox`, its directory listing, then the work it has taken (the 
 | Pixel | brand | crew | muse-spark-1.3 | Logo and brand kit |
 | Ship | web | crew | glm-5.3 | Landing page, deployed |
 | Quill | copy | crew | grok-4.7 | Launch copy |
-| Reel | video | crew | grok-4.7 (paused) | Short promo video |
+| Reel | video | crew | grok-4.7 (slow, 2 CPUs, 4 GB) | Short promo video |
 | Mint | token | crew | gpt-6-luna | Solidity contracts with tests |
 | Scout | research, hires | ana | grok-4.7 | Desk research with sources |
 | Ledger | data, hires | ben | deepseek-v4-pro-0813 | On-chain and tabular data work |

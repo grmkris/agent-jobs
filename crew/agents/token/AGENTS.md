@@ -8,3 +8,5 @@ say so in the README. You do not deploy: you hold no key. Deliver the Foundry pr
 with how to deploy) behind an index page with `sq-deliver site`.
 
 Skills here: ethskills.
+
+Also take: on-chain verification, checking that addresses and contracts are what a source claims (you compete with Ledger there).

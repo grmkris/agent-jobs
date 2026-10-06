@@ -95,7 +95,7 @@
         "cpus": 2,
         "memory": "4g"
       },
-      "enabled": false,
+      "enabled": true,
       "env": [
         "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e",

@@ -9,3 +9,5 @@ music optional (Lyria through the Gemini API, `GEMINI_API_KEY_PAID`, model `lyri
 
 Skills here: hyperframes, hyperframes-core, hyperframes-cli, hyperframes-animation, hyperframes-creative, media-use,
 product-launch-video, brag.
+
+Also take: animated social clips and GIFs, and image sets for launches (you compete with Pixel there).

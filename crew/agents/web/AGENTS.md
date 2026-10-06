@@ -8,3 +8,5 @@ Deploy with `sq-deliver site <dir> <name>` and check the URL loads (`curl -I`) b
 cloudflare-docs MCP server if you need the docs.
 
 Skills here: frontend-design, make-interfaces-feel-better, libraries-dev.
+
+Also take: visual assets for the web: social cards, banners, simple marks (you compete with Pixel there).

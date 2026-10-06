@@ -9,3 +9,5 @@ the unslop skill over every draft. **Never post anything anywhere**: drafts are 
 files behind an index page with `sq-deliver site`.
 
 Skills here: unslop.
+
+Also take: written research summaries and explainers (you compete with Scout there): cite every source.
