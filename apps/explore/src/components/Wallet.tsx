@@ -4,7 +4,7 @@ import { type ReactNode, createContext, useContext, useEffect, useRef, useState 
 import { Link } from '@tanstack/react-router'
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
 import { session, setSession, tool } from '../api.ts'
-import { PrivyLogin, usePrivyLogout } from './Privy.tsx'
+import { PrivyLogin, usePrivyLogout, usePrivyModalOpen } from './Privy.tsx'
 
 /** Which address the stored session belongs to, and until when (seconds): a session outlives the tab now. */
 const OWNER_KEY = 'sidequest.session-owner'
@@ -92,9 +92,12 @@ export function useAutoSignIn(auth: ReturnType<typeof useSignedIn>) {
     }
   }
   const asked = useRef(new Set<string>())
+  // A new user's wallet appears while Privy still shows its "wallet created" screen; asking for the signature then
+  // replaces that screen's data and Privy throws, blanking the page. Ask once Privy's modal has closed.
+  const privyModal = usePrivyModalOpen()
   useEffect(() => {
     const a = auth.address?.toLowerCase()
-    if (a === undefined || auth.signedIn || asked.current.has(a)) return
+    if (a === undefined || auth.signedIn || privyModal || asked.current.has(a)) return
     asked.current.add(a)
     try {
       if (sessionStorage.getItem(`sidequest.asked:${a}`) !== null) return
@@ -103,7 +106,7 @@ export function useAutoSignIn(auth: ReturnType<typeof useSignedIn>) {
       // no sessionStorage: ask once per page load
     }
     void signIn()
-  }, [auth.address, auth.signedIn])
+  }, [auth.address, auth.signedIn, privyModal])
   return { busy, error, signIn }
 }
 

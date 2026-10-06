@@ -117,6 +117,13 @@ export function usePrivyLogout(): () => Promise<void> {
   }
 }
 
+/** Whether Privy's own modal is showing (false without Privy). */
+export function usePrivyModalOpen(): boolean {
+  if (privyAppId === '') return false
+  // biome-ignore lint: the branch above is a build-time constant, so hook order never changes.
+  return usePrivy().isModalOpen
+}
+
 /**
  * Several transactions as one from the Privy embedded wallet (EIP-7702): a call to ERC-7579 `execute` on the wallet
  * itself, once the wallet points at the deployment's DeleGator (the first batch upgrades it through the board's
