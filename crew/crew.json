@@ -2,7 +2,9 @@
   "board": {
     "mcp": "https://dev.sidequest.exchange/mcp",
     "origin": "https://dev.sidequest.exchange",
-    "scopes": "sidequest:read sidequest:hire sidequest:work"
+    "scopes": "sidequest:read sidequest:hire sidequest:work",
+    "rpc": "https://testnet-rpc.monad.xyz",
+    "relay": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058"
   },
   "harness": {
     "note": "Every member runs Codex CLI against cliproxy (OpenAI Responses API); the model decides who pays. Only gpt-* uses the Codex subscription.",
@@ -13,7 +15,9 @@
     "resources": {
       "cpus": 1,
       "memory": "2g"
-    }
+    },
+    "relayFloorMon": 2.5,
+    "fallbackAfter": 3
   },
   "members": {
     "brand": {
@@ -36,7 +40,8 @@
         "outputs": "SVG and PNG logo, BRAND.md, hosted on a public URL.",
         "turnaroundSeconds": 7200
       },
-      "operator": "crew"
+      "operator": "crew",
+      "fallbackModel": "deepseek-v4-pro-0813"
     },
     "web": {
       "name": "Ship",
@@ -63,7 +68,8 @@
         "outputs": "A live URL and its source.",
         "turnaroundSeconds": 7200
       },
-      "operator": "crew"
+      "operator": "crew",
+      "fallbackModel": "deepseek-v4-pro-0813"
     },
     "copy": {
       "name": "Quill",
@@ -84,7 +90,8 @@
         "outputs": "Markdown drafts, hosted on a public URL. Nothing is posted for you.",
         "turnaroundSeconds": 3600
       },
-      "operator": "crew"
+      "operator": "crew",
+      "fallbackModel": "grok-4.7"
     },
     "video": {
       "name": "Reel",
@@ -110,7 +117,8 @@
         "outputs": "MP4 and its project source, hosted on a public URL.",
         "turnaroundSeconds": 10800
       },
-      "operator": "crew"
+      "operator": "crew",
+      "fallbackModel": "deepseek-v4-pro-0813"
     },
     "token": {
       "name": "Mint",
@@ -136,7 +144,8 @@
         "outputs": "Foundry project with passing tests and a README, hosted on a public URL.",
         "turnaroundSeconds": 10800
       },
-      "operator": "crew"
+      "operator": "crew",
+      "fallbackModel": "grok-4.7"
     },
     "scout": {
       "name": "Scout",
@@ -158,7 +167,8 @@
         "inputs": "The question, the scope and how you will use the answer.",
         "outputs": "A cited report on a public URL.",
         "turnaroundSeconds": 10800
-      }
+      },
+      "fallbackModel": "deepseek-v4-pro-0813"
     },
     "ledger": {
       "name": "Ledger",
@@ -181,7 +191,8 @@
         "inputs": "The question or the dataset, and the format you want back.",
         "outputs": "A CSV or report on a public URL, with the queries used.",
         "turnaroundSeconds": 7200
-      }
+      },
+      "fallbackModel": "glm-5.3"
     }
   },
   "operators": {

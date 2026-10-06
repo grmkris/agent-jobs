@@ -32,6 +32,8 @@ interface Member {
   email: string
   operator: string
   model: string
+  /** Used after `harness.fallbackAfter` failed runs in a row (cliproxy models come and go). */
+  fallbackModel?: string
   effort: string
   resources?: Resources
   enabled: boolean
@@ -40,8 +42,8 @@ interface Member {
   service: Record<string, unknown>
 }
 interface Crew {
-  board: { mcp: string; origin: string; scopes: string }
-  harness: { baseUrl: string; maxParallel: number; runTimeoutMinutes: number; cpuShares: number; resources: Resources }
+  board: { mcp: string; origin: string; scopes: string; rpc: string; relay: string }
+  harness: { baseUrl: string; maxParallel: number; runTimeoutMinutes: number; cpuShares: number; resources: Resources; relayFloorMon: number; fallbackAfter: number }
   members: Record<string, Member>
 }
 interface Token { access_token: string; refresh_token: string; expires_at: number; agent_id: string; scope: string }
@@ -145,8 +147,9 @@ function prepareAgentDir(id: string): string {
   return agent
 }
 
-async function run(id: string, note = '') {
-  const [, m] = memberOf(id)
+async function run(id: string, note = '', model?: string): Promise<number | null> {
+  const [, base] = memberOf(id)
+  const m = model === undefined ? base : { ...base, model, effort: 'high' }
   const token = await freshToken(id)
   const e = env()
   const agent = prepareAgentDir(id)
@@ -178,7 +181,7 @@ async function run(id: string, note = '') {
   // One run per member at a time: the container name is the lock.
   if (spawnSync('docker', ['container', 'inspect', container], { stdio: 'ignore' }).status === 0) {
     console.log(`${m.name}: still running, skipped`)
-    return
+    return null
   }
   const { cpus, memory } = m.resources ?? crew.harness.resources
   const limits = ['--cpus', String(cpus), '--memory', memory, '--memory-swap', memory, '--pids-limit', '1024', '--cpu-shares', String(crew.harness.cpuShares)]
@@ -199,6 +202,18 @@ async function run(id: string, note = '') {
   const operator = join(agent, 'state', 'needs-operator')
   if (existsSync(operator)) console.log(`${m.name} needs the operator: ${readFileSync(operator, 'utf8').trim()}`)
   console.log(`${m.name}: exit ${code}`)
+  return code
+}
+
+/** The sponsor relay's MON: below the floor the board refuses sponsored sends, so a run would only fail. */
+async function relayMon(): Promise<number> {
+  const res = await fetch(crew.board.rpc, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [crew.board.relay, 'latest'] }),
+  })
+  const { result } = (await res.json()) as { result: string }
+  return Number(BigInt(result) / 10n ** 14n) / 10_000
 }
 
 /** One MCP tool call as the member (JSON-RPC over the board's /mcp; no session needed). */
@@ -263,6 +278,8 @@ if (command === 'login') await login(a!, b)
 else if (command === 'run') await run(memberOf(a)[0], b)
 else if (command === 'status') status()
 else if (command === 'wake') console.log(await wakeReason(memberOf(a)[0]) ?? 'idle')
+// One tool call as a member, for an operator's probe: reads, or writes with the operationKey in the JSON.
+else if (command === 'call') console.log(JSON.stringify(await mcpCall((await freshToken(memberOf(a)[0])).access_token, b!, JSON.parse(process.argv[5] ?? '{}')), null, 2))
 else if (command === 'loop') {
   // Each enabled, connected member loops on its own (start staggered), at most maxParallel containers at once.
   const minutes = Number(a ?? 15)
@@ -273,21 +290,31 @@ else if (command === 'loop') {
   }
   const members = Object.entries(crew.members).filter(([id, m]) => m.enabled && existsSync(join(home(id), 'token.json')))
   console.log(`crew loop: ${members.map(([, m]) => m.name).join(', ')} every ${minutes} min, at most ${crew.harness.maxParallel} at once`)
-  await Promise.all(members.map(async ([id], i) => {
+  await Promise.all(members.map(async ([id, m], i) => {
     await Bun.sleep(i * 30_000)
+    let failures = 0
     for (;;) {
       let reason: string | null = null
       try { reason = await wakeReason(id) } catch (error) { reason = `check failed (${(error as Error).message.slice(0, 80)})` }
-      if (reason === null) console.log(`${crew.members[id]!.name}: idle`)
+      const relay = reason === null ? Infinity : await relayMon().catch(() => Infinity)
+      if (reason === null) console.log(`${m.name}: idle`)
+      else if (relay < crew.harness.relayFloorMon) console.log(`${m.name}: ${reason}, but the relay holds ${relay} MON (floor ${crew.harness.relayFloorMon}); not waking`)
       else {
         await slot()
-        console.log(`${crew.members[id]!.name}: waking, ${reason}`)
-        try { await run(id) } catch (error) { console.error(`${id}: ${(error as Error).message}`) } finally { running-- }
+        const model = failures >= crew.harness.fallbackAfter ? m.fallbackModel : undefined
+        console.log(`${m.name}: waking, ${reason}${model === undefined ? '' : ` (on ${model} after ${failures} failed runs)`}`)
+        try {
+          const code = await run(id, '', model)
+          if (code !== null) failures = code === 0 ? 0 : failures + 1
+        } catch (error) {
+          failures++
+          console.error(`${id}: ${(error as Error).message}`)
+        } finally { running-- }
       }
       await Bun.sleep(minutes * 60_000)
     }
   }))
 } else {
-  console.error('usage: crew.ts login <member> [url] | run <member> [note] | loop [minutes] | status')
+  console.error('usage: crew.ts login <member> [url] | run <member> [note] | loop [minutes] | status | wake <member> | call <member> <tool> [json]')
   process.exit(2)
 }
