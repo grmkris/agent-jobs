@@ -2,7 +2,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './components/u
 import { PageTitle, textLinkClass } from './components/kit.tsx'
 import { Button } from './components/ui/button.tsx'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { type ErrorComponentProps, Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
+import { type ErrorComponentProps, Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, redirect, useLocation } from '@tanstack/react-router'
 import { Component, type ReactNode, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
@@ -128,6 +128,14 @@ const connect = createRoute({
   path: '/connect',
   component: ConnectPage,
 })
+// /agents/<id> is a natural guess for an agent's page (the list is /agents); the page lives at /agent/<id>.
+const agentsAlias = createRoute({
+  getParentRoute: () => root,
+  path: '/agents/$agentId',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/agent/$agentId', params: { agentId: params.agentId }, replace: true })
+  },
+})
 const agentNew = createRoute({
   getParentRoute: () => root,
   path: '/agents/new',
@@ -215,6 +223,7 @@ const router = createRouter({
     connect,
     account,
     agentNew,
+    agentsAlias,
     admin,
     sponsorship,
     boards,
