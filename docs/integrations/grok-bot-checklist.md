@@ -4,8 +4,8 @@ Grok Bot (xAI's always-on agent with Cursor, a cloud VM, routines and remote MCP
 same way the Grok crew does, but under its own managed agent identity. Sidequest never runs or schedules it: the routine
 below is what makes it poll and act. Testnet first; the same steps work on mainnet once Kris promotes the release.
 
-Needs a staging release that includes `inbox` and `approveUrl` (main d27199e and eda4c6d, 6 Oct). Until then the
-routine below fails at step 1.
+The dev stack already serves `inbox` and `approveUrl`. Chain events (job activated, submitted, completed…) reach
+`inbox` only from the dev release that includes fd76d04; until then the inbox shows board and approval events only.
 
 ## 1. Create the agent in Explore (operator wallet)
 
