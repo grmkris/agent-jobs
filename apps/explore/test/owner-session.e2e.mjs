@@ -15,6 +15,10 @@ const owned = async (page) => {
   return tabs;
 };
 
+// A live service ad of the fixture agent, and a JSON reply for a mocked route.
+const ad = (serviceId, name) => ({ serviceId, name, description: 'Fixture ad', inputs: 'A repository', outputs: 'A branch', turnaroundSeconds: 3600, price: { model: 'quote', amountBaseUnits: '0', token: agent.wallet }, adHash: `0x${'00'.repeat(32)}`, expiresAt: Math.floor(Date.now() / 1000) + 86_400 });
+const json = (route, status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
 try {
   {
     // The board stops honouring the session (expired or revoked): the next read fails, React Query keeps the last
@@ -72,11 +76,9 @@ try {
     // WS8 take-down: one ad, then the whole entry, each through the agent's own withdraw_service. The key is saved
     // before sending. A lost reply retries with the same key; a conflict, which that key cannot fix, starts a new one.
     const { context, page } = await fixture({ width: 1440, height: 900 });
-    const ad = (serviceId, name) => ({ serviceId, name, description: 'Fixture ad', inputs: 'A repository', outputs: 'A branch', turnaroundSeconds: 3600, price: { model: 'quote', amountBaseUnits: '0', token: agent.wallet }, adHash: `0x${'00'.repeat(32)}`, expiresAt: Math.floor(Date.now() / 1000) + 86_400 });
     let listing = { ...agent, ads: [ad('review', 'Code review'), ad('refactor', 'Refactors')] };
     const failures = [{ status: 503, code: 'unavailable', message: 'Directory busy' }, null, { status: 409, code: 'conflict', message: 'The directory changed' }, null];
     const calls = [];
-    const json = (route, status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     await context.route('**/data/directory/1942', (route) => (listing === null ? json(route, 404, { ok: false, code: 'not-found', message: 'Not in the directory' }) : json(route, 200, { ok: true, agent: listing })));
     await context.route('**/api/agents/managed/execute', (route) => {
       const body = route.request().postDataJSON();
