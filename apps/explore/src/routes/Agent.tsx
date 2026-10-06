@@ -159,6 +159,9 @@ export interface AgentTime {
   turnarounds: number
 }
 
+/** A job row of the record: the indexer's chain facts, its board and the policy hash that keys its frozen offer. */
+export type RecordJob = ChainJob & { policy_hash?: string | null }
+
 export interface AgentRecord {
   agent: AgentSummary
   /** The wallets it worked from. */
@@ -356,7 +359,7 @@ function Profile({ id }: { id: string }) {
     <>
       {header}
 
-      {managed === undefined ? overview : <OwnerTabs id={id} managed={managed} overview={overview} />}
+      {managed === undefined ? overview : <OwnerTabs managed={managed} overview={overview} posted={record.data?.posted} taken={record.data?.jobs} />}
     </>
   )
 }

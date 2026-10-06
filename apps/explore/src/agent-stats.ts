@@ -57,3 +57,48 @@ export function tierProgress(active: bigint, tier: { threshold: bigint; nextThre
 /** Whether a record has anything to show yet: a brand-new agent gets the "new on Sidequest" card instead of stats. */
 export const isNew = (record: { agent: { jobs: number }; hiring?: { posted: number } | undefined } | null | undefined) =>
   record === null || record === undefined || (record.agent.jobs === 0 && (record.hiring?.posted ?? 0) === 0)
+
+export type NeedsYouItem =
+  | { kind: 'approvals'; count: number }
+  | { kind: 'overdue'; jobIds: string[] }
+  | { kind: 'review'; jobIds: string[] }
+  | { kind: 'budget'; token: string; left: string; limit: string }
+  | { kind: 'revocation' }
+
+/** Below this share of the weekly budget left, the owner hears about it before a hire lands in Approvals. */
+export const LOW_BUDGET = 0.2
+
+/**
+ * What the owner of an agent should act on, most urgent first: decisions waiting, jobs it took that are past their
+ * delivery deadline with nothing delivered, jobs it posted whose submitted work waits on review, a weekly budget nearly
+ * spent, a revocation not yet confirmed on-chain. Empty when nothing needs the owner.
+ */
+export function needsYou(input: {
+  pendingApprovals: number
+  taken: ReadonlyArray<{ job_id: string; status: string; delivery_deadline: number | null }>
+  posted: ReadonlyArray<{ job_id: string; status: string }>
+  allowances: ReadonlyArray<{ token: string; left: string; limit: string }>
+  revoked: boolean
+  onchainDisabled: boolean
+  now: number
+}): NeedsYouItem[] {
+  const items: NeedsYouItem[] = []
+  if (input.pendingApprovals > 0) items.push({ kind: 'approvals', count: input.pendingApprovals })
+  const overdue = input.taken.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < input.now).map((j) => j.job_id)
+  if (overdue.length > 0) items.push({ kind: 'overdue', jobIds: overdue })
+  const review = input.posted.filter((j) => j.status === 'submitted').map((j) => j.job_id)
+  if (review.length > 0) items.push({ kind: 'review', jobIds: review })
+  for (const a of input.allowances) {
+    const limit = BigInt(a.limit)
+    if (limit > 0n && Number((BigInt(a.left) * 10_000n) / limit) / 10_000 < LOW_BUDGET) items.push({ kind: 'budget', token: a.token, left: a.left, limit: a.limit })
+  }
+  if (input.revoked && !input.onchainDisabled) items.push({ kind: 'revocation' })
+  return items
+}
+
+/** A day, for "on Sidequest since": "6 Sep", with the year when it is not this year's. */
+export function sinceDay(unix: number, now: number): string {
+  const date = new Date(unix * 1000)
+  const thisYear = date.getFullYear() === new Date(now * 1000).getFullYear()
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(thisYear ? {} : { year: 'numeric' }) })
+}

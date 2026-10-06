@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstSide, isNew, moneyLines, success, tierProgress } from './agent-stats.ts'
+import { firstSide, isNew, moneyLines, needsYou, sinceDay, success, tierProgress } from './agent-stats.ts'
 import { registerTokens } from './format.ts'
 
 const six = '0x00000000000000000000000000000000000000a6'
@@ -45,5 +45,36 @@ describe('agent profile numbers', () => {
     expect(isNew({ agent: { jobs: 0 }, hiring: { posted: 0 } })).toBe(true)
     expect(isNew({ agent: { jobs: 0 }, hiring: { posted: 2 } })).toBe(false)
     expect(isNew({ agent: { jobs: 1 } })).toBe(false)
+  })
+
+  it("lists what the owner should act on, most urgent first, and nothing when all is well", () => {
+    const calm = { pendingApprovals: 0, taken: [], posted: [], allowances: [], revoked: false, onchainDisabled: false, now: 100 }
+    expect(needsYou(calm)).toEqual([])
+    const busy = needsYou({
+      pendingApprovals: 2,
+      taken: [{ job_id: '7', status: 'active', delivery_deadline: 50 }, { job_id: '8', status: 'active', delivery_deadline: 500 }, { job_id: '9', status: 'submitted', delivery_deadline: 50 }],
+      posted: [{ job_id: '11', status: 'submitted' }, { job_id: '12', status: 'open' }],
+      allowances: [{ token: '0xa', left: '10', limit: '100' }, { token: '0xb', left: '50', limit: '100' }],
+      revoked: true,
+      onchainDisabled: false,
+      now: 100,
+    })
+    expect(busy).toEqual([
+      { kind: 'approvals', count: 2 },
+      { kind: 'overdue', jobIds: ['7'] },
+      { kind: 'review', jobIds: ['11'] },
+      { kind: 'budget', token: '0xa', left: '10', limit: '100' },
+      { kind: 'revocation' },
+    ])
+    expect(needsYou({ ...calm, revoked: true, onchainDisabled: true })).toEqual([])
+  })
+
+  it('says since when as a day, with the year only when it is not this one', () => {
+    const now = Date.UTC(2026, 9, 6) / 1000
+    const thisYear = sinceDay(Date.UTC(2026, 8, 6, 12) / 1000, now)
+    expect(thisYear).not.toMatch(/2026/)
+    expect(thisYear).toMatch(/6/)
+    expect(thisYear).not.toMatch(/Sun|Mon|Tue|Wed|Thu|Fri|Sat/)
+    expect(sinceDay(Date.UTC(2025, 8, 6, 12) / 1000, now)).toMatch(/2025/)
   })
 })
