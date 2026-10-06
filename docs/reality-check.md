@@ -1518,10 +1518,21 @@ parsed the HTML and exercised initialize → tool result → render. Separate re
 origin `null` with scroll widths equal to their viewports, explicit confirmation and identical-key retry. They used no
 real writes. New feed/webhook tables use the existing idempotent additive runtime DDL; no migration file was added.
 
-**Live verified anonymously:** pending WP7's guarded release and anonymous readback. `server/discover`, `resources/read`
-for the App, and `skills/list` must remain 401 without OAuth, so anonymous callers cannot inspect the advertised events
-or skills capabilities. The brief's suggestion of anonymous capability readback cannot be satisfied without breaking
-that authentication boundary; authenticated capability visibility remains a separate owner proof.
+WP7's final rebased release tree passed `heavy pnpm check` (including API 422 passed/16 skipped and contract
+524 passed/47 skipped), `heavy pnpm sidequest:test` (9 passed), and `heavy pnpm db:generate --check`.
+Every advertised output schema compiled with Ajv on both MCP lanes; 14 real success fixtures validated against
+those schemas, including publisher reads and hosted create/select results. The final lint-only fix hoisted the OAuth
+webhook verification test callback. No contract or ABI source change was committed.
+
+**Live verified anonymously:** source `4dc03be4d759533623a4fdc7e33b976bc7337df7`, tree
+`ae4ce48497be02446b7ba3032f02d55d038046d8`, deployed to `https://dev.sidequest.exchange` through the guarded
+Node 24 runner at 14:33:59 UTC. Anonymous curl readback at 14:35:36 UTC returned 200 for health, release metadata,
+protected-resource metadata and authorization-server metadata. The network remains Monad testnet (10143), with
+`mainnetLive: false`. Anonymous `initialize`, `server/discover`, `tools/list`, `resources/read` for
+`ui://sidequest/hiring/v1.html`, and `skills/list` all returned 401. [Sanitized live receipt](evidence/sidequest-dev/2026-10-06-4dc03be-live.json).
+
+The authentication boundary prevents anonymous inspection of advertised events and skills capabilities.
+Authenticated capability visibility remains a separate owner proof.
 
 **Not verified:** real ChatGPT or Goblin connection, human OAuth consent, any authenticated deployed call, host App
 rendering, webhook/routine acceptance, or operator-approved economic flow. ChatGPT write-plan eligibility is unconfirmed;

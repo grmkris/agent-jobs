@@ -14,8 +14,9 @@ generated from the same SVG. Contrast, focus and reduced-motion gates still appl
 
 The latest guarded dev application release is `4dc03be`, deployed on 6 October 2026
 at 14:33:59 UTC. The [host-parity live receipt](evidence/sidequest-dev/2026-10-06-4dc03be-live.json)
-records its source/tree, green gates and successful guarded update. Host acceptance and
-authenticated MCP calls remain unverified.
+records its source/tree, green gates, successful guarded update and anonymous readback.
+Health and OAuth metadata returned 200; MCP discovery, tools, App and skills returned 401.
+Host acceptance and authenticated MCP calls remain unverified.
 
 The previous signed-off dev application release was `e90b9f5`, deployed on 6 October 2026
 at 11:51:14 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json)

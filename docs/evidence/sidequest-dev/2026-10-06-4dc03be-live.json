@@ -5,7 +5,7 @@
   "deployedAt": "2026-10-06T14:33:59.904Z",
   "origin": "https://dev.sidequest.exchange",
   "chainId": 10143,
-  "evidenceTier": "live-dev-guarded-runner-receipt",
+  "evidenceTier": "live-dev-guarded-runner-and-anonymous-readback",
   "runner": {
     "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
     "planPassed": true,
@@ -20,7 +20,97 @@
     "heavy pnpm sidequest:test": "9 passed",
     "heavy pnpm db:generate --check": "passed"
   },
-  "publicReadback": "pending WP7 step 6",
+  "publicReadback": {
+    "observedAt": "2026-10-06T14:35:36.243020+00:00",
+    "origin": "https://dev.sidequest.exchange",
+    "evidenceTier": "live-dev-anonymous-readback",
+    "publicChecks": [
+      {
+        "path": "/health",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/release.json",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/.well-known/oauth-protected-resource",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/.well-known/oauth-authorization-server",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "initialize"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "server/discover"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "resources/read"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "skills/list"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "tools/list"
+      }
+    ],
+    "health": {
+      "ok": true,
+      "runtime": "Cloudflare-Workers",
+      "network": "monad-testnet",
+      "board": "public"
+    },
+    "release": {
+      "network": "monad-testnet",
+      "mainnetLive": false,
+      "writesOpen": true
+    },
+    "oauth": {
+      "issuer": "https://dev.sidequest.exchange",
+      "resource": "https://dev.sidequest.exchange/mcp",
+      "scopes": [
+        "sidequest:read",
+        "sidequest:hire",
+        "sidequest:work"
+      ]
+    },
+    "authenticatedCapabilities": "not-verified; discovery requires OAuth",
+    "hostAcceptance": "not-verified",
+    "noAuthentication": true,
+    "noTransactions": true,
+    "noHostConnection": true
+  },
   "authenticatedCalls": "not-verified",
   "hostAcceptance": "not-verified",
   "noAuthentication": true,
