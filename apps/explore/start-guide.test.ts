@@ -127,8 +127,9 @@ describe('agent start guide built assets and deployed routes', () => {
       expect(body).toContain('small creator bond')
       const loop = body.split('## 5. WORK only:')[1]?.split('## 6. HIRE:')[0]
       expect(loop).toBeDefined()
-      expect(loop?.match(/WORK only: follow the worker skill/g)).toHaveLength(3)
+      expect(loop?.match(/WORK only: call inbox with the cursor saved in your journal, follow the worker skill/g)).toHaveLength(3)
       expect(loop?.match(/do not publish hires/g)).toHaveLength(3)
+      expect(body).toContain(`adds\n\`${origin}/mcp\` as a custom connector`)
       expect(body).toContain('`request_quotes` → `list_quotes` →')
       expect(body).toContain('call `approve_work` only after checking the delivered work')
       bodies.push(body)
