@@ -58,11 +58,15 @@ export async function agentManagement(input: {
   }
   if (action === 'allowance-confirm') return lifecycle.confirmAllowance(id, operator, text(body, 'key'), hex(body, 'hash', 64), hex(body, 'signature', 130))
   if (action === 'stop-access' || action === 'revoke') {
-    // The agent's event webhooks end first: its feed must not keep reaching a callback once access stops, and a
-    // failed stop afterwards only costs the agent a re-subscribe (V1.1 WS5).
-    const address = agents.owned(id, operator).address
-    if (address !== null && bindings.Database !== undefined) await terminateSubscriptions(fromD1(bindings.Database as never), address)
-    return action === 'stop-access' ? lifecycle.stopAccess(id, operator) : lifecycle.revoke(id, operator)
+    // Stopping hosted access is authoritative and comes first. Then the agent's event webhooks end: the revocation is
+    // recorded where subscribe and delivery check it. Both steps are idempotent, so if the second fails the operator
+    // repeats the request (VV2-030).
+    const agent = lifecycle.stopAccess(id, operator)
+    if (agent.address !== null && bindings.Database !== undefined) {
+      try { await terminateSubscriptions(fromD1(bindings.Database as never), agent.address, now()) }
+      catch { throw new BoardError('unavailable', 'Hosted access is stopped, but its event webhooks have not ended yet. Repeat this request.') }
+    }
+    return action === 'stop-access' ? agent : lifecycle.revoke(id, operator)
   }
   if (action === 'approval-prepare') {
     // A permission approval may be adjusted before signing: a shorter expiry or a lower amount, never wider.

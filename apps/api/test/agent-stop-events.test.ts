@@ -16,10 +16,14 @@ const wallet = `0x${'22'.repeat(20)}` as Address
 const neighbour = `0x${'44'.repeat(20)}`
 const registry = `0x${'33'.repeat(20)}` as Address
 
-function d1(db: DatabaseSync) {
+function d1(db: DatabaseSync, failing = { batch: false }) {
   return {
     prepare: (query: string) => ({ bind: (...values: SQLInputValue[]) => ({ query, values, all: async () => ({ results: db.prepare(query).all(...values) }) }) }),
-    batch: async (statements: Array<{ query: string; values: SQLInputValue[] }>) => { for (const s of statements) db.prepare(s.query).run(...s.values) },
+    batch: async (statements: Array<{ query: string; values: SQLInputValue[] }>) => {
+      if (failing.batch) throw new Error('D1 unavailable')
+      db.exec('BEGIN')
+      try { for (const s of statements) db.prepare(s.query).run(...s.values); db.exec('COMMIT') } catch (error) { db.exec('ROLLBACK'); throw error }
+    },
   }
 }
 
@@ -35,12 +39,14 @@ async function fixture() {
   await events.batch([wallet, neighbour].map((principal, index) => stmt(`INSERT INTO event_subscriptions
     (id, principal, chain_id, name, args_json, url, secret, cursor_seq, status, refresh_before, failures, next_attempt_at, created_at, updated_at)
     VALUES (?, ?, 10143, 'sidequest.inbox', '{}', 'https://hooks.example/in', 'whsec_x', 0, 'active', 99999, 0, 0, 1000, 1000)`, `sub_${index}`, principal.toLowerCase())))
-  const manage = (action: string, bindings: Record<string, unknown> = { Database: d1(database) }) => agentManagement({
+  const failing = { batch: false }
+  const manage = (action: string, bindings: Record<string, unknown> = { Database: d1(database, failing) }) => agentManagement({
     request: { action, id: 'one', body: {} }, sql, context: sdk.context('monad-testnet', 'main', 'http://127.0.0.1:9'), operator, bindings,
     relayKey: '0x', rpcUrl: '', now: () => 1000, execute: async () => { throw new Error('unexpected execute') },
   })
   const status = async () => Object.fromEntries((await events.all<{ id: string; status: string }>('SELECT id, status FROM event_subscriptions ORDER BY id')).map(row => [row.id, row.status]))
-  return { agents, manage, status }
+  const revoked = async () => (await events.all<{ principal: string }>('SELECT principal FROM event_revoked_principals')).map(row => row.principal)
+  return { agents, manage, status, revoked, failing }
 }
 
 test('stop-access terminates the agent\'s subscriptions and leaves other principals alone', async () => {
@@ -48,6 +54,19 @@ test('stop-access terminates the agent\'s subscriptions and leaves other princip
   await f.manage('stop-access')
   expect(f.agents.get('one').state).toBe('revoked')
   expect(await f.status()).toEqual({ sub_0: 'terminated', sub_1: 'active' })
+  expect(await f.revoked()).toEqual([wallet])
+})
+
+test('access stops first: a failed webhook teardown leaves access stopped and a repeat finishes it (VV2-030)', async () => {
+  const f = await fixture()
+  f.failing.batch = true
+  await expect(f.manage('stop-access')).rejects.toMatchObject({ code: 'unavailable' })
+  expect(f.agents.get('one').state).toBe('revoked')
+  expect(await f.status()).toEqual({ sub_0: 'active', sub_1: 'active' })
+  f.failing.batch = false
+  await f.manage('stop-access')
+  expect(await f.status()).toEqual({ sub_0: 'terminated', sub_1: 'active' })
+  expect(await f.revoked()).toEqual([wallet])
 })
 
 test('stop-access still stops hosted access when no D1 binding is present', async () => {

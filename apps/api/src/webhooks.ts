@@ -29,7 +29,11 @@ export const WEBHOOK_SCHEMA = [
     updated_at INTEGER NOT NULL
   )`,
   'CREATE INDEX IF NOT EXISTS event_subscriptions_due ON event_subscriptions (status, next_attempt_at, refresh_before)',
+  // A principal whose hosted access stopped. Its subscriptions are terminated and none can be created or delivered again.
+  'CREATE TABLE IF NOT EXISTS event_revoked_principals (principal TEXT PRIMARY KEY, revoked_at INTEGER NOT NULL)',
 ] as const
+const NOT_REVOKED = 'NOT EXISTS (SELECT 1 FROM event_revoked_principals r WHERE r.principal = event_subscriptions.principal)'
+const revokedError = () => new EventRpcError(-32003, 'This agent\'s access is stopped')
 const migrated = new WeakSet<AsyncSql>()
 export async function migrateWebhooks(sql: AsyncSql): Promise<void> {
   if (migrated.has(sql)) return
@@ -163,6 +167,7 @@ export async function subscribeWebhook(sql: AsyncSql, network: Network, principa
   const chain = telegramChainId(network)
   const id = await subscriptionId(principal, chain, url.href, name, args)
   await migrateWebhooks(sql)
+  if ((await sql.all('SELECT 1 FROM event_revoked_principals WHERE principal = ?', principal.toLowerCase())).length > 0) throw revokedError()
   const [existing] = await sql.all<Subscription>('SELECT * FROM event_subscriptions WHERE id = ?', id)
   const start = existing !== undefined && existing.status !== 'terminated' ? { seq: existing.cursor_seq, truncated: false }
     : await eventStart(sql, network, principal, { ...params, name, arguments: args }, now)
@@ -179,9 +184,12 @@ export async function subscribeWebhook(sql: AsyncSql, network: Network, principa
   } catch { throw new EventRpcError(-32015, 'Webhook verification failed') }
   // A longer request is shortened, not refused: refreshBefore tells the client when to subscribe again.
   const refreshBefore = now + Math.max(1, Math.floor(Math.min(ttlMs, MAX_LEASE * 1000) / 1000))
-  // Refresh cannot rewind an in-flight cursor or erase the beginning of continuous delivery failure.
+  // Refresh cannot rewind an in-flight cursor or erase the beginning of continuous delivery failure. The write is
+  // conditional on the principal not being revoked in the same statement, so a subscribe that was in flight when
+  // access stopped cannot land after the termination (VV2-030).
   await sql.batch([stmt(`INSERT INTO event_subscriptions (id, principal, chain_id, name, args_json, url, secret, cursor_seq, status, refresh_before, failures, next_attempt_at, last_error, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, ?, NULL, ?, ?)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, ?, NULL, ?, ?
+    WHERE NOT EXISTS (SELECT 1 FROM event_revoked_principals WHERE principal = ?)
     ON CONFLICT(id) DO UPDATE SET secret = excluded.secret, refresh_before = excluded.refresh_before,
     cursor_seq = CASE WHEN status = 'terminated' THEN excluded.cursor_seq ELSE cursor_seq END,
     failures = CASE WHEN status = 'terminated' THEN 0 ELSE failures END,
@@ -189,10 +197,11 @@ export async function subscribeWebhook(sql: AsyncSql, network: Network, principa
     last_error = CASE WHEN status = 'failing' THEN last_error ELSE NULL END,
     updated_at = CASE WHEN status = 'failing' THEN updated_at ELSE excluded.updated_at END,
     status = CASE WHEN status = 'failing' THEN status ELSE 'active' END`,
-  id, principal.toLowerCase(), chain, name, canonical(args), url.href, d.secret, start.seq, refreshBefore, now, now, now)])
-  const [saved] = await sql.all<Subscription>('SELECT * FROM event_subscriptions WHERE id = ?', id)
-  return { id, refreshBefore: new Date(refreshBefore * 1000).toISOString(), cursor: cursorOf(saved!.cursor_seq), truncated: start.truncated,
-    deliveryStatus: { active: saved!.status === 'active', ...(saved!.last_error === null ? {} : { lastError: saved!.last_error }) } }
+  id, principal.toLowerCase(), chain, name, canonical(args), url.href, d.secret, start.seq, refreshBefore, now, now, now, principal.toLowerCase())])
+  const [saved] = await sql.all<Subscription>(`SELECT * FROM event_subscriptions WHERE id = ? AND status <> 'terminated' AND ${NOT_REVOKED}`, id)
+  if (saved === undefined) throw revokedError()
+  return { id, refreshBefore: new Date(refreshBefore * 1000).toISOString(), cursor: cursorOf(saved.cursor_seq), truncated: start.truncated,
+    deliveryStatus: { active: saved.status === 'active', ...(saved.last_error === null ? {} : { lastError: saved.last_error }) } }
 }
 export async function unsubscribeWebhook(sql: AsyncSql, network: Network, principal: string, params: Record<string, unknown>, now: number): Promise<Record<string, unknown>> {
   let id = params.id
@@ -214,14 +223,17 @@ const backoff = (failures: number) => [60, 120, 300, 900, 3600][Math.min(failure
 /** Seconds, like the feed. During failure updated_at anchors the continuous failure interval. */
 export async function deliverWebhooks(sql: AsyncSql, network: Network, now: number, options: { fetch?: WebhookFetch; budget?: number } = {}): Promise<{ posts: number; subscriptions: number }> {
   await migrateWebhooks(sql)
-  await sql.batch([stmt('DELETE FROM event_subscriptions WHERE refresh_before <= ?', now - 7 * DAY)])
-  const rows = await sql.all<Subscription>("SELECT * FROM event_subscriptions WHERE chain_id = ? AND status IN ('active', 'failing') AND next_attempt_at <= ? AND refresh_before > ? ORDER BY next_attempt_at, created_at, id", telegramChainId(network), now, now)
+  await sql.batch([
+    stmt('DELETE FROM event_subscriptions WHERE refresh_before <= ?', now - 7 * DAY),
+    stmt(`UPDATE event_subscriptions SET status = 'terminated', last_error = 'Agent access stopped', updated_at = ? WHERE status <> 'terminated' AND NOT (${NOT_REVOKED})`, now),
+  ])
+  const rows = await sql.all<Subscription>(`SELECT * FROM event_subscriptions WHERE chain_id = ? AND status IN ('active', 'failing') AND next_attempt_at <= ? AND refresh_before > ? AND ${NOT_REVOKED} ORDER BY next_attempt_at, created_at, id`, telegramChainId(network), now, now)
   const transport = options.fetch ?? fetch
   const budget = Math.min(100, Math.max(0, Math.floor(options.budget ?? 100)))
   let posts = 0, subscriptions = 0, next = 0
   const work = async (row: Subscription) => {
     subscriptions++
-    const current = async () => (await sql.all<{ id: string }>("SELECT id FROM event_subscriptions WHERE id = ? AND secret = ? AND status IN ('active', 'failing') AND refresh_before > ?", row.id, row.secret, now)).length > 0
+    const current = async () => (await sql.all<{ id: string }>(`SELECT id FROM event_subscriptions WHERE id = ? AND secret = ? AND status IN ('active', 'failing') AND refresh_before > ? AND ${NOT_REVOKED}`, row.id, row.secret, now)).length > 0
     const terminate = async (reason: string) => sql.batch([stmt("UPDATE event_subscriptions SET status = 'terminated', last_error = ?, updated_at = ? WHERE id = ? AND secret = ? AND status IN ('active', 'failing')", reason, now, row.id, row.secret)])
     const send = async (envelope: unknown, id: string): Promise<number | undefined> => {
       const body = encoder.encode(JSON.stringify(envelope))
@@ -285,7 +297,11 @@ export async function deliverWebhooks(sql: AsyncSql, network: Network, now: numb
   }))
   return { posts, subscriptions }
 }
-export async function terminateSubscriptions(sql: AsyncSql, principal: string): Promise<void> {
+/** Records the principal as revoked and terminates its subscriptions in one batch. Idempotent. */
+export async function terminateSubscriptions(sql: AsyncSql, principal: string, now = Math.floor(Date.now() / 1000)): Promise<void> {
   await migrateWebhooks(sql)
-  await sql.batch([stmt("UPDATE event_subscriptions SET status = 'terminated', updated_at = ? WHERE principal = ? AND status <> 'terminated'", Math.floor(Date.now() / 1000), principal.toLowerCase())])
+  await sql.batch([
+    stmt('INSERT OR IGNORE INTO event_revoked_principals (principal, revoked_at) VALUES (?, ?)', principal.toLowerCase(), now),
+    stmt("UPDATE event_subscriptions SET status = 'terminated', last_error = 'Agent access stopped', updated_at = ? WHERE principal = ? AND status <> 'terminated'", now, principal.toLowerCase()),
+  ])
 }

@@ -84,6 +84,28 @@ describe('public callback validation', () => {
 })
 
 describe('verification and subscription leases', () => {
+  it('refuses to subscribe a revoked principal before any network call (VV2-030)', async () => {
+    const sql = database(); await seed(sql)
+    await terminateSubscriptions(sql, principal, now)
+    const f = fake()
+    await expect(subscription(sql, f.transport)).rejects.toMatchObject({ code: -32003 })
+    expect(f.deliveries).toHaveLength(0)
+  })
+
+  it('a subscribe in flight when access stops does not land after the termination (VV2-030)', async () => {
+    const sql = database(); await seed(sql)
+    const existing = await subscription(sql, fake().transport, { arguments: { kinds: ['job.submitted'] } })
+    let raced = false
+    const f = fake()
+    const racing: WebhookFetch = async (input, init) => {
+      if (!raced && !String(input).startsWith('https://cloudflare-dns.com/')) { raced = true; await terminateSubscriptions(sql, principal, now) }
+      return f.transport(input, init)
+    }
+    await expect(subscription(sql, racing)).rejects.toMatchObject({ code: -32003 })
+    expect(await sql.all("SELECT id FROM event_subscriptions WHERE status <> 'terminated'")).toEqual([])
+    expect((await row(sql, existing.id)).status).toBe('terminated')
+  })
+
   it('shortens a lease longer than six hours instead of refusing it', async () => {
     const sql = database(); await seed(sql)
     const sub = await subscription(sql, fake().transport, { ttlMs: 86_400_000 })
@@ -165,6 +187,17 @@ describe('verification and subscription leases', () => {
 })
 
 describe('cron webhook delivery', () => {
+  it('never posts for a revoked principal and terminates a row that slipped in (VV2-030)', async () => {
+    const sql = database(); await seed(sql)
+    const f = fake()
+    const sub = await subscription(sql, f.transport)
+    await sql.batch([stmt('INSERT INTO event_revoked_principals (principal, revoked_at) VALUES (?, ?)', principal, now)])
+    const posts = f.deliveries.length
+    expect(await deliverWebhooks(sql, network, now, { fetch: f.transport })).toEqual({ posts: 0, subscriptions: 0 })
+    expect(f.deliveries).toHaveLength(posts)
+    expect(await row(sql, sub.id)).toMatchObject({ status: 'terminated', last_error: 'Agent access stopped' })
+  })
+
   it('delivers signed occurrences in order and advances only through acknowledged 2xx rows', async () => {
     const sql = database(); await seed(sql); await seed(sql, 1, stranger)
     let received = 0
