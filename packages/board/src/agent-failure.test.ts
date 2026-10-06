@@ -1,7 +1,7 @@
 import * as sdk from '@sidequest/sdk'
 import { ContractFunctionRevertedError, encodeErrorResult, parseAbi } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
-import { AgentFailure, agentFailureReply, errorDiagnostics, failureFromReply } from './agent-failure.ts'
+import { AgentFailure, agentFailureReply, errorDiagnostics, errorSite, failureFromReply } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
 
 describe('agentFailureReply', () => {
@@ -46,9 +46,8 @@ describe('agentFailureReply', () => {
       expect(logged).toContain('"status":401')
       expect(logged).not.toMatch(/SECRETKEY|monad\.example|Bearer|short-secret|apiKey|sk-1|ab12|token=abc|refused|request failed/)
     } finally { spy.mockRestore() }
-    const facts = ({ at: _at, ...rest }: ReturnType<typeof errorDiagnostics>) => rest
-    expect(facts(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' })))).toEqual({ name: 'object' })
-    expect(facts(errorDiagnostics(Object.assign(new Error('x'), { code: 'rate-limited', status: 429 })))).toEqual({ name: 'Error', code: 'rate-limited', status: 429 })
+    expect(errorDiagnostics(Object.assign(new Error('x'), { name: 'bad name!', code: 'NOT A CODE' }))).toEqual({ name: 'object' })
+    expect(errorDiagnostics(Object.assign(new Error('x'), { code: 'rate-limited', status: 429 }))).toEqual({ name: 'Error', code: 'rate-limited', status: 429 })
     expect(errorDiagnostics('plain string')).toEqual({ name: 'string' })
   })
 
@@ -56,9 +55,9 @@ describe('agentFailureReply', () => {
     function verifyOneOffAllowance(): never { throw new Error('secret https://rpc.example/KEY Bearer abc') }
     let thrown: unknown
     try { verifyOneOffAllowance() } catch (error) { thrown = error }
-    const diagnostics = errorDiagnostics(thrown)
-    expect(diagnostics.at?.[0]).toBe('verifyOneOffAllowance')
-    expect(JSON.stringify(diagnostics)).not.toMatch(/secret|rpc\.example|KEY|Bearer|\/|:\d/)
+    const site = errorSite(thrown)
+    expect(site.at?.[0]).toBe('verifyOneOffAllowance')
+    expect(JSON.stringify(site)).not.toMatch(/secret|rpc\.example|KEY|Bearer|\/|:\d/)
   })
 
   it('reports only a viem-decoded revert whose name our contracts declare', () => {
