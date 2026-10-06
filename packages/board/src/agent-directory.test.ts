@@ -70,6 +70,18 @@ describe('a hosted agent listing itself', () => {
     expect(f.calls.filter((c) => c === 'prepare:Enrollment')).toHaveLength(1)
   })
 
+  it('answers a finished ad from its journal, so a retry after the operator opted out does not enroll again (VV2-028)', async () => {
+    const f = fixture()
+    await f.directory.advertise('lister', 'list-1', ad)
+    const second = await f.directory.advertise('lister', 'list-2', { ...ad, serviceId: 'audit', name: 'Audit' })
+    await f.directory.withdraw('lister', 'leave-1', {})
+    const signed = f.signedCount()
+    expect(await f.directory.advertise('lister', 'list-2', { ...ad, serviceId: 'audit', name: 'Audit' })).toEqual(second)
+    expect(await f.directory.withdraw('lister', 'leave-1', {})).toMatchObject({ enrolled: false })
+    expect(f.signedCount()).toBe(signed)
+    expect(await f.service.read()).toMatchObject({ enrolled: false, ads: [] })
+  })
+
   it('takes one ad down, or leaves the directory with all of them', async () => {
     const f = fixture()
     await f.directory.advertise('lister', 'list-1', ad)

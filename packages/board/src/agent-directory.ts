@@ -44,6 +44,9 @@ export class AgentDirectory {
   async advertise(id: string, key: string, ad: unknown): Promise<sdk.DirectoryAgent> {
     const checked = await refusing(() => validateAdvertisement(ad))
     const operation = this.deps.agents.begin(id, key, this.deps.boardId, 'advertise_service', { ad: checked })
+    // A finished operation answers from its journal: a retry must not enroll again after a later opt-out.
+    const done = this.deps.agents.step<sdk.DirectoryAgent>(operation.id, 'ad:done')
+    if (done !== undefined) return done
     const listing = await refusing(() => this.deps.port.read())
     if (!listing.enrolled || listing.ownership !== 'verified') {
       const agent = this.deps.agents.get(id)
@@ -56,6 +59,8 @@ export class AgentDirectory {
   async withdraw(id: string, key: string, input: { serviceId?: string }): Promise<sdk.DirectoryAgent> {
     const operation = this.deps.agents.begin(id, key, this.deps.boardId, 'withdraw_service', input.serviceId === undefined ? {} : { serviceId: input.serviceId })
     if (input.serviceId !== undefined) return this.#record(operation.id, 'revoke', id, 'RevokeAd', { serviceId: input.serviceId })
+    const done = this.deps.agents.step<sdk.DirectoryAgent>(operation.id, 'leave:done')
+    if (done !== undefined) return done
     const listing = await refusing(() => this.deps.port.read())
     return this.#record(operation.id, 'leave', id, 'Enrollment', { profile: listing.profile, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0, enrolled: false })
   }
