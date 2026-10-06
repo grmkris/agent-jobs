@@ -240,7 +240,7 @@ export class CodingClient {
         await browser.page.goto(url.href, { waitUntil: "domcontentloaded" });
         await browser.page.getByRole("combobox").selectOption(agent.id);
         await browser.page
-          .getByRole("button", { name: "Allow this connection", exact: true })
+          .getByRole("button", { name: "Use this agent for this connection", exact: true })
           .waitFor({ timeout: 30_000 });
         browser.page.on("request", (request) => {
           const redirected = new URL(request.url());
@@ -253,7 +253,7 @@ export class CodingClient {
           callback = true;
           input(`${redirected.href}\n`);
         });
-        await browser.click("Allow this connection");
+        await browser.click("Use this agent for this connection");
       },
     );
     this.run.set(`codex-connected/${this.clientId}`, true);
