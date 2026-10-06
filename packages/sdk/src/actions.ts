@@ -15,6 +15,7 @@ import {
   type Transport,
   type WalletClient,
   decodeEventLog,
+  encodeFunctionData,
   keccak256,
   maxUint256,
   stringToHex,
@@ -33,6 +34,7 @@ import {
   sidequestEvaluatorAbi,
   stakeVaultAbi,
   factoryV2Abi,
+  testnetFaucetAbi,
 } from './abi/index.ts'
 import type { Deployment, Stack } from './deployment.ts'
 import { readWindowBounds, validateOfferWindows } from './clocks.ts'
@@ -114,9 +116,29 @@ export const V1_GAS = { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 
 // Tokens and identity
 // -------------------------------------------------------------------------------------------------
 
-/** Testnet only: mints the token's faucet amount to the wallet (SIDE, mUSD, mEUR). */
+/** Testnet only: mints a payment token's faucet amount (mUSD, mEUR) to the wallet. SIDE has no faucet: use `drip`. */
 export function faucet(ctx: Ctx, wallet: Wallet, token: Address) {
   return write(ctx, wallet, token, faucetTokenAbi, 'faucet', [])
+}
+
+function testnetFaucetOf(ctx: Ctx): Address {
+  if (ctx.deployment.testnetFaucet === null) throw new Error('No testnet faucet is deployed on this network')
+  return ctx.deployment.testnetFaucet
+}
+
+/** Testnet only: the faucet call that gives `to` SIDE and each payment token. Anyone may send it for any address. */
+export function dripCall(ctx: Ctx, to: Address): { to: Address; data: Hex } {
+  return { to: testnetFaucetOf(ctx), data: encodeFunctionData({ abi: testnetFaucetAbi, functionName: 'drip', args: [to] }) }
+}
+
+/** Testnet only: when `to` may claim from the faucet next, in Unix seconds; 0 means now. */
+export async function nextDripAt(ctx: Ctx, to: Address): Promise<number> {
+  return Number(await ctx.publicClient.readContract({ address: testnetFaucetOf(ctx), abi: testnetFaucetAbi, functionName: 'nextDripAt', args: [to] }))
+}
+
+/** Testnet only: claims the faucet's SIDE and payment tokens for `to`, paid for by `wallet`. */
+export function drip(ctx: Ctx, wallet: Wallet, to: Address = wallet.account.address) {
+  return write(ctx, wallet, testnetFaucetOf(ctx), testnetFaucetAbi, 'drip', [to])
 }
 
 /** Approves `spender` for `amount` of `token` unless the allowance already covers it. */

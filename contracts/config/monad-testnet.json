@@ -110,7 +110,8 @@
       "t0": 1791257814,
       "teamVesting": "0x754662106Bf8305b33999aB37C1CC4F9ad6f9f46",
       "vault": "0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76"
-    }
+    },
+    "testnetFaucet": "0x311746E7B0dbadC0E905eDa3Fc5c4d281187Fada"
   },
   "sidequest": {
     "clocks": {

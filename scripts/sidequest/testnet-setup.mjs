@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { concatHex, createPublicClient, decodeEventLog, encodeAbiParameters, encodeFunctionData, http, parseAbi, parseAbiParameters, parseEther, zeroAddress } from 'viem'
+import { concatHex, createPublicClient, decodeEventLog, encodeAbiParameters, encodeFunctionData, getAddress, http, parseAbi, parseAbiParameters, parseEther, zeroAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { loadEnv, testnetOperation } from './transaction.mjs'
 
@@ -33,6 +33,25 @@ try {
     config.knownTokens = tokens
     config.deployment.rewardTokens = tokens
     writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
+  } else if (process.argv[2] === 'faucet') {
+    // The testnet "Get test tokens" faucet: 1,000 SIDE (transferred from its balance) + 1,000 of each payment token
+    // (minted) per address per day. Owned by the admin; funded with 10M SIDE from the ecosystem allocation.
+    const config = JSON.parse(readFileSync('contracts/config/monad-testnet.json', 'utf8'))
+    const side = config.deployment.factory
+    const payment = config.deployment.rewardTokens
+    const artifact = JSON.parse(readFileSync('contracts/out/TestnetFaucet.sol/TestnetFaucet.json', 'utf8'))
+    const data = concatHex([artifact.bytecode.object, encodeAbiParameters(parseAbiParameters('address,address,address[],uint256,uint256'), [address('DEPLOYER'), side, payment, parseEther('1000'), 1_000_000_000n])])
+    const deployed = await testnetOperation({ id: 'faucet-deploy-20261006', key: 'SIDEQUEST_DEV_DEPLOYER_PRIVATE_KEY', data, gas: 1_500_000n, env })
+    const faucet = deployed.receipt.contractAddress
+    const faucetAbi = parseAbi(['function stakeToken() view returns (address)', 'function paymentTokens() view returns (address[])', 'function owner() view returns (address)'])
+    const read = functionName => client.readContract({ address: faucet, abi: faucetAbi, functionName })
+    if (!faucet || (await read('stakeToken')).toLowerCase() !== side.toLowerCase() || (await read('paymentTokens')).join() !== payment.join() || await read('owner') !== address('DEPLOYER')) throw new Error('faucet-readback-mismatch')
+    console.log(JSON.stringify({ faucet, hash: deployed.hash, block: deployed.block }))
+    const transfer = encodeFunctionData({ abi: parseAbi(['function transfer(address,uint256) returns (bool)']), functionName: 'transfer', args: [faucet, parseEther('10000000')] })
+    const funded = await testnetOperation({ id: 'faucet-fund-20261006', key: 'SIDEQUEST_DEV_CREATOR_PRIVATE_KEY', to: side, data: transfer, gas: 100_000n, env })
+    console.log(JSON.stringify({ funded: '10000000 SIDE', hash: funded.hash, block: funded.block }))
+    config.deployment.testnetFaucet = getAddress(faucet)
+    writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
   } else if (process.argv[2] === 'safe') {
     for (const target of Object.values(infra.safeInfrastructure)) {
       if (!await client.getCode({ address: target })) throw new Error('safe-infrastructure-missing')
@@ -54,7 +73,7 @@ try {
     const record = { chainId: 10143, safe, owners, threshold: 1, version, hash: result.hash, block: result.block }
     writeFileSync('.sidequest/safe.json', JSON.stringify(record, null, 2) + '\n', { mode: 0o600 })
     console.log(JSON.stringify(record))
-  } else throw new Error('use-fund-safe-or-rewards')
+  } else throw new Error('use-fund-safe-rewards-or-faucet')
 } catch (error) {
   console.error(error instanceof Error && /^[a-z0-9-]+$/.test(error.message) ? error.message : 'testnet-setup-failed-inspect-private-journal')
   process.exitCode = 1

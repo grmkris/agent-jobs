@@ -29,6 +29,7 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['Factory.sol', 'Factory', 'factoryV2', 'factoryV2Abi'],
   ['MiningReserve.sol', 'MiningReserve', 'miningReserve', 'miningReserveAbi'],
   ['EpochDistributor.sol', 'EpochDistributor', 'epochDistributor', 'epochDistributorAbi'],
+  ['TestnetFaucet.sol', 'TestnetFaucet', 'testnetFaucet', 'testnetFaucetAbi'],
 ]
 
 const index: string[] = []

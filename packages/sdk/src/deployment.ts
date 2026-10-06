@@ -132,6 +132,11 @@ export interface Deployment {
    * own wallet (funded by an advance). Null where none is recorded.
    */
   readonly x402: { readonly usdc: Address; readonly facilitator: string } | null
+  /**
+   * Testnet only: the `TestnetFaucet` that gives an address SIDE and each payment token once a day. Null on mainnet
+   * and wherever none is deployed.
+   */
+  readonly testnetFaucet: Address | null
   /** The block the recipe deployed at: where an indexer starts and a rebuild restarts. */
   readonly deployBlock: bigint
 }
@@ -160,6 +165,7 @@ export interface DeploymentConfig {
       clocks?: SidequestClocks
     }
     rewardTokens?: string[]
+    testnetFaucet?: string
     poolFactory?: string
     main?: StackEntry
     demo?: StackEntry | null
@@ -256,6 +262,7 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
     attester: c.roles.attester as Address,
     relay: c.roles.relay as Address,
     x402: c.x402 === undefined ? null : { usdc: c.x402.usdc as Address, facilitator: c.x402.facilitator },
+    testnetFaucet: d.testnetFaucet === undefined || c.chainId === 143 ? null : (d.testnetFaucet as Address),
     deployBlock: BigInt(d.block ?? 0),
   }
 }
