@@ -38,12 +38,14 @@ try {
     assert.equal(await page.getByRole('heading', { level: 2, name: 'Connect your coding agent', exact: true }).count(), 0, 'OAuth already has a connecting client');
     await page.screenshot({ path: `${output}/oauth-${viewport.width}.png`, fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    // A worker-only agent asks for the work scope only: the role chosen in setup carries into the consent.
+    if (viewport.width === 1440) await page.getByRole('radio', { name: 'Get hired', exact: true }).click();
     await use.click();
     await page.getByRole('heading', { name: 'Connection permissions', exact: true }).waitFor();
     assert.equal(await use.isDisabled(), false, 'selected agent with no allowance can connect');
     assert.equal(await page.getByRole('textbox', { name: 'Weekly budget', exact: true }).isVisible(), false);
     assert.equal(await page.getByRole('textbox', { name: 'SIDE to back this agent', exact: true }).isVisible(), false);
-    if (viewport.width === 1440) await page.getByRole('checkbox', { name: 'Hire · post, select, accept and reject' }).uncheck();
+    assert.equal(await page.getByRole('checkbox', { name: 'Hire · post, select, accept and reject' }).isChecked(), viewport.width !== 1440, 'the setup role decides the hire scope');
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length + window.__wallet.sends.length), 0, 'connection without funding needs no wallet action');
     await use.click();
     await page.waitForURL('**/__test/oauth-complete');
@@ -54,7 +56,7 @@ try {
     await page.getByRole('heading', { level: 2, name: 'Connect your coding agent', exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length + window.__wallet.sends.length), 0, 'rendering setup never signs or sends');
     await context.close();
-    results.push({ viewport, checks: ['OAuth hides install snippet', 'standalone retains install snippet', 'optional sections collapsed', 'no allowance or backing needed', 'consent redirects with exact selected scopes', 'no funding API or wallet actions when skipped'], passed: true });
+    results.push({ viewport, checks: ['OAuth hides install snippet', 'standalone retains install snippet', 'optional sections collapsed', 'no allowance or backing needed', 'consent redirects with exact selected scopes', 'Get hired role drops the hire scope', 'no funding API or wallet actions when skipped'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no real OAuth, wallet signing or sends', results, errors }, null, 2));

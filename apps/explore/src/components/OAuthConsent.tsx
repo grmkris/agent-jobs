@@ -98,8 +98,10 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
         {creating && (
           <AgentNew
             context="oauth"
-            onReady={(created) => {
+            onReady={(created, role) => {
               setSelected(created.id)
+              setWork(role !== 'hire')
+              setHire(role !== 'work')
               setCreating(false)
               void agents.refetch()
             }}

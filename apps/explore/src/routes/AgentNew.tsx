@@ -29,6 +29,9 @@ import { ConnectionCard } from '../components/ConnectionCard.tsx'
 import { typedDataArgs } from '../typed-data.ts'
 import { privyAppId } from '../wallet.ts'
 
+/** What the agent is for; a connection made right after setup asks only for the scopes of that role. */
+export type AgentRole = 'both' | 'hire' | 'work'
+
 /** Create an agent, or (`?resume=<id>`) continue the setup of one that has no Agent ID yet. */
 export function AgentNewPage() {
   const { resume } = useSearch({ strict: false }) as { resume?: string }
@@ -63,7 +66,7 @@ export function AgentNew({
   context = 'standalone',
 }: {
   initial?: ManagedAgent
-  onReady?: (agent: ManagedAgent) => void
+  onReady?: (agent: ManagedAgent, role: AgentRole) => void
   context?: 'standalone' | 'oauth'
 }) {
   const auth = useAuth()
@@ -93,7 +96,7 @@ function AgentSetup({
 }: {
   operator: Address
   initial?: ManagedAgent
-  onReady?: (agent: ManagedAgent) => void
+  onReady?: (agent: ManagedAgent, role: AgentRole) => void
   context: 'standalone' | 'oauth'
 }) {
   const { getAccessToken } = usePrivy()
@@ -113,7 +116,7 @@ function AgentSetup({
   const [agent, setAgent] = useState(initial)
   const [operatorReady, setOperatorReady] = useState(false)
   const [fundingReady, setFundingReady] = useState(false)
-  const [role, setRole] = useState<'both' | 'hire' | 'work'>('both')
+  const [role, setRole] = useState<AgentRole>('both')
   const [review, setReview] = useState<ReturnType<typeof reviewAgentGrant> | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -199,6 +202,11 @@ function AgentSetup({
             <Button busy={busy} onClick={() => void run(create)}>
               Create agent wallet
             </Button>
+            {busy && (
+              <p role="status" className="text-ui text-muted-foreground">
+                Creating the agent&apos;s wallet and preparing it for gas sponsorship. This takes about ten seconds.
+              </p>
+            )}
           </>
         ) : agent.state !== 'active' ? (
           <>
@@ -207,9 +215,12 @@ function AgentSetup({
             </p>
 
             {['created', 'upgraded'].includes(agent.state) ? (
-              <Button busy={busy} onClick={() => void run(async () => setAgent(await agentAction<ManagedAgent>(agent.id, 'resume')))}>
-                Resume wallet setup
-              </Button>
+              <>
+                <Button busy={busy} onClick={() => void run(async () => setAgent(await agentAction<ManagedAgent>(agent.id, 'resume')))}>
+                  Resume wallet setup
+                </Button>
+                {busy && <p role="status" className="text-ui text-muted-foreground">Finishing the agent&apos;s wallet. This takes about ten seconds.</p>}
+              </>
             ) : !operatorReady ? (
               <OperatorGrant operator={operator} onReady={() => setOperatorReady(true)} />
             ) : review === null ? (
@@ -272,7 +283,7 @@ function AgentSetup({
             ]}
           />
           {context === 'oauth' && onReady !== undefined && (
-            <Button onClick={() => onReady(agent)}>Use this agent for this connection</Button>
+            <Button onClick={() => onReady(agent, role)}>Use this agent for this connection</Button>
           )}
           {role !== 'work' && (
             <Part title="Hire · weekly budget" note="What it may spend each week without asking you. Bigger spends wait for your approval.">
@@ -310,7 +321,7 @@ function AgentSetup({
             </Part>
           )}
           {context === 'standalone' && onReady !== undefined && (
-            <Button disabled={!fundingReady} onClick={() => onReady(agent)}>
+            <Button disabled={!fundingReady} onClick={() => onReady(agent, role)}>
               Use this agent for this connection
             </Button>
           )}
