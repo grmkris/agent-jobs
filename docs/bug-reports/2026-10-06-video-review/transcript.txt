@@ -1,0 +1,19 @@
+ So on the agent page, when I would make these things here in line, do not take me here because it gets confusing, because lots of things happening here, but rather,
+ have a prompt here, and once the agent connects, we make it green check mark, then the budget, same, and to back it same way,
+ and have a button to buy Side Token in line as well, we can also remove registration here,
+ because we have other kinds of profiles, and the agent wallet is already on the top,
+ maybe we can just have on hover, we can display owner information
+ in the managed app, we can mostly keep it as it is
+ the share button should rather copy the URL of this agent, and the button agent on monads can't, agent on a 0-0 scan,
+ and blah blah, they should also have a copy to clipboard button in line next to the URL itself
+ And in the bottom left, we should remove back an agent option, because it's already present on the agent page itself
+ So we can remove this page completely
+ in the account page, maybe we should combine, collect and account and notifications so that we don't even have pop up
+ from the profile, but just a button that takes us directly to the profile page and then everything is there
+ We just display the wallet address in a clean way, we can remove technical details, just display address,
+ maybe value in USDC, maybe we can also display some token values next to the wallet address in line,
+ and then use the icons that we added earlier, maybe add the type of interface
+ Then on the jobs page, we can have
+ I don't even know if we need boards, maybe we could just have different tags, and then we could filter by those
+ And then we could even remove posting a job option, when we just prompt an agent, like ask an agent to create a job
+ and instructions to some smart way to route to the agent
