@@ -42,6 +42,7 @@
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@types/node": "^24.3.0",
+    "ajv": "8.17.1",
     "alchemy": "catalog:",
     "effect": "catalog:",
     "typescript": "catalog:",
