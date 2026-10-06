@@ -63,8 +63,14 @@ export function expectedPermission(
   );
 }
 
-/** The board reuses a template for ten minutes; anything older, beyond clock skew, is a backdated anchor (VV2-023). */
+/** The board reuses a periodic template for ten minutes; anything older, beyond clock skew, is a backdated anchor (VV2-023). */
 export const PREPARED_MAX_AGE_SECONDS = 900;
+
+/** A periodic permission's anchor must be fresh both when reviewed and again just before the wallet signs. */
+export function assertFreshAnchor(terms: sdk.PermissionTerms, start: number, now = Math.floor(Date.now() / 1000)) {
+  if (terms.type === "erc20-token-periodic" && start < now - PREPARED_MAX_AGE_SECONDS)
+    throw new Error("This prepared permission is out of date; review it again");
+}
 
 const TOKEN_CALL_PARAMS: Readonly<Record<string, readonly string[]>> = {
   transfer: ["recipient", "amount"],
@@ -114,7 +120,7 @@ export function reviewPermission(
   if (sdk.delegationHash(grant) !== prepared.hash)
     throw new Error("The permission hash does not match the review");
   if (spec.start > now + 60) throw new Error("The permission starts too far in the future");
-  if (spec.start < now - PREPARED_MAX_AGE_SECONDS) throw new Error("This prepared permission is out of date; review it again");
+  assertFreshAnchor(spec.terms, spec.start, now);
   if (spec.expiry <= now) throw new Error("This permission expired; the agent must ask again");
   return {
     hash: prepared.hash,
@@ -123,5 +129,7 @@ export function reviewPermission(
     risks: sdk.permissionRisks(deployment, spec, { now, adjusted: expected.adjusted }),
     // When each period starts and first refills; part of what the operator agrees to (VV2-023).
     schedule: spec.terms.type === "erc20-token-periodic" ? { start: spec.start, firstRefill: spec.start + spec.terms.periodDuration } : null,
+    terms: spec.terms,
+    start: spec.start,
   };
 }

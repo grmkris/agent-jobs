@@ -1,6 +1,6 @@
 import * as sdk from '@agent-jobs/sdk'
 import { describe, expect, it } from 'vitest'
-import { decodeExactCall, expectedPermission, permissionRequest, reviewPermission, tokenAmountText } from './permission-review.ts'
+import { assertFreshAnchor, decodeExactCall, expectedPermission, permissionRequest, reviewPermission, tokenAmountText } from './permission-review.ts'
 import { encodeFunctionData, erc20Abi } from 'viem'
 
 const deployment = sdk.deployment('monad-testnet')
@@ -45,6 +45,11 @@ describe('permission review', () => {
     expect(() => reviewPermission(deployment, prepared({ terms, expiry: request.expiry }, 77n, now - 86_399), expected, now)).toThrow(/out of date/)
     const recent = reviewPermission(deployment, prepared({ terms, expiry: request.expiry }, 77n, now - 600), expected, now)
     expect(recent.schedule).toEqual({ start: now - 600, firstRefill: now - 600 + 86_400 })
+    // The same review, signed much later, is refused before the wallet prompt.
+    expect(() => assertFreshAnchor(recent.terms, recent.start, now + 86_000)).toThrow(/out of date/)
+    // Only a periodic anchor ages: an allowance or exact call keeps its one template.
+    const allowance: sdk.PermissionTerms = { type: 'erc20-token-allowance', token, amount: 10n, recipient }
+    expect(() => assertFreshAnchor(allowance, now - 86_399, now)).not.toThrow()
   })
 
   it('decodes an exact call in full and keeps base units for unknown tokens (VV2-022)', () => {

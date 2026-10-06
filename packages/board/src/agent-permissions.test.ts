@@ -124,6 +124,22 @@ it('replaces a stale unsigned template so the operator never signs a backdated p
   const fresh = f.lifecycle.prepareApproval(asked.approval.id, f.operator) as { hash: Hex; description: { validAfter: number } }
   expect(fresh.hash).not.toBe(first.hash)
   expect(fresh.description.validAfter).toBe(now + 601)
+  // Signing the earlier, now stale template is refused even though it was frozen for this approval (VV2-023).
+  f.clock.now = now + 901
+  await expect(f.lifecycle.decideApproval(asked.approval.id, f.operator, true, await f.sign(first.hash), { hash: first.hash })).rejects.toThrow(/out of date/)
   const decided = await f.lifecycle.decideApproval(asked.approval.id, f.operator, true, await f.sign(fresh.hash), { hash: fresh.hash })
   expect(decided).toMatchObject({ status: 'approved' })
+})
+
+it('keeps one template for an allowance across windows, whose bytes carry no period anchor (VV2-026)', async () => {
+  const f = fixture()
+  const allowance: sdk.PermissionRequest = { chainId: f.ctx.deployment.chainId, from: f.operator, to: agentAddress,
+    rules: [{ type: 'expiry', data: { timestamp: now + 3 * 86_400 } }],
+    permission: { type: 'erc20-token-allowance', isAdjustmentAllowed: false, data: { tokenAddress: f.token, allowanceAmount: '7', recipient } } }
+  const asked = await f.request('allow', allowance, false)
+  if (asked.status !== 'approval') throw new Error('expected an approval')
+  const first = f.lifecycle.prepareApproval(asked.approval.id, f.operator) as { hash: Hex }
+  f.clock.now = now + 3_600
+  expect((f.lifecycle.prepareApproval(asked.approval.id, f.operator) as { hash: Hex }).hash).toBe(first.hash)
+  expect(await f.lifecycle.decideApproval(asked.approval.id, f.operator, true, await f.sign(first.hash), { hash: first.hash })).toMatchObject({ status: 'approved' })
 })

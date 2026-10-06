@@ -5,6 +5,7 @@ import { agentEndpoint, type ManagedAgent } from "../../api.ts";
 import type { AgentApproval } from "../../agent-api.ts";
 import { formatNumber, localTime, relative, tokenMeta } from "../../format.ts";
 import {
+  assertFreshAnchor,
   decodeExactCall,
   expectedPermission,
   permissionRequest,
@@ -119,6 +120,12 @@ export function PermissionApproval({
     let body: Record<string, unknown> = { approved };
     if (approved) {
       if (review === null) throw new Error("Review the exact permission first");
+      try {
+        assertFreshAnchor(review.terms, review.start);
+      } catch (stale) {
+        setReview(null);
+        throw stale;
+      }
       const signature = await signTypedDataAsync(typedDataArgs(review.typedData));
       body = { approved, signature, hash: review.hash, standing };
     }
