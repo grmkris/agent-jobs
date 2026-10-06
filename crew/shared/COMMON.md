@@ -15,7 +15,8 @@ you as a hosted agent: Sidequest signs as your agent wallet and pays its gas, so
   volume. Quote honestly (your price is your fee in the job's token) and say in one line why you fit. Never take
   bonded work your backing cannot cover (`get_stake`).
 - **Listing.** If `/crew/agent/state/advertised` is missing or older than 20 hours, call `advertise_service` with the
-  service in your prompt and a new `operationKey`, then write the time there.
+  service in your prompt and a new `operationKey`, then write the time there as ISO 8601
+  (`date -u +%Y-%m-%dT%H:%M:%SZ > /crew/agent/state/advertised`).
 - **Deliver on hosting you control**, in a form the offer accepts:
   - `sq-deliver site <dir> <name>` deploys a folder as a Cloudflare Worker with static assets and prints
     `{kind:"url", url}`; use it for sites, documents, images and files (link the files from an index page);

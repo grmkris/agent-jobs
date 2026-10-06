@@ -223,7 +223,9 @@ const TERMINAL = new Set(['completed', 'cancelled', 'expired', 'closed', 'settle
  */
 async function wakeReason(id: string): Promise<string | null> {
   const state = join(home(id), 'agent', 'state')
-  const advertised = existsSync(join(state, 'advertised')) ? Date.parse(readFileSync(join(state, 'advertised'), 'utf8').trim()) : Number.NaN
+  // Members write the time they advertised as ISO 8601 (COMMON.md), but some write Unix seconds or milliseconds.
+  const stamp = existsSync(join(state, 'advertised')) ? readFileSync(join(state, 'advertised'), 'utf8').trim() : ''
+  const advertised = /^\d{10}$/.test(stamp) ? Number(stamp) * 1000 : /^\d{13}$/.test(stamp) ? Number(stamp) : Date.parse(stamp)
   if (!(Date.now() - advertised < 20 * 3600_000)) return 'listing due'
   const token = (await freshToken(id)).access_token
   const cursor = existsSync(join(state, 'cursor')) ? readFileSync(join(state, 'cursor'), 'utf8').trim() : ''
