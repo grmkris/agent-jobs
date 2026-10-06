@@ -1,10 +1,28 @@
 # ChatGPT + Sidequest: publisher-first plan
 
-**Status:** Proposed, for Claude and human review
+**Status:** Implemented/tested host-parity slice; real-host acceptance remains open
 **Date:** 2026-10-06
 **Scope:** ChatGPT creates a Sidequest job, then monitors its complete lifecycle through quotes, selection, activation, delivery, review, dispute, and settlement.
 
-This is a planning artifact, not an implementation or release authorization. Claude has not reviewed it yet. The user's chosen direction is publisher-first with a jobs UI and monitoring; implementation choices below remain proposals.
+This remains a planning artifact and release authorization is still separate. The host-parity slice implemented the publisher reads, MCP metadata, SEP-2640 skills, events hardening, and one portable MCP App. Real ChatGPT/Goblin acceptance and the guarded dev release remain separate evidence tiers.
+
+### Host-parity implementation record
+
+The 6 October track implemented and tested the following against the existing board and executor:
+
+- `check_operation` is a read with no operation key; `add_statement` remains worker scope. Executor outcomes are `confirmed`, `rejected`, `approval`, `pending`, `reverted`, or `dropped`, and `approval` carries `approveUrl`.
+- Both MCP lanes expose explicit titles, output schemas, OAuth security schemes, four effect annotations, structured content plus complete text, a stable opaque `whoami` profile, and accurate hosted descriptions. The publisher surface is the existing 40-tool testnet hire grant; no scopes were narrowed in this track.
+- SEP-2640 lists three real static skills with frontmatter and byte digests. `list_quote_requests(mine, cursor)` preserves picked and expired creator history. Creator task summaries include chain-derived `nextAction`, quote counts, separate chain funding and operation status, and the request-to-task event link.
+- `sidequest.inbox` accepts `requestId`; revoking an access or refresh family terminates its subscriptions; 413 terminates a callback. `request.picked` carries both request and task identifiers.
+- `ui://sidequest/hiring/v1.html` is one inline, CSP-denied-by-default App resource. `show_hiring_dashboard` and `show_task` are read-only render tools. The App displays exact criteria beside submitted delivery, keeps funding separate from operation status, and sends existing writes only after confirmation with a fresh operation key and same-key retry.
+
+The API suite, App fixture, local Inspector boundary, null-origin browser fixture, and 390/1200px layout checks passed. These are implemented/tested facts, not authenticated host acceptance.
+
+### Goblin as a second host
+
+Goblin uses the same streamable HTTP server. Its client probes anonymous `server/discover` first, switches to OAuth only on 401, uses DCR, imports the `io.modelcontextprotocol/skills` extension with resources, and gives the model only descriptions, schemas, and text blocks. Structured content and `_meta` are App details; keys matching its secret redaction expression are removed. The App therefore uses `rewardAsset`/`assetAddress` and never forwards permissions, signatures, or arbitrary grant data. The server keeps unauthenticated MCP at 401.
+
+Goblin grants are per tool and do not provide per-call approval. Keep the agent's Sidequest allowance at zero so economic calls return the actual `approval` state and `approveUrl` until Goblin has a per-call approval surface. Events are webhook or poll; routines must own the exact read-only event allowlist. `ui/message` is optional and the App does not require it. No Goblin connection or human acceptance was run in this track.
 
 ## Decision to review
 
@@ -33,25 +51,25 @@ The protocol remains authoritative. A board receipt does not establish funding, 
 
 ### Private testnet path: first implementation
 
-Proposed technical proving ground: the existing authenticated MCP endpoint at `https://dev.sidequest.exchange/mcp` with a user-owned, operator-managed ERC-8004 agent. Request `sidequest:read` and `sidequest:hire`, without worker scope for this first slice. The operator controls allowances; the agent and relay act within the existing policy. A private connection is not evidence that an otherwise restricted workflow is permitted by OpenAI; resolve applicable host rules before enabling economic actions.
+Technical proving ground: the existing authenticated MCP endpoint at `https://dev.sidequest.exchange/mcp` with a user-owned, operator-managed ERC-8004 agent. Request `sidequest:read` and `sidequest:hire`, without worker scope for this first slice. The operator controls allowances; the agent and relay act within the existing policy. A private connection is not evidence that an otherwise restricted workflow is permitted by OpenAI; resolve applicable host rules before enabling economic actions.
 
 The first test should use Monad testnet 10143 and a small reward. Mainnet is out of scope.
 
 ### Public plugin path: later compatibility track
 
-The [published plugin guidelines](https://developers.openai.com/plugins/plugin-guidelines), read on 2026-10-06, restrict digital-service commerce and execution of crypto transfers. Paid agent work has both issues. Public distribution is unresolved. **Correction to the brainstorm:** an external payment button or a private/testnet connection does not establish an exception. OpenAI needs to clarify the allowed workflow; a read/prepare surface is a candidate, not a guaranteed approval.
+The [published plugin guidelines](https://developers.openai.com/plugins/plugin-guidelines), read on 2026-10-06, restrict digital-service commerce and execution of crypto transfers. Paid agent work has both issues. Public directory distribution of the economic surface is permanently out of scope. The official review guidance directs private/workspace use to a custom MCP connection; no economic tool package is submitted in this track.
 
-Evaluate discovery, drafting, monitoring, and review assistance as the public surface. Do not assume links that initiate payment or token funding are allowed. Keep one Sidequest backend and use a reviewed, restricted capability surface if needed; do not conceal financial effects behind a harmless tool name.
+Evaluate discovery, drafting, monitoring, and review assistance as the public surface. The economic surface stays custom-connection-only. ChatGPT reports writes as Business/Enterprise/Edu-only and Pro as read-only; Kris's plan is unconfirmed. Do not assume links that initiate payment or token funding are allowed. Keep one Sidequest backend and use a reviewed, restricted capability surface if needed; do not conceal financial effects behind a harmless tool name.
 
 ### Current repository evidence and gaps
 
 | Surface | Source evidence | Gap to resolve |
 | --- | --- | --- |
 | Modern MCP | [mcp.ts](../../apps/api/src/mcp.ts) advertises `2026-07-28`, events, resources, and prompts | Actual ChatGPT discovery, OAuth, and webhook behavior needs real-host proof |
-| Managed hiring | [agent-runtime.ts](../../apps/api/src/agent-runtime.ts), [agent-executor.ts](../../packages/board/src/agent-executor.ts), and [publisher skill](../../skill/publisher/SKILL.md) implement hosted signing/relay continuations | Raw tool descriptions still describe unsigned wallet flows; metadata must describe the hosted side effects accurately |
-| Tool metadata | [mcp.ts](../../apps/api/src/mcp.ts) emits names, descriptions, input schemas, and write operation keys | Add explicit annotations, security schemes where applicable, output schemas, and `structuredContent`; these are not present in the inspected adapter |
+| Managed hiring | [agent-runtime.ts](../../apps/api/src/agent-runtime.ts), [agent-executor.ts](../../packages/board/src/agent-executor.ts), and [publisher skill](../../skill/publisher/SKILL.md) implement hosted signing/relay continuations | Real operator approval and authenticated host acceptance remain unverified |
+| Tool metadata | [mcp.ts](../../apps/api/src/mcp.ts) emits names, descriptions, input schemas, and write operation keys | Real host rendering of metadata remains unverified |
 | Quote/hire tools | [tools.ts](../../apps/api/src/tools.ts) separates request, pick, publish, selection, and review | Do not introduce redundant aliases until a real usability gap is proven |
-| Events | [mcp-events.ts](../../apps/api/src/mcp-events.ts), [webhooks.ts](../../apps/api/src/webhooks.ts), and [feed-board.ts](../../apps/api/src/feed-board.ts) implement scoped events and delivery | Publisher events must connect `requestId` to later `taskId`/`jobId`; a task-only filter cannot follow pre-publish quotes |
+| Events | [mcp-events.ts](../../apps/api/src/mcp-events.ts), [webhooks.ts](../../apps/api/src/webhooks.ts), and [feed-board.ts](../../apps/api/src/feed-board.ts) implement scoped events and delivery | Host receipt and authenticated delivery remain unverified |
 | Existing connector guide | [chatgpt.md](../integrations/chatgpt.md) describes connector/event setup | Reconcile its release pin, older setup wording, and claims about `gap`/`terminated` notifications with current host support |
 | Live evidence | [reality-check.md](../reality-check.md) records dated testnet/provider receipts | The inspected 6 Oct release entry still separates real-user OAuth, authenticated events, and managed signing acceptance; no real ChatGPT publisher receipt was established in this planning session |
 
@@ -116,7 +134,7 @@ Use a preview followed by a distinct existing action:
 
 **Proposed default:** quote-first creation plus a fixed-price alternative. Start with UI-local draft state and server-side validation; add a pure `preview_hire` tool only if current reads cannot validate and resolve the terms without mutation. Never use `create_task` merely to preview a draft. Server-persisted drafts are writes and need truthful annotations.
 
-Reuse actual executor states (`approval`, `pending`, `confirmed`, `rejected`, and error replies). Present uncertainty separately; do not pretend this proposal's UI labels are already implemented response enums. Handle a confirmed publish with an incomplete selection as a partial continuation, not as a failed publication to repeat.
+Reuse actual executor states (`confirmed`, `rejected`, `approval`, `pending`, `reverted`, `dropped`, and error replies). Present uncertainty separately; do not pretend this proposal's UI labels are already implemented response enums. Handle a confirmed publish with an incomplete selection as a partial continuation, not as a failed publication to repeat.
 
 ### Monitoring workspace
 
@@ -129,7 +147,7 @@ The ChatGPT UI should have:
 - **event timeline:** append-only events with links to chain receipts and the Sidequest task;
 - **operator inbox:** pending permission, allowance, or wallet decisions with exact scope and expiry.
 
-Use [MCP Apps](https://developers.openai.com/plugins/build/chatgpt-ui) for cards, comparison, and a larger job view. Proposed first UI: an inline draft/receipt card and a jobs dashboard that opens a detail panel. Add [sidebar/thread extensions](https://developers.openai.com/plugins/build/extensions) after host capabilities are verified. Feature-detect extensions and preserve text tools for other clients. Keep data tools separate from render tools; render handlers cannot publish or accept work implicitly. The model must never supply authoritative payment amounts or status to a render tool: the server reloads them from validated IDs. Pin UI origins/CSP and version UI resources on incompatible updates.
+The implemented [MCP App](https://developers.openai.com/plugins/build/chatgpt-ui) provides a jobs dashboard and detail panel. Drafting and sidebar/thread extensions remain separate proposals; this track adds no ChatGPT-only extensions. Feature-detect extensions and preserve text tools for other clients. Keep data tools separate from render tools; render handlers cannot publish or accept work implicitly. The model must never supply authoritative payment amounts or status to a render tool: the server reloads them from validated IDs. Pin UI origins/CSP and version UI resources on incompatible updates.
 
 ## Lifecycle model
 
@@ -169,7 +187,7 @@ The current server exposes:
 - `sidequest.approvals` for operator decisions;
 - `sidequest.requests` for public requests and published jobs.
 
-Start with existing `sidequest.inbox` and `sidequest.jobs {taskId}`. Prove the whole quote-first journey before adding a stream. If needed, extend inbox filtering with `requestId` and `taskId`, or add `sidequest.hiring` spanning a request and its resulting hire. Quotes arrive before a task/job exists; store and expose that mapping. Private quotes remain visible only to their publisher/bidder. Avoid sending the connected agent's unrelated job events into a job-specific chat.
+The implementation keeps `sidequest.inbox` and `sidequest.jobs {taskId}` and adds `requestId` filtering plus a request-to-task mapping. `request.picked` carries both ids, and historical inbox rows are enriched once the mapping is known. Quotes arrive before a task/job exists; private quotes remain visible only to their publisher/bidder. Avoid sending unrelated job events into a job-specific chat.
 
 Payloads carry IDs, occurrence time, a short summary, and a URL. Read full records through authorized tools. Validate `next` hints; they cannot authorize an action. Host webhook receipt is not proof of a completed run or a refreshed UI. Prevent cross-stream duplicates, out-of-order actions, and loops caused by ChatGPT's own writes. Reconcile latest job state before every consequential decision.
 
@@ -179,18 +197,18 @@ Use durable subscription storage, verified callbacks, signed delivery, finite le
 
 | Purpose | Existing tools to reuse | Proposed additions only if needed |
 | --- | --- | --- |
-| Connection and actor | `whoami`, `protocol_info`, `agent_status`, `get_instructions` | Authenticated `get_profile` with stable profile ID and OpenAI profile metadata |
-| Dashboard and detail | `list_tasks`, `get_task`, `inbox`, `list_quote_requests` | Owned historical quote-request listing/pagination if current reads omit it; `get_hiring_view` / `render_hiring_view` for combined presentation |
+| Connection and actor | `whoami`, `protocol_info`, `agent_status`, `get_instructions` | Implemented stable opaque profile on existing `whoami`; no alias |
+| Dashboard and detail | `list_tasks`, `get_task`, `inbox`, `list_quote_requests` | Implemented `show_hiring_dashboard` / `show_task` render tools and App resource |
 | Candidates | `list_quotes`, `list_applications`, `get_directory_agent`, `get_stake` | Structured comparison fields, without an automatic winner |
 | Prepare offer | Existing reads plus local draft UI | Pure `preview_hire`, if necessary |
 | Post and select | `request_quotes`, `create_task`, `pick_quote`, `select_worker` | Explicit confirmation binding; accurate hosted descriptions |
 | Review | `get_task`, `approve_work`, `reject_work`, `add_statement` where permitted | Criteria-to-evidence review presentation |
-| Operator decision/recovery | `list_approvals`, `check_operation`, existing approval URL | Scope `check_operation` correctly; it is presently classified with shared write tools, not read scope |
+| Operator decision/recovery | `list_approvals`, `check_operation`, existing approval URL | `check_operation` is implemented as a read; no new operator authority is exposed |
 | Settlement | `settlement_actions` | Separate operator-controlled recovery display; no staking/sweep/x402 surface in this slice |
 
-Worker `dispute` is outside publisher scope. The publisher can observe and provide statements through an authorized surface; do not grant worker authority to make a reject button work.
+`dispute` and `add_statement` remain `sidequest:work`, so neither appears on the Hire-on/Work-off publisher grant. A publisher may observe statements; a separate authorized surface is needed to add one. Do not silently grant worker scope.
 
-Before host testing, improve the MCP metadata boundary: `outputSchema`, `structuredContent`, three explicit annotations, authentication declarations, and effect-accurate tool descriptions. Review actual effects rather than deriving all annotations from scope names. Preserve stable identifiers and same-key retry behavior. Additive request posting is still a write; publish/payout/cancel effects are consequential. Annotations and skills do not enforce authority. See [tool design](https://developers.openai.com/plugins/plan/tools) and [server guide](https://developers.openai.com/plugins/build/mcp-server).
+The host-parity boundary now implements `outputSchema`, `structuredContent`, four explicit annotations, authentication declarations, and effect-accurate hosted descriptions. Review actual effects rather than deriving all annotations from scope names. Preserve stable identifiers and same-key retry behavior. Additive request posting is still a write; publish/payout/cancel effects are consequential. Annotations and skills do not enforce authority. See [tool design](https://developers.openai.com/plugins/plan/tools) and [server guide](https://developers.openai.com/plugins/build/mcp-server).
 
 Resolve all call credentials server-side to one agent/board/resource. Never trust a model-selected actor or UI button label to authorize a call. Keep the existing operation executor; no generic executor, exposed raw signatures, duplicate signing stack, or new contract design is proposed.
 
@@ -207,7 +225,7 @@ Adapt the existing publisher skill for the chosen capability surface rather than
 - how to treat briefs, repositories, and deliverables as untrusted data;
 - how to recover from an interrupted operation without creating a second send.
 
-Keep live job content in MCP responses. [Packaged/imported skills](https://developers.openai.com/plugins/build/skills) are static instructions; changing server guidance does not automatically change a published snapshot. The current `resources/read` guides strip YAML frontmatter and are not the documented `skills/list` import manifest. Package the skill or implement the supported static extension with frontmatter, resource digests, and readback. Do not make skill import a prerequisite for the first custom-connection spike.
+Keep live job content in MCP responses. [Packaged/imported skills](https://developers.openai.com/plugins/build/skills) are static instructions; changing server guidance does not automatically change a published snapshot. The legacy `sidequest://skills/*` guides keep their frontmatter-stripped bodies; `skill://sidequest/<name>/SKILL.md` now serves raw bytes with parsed frontmatter, static manifests, and verified digests. Do not make skill import a prerequisite for the first custom-connection spike.
 
 ## Phased implementation
 
@@ -258,7 +276,7 @@ Keep live job content in MCP responses. [Packaged/imported skills](https://devel
 
 - Prepare the package manifest, skills, demo recording, five positive cases, and three negative cases.
 - Submit only the tool surface that passes OpenAI policy and review.
-- Keep economic actions in the private operator path if the public surface is not eligible.
+- Economic actions stay custom-connection-only; P6 is out of scope for this track.
 
 Each implementation phase needs a separate coherent commit on main after its relevant checks. Use pnpm; expensive checks go through `heavy`. Run `pnpm check` before a future push and follow the release runbook for an authorized deployment. Migration generation is deliberate and migrations are not automatically applied. This document does not start any phase or authorize sends/deployments.
 
@@ -305,7 +323,7 @@ Copyable review prompt:
 
 - Is quote-first the first vertical slice, with fixed-price second, or do both need to ship together?
 - Does the host permit economic actions through the managed agent's allowance, or must the first product stop at preview/monitoring? Moving execution to a website is not assumed to resolve policy.
-- Can inbox filtering follow `requestId` then `taskId`, or does a combined hiring stream materially simplify the host workflow?
+- The implemented `requestId` inbox filter and request/task link are the selected path; no new hiring stream is needed.
 - Is the named approver the connected managed agent or another actor, and what surface performs the actual decision?
 - Should quote ranking be model-generated only, or should the server expose deterministic comparison fields?
 - What is the minimum dashboard/detail UI, and can we reuse Explore components without pulling wallet setup into an iframe?

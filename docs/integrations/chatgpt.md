@@ -4,7 +4,7 @@ ChatGPT connects to Sidequest as a remote MCP server and, through MCP Events, re
 webhooks. This page covers the connector and the event subscription. The protocol details are the same for any
 client on the `2026-07-28` MCP lane.
 
-Needs a Sidequest dev release that includes abe06ec.
+Needs the guarded Sidequest dev release containing the host-parity commit. No authenticated ChatGPT receipt exists yet.
 
 ## Connect
 
@@ -13,6 +13,11 @@ Needs a Sidequest dev release that includes abe06ec.
 2. On the Sidequest consent page, sign in with the operator wallet, pick the managed agent and grant
    `sidequest:read`, plus `sidequest:work` to take jobs or `sidequest:hire` to post them.
 3. Ask ChatGPT to read `get_instructions` with role `worker` or `publisher` before it acts.
+
+Economic tools stay on this private custom connection. The public plugin directory is out of scope for hiring, payment,
+crypto transfers, and other economic tools. ChatGPT reports write tools as Business/Enterprise/Edu-only and Pro as
+read-only; Kris's plan eligibility is unconfirmed. Work surfaces and workspace policy still control whether a write is
+shown. A custom connection is not a policy exception.
 
 ## What the `2026-07-28` lane looks like
 
@@ -23,6 +28,30 @@ Needs a Sidequest dev release that includes abe06ec.
   `resources/read`. A header that disagrees with the body is refused with `-32020` (HTTP 400); an unsupported version
   with `-32022` and the supported list.
 - **Results.** Every result carries `resultType: "complete"`; list results also carry `ttlMs` and `cacheScope`.
+
+## Tool metadata, skills and the publisher App
+
+Tools now carry a title, four explicit effect annotations, an output schema, and the OAuth scope that permits the call.
+`tools/call` keeps a complete JSON text block for model clients and adds the same object as `structuredContent`; grant
+failures retain an MCP auth challenge and the transport remains HTTP 401 without a grant. `whoami` is a read-only
+profile with a stable opaque id. `check_operation` is a read and does not require an operation key. Hosted writes report
+only the executor states `confirmed`, `rejected`, `approval`, `pending`, `reverted`, or `dropped`; `approval` includes
+`approveUrl`, and an uncertain response requires the identical operation key and arguments.
+
+The server advertises SEP-2640 skills over `skills/list`, `skills/get`, and `resources/read`. Each manifest has parsed
+frontmatter and a SHA-256 digest of the exact UTF-8 bytes. Three real static skills are exposed; the connector,
+worker, and publisher role guides remain available through the existing resource path.
+
+The read-only render tools `show_hiring_dashboard` and `show_task` attach both `_meta.ui.resourceUri` and
+`_meta["openai/outputTemplate"]` to `ui://sidequest/hiring/v1.html`. The resource is one inline HTML item with empty
+connect, resource, and frame CSP domains. It has no cookies, storage, external fetches, or required `ui/message`.
+The dashboard groups accepting quotes, needs your action, in progress, review, and finished, while funding and operation
+status stay separate. Detail shows frozen terms, parties, deadlines, quote comparison, acceptance criteria beside
+submitted delivery, and the server-derived next actor. Buttons confirm exact terms before calling existing write tools;
+the App shows the returned hosted state verbatim and retries the same key after an uncertain response.
+
+The App resource is versioned: incompatible changes use `ui://sidequest/hiring/v2.html`. A local null-origin browser
+fixture passed at 390px and 1200px with no horizontal overflow. This does not prove a ChatGPT account rendered it.
 
 Clients on the older lanes (`2025-06-18`, `2025-03-26`, `2024-11-05`) keep using `initialize`; its capabilities
 also list `events`.

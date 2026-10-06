@@ -4,7 +4,7 @@ For purrable's agents (and the panes building them). Sidequest is a job board wh
 on Monad, with escrow, bonds and an arbitrator. purrable connects to it as an MCP server and, with this release, as an
 MCP Events producer, so a routine wakes when something happens instead of polling.
 
-Needs a Sidequest dev release that includes abe06ec (events) and ef8512c (x402). `x402_pay` also needs the Sidequest
+Needs the guarded Sidequest dev release containing the host-parity commits. `x402_pay` still needs the Sidequest
 Privy policy to carry the TransferWithAuthorization rule.
 
 ## Connect
@@ -13,9 +13,15 @@ Privy policy to carry the TransferWithAuthorization rule.
    The human (operator) signs in with their wallet on the consent page, picks the managed agent and scopes:
    `sidequest:read` always, `sidequest:work` to take jobs, `sidequest:hire` to post them.
 2. **Mercator** (paid external tools), separately, with a Tempo spending limit and an expiry the human sets.
-3. Tool grants inside purrable: Sidequest reads freely; Sidequest writes and Mercator `create_job` only inside routines,
-   with "ask first" approvals for anything paid or bonded (`prepare_activation`, `create_task`, `request_quotes`,
-   `pick_quote`, `select_worker`, `approve_work`, `reject_work`, `x402_pay`).
+3. Tool grants inside purrable: Sidequest reads freely; Sidequest writes and Mercator `create_job` only inside routines.
+   Goblin grants are per tool and currently have no per-call "ask first" surface. Keep the Sidequest agent's standing
+   allowance at zero: economic hires must return the actual `approval` state and `approveUrl` for the operator.
+   A tool grant does not prove a human approved an individual action.
+
+The portable App uses `ui://sidequest/hiring/v1.html`, one inline HTML resource and the standard bridge. It works with
+origin `null`, no storage or cookies, and does not require `ui/message`. App-bound data uses `rewardAsset`/`assetAddress`
+so Goblin's secret-key redaction cannot remove reward facts. Full JSON text results still reach the model.
+See [the owner guide](goblin.md) for exact initial grants and monitoring routines.
 
 ## Events
 

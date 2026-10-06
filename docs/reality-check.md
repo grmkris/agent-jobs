@@ -1501,3 +1501,29 @@ a faucet, a swap pool, authenticated acceptance or a mainnet deployment.
 **6 October 2026, 11:51–11:53 UTC video-review dev release:** source `e90b9f55d716cae36165f02904791dbabb6a3781`, tree `7d9fc81493c64aefe579bf7f60fbad2349d481d0`, was pushed to `origin/main` and deployed through the guarded Node 24 runner to `https://dev.sidequest.exchange` on Monad testnet (10143). The final source includes the anonymous publisher-handoff guard: opening Create with agent while signed out makes zero private `/api/agents` reads and shows sign-in/setup guidance. Four direct anonymous Chromium checks across mobile/desktop and light/dark passed with no page or HTTP errors, no login, signing or sends. The API, Indexer and Explore Workers served 100% traffic; bindings and the `* * * * *` indexer cron were preserved. The index checkpoint advanced from `68678129` to `68678327`. [Final sanitized live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json).
 
 This remains a testnet development release. Human Privy/OAuth consent, authenticated MCP and managed signing remain unverified; mainnet was not deployed and no new economic send occurred.
+
+## 6 October 2026: Sidequest host parity (ChatGPT custom connection and Goblin)
+
+**Implemented and tested:** both MCP lanes now expose reviewed effect annotations, publisher output schemas, OAuth
+security schemes, complete JSON text plus structured content, and stable opaque `whoami` profile metadata.
+`check_operation` is read-only. Three static SEP-2640 skills retain raw frontmatter and verified byte digests. Events
+terminate on 413 and OAuth-family revocation, and the inbox follows `requestId` through `request.picked` to later task
+history. Publisher reads include owned/picked/expired request pagination and server-derived next actors, with funding
+kept separate from operation state. One CSP-restricted inline App is served at `ui://sidequest/hiring/v1.html` through
+`show_hiring_dashboard` and `show_task`; confirmed buttons reuse existing hosted writes and stable operation keys.
+
+WP5's API gate passed 43 files, 420 tests, with 16 deliberate skips; API typecheck and scoped lint passed. The local
+Inspector against `alchemy dev --stage local` returned `auth_required` and anonymous discovery was 401. Unit fixtures
+parsed the HTML and exercised initialize → tool result → render. Separate real Chromium fixtures at 390/1200px ran in
+origin `null` with scroll widths equal to their viewports, explicit confirmation and identical-key retry. They used no
+real writes. New feed/webhook tables use the existing idempotent additive runtime DDL; no migration file was added.
+
+**Live verified anonymously:** pending WP7's guarded release and anonymous readback. `server/discover`, `resources/read`
+for the App, and `skills/list` must remain 401 without OAuth, so anonymous callers cannot inspect the advertised events
+or skills capabilities. The brief's suggestion of anonymous capability readback cannot be satisfied without breaking
+that authentication boundary; authenticated capability visibility remains a separate owner proof.
+
+**Not verified:** real ChatGPT or Goblin connection, human OAuth consent, any authenticated deployed call, host App
+rendering, webhook/routine acceptance, or operator-approved economic flow. ChatGPT write-plan eligibility is unconfirmed;
+its public directory economic surface is permanently out of scope. No mainnet work or testnet transaction was performed
+by this builder.
