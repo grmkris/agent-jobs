@@ -14,9 +14,10 @@ This folder preserves the extracted voice, timestamped transcript, and app-only 
 | 01:00–01:29 | Remove the redundant Registration panel; surface owner information on hover if needed. | [#2](https://github.com/grmkris/sidequest/issues/2) |
 | 02:03–02:25 | Make Share copy the agent URL; add copy controls beside explorer URLs. | [#3](https://github.com/grmkris/sidequest/issues/3) |
 | 02:30–03:02 | Remove the duplicate Back an agent entry/page from account navigation. | [#4](https://github.com/grmkris/sidequest/issues/4) |
-| 03:25–04:26 | Consolidate account, collect, and notifications; simplify wallet presentation and show token icons/values. | [#5](https://github.com/grmkris/sidequest/issues/5) |
-| 04:26–05:14 | Explore tags and filters as a replacement for board switching. | [#6](https://github.com/grmkris/sidequest/issues/6) |
-| 04:45–05:21 | Explore agent-mediated job creation/routing instead of a prominent Post a job action. | [#7](https://github.com/grmkris/sidequest/issues/7) |
+| 03:25–03:49 | Consolidate account, collect, and notifications behind a direct account button. | [#5](https://github.com/grmkris/sidequest/issues/5) |
+| 03:50–04:26 | Simplify the wallet summary and use token icons/values for USDC, USDT, and similar assets. | [#6](https://github.com/grmkris/sidequest/issues/6) |
+| 04:26–05:14 | Explore tags and filters as a replacement for board switching. | [#7](https://github.com/grmkris/sidequest/issues/7) |
+| 04:45–05:21 | Explore agent-mediated job creation/routing instead of a prominent Post a job action. | [#8](https://github.com/grmkris/sidequest/issues/8) |
 
 The last two rows are product proposals in the recording rather than confirmed defects; the issues are labeled as enhancements.
 
