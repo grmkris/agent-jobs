@@ -64,12 +64,26 @@ export async function censusOf(infra, token, fetcher = fetch) {
     }
     throw new Error('cloudflare-pagination-limit')
   }
+  const r2Buckets = async () => {
+    const rows = [], seen = new Set()
+    let cursor
+    for (let page = 0; page < 100; page++) {
+      const body = await get(`/accounts/${account}/r2/buckets?per_page=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+      if (!Array.isArray(body.result?.buckets)) throw new Error('cloudflare-census-incomplete')
+      rows.push(...body.result.buckets)
+      cursor = body.result_info?.cursor
+      if (!cursor) return rows
+      if (typeof cursor !== 'string' || seen.has(cursor)) throw new Error('cloudflare-pagination-incomplete')
+      seen.add(cursor)
+    }
+    throw new Error('cloudflare-pagination-limit')
+  }
   const [zone, workers, databases, buckets, domains] = await Promise.all([
     get(`/zones/${infra.cloudflare.zoneId}`), get(`/accounts/${account}/workers/scripts`),
-    paged(`/accounts/${account}/d1/database`), get(`/accounts/${account}/r2/buckets`), paged(`/accounts/${account}/workers/domains`),
+    paged(`/accounts/${account}/d1/database`), r2Buckets(), paged(`/accounts/${account}/workers/domains`),
   ])
-  if (!Array.isArray(workers.result) || !Array.isArray(buckets.result?.buckets) || buckets.result_info?.cursor) throw new Error('cloudflare-census-incomplete')
-  return { zone: zone.result, workers: workers.result, databases, buckets: buckets.result.buckets, domains }
+  if (!Array.isArray(workers.result)) throw new Error('cloudflare-census-incomplete')
+  return { zone: zone.result, workers: workers.result, databases, buckets, domains }
 }
 
 function readState() {

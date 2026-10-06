@@ -66,3 +66,17 @@ test('Cloudflare count-based pagination traverses every row and refuses incomple
   assert.equal(census.domains.length, 101)
   await assert.rejects(censusOf(infra, 'test-token', countPaginationFetcher(true)), /pagination-incomplete/)
 })
+
+const cursorPaginationFetcher = repeated => async url => {
+    const parsed = new URL(url), page = Number(parsed.searchParams.get('page'))
+    if (parsed.pathname.endsWith('/r2/buckets')) {
+      const next = parsed.searchParams.has('cursor')
+      return Response.json({ success: true, result: { buckets: [{ name: next ? 'second' : 'first' }] }, result_info: next && !repeated ? {} : { cursor: 'next-page' } })
+    }
+    return Response.json({ success: true, result: parsed.pathname.includes('/zones/') ? fresh().zone : [], ...(page ? { result_info: { page, total_pages: 1 } } : {}) })
+}
+
+test('R2 census follows cursors and refuses a repeated cursor', async () => {
+  assert.deepEqual((await censusOf(infra, 'test-token', cursorPaginationFetcher(false))).buckets, [{ name: 'first' }, { name: 'second' }])
+  await assert.rejects(censusOf(infra, 'test-token', cursorPaginationFetcher(true)), /pagination-incomplete/)
+})
