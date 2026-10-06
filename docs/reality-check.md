@@ -1352,3 +1352,12 @@ grant/DO authority inventory remain unknown. Read-only action simulations are
 not mined outcomes; no signing, sending, funding, key revocation, provider
 deletion, journal mutation or runner restart occurred. Old provider retirement
 is held on these verified obligations and unresolved authority records.
+
+**6 October 2026, 06:08 UTC coordination readback:** anonymous checks of the
+canonical dev origin again passed health, release metadata, the empty job index
+and protected-resource discovery; the indexer checkpoint was `68610197` and the
+three Sidequest scopes were advertised. The sanitized receipt is
+[coordination-readback](evidence/sidequest-dev/2026-10-06-coordination-readback.json).
+This is public read-only evidence only. The Node 24 `dev:preflight` also passed
+in `update` mode for committed tree `22776f1`; no apply, provider mutation,
+authentication, signing or economic operation followed.

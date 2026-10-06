@@ -6,11 +6,11 @@
 | --- | --- |
 | Repository | `grmkris/sidequest`; physical checkout/worktrees keep their existing paths |
 | Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `e6aeb3b` |
-| Published source | `origin/main` at `55c9282`; later V1.1 source remains local |
+| Published source | `origin/main` at `55c9282`; later V1.1, S3/S4 UI and `28a16ea` guard fix remain local |
 | Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
 | V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
-| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and the profile base-ready decision; S3/S4 rebase passed, S5 assertions are being corrected |
-| Profile | `%20` has isolated S3/S4 rebase commit `e956975`; agent-profile passed, with remaining scoped/full gates running |
+| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; S5/P1b still pending |
+| Profile | `%20` holds five C8–C12 commits at `2cc69b6`; six scoped suites and exact branch full gate passed; waits for Explore base-ready |
 | Privy | New origin saved; app name, credential rotation, isolated authority and real auth/MCP remain pending |
 | Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations that block provider deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
@@ -518,3 +518,33 @@ and the outstanding Privy approval/readback. Legacy jobs, old provider resources
 credentials, journals and dated receipts remain retained pending the existing
 economic/authority reconciliation; no retirement action is implied by this
 coordination update.
+
+## Public readback and preflight continuation — 06 October 2026, 06:08 UTC
+
+The fresh anonymous receipt
+[`2026-10-06-coordination-readback.json`](evidence/sidequest-dev/2026-10-06-coordination-readback.json)
+passed `/health`, `/release.json`, `/data/jobs` and protected-resource discovery
+at `https://dev.sidequest.exchange`. The indexer follow-up readback was at
+checkpoint `68610197` with zero jobs; discovery advertised the three Sidequest
+scopes. This is anonymous public evidence only and does not establish Privy
+login, authenticated MCP, managed signing or a provider change.
+
+The receipt is committed at `22776f1187a7cb9265243c24b7e7fd92316e21d5`.
+The Node 24 guarded command `heavy pnpm dev:preflight` then passed in `update`
+mode for that exact commit, confirming the Sidequest Cloudflare account/zone,
+fresh `sidequest-*` resource ownership, chain 10143, Safe-owned contract set,
+and migration digest. Its sanitized log is `/tmp/sidequest-dev-plan-0610.log`.
+The initial preflight refused the uncommitted receipt, as designed; no unsafe
+fallback was attempted. Apply remains deliberately unrun behind the gates above.
+
+The new scoped reviewer request `op_01m47x34tjf2088fm6pe7kvjhm` was also refused
+by mytmux with `outcome: notDispatched`, `delivery: failed`, and reason
+`no safe agent prompt; approval/trust/questions need an explicit coordinator decision`.
+It is not counted as delivered or retried. The concrete request is in the shared
+triage log: review `28a16ea`, landed S3/S4, and the reset/policy/dev-release base
+with exact SHA bindings, then review the eventual final candidate. No moving-main
+release SIGNOFF is claimed. The supervisor will manually check coordination.
+
+Profile's owner posted the `2cc69b6` full `heavy pnpm check` exit 0 at 06:06 UTC.
+Explore posted P1b scoped gates passing and retains its S5-first landing order.
+Do not bypass its explicit base-ready signal or submit any occupied composer.
