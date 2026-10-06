@@ -79,8 +79,10 @@ const transport = custom({ request: async ({ method, params }) => {
   }
   throw new Error(`Unexpected fixture RPC ${method}`);
 } }, { retryCount: 0 });
-const publicClient = createPublicClient({ chain, transport });
+// The wallet imports the wagmi double, which imports this module: defer the client until those exports are initialized.
+let publicClient;
 export function stakeContext(contracts = window.__sidequest) {
+  publicClient ??= createPublicClient({ chain, transport });
   return { publicClient, deployment: { ...deployment, sidequest: { ...deployment.sidequest, ...contracts, block: 100n } }, stack: deployment.stacks.main };
 }
 
