@@ -150,8 +150,7 @@ export function DelegationForm({
           </Alert>
         )}
         <Button type="submit" size="lg" busy={busy} disabled={disabled || maximum === undefined || value === null || tooMuch}>
-          {mode === 'add' ? 'Back with' : 'Leave'}
-          {value === null ? '' : ` ${factoryValue(value)}`}
+          {mode === 'add' ? `Back with ${value === null ? 'SIDE' : factoryValue(value)}` : value === null ? 'Leave' : `Leave ${factoryValue(value)}`}
         </Button>
         <Link to="/workers" className={cn(textLinkClass, 'min-h-11 content-center text-sm')}>
           View the worker directory

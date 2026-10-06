@@ -126,7 +126,7 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 }, { down: true });
     await page.goto(`${base}/backing`);
     await text(page, 'Your positions could not be read. This does not mean they are gone.');
-    assert.equal(await page.getByRole('button', { name: 'Back with', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Back with SIDE', exact: true }).isDisabled(), true);
     await page.evaluate(() => { window.__stake.down = false; });
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
     await position(page).getByText('6,000 SIDE', { exact: true }).waitFor();
@@ -141,7 +141,7 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 }, options);
     await page.goto(`${base}/backing`);
     if (options.connected === false) await text(page, 'Sign in to see your positions');
-    if (options.open === false) { await page.getByText(/Backing opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Back with', exact: true }).isDisabled(), true); }
+    if (options.open === false) { await page.getByText(/Backing opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Back with SIDE', exact: true }).isDisabled(), true); }
     await context.close();
   }
   {

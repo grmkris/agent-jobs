@@ -639,7 +639,7 @@ function People({
               <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
-              <ItemTitle className="block font-medium">Agent ID {agentId}</ItemTitle>
+              <ItemTitle className="block font-medium">Worker #{agentId}</ItemTitle>
               <ItemDescription className="block truncate font-mono text-ui text-muted-foreground">{worker}</ItemDescription>
             </ItemContent>
             <ItemActions>
