@@ -364,6 +364,7 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
           <PhaseBadge phase={phase} />
           {(item.task?.tags ?? []).map(tag => <Badge key={tag} variant="neutral">{JOB_TAG_LABELS[tag]}</Badge>)}
           {other !== null && <Badge variant="info">{other}</Badge>}
+          {item.task?.screening?.verdict === 'reject' && <Badge variant="destructive">Flagged as risky</Badge>}
           <span className="truncate">{note}</span>
         </span>
       </ItemContent>

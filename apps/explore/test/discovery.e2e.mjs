@@ -17,7 +17,7 @@ const chain = jobs.map(job => ({ job_id: job.id, kind: 'sidequest-v1', stack: 'm
 const tasks = jobs.map(job => ({ taskId: `task-${job.id}`, jobId: job.id, kind: 'sidequest-v1', stack: 'main', mode: 'hire', title: job.title,
   tags: job.tags, brief: 'Brief', acceptanceCriteria: ['Works'], token, reward: '10000000', creatorBond: '0', workerBond: '0', creator: owner,
   approver: owner, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null,
-  screening: { verdict: 'clean', reasons: [] }, createdAt: now }));
+  screening: job.id === '13' ? { verdict: 'reject', reasons: ['Prompt injection attempt in brief'] } : { verdict: 'clean', reasons: [] }, createdAt: now }));
 const publishers = [
   { id: 'publisher', agent_id: '1942', address: agentWallet, name: 'My publisher', state: 'active' },
   { id: 'second', agent_id: '2001', address: other, name: 'Second publisher', state: 'active' },
@@ -47,6 +47,8 @@ try {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
     await page.goto(`${base}/jobs`);
     await page.getByText('Fix coding tests', { exact: true }).waitFor();
+    // A brief the screener rejected is marked in the list, not only in the job's collapsed details.
+    assert.equal(await page.getByText('Flagged as risky', { exact: true }).count(), 1);
     assert.equal(await page.getByRole('button', { name: /Board:/ }).count(), 0);
     const chips = page.getByRole('group', { name: 'Filter by tags' });
     await chips.getByRole('button', { name: 'Coding', exact: true }).click();

@@ -8,6 +8,7 @@ import { type JobAction, type LifecycleInput, type Phase, lifecycle, lifecycleFr
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, CircleAlert, Clock, Lock, ReceiptText } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert.tsx'
 import type { ReactNode } from 'react'
 import type { Address as Account } from 'viem'
 import { DELIVERABLE_KINDS, type Deliverable, type DeliverableCheck, type TaskIndexEntry, boardApi, currentBoardId, data } from '../api.ts'
@@ -204,6 +205,7 @@ export function JobPage({
 
   const title = listed?.title ?? t?.title ?? (/^\d+$/.test(jobId) ? `Job #${jobId}` : 'Job')
   const brief = listed?.brief ?? t?.terms.brief
+  const screening = listed?.screening ?? t?.screening
   const criteria = listed?.acceptanceCriteria ?? t?.terms.acceptanceCriteria ?? []
   const reward = d?.job.reward ?? listed?.reward ?? null
   const token = d?.job.token ?? listed?.token ?? null
@@ -395,6 +397,15 @@ export function JobPage({
 
       {d !== undefined && (d.job.violation !== null || d.ruling !== null) && (
         <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />
+      )}
+
+      {screening !== undefined && (screening.verdict === 'reject' || screening.verdict === 'caution') && (
+        // The verdict is advice, but a worker deciding whether to take the job should see it before the brief.
+        <Alert variant={screening.verdict === 'reject' ? 'destructive' : 'default'}>
+          <CircleAlert aria-hidden />
+          <AlertTitle>{screening.verdict === 'reject' ? 'The screener flagged this brief as risky' : 'The screener flagged this brief for a closer look'}</AlertTitle>
+          {screening.reasons[0] !== undefined && <AlertDescription className="[overflow-wrap:anywhere]">{screening.reasons[0]}</AlertDescription>}
+        </Alert>
       )}
 
       {brief !== undefined && (
