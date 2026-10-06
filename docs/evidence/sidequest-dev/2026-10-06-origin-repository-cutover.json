@@ -1,0 +1,42 @@
+{
+  "recordedAt": "2026-10-06T04:59:00Z",
+  "tier": "live-provider-ui-and-anonymous-browser-smoke",
+  "privy": {
+    "appId": "cmui9skoc01zr0dl03tyahirs",
+    "name": "monad-hack-agent-job",
+    "addedOrigin": "https://dev.sidequest.exchange",
+    "dashboardToast": "Successfully updated allowed origins.",
+    "action": "Narrow Domains and clients allowed-origin control; no broad app update.",
+    "oldOriginsRetainedForRecovery": true
+  },
+  "smoke": {
+    "origin": "https://dev.sidequest.exchange",
+    "sourceLog": "/tmp/sidequest-origin-smoke-20261006.log",
+    "modal": "Log in or sign up; email, Twitter, wallet",
+    "errors": [],
+    "checks": [],
+    "loginSubmitted": false
+  },
+  "githubReadback": {
+    "observedAt": "2026-10-06T04:54:00Z",
+    "repositories": [
+      {
+        "id": 1388114392,
+        "name": "grmkris/sidequest"
+      },
+      {
+        "id": 1403726158,
+        "name": "grmkris/sidequest-demo-deliveries"
+      }
+    ],
+    "origin": "https://github.com/grmkris/sidequest.git",
+    "remoteMain": "ff3fce60984b5281e10447170911b6fb4e97002b",
+    "localCommitsPushed": false,
+    "physicalPathsMoved": false
+  },
+  "limits": [
+    "No authenticated human login, MCP enumeration or managed-wallet signature.",
+    "Old app name remains; shared legacy signing policy was not changed.",
+    "Original dated live-release receipts are retained unchanged."
+  ]
+}

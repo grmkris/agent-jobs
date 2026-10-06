@@ -15,11 +15,14 @@ generated from the same SVG. Contrast, focus and reduced-motion gates still appl
 The development URL was deployed on 6 October 2026. Public health, release,
 directory, agent setup and OAuth discovery checks pass. Anonymous writes and
 MCP requests require authentication. Twenty browser page/theme/viewport checks
-passed without page errors or overflow. [Live evidence](evidence/sidequest-dev/2026-10-06-live.json)
-records the remaining provider boundary: Privy still rejects the new origin until
-its dashboard allowlist is updated; authenticated MCP enumeration and real human
-login remain unverified. The indexer cron has produced progressing checkpoints
-with no jobs in this fresh deployment.
+passed without page errors or overflow. The narrow Privy origin update has since
+saved successfully, and the repeated sign-in modal smoke has no provider errors.
+App display name, authenticated MCP enumeration and real human login remain
+unverified. The routine signer still pins archived contracts; a separate Sidequest
+policy must preserve the legacy policy and its recovery authority. See
+[the cutover handoff](sidequest-agent-handoff-2026-10-06.md) for dated readbacks.
+The indexer cron has produced progressing checkpoints with no jobs in this fresh
+deployment.
 
 ## Release
 
@@ -73,8 +76,10 @@ state. [Stop evidence](evidence/sidequest-dev/2026-10-06-legacy-workloads.json)
 records the exact boundary. Old provider-resource retirement remains pending.
 
 Rename notices were attempted before overlapping edits; the stored mytmux
-receipts do not prove delivery or acknowledgement. The verified local
+receipts still have unknown delivery. V1.1 and profile have now explicitly
+acknowledged the rename after resuming. The verified local
 [agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
-track heads and pending gates. Physical folder and GitHub repository renames
-wait until their worktrees are integrated and their owners acknowledge; no pane
-is interrupted or cleared.
+track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
+deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
+the new repository. Local reset commits await the checked push candidate.
+Physical checkout/worktree/tmux paths stay stable while their owners integrate.

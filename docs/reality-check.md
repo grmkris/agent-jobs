@@ -1263,3 +1263,38 @@ reversible workload stop, not complete economic retirement; the crew owner must
 reconcile the original intent and chain settlement before proceeding.
 [Workload evidence](evidence/sidequest-dev/2026-10-06-legacy-workloads.json)
 records journal hashes, mounts, stop timestamps and the unresolved operation.
+
+**04:54 UTC coordination/provider continuation:** GitHub repository IDs
+`1388114392` and `1403726158` now read back as `grmkris/sidequest` and
+`grmkris/sidequest-demo-deliveries`; local origin points to the new main repository.
+Remote main remains `ff3fce60984b5281e10447170911b6fb4e97002b`; local reset commits
+have not yet been pushed. Checkout/worktree/tmux paths remain unchanged.
+
+The Privy dashboard's narrow Domains and clients control successfully saved
+`https://dev.sidequest.exchange`. The repeated live sign-in modal smoke returns
+`errors: []`, `checks: []` and offers email/Twitter/wallet authentication. No login
+was submitted; authenticated MCP and managed signing remain unverified. The app
+display name remains `monad-hack-agent-job`. Original 04:21 receipts above retain
+their observed `invalid_origin`; the new smoke supersedes that origin blocker.
+
+Read-only `setup.ts --verify` now reaches the policy comparison and refuses
+`Policy drift; no automatic widening`. The [sanitized diff](evidence/sidequest-dev/2026-10-06-privy-policy-drift.json)
+shows identical 11 rule names; only the policy name, Selection Holding, two core
+pins and delegation relay differ. No authority was changed. Legacy policy
+`s06i5eramn0plwdunkvxf8aj` remains in place for recovery; Sidequest will use a
+separate policy, without widening the rule set.
+
+The [provider inventory](evidence/sidequest-dev/2026-10-06-provider-inventory.json)
+records the fresh stack plus retained old staging resources and nine artifact
+Workers. The [legacy index audit](evidence/sidequest-dev/2026-10-06-legacy-obligations.json)
+contains seven open/active jobs (81, 59, 58, 48, 45, 44, 40); job 131 is
+Completed/Accepted with settlement outcome None. Those indexed labels do not
+prove released bonds, owed-payment withdrawal, deferred settlement or revoked
+grants. No provider resource was disabled or deleted.
+
+V1.1 and profile explicitly acknowledged the Sidequest handoff after quota
+resumption, independently of the original unknown notice-delivery receipts.
+V1.1 committed `fd76d04` on the renamed tree and cancelled the old staging
+follow-up; it is not yet in the deployed Sidequest source. Explore owns the
+FINALIZE-UI rebase/S4/S5 and subsequent profile base-ready. Their retained
+worktrees and historical deployment receipts remain intact.

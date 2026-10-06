@@ -28,11 +28,13 @@ release. There are no old-domain redirects or signing/session compatibility
 aliases in the active Sidequest runtime. Historical receipts keep their actual
 names, transaction hashes, URLs and chain addresses.
 
-The configured GitHub origin remains `grmkris/agent-jobs`; the intended repository
-name is `grmkris/sidequest`. The physical checkout and tmux session remain
-`agent-jobs`, with isolated worktrees under `/home/kristjan/code/agent-jobs.wt`.
-Moving those paths or changing the remote is pending owner coordination;
-this handoff does not assert the repository move is complete.
+GitHub is now [`grmkris/sidequest`](https://github.com/grmkris/sidequest)
+(repository ID `1388114392`); `origin` is `https://github.com/grmkris/sidequest.git`.
+The companion repository is `grmkris/sidequest-demo-deliveries` (ID `1403726158`).
+Remote main readback at 04:54 UTC remains `ff3fce60984b5281e10447170911b6fb4e97002b`;
+the local reset commits have not been pushed. Physical checkout, worktree and
+tmux paths remain `agent-jobs` / `/home/kristjan/code/agent-jobs.wt`. Keep those
+paths stable while their owners integrate; a GitHub rename does not move them.
 
 ## Landed commits and verified dev gates
 
@@ -101,9 +103,10 @@ included in the deployed Sidequest source. Preserve both; V1.1 remains their
 integration owner. Provider permissions and runtime-DDL decisions are not
 expanded by the rename.
 
-Main's foreign pending paths are `apps/indexer/src/{worker.ts,run-record.test.ts}`
-and `packages/indexer/src/{indexer.ts,indexer.test.ts}`. Preserve `.artifact-video/`
-and `packages/sdk/scripts/.local/` as well. Do not stage these with this handoff.
+The four formerly pending indexer files were committed by V1.1 as `fd76d04` at
+04:52 UTC. Preserve foreign `.artifact-video/` and `packages/sdk/scripts/.local/`;
+do not stage them with this handoff. The deployed source remains `e6aeb3b` until
+the next reviewed Sidequest dev update.
 
 ## Notice delivery and acknowledgement
 
@@ -150,11 +153,15 @@ cleared. FINALIZE-UI S4, profile and V1.1 worktrees remain under their existing 
 
 ## Remaining gates and release procedure
 
-1. **Privy:** app `cmui9skoc01zr0dl03tyahirs` still has the prior name/origins;
-   Sidequest sign-in produces `invalid_origin`. Update its name to Sidequest
-   and allow `https://dev.sidequest.exchange`, then re-prove real sign-in and
-   authenticated MCP. The dashboard settings tool failed; PATCH returns 405.
-   An attempted broad PUT/POST was rejected by automatic review and never ran.
+1. **Privy:** the narrow dashboard origin control added
+   `https://dev.sidequest.exchange` and reported successful save. The repeated
+   sign-in modal smoke has no provider errors. App display name, real login and
+   authenticated MCP remain open. Read-only authority verification reports
+   policy drift: only the name, Selection Holding, two core pins and delegation
+   relay differ. Preserve legacy policy `s06i5eramn0plwdunkvxf8aj` and its recovery
+   authority; create a separately journaled Sidequest policy with the same 11
+   rules and fresh pins, then bind it only to the dev stack. Do not blindly PATCH
+   the shared policy or broadly PUT app settings.
 2. **Pending tracks:** integrate/review the exact FINALIZE-UI/profile/V1.1 work
    under their existing ownership, updating imports/generated outputs and
    rerunning the assigned gates on the resulting Sidequest tree.
@@ -170,9 +177,45 @@ cleared. FINALIZE-UI S4, profile and V1.1 worktrees remain under their existing 
    settlements, owed payments and grants. Then stop/revoke/remove the reviewed
    old provider workloads; preserve dated chain/provider receipts. Full economic
    retirement remains pending. Do not re-enable old workers against the fresh Sidequest keys.
-5. **Repository move:** coordinate worktree owners first, then rename the
-   GitHub repository and physical checkout/tmux mapping, with a verified
-   readback. No path move or remote rename is claimed here.
+5. **Repository paths:** GitHub renames and the shared origin are verified.
+   Physical checkout/worktree/tmux moves still require owner coordination and
+   path repair; none has happened. Run `heavy pnpm check` at the committed push
+   candidate before publishing local main to the renamed repository.
 
 Fresh contracts and an empty live index establish deployment; they do not
 establish paid-work acceptance. Mainnet remains separately gated.
+
+## Coordinator resumption and path handoff — 04:53 UTC
+
+Read-only pane and shared-triage readback now establish explicit acknowledgements
+from V1.1 `%13` and profile `%20`. These acknowledgements do not revise the stored
+notice receipts: the original operations still have unknown delivery. Explore
+`%14` is actively reading this handoff and has held FINALIZE-UI before rebase/S5.
+
+V1.1 owns `fd76d04`: caught-up is judged against the head indexed in that run,
+the cron lease is released, and feed work is capped at 100 events per run. Its
+scoped indexer tests/typechecks/lint passed. It cancelled the old staging follow-up
+and reports no pending economic sends. WS5 integration is parked in `v11` at
+`8bc2dc5`, WS7 in `v11-land7` at `c7de03e`; their original builder worktrees and
+dirty edits remain retained. Runtime DDL and x402 decisions retain their existing
+review gates. Its child builders were told to hold by their owner.
+
+Profile reports a clean `profile` worktree at `1c8b089`, no economic sends or
+deployments, and no child agents. It waits for Explore's explicit base-ready;
+its temporary SHIM commit must not land.
+
+Sidequest's remaining owned edits are this handoff, `docs/sidequest-dev.md`, the
+append-only Sidequest reality/evidence records, and new Privy cutover tooling.
+Explore may coordinate FINALIZE-UI rebase/S4 gates/S5 and profile integration
+in its own worktrees now; Sidequest has released `apps/explore/**` and will not
+cherry-pick their work. Keep the committed evergreen/paper, mint-dark, abstract
+mark, `@sidequest/*`, SIDE, and fresh domain/signing/storage identities. Post
+reviewed commit ranges and gates before any new dev release.
+
+The [provider inventory](evidence/sidequest-dev/2026-10-06-provider-inventory.json)
+retains the three old staging Workers, their D1/R2 and nine old artifact Workers.
+The [legacy index audit](evidence/sidequest-dev/2026-10-06-legacy-obligations.json)
+finds seven open/active jobs: 81, 59, 58, 48, 45, 44, 40. Index data is not final
+contract reconciliation. Keep the old board/indexer recovery reachable and retain
+job 131's original intent; no provider deletion or shared policy cutover is safe
+from this audit alone.

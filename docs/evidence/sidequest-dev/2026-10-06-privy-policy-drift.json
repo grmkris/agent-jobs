@@ -1,0 +1,62 @@
+{
+  "observedAt": "2026-10-06T04:49:49.304Z",
+  "appId": "cmui9skoc01zr0dl03tyahirs",
+  "policyId": "s06i5eramn0plwdunkvxf8aj",
+  "liveRuleNames": [
+    "Allow Selection",
+    "Allow SetBudgetAuthorization",
+    "Allow SubmitAuthorization",
+    "Allow Delegation",
+    "Allow AgentWalletSet",
+    "Allow TransferWithAuthorization",
+    "Allow Enrollment",
+    "Allow ServiceAd",
+    "Allow RevokeAd",
+    "Allow DeleGator upgrade",
+    "Deny export"
+  ],
+  "desiredRuleNames": [
+    "Allow Selection",
+    "Allow SetBudgetAuthorization",
+    "Allow SubmitAuthorization",
+    "Allow Delegation",
+    "Allow AgentWalletSet",
+    "Allow TransferWithAuthorization",
+    "Allow Enrollment",
+    "Allow ServiceAd",
+    "Allow RevokeAd",
+    "Allow DeleGator upgrade",
+    "Deny export"
+  ],
+  "differences": [
+    {
+      "path": "/name",
+      "before": "Hireling v2 Monad testnet routine signer",
+      "desired": "Sidequest v2 Monad testnet routine signer"
+    },
+    {
+      "path": "/rules/0/conditions/1/value",
+      "before": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+      "desired": "0xfa52B3d905346c53436B6F4824A7c6F0439A0614"
+    },
+    {
+      "path": "/rules/1/conditions/1/value",
+      "before": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+      "desired": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32"
+    },
+    {
+      "path": "/rules/2/conditions/1/value",
+      "before": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+      "desired": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32"
+    },
+    {
+      "path": "/rules/3/conditions/2/value",
+      "before": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
+      "desired": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058"
+    }
+  ],
+  "limits": [
+    "Read-only GET; no policy, quorum or authority changed.",
+    "Before any update, coordinator must review the exact address/domain changes and preserve legacy-wallet obligations."
+  ]
+}

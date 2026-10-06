@@ -1,0 +1,622 @@
+{
+  "observedAt": "2026-10-06T04:43:04.113Z",
+  "accountId": "bceaeae4788dce3493514fde194b4a7e",
+  "zone": {
+    "id": "e78889c667018d6213b1cdb1887d02ab",
+    "name": "sidequest.exchange",
+    "status": "active"
+  },
+  "workers": [
+    {
+      "id": "agentjobs-api-staging-ba2zqmaom6el4lws",
+      "tags": [
+        "alchemy:stack:AgentJobs",
+        "alchemy:stage:staging",
+        "alchemy:id:Api",
+        "alchemy:dos:Board;DirectoryObject"
+      ],
+      "bindings": [
+        {
+          "name": "AI_GATEWAY_API_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ATTESTER_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Board",
+          "type": "durable_object_namespace",
+          "namespace_id": "eab5801c233a4d1f952a457050958175",
+          "class_name": "Board"
+        },
+        {
+          "name": "BUDGET_SIGNER_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "1b2ddfdd-650e-4846-8b55-fca07872efec"
+        },
+        {
+          "name": "DEPLOY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "DIRECTORY_DATABASE",
+          "type": "d1",
+          "id": "1b2ddfdd-650e-4846-8b55-fca07872efec"
+        },
+        {
+          "name": "DirectoryObject",
+          "type": "durable_object_namespace",
+          "namespace_id": "8ae279bb120d4a1ca4dfbcb87ba3f97c",
+          "class_name": "DirectoryObject"
+        },
+        {
+          "name": "GITHUB_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_INSTALLATION_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Manifests",
+          "type": "r2_bucket",
+          "bucket_name": "agentjobs-manifests-staging-4yyroq65le7dnxbm"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "PRIVY_POLICY_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "PROD_ADMISSION_DRAIN",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_ACTIONS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_BOARDS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_WALLETS",
+          "type": "plain_text"
+        },
+        {
+          "name": "RELAY_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "SCREENING_BASE_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "SCREENING_MODEL",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "TELEGRAM_WEBHOOK_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "agentjobs-explore-staging-67xgxuclftbgtgxn",
+      "tags": [
+        "alchemy:stack:AgentJobs",
+        "alchemy:stage:staging",
+        "alchemy:id:Explore"
+      ],
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "API",
+          "type": "service",
+          "service": "agentjobs-api-staging-ba2zqmaom6el4lws"
+        },
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "REDIRECT_FROM",
+          "type": "plain_text"
+        },
+        {
+          "name": "REDIRECT_TO",
+          "type": "plain_text"
+        }
+      ],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "agentjobs-indexer-staging-2unhvhpefxd7n2wb",
+      "tags": [
+        "alchemy:stack:AgentJobs",
+        "alchemy:stage:staging",
+        "alchemy:id:Indexer"
+      ],
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "1b2ddfdd-650e-4846-8b55-fca07872efec"
+        },
+        {
+          "name": "HYPERSYNC_API_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "HYPERSYNC_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        }
+      ],
+      "cron": [
+        "* * * * *"
+      ],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-g1b-mint-g1b-20261003t192200-round2",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-g1b-quill-192200r2",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-g1b-ship-g1b-20261003t192200-round2",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-v1-mint",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-v1-pixel",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-v1-quill",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-crew-v1-ship",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "hireling-g1b-ui-pixel-note-20261003",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    },
+    {
+      "id": "sidequest-api-dev",
+      "tags": [
+        "alchemy:stack:Sidequest",
+        "alchemy:stage:dev",
+        "alchemy:id:Api",
+        "alchemy:dos:Board;DirectoryObject"
+      ],
+      "bindings": [
+        {
+          "name": "AI_GATEWAY_API_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ATTESTER_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Board",
+          "type": "durable_object_namespace",
+          "namespace_id": "01561475a8e74bdd944df7c2b4fcefec",
+          "class_name": "Board"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "DEPLOY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "DIRECTORY_DATABASE",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "DirectoryObject",
+          "type": "durable_object_namespace",
+          "namespace_id": "c12bf8b2911140ae9ba4079493f6a354",
+          "class_name": "DirectoryObject"
+        },
+        {
+          "name": "GITHUB_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_INSTALLATION_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Manifests",
+          "type": "r2_bucket",
+          "bucket_name": "sidequest-dev-manifests"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "PRIVY_POLICY_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "PROD_ADMISSION_DRAIN",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_ACTIONS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_BOARDS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_WALLETS",
+          "type": "plain_text"
+        },
+        {
+          "name": "RELAY_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "SCREENING_BASE_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "SCREENING_MODEL",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "TELEGRAM_WEBHOOK_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "cron": [],
+      "assessment": "active-sidequest-dev"
+    },
+    {
+      "id": "sidequest-explore-dev",
+      "tags": [
+        "alchemy:stack:Sidequest",
+        "alchemy:stage:dev",
+        "alchemy:id:Explore"
+      ],
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "API",
+          "type": "service",
+          "service": "sidequest-api-dev"
+        },
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        }
+      ],
+      "cron": [],
+      "assessment": "active-sidequest-dev"
+    },
+    {
+      "id": "sidequest-indexer-dev",
+      "tags": [
+        "alchemy:stack:Sidequest",
+        "alchemy:stage:dev",
+        "alchemy:id:Indexer"
+      ],
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "HYPERSYNC_API_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "HYPERSYNC_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        }
+      ],
+      "cron": [
+        "* * * * *"
+      ],
+      "assessment": "active-sidequest-dev"
+    },
+    {
+      "id": "worker-hireling-crew-g1b-quill-g1b-20261003t192200-round2",
+      "tags": [],
+      "bindings": [],
+      "cron": [],
+      "assessment": "retained-until-legacy-settlement-and-owner-clearance"
+    }
+  ],
+  "databases": [
+    {
+      "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2",
+      "name": "sidequest-dev-db"
+    },
+    {
+      "id": "1b2ddfdd-650e-4846-8b55-fca07872efec",
+      "name": "AgentJobs-Database-staging-yp3pwrct5jlzbjf3"
+    }
+  ],
+  "buckets": [
+    {
+      "name": "agentjobs-manifests-staging-4yyroq65le7dnxbm"
+    },
+    {
+      "name": "sidequest-dev-manifests"
+    }
+  ],
+  "domains": [
+    {
+      "hostname": "hireling.xyz",
+      "service": "agentjobs-explore-staging-67xgxuclftbgtgxn",
+      "zoneId": "d4ad1574270cad47f2e33381dba31f84"
+    },
+    {
+      "hostname": "testnet.hireling.xyz",
+      "service": "agentjobs-explore-staging-67xgxuclftbgtgxn",
+      "zoneId": "d4ad1574270cad47f2e33381dba31f84"
+    },
+    {
+      "hostname": "dev.sidequest.exchange",
+      "service": "sidequest-explore-dev",
+      "zoneId": "e78889c667018d6213b1cdb1887d02ab"
+    }
+  ],
+  "limits": [
+    "Read-only account inventory; no provider workload disabled or removed.",
+    "Legacy job 131 has an unresolved saved Collect intent.",
+    "Bindings contain names and resource identities only; all values omitted."
+  ]
+}
