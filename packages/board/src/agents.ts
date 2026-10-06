@@ -48,7 +48,7 @@ export interface ApprovalRow {
   id: string
   agent_id: string
   operation_id: string
-  kind: 'hire-over-limit' | 'unstake'
+  kind: 'hire-over-limit' | 'unstake' | 'permission'
   status: 'pending' | 'approved' | 'rejected' | 'executed'
   request_json: string
   decision_json: string | null

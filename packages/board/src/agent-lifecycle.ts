@@ -1,6 +1,7 @@
 /** Operator decisions and revocation. Hosted state never stands in for a disable receipt. */
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, keccak256, stringToHex } from 'viem'
+import { AgentPermissions } from './agent-permissions.ts'
 import { AgentStore, type AgentRow } from './agents.ts'
 import { GrantStore, type GrantRow } from './grants.ts'
 import { SponsorDesk } from './sponsor.ts'
@@ -49,9 +50,10 @@ export class AgentLifecycle {
   }
 
   #allowances(agent: AgentRow): GrantRow[] {
+    // Operator → agent grants: allowances and permissions alike; revocation disables every one of them.
     return this.grants.list(agent.operator).filter(row => {
       const spec = this.grants.spec(row.delegation_hash)
-      return (spec.kind === 'allowance' || spec.kind === 'allowance-once') && spec.agent.toLowerCase() === agent.address?.toLowerCase()
+      return (spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'permission') && spec.agent.toLowerCase() === agent.address?.toLowerCase()
     })
   }
 
@@ -92,11 +94,12 @@ export class AgentLifecycle {
     return this.status(id, operator)
   }
 
-  prepareApproval(id: string, operator: Address) {
+  prepareApproval(id: string, operator: Address, adjust: { expiry?: number; amount?: bigint } = {}) {
     const approval = this.agents.approval(id)
     const agent = this.agents.owned(approval.agent_id, operator)
     if (agent.state !== 'active' || approval.status !== 'pending') throw new Error('This approval is unavailable')
     if (approval.kind === 'unstake') return { approval }
+    if (approval.kind === 'permission') return new AgentPermissions(this.deps).prepare(approval, operator, adjust)
     const request = JSON.parse(approval.request_json) as { token: Address; amount: string }
     const operation = this.agents.operation(approval.operation_id)
     const history = this.deps.sql.all<{ name: string; value_json: string }>("SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND name LIKE 'operator-allowance:%'", operation.id)
@@ -112,11 +115,15 @@ export class AgentLifecycle {
     return { approval, ...prepared }
   }
 
-  async decideApproval(id: string, operator: Address, approved: boolean, signature?: Hex) {
+  async decideApproval(id: string, operator: Address, approved: boolean, signature?: Hex, permission: { hash?: Hex; standing?: boolean } = {}) {
     const approval = this.agents.approval(id)
     const agent = this.agents.owned(approval.agent_id, operator)
     if (agent.state !== 'active') throw new Error('Agent access has stopped')
     if (approval.status !== 'pending') return approval
+    if (approval.kind === 'permission') {
+      return new AgentPermissions(this.deps).decide(approval, operator, { approved, ...(permission.hash === undefined ? {} : { hash: permission.hash }),
+        ...(signature === undefined ? {} : { signature }), ...(permission.standing === undefined ? {} : { standing: permission.standing }) })
+    }
     if (!approved) return this.agents.decide(id, operator, false, {})
     if (approval.kind === 'unstake') return this.agents.decide(id, operator, true, {})
     const prepared = this.prepareApproval(id, operator)

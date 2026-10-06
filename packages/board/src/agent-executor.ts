@@ -1,7 +1,8 @@
 /** Execute a hosted agent action from one frozen intent, signing request and relay journal. */
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, keccak256, stringToHex } from 'viem'
-import { AgentStore, canonicalAgentArgs, type AgentOperationRow, type ApprovalRow } from './agents.ts'
+import { AgentStore, canonicalAgentArgs, type AgentOperationRow, type AgentRow, type ApprovalRow } from './agents.ts'
+import { AgentPermissions, type PermissionApprovalRequest, type PermissionDecision } from './agent-permissions.ts'
 import { AgentSigning } from './agent-signing.ts'
 import { GrantStore, grantSpecJson, parseGrantSpec } from './grants.ts'
 import { ensureAgentGrants } from './agent-grant-renewal.ts'
@@ -173,6 +174,33 @@ export class AgentExecutor {
     return this.agents.freezeStep(operation.id, 'action', action)
   }
 
+  /**
+   * request_permissions sends nothing. A live standing rule that covers the request grants it at once; otherwise the
+   * operator decides in Explore, and the approved retry returns the permission the operator signed.
+   */
+  #permission(operationId: Hex, agent: AgentRow, action: AgentPreparedCall): AgentExecuteResult {
+    const permissions = new AgentPermissions({ sql: this.deps.sql, context: this.deps.context, now: this.deps.now })
+    const current = this.agents.operation(operationId)
+    let hash: Hex
+    let granted: 'operator' | 'standing-rule' = 'operator'
+    if (current.stage === 'approval') {
+      const decision = JSON.parse(this.agents.approval(operationId).decision_json ?? '{}') as Partial<PermissionDecision>
+      if (typeof decision.permissionHash !== 'string') throw new Error('The approved permission is missing its signed template')
+      hash = decision.permissionHash
+    } else {
+      const request = action.request as PermissionApprovalRequest
+      const covered = permissions.covering(agent, request)
+      if (covered === undefined) return { status: 'approval', operationId, approval: this.agents.requestApproval(current, 'permission', request) }
+      hash = covered.delegation_hash
+      granted = 'standing-rule'
+    }
+    const result = { ...permissions.response(hash), granted }
+    this.agents.saveOperation(operationId, 'sending')
+    this.agents.saveOperation(operationId, 'confirmed', { result })
+    this.deps.sql.run("UPDATE approvals SET status='executed' WHERE operation_id=? AND status='approved'", operationId)
+    return { status: 'confirmed', operationId, result }
+  }
+
   #freezeEntries(operationId: Hex, scope: string, entries: NamedSponsorEntry[]): NamedSponsorEntry[] {
     const prefix = `${scope}:`
     const prior = this.deps.sql.all<{ name: string; value_json: string }>(
@@ -218,6 +246,7 @@ export class AgentExecutor {
     }
     await this.deps.sponsor.ready()
     const action = await this.#action(input, operation, agent.address)
+    if (input.tool === 'request_permissions') return this.#permission(operation.id, agent, action)
     await this.deps.verifyAction?.(action)
     if (input.tool === 'request_unstake' && this.agents.operation(operation.id).stage !== 'approval') {
       const call = action.transactions?.[0]

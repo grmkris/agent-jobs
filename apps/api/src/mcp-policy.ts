@@ -4,11 +4,18 @@ import type { OAuthGrant } from './oauth.ts'
 const READ_TOOLS = new Set([
   'get_instructions', 'whoami', 'protocol_info', 'list_tasks', 'get_task', 'task_index', 'list_quote_requests',
   'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'list_delegations', 'fee_quote', 'mining_proof', 'list_boards',
-  'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status',
+  'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status', 'get_supported_permissions', 'get_permissions',
 ])
 const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work'])
 const WORK_TOOLS = new Set(['apply', 'submit_quote', 'prepare_activation', 'submit_work', 'dispute', 'add_statement'])
-const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings', 'check_operation'])
+const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings', 'check_operation',
+  'request_permissions', 'use_permission', 'revoke_permission'])
+/** Permissions on demand (ADR-0015) stay testnet-only until their mainnet promotion. */
+export const PERMISSION_TOOLS = new Set(['get_supported_permissions', 'get_permissions', 'request_permissions', 'use_permission', 'revoke_permission'])
+
+export function networkTool(network: string, name: string): boolean {
+  return !PERMISSION_TOOLS.has(name) || network !== 'monad-mainnet'
+}
 const CONTINUATIONS = new Set(['submit_selection', 'build_activation', 'report_transaction', 'report_operation'])
 
 export function requiredToolScope(name: string): 'hireling:read' | 'hireling:hire' | 'hireling:work' | 'write' | undefined {

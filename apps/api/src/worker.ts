@@ -29,7 +29,7 @@ import type { OAuthReply, OAuthGrant } from './oauth.ts'
 import { mcpRoute } from './mcp.ts'
 import { tools } from './tools.ts'
 import { jsonResponse } from './json.ts'
-import { permittedTool } from './mcp-policy.ts'
+import { networkTool, permittedTool } from './mcp-policy.ts'
 import { agentRoute } from './routes/agents.ts'
 import { approvalRoute } from './routes/approvals.ts'
 import { agentTools } from './tools-agents.ts'
@@ -329,7 +329,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           const resource = `${url.origin}${url.pathname}`
           const grant = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })) as OAuthGrant | null
           const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin,
-            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools }).filter(([name]) => grant !== null && permittedTool(grant, name))),
+            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools }).filter(([name]) => grant !== null && permittedTool(grant, name) && networkTool(network, name))),
             call: async (tool, args, agentId) => {
               if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))
               const result = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as BoardReply

@@ -44,7 +44,7 @@ export async function agentManagement(input: {
     const grants = new GrantStore(sql, context)
     return { agent, grants: [...grants.list(operator), ...grants.list(agent.address ?? operator)].filter(row => {
       const spec = grants.spec(row.delegation_hash)
-      return row.delegator.toLowerCase() === agent.address?.toLowerCase() || (spec.kind === 'allowance' || spec.kind === 'allowance-once') && spec.agent.toLowerCase() === agent.address?.toLowerCase()
+      return row.delegator.toLowerCase() === agent.address?.toLowerCase() || (spec.kind === 'allowance' || spec.kind === 'allowance-once' || spec.kind === 'permission') && spec.agent.toLowerCase() === agent.address?.toLowerCase()
     }).map(row => ({ hash: row.delegation_hash, delegation: sdk.parseDelegation(row.delegation_json), status: row.status })) }
   }
   if (action === 'allowance-prepare') {
@@ -56,9 +56,16 @@ export async function agentManagement(input: {
   if (action === 'allowance-confirm') return lifecycle.confirmAllowance(id, operator, text(body, 'key'), hex(body, 'hash', 64), hex(body, 'signature', 130))
   if (action === 'stop-access') return lifecycle.stopAccess(id, operator)
   if (action === 'revoke') return lifecycle.revoke(id, operator)
-  if (action === 'approval-prepare') return lifecycle.prepareApproval(id, operator)
+  if (action === 'approval-prepare') {
+    // A permission approval may be adjusted before signing: a shorter expiry or a lower amount, never wider.
+    const expiry = body.expiry === undefined ? undefined : Number(body.expiry)
+    const amount = body.amount === undefined ? undefined : text(body, 'amount')
+    if (expiry !== undefined && !Number.isSafeInteger(expiry) || amount !== undefined && !/^[1-9][0-9]{0,77}$/.test(amount)) throw new BoardError('invalid', 'Invalid permission adjustment')
+    return lifecycle.prepareApproval(id, operator, { ...(expiry === undefined ? {} : { expiry }), ...(amount === undefined ? {} : { amount: BigInt(amount) }) })
+  }
   if (action === 'approval-decide' || action === 'approval-retry') {
-    const approval = action === 'approval-decide' ? await lifecycle.decideApproval(id, operator, body.approved === true, body.signature === undefined ? undefined : hex(body, 'signature', 130)) : lifecycle.recoverApproval(id, operator)
+    const approval = action === 'approval-decide' ? await lifecycle.decideApproval(id, operator, body.approved === true, body.signature === undefined ? undefined : hex(body, 'signature', 130),
+      { ...(body.hash === undefined ? {} : { hash: hex(body, 'hash', 64) }), ...(body.standing === undefined ? {} : { standing: body.standing === true }) }) : lifecycle.recoverApproval(id, operator)
     const agent = agents.owned(approval.agent_id, operator)
     if (approval.status !== 'approved') return { approval }
     const operation = agents.operation(approval.operation_id)
