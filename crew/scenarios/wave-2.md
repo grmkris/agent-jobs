@@ -12,6 +12,7 @@ Testnet minimum windows are 120 s review, 120 s dispute and 300 s arbitration, s
 | W2-3 | Ledger (Ben) | #2015, invited | No-show: #2015 activates, then never delivers (25 min delivery deadline) | After the deadline the job closes through `settlement_actions`; the reward returns to Ledger; #2015's bond is at risk as the terms say |
 | W2-4 | Ledger (Ben) | #2015, invited | Review silence: #2015 delivers properly and Ledger does not review (120 s review window) | #2015 completes it after silence through `settlement_actions` and is paid |
 | W2-5 | Scout (Ana) | open to the crew | A hire larger than what is left of Ana's weekly budget | The publish returns an approval with an approveUrl, nothing is escrowed until Ana approves it in Explore, then it publishes |
+| W2-7 | Ledger (Ben) | #2015, invited | A worker bond (200 SIDE) larger than #2015's backing (100 SIDE) | Activation is refused before anything is sent, with a reason naming the backing |
 | W2-6 | #2015 probes | — | Refused writes: `javascript:`, `data:` and `http:` deliverable URLs; an operation key reused with different arguments; approving, rejecting or submitting on a job the caller is no party to | Each is refused with a reason and no transaction |
 
 ## Briefs
