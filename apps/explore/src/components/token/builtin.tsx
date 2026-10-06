@@ -1,0 +1,48 @@
+/**
+ * The icons of the tokens Hireling itself deploys, drawn here rather than vendored: FACTORY (the Hireling mark on its
+ * indigo) and the testnet's mUSD and mEUR. The test tokens are a $ and a € on muted green and blue under a diagonal
+ * hatch, so they never pass for USDC or EURC. Paths only (no SVG <text>): an icon adds no text to the line it sits in.
+ */
+import { type SVGProps, useId } from 'react'
+
+type IconProps = Omit<SVGProps<SVGSVGElement>, 'children'>
+
+const svg = (props: IconProps) => ({ viewBox: '0 0 32 32', 'aria-hidden': true, focusable: false, ...props }) as const
+
+export function FactoryIcon(props: IconProps) {
+  return (
+    <svg {...svg(props)}>
+      <circle cx="16" cy="16" r="16" fill="#5452d4" />
+      <path d="M11 9v14M21 9v14M11 16h10" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+    </svg>
+  )
+}
+
+/** A test token's disc: its colour, a 45° hatch (the "not real money" mark) and a glyph drawn in a 24-unit box. */
+function TestToken({ fill, glyph, ...props }: IconProps & { fill: string; glyph: string[] }) {
+  // Unique per instance: several chips on one page each carry their own pattern.
+  const id = `hatch${useId().replaceAll(':', '')}`
+  return (
+    <svg {...svg(props)}>
+      <defs>
+        <pattern id={id} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="2" height="4" fill="#fff" fillOpacity="0.14" />
+        </pattern>
+      </defs>
+      <circle cx="16" cy="16" r="16" fill={fill} />
+      <circle cx="16" cy="16" r="16" fill={`url(#${id})`} />
+      <g transform="translate(5 5) scale(0.9167)" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        {glyph.map((d) => (
+          <path key={d} d={d} />
+        ))}
+      </g>
+    </svg>
+  )
+}
+
+// Glyphs from Lucide (ISC): dollar-sign and euro.
+const DOLLAR = ['M12 2v20', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']
+const EURO = ['M4 10h12', 'M4 14h9', 'M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2']
+
+export const MusdIcon = (props: IconProps) => <TestToken {...props} fill="#3d8a68" glyph={DOLLAR} />
+export const MeurIcon = (props: IconProps) => <TestToken {...props} fill="#3c6aa8" glyph={EURO} />
