@@ -125,9 +125,10 @@ export function WeeklyBudget({ agent, status, onChanged }: { agent: ManagedAgent
           )
         })
       )}
-      <details className="group/details -mx-1 rounded-lg">
+      {/* With no live budget the editor is the next step, so it starts open. */}
+      <details className="group/details -mx-1 rounded-lg" open={status.data !== undefined && allowances.length === 0}>
         <summary className="inline-flex min-h-8 cursor-pointer list-none items-center rounded-md px-1 text-sm font-medium select-none pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-          Change or renew the weekly budget
+          {status.data !== undefined && allowances.length === 0 ? 'Set a weekly budget' : 'Change or renew the weekly budget'}
         </summary>
         <div className="mt-3 px-1">
           <AllowanceEditor agent={agent} onConfirmed={onChanged} />
