@@ -84,6 +84,18 @@ describe('feed from chain gaps and history', () => {
 })
 
 describe('inbox', () => {
+  it('links historical request and subsequent chain transitions without a task-only filter', async () => {
+    const sql = await setup()
+    await writeFeed(sql, 'monad-testnet', [{ id: 'request', address: creator, boardId: 'public', kind: 'request.opened', requestId: 'r1', summary: 'open', occurredAt: now }], now)
+    await writeFeed(sql, 'monad-testnet', [{ id: 'picked', address: creator, boardId: 'public', kind: 'request.picked', requestId: 'r1', taskId: 'task-7', summary: 'linked', occurredAt: now }], now)
+    await event(sql, 1, 'Activated')
+    await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })
+    const page = await read(sql, creator, { requestId: 'r1', includePublic: false })
+    expect(page.events.map(e => [e.kind, e.requestId, e.taskId])).toEqual([
+      ['request.opened', 'r1', 'task-7'], ['request.picked', 'r1', 'task-7'], ['job.activated', 'r1', 'task-7'],
+    ])
+    expect((await read(sql, stranger, { requestId: 'r1', includePublic: false })).events).toEqual([])
+  })
   it('pages by cursor, filters kinds, keeps strangers out and reports retention gaps', async () => {
     const sql = await setup()
     await writeFeed(sql, 'monad-testnet', Array.from({ length: 5 }, (_, i) => ({ id: `t:${i}`, address: worker, kind: i % 2 === 0 ? 'quote.received' : 'selection.received', summary: `s${i}`, occurredAt: now })), now)

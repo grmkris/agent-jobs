@@ -58,6 +58,11 @@ describe('MCP feed streams', () => {
     const jobs = occurrences(await poll('sidequest.jobs', { arguments: { taskId: 't2' } }))
     expect(inbox[0]!.eventId).not.toBe(jobs[0]!.eventId)
   })
+  it('filters inbox by requestId and exposes the request to task link', async () => {
+    const { sql, poll } = await setup()
+    await writeFeed(sql, 'monad-testnet', [{ id: 'picked', address: wallet, kind: 'request.picked', requestId: 'r1', taskId: 't9', summary: 'linked', occurredAt: now }], now)
+    expect(occurrences(await poll('sidequest.inbox', { arguments: { requestId: 'r1' }, maxAgeMs: 0 })).map(event => event.data)).toEqual([expect.objectContaining({ requestId: 'r1', taskId: 't9' })])
+  })
   it('caps maxEvents at 100 and defaults to 50', async () => {
     const { sql, poll } = await setup()
     await writeFeed(sql, 'monad-testnet', Array.from({ length: 120 }, (_, i) => ({ id: `many-${i}`, address: wallet, kind: 'job.submitted', summary: 's', occurredAt: now })), now)

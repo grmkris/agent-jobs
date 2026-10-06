@@ -24,6 +24,10 @@ export const FEED_SCHEMA = [
   )`,
   'CREATE INDEX IF NOT EXISTS feed_events_address ON feed_events (chain_id, address, seq)',
   'CREATE INDEX IF NOT EXISTS feed_events_created ON feed_events (created_at)',
+  `CREATE TABLE IF NOT EXISTS feed_request_tasks (
+    chain_id INTEGER NOT NULL, board_id TEXT NOT NULL, task_id TEXT NOT NULL, request_id TEXT NOT NULL,
+    PRIMARY KEY (chain_id, board_id, task_id), UNIQUE (chain_id, board_id, request_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS feed_checkpoints (
     name TEXT PRIMARY KEY,
     chain_id INTEGER NOT NULL,
@@ -77,7 +81,12 @@ export function feedStatements(chainId: number, events: readonly FeedEvent[], no
 export async function writeFeed(sql: AsyncSql, network: Network, events: readonly FeedEvent[], now: number): Promise<void> {
   if (events.length === 0) return
   await migrateFeed(sql)
-  await sql.batch(feedStatements(telegramChainId(network), events, now))
+  const chainId = telegramChainId(network)
+  await sql.batch([
+    ...events.filter(e => e.requestId !== undefined && e.taskId !== undefined && e.taskId !== null && e.boardId !== undefined && e.boardId !== null)
+      .map(e => stmt('INSERT OR IGNORE INTO feed_request_tasks (chain_id, board_id, task_id, request_id) VALUES (?, ?, ?, ?)', chainId, e.boardId!, e.taskId!, e.requestId!)),
+    ...feedStatements(chainId, events, now),
+  ])
 }
 
 export interface InboxEvent {
@@ -109,7 +118,7 @@ export function parseCursor(cursor: unknown): number | undefined {
  * One page of an address's feed, oldest first after `cursor`. Without a cursor it starts seven days back. A cursor older
  * than retention returns `gap: true` with the oldest retained rows, so a poller knows it may have missed events.
  */
-export async function readInbox(sql: AsyncSql, input: { network: Network; address: string; cursor?: unknown; kinds?: unknown; includePublic?: unknown; scope?: 'own' | 'public'; taskId?: string; kindPrefixes?: readonly string[]; maxAgeMs?: number; limit?: unknown; now: number }) {
+export async function readInbox(sql: AsyncSql, input: { network: Network; address: string; cursor?: unknown; kinds?: unknown; includePublic?: unknown; scope?: 'own' | 'public'; taskId?: string; requestId?: string; kindPrefixes?: readonly string[]; maxAgeMs?: number; limit?: unknown; now: number }) {
   await migrateFeed(sql)
   const chainId = telegramChainId(input.network)
   const after = parseCursor(input.cursor)
@@ -121,9 +130,15 @@ export async function readInbox(sql: AsyncSql, input: { network: Network; addres
   const where = [`chain_id = ?`, `address IN (${addresses.map(() => '?').join(',')})`, ...(selectors.length > 0 ? [`(${selectors.join(' OR ')})`] : [])]
   const params: (string | number)[] = [chainId, ...addresses, ...kinds, ...prefixes.flatMap(prefix => [prefix, prefix])]
   if (input.taskId !== undefined) { where.push('task_id = ?'); params.push(input.taskId) }
+  if (input.requestId !== undefined) { where.push('json_extract(data_json, \'$.requestId\') = ?'); params.push(input.requestId) }
   if (after !== undefined) { where.push('seq > ?'); params.push(after) } else { where.push('occurred_at >= ?'); params.push(input.now - (input.maxAgeMs === undefined ? DEFAULT_LOOKBACK_SECONDS : Math.min(input.maxAgeMs / 1000, FEED_RETENTION_SECONDS))) }
   const rows = await sql.all<{ seq: number; id: string; address: string; kind: string; board_id: string | null; task_id: string | null; job_id: string | null; data_json: string; occurred_at: number }>(
-    `SELECT seq, id, address, kind, board_id, task_id, job_id, data_json, occurred_at FROM feed_events WHERE ${where.join(' AND ')} ORDER BY seq LIMIT ?`, ...params, limit + 1)
+    `SELECT seq, id, address, kind, board_id, task_id, job_id, data_json, occurred_at FROM (
+      SELECT f.seq, f.id, f.address, f.kind, f.chain_id, f.board_id, coalesce(f.task_id, l.task_id) task_id, f.job_id, f.occurred_at,
+        CASE WHEN l.request_id IS NULL THEN f.data_json ELSE json_set(f.data_json, '$.requestId', l.request_id) END data_json
+      FROM feed_events f LEFT JOIN feed_request_tasks l ON l.chain_id=f.chain_id AND l.board_id=f.board_id
+        AND (l.task_id=f.task_id OR l.request_id=json_extract(f.data_json, '$.requestId'))
+    ) WHERE ${where.join(' AND ')} ORDER BY seq LIMIT ?`, ...params, limit + 1)
   const page = rows.slice(0, limit)
   const [oldest] = after === undefined ? [undefined] : await sql.all<{ seq: number }>('SELECT min(seq) AS seq FROM feed_events WHERE chain_id = ?', chainId)
   const events: InboxEvent[] = page.map(row => ({
@@ -141,7 +156,7 @@ export async function readInbox(sql: AsyncSql, input: { network: Network; addres
 }
 
 const FEED_KINDS = 'job.published, job.activated, job.submitted, job.rejected, job.disputed, job.ruled, job.completed, job.closed, job.expired, '
-  + 'job.cancelled, settlement.deferred, payout.owed, quote.received, application.received, selection.received, invite.received, request.opened, '
+  + 'job.cancelled, settlement.deferred, payout.owed, quote.received, application.received, selection.received, invite.received, request.opened, request.picked, '
   + 'approval.requested, approval.decided, permission.granted'
 
 /** The `inbox` read tool, served by the Worker from D1 for the signed-in wallet or the agent's OAuth grant. */
@@ -154,6 +169,7 @@ export const feedTools = {
       type: 'object',
       properties: {
         cursor: { type: 'string', description: 'The cursor from your previous inbox call.' },
+        requestId: { type: 'string', description: 'Follow one quote request through its linked hire.' },
         kinds: { type: 'array', items: { type: 'string' }, description: 'Only these kinds, e.g. ["selection.received", "job.submitted"].' },
         includePublic: { type: 'boolean', description: 'Include new public requests and jobs; default true.' },
         limit: { type: 'number', description: 'At most 100; default 50.' },
@@ -162,7 +178,8 @@ export const feedTools = {
     run: async (deps: { sql: AsyncSql; network: Network; now: number }, caller: string | undefined, args: Record<string, unknown>) => {
       if (caller === undefined) throw new BoardError('unauthenticated', 'Sign in to read your inbox')
       try {
-        return await readInbox(deps.sql, { network: deps.network, address: caller, cursor: args.cursor, kinds: args.kinds, includePublic: args.includePublic, limit: args.limit, now: deps.now })
+        if (args.requestId !== undefined && (typeof args.requestId !== 'string' || args.requestId.length === 0)) throw new BoardError('invalid', 'requestId must be a nonempty string')
+        return await readInbox(deps.sql, { network: deps.network, address: caller, cursor: args.cursor, kinds: args.kinds, ...(typeof args.requestId === 'string' ? { requestId: args.requestId } : {}), includePublic: args.includePublic, limit: args.limit, now: deps.now })
       } catch (error) {
         if (error instanceof Error && error.message.startsWith('cursor ')) throw new BoardError('invalid', error.message)
         throw error

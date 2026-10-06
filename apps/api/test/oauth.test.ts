@@ -5,6 +5,9 @@ import { AgentStore, fromNodeSqlite } from '@sidequest/board'
 import type { Address } from 'viem'
 import { oauthRoute, resolveOAuth, type OAuthReply } from '../src/oauth.ts'
 import { pkceChallenge } from '../src/oauth-validation.ts'
+import { fromNodeSqlite as asyncSql, stmt } from '@sidequest/indexer'
+import { McpEvents } from '../src/mcp-events.ts'
+import { deliverWebhooks, terminateGrantSubscriptions } from '../src/webhooks.ts'
 
 const owner = `0x${'11'.repeat(20)}` as Address
 const wallet = `0x${'22'.repeat(20)}` as Address
@@ -19,13 +22,14 @@ type Tokens = { access_token: string; refresh_token: string }
 function fixture() {
   const db = new DatabaseSync(':memory:')
   const sql = fromNodeSqlite(db)
+  const d1 = asyncSql(db)
   const agents = new AgentStore(sql, () => 1000)
   agents.create({ id: 'one', operator: owner, privyUserId: 'did:privy:test', name: 'one', registry, chainId: 10143 })
   agents.bindWallet('one', 'wallet-one', wallet)
   agents.bindRegistry('one', '10')
   for (const state of ['upgraded', 'grants-live', 'registered', 'active'] as const) agents.advance('one', state)
-  const route = (path: string, body: Record<string, unknown> = {}, query = new URLSearchParams(), method = 'POST', operator: string | undefined = owner) => oauthRoute({ sql, path, body, query, method, origin, siteOrigin: origin, now: 1000, ...(operator === undefined ? {} : { owner: operator }) }) as Promise<OAuthReply>
-  return { db, sql, agents, route }
+  const route = (path: string, body: Record<string, unknown> = {}, query = new URLSearchParams(), method = 'POST', operator: string | undefined = owner) => oauthRoute({ sql, path, body, query, method, origin, siteOrigin: origin, now: 1000, ...(operator === undefined ? {} : { owner: operator }), revokeSubscriptions: (principal, family, now) => terminateGrantSubscriptions(d1, principal, family, now) }) as Promise<OAuthReply>
+  return { db, sql, d1, agents, route }
 }
 
 async function connection(f: ReturnType<typeof fixture>, scopes?: string[]) {
@@ -66,6 +70,32 @@ test('refresh rotates; replay revokes every token in the connection, including t
     expect((await f.route('/oauth/token', input)).status).toBe(400)
     expect(await resolveOAuth(f.sql, second.access_token, resource, 1000)).toBeUndefined()
     expect(await resolveOAuth(f.sql, first.access_token, resource, 1000)).toBeUndefined()
+  } finally { f.db.close() }
+})
+
+test.each(['access', 'refresh-replay'])('disconnect %s stops callbacks under that OAuth family', async kind => {
+  const f = fixture()
+  try {
+    const c = await connection(f)
+    const tokens = (await f.route('/oauth/token', c.tokenBody)).body as Tokens
+    const grant = (await resolveOAuth(f.sql, tokens.access_token, resource, 1000))!
+    const fetch = async (_url: unknown, init?: RequestInit) => {
+      const envelope = JSON.parse(new TextDecoder().decode(init?.body as Uint8Array)) as { challenge: string }
+      return Response.json({ challenge: envelope.challenge })
+    }
+    const events = new McpEvents(f.d1, 'monad-testnet', { now: () => 1000, fetch })
+    const subscription = await events.handle('events/subscribe', { name: 'sidequest.inbox', delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` } }, grant)
+    if (kind === 'access') await f.route('/oauth/revoke', { token: tokens.access_token, client_id: c.clientId })
+    else {
+      const input = { grant_type: 'refresh_token', client_id: c.clientId, resource, refresh_token: tokens.refresh_token }
+      await f.route('/oauth/token', input)
+      await f.route('/oauth/token', input)
+    }
+    expect(f.sql.all('SELECT status FROM event_subscriptions WHERE id=?', String(subscription.id))).toEqual([{ status: 'terminated' }])
+    // Even a stale in-memory grant cannot resubscribe or resume a row after disconnect.
+    await expect(events.handle('events/subscribe', { name: 'sidequest.inbox', delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` } }, grant)).rejects.toMatchObject({ code: -32003 })
+    await f.d1.batch([stmt("UPDATE event_subscriptions SET status='active', next_attempt_at=0 WHERE id=?", String(subscription.id))])
+    expect(await deliverWebhooks(f.d1, 'monad-testnet', 1001, { fetch: async () => { throw new Error('must not deliver') } })).toEqual({ posts: 0, subscriptions: 0 })
   } finally { f.db.close() }
 })
 

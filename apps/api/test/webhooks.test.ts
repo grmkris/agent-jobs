@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { timingSafeEqual } from 'node:crypto'
 import { type AsyncSql, fromNodeSqlite, stmt } from '@sidequest/indexer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { assertPublicCallback, deliverWebhooks, migrateWebhooks, subscribeWebhook, terminateSubscriptions, unsubscribeWebhook, type WebhookFetch } from '../src/webhooks.ts'
+import { assertPublicCallback, deliverWebhooks, migrateWebhooks, subscribeWebhook, terminateGrantSubscriptions, terminateSubscriptions, unsubscribeWebhook, type WebhookFetch } from '../src/webhooks.ts'
 import { FEED_RETENTION_SECONDS, pruneFeed, writeFeed } from '../src/feed.ts'
 
 const principal = '0x1111111111111111111111111111111111111111', stranger = '0x2222222222222222222222222222222222222222'
@@ -266,6 +266,14 @@ describe('cron webhook delivery', () => {
     await deliverWebhooks(sql, network, now + 60, { fetch: f.transport })
     expect(f.deliveries.filter(d => d.envelope.eventId)).toHaveLength(1)
   })
+  it('terminates immediately on HTTP 413 without retrying', async () => {
+    const sql = database(); await seed(sql)
+    const f = fake(() => new Response(null, { status: 413 })); const sub = await subscription(sql, f.transport)
+    await deliverWebhooks(sql, network, now, { fetch: f.transport })
+    expect(await row(sql, sub.id)).toMatchObject({ status: 'terminated', cursor_seq: 0, last_error: 'HTTP 413' })
+    await deliverWebhooks(sql, network, now + 60, { fetch: f.transport })
+    expect(f.deliveries.filter(d => d.envelope.type !== 'verification')).toHaveLength(1)
+  })
   it('sends an acknowledged gap control before retained rows and does not repeat it', async () => {
     const sql = database(); await seed(sql, 3, principal, now - FEED_RETENTION_SECONDS - 1)
     await writeFeed(sql, network, [{ id: 'retained', address: principal, kind: 'job.completed', summary: 'done', occurredAt: now }], now)
@@ -364,6 +372,15 @@ describe('cron webhook delivery', () => {
     await terminateSubscriptions(sql, principal.toUpperCase())
     expect((await row(sql, own.id)).status).toBe('terminated')
     expect((await row(sql, other.id)).status).toBe('active')
+  })
+  it('revoking one OAuth family terminates only that family and its in-flight subscriptions', async () => {
+    const sql = database(); await seed(sql)
+    const first = await subscribeWebhook(sql, network, principal, params({ arguments: { kinds: ['job.submitted'] } }), now, fake().transport, 'family-a')
+    const second = await subscribeWebhook(sql, network, principal, params({ arguments: { kinds: ['job.published'] } }), now, fake().transport, 'family-b')
+    await terminateGrantSubscriptions(sql, principal, 'family-a', now + 1)
+    expect((await row(sql, first.id)).status).toBe('terminated')
+    expect((await row(sql, second.id)).status).toBe('active')
+    await expect(subscribeWebhook(sql, network, principal, params({ arguments: { kinds: ['job.submitted'] } }), now + 2, fake().transport, 'family-a')).rejects.toMatchObject({ code: -32003 })
   })
   it('rechecks DNS on delivery and refuses a now-private callback without leaking thrown details', async () => {
     const sql = database(); await seed(sql)

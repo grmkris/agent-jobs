@@ -11,6 +11,7 @@ export interface OAuthGrant {
   readonly address: string
   readonly registryAgentId: string | null
   readonly chainId: number
+  readonly grantId?: string
 }
 
 export interface OAuthReply {
@@ -45,10 +46,10 @@ function requestedResource(path: string, origin: string): string | undefined {
 export async function resolveOAuth(sql: Sql, token: string | undefined, resource: string, now: number): Promise<OAuthGrant | undefined> {
   if (token === undefined || token === '') return undefined
   const hash = await tokenHash(token)
-  const row = (sql.all<{ operator: string; state: string; address: string; registry_agent_id: string | null; chain_id: number; scopes_json: string; resource: string; client_id: string; agent_id: string }>(
-    'SELECT a.operator,a.state,a.address,a.agent_id registry_agent_id,a.chain_id,f.scopes_json,f.resource,f.client_id,f.agent_id FROM agent_oauth_tokens t JOIN agent_oauth_families f ON f.id=t.family_id JOIN agents a ON a.id=f.agent_id WHERE t.hash=? AND t.kind=\'access\' AND t.expires_at>? AND f.revoked_at IS NULL', hash, now))[0]
+  const row = (sql.all<{ operator: string; state: string; address: string; registry_agent_id: string | null; chain_id: number; scopes_json: string; resource: string; client_id: string; agent_id: string; grant_id: string }>(
+    'SELECT a.operator,a.state,a.address,a.agent_id registry_agent_id,a.chain_id,f.scopes_json,f.resource,f.client_id,f.agent_id,f.id grant_id FROM agent_oauth_tokens t JOIN agent_oauth_families f ON f.id=t.family_id JOIN agents a ON a.id=f.agent_id WHERE t.hash=? AND t.kind=\'access\' AND t.expires_at>? AND f.revoked_at IS NULL', hash, now))[0]
   if (row === undefined || row.resource !== resource || row.state !== 'active') return undefined
-  return { owner: row.operator, scopes: JSON.parse(row.scopes_json) as string[], agentIds: [row.agent_id], resource: row.resource, clientId: row.client_id, address: row.address, registryAgentId: row.registry_agent_id, chainId: row.chain_id }
+  return { owner: row.operator, scopes: JSON.parse(row.scopes_json) as string[], agentIds: [row.agent_id], resource: row.resource, clientId: row.client_id, address: row.address, registryAgentId: row.registry_agent_id, chainId: row.chain_id, grantId: row.grant_id }
 }
 
 export async function oauthRoute(input: {
@@ -61,9 +62,14 @@ export async function oauthRoute(input: {
   readonly siteOrigin: string
   readonly owner?: string
   readonly now: number
+  readonly revokeSubscriptions?: (principal: string, grantId: string, now: number) => Promise<void>
 }): Promise<OAuthReply | undefined> {
   const { sql, method, path, query, body, origin, siteOrigin, owner, now } = input
   migrateAgentSchema(sql)
+  const terminateFamily = async (familyId: string) => {
+    const agent = sql.all<{ address: string }>('SELECT a.address FROM agents a JOIN agent_oauth_families f ON f.agent_id = a.id WHERE f.id = ?', familyId)[0]
+    if (agent !== undefined) await input.revokeSubscriptions?.(agent.address, familyId, now)
+  }
   const protectedResource = requestedResource(path, origin)
   if (protectedResource !== undefined) return good({ resource: protectedResource, authorization_servers: [origin], scopes_supported: OAUTH_SCOPES, bearer_methods_supported: ['header'] })
   if (path === '/.well-known/oauth-authorization-server' && method === 'GET') return good({
@@ -184,11 +190,19 @@ export async function oauthRoute(input: {
       sql.run("INSERT INTO agent_oauth_tokens (hash,family_id,kind,expires_at) VALUES (?,?,'refresh',?)", refreshHash, familyId, now + 30 * 86400)
       return true
     })
-    if (!issued) return failure('invalid_grant', 'Code already used, refresh replayed, or agent access stopped')
+    if (!issued) {
+      if (sql.all('SELECT id FROM agent_oauth_families WHERE id=? AND revoked_at IS NOT NULL', familyId).length > 0) await terminateFamily(familyId)
+      return failure('invalid_grant', 'Code already used, refresh replayed, or agent access stopped')
+    }
     return good({ access_token: access, token_type: 'Bearer', expires_in: 3600, refresh_token: refresh, scope: scopes.join(' '), agent_id: agentId })
   }
   if (path === '/oauth/revoke' && method === 'POST') {
-    if (typeof body.token === 'string') write(sql, [{ query: 'UPDATE agent_oauth_families SET revoked_at=? WHERE id IN (SELECT family_id FROM agent_oauth_tokens WHERE hash=?) AND client_id=?', params: [now, await tokenHash(body.token), String(body.client_id ?? '')] }])
+    if (typeof body.token === 'string') {
+      const hash = await tokenHash(body.token), clientId = String(body.client_id ?? '')
+      const families = sql.all<{ id: string }>('SELECT f.id FROM agent_oauth_families f JOIN agent_oauth_tokens t ON t.family_id=f.id WHERE t.hash=? AND f.client_id=?', hash, clientId)
+      write(sql, [{ query: 'UPDATE agent_oauth_families SET revoked_at=? WHERE id IN (SELECT family_id FROM agent_oauth_tokens WHERE hash=?) AND client_id=?', params: [now, hash, clientId] }])
+      for (const family of families) await terminateFamily(family.id)
+    }
     return good({})
   }
   return undefined

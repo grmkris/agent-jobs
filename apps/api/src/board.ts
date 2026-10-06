@@ -11,6 +11,7 @@ import { collectSnapshot } from './collect-index.ts'
 import { stakingSnapshot } from './staking-index.ts'
 import { r2MiningSource, type EpochBucket } from './mining.ts'
 import { oauthRoute, resolveOAuth } from './oauth.ts'
+import { terminateGrantSubscriptions } from './webhooks.ts'
 import type { OAuthGrant } from './oauth.ts'
 import { permittedTool } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
@@ -191,7 +192,9 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
             migrateAgentSchema(sql)
             const desk = new SessionDesk({ sql: fromD1(bindings.Database as never), now: () => Math.floor(Date.now() / 1000), verify: async () => false })
             const session = await desk.resolve({ bearer: req.bearer })
-            return toJson(await oauthRoute({ sql, method: req.method, path: req.path, query: new URLSearchParams(req.query), body: req.body, origin: req.origin, siteOrigin: req.origin, ...(session === undefined ? {} : { owner: session.address }), now: Math.floor(Date.now() / 1000) }) ?? null)
+            return toJson(await oauthRoute({ sql, method: req.method, path: req.path, query: new URLSearchParams(req.query), body: req.body, origin: req.origin, siteOrigin: req.origin, ...(session === undefined ? {} : { owner: session.address }), now: Math.floor(Date.now() / 1000),
+              revokeSubscriptions: async (principal, grantId, at) => { await terminateGrantSubscriptions(fromD1(bindings.Database as never), principal, grantId, at) },
+            }) ?? null)
           })
           callQueue = result.catch(() => undefined)
           return result

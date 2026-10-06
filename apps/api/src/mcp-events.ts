@@ -13,7 +13,7 @@ const payloadSchema = {
     requestId: { type: 'string' }, role: { type: 'string' }, summary: { type: 'string' }, url: { type: 'string' }, next: { type: 'object' } },
 }
 const descriptors = [
-  { name: 'sidequest.inbox', description: 'Your job, quote, application and approval events.', inputSchema: objectSchema({ kinds: { type: 'array', items: { type: 'string' }, maxItems: 20 } }) },
+  { name: 'sidequest.inbox', description: 'Your job, quote, application and approval events. requestId follows a quote request through its linked hire.', inputSchema: objectSchema({ kinds: { type: 'array', items: { type: 'string' }, maxItems: 20 }, requestId: { type: 'string', minLength: 1 } }) },
   { name: 'sidequest.jobs', description: 'Your job transitions, deferred settlements and owed payouts.', inputSchema: objectSchema({ taskId: { type: 'string' } }) },
   { name: 'sidequest.approvals', description: 'Your approval decisions and permissions.', inputSchema: objectSchema() },
   { name: 'sidequest.requests', description: 'Public quote requests and published jobs.', inputSchema: objectSchema() },
@@ -24,12 +24,13 @@ export function eventArguments(name: unknown, value: unknown): { name: string; a
   const args = value === undefined ? {} : value
   if (typeof args !== 'object' || args === null || Array.isArray(args)) throw new EventRpcError(-32602, 'Event arguments must be an object')
   const record = args as Record<string, unknown>
-  const allowed = name === 'sidequest.inbox' ? ['kinds'] : name === 'sidequest.jobs' ? ['taskId'] : []
+  const allowed = name === 'sidequest.inbox' ? ['kinds', 'requestId'] : name === 'sidequest.jobs' ? ['taskId'] : []
   if (Object.keys(record).some(key => !allowed.includes(key))) throw new EventRpcError(-32602, 'Unknown event argument')
   if (record.taskId !== undefined && (typeof record.taskId !== 'string' || record.taskId.length === 0)) throw new EventRpcError(-32602, 'taskId must be a nonempty string')
+  if (record.requestId !== undefined && (typeof record.requestId !== 'string' || record.requestId.length === 0)) throw new EventRpcError(-32602, 'requestId must be a nonempty string')
   if (record.kinds !== undefined && (!Array.isArray(record.kinds) || record.kinds.length > 20 || !record.kinds.every(kind => typeof kind === 'string' && /^[a-z]+\.[a-z_]+$/.test(kind)))) throw new EventRpcError(-32602, 'kinds must contain at most 20 feed kind names')
   // Kinds are a set: ordering and duplicate entries cannot create separate subscriptions.
-  return { name, args: record.kinds === undefined ? { ...record } : { kinds: [...new Set(record.kinds as string[])].toSorted() } }
+  return { name, args: record.kinds === undefined ? { ...record } : { ...record, kinds: [...new Set(record.kinds as string[])].toSorted() } }
 }
 
 export function eventCursor(value: unknown): number | undefined {
@@ -52,10 +53,10 @@ export async function eventPage(sql: AsyncSql, network: Network, principal: stri
   eventCursor(params.cursor)
   const maxAgeMs = eventMaxAge(params.maxAgeMs)
   const page = await readInbox(sql, { network, address: principal.toLowerCase(), cursor: params.cursor, scope: name === 'sidequest.requests' ? 'public' : 'own',
-    ...(name === 'sidequest.inbox' ? { kinds: args.kinds } : {}),
+    ...(name === 'sidequest.inbox' ? { kinds: args.kinds, ...(typeof args.requestId === 'string' ? { requestId: args.requestId } : {}) } : {}),
     ...(name === 'sidequest.jobs' ? { kinds: ['settlement.deferred', 'payout.owed'], kindPrefixes: ['job.'], ...(typeof args.taskId === 'string' ? { taskId: args.taskId } : {}) } : {}),
     ...(name === 'sidequest.approvals' ? { kindPrefixes: ['approval.', 'permission.'] } : {}),
-    ...(name === 'sidequest.requests' ? { kinds: ['request.opened', 'job.published'] } : {}),
+    ...(name === 'sidequest.requests' ? { kinds: ['request.opened', 'request.picked', 'job.published'] } : {}),
     ...(maxAgeMs === undefined ? {} : { maxAgeMs }), limit, now })
   return { ...page, events: page.events.map(event => occurrence(name, event)) }
 }
@@ -88,8 +89,8 @@ export class McpEvents {
       const cursor = page.cursor ?? cursorOf((await eventStart(this.sql, this.network, principal, params, now)).seq)
       return { events: page.events, cursor, truncated: page.gap, hasMore: page.hasMore, nextPollMs: page.hasMore ? 0 : 60_000 }
     }
-    if (method === 'events/subscribe') return subscribeWebhook(this.sql, this.network, principal, params, now, this.options.fetch)
-    if (method === 'events/unsubscribe') return unsubscribeWebhook(this.sql, this.network, principal, params, now)
+    if (method === 'events/subscribe') return subscribeWebhook(this.sql, this.network, principal, params, now, this.options.fetch, grant.grantId)
+    if (method === 'events/unsubscribe') return unsubscribeWebhook(this.sql, this.network, principal, params, now, grant.grantId)
     throw new EventRpcError(-32601, 'Unknown events method')
   }
 }

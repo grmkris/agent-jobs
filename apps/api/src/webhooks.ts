@@ -31,8 +31,11 @@ export const WEBHOOK_SCHEMA = [
   'CREATE INDEX IF NOT EXISTS event_subscriptions_due ON event_subscriptions (status, next_attempt_at, refresh_before)',
   // A principal whose hosted access stopped. Its subscriptions are terminated and none can be created or delivered again.
   'CREATE TABLE IF NOT EXISTS event_revoked_principals (principal TEXT PRIMARY KEY, revoked_at INTEGER NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS event_subscription_grants (subscription_id TEXT PRIMARY KEY, grant_id TEXT NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS event_revoked_grants (grant_id TEXT PRIMARY KEY, revoked_at INTEGER NOT NULL)',
 ] as const
-const NOT_REVOKED = 'NOT EXISTS (SELECT 1 FROM event_revoked_principals r WHERE r.principal = event_subscriptions.principal)'
+const NOT_REVOKED = `NOT EXISTS (SELECT 1 FROM event_revoked_principals r WHERE r.principal = event_subscriptions.principal)
+  AND NOT EXISTS (SELECT 1 FROM event_subscription_grants g JOIN event_revoked_grants r ON r.grant_id = g.grant_id WHERE g.subscription_id = event_subscriptions.id)`
 const revokedError = () => new EventRpcError(-32003, 'This agent\'s access is stopped')
 const migrated = new WeakSet<AsyncSql>()
 export async function migrateWebhooks(sql: AsyncSql): Promise<void> {
@@ -61,8 +64,8 @@ async function signature(secret: string, id: string, timestamp: string, body: Ui
 function canonical(args: Record<string, unknown>): string {
   return JSON.stringify(Object.fromEntries(Object.keys(args).toSorted().map(key => [key, args[key]])))
 }
-async function subscriptionId(principal: string, chain: number, url: string, name: string, args: Record<string, unknown>): Promise<string> {
-  const hash = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify([principal.toLowerCase(), chain, url, name, canonical(args)])))
+async function subscriptionId(principal: string, chain: number, url: string, name: string, args: Record<string, unknown>, grantId?: string): Promise<string> {
+  const hash = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify([principal.toLowerCase(), chain, url, name, canonical(args), ...(grantId === undefined ? [] : [grantId])])))
   return `sub_${Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
@@ -155,7 +158,7 @@ interface Subscription {
   status: 'active' | 'failing' | 'terminated'; refresh_before: number; failures: number; next_attempt_at: number; last_error: string | null
   created_at: number; updated_at: number
 }
-export async function subscribeWebhook(sql: AsyncSql, network: Network, principal: string, params: Record<string, unknown>, now: number, transport: WebhookFetch = fetch): Promise<Record<string, unknown>> {
+export async function subscribeWebhook(sql: AsyncSql, network: Network, principal: string, params: Record<string, unknown>, now: number, transport: WebhookFetch = fetch, grantId?: string): Promise<Record<string, unknown>> {
   const { name, args } = eventArguments(params.name, params.arguments)
   eventCursor(params.cursor); eventMaxAge(params.maxAgeMs)
   const d = params.delivery as Record<string, unknown> | undefined
@@ -165,9 +168,10 @@ export async function subscribeWebhook(sql: AsyncSql, network: Network, principa
   if (typeof ttlMs !== 'number' || !Number.isSafeInteger(ttlMs) || ttlMs <= 0) throw new EventRpcError(-32602, 'ttlMs must be a positive integer')
   const url = await assertPublicCallback(d.url, transport)
   const chain = telegramChainId(network)
-  const id = await subscriptionId(principal, chain, url.href, name, args)
+  const id = await subscriptionId(principal, chain, url.href, name, args, grantId)
   await migrateWebhooks(sql)
   if ((await sql.all('SELECT 1 FROM event_revoked_principals WHERE principal = ?', principal.toLowerCase())).length > 0) throw revokedError()
+  if (grantId !== undefined && (await sql.all('SELECT 1 FROM event_revoked_grants WHERE grant_id = ?', grantId)).length > 0) throw new EventRpcError(-32003, 'This OAuth connection was revoked')
   const [existing] = await sql.all<Subscription>('SELECT * FROM event_subscriptions WHERE id = ?', id)
   const start = existing !== undefined && existing.status !== 'terminated' ? { seq: existing.cursor_seq, truncated: false }
     : await eventStart(sql, network, principal, { ...params, name, arguments: args }, now)
@@ -190,6 +194,7 @@ export async function subscribeWebhook(sql: AsyncSql, network: Network, principa
   await sql.batch([stmt(`INSERT INTO event_subscriptions (id, principal, chain_id, name, args_json, url, secret, cursor_seq, status, refresh_before, failures, next_attempt_at, last_error, created_at, updated_at)
     SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, ?, NULL, ?, ?
     WHERE NOT EXISTS (SELECT 1 FROM event_revoked_principals WHERE principal = ?)
+      AND NOT EXISTS (SELECT 1 FROM event_revoked_grants WHERE grant_id = ?)
     ON CONFLICT(id) DO UPDATE SET secret = excluded.secret, refresh_before = excluded.refresh_before,
     cursor_seq = CASE WHEN status = 'terminated' THEN excluded.cursor_seq ELSE cursor_seq END,
     failures = CASE WHEN status = 'terminated' THEN 0 ELSE failures END,
@@ -197,24 +202,25 @@ export async function subscribeWebhook(sql: AsyncSql, network: Network, principa
     last_error = CASE WHEN status = 'failing' THEN last_error ELSE NULL END,
     updated_at = CASE WHEN status = 'failing' THEN updated_at ELSE excluded.updated_at END,
     status = CASE WHEN status = 'failing' THEN status ELSE 'active' END`,
-  id, principal.toLowerCase(), chain, name, canonical(args), url.href, d.secret, start.seq, refreshBefore, now, now, now, principal.toLowerCase())])
+  id, principal.toLowerCase(), chain, name, canonical(args), url.href, d.secret, start.seq, refreshBefore, now, now, now, principal.toLowerCase(), grantId ?? ''),
+  ...(grantId === undefined ? [] : [stmt('INSERT OR IGNORE INTO event_subscription_grants (subscription_id, grant_id) VALUES (?, ?)', id, grantId)])])
   const [saved] = await sql.all<Subscription>(`SELECT * FROM event_subscriptions WHERE id = ? AND status <> 'terminated' AND ${NOT_REVOKED}`, id)
   if (saved === undefined) throw revokedError()
   return { id, refreshBefore: new Date(refreshBefore * 1000).toISOString(), cursor: cursorOf(saved.cursor_seq), truncated: start.truncated,
     deliveryStatus: { active: saved.status === 'active', ...(saved.last_error === null ? {} : { lastError: saved.last_error }) } }
 }
-export async function unsubscribeWebhook(sql: AsyncSql, network: Network, principal: string, params: Record<string, unknown>, now: number): Promise<Record<string, unknown>> {
+export async function unsubscribeWebhook(sql: AsyncSql, network: Network, principal: string, params: Record<string, unknown>, now: number, grantId?: string): Promise<Record<string, unknown>> {
   let id = params.id
   if (id === undefined) {
     // Purrable's current client uses this selector form rather than the profile's id form.
     const { name, args } = eventArguments(params.name, params.arguments)
     const d = params.delivery as Record<string, unknown> | undefined
     if (d?.mode !== 'webhook' || typeof d.url !== 'string') throw new EventRpcError(-32602, 'Subscription id or webhook selector is required')
-    id = await subscriptionId(principal, telegramChainId(network), callbackUrl(d.url).href, name, args)
+    id = await subscriptionId(principal, telegramChainId(network), callbackUrl(d.url).href, name, args, grantId)
   }
   if (typeof id !== 'string' || id.length === 0) throw new EventRpcError(-32602, 'Subscription id is required')
   await migrateWebhooks(sql)
-  await sql.batch([stmt("UPDATE event_subscriptions SET status = 'terminated', updated_at = ? WHERE id = ? AND principal = ? AND chain_id = ?", now, id, principal.toLowerCase(), telegramChainId(network))])
+  await sql.batch([stmt("UPDATE event_subscriptions SET status = 'terminated', updated_at = ? WHERE id = ? AND principal = ? AND chain_id = ? AND (? = '' OR id IN (SELECT subscription_id FROM event_subscription_grants WHERE grant_id = ?))", now, id, principal.toLowerCase(), telegramChainId(network), grantId ?? '', grantId ?? '')])
   return {}
 }
 export function reportWebhookFailure(error: unknown): void { console.error(JSON.stringify({ event: 'webhook-failed', ...errorDiagnostics(error) })) }
@@ -250,7 +256,7 @@ export async function deliverWebhooks(sql: AsyncSql, network: Network, now: numb
     }
     const accept = async (status: number | undefined): Promise<boolean> => {
       if (status === undefined) return false
-      if (status === 410) { await terminate('HTTP 410'); return false }
+      if (status === 410 || status === 413) { await terminate(`HTTP ${status}`); return false }
       if (status < 200 || status >= 300) throw new EventRpcError(-32015, `HTTP ${status}`)
       return true
     }
@@ -303,5 +309,16 @@ export async function terminateSubscriptions(sql: AsyncSql, principal: string, n
   await sql.batch([
     stmt('INSERT OR IGNORE INTO event_revoked_principals (principal, revoked_at) VALUES (?, ?)', principal.toLowerCase(), now),
     stmt("UPDATE event_subscriptions SET status = 'terminated', last_error = 'Agent access stopped', updated_at = ? WHERE principal = ? AND status <> 'terminated'", now, principal.toLowerCase()),
+  ])
+}
+
+/** Disconnect only this OAuth family. A fresh consent may subscribe again; an in-flight revoked grant cannot. */
+export async function terminateGrantSubscriptions(sql: AsyncSql, principal: string, grantId: string, now: number): Promise<void> {
+  await migrateWebhooks(sql)
+  await sql.batch([
+    stmt('INSERT OR IGNORE INTO event_revoked_grants (grant_id, revoked_at) VALUES (?, ?)', grantId, now),
+    stmt(`UPDATE event_subscriptions SET status = 'terminated', last_error = 'OAuth connection revoked', updated_at = ?
+      WHERE principal = ? AND status <> 'terminated' AND
+      (id IN (SELECT subscription_id FROM event_subscription_grants WHERE grant_id = ?) OR NOT EXISTS (SELECT 1 FROM event_subscription_grants g WHERE g.subscription_id = event_subscriptions.id))`, now, principal.toLowerCase(), grantId),
   ])
 }
