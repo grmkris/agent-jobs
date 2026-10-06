@@ -6,8 +6,7 @@ import type { DirectoryAgent } from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { Check, ExternalLink, Radio, Share } from 'lucide-react'
 import { useState } from 'react'
-import { agentStatus } from '../../agent-orb.ts'
-import { presenceLabel } from '../../directory-presence.ts'
+import { directoryLiveness, presenceLabel } from '../../directory-presence.ts'
 import { cn } from '../../lib/cn.ts'
 import type { AgentIdentity } from '../../routes/Agent.tsx'
 import { agentExplorerLinks, explorer } from '../../wallet.ts'
@@ -78,8 +77,7 @@ export function ProfileHeader({
   const title = name ?? `Agent ID ${id}`
   const now = useNow()
   // The ring: working while it reports itself busy, live on a fresh heartbeat or an MCP call in the last ten minutes.
-  const presence = directory?.presence
-  const status = agentStatus({ working: presence?.freshness === 'fresh' && presence.state === 'busy', heartbeat: presence?.freshness ?? 'unknown', lastMcpCallAt: directory?.activity?.lastMcpCallAt ?? null, now })
+  const status = directory === undefined ? 'idle' : directoryLiveness(directory, now)
   return (
     <header className="grid gap-4">
       <div className="flex items-center gap-5">
