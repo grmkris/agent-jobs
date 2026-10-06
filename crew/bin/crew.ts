@@ -128,7 +128,8 @@ async function freshToken(id: string): Promise<Token> {
   const t = readJson<Token>(path)
   const client = readJson<{ clientId: string }>(join(home(id), 'client.json'))
   if (t === undefined || client === undefined) throw new Error(`${id} is not connected; run "login ${id}"`)
-  if (t.expires_at - Math.floor(Date.now() / 1000) > 600) return t
+  // A run may last runTimeoutMinutes, so start it with a token that outlives it (access tokens last an hour).
+  if (t.expires_at - Math.floor(Date.now() / 1000) > (crew.harness.runTimeoutMinutes + 5) * 60) return t
   saveToken(id, await form('/oauth/token', { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: client.clientId, resource: crew.board.mcp }))
   return readJson<Token>(path)!
 }
