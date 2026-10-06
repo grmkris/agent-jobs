@@ -362,3 +362,27 @@ The next dev cut remains Sidequest-owned and waits for reviewed UI/V1.1 ranges,
 correct SHA-bound SIGNOFF, the final candidate gates, and the pending provider
 approval/readback. Real Privy login, authenticated MCP and managed signing
 remain separate unverified acceptance gates.
+
+## Review completion and active repairs — 05:33 UTC
+
+The reviewer has appended the correct indexer and x402 full-SHA bindings and
+signed off the indexer component only. **VV2-030 Medium** remains open, and
+**VV2-031 Medium** now blocks WS7: `/x402/demo` uses `redirect: "error"`, which
+Cloudflare workerd rejects before sending to the configured facilitator. Use
+`redirect: "manual"`, explicitly refuse 3xx, and cover the paid path in workerd
+with an offline facilitator. The reviewer reproduced this without network,
+provider, signing, payment or deployment operations. There is no release SIGNOFF.
+
+V1.1 is actively repairing VV2-030 on main and running regression checks; its
+source/test edits are foreign to the Sidequest coordinator and must remain
+unstaged by this lane. The owner reports 124 focused local tests passing;
+independent re-review of the completed fix is still required. Profile is running
+its own scoped Sidequest browser gates after rebasing, and FINALIZE-UI remains
+on rebase/S5 gates. Explore retains the base-ready and integration decisions.
+
+Handoff documentation is committed as `3ed4238`; the published remote and live
+deployment still have the distinct hashes recorded above. No new push/apply,
+notice retry, composer submission, path move, provider deletion or recovery
+journal mutation has occurred. The next dev cut waits for both Medium findings
+to be resolved with SHA-bound review, completed owned UI/profile integration,
+the final candidate gates, and provider approval/readback.
