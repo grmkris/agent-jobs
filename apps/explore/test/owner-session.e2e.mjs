@@ -1,9 +1,10 @@
 // VV2-014: an agent's owner tabs and the operator's private decisions exist only while the board session is live.
 // C9: the retired /workspace and /approvals redirect, and an agent without an Agent ID resumes its setup.
+// WS8: the operator takes the agent's directory listing down from Manage, one ad or the whole entry.
 // Mocked Chromium on the delegation fixture, whose operator runs agent 1942. No real wallet, session or chain.
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { base, browser, server, fixture, errors, output } from './stake-fixture.mjs';
+import { base, browser, server, fixture, errors, output, agent } from './stake-fixture.mjs';
 
 const results = [];
 const owned = async (page) => {
@@ -65,6 +66,55 @@ try {
     await page.goto(`${base}/agents/new?resume=not-mine`);
     await page.getByText('That agent is not one of yours', { exact: false }).waitFor();
     results.push({ test: 'retired paths show Page not found; an unregistered agent resumes at /agents/new?resume', passed: true });
+    await context.close();
+  }
+  {
+    // WS8 take-down: one ad, then the whole entry, each through the agent's own withdraw_service. The key is saved
+    // before sending. A lost reply retries with the same key; a conflict, which that key cannot fix, starts a new one.
+    const { context, page } = await fixture({ width: 1440, height: 900 });
+    const ad = (serviceId, name) => ({ serviceId, name, description: 'Fixture ad', inputs: 'A repository', outputs: 'A branch', turnaroundSeconds: 3600, price: { model: 'quote', amountBaseUnits: '0', token: agent.wallet }, adHash: `0x${'00'.repeat(32)}`, expiresAt: Math.floor(Date.now() / 1000) + 86_400 });
+    let listing = { ...agent, ads: [ad('review', 'Code review'), ad('refactor', 'Refactors')] };
+    const failures = [{ status: 503, code: 'unavailable', message: 'Directory busy' }, null, { status: 409, code: 'conflict', message: 'The directory changed' }, null];
+    const calls = [];
+    const json = (route, status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    await context.route('**/data/directory/1942', (route) => (listing === null ? json(route, 404, { ok: false, code: 'not-found', message: 'Not in the directory' }) : json(route, 200, { ok: true, agent: listing })));
+    await context.route('**/api/agents/managed/execute', (route) => {
+      const body = route.request().postDataJSON();
+      calls.push(body);
+      const failure = failures[calls.length - 1];
+      if (failure) return json(route, failure.status, { ok: false, code: failure.code, message: failure.message });
+      listing = body.args.serviceId === undefined ? null : { ...listing, ads: listing.ads.filter((entry) => entry.serviceId !== body.args.serviceId) };
+      return json(route, 200, { ok: true, result: { status: 'confirmed' } });
+    });
+    await owned(page);
+    const card = page.getByRole('region', { name: 'Directory listing' });
+    await card.getByText('Listed · Live · accepting work', { exact: true }).waitFor();
+    await card.getByText('Refactors', { exact: true }).waitFor();
+    const saved = (serviceId) => page.evaluate((name) => localStorage.getItem(name), `sidequest.listing-op:1942:${serviceId}`);
+
+    await card.getByRole('button', { name: 'Take down' }).first().click();
+    await card.getByRole('alert').getByText(/Directory busy/).waitFor();
+    assert.equal(await saved('review'), calls[0].operationKey, 'a lost reply keeps the saved key');
+    await card.getByRole('button', { name: 'Take down' }).first().click();
+    await card.getByText('Code review', { exact: true }).waitFor({ state: 'detached' });
+    assert.deepEqual(calls.slice(0, 2).map(({ tool, args }) => ({ tool, args })), [{ tool: 'withdraw_service', args: { serviceId: 'review' } }, { tool: 'withdraw_service', args: { serviceId: 'review' } }]);
+    assert.equal(calls[1].operationKey, calls[0].operationKey);
+    assert.equal(await saved('review'), null, 'a finished take-down forgets its key');
+    await card.getByText('Refactors', { exact: true }).waitFor();
+
+    const remove = async () => {
+      await card.getByRole('button', { name: 'Remove from directory…' }).click();
+      await card.getByRole('button', { name: 'Remove from directory', exact: true }).click();
+    };
+    await remove();
+    await card.getByRole('alert').getByText(/The directory changed/).waitFor();
+    assert.equal(await saved('*'), null, 'a conflict drops the key');
+    await remove();
+    await card.getByText('Not listed. Your agent lists its services itself with advertise_service.', { exact: true }).waitFor();
+    assert.deepEqual(calls.slice(2).map(({ tool, args }) => ({ tool, args })), [{ tool: 'withdraw_service', args: {} }, { tool: 'withdraw_service', args: {} }]);
+    assert.notEqual(calls[3].operationKey, calls[2].operationKey);
+    assert.equal(calls.length, 4);
+    results.push({ test: 'Manage takes one ad down and leaves the directory; a lost reply keeps its key, a conflict starts a new one', passed: true });
     await context.close();
   }
   assert.deepEqual(errors, []);
