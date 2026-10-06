@@ -1,11 +1,11 @@
 {
   "observedAt": "2026-10-06T05:06:46.971705+00:00",
-  "candidate": "d24fc74701e44fc4bc52bf01aa625f52f7a77f7b",
+  "candidate": "7a8b7c192dbd78d29b57e0ce21ca8806250ebd50",
   "sourceIncludes": "fd76d04",
   "gates": {
     "heavy pnpm check": {
       "status": "passed",
-      "log": "/tmp/sidequest-check-d24fc74.log",
+      "log": "/tmp/sidequest-check-7a8b7c1.log",
       "foundry": "519 passed / 45 skipped",
       "mining": "47 passed / 1 skipped",
       "workspace": "all package checks passed"
@@ -40,17 +40,18 @@
       "reason": "waiting for the separate provider credential/authority cutover and reviewed track integration"
     },
     "gitleaks": {
-      "status": "reviewed-false-positives",
-      "commitRange": "origin/main..d24fc74",
-      "findings": 33,
-      "report": "/tmp/sidequest-gitleaks/report-d24fc74.json",
-      "classification": {
-        "public chain addresses": 29,
-        "operation identifiers": 2,
-        "environment variable name": 1,
-        "fake redaction-test fixture": 1
-      },
+      "status": "passed-no-leaks",
+      "commitRange": "d24fc74..7a8b7c1",
+      "findings": 0,
+      "report": "/tmp/sidequest-gitleaks/report-7a8b7c1.json",
+      "classification": "no leaks found",
       "exitCode": 1
+    },
+    "policy planner tests": {
+      "status": "passed",
+      "tests": 14,
+      "typecheck": "passed",
+      "scopedLint": "passed"
     }
   },
   "limits": [
