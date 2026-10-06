@@ -1,5 +1,25 @@
 # Sidequest agent handoff — 6 October 2026
 
+## Current checkpoint
+
+| Item | Verified state / owner |
+| --- | --- |
+| Repository | `grmkris/sidequest`; physical checkout/worktrees keep their existing paths |
+| Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `e6aeb3b` |
+| Published source | `origin/main` at `55c9282`; later V1.1 source remains local |
+| Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
+| V1.1 | `%13` owns active repairs for VV2-030 (revocation/subscription race) and VV2-031 (workerd paid x402 path) |
+| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and the profile base-ready decision; rebase/browser gates still running |
+| Profile | `%20` has resumed an isolated Sidequest rebase and scoped gates; no base-ready/integration signal is inferred |
+| Privy | New origin saved; app name, credential rotation, isolated authority and real auth/MCP remain pending |
+| Legacy retirement | Old containers stopped and retained; contract/intent reconciliation still blocks provider deletion |
+| Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
+
+The dated entries below preserve the actual observations and earlier handoffs.
+Later entries supersede earlier status statements; they do not rewrite old
+deployment, chain or notice receipts. Local test gates, source review, public
+dev readback and real authenticated acceptance remain distinct evidence tiers.
+
 Recorded at 04:27 UTC (06:27 Ljubljana). This is the durable local handoff for
 the Explore, V1.1, profile and FINALIZE-UI tracks. The overnight supervisor will
 check resumption after 06:50 Ljubljana; that timing is supervisor-reported, not
