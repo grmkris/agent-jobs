@@ -55,7 +55,7 @@ function undeployed(): V1Deployment {
     network, chainId: chain.id, core: none, factory: none, sidequest, rewardTokens: [],
     stacks: { main: { kind: 'sidequest-v1', factory: none, holding: none, evaluator: none, openTokens: false } }, legacyStacks: {}, identity: none,
     reputation: none, delegation: { manager: none, delegator: none, enforcers }, admin: none, poolFactory: null, arbitrator: none, attester: none,
-    relay: none, x402: null, testnetFaucet: null, deployBlock: 0n,
+    relay: none, x402: null, testnetFaucet: null, market: null, deployBlock: 0n,
   }
 }
 

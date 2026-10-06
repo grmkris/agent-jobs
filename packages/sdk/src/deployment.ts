@@ -3,7 +3,7 @@
  * (AGENTS.md). One network, one core and the current Sidequest pair. Readers also retain every legacy pair and
  * its own SIDE token; legacy jobs never switch contracts when a new pair deploys.
  */
-import type { Address } from 'viem'
+import { type Address, type Hex, encodeAbiParameters, keccak256, parseAbiParameters, zeroAddress } from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 
@@ -137,12 +137,49 @@ export interface Deployment {
    * and wherever none is deployed.
    */
   readonly testnetFaucet: Address | null
+  /**
+   * The SIDE market Explore's Buy swaps through: the Uniswap v4 SIDE/quote pool the liquidity seed created (config
+   * `liquidity`), and what swaps on it — `V4SwapHelper` on testnet, Uniswap's UniversalRouter and V4Quoter on mainnet.
+   * Null where no pool or no swapper is configured.
+   */
+  readonly market: Market | null
   /** The block the recipe deployed at: where an indexer starts and a rebuild restarts. */
   readonly deployBlock: bigint
 }
 
+/** A Uniswap v4 pool key; `hooks` is the zero address for the SIDE pool. */
+export interface PoolKey {
+  readonly currency0: Address
+  readonly currency1: Address
+  readonly fee: number
+  readonly tickSpacing: number
+  readonly hooks: Address
+}
+
+export interface Market {
+  readonly key: PoolKey
+  readonly poolId: Hex
+  readonly side: Address
+  readonly quote: Address
+  readonly poolManager: Address
+  readonly stateView: Address
+  readonly permit2: Address
+  readonly swapper:
+    | { readonly kind: 'helper'; readonly helper: Address }
+    | { readonly kind: 'router'; readonly universalRouter: Address; readonly quoter: Address }
+}
+
+interface LiquidityConfig {
+  uniswapV4: { poolManager: string; positionManager: string; permit2: string; stateView: string; universalRouter?: string; quoter?: string }
+  quote: string
+  fee: number
+  tickSpacing: number
+  swapHelper?: string
+}
+
 export interface DeploymentConfig {
   network: string
+  liquidity?: LiquidityConfig
   chainId: number
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
   erc8004: { identity: string; reputation: string }
@@ -263,6 +300,7 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
     relay: c.roles.relay as Address,
     x402: c.x402 === undefined ? null : { usdc: c.x402.usdc as Address, facilitator: c.x402.facilitator },
     testnetFaucet: d.testnetFaucet === undefined || c.chainId === 143 ? null : (d.testnetFaucet as Address),
+    market: marketFromConfig(d.factory as Address, c.chainId, c.liquidity),
     deployBlock: BigInt(d.block ?? 0),
   }
 }
@@ -272,6 +310,23 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
  * @param name The window set.
  * @throws Error when that stack is not deployed on this network (mainnet has no "demo").
  */
+function marketFromConfig(side: Address, chainId: number, l: LiquidityConfig | undefined): Market | null {
+  if (l === undefined || !validAddress(l.quote)) return null
+  const v4 = l.uniswapV4
+  const swapper: Market['swapper'] | null =
+    l.swapHelper !== undefined && chainId !== 143
+      ? { kind: 'helper', helper: l.swapHelper as Address }
+      : v4.universalRouter !== undefined && v4.quoter !== undefined
+        ? { kind: 'router', universalRouter: v4.universalRouter as Address, quoter: v4.quoter as Address }
+        : null
+  if (swapper === null) return null
+  const quote = l.quote as Address
+  const [currency0, currency1] = side.toLowerCase() < quote.toLowerCase() ? [side, quote] : [quote, side]
+  const key: PoolKey = { currency0, currency1, fee: l.fee, tickSpacing: l.tickSpacing, hooks: zeroAddress }
+  const poolId = keccak256(encodeAbiParameters(parseAbiParameters('address, address, uint24, int24, address'), [currency0, currency1, l.fee, l.tickSpacing, zeroAddress]))
+  return { key, poolId, side, quote, poolManager: v4.poolManager as Address, stateView: v4.stateView as Address, permit2: v4.permit2 as Address, swapper }
+}
+
 export function stack(d: Deployment, name: StackName): Stack {
   const s = d.stacks[name]
   if (s === undefined) throw new Error(`${d.network} has no "${name}" stack`)
