@@ -1,6 +1,7 @@
 /** Kind-specific v1 preparation. Chain facts remain authoritative; the board supplies unsigned calls only. */
 import * as sdk from '@sidequest/sdk'
-import { type Address, type Hex, encodeFunctionData, getAddress, zeroAddress } from 'viem'
+import { type Address, type Hex, encodeFunctionData, formatEther, getAddress, zeroAddress } from 'viem'
+import { AgentFailure } from './agent-failure.ts'
 import { type EvaluatorWindows, type OfferTerms, listingMatches } from './terms.ts'
 
 export const isSidequest = (ctx: sdk.Ctx) => ctx.stack.kind === 'sidequest-v1'
@@ -34,9 +35,21 @@ export function transaction(ctx: sdk.Ctx, description: string, to: Address, data
   return { description, chainId: ctx.deployment.chainId, to, data, value: '0', ...(gas === undefined ? {} : { gas: gas.toString() }) }
 }
 
+/**
+ * A bond needs that much backing still available behind the account. Short, say who and by how much, as a refusal the
+ * caller can act on (the SDK's plain error would reach the caller only as an internal failure).
+ */
+export async function requireBacking(ctx: sdk.Ctx, account: Address, bond: bigint, role: 'creator' | 'worker'): Promise<void> {
+  if (bond === 0n || ctx.deployment.sidequest === null) return sdk.requireStake(ctx, account, bond)
+  const available = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.vault, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [account] })
+  if (available >= bond) return
+  throw new AgentFailure('conflict', `The ${role} bond is ${formatEther(bond)} SIDE but only ${formatEther(available)} SIDE of backing is available behind ${account}; back it with more SIDE, then retry`,
+    'insufficient-backing', 'after-operator')
+}
+
 export async function publishSidequest(ctx: sdk.Ctx, terms: OfferTerms, hash: Hex): Promise<sdk.TxRequest[]> {
   if (terms.arbitrator === undefined || terms.arbitrator.toLowerCase() === zeroAddress) throw new Error('v1 publish needs an explicit arbitrator')
-  await sdk.requireStake(ctx, terms.creator, terms.creatorBond)
+  await requireBacking(ctx, terms.creator, terms.creatorBond, 'creator')
   const windows = { reviewWindow: terms.windows.reviewSeconds, disputeWindow: terms.windows.disputeSeconds, arbitrationWindow: terms.windows.arbitrationSeconds }
   const expiredAt = await sdk.minExpiry(ctx, terms.deliveryDeadline, windows)
   const allowance = await ctx.publicClient.readContract({ address: terms.token, abi: sdk.factoryTokenAbi, functionName: 'allowance', args: [terms.creator, ctx.stack.holding] })
@@ -66,7 +79,7 @@ export function matchesSidequest(terms: OfferTerms, hash: Hex, listing: Awaited<
 
 export async function activationQuote(ctx: sdk.Ctx, jobId: bigint, worker: Address, terms: OfferTerms) {
   sdk.assertActivationTerms(await sdk.getV1Listing(ctx, jobId), acceptedActivationTerms(terms))
-  await sdk.requireStake(ctx, worker, terms.workerBond)
+  await requireBacking(ctx, worker, terms.workerBond, 'worker')
   const [feeBps, fee, net] = await sdk.quoteActivation(ctx, jobId, worker)
   return { feeBps, fee, net }
 }
