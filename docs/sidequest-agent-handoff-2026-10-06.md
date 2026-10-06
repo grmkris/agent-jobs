@@ -5,13 +5,13 @@
 | Item | Verified state / owner |
 | --- | --- |
 | Repository | `grmkris/sidequest`; physical checkout/worktrees keep their existing paths |
-| Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `e6aeb3b` |
-| Published source | `origin/main` at `55c9282`; later V1.1, S3/S4 UI and `28a16ea` guard fix remain local |
-| Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
-| V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
+| Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `f117ac9` at 07:45:52 UTC |
+| Published source | `origin/main` contains signed-off release `f117ac9`; dated evidence/docs follow it |
+| Next dev cut | Sidequest coordinator, after the next integrated candidate's review and gates |
+| V1.1 | `%13` fixes are deployed; VV2-032 resolved in `f117ac9`; live authenticated/feed/x402 proofs handed back to V11 |
 | UI | Explore `%14` landed S3/S4/S5/P1b through `be73a6d` and explicitly posted BASE READY; 18 suites and 78 light/dark screenshots pass locally |
 | Profile | C8–C12 landed through `f68175f`; 18 suites/full gate pass on the identical code tree; C13 remains isolated under `%20` |
-| Privy | Branding/origin saved; fresh routine `q82i8vfysvn523j6mx69wljn` and separate policy `ocog6r948i9p93x6ucd4f3db` created and verified; dev binding awaits release; real auth/MCP remain unverified |
+| Privy | Branding/origin saved; fresh routine `q82i8vfysvn523j6mx69wljn` and separate policy `ocog6r948i9p93x6ucd4f3db` bound to dev and read back; real auth/MCP remain unverified |
 | Legacy retirement | V11 `3a11081` reconciled eight jobs with 15 successful receipts; residual 0.9 mUSD and wider Board grant/pending inventory still block deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
 
@@ -631,3 +631,36 @@ key. It has not been deployed yet. See the
 The release runner now verifies that journal and provider readback before
 binding the overlay to `sidequest-api-dev`; it does not alter staging or
 production. Real user login and authenticated MCP remain unverified.
+
+## Signed-off dev release — 6 October 2026, 07:45–07:53 UTC
+
+Release `f117ac92a559814f6552a2d28bdee054639e922b`, tree
+`4c5df174ed8b15a29e168be620eb23f1a9e75417`, was pushed to `origin/main`
+and deployed through the guarded Node 24 runner at **07:45:52.215 UTC**
+(exit 0). Independent `SIGNOFF RELEASE` is recorded for that exact SHA.
+This includes the reset, S3/S4/S5/P1b, profile C8–C12, V11 fixes and the
+approved-operation recovery fix VV2-032.
+
+The final full gate used Node 24.21.0 with Vite+ cache disabled: exit 0,
+with exact start/end SHA/tree in
+`/tmp/v11-vv032-f117ac9-node24-nocache.{log,exit,meta}`. The regression failed
+on the prior code; profile browser 5/5 plus owner-session, stake, UX, v1-job
+and publish-v1 passed. Sidequest runner tests, migration generation check,
+whitespace check and fresh dev ownership/Privy preflight passed.
+
+The [dated live receipt](evidence/sidequest-dev/2026-10-06-f117ac9-live.json)
+records all three Worker versions, public health/release/discovery/assets,
+anonymous create-task/MCP 401 boundaries and the exact app/routine/policy
+binding readback. Twenty live browser page/theme/viewport checks at 390/1440
+passed with zero page errors, failed resources or overflow. Visible Privy logo
+and wallet-choice controls passed at both widths without a login or wallet
+prompt. Indexer checkpoints progressed `68630598` → `68631189`; the live cron
+remains `* * * * *`, and fresh jobs/directory were empty.
+
+V11 has the live SHA and origin for its authorized REST/feed/inbox/x402 proofs
+and human Explore signature walkthrough. Those proofs are not claimed by the
+anonymous acceptance above. Profile C13/C14 and Explore W4 remain on their
+owners' isolated branches, outside this release; they can now rebase/land under
+their normal review/gate process. Original worktrees, dated receipts, legacy
+resources and journals remain retained. Residual legacy 0.9 mUSD and wider
+Board authority inventory still block old-provider deletion.

@@ -1414,3 +1414,33 @@ The demo-v2 and main-v3 holdings are now empty. The v1 holding still holds
 0.9 mUSD that no known wallet is owed; its origin is open. No key, provider,
 journal or worker was touched.
 [Executed receipt](evidence/sidequest-dev/2026-10-06-legacy-reconciliation-executed.json).
+
+**6 October 2026, 07:45–07:53 UTC signed-off dev update:** source
+`f117ac92a559814f6552a2d28bdee054639e922b`, tree
+`4c5df174ed8b15a29e168be620eb23f1a9e75417`, was pushed and deployed to
+`https://dev.sidequest.exchange` through the guarded Node 24 runner, exit 0
+at 07:45:52.215 UTC. Independent source signoff names that exact SHA;
+VV2-032's approved-operation recovery regression is resolved. The uncached
+Node 24.21.0 full gate passed on the same SHA/tree, as did Sidequest runner
+tests, migration generation check, focused/browser recovery gates and the
+fresh owned-resource/Privy preflight.
+
+The update includes Sidequest reset, S3/S4/S5/P1b, profile C8–C12 and V11
+fixes. All three dev Worker versions and app/routine/policy bindings were
+read back. The separate 11-rule policy and fresh routine signer are now
+bound only to the Sidequest dev API. Public health, release metadata,
+directory/jobs, OAuth discovery, start guide and branding assets passed;
+anonymous create-task and MCP initialization returned 401. Twenty live
+browser page/theme/viewport checks at 390/1440 passed with no page errors,
+failed resources or horizontal overflow. Privy's visible sign-in controls
+and Sidequest logo passed at both widths, without submitting an identity.
+The indexer retained its minute cron and progressed
+`68630598` → `68631189`; jobs and directory were empty at observation.
+[Sanitized live release receipt](evidence/sidequest-dev/2026-10-06-f117ac9-live.json).
+
+This proves the Monad testnet dev deployment and anonymous/provider acceptance.
+Real Privy login, human consent, authenticated MCP, feed/inbox and paid x402
+acceptance remain distinct live proofs, handed to V11 with the deployed SHA.
+Profile C13/C14 and Explore W4 are excluded from this release. No mainnet
+deployment, new economic send, legacy resource deletion or journal removal
+occurred. Original dated evidence and all owner worktrees remain preserved.

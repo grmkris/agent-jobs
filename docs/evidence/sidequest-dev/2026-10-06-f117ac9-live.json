@@ -1,0 +1,444 @@
+{
+  "observedAt": "2026-10-06T07:53:20.392Z",
+  "evidenceTier": "live-dev-public-and-provider-readback",
+  "sourceCommit": "f117ac92a559814f6552a2d28bdee054639e922b",
+  "sourceTree": "4c5df174ed8b15a29e168be620eb23f1a9e75417",
+  "deployedAt": "2026-10-06T07:45:52.215Z",
+  "origin": "https://dev.sidequest.exchange",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "release": {
+    "network": "monad-testnet",
+    "mainnetLive": false,
+    "writesOpen": true
+  },
+  "health": {
+    "ok": true,
+    "runtime": "Cloudflare-Workers",
+    "network": "monad-testnet",
+    "board": "public"
+  },
+  "publicChecks": [
+    {
+      "path": "/health",
+      "status": 200
+    },
+    {
+      "path": "/release.json",
+      "status": 200
+    },
+    {
+      "path": "/data/jobs",
+      "status": 200
+    },
+    {
+      "path": "/data/directory",
+      "status": 200
+    },
+    {
+      "path": "/.well-known/oauth-authorization-server",
+      "status": 200
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "status": 200
+    },
+    {
+      "path": "/start.md",
+      "status": 200
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "status": 200
+    },
+    {
+      "path": "/icons/icon-512.png",
+      "status": 200
+    },
+    {
+      "path": "/api/create_task",
+      "status": 401
+    },
+    {
+      "path": "/mcp",
+      "status": 401
+    }
+  ],
+  "jobs": {
+    "count": 0,
+    "checkpoint": {
+      "next_block": 68630598,
+      "updated_at": 1791272977
+    }
+  },
+  "directory": {
+    "count": 0
+  },
+  "oauth": {
+    "issuer": "https://dev.sidequest.exchange",
+    "resource": "https://dev.sidequest.exchange/mcp",
+    "scopes": [
+      "sidequest:read",
+      "sidequest:hire",
+      "sidequest:work"
+    ]
+  },
+  "assets": [
+    {
+      "path": "/favicon.svg",
+      "sha256": "8cbd247c10542adb965a25eb38d4a9ffc0282b6e7e1fc00f5990c98a03b36216",
+      "matchesSource": true
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "sha256": "822ffa67bbbcdce99f6340065f27136332be0cb592bed19b78d93ad7f4ce154e",
+      "generatedBrandingVerified": true
+    },
+    {
+      "path": "/icons/icon-512.png",
+      "sha256": "80598df77483a51794972c63b94331d2a6fcd221094295e6291010ec5172ef6e",
+      "matchesSource": true
+    }
+  ],
+  "workers": [
+    {
+      "id": "Api",
+      "name": "sidequest-api-dev",
+      "bindings": [
+        {
+          "name": "AI_GATEWAY_API_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ATTESTER_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Board",
+          "type": "durable_object_namespace",
+          "namespaceId": "01561475a8e74bdd944df7c2b4fcefec"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "DEPLOY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "DIRECTORY_DATABASE",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "DirectoryObject",
+          "type": "durable_object_namespace",
+          "namespaceId": "c12bf8b2911140ae9ba4079493f6a354"
+        },
+        {
+          "name": "GITHUB_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_INSTALLATION_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Manifests",
+          "type": "r2_bucket",
+          "bucket": "sidequest-dev-manifests"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "PRIVY_POLICY_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "PROD_ADMISSION_DRAIN",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_ACTIONS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_BOARDS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_WALLETS",
+          "type": "plain_text"
+        },
+        {
+          "name": "RELAY_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "SCREENING_BASE_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "SCREENING_MODEL",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "TELEGRAM_WEBHOOK_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "latestVersion": "db842405-2046-4a59-8be0-6a7c738977f5",
+      "latestVersionCreatedOn": "2026-10-06T07:45:27.26987Z",
+      "localAuthorityIdsMatch": true
+    },
+    {
+      "id": "Indexer",
+      "name": "sidequest-indexer-dev",
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "HYPERSYNC_API_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "HYPERSYNC_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        }
+      ],
+      "latestVersion": "4445b2a9-4973-4253-b330-b980a63be719",
+      "latestVersionCreatedOn": "2026-10-06T07:45:24.158685Z",
+      "localAuthorityIdsMatch": true
+    },
+    {
+      "id": "Explore",
+      "name": "sidequest-explore-dev",
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "API",
+          "type": "service",
+          "service": "sidequest-api-dev"
+        },
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        }
+      ],
+      "latestVersion": "3ca86c0f-209d-4017-9c4c-a21946f2e88c",
+      "latestVersionCreatedOn": "2026-10-06T07:45:48.183578Z",
+      "localAuthorityIdsMatch": true
+    }
+  ],
+  "authority": {
+    "appId": "cmui9skoc01zr0dl03tyahirs",
+    "routineQuorumId": "q82i8vfysvn523j6mx69wljn",
+    "policyId": "ocog6r948i9p93x6ucd4f3db",
+    "ruleCount": 11,
+    "providerReadbackVerifiedByGuardedRunner": true,
+    "authoritativeDeploymentStateMatches": true,
+    "providerBindingNamesVerified": true,
+    "secretValuesNotRemotelyReadable": true
+  },
+  "browser": {
+    "observedAt": "2026-10-06T07:48:05.494Z",
+    "pages": 20,
+    "viewports": [
+      {
+        "width": 390,
+        "colorScheme": "light",
+        "pages": 5
+      },
+      {
+        "width": 390,
+        "colorScheme": "dark",
+        "pages": 5
+      },
+      {
+        "width": 1440,
+        "colorScheme": "light",
+        "pages": 5
+      },
+      {
+        "width": 1440,
+        "colorScheme": "dark",
+        "pages": 5
+      }
+    ],
+    "pageErrors": [],
+    "failedResources": [],
+    "overflowChecks": "passed"
+  },
+  "privyAnonymousModal": {
+    "observedAt": "2026-10-06T07:52:28.355Z",
+    "path": "/agents/new",
+    "viewports": [
+      390,
+      1440
+    ],
+    "dialogVisible": true,
+    "visibleControlsVerified": true,
+    "logoNaturalWidth": 512,
+    "logoSource": "https://dev.sidequest.exchange/icons/icon-512.png",
+    "pageErrors": [],
+    "providerErrors": [],
+    "noLoginAttempt": true,
+    "noAuthentication": true,
+    "noWalletPrompt": true
+  },
+  "cron": {
+    "observedAt": "2026-10-06T07:53:20.392Z",
+    "origin": "https://dev.sidequest.exchange",
+    "sourceCommit": "f117ac92a559814f6552a2d28bdee054639e922b",
+    "chainId": 10143,
+    "cron": "* * * * *",
+    "observations": [
+      {
+        "observedAt": "2026-10-06T07:50:13.263Z",
+        "next_block": 68630598,
+        "updated_at": 1791272977
+      },
+      {
+        "observedAt": "2026-10-06T07:53:20.392Z",
+        "next_block": 68631189,
+        "updated_at": 1791273157
+      }
+    ],
+    "progressed": true,
+    "jobs": 0
+  },
+  "limits": [
+    "Monad testnet dev only; apex mainnet was not deployed",
+    "Anonymous browser and modal checks do not prove real human Privy login, consent, authenticated MCP, or managed signing",
+    "No new economic send was performed by this release",
+    "Legacy provider resources, keys, journals and obligations remain retained"
+  ],
+  "gates": {
+    "sourceCommit": "f117ac92a559814f6552a2d28bdee054639e922b",
+    "sourceTree": "4c5df174ed8b15a29e168be620eb23f1a9e75417",
+    "node": "24.21.0",
+    "fullCheck": {
+      "exit": 0,
+      "cacheDisabled": true,
+      "receipt": "/tmp/v11-vv032-f117ac9-node24-nocache.{log,exit,meta}"
+    },
+    "independentSourceSignoff": "f117ac92a559814f6552a2d28bdee054639e922b",
+    "sidequestTestsExit": 0,
+    "migrationCheckExit": 0,
+    "preflightExit": 0,
+    "deployExit": 0,
+    "focusedRecoveryBeforeFix": "1 failed, 3 passed",
+    "focusedRecoveryAfterFix": "passed",
+    "profileBrowser": "5 checks passed; disabled recovery rendering mutant failed"
+  }
+}

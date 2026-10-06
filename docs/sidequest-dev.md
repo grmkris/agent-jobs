@@ -12,7 +12,9 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The development URL was deployed on 6 October 2026. Public health, release,
+The latest signed-off dev release is `f117ac9`, deployed on 6 October 2026
+at 07:45:52 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-f117ac9-live.json)
+records the exact source/tree, Worker versions and authority binding. Public health, release,
 directory, agent setup and OAuth discovery checks pass. Anonymous writes and
 MCP requests require authentication. Twenty browser page/theme/viewport checks
 passed without page errors or overflow. The narrow Privy origin update has since
@@ -76,10 +78,12 @@ new Sidequest uses fresh keys, and old keys are retained solely for deliberate
 reconciliation until their authorities can be removed safely.
 
 The three old local crew containers were stopped at 04:34 UTC on 6 October,
-with containers and journals retained. Legacy demand job 131 has an unresolved
-saved Collect intent; its owner must reconcile it before broadcasting or removing
-state. [Stop evidence](evidence/sidequest-dev/2026-10-06-legacy-workloads.json)
-records the exact boundary. Old provider-resource retirement remains pending.
+with containers and journals retained. V11 subsequently reconciled the eight
+named legacy jobs in 15 successful transactions, including job 131's settlement;
+its original Collect journal remains untouched. The residual 0.9 mUSD and wider
+Board authority inventory still block old-provider retirement.
+[Executed evidence](evidence/sidequest-dev/2026-10-06-legacy-reconciliation-executed.json)
+records that boundary.
 
 Rename notices were attempted before overlapping edits; the stored mytmux
 receipts still have unknown delivery. V1.1 and profile have now explicitly
@@ -87,9 +91,10 @@ acknowledged the rename after resuming. The verified local
 [agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
 track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
 deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
-the new repository. The reset and tested policy planner are published through
-`55c9282`; later local V1.1 commits await independent review and final integrated
-gates before publication or release.
+the new repository. The reviewed reset, V1.1 fixes, S3–S5/P1b, profile C8–C12
+and VV2-032 recovery fix are published and deployed through `f117ac9`. Later
+profile C13/C14 and Explore W4 work remains with its owners for the next
+reviewed integration.
 Physical checkout/worktree/tmux paths stay stable while their owners integrate.
 
 The read-only policy planner is
