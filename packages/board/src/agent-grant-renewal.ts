@@ -14,7 +14,7 @@ export async function ensureAgentGrants(ctx: sdk.Ctx, agents: AgentStore, grants
   if (operation.sponsor_operation_id !== null || operation.stage === 'sending') throw new Error('Reconcile the original send before renewing its gas grants')
   for (const kind of kinds) {
     const prefix = `renew:${kind}:`
-    const prior = agents.sql.all<{ name: string; value_json: string }>('SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND name LIKE ?', operationId, `${prefix}%`)
+    const prior = agents.sql.all<{ name: string; value_json: string }>('SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND substr(name,1,?)=?', operationId, prefix.length, prefix)
       .filter(step => /^renew:.+:[1-9][0-9]*$/.test(step.name))
       .toSorted((a, b) => Number(b.name.slice(prefix.length)) - Number(a.name.slice(prefix.length)))[0]
     const saved = prior === undefined ? undefined : JSON.parse(prior.value_json) as { hash: Hex; replaces: Hex | null }

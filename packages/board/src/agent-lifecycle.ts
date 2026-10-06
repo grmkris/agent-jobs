@@ -55,7 +55,7 @@ export class AgentLifecycle {
         periodStart: spec.start + period * sdk.ALLOWANCE_PERIOD, periodEnd: spec.start + (period + 1) * sdk.ALLOWANCE_PERIOD, expiresAt: row.expires_at }
     }))
     return { connected, agent, allowances: usage, grants: this.grants.list(agent.address ?? operator).map(row => ({ hash: row.delegation_hash, kind: row.kind, status: row.status, expiresAt: row.expires_at })),
-      revocation: { ...JSON.parse(agent.revoke_json), receipts: this.deps.sql.all<{ tx_hash: Hex; status: string }>('SELECT tx_hash,status FROM sponsor_operations WHERE action_key LIKE ? ORDER BY created_at', `revoke-${id.slice(0, 60)}-%`) } as Record<string, unknown> }
+      revocation: { ...JSON.parse(agent.revoke_json), receipts: this.deps.sql.all<{ tx_hash: Hex; status: string }>('SELECT tx_hash,status FROM sponsor_operations WHERE substr(action_key,1,?)=? ORDER BY created_at', `revoke-${id.slice(0, 60)}-`.length, `revoke-${id.slice(0, 60)}-`) } as Record<string, unknown> }
   }
 
   #allowances(agent: AgentRow): GrantRow[] {

@@ -206,7 +206,9 @@ export class AgentExecutor {
   #freezeEntries(operationId: Hex, scope: string, entries: NamedSponsorEntry[]): NamedSponsorEntry[] {
     const prefix = `${scope}:`
     const prior = this.deps.sql.all<{ name: string; value_json: string }>(
-      'SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND name LIKE ?', operationId, `${prefix}%`,
+      // A prefix match by substr, not LIKE: Cloudflare's SQLite refuses LIKE patterns over 50 bytes, and this one carries
+      // a 32-byte allowance hash (an approved hire failed on every retry).
+      'SELECT name,value_json FROM agent_operation_steps WHERE operation_id=? AND substr(name,1,?)=?', operationId, prefix.length, prefix,
     ).filter(step => /^[1-9][0-9]*$/.test(step.name.slice(prefix.length)))
       .toSorted((left, right) => Number(right.name.slice(prefix.length)) - Number(left.name.slice(prefix.length)))[0]
     const saved = prior === undefined ? undefined : JSON.parse(prior.value_json) as NamedSponsorEntry[]
