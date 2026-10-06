@@ -1327,3 +1327,12 @@ This is source publication, not a new dev deployment. Concurrent V1.1 WS5 commit
 `abe06ec` is local main only, excluded from the push and awaits review; existing
 frontend integration is active under Explore's ownership. No new release apply,
 provider authority change or legacy retirement occurred.
+
+**Post-push public readback:** curl with an explicit user-agent passed `/health`,
+`/release.json`, `/data/jobs` and OAuth protected-resource discovery. Checkpoint
+`68600377`, zero jobs, testnet 10143 and Sidequest scopes remain observable.
+Default Python urllib received 403; both outcomes are retained in the
+[receipt](evidence/sidequest-dev/2026-10-06-post-push-public.json). No new release
+apply or authenticated flow occurred. The narrow Privy credential/isolated
+authority cutover is now awaiting the explicit approval request recorded in the
+handoff; no mutation is claimed while that response is pending.

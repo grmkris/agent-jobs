@@ -1,0 +1,59 @@
+{
+  "observedAt": "2026-10-06T05:17:55.897520+00:00",
+  "origin": "https://dev.sidequest.exchange",
+  "client": "curl with sidequest-readback/1.0 user-agent",
+  "curlExitCode": 0,
+  "checks": [
+    {
+      "path": "/health",
+      "body": {
+        "ok": true,
+        "runtime": "Cloudflare-Workers",
+        "network": "monad-testnet",
+        "board": "public"
+      }
+    },
+    {
+      "path": "/release.json",
+      "body": {
+        "network": "monad-testnet",
+        "mainnetLive": false,
+        "writesOpen": true
+      }
+    },
+    {
+      "path": "/data/jobs",
+      "body": {
+        "ok": true,
+        "index": {
+          "next_block": 68600377,
+          "updated_at": 1791263745
+        },
+        "board": null,
+        "jobs": []
+      }
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "body": {
+        "resource": "https://dev.sidequest.exchange/mcp",
+        "authorization_servers": [
+          "https://dev.sidequest.exchange"
+        ],
+        "scopes_supported": [
+          "sidequest:read",
+          "sidequest:hire",
+          "sidequest:work"
+        ],
+        "bearer_methods_supported": [
+          "header"
+        ]
+      }
+    }
+  ],
+  "limits": [
+    "Anonymous HTTP readback only; no login, signing, credential change or release apply.",
+    "Python urllib with default headers received 403; the service accepted curl with an explicit user-agent.",
+    "Stored deployment source remains e6aeb3b; pushed source and local integration commits are separate."
+  ]
+}

@@ -279,3 +279,36 @@ from the unchanged stored mytmux receipt. FINALIZE-UI is resolving the rebase;
 Explore retains P1b and the profile base-ready decision. Profile still waits.
 Sidequest owns the next reviewed dev release. No physical paths moved; no old
 resource was deleted; all foreign pending work and original receipts remain.
+
+## Post-push public readback and Privy approval boundary
+
+Anonymous curl readback again passed public health, release, jobs and protected
+resource discovery. The checkpoint advanced to `68600377`, with zero jobs and
+the three `sidequest:*` scopes. The default Python urllib request received 403;
+curl with an explicit user-agent succeeded. [Receipt](evidence/sidequest-dev/2026-10-06-post-push-public.json).
+No new apply or authenticated acceptance is claimed.
+
+A narrow Privy approval request is pending: rotate the exposed app/routine-signer
+credentials; provision isolated Sidequest routine authority; create the separate
+11-rule policy from the tested payload; verify and bind only Sidequest dev.
+Application ID is `cmui9skoc01zr0dl03tyahirs`. Preserve legacy policy
+`s06i5eramn0plwdunkvxf8aj` and its recovery path, the policy-admin quorum, all
+wallet/operation journals and the job 131 intent. Do not add rules, raise the
+x402 cap, change chain or widen permissions. Quorum threshold stays one with
+one fresh public authorization key; no private material belongs in receipts.
+Re-read provider state and reconcile saved creation/rotation intents before
+any retry. No broad app settings mutation or blind keypress.
+
+The approval boundary comes from automatic review rejecting an Enter keypress
+with unverified focus/payload, together with the unresolved provider credential
+exposure. Completed source, gates and handoff are reviewable now. Dependent
+provider mutation remains held until the response; elapsed time is not approval.
+
+V1.1 subsequently landed `ef8512c` (WS7 x402) and `95cb047` (WS10 integration
+docs), completing its source build. These and `abe06ec` remain local, queued for
+independent source review; the owner reports full isolated gates passed. They
+are excluded from the verified `55c9282` push and the live `e6aeb3b` source.
+The independent review pane has explicitly ACKed Sidequest and owns its
+append-only review artifacts; its prior `c7de03e` release signoff does not cover
+Sidequest. Sidequest retains ownership of the next dev cut after current source
+SIGNOFF, final integrated gates and the provider approval/readback boundary.
