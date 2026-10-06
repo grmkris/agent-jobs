@@ -73,19 +73,20 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
     }
   }
   return (
-    <article className="grid gap-5 rounded-2xl border border-sep bg-surface p-5 shadow-float">
+    <article className="grid gap-5 rounded-2xl border border-border bg-card p-5 shadow-popover">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">{agent.name}</h2>
-          <p className="mt-1 text-xs text-label-2">
+          <p className="mt-1 text-xs text-muted-foreground">
             {agent.agent_id === null ? 'Registration incomplete' : `ERC-8004 #${agent.agent_id}`} ·{' '}
             {agent.address ?? 'Wallet creation pending'}
           </p>
         </div>
         <Badge variant={agent.state === 'active' ? 'success' : 'neutral'}>{agent.state}</Badge>
       </header>
-      <p className="text-sm text-label-2">
-        <strong className="font-medium text-label">Last activity:</strong> {last}. This is server-observed activity, not a health signal.
+      <p className="text-sm text-muted-foreground">
+        <strong className="font-medium text-foreground">Last activity:</strong> {last}. This is server-observed activity, not a health
+        signal.
       </p>
       {!stopped && agent.state !== 'active' && <AgentNew initial={agent} />}
       {agent.state === 'active' && (
@@ -96,21 +97,21 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
                 <AlertDescription>Allowance usage is unavailable; no remaining budget is assumed.</AlertDescription>
               </Alert>
             ) : status.data?.allowances.length === 0 ? (
-              <p className="text-sm text-label-2">No live periodic allowance. Hires go to Approvals.</p>
+              <p className="text-sm text-muted-foreground">No live periodic allowance. Hires go to Approvals.</p>
             ) : (
               status.data?.allowances.map((row) => (
-                <div key={row.hash} className="grid gap-1 border-l-2 border-tint pl-4">
+                <div key={row.hash} className="grid gap-1 border-l-2 border-primary pl-4">
                   <strong>
                     {amount(row.left, row.token)} left of {amount(row.limit, row.token)}
                   </strong>
-                  <p className="text-xs text-label-2">
+                  <p className="text-xs text-muted-foreground">
                     Used {amount(row.used, row.token)} · next fixed period {new Date(row.periodEnd * 1000).toLocaleString()} · expires{' '}
                     {new Date(row.expiresAt * 1000).toLocaleString()}
                   </p>
                 </div>
               ))
             )}
-            <details className="rounded-xl border border-sep p-3">
+            <details className="rounded-xl border border-border p-3">
               <summary className="min-h-8 cursor-pointer font-medium">Change or renew the allowance</summary>
               <div className="mt-3">
                 <AllowanceEditor agent={agent} onConfirmed={() => void refresh()} />
@@ -144,7 +145,7 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
           {status.data?.revocation.onchainPermissionsDisabled ? 'Disabled · confirmed receipts' : 'Disablement unconfirmed'}
         </p>
         {status.data?.revocation.receipts?.map((receipt) => (
-          <p key={receipt.tx_hash} className="break-all font-mono text-xs text-label-3">
+          <p key={receipt.tx_hash} className="break-all font-mono text-xs text-muted-foreground">
             {receipt.status} · {receipt.tx_hash}
           </p>
         ))}

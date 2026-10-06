@@ -1,7 +1,8 @@
+import { cn } from '../lib/cn.ts'
 import { Button } from './ui/button.tsx'
 import { Input } from './ui/input.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { Section } from './kit.tsx'
+import { Section, textLinkClass } from './kit.tsx'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useBacking } from '../delegation-query.ts'
@@ -110,7 +111,7 @@ export function AgentBalances({
       {tokens.map((token, index) => {
         const balance = reads.data?.[index]
         return (
-          <div key={token} className="flex flex-wrap items-center justify-between gap-3 border-b border-sep py-2">
+          <div key={token} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2">
             <span>{balance?.status === 'success' ? amount(String(balance.result), token) : 'Balance unavailable'}</span>
             <Button
               variant="secondary"
@@ -126,23 +127,23 @@ export function AgentBalances({
       })}
       <p className="text-sm">Total backing: {backing === undefined ? 'unavailable' : amount(String(backing.assets), deployment.factory)}</p>
       {position === undefined || position === null || stale ? (
-        <p className="text-sm text-label-2">The agent-owned position is unavailable. Actions wait for current chain facts.</p>
+        <p className="text-sm text-muted-foreground">The agent-owned position is unavailable. Actions wait for current chain facts.</p>
       ) : (
         <>
           <p className="text-sm">Agent-owned position: {amount(String(position.value), deployment.factory)}</p>
 
           {position.shares === 0n && (
-            <p className="rounded-xl bg-tint/10 p-3 text-sm text-label-2">
+            <p className="rounded-xl bg-primary/10 p-3 text-sm text-muted-foreground">
               This agent does not own a position. Operator backing belongs to the operator wallet.
             </p>
           )}
 
-          <Link to="/backing" search={{ account: wallet }} className="min-h-11 content-center text-sm text-tint">
+          <Link to="/backing" search={{ account: wallet }} className={cn(textLinkClass, 'min-h-11 content-center text-sm')}>
             Manage your operator position
           </Link>
 
           {queued && (
-            <p role="status" className="rounded-xl bg-warn-bg p-3 text-sm text-warn">
+            <p role="status" className="rounded-xl bg-warning/14 p-3 text-sm text-warning-text">
               Leaving {amount(String(position.queued), deployment.factory)}.{' '}
               {leaving ? (
                 <>

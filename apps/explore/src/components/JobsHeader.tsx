@@ -68,8 +68,11 @@ export function JobsHeader({ current }: { current: JobsArea }) {
             target={target}
             aria-current={key === current ? 'page' : undefined}
             className={cn(
-              '-mb-px inline-flex min-h-9 items-center border-b-2 text-sm font-medium transition-colors duration-(--dur-fast) pointer-coarse:min-h-11',
-              key === current ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+              textLinkClass,
+              cn(
+                '-mb-px inline-flex min-h-9 items-center border-b-2 text-sm font-medium transition-colors duration-(--dur-fast) pointer-coarse:min-h-11',
+                key === current ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+              ),
             )}
           >
             {label}
@@ -132,7 +135,7 @@ function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
       <ol className="grid gap-4">
         {steps.map(([title, text], i) => (
           <li key={title} className="grid grid-cols-[1.5rem_1fr] gap-3">
-            <span className="grid size-6 place-items-center rounded-full bg-muted text-xs font-semibold tabular">{i + 1}</span>
+            <span className="grid size-6 place-items-center rounded-full bg-muted text-xs font-semibold tabular-nums">{i + 1}</span>
             <span>
               <span className="block font-medium">{title}</span>
               <span className="block text-muted-foreground">{text}</span>

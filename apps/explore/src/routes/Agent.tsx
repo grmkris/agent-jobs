@@ -3,7 +3,7 @@ import { cn } from '../lib/cn.ts'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { Item, ItemGroup, ItemContent, ItemTitle, ItemDescription, ItemActions } from '../components/ui/item.tsx'
-import { Address, Amount, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
+import { Address, Amount, LoadingRows, PageTitle, Section, textLinkClass } from '../components/kit.tsx'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } from 'lucide-react'
@@ -215,16 +215,16 @@ export function ratings(feedback: Record<string, number>): Array<{ tag: string; 
 /** The agent's picture when its profile carries one inline, else its monogram (the same one the directory shows). */
 export function AgentAvatar({ id, image, size = 'md' }: { id: string; image?: string | null | undefined; size?: 'md' | 'lg' }) {
   if (image !== null && image !== undefined) {
-    return <img src={image} alt="" className={cn('shrink-0 rounded-full bg-fill object-cover', size === 'lg' ? 'size-16' : 'size-9')} />
+    return <img src={image} alt="" className={cn('shrink-0 rounded-full bg-muted object-cover', size === 'lg' ? 'size-16' : 'size-9')} />
   }
   return <Monogram seed={`agent-${id}`} label={id.slice(-2)} size={size} />
 }
 
 function Tile({ value, label, className }: { value: ReactNode; label: ReactNode; className?: string | undefined }) {
   return (
-    <div className="grid content-start gap-0.5 rounded-xl bg-surface px-3.5 py-3">
-      <b className={cn('tabular text-xl leading-[1.15] font-bold tracking-[-0.02em]', className)}>{value}</b>
-      <span className="text-xs text-label-2">{label}</span>
+    <div className="grid content-start gap-0.5 rounded-xl bg-card px-3.5 py-3">
+      <b className={cn('tabular-nums text-xl leading-tight font-bold tracking-tight', className)}>{value}</b>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </div>
   )
 }
@@ -269,14 +269,12 @@ function Profile({ id }: { id: string }) {
       <header className="flex items-center gap-4">
         <AgentAvatar id={id} image={profile?.image} size="lg" />
         <div className="grid min-w-0 gap-1">
-          <h1 className="text-3xl leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">
-            {profile?.name ?? `Agent #${id}`}
-          </h1>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-label-2">
+          <h1 className="text-3xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
             {profile?.name !== null && profile?.name !== undefined && <span>Agent #{id} ·</span>}
             {identity.exists === true && (
               <span>
-                On-chain agent <span className="text-label-3">(ERC-8004)</span>
+                On-chain agent <span className="text-muted-foreground">(ERC-8004)</span>
               </span>
             )}
             {identity.exists === null && <span>Identity check unavailable</span>}
@@ -286,7 +284,7 @@ function Profile({ id }: { id: string }) {
       </header>
 
       {profile?.description !== null && profile?.description !== undefined && (
-        <p className="-mt-2 leading-relaxed text-label-2">{profile.description}</p>
+        <p className="-mt-2 leading-relaxed text-muted-foreground">{profile.description}</p>
       )}
     </>
   )
@@ -295,7 +293,7 @@ function Profile({ id }: { id: string }) {
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
-          <p className="px-4 text-ui text-label-2">
+          <p className="px-4 text-ui text-muted-foreground">
             You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.
           </p>
         </div>
@@ -311,7 +309,7 @@ function Profile({ id }: { id: string }) {
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="grid gap-2 rounded-xl bg-surface px-3.5 py-3">
+              <div key={i} className="grid gap-2 rounded-xl bg-card px-3.5 py-3">
                 <Skeleton className="h-6 w-2/3" />
                 <Skeleton className="h-3 w-1/2" />
               </div>
@@ -331,7 +329,7 @@ function Profile({ id }: { id: string }) {
               <EmptyTitle>{`No agent #${id}`}</EmptyTitle>
               <EmptyDescription>
                 Nothing is registered under this number on the ERC-8004 identity registry.{' '}
-                <Link to="/connect" className="text-tint">
+                <Link to="/connect" className={textLinkClass}>
                   Register an agent
                 </Link>
               </EmptyDescription>
@@ -382,7 +380,7 @@ function Record({ record }: { record: AgentRecord }) {
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <Tile value={`${a.completed} of ${a.jobs}`} label="jobs paid" />
         <Tile value={a.lost} label="refunded or rejected" />
-        <Tile value={a.inProgress} label="open now" className={overdue.length > 0 ? 'text-warn' : undefined} />
+        <Tile value={a.inProgress} label="open now" className={overdue.length > 0 ? 'text-warning-text' : undefined} />
         <Tile
           value={
             earned.length === 0 ? (
@@ -400,8 +398,8 @@ function Record({ record }: { record: AgentRecord }) {
       </div>
 
       {overdue.length > 0 && (
-        <div role="status" className="flex items-start gap-3 rounded-2xl bg-warn-bg px-4 py-3.5 leading-snug">
-          <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
+        <div role="status" className="flex items-start gap-3 rounded-2xl bg-warning/14 px-4 py-3.5 leading-snug">
+          <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warning-text" />
           <p className="text-sm">
             <span className="font-semibold">Needs attention:</span>{' '}
             {overdue.length === 1 ? 'one of its open jobs is' : `${overdue.length} of its open jobs are`} past the delivery deadline with
@@ -418,30 +416,30 @@ function Record({ record }: { record: AgentRecord }) {
         <ItemGroup>
           {rated.length === 0 && (bonds.returned ?? 0) === 0 && (bonds.burned ?? 0) === 0 && (
             <Item>
-              <ItemContent className="text-label-2">No ratings yet: they are written when a job settles.</ItemContent>
+              <ItemContent className="text-muted-foreground">No ratings yet: they are written when a job settles.</ItemContent>
             </Item>
           )}
           {rated.map((r) => (
             <Item key={r.tag}>
               {r.good ? (
-                <CircleCheck aria-hidden className="size-5 shrink-0 text-ok" />
+                <CircleCheck aria-hidden className="size-5 shrink-0 text-success-text" />
               ) : (
-                <CircleX aria-hidden className="size-5 shrink-0 text-bad" />
+                <CircleX aria-hidden className="size-5 shrink-0 text-destructive-text" />
               )}
               <ItemContent className="flex-1">
-                <ItemTitle className="tabular font-semibold">{r.count}</ItemTitle> {r.words}
+                <ItemTitle className="tabular-nums font-semibold">{r.count}</ItemTitle> {r.words}
               </ItemContent>
             </Item>
           ))}
           {(bonds.returned ?? 0) > 0 && (
             <Item>
-              <RotateCcw aria-hidden className="size-5 shrink-0 text-label-3" />
+              <RotateCcw aria-hidden className="size-5 shrink-0 text-muted-foreground" />
               <ItemContent className="flex-1">Bond returned {times(bonds.returned ?? 0)}</ItemContent>
             </Item>
           )}
           {(bonds.burned ?? 0) > 0 && (
             <Item>
-              <Flame aria-hidden className="size-5 shrink-0 text-bad" />
+              <Flame aria-hidden className="size-5 shrink-0 text-destructive-text" />
               <ItemContent className="flex-1">Bond burned {times(bonds.burned ?? 0)}</ItemContent>
             </Item>
           )}
@@ -474,7 +472,7 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
           </Item>
         ) : identity.exists === null ? (
           <Item>
-            <ItemContent className="text-label-2">The identity registry did not answer. Retry in a moment.</ItemContent>
+            <ItemContent className="text-muted-foreground">The identity registry did not answer. Retry in a moment.</ItemContent>
           </Item>
         ) : (
           <>
@@ -486,20 +484,20 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
             <Item>
               <ItemContent className="flex-1">
                 Agent wallet
-                <ItemDescription className="block text-xs text-label-3">Signs its applications and transactions</ItemDescription>
+                <ItemDescription className="block text-xs text-muted-foreground">Signs its applications and transactions</ItemDescription>
               </ItemContent>
               <Address value={identity.wallet} />
             </Item>
 
             <Item>
               <span className="shrink-0">{p?.kind === 'json' ? 'Profile' : 'Profile link'}</span>
-              <ItemActions className="min-w-0 flex-1 truncate flex-col items-end text-right text-sm text-label-2">
+              <ItemActions className="min-w-0 flex-1 truncate flex-col items-end text-right text-sm text-muted-foreground">
                 {p === null ? (
                   'None'
                 ) : p.kind === 'json' ? (
                   'JSON profile, on-chain'
                 ) : p.href !== null ? (
-                  <a href={p.href} target="_blank" rel="noreferrer noopener" className="text-tint">
+                  <a href={p.href} target="_blank" rel="noreferrer noopener" className={textLinkClass}>
                     {p.url.replace(/^https:\/\//, '')}
                   </a>
                 ) : (
@@ -545,7 +543,7 @@ function Jobs({ record }: { record: AgentRecord }) {
             <Item key={j.job_id} render={<BoardLink target={boardRoutes(b).job(j.job_id)} />}>
               <ItemContent className="min-w-0 flex-1">
                 <ItemTitle className="block truncate font-medium">{task?.title ?? `Job #${j.job_id}`}</ItemTitle>
-                <ItemDescription className="block truncate text-ui text-label-2">
+                <ItemDescription className="block truncate text-ui text-muted-foreground">
                   #{j.job_id} · {b === 'public' ? 'Public board' : (names.get(b) ?? b)} · {j.mode === 'contest' ? 'Contest' : 'Hire'}
                 </ItemDescription>
               </ItemContent>
@@ -554,7 +552,7 @@ function Jobs({ record }: { record: AgentRecord }) {
                 <PhaseBadge phase={phase} />
               </span>
               <ItemActions>
-                <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               </ItemActions>
             </Item>
           )

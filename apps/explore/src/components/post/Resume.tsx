@@ -1,9 +1,10 @@
+import { cn } from '../../lib/cn.ts'
 import { Badge } from '../ui/badge.tsx'
 import { Button } from '../ui/button.tsx'
 import { Alert, AlertDescription } from '../ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../ui/empty.tsx'
 import { Item, ItemGroup, ItemContent } from '../ui/item.tsx'
-import { CopyButton, LoadingRows, PageTitle, Section } from '../kit.tsx'
+import { CopyButton, LoadingRows, PageTitle, Section, textLinkClass } from '../kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { Lock } from 'lucide-react'
 import { useState } from 'react'
@@ -80,7 +81,7 @@ export function ResumeOffer({
 
   const header = (
     <>
-      <BoardLink target={boardRoutes().publish()} className="text-sm text-tint">
+      <BoardLink target={boardRoutes().publish()} className={cn(textLinkClass, 'text-sm')}>
         Post a new job instead
       </BoardLink>
 
@@ -134,7 +135,7 @@ export function ResumeOffer({
           <EmptyHeader>
             <EmptyTitle>{'Already published'}</EmptyTitle>
             <EmptyDescription>
-              <BoardLink target={boardRoutes().job(t.jobId)} className="text-tint">
+              <BoardLink target={boardRoutes().job(t.jobId)} className={textLinkClass}>
                 Open job #{t.jobId}
               </BoardLink>
             </EmptyDescription>
@@ -184,7 +185,7 @@ export function ResumeOffer({
           <Item>
             <ItemContent className="grid min-w-0 gap-1 py-1">
               <span className="font-semibold [overflow-wrap:anywhere]">{t.title}</span>
-              <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">
+              <span className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
                 {t.terms.brief ?? ''}
               </span>
             </ItemContent>
@@ -192,7 +193,7 @@ export function ResumeOffer({
           {criteria.length > 0 && (
             <Item>
               <ItemContent className="grid min-w-0 gap-1 py-1">
-                <span className="text-ui text-label-2">Accepted when</span>
+                <span className="text-ui text-muted-foreground">Accepted when</span>
                 <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                   {criteria.map((c, i) => (
                     <li key={`${i}-${c}`}>{c}</li>
@@ -203,7 +204,7 @@ export function ResumeOffer({
           )}
           <KV label="How agents compete">Direct hire</KV>
           <KV label="Reward">
-            <span className="tabular font-semibold text-label">{reward}</span>
+            <span className="tabular-nums font-semibold text-foreground">{reward}</span>
           </KV>
           <KV label="Deliver by">
             <When at={t.deliveryDeadline} />
@@ -244,20 +245,20 @@ export function ResumeOffer({
         <>
           <Preflight address={auth.address} token={t.token} reward={BigInt(t.reward)} bond={BigInt(t.creatorBond)} />
 
-          <div className="flex items-center gap-3.5 rounded-xl bg-surface p-4">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint/14 text-tint">
+          <div className="flex items-center gap-3.5 rounded-xl bg-card p-4">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/14 text-primary">
               <Lock aria-hidden className="size-5" />
             </span>
             <span className="min-w-0">
-              <span className="tabular block text-2xl leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{reward}</span>
-              <span className="block text-sm text-label-2">
+              <span className="tabular-nums block text-2xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">{reward}</span>
+              <span className="block text-sm text-muted-foreground">
                 Locked in escrow when you publish · due <When at={t.deliveryDeadline} show="relative" />
               </span>
             </span>
           </div>
 
           {lapsed && (
-            <p className="rounded-xl bg-warn-bg px-4 py-3 text-sm text-warn">
+            <p className="rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
               Its delivery deadline has passed, so it can no longer be published. Post the job again with new dates.
             </p>
           )}
@@ -294,10 +295,10 @@ export function ResumeOffer({
         <ItemGroup>
           <Item>
             <ItemContent className="flex-1">Offer ID</ItemContent>
-            <ItemContent className="font-mono text-ui text-label-2">{t.taskId}</ItemContent>
+            <ItemContent className="font-mono text-ui text-muted-foreground">{t.taskId}</ItemContent>
             <CopyButton value={t.taskId} label="Copy offer ID" />
           </Item>
-          <Item render={<a href={t.manifestUrl} target="_blank" rel="noreferrer" />} className={`text-tint`}>
+          <Item render={<a href={t.manifestUrl} target="_blank" rel="noreferrer" />} className={textLinkClass}>
             The full terms, as agents read them
           </Item>
         </ItemGroup>

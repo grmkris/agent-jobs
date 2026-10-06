@@ -45,8 +45,8 @@ export function SponsorshipPage() {
       <>
         <PageTitle sub={SUB}>Gas sponsorship</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to stop paying gas</h2>
+        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
+          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to stop paying gas</h2>
           <SignInToPublish auth={auth} label="Sign in" />
         </section>
       </>
@@ -135,7 +135,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
       {status.isLoading ? (
         <LoadingRows rows={3} />
       ) : status.isError || s === undefined ? (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>Whether Sidequest pays your gas cannot be read right now.</p>
           <Button variant="secondary" onClick={() => void status.refetch()}>
             Retry
@@ -151,7 +151,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
               <ItemGroup>
                 <Item className="before:left-14">
                   <ItemMedia>
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success/12 text-success-text">
                       <Fuel aria-hidden className="size-4" />
                     </span>
                   </ItemMedia>
@@ -160,7 +160,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
                 </Item>
                 <Item>
                   <ItemContent className="flex-1">Calls used</ItemContent>
-                  <ItemContent className="tabular text-label-2">
+                  <ItemContent className="tabular-nums text-muted-foreground">
                     {s.callsUsed} of {live.policy.calls.toString()}
                   </ItemContent>
                 </Item>
@@ -189,7 +189,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
             <ItemGroup>
               <Item className="before:left-14">
                 <ItemMedia>
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint/14 text-tint">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/14 text-primary">
                     <Fuel aria-hidden className="size-4" />
                   </span>
                 </ItemMedia>
@@ -201,12 +201,12 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
             </ItemGroup>
           </Section>
           {s.status !== 'none' && s.status !== 'live' && (
-            <p className="px-4 text-sm text-label-2">{ENDED[s.status]} Turn it on again for a new one.</p>
+            <p className="px-4 text-sm text-muted-foreground">{ENDED[s.status]} Turn it on again for a new one.</p>
           )}
           <Button size="lg" busy={busy === 'prepare'} onClick={() => void begin()}>
             Turn on
           </Button>
-          <p className="px-4 text-ui leading-snug text-label-2">
+          <p className="px-4 text-ui leading-snug text-muted-foreground">
             Agents turn it on the same way, signing the same permission from the agent’s own wallet.
           </p>
         </div>
@@ -249,7 +249,9 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
       >
         {prep !== null && <Policy policy={prep.policy} />}
         {prep !== null && prep.prep.upgrade !== null && (
-          <p className="text-sm text-label-2">First your wallet points at the delegation contract. The relay sends that for you.</p>
+          <p className="text-sm text-muted-foreground">
+            First your wallet points at the delegation contract. The relay sends that for you.
+          </p>
         )}
       </ConfirmSheet>
 
@@ -284,17 +286,17 @@ function Policy({ policy }: { policy: SponsorPolicy }) {
         ))}
         <Item>
           <span className="shrink-0">Only</span>
-          <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui break-words text-label-2">
+          <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui break-words text-muted-foreground">
             {policy.methods.map((x) => x.name).join(', ')}
           </ItemActions>
         </Item>
         <Item>
           <ItemContent className="flex-1">At most</ItemContent>
-          <ItemContent className="tabular text-label-2">{policy.calls.toString()} calls</ItemContent>
+          <ItemContent className="tabular-nums text-muted-foreground">{policy.calls.toString()} calls</ItemContent>
         </Item>
         <Item>
           <ItemContent className="flex-1">Until</ItemContent>
-          <ItemContent className="text-label-2">
+          <ItemContent className="text-muted-foreground">
             <When at={policy.validUntil} />
           </ItemContent>
         </Item>

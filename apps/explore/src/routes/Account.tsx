@@ -30,9 +30,9 @@ export function AccountPage() {
       <>
         <PageTitle>Account</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to post and approve work</h2>
-          <p className="leading-relaxed text-label-2">
+        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
+          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to post and approve work</h2>
+          <p className="leading-relaxed text-muted-foreground">
             Use your email or Google. Sidequest makes you a wallet, so no browser extension is needed; you sign once to prove it is you.
           </p>
           <div>
@@ -57,7 +57,9 @@ export function AccountPage() {
           <Item render={<Link to="/collect" />}>
             <ItemContent className="flex-1">
               Collect
-              <ItemDescription className="block text-xs text-label-3">Payouts, refunds and mining ready for your wallet</ItemDescription>
+              <ItemDescription className="block text-xs text-muted-foreground">
+                Payouts, refunds and mining ready for your wallet
+              </ItemDescription>
             </ItemContent>
             {collect > 0 && (
               <span aria-label={`${collect} to collect`}>
@@ -65,48 +67,47 @@ export function AccountPage() {
               </span>
             )}
             <ItemActions>
-              <ChevronRight aria-hidden className="size-4 text-label-3" />
+              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
             </ItemActions>
           </Item>
           <Item render={<Link to="/backing" />}>
             <ItemContent className="flex-1">
               Back an agent
-              <ItemDescription className="block text-xs text-label-3">Your positions, backing and leaving</ItemDescription>
+              <ItemDescription className="block text-xs text-muted-foreground">Your positions, backing and leaving</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <ChevronRight aria-hidden className="size-4 text-label-3" />
+              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
             </ItemActions>
           </Item>
           <Item render={<Link to="/sponsorship" />}>
             <ItemContent className="flex-1">
               Gas sponsorship
-              <ItemDescription className="block text-xs text-label-3">
+              <ItemDescription className="block text-xs text-muted-foreground">
                 Sidequest pays the gas for your Sidequest transactions
-              </ItemDescription>
-            </ItemContent>
+              </ItemDescription>            </ItemContent>
             {sponsor.data?.status === 'live' && <Badge variant="success">On</Badge>}
             <ItemActions>
-              <ChevronRight aria-hidden className="size-4 text-label-3" />
+              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
             </ItemActions>
           </Item>
           <Item render={<Link to="/telegram" />}>
             <ItemContent className="flex-1">
               Telegram
-              <ItemDescription className="block text-xs text-label-3">A message when a job needs you</ItemDescription>
+              <ItemDescription className="block text-xs text-muted-foreground">A message when a job needs you</ItemDescription>
             </ItemContent>
             {telegram.data?.linked === true && <Badge variant="success">Linked</Badge>}
             <ItemActions>
-              <ChevronRight aria-hidden className="size-4 text-label-3" />
+              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
             </ItemActions>
           </Item>
           {owner === true && (
             <Item render={<Link to="/admin" />}>
               <ItemContent className="flex-1">
                 Admin
-                <ItemDescription className="block text-xs text-label-3">You own the Safe that owns Sidequest</ItemDescription>
+                <ItemDescription className="block text-xs text-muted-foreground">You own the Safe that owns Sidequest</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <ChevronRight aria-hidden className="size-4 text-label-3" />
+                <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
               </ItemActions>
             </Item>
           )}

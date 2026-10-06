@@ -34,7 +34,7 @@ function ExactCall({ target, value, callData }: { target: Address; value: bigint
   const decoded = decodeExactCall(callData)
   const meta = tokenMeta(target)
   return (
-    <div className="grid gap-1 text-sm leading-relaxed text-label-2">
+    <div className="grid gap-1 text-sm leading-relaxed text-muted-foreground">
       <p className="break-all">
         Your account makes this one call, once, to {target}
         {value > 0n ? `, sending ${value.toString()} wei` : ''}:
@@ -54,7 +54,7 @@ function ExactCall({ target, value, callData }: { target: Address; value: bigint
           ))}
         </ul>
       )}
-      <p className="break-all font-mono text-micro text-label-3">Call data {callData}</p>
+      <p className="break-all font-mono text-micro text-muted-foreground">Call data {callData}</p>
     </div>
   )
 }
@@ -164,26 +164,26 @@ export function PermissionApproval({
       {t.type === 'sidequest:contract-call' ? (
         <ExactCall target={t.target} value={t.value} callData={t.callData} />
       ) : (
-        <p className="break-words text-sm leading-relaxed text-label-2">
+        <p className="break-words text-sm leading-relaxed text-muted-foreground">
           Up to {tokenAmountText(shown !== undefined && 'amount' in shown ? shown.amount : requested!, t.token)}
           {t.type === 'erc20-token-periodic' ? ` every ${Math.round(t.periodDuration / 3600)} h` : ' in total'} from your wallet, only to{' '}
           {t.recipient}.
         </p>
       )}
-      <p className="text-sm leading-relaxed text-label-2">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         It ends {localTime(shown?.expiresAt ?? request.expiry)} ({relative(shown?.expiresAt ?? request.expiry)}). The chain enforces every
         limit.
       </p>
       {review?.schedule != null && (
-        <p className="text-sm leading-relaxed text-label-2">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           Periods count from {localTime(review.schedule.start)}; the first refill is {localTime(review.schedule.firstRefill)} (
           {relative(review.schedule.firstRefill)}).
         </p>
       )}
       {request.justification !== null && (
-        <p className="break-words text-sm text-label-2">Agent's reason (its own words): {request.justification}</p>
+        <p className="break-words text-sm text-muted-foreground">Agent's reason (its own words): {request.justification}</p>
       )}
-      <p className="break-all font-mono text-micro text-label-3">Operation {approval.operation_id}</p>
+      <p className="break-all font-mono text-micro text-muted-foreground">Operation {approval.operation_id}</p>
       {approval.status === 'pending' && review === null && request.adjustable && (
         <div className="grid gap-3 sm:grid-cols-2">
           {token !== null && (

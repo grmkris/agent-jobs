@@ -53,7 +53,7 @@ export function Choices<T extends string>({
                 aria-hidden
                 className={cn(
                   'mt-0.5 grid size-[22px] shrink-0 place-items-center rounded-full transition-colors',
-                  on ? 'bg-tint text-on-tint' : 'shadow-[inset_0_0_0_1.5px_var(--muted-foreground)]',
+                  on ? 'bg-primary text-primary-foreground' : 'shadow-[inset_0_0_0_1.5px_var(--muted-foreground)]',
                 )}
               >
                 {on && <Check className="size-3.5" strokeWidth={3.2} />}
@@ -61,7 +61,7 @@ export function Choices<T extends string>({
             </ItemMedia>
             <ItemContent className="min-w-0">
               <span className="block font-semibold">{o.title}</span>
-              <span className="mt-0.5 block text-sm leading-snug text-label-2">{o.body}</span>
+              <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">{o.body}</span>
             </ItemContent>
           </Item>
         )
@@ -83,11 +83,11 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
     >
       <span
         aria-hidden
-        className={cn('relative h-[31px] w-[51px] rounded-full transition-colors duration-200', checked ? 'bg-ok' : 'bg-fill-strong')}
+        className={cn('relative h-[31px] w-[51px] rounded-full transition-colors duration-200', checked ? 'bg-success-text' : 'bg-accent')}
       >
         <span
           className={cn(
-            'absolute top-[2px] left-[2px] size-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-(--ease-spring)',
+            'absolute top-[2px] left-[2px] size-[27px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform duration-200 ease-(--ease-sheet)',
             checked && 'translate-x-5',
           )}
         />
@@ -104,8 +104,8 @@ export function Chip({ on, onClick, children }: { on: boolean; onClick: () => vo
       aria-pressed={on}
       onClick={onClick}
       className={cn(
-        'press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium',
-        on ? 'bg-tint/14 text-tint' : 'bg-fill text-label-2',
+        'transition-transform duration-(--dur-fast) ease-(--ease-out-strong) active:scale-[0.96] inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium',
+        on ? 'bg-primary/14 text-primary' : 'bg-muted text-muted-foreground',
       )}
     >
       {on && <Check aria-hidden className="size-3.5" strokeWidth={3} />}
@@ -125,7 +125,7 @@ export function Progress({ step, of }: { step: number; of: number }) {
       className="flex gap-1.5 px-1"
     >
       {Array.from({ length: of }, (_, i) => (
-        <span key={i} className={cn('h-1 flex-1 rounded-full transition-colors duration-300', i < step ? 'bg-tint' : 'bg-fill-strong')} />
+        <span key={i} className={cn('h-1 flex-1 rounded-full transition-colors duration-300', i < step ? 'bg-primary' : 'bg-accent')} />
       ))}
     </div>
   )
@@ -151,7 +151,10 @@ export function StepNav({
       <Button variant="secondary" size="lg" onClick={onBack} disabled={onBack === undefined}>
         Back
       </Button>
-      <span aria-live="polite" className={cn('min-w-0 flex-1 truncate text-center text-ui text-label-3', stack && 'max-sm:hidden')}>
+      <span
+        aria-live="polite"
+        className={cn('min-w-0 flex-1 truncate text-center text-ui text-muted-foreground', stack && 'max-sm:hidden')}
+      >
         {status}
       </span>
       {children}
@@ -198,7 +201,7 @@ export function LineRow({
     <Item className={cn(stack && 'flex-col items-stretch gap-2 py-3 sm:flex-row sm:items-center')}>
       <label htmlFor={htmlFor} className="min-w-0 flex-1">
         <span className="block">{label}</span>
-        {note !== undefined && <span className="block text-xs leading-snug text-label-3">{note}</span>}
+        {note !== undefined && <span className="block text-xs leading-snug text-muted-foreground">{note}</span>}
       </label>
       {children}
     </Item>
@@ -211,9 +214,11 @@ export function KV({ label, children, note }: { label: ReactNode; children: Reac
     <Item className={cn('items-baseline justify-between')}>
       <span className="max-w-[55%] shrink-0">
         <span className="block">{label}</span>
-        {note !== undefined && <span className="block text-xs leading-snug text-label-3">{note}</span>}
+        {note !== undefined && <span className="block text-xs leading-snug text-muted-foreground">{note}</span>}
       </span>
-      <ItemActions className="min-w-0 flex-1 flex-col items-end text-right text-label-2 [overflow-wrap:anywhere]">{children}</ItemActions>
+      <ItemActions className="min-w-0 flex-1 flex-col items-end text-right text-muted-foreground [overflow-wrap:anywhere]">
+        {children}
+      </ItemActions>
     </Item>
   )
 }
@@ -236,15 +241,17 @@ export function Disclosure({
     <details
       open={open}
       onToggle={(e) => onToggle?.((e.currentTarget as HTMLDetailsElement).open)}
-      className="group/disclosure overflow-hidden rounded-xl bg-surface"
+      className="group/disclosure overflow-hidden rounded-xl bg-card"
     >
       <Item render={<summary />} className={cn('cursor-pointer list-none [&::-webkit-details-marker]:hidden')}>
         <ItemContent className="flex-1 font-medium">{title}</ItemContent>
-        {summary !== undefined && <span className="min-w-0 truncate text-ui text-label-3 group-open/disclosure:hidden">{summary}</span>}
+        {summary !== undefined && (
+          <span className="min-w-0 truncate text-ui text-muted-foreground group-open/disclosure:hidden">{summary}</span>
+        )}
         <ItemActions>
           <ChevronRight
             aria-hidden
-            className="size-4 shrink-0 text-label-3 transition-transform duration-200 group-open/disclosure:rotate-90"
+            className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open/disclosure:rotate-90"
           />
         </ItemActions>
       </Item>
@@ -256,16 +263,16 @@ export function Disclosure({
 /** The round mark at the start of a checklist or screening row. */
 export function Mark({ tone }: { tone: 'ok' | 'warn' | 'bad' | 'wait' | 'none' }) {
   if (tone === 'wait')
-    return <span aria-hidden className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-fill-strong border-t-tint" />
+    return <span aria-hidden className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-accent border-t-primary" />
   return (
     <span
       aria-hidden
       className={cn(
         'grid size-6 shrink-0 place-items-center rounded-full text-ui font-bold text-background',
-        tone === 'ok' && 'bg-ok',
-        tone === 'warn' && 'bg-warn',
-        tone === 'bad' && 'bg-bad',
-        tone === 'none' && 'bg-fill-strong text-label-2',
+        tone === 'ok' && 'bg-success-text',
+        tone === 'warn' && 'bg-warning-text',
+        tone === 'bad' && 'bg-destructive-text',
+        tone === 'none' && 'bg-accent text-muted-foreground',
       )}
     >
       {tone === 'ok' ? <Check className="size-3.5" strokeWidth={3} /> : tone === 'none' ? '–' : '!'}

@@ -1,5 +1,5 @@
 /**
- * Button: shadcn base-nova on Base UI, vendored from purrable (packages/ui), with myplan's press (scale 0.96 on the
+ * Button: shadcn base-nova on Base UI, vendored from purrable (packages/ui), with myplan's button feedback (scale 0.96 on the
  * short curve) and named transitions. Desktop controls are 32px; on a coarse pointer every size grows to a 44px target.
  */
 import { Button as ButtonPrimitive } from '@base-ui/react/button'

@@ -35,7 +35,7 @@ function Choices({
           render={<button type="button" role="checkbox" aria-checked={chosen.includes(o.value)} onClick={() => onToggle(o.value)} />}
         >
           <ItemContent className="flex-1">{o.label}</ItemContent>
-          {chosen.includes(o.value) && <Check aria-hidden className="size-4 text-tint" strokeWidth={3} />}
+          {chosen.includes(o.value) && <Check aria-hidden className="size-4 text-primary" strokeWidth={3} />}
         </Item>
       ))}
     </ItemGroup>
@@ -64,9 +64,9 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
       <>
         <PageTitle>Create a board</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to create a board</h2>
-          <p className="leading-relaxed text-label-2">
+        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
+          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to create a board</h2>
+          <p className="leading-relaxed text-muted-foreground">
             Your wallet becomes the board&apos;s owner.{' '}
             {auth.address === undefined
               ? 'Sign in with your email or Google, then sign once to prove it is you.'
@@ -88,15 +88,15 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         <PageTitle sub={<span className="font-mono">/b/{createdId}</span>}>Board created</PageTitle>
 
         {secret !== null && (
-          <div role="status" className="grid gap-3 rounded-2xl bg-warn-bg px-4 py-3.5">
+          <div role="status" className="grid gap-3 rounded-2xl bg-warning/14 px-4 py-3.5">
             <p className="flex items-start gap-3 text-sm leading-snug">
-              <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
+              <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-warning-text" />
               <span>
                 <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event sent to your webhook,
                 and Sidequest can&apos;t show it again.
               </span>
             </p>
-            <div className="flex items-center gap-2 rounded-xl bg-surface py-2 pr-2 pl-3">
+            <div className="flex items-center gap-2 rounded-xl bg-card py-2 pr-2 pl-3">
               <code className="min-w-0 flex-1 font-mono text-ui [overflow-wrap:anywhere]">{secret}</code>
               <CopyButton value={secret} label="Copy the webhook secret" />
             </div>
@@ -170,7 +170,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
                 rows={3}
                 placeholder="https://example.com"
                 spellCheck={false}
-                className="font-mono text-ui"
+                className="font-mono "
               />
             </FieldLabel>
             <FieldDescription>
@@ -184,11 +184,13 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
               type="checkbox"
               checked={drip}
               onChange={(e) => setDrip(e.target.checked)}
-              className="mt-0.5 size-5 shrink-0 accent-tint"
+              className="mt-0.5 size-5 shrink-0 accent-primary"
             />
             <span>
               Testnet MON drip
-              <span className="block text-ui text-label-2">Give each wallet that signs in through this board a little MON, once.</span>
+              <span className="block text-ui text-muted-foreground">
+                Give each wallet that signs in through this board a little MON, once.
+              </span>
             </span>
           </label>
         </ItemGroup>
@@ -205,7 +207,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
                 placeholder="0x…"
                 spellCheck={false}
                 autoComplete="off"
-                className="font-mono text-ui"
+                className="font-mono "
               />
             </FieldLabel>
             <FieldDescription>{'Judges every offer unless the publisher names one.'}</FieldDescription>

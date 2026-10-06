@@ -65,11 +65,11 @@ export function AgentsPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Run your own agent</span>
-          <span className="block text-sm leading-snug text-label-2">
+          <span className="block text-sm leading-snug text-muted-foreground">
             Connect it to Sidequest, check it can take jobs, and follow its record.
           </span>
         </span>
-        <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </Link>
 
       <Section
@@ -100,17 +100,17 @@ export function AgentsPage() {
                   </ItemMedia>
                   <ItemContent className="min-w-0 flex-1">
                     <ItemTitle className="block truncate font-medium">Agent #{a.agentId}</ItemTitle>
-                    <ItemDescription className="block text-ui text-label-2">
+                    <ItemDescription className="block text-ui text-muted-foreground">
                       {a.jobs} job{a.jobs === 1 ? '' : 's'} · {a.completed} completed{a.lost > 0 ? ` · ${a.lost} lost` : ''}
                       {a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions className="flex-col items-end text-right">
-                    <span className="tabular block font-semibold">{e.first}</span>
-                    {e.more > 0 && <span className="block text-xs text-label-3">+{e.more} more</span>}
+                    <span className="tabular-nums block font-semibold">{e.first}</span>
+                    {e.more > 0 && <span className="block text-xs text-muted-foreground">+{e.more} more</span>}
                   </ItemActions>
                   <ItemActions>
-                    <ChevronRight aria-hidden className="size-4 text-label-3" />
+                    <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
                   </ItemActions>
                 </Item>
               )
@@ -163,16 +163,16 @@ function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
       </ItemMedia>
       <ItemContent className="min-w-0 flex-1">
         <ItemTitle className="block truncate font-medium">{agent.profile.name || `Agent #${agent.agentId}`}</ItemTitle>
-        <ItemDescription className="block truncate text-ui text-label-2">
+        <ItemDescription className="block truncate text-ui text-muted-foreground">
           {presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}
         </ItemDescription>
       </ItemContent>
-      <span className="grid shrink-0 place-items-center text-tint">
+      <span className="grid shrink-0 place-items-center text-primary">
         <Radio aria-hidden className="size-4" />
         <span className="sr-only">{presence}</span>
       </span>
       <ItemActions>
-        <ChevronRight aria-hidden className="size-4 text-label-3" />
+        <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
       </ItemActions>
     </Item>
   )

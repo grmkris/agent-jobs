@@ -16,11 +16,14 @@ import { sponsorshipGrantTerms } from './grant-fixture.mjs';
 //            without an accessible name, horizontal scroll and layout shifts (audit-checks.mjs). Writes audit.json and
 //            exits 1 on any finding (U-PERF-A11Y).
 //   --widths=390,1440  only these widths.
+//   --theme=light|dark  capture either semantic token palette (light by default).
 //   heavy node test/shots.mjs ~/code/sidequest.wt/ui-shots [--prod] [--audit] [--widths=…] [page…]
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const args = process.argv.slice(2);
 const prod = args.includes('--prod');
 const auditing = args.includes('--audit');
+const theme = args.find((a) => a.startsWith('--theme='))?.slice('--theme='.length) ?? 'light';
+assert.ok(['light', 'dark'].includes(theme), '--theme must be light or dark');
 const widthsFlag = args.find((a) => a.startsWith('--widths='))?.slice('--widths='.length);
 const [output = '/tmp/sidequest-shots', ...only] = args.filter((a) => !a.startsWith('--'));
 const base = 'http://127.0.0.1:5202';
@@ -303,7 +306,7 @@ try {
     try {
       for (const width of widths) {
         const phone = width < 600;
-        const context = await browser.newContext({ viewport: { width, height: width === 375 ? 667 : width === 390 ? 844 : 900 }, hasTouch: phone, isMobile: phone });
+        const context = await browser.newContext({ viewport: { width, height: width === 375 ? 667 : width === 390 ? 844 : 900 }, hasTouch: phone, isMobile: phone, colorScheme: theme });
         // A visitor has no wallet connected and no board session.
         await context.addInitScript(({ account, c, arbiter, v1State, latency, visitor }) => {
           window.__sidequest = c;
@@ -334,7 +337,7 @@ try {
           await page.screenshot({ path: file });
         }
         console.log(file);
-        captures.push({ page: p.name, width, file: `${p.name}-${width}.png`, network: p.network ?? 'monad-testnet',
+        captures.push({ page: p.name, width, theme, file: `${p.name}-${width}.png`, network: p.network ?? 'monad-testnet',
           addresses: p.network === undefined ? 'promoted testnet config' : 'current mainnet config',
           state: p.network === undefined ? 'fixture board, indexer, wallet and contract read results; no live transactions' : 'mainnet launch gate; no fixture modules' });
         if (auditing) {
@@ -356,7 +359,7 @@ try {
 } finally {
   await browser.close();
 }
-writeFileSync(`${output}/capture.json`, JSON.stringify({ build: prod ? 'production' : 'dev', capturedAt: new Date().toISOString(),
+writeFileSync(`${output}/capture.json`, JSON.stringify({ build: prod ? 'production' : 'dev', theme, capturedAt: new Date().toISOString(),
   configSha256: createHash('sha256').update(configSource).digest('hex'), deploymentBlock: config.deployment.sidequest.block,
   contracts, defaultArbitrator: config.sidequest.defaultArbitrator, captures, pageErrors }, null, 2));
 assert.deepEqual(pageErrors, [], 'Submission capture contains a page error');

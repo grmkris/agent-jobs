@@ -1,5 +1,5 @@
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './components/ui/empty.tsx'
-import { PageTitle } from './components/kit.tsx'
+import { PageTitle, textLinkClass } from './components/kit.tsx'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
 import { StrictMode } from 'react'
@@ -62,7 +62,7 @@ function NotFoundPage() {
         <EmptyHeader>
           <EmptyTitle>{'Nothing lives at this address'}</EmptyTitle>
           <EmptyDescription>
-            <Link to="/jobs" className="text-tint">
+            <Link to="/jobs" className={textLinkClass}>
               Browse jobs
             </Link>
           </EmptyDescription>

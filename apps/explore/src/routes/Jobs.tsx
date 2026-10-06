@@ -3,7 +3,7 @@ import { Button } from '../components/ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { ItemGroup, Item, ItemTitle, ItemContent, ItemActions } from '../components/ui/item.tsx'
-import { LoadingRows, Segmented } from '../components/kit.tsx'
+import { LoadingRows, Segmented, textLinkClass } from '../components/kit.tsx'
 import type { Phase } from '@sidequest/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -211,7 +211,7 @@ export function JobsPage() {
               [
                 v,
                 <span key={v}>
-                  {l} <span className="tabular text-label-3">{chainReady ? counts[v] : '—'}</span>
+                  {l} <span className="tabular-nums text-muted-foreground">{chainReady ? counts[v] : '—'}</span>
                 </span>,
               ] as const,
           )}
@@ -219,7 +219,7 @@ export function JobsPage() {
       </div>
 
       {(chainError !== null || boardError !== null) && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           {chainError !== null && (
             <p>
               Chain data is unavailable.
@@ -274,7 +274,7 @@ export function JobsPage() {
             <EmptyTitle>{needle !== '' ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}</EmptyTitle>
             <EmptyDescription>
               {view === 'mine' || rows.length === 0 ? (
-                <BoardLink target={routes.publish()} className="text-tint">
+                <BoardLink target={routes.publish()} className={textLinkClass}>
                   Post the first one
                 </BoardLink>
               ) : null}
@@ -298,7 +298,7 @@ export function JobsPage() {
         </>
       )}
 
-      <p className="px-4 text-xs text-label-3">
+      <p className="px-4 text-xs text-muted-foreground">
         {!chainReady
           ? 'Chain facts are unavailable.'
           : index === null
@@ -338,24 +338,24 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       {agentId != null && agentId !== '0' ? (
         <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
       ) : (
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill-strong text-label-2">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-muted-foreground">
           <Icon aria-hidden className="size-[1.1rem]" />
         </span>
       )}
       <ItemContent className="min-w-0 flex-1">
         <ItemTitle className="block truncate font-medium">{item.task?.title ?? `Job #${item.jobId}`}</ItemTitle>
-        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-ui text-label-2">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-ui text-muted-foreground">
           <PhaseBadge phase={phase} />
           {other !== null && <Badge variant="info">{other}</Badge>}
           <span className="truncate">{note}</span>
         </span>
       </ItemContent>
       <ItemActions className="min-w-0 max-w-[38%] shrink flex-col items-end text-right">
-        <span className="tabular block whitespace-normal font-semibold [overflow-wrap:anywhere]">{rewardText}</span>
-        <span className="block text-xs text-label-3">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
+        <span className="tabular-nums block whitespace-normal font-semibold [overflow-wrap:anywhere]">{rewardText}</span>
+        <span className="block text-xs text-muted-foreground">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
       </ItemActions>
       <ItemActions>
-        <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </ItemActions>
     </Item>
   )

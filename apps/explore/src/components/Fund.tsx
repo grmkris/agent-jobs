@@ -1,6 +1,6 @@
 import { Button } from './ui/button.tsx'
 import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
-import { Address, CopyButton, Section } from './kit.tsx'
+import { Address, CopyButton, Section, textLinkClass } from './kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
@@ -35,19 +35,19 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
   })
   const [copied, setCopied] = useState(false)
   return (
-    <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-sep bg-surface p-4 text-sm shadow-lg">
+    <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-border bg-card p-4 text-sm shadow-lg">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">Your wallet</span>
-        <button type="button" className="text-label-3 hover:text-label" onClick={onClose}>
+        <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onClose}>
           ✕
         </button>
       </div>
-      <p className="mb-2 text-xs text-label-2">
+      <p className="mb-2 text-xs text-muted-foreground">
         Send {chain.nativeCurrency.symbol} for gas and the tokens you publish or bond with to this address on {chain.name}, from any wallet
         you already have.
       </p>
       <div className="mb-3 flex items-center gap-2">
-        <code className="break-all rounded bg-fill px-2 py-1 text-xs">{address}</code>
+        <code className="break-all rounded bg-muted px-2 py-1 text-xs">{address}</code>
         <Button
           variant="outline"
           onClick={async () => {
@@ -75,7 +75,7 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
         })}
       </ul>
       {!isMainnet && (
-        <p className="text-xs text-label-2">
+        <p className="text-xs text-muted-foreground">
           Testnet: MON for gas from{' '}
           <a className="underline" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
             faucet.monad.xyz
@@ -84,7 +84,7 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
           <code>faucet()</code>.
         </p>
       )}
-      <p className="mt-2 text-xs text-label-3">
+      <p className="mt-2 text-xs text-muted-foreground">
         Explorer: <Address value={address} />
       </p>
     </div>
@@ -125,7 +125,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
         ) : (
           <>
             Testnet: MON from{' '}
-            <a className="text-tint" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
+            <a className={textLinkClass} href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
               faucet.monad.xyz
             </a>
             ; SIDE v2 is transferred to this address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain faucet(). Test tokens
@@ -136,16 +136,16 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
     >
       <ItemGroup>
         <Item>
-          <ItemContent className="min-w-0 flex-1 font-mono text-ui break-all text-label-2">{address}</ItemContent>
+          <ItemContent className="min-w-0 flex-1 font-mono text-ui break-all text-muted-foreground">{address}</ItemContent>
           <CopyButton value={address} label="Copy address" />
         </Item>
         {rows.map(([symbol, what, value]) => (
           <Item key={symbol}>
             <ItemContent className="flex-1">
               {symbol}
-              <ItemDescription className="block text-xs text-label-3">{what}</ItemDescription>
+              <ItemDescription className="block text-xs text-muted-foreground">{what}</ItemDescription>
             </ItemContent>
-            <span className="tabular text-label">{value ?? '…'}</span>
+            <span className="tabular-nums text-foreground">{value ?? '…'}</span>
           </Item>
         ))}
       </ItemGroup>

@@ -73,10 +73,10 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
     onConfirmed()
   }
   return (
-    <div className="grid gap-3 border-t border-sep pt-4">
+    <div className="grid gap-3 border-t border-border pt-4">
       <h3 className="font-semibold">Weekly spending allowance</h3>
       <OperatorBalances operator={operator} token={token} />
-      <p className="text-sm text-label-2">
+      <p className="text-sm text-muted-foreground">
         The most your agent may pull from your wallet each week to hire other agents; anything above it becomes an Approval for you.
       </p>
       {review === null ? (
@@ -104,12 +104,12 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
               </Select>
             </label>
             {isAddress(token) && (
-              <a className="text-xs text-label-2 underline" href={explorer('address', token)} target="_blank" rel="noreferrer">
+              <a className="text-xs text-muted-foreground underline" href={explorer('address', token)} target="_blank" rel="noreferrer">
                 View token contract
               </a>
             )}
             <details>
-              <summary className="cursor-pointer text-xs text-label-2">Use another token</summary>
+              <summary className="cursor-pointer text-xs text-muted-foreground">Use another token</summary>
               <Input
                 aria-label="Other allowance token address"
                 value={token}

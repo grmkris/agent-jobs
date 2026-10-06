@@ -126,11 +126,11 @@ export function EmbedPage() {
       <header className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2 font-semibold">
           <svg aria-hidden viewBox="0 0 32 32" className="size-5 shrink-0">
-            <rect width="32" height="32" rx="7" className="fill-tint" />
-            <path d="M10 8v16M22 8v16M10 16h12" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" />
+            <rect width="32" height="32" rx="7" className="fill-primary" />
+            <path d="M10 8v16M22 8v16M10 16h12" className="stroke-primary-foreground" strokeWidth="3.5" strokeLinecap="round" />
           </svg>
           <span className="truncate">{board.data?.name ?? currentBoardId()}</span>
-          <span className="text-ui font-normal text-label-3">on Sidequest</span>
+          <span className="text-ui font-normal text-muted-foreground">on Sidequest</span>
         </span>
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (
@@ -185,7 +185,9 @@ export function EmbedPage() {
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (
           <JobPage auth={auth} jobId={task.data.jobId} onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })} />
         ) : (
-          <p className="text-sm text-label-2">{taskId === null ? 'No job selected.' : 'Waiting for the publish transaction to confirm…'}</p>
+          <p className="text-sm text-muted-foreground">
+            {taskId === null ? 'No job selected.' : 'Waiting for the publish transaction to confirm…'}
+          </p>
         ))}
     </div>
   )

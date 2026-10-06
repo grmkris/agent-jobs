@@ -3,7 +3,7 @@ import { Button } from '../components/ui/button.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
 import { cn } from '../lib/cn.ts'
 import { ItemGroup, Item, ItemContent, ItemMedia, ItemTitle, ItemDescription, ItemActions } from '../components/ui/item.tsx'
-import { Address, Row, Section, TxLink } from '../components/kit.tsx'
+import { Address, Row, Section, TxLink, textLinkClass } from '../components/kit.tsx'
 import { type JobAction, type LifecycleInput, type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@sidequest/react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -215,9 +215,9 @@ export function JobPage({
       <>
         <Back />
 
-        <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
+        <div className="grid gap-2 rounded-2xl bg-card p-6 text-center">
           <p className="font-semibold">Job #{jobId} is on an earlier contract</p>
-          <p className="text-sm text-label-2">Sidequest shows jobs on its v1 contracts only.</p>
+          <p className="text-sm text-muted-foreground">Sidequest shows jobs on its v1 contracts only.</p>
         </div>
       </>
     )
@@ -227,9 +227,9 @@ export function JobPage({
       <>
         <Back />
 
-        <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
+        <div className="grid gap-2 rounded-2xl bg-card p-6 text-center">
           <p className="font-semibold">{chain.isError ? 'Chain job details are unavailable' : `Job #${jobId} is not indexed yet`}</p>
-          <p className="text-sm text-label-2">
+          <p className="text-sm text-muted-foreground">
             {chain.isError
               ? 'The chain index could not be read. This does not mean the job is still in progress or unpaid.'
               : 'A newly published job appears about a minute after its block is final.'}
@@ -247,7 +247,7 @@ export function JobPage({
       <Back />
 
       {chain.isError && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>
             Chain job details are unavailable.
             {d === undefined
@@ -261,7 +261,7 @@ export function JobPage({
       )}
 
       {board.isError && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>
             Board details are unavailable.{' '}
             {d !== undefined
@@ -275,8 +275,8 @@ export function JobPage({
       )}
 
       <header className="grid min-w-0 gap-2">
-        <h1 className="text-2xl leading-[1.15] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{title}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-label-2">
+        <h1 className="text-2xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {waitingForActivation ? (
             <>
               <Badge variant="success">Selected</Badge>
@@ -299,9 +299,9 @@ export function JobPage({
       {reward !== null && <Money phase={phase} reward={reward} token={token} agentId={agentId} charge={chargeOf(d)} />}
 
       {waitingForActivation ? (
-        <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5">
+        <div role="status" className="grid gap-1 rounded-xl bg-card px-4 py-3.5">
           <p className="font-semibold">Selected — waiting for worker activation</p>
-          <p className="text-sm text-label-2">
+          <p className="text-sm text-muted-foreground">
             Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.
           </p>
         </div>
@@ -316,7 +316,7 @@ export function JobPage({
         (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
           <div className="grid gap-1.5">
             <HireAgainLink jobId={jobId} />
-            <p className="px-4 text-ui text-label-2">
+            <p className="px-4 text-ui text-muted-foreground">
               A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.
             </p>
           </div>
@@ -396,11 +396,11 @@ export function JobPage({
 
       {brief !== undefined && (
         <Section title="The job">
-          <div className="grid min-w-0 gap-3 rounded-xl bg-surface px-4 py-3.5 leading-relaxed">
+          <div className="grid min-w-0 gap-3 rounded-xl bg-card px-4 py-3.5 leading-relaxed">
             <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{brief}</p>
             {criteria.length > 0 && (
               <div>
-                <p className="text-ui text-label-2">Accepted when</p>
+                <p className="text-ui text-muted-foreground">Accepted when</p>
                 <ul className="mt-1 list-disc pl-5">
                   {criteria.map((c) => (
                     <li key={c} className="[overflow-wrap:anywhere]">
@@ -423,7 +423,10 @@ export function JobPage({
 
 function Back() {
   return (
-    <BoardLink target={boardRoutes().jobs()} className="-mt-2.5 -mb-[1.125rem] inline-flex w-fit items-center gap-0.5 py-2.5 text-tint">
+    <BoardLink
+      target={boardRoutes().jobs()}
+      className={cn(textLinkClass, '-mt-2.5 -mb-[1.125rem] inline-flex w-fit items-center gap-0.5 py-2.5')}
+    >
       <ChevronLeft aria-hidden className="-ml-1.5 size-5" strokeWidth={2.4} />
       Jobs
     </BoardLink>
@@ -488,22 +491,22 @@ function Money({
             ? `Locked in escrow · paid to ${agent} when the work is accepted`
             : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Sidequest’s ${percent(charge.bps)} fee`
   return (
-    <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
+    <div className="flex items-center gap-3.5 rounded-2xl bg-card p-4">
       <span
         className={cn(
           'grid size-10 shrink-0 place-items-center rounded-xl',
-          !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2',
+          !terminal && !draft ? 'bg-primary/14 text-primary' : paid ? 'bg-success/12 text-success-text' : 'bg-muted text-muted-foreground',
         )}
       >
         {!terminal && !draft ? <Lock aria-hidden className="size-5" /> : <ReceiptText aria-hidden className="size-5" />}
       </span>
       <span className="min-w-0">
-        <span className="tabular block text-2xl leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">
+        <span className="tabular-nums block text-2xl leading-none font-bold tracking-tight [overflow-wrap:anywhere]">
           {amount(paid && charge !== null ? charge.net : reward, token)}
         </span>
-        <span className="mt-1 block text-sm text-label-2">{where}</span>
+        <span className="mt-1 block text-sm text-muted-foreground">{where}</span>
         {token !== null && tokenInfo(token).unverified === true && (
-          <span className="mt-1 block text-ui text-label-3 [overflow-wrap:anywhere]">
+          <span className="mt-1 block text-ui text-muted-foreground [overflow-wrap:anywhere]">
             Unverified token {token}: anyone can deploy a token under any name
           </span>
         )}
@@ -516,7 +519,7 @@ function Money({
 function NextStep({ phase }: { phase: Phase }) {
   if (phase.terminal && phase.actions.length === 0) {
     return (
-      <p className="px-1 text-sm leading-relaxed text-label-2">
+      <p className="px-1 text-sm leading-relaxed text-muted-foreground">
         <Sentence parts={phase.next} />
       </p>
     )
@@ -524,11 +527,11 @@ function NextStep({ phase }: { phase: Phase }) {
   const you = phase.youAct && phase.toYou !== null
   return (
     <div className="grid gap-2">
-      <div className={cn('flex gap-3 rounded-2xl px-4 py-3.5 leading-relaxed', you ? 'bg-warn-bg' : 'bg-tint/10')}>
+      <div className={cn('flex gap-3 rounded-2xl px-4 py-3.5 leading-relaxed', you ? 'bg-warning/14' : 'bg-primary/10')}>
         {you ? (
-          <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
+          <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warning-text" />
         ) : (
-          <Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-tint" />
+          <Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
         )}
         <p>
           {you && <span className="font-semibold">You: </span>}
@@ -536,7 +539,7 @@ function NextStep({ phase }: { phase: Phase }) {
         </p>
       </div>
       {phase.warnings.map((w) => (
-        <p key={w} role="alert" className="rounded-xl bg-bad-bg px-4 py-2.5 text-sm text-bad">
+        <p key={w} role="alert" className="rounded-xl bg-destructive/12 px-4 py-2.5 text-sm text-destructive-text">
           {w}
         </p>
       ))}
@@ -637,10 +640,10 @@ function People({
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
               <ItemTitle className="block font-medium">Agent #{agentId}</ItemTitle>
-              <ItemDescription className="block truncate font-mono text-ui text-label-2">{worker}</ItemDescription>
+              <ItemDescription className="block truncate font-mono text-ui text-muted-foreground">{worker}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <ChevronRight aria-hidden className="size-4 text-label-3" />
+              <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
             </ItemActions>
           </Item>
         )}
@@ -654,12 +657,12 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
   const termsHash = listed?.termsHash ?? t?.termsHash
   const windows = t?.terms.windows
   return (
-    <details className="group rounded-xl bg-surface">
+    <details className="group rounded-xl bg-card">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 font-medium [&::-webkit-details-marker]:hidden">
         Details
-        <ChevronRight aria-hidden className="size-4 text-label-3 transition-transform group-open:rotate-90" />
+        <ChevronRight aria-hidden className="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
       </summary>
-      <div className="border-t-[0.5px] border-sep px-4 py-2">
+      <div className="border-t-[0.5px] border-border px-4 py-2">
         {windows !== undefined && (
           <Row label="Windows">
             review {span(windows.reviewSeconds)} · dispute {span(windows.disputeSeconds)} · arbitration {span(windows.arbitrationSeconds)}
@@ -687,7 +690,7 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
         {termsHash !== undefined && (
           <Row label="Offer ID">
             <a
-              className="-my-3.5 inline-flex py-3.5 font-mono text-ui text-tint"
+              className={cn(textLinkClass, '-my-3.5 inline-flex py-3.5 font-mono text-ui')}
               href={`/offers/${termsHash}.json`}
               target="_blank"
               rel="noreferrer"

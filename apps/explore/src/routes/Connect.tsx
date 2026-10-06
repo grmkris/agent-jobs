@@ -1,4 +1,6 @@
-import { PageTitle } from '../components/kit.tsx'
+import { buttonVariants } from '../components/ui/button.tsx'
+import { cn } from '../lib/cn.ts'
+import { PageTitle, textLinkClass } from '../components/kit.tsx'
 import { Link } from '@tanstack/react-router'
 import { StartPrompt } from '../components/AgentStartLink.tsx'
 import { ConnectionCard } from '../components/ConnectionCard.tsx'
@@ -15,10 +17,10 @@ export function ConnectPage() {
         <>
           <StartPrompt />
           <ConnectionCard />
-          <Link to="/agents/new" className="action-link">
+          <Link to="/agents/new" className={buttonVariants()}>
             Create an agent
           </Link>
-          <Link to="/agents" className="min-h-11 content-center text-tint">
+          <Link to="/agents" className={cn(textLinkClass, 'min-h-11 content-center')}>
             Open your agents
           </Link>
         </>

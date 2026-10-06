@@ -222,7 +222,7 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
   const steps = [...pastSteps(events, job), ...nextSteps(phase)]
   if (steps.length === 0) return null
   return (
-    <ol className="grid rounded-xl bg-surface px-4 pt-3.5 pb-1">
+    <ol className="grid rounded-xl bg-card px-4 pt-3.5 pb-1">
       {steps.map((s, i) => (
         <li
           key={`${i}-${s.title}`}
@@ -231,15 +231,17 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
           {i < steps.length - 1 && (
             <span
               aria-hidden
-              className={cn('absolute top-6 bottom-0 left-[0.625rem] w-0.5', s.mark === 'done' ? 'bg-tint/45' : 'bg-sep')}
+              className={cn('absolute top-6 bottom-0 left-[0.625rem] w-0.5', s.mark === 'done' ? 'bg-primary/45' : 'bg-border')}
             />
           )}
           <Dot mark={s.mark} />
           <span className="min-w-0 [overflow-wrap:anywhere]">
-            <span className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-label-2')}>{s.title}</span>
-            {s.sub !== undefined && <span className="block text-ui text-label-2">{s.sub}</span>}
+            <span className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-muted-foreground')}>
+              {s.title}
+            </span>
+            {s.sub !== undefined && <span className="block text-ui text-muted-foreground">{s.sub}</span>}
             {s.mark === 'now' && phase !== null && phase.next.length > 0 && (
-              <span className="block text-ui text-label-2">
+              <span className="block text-ui text-muted-foreground">
                 <Sentence parts={phase.next} />
               </span>
             )}
@@ -249,7 +251,7 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
               </span>
             )}
           </span>
-          <span className="col-start-2 min-w-0 text-ui text-label-2 sm:col-start-auto sm:text-right">
+          <span className="col-start-2 min-w-0 text-ui text-muted-foreground sm:col-start-auto sm:text-right">
             {s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}
           </span>
         </li>
@@ -262,27 +264,27 @@ function Dot({ mark }: { mark: Mark }) {
   const base = 'relative z-10 mt-0.5 grid size-[1.375rem] place-items-center rounded-full'
   if (mark === 'done')
     return (
-      <span className={cn(base, 'bg-tint text-on-tint')}>
+      <span className={cn(base, 'bg-primary text-primary-foreground')}>
         <Check aria-hidden className="size-3" strokeWidth={3.5} />
       </span>
     )
   if (mark === 'fail')
     return (
-      <span className={cn(base, 'bg-bad text-background')}>
+      <span className={cn(base, 'bg-destructive-text text-background')}>
         <X aria-hidden className="size-3" strokeWidth={3.5} />
       </span>
     )
   if (mark === 'warn')
     return (
-      <span className={cn(base, 'bg-warn text-background')}>
+      <span className={cn(base, 'bg-warning-text text-background')}>
         <AlertTriangle aria-hidden className="size-3" strokeWidth={3} />
       </span>
     )
   if (mark === 'now')
     return (
-      <span className={cn(base, 'bg-surface ring-2 ring-tint ring-inset')}>
-        <span className="size-2 rounded-full bg-tint" />
+      <span className={cn(base, 'bg-card ring-2 ring-primary ring-inset')}>
+        <span className="size-2 rounded-full bg-primary" />
       </span>
     )
-  return <span className={cn(base, 'bg-fill-strong')} />
+  return <span className={cn(base, 'bg-accent')} />
 }

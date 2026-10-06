@@ -140,7 +140,7 @@ export function AccountControl({
       {auth.signedIn ? (
         // The link is the 44 px target; the pill inside it is what shows.
         <Link to="/account" className="flex min-h-11 min-w-0 items-center" aria-label="Your wallet">
-          <span className="flex min-w-0 items-center gap-2 rounded-full bg-fill py-1 pr-3 pl-1 text-ui font-medium">
+          <span className="flex min-w-0 items-center gap-2 rounded-full bg-muted py-1 pr-3 pl-1 text-ui font-medium">
             <Monogram seed={auth.address} />
             <span className="truncate font-mono text-ui">
               {auth.address.slice(0, 6)}…{auth.address.slice(-4)}
@@ -158,7 +158,7 @@ export function AccountControl({
           Sign out
         </Button>
       )}
-      {account.error !== null && <span className="basis-full text-xs text-bad">{account.error}</span>}
+      {account.error !== null && <span className="basis-full text-xs text-destructive-text">{account.error}</span>}
     </div>
   )
 }

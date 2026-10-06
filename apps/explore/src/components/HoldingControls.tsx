@@ -79,7 +79,7 @@ export function HoldingControls({
               <ItemContent className="flex-1">Holding</ItemContent>
               <AddressText value={holding} />
             </Item>
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               {state === 'waiting' ? (
                 <>
                   Can go live in <Countdown to={Number(pending![1])} />
@@ -90,13 +90,13 @@ export function HoldingControls({
                 'Proposal expired'
               )}
             </p>
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               Expires {grace === undefined ? 'at an unreadable time' : <When at={Number(pending![1]) + grace} show="time" />}
             </p>
             {refused === true ? (
               <Badge variant="destructive">Refused</Badge>
             ) : (
-              <p className="text-sm text-label-2">A Holding you refuse can never reserve this account's backing.</p>
+              <p className="text-sm text-muted-foreground">A Holding you refuse can never reserve this account's backing.</p>
             )}
             {state !== 'expired' && (
               <Button
@@ -114,7 +114,7 @@ export function HoldingControls({
       {denied === true && (
         <Section title="You refused the Holding in use">
           <ItemGroup className="grid gap-3 p-4">
-            <p className="text-sm text-label-2">It cannot reserve this wallet's backing for new job bonds.</p>
+            <p className="text-sm text-muted-foreground">It cannot reserve this wallet's backing for new job bonds.</p>
             <Button variant="secondary" disabled={disabled || reads.isError} onClick={() => onVeto(contracts.holding, false)}>
               Allow it again
             </Button>

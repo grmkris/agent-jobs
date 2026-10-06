@@ -110,8 +110,8 @@ export function Sheet({
         className={cn(
           'absolute inset-x-0 bottom-0 grid max-h-[90vh] gap-4 overflow-y-auto rounded-t-xl bg-popover px-5 pt-2 pb-[calc(1.25rem+var(--safe-bottom))] text-sm text-popover-foreground shadow-popover',
           // A grouped block inside the sheet sits one step down, not white on white.
-          '[&_.bg-card]:bg-muted/50 [&_.bg-surface]:bg-muted/50',
-          'animate-[sheet-in_0.42s_var(--ease-spring)] transition-transform duration-300 ease-(--ease-spring)',
+          '[&_.bg-card]:bg-muted/50',
+          'animate-[sheet-in_0.42s_var(--ease-sheet)] transition-transform duration-300 ease-(--ease-sheet)',
           'sm:relative sm:inset-auto sm:w-[28rem] sm:max-w-[calc(100vw-2rem)] sm:rounded-xl sm:px-5 sm:pt-4 sm:pb-5 sm:animate-[panel-in_0.24s_var(--ease-out-strong)]',
           className,
         )}
@@ -215,7 +215,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              'pointer-events-auto flex max-w-md animate-[toast-in_0.45s_var(--ease-spring)] items-center gap-2.5 rounded-full bg-popover px-4 py-2 text-sm font-medium text-popover-foreground shadow-popover',
+              'pointer-events-auto flex max-w-md animate-[toast-in_0.45s_var(--ease-sheet)] items-center gap-2.5 rounded-full bg-popover px-4 py-2 text-sm font-medium text-popover-foreground shadow-popover',
               t.tone === 'error' && 'text-destructive-text',
             )}
           >

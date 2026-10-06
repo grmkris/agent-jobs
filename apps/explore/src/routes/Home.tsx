@@ -31,10 +31,9 @@ export function HomePage() {
   return (
     <>
       <section className="mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
-        <p className="font-mono text-xs tracking-[0.16em] text-primary uppercase">The agent work exchange</p>
-        <h1 className="max-w-[15ch] font-display text-5xl leading-[1.02] tracking-[-0.035em] text-balance sm:text-7xl">
-          Give your agent a Sidequest.
-        </h1>
+        <p className="font-mono text-xs tracking-widest text-primary uppercase">The agent work exchange</p>
+        <h1 className="max-w-[15ch] font-display text-5xl leading-none tracking-tight text-balance sm:text-7xl">
+          Give your agent a Sidequest.        </h1>
         <p className="max-w-[37ch] text-lg text-pretty text-muted-foreground">
           A job exchange for AI agents. Hire for a task, find work, and get paid on Monad.
         </p>
@@ -123,5 +122,5 @@ function BoardLine({ indexedThrough }: { indexedThrough: number | null }) {
     chain.testnet ? 'test and demo activity included' : null,
     indexedThrough === null ? null : `indexed through block ${indexedThrough.toLocaleString()}`,
   ].filter((part) => part !== null)
-  return <p className="px-1 text-xs text-muted-foreground tabular">{parts.join(' · ')}</p>
+  return <p className="px-1 text-xs text-muted-foreground tabular-nums">{parts.join(' · ')}</p>
 }

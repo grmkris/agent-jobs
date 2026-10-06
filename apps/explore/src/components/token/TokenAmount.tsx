@@ -49,15 +49,20 @@ export function TokenAmount({
   useToken(token)
   const inert = useContext(Static) || forceStatic
   const text = amount(value === null || value === undefined ? value : String(value), token)
-  if (token === null || token === undefined || token === '') return <span className={cn('tabular whitespace-nowrap', className)}>{text}</span>
+  if (token === null || token === undefined || token === '')
+    return <span className={cn('tabular-nums whitespace-nowrap', className)}>{text}</span>
   const face = (
     <>
       <TokenIcon token={token} className="mr-[0.3em]" />
       <span>{text}</span>
     </>
   )
-  if (inert) return <span className={cn('tabular whitespace-nowrap', className)}>{face}</span>
-  return <TokenPopover token={token} className={className}>{face}</TokenPopover>
+  if (inert) return <span className={cn('tabular-nums whitespace-nowrap', className)}>{face}</span>
+  return (
+    <TokenPopover token={token} className={className}>
+      {face}
+    </TokenPopover>
+  )
 }
 
 function TokenPopover({ token, className, children }: { token: string; className?: string | undefined; children: ReactNode }) {
@@ -65,13 +70,17 @@ function TokenPopover({ token, className, children }: { token: string; className
   // A popup portalled to <body> renders under an open modal <dialog> (a Sheet's top layer): portal into the dialog.
   const [container, setContainer] = useState<HTMLElement | undefined>(undefined)
   return (
-    <Popover onOpenChange={(open) => { if (open) setContainer(trigger.current?.closest('dialog') ?? undefined) }}>
+    <Popover
+      onOpenChange={(open) => {
+        if (open) setContainer(trigger.current?.closest('dialog') ?? undefined)
+      }}
+    >
       <PopoverPrimitive.Trigger
         ref={trigger}
         openOnHover
         delay={350}
         className={cn(
-          'tabular inline cursor-pointer appearance-none rounded-sm bg-transparent p-0 text-left font-[inherit] whitespace-nowrap text-inherit',
+          'tabular-nums inline cursor-pointer appearance-none rounded-sm bg-transparent p-0 text-left font-[inherit] whitespace-nowrap text-inherit',
           'decoration-current/30 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [@media(hover:hover)]:hover:underline',
           className,
         )}
@@ -104,13 +113,26 @@ function TokenCard({ token }: { token: string }) {
       <p className={cn('text-xs', source === 'unlisted' ? 'text-warning-text' : 'text-muted-foreground')}>{SOURCE[source]}</p>
       <button
         type="button"
-        onClick={() => void navigator.clipboard.writeText(token).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400) }, () => undefined)}
+        onClick={() =>
+          void navigator.clipboard.writeText(token).then(
+            () => {
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1400)
+            },
+            () => undefined,
+          )
+        }
         className="-mx-1 rounded-md px-1 py-0.5 text-left font-mono text-xs break-all text-muted-foreground hover:bg-muted hover:text-foreground"
         aria-label="Copy token address"
       >
         {copied ? 'Copied' : token}
       </button>
-      <a href={tokenExplorer(token)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline">
+      <a
+        href={tokenExplorer(token)}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline"
+      >
         <img src={MONAD_BADGE} alt="" aria-hidden className="size-4" />
         View on {chain.blockExplorers?.default.name ?? 'the explorer'}
         <ExternalLink aria-hidden className="size-3.5 text-muted-foreground" />

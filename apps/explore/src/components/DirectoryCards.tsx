@@ -1,7 +1,8 @@
+import { cn } from '../lib/cn.ts'
 import { Badge } from './ui/badge.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './ui/empty.tsx'
-import { LoadingRows, Section } from './kit.tsx'
+import { LoadingRows, Section, textLinkClass } from './kit.tsx'
 import type { DirectoryAgent, ServiceAdvertisement } from '@sidequest/sdk'
 import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { ArrowUpRight, Radio, Sparkles } from 'lucide-react'
@@ -17,10 +18,10 @@ export function presenceLabel(agent: DirectoryAgent): string {
 
 export function PresenceBadge({ agent }: { agent: DirectoryAgent }) {
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-label-2">
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       <Radio
         aria-hidden
-        className={agent.presence.freshness === 'fresh' ? 'size-3.5 shrink-0 text-good' : 'size-3.5 shrink-0 text-label-3'}
+        className={agent.presence.freshness === 'fresh' ? 'size-3.5 shrink-0 text-success-text' : 'size-3.5 shrink-0 text-muted-foreground'}
       />
       {presenceLabel(agent)}
     </span>
@@ -37,38 +38,38 @@ export function ServiceCard({
   compact?: boolean
 }) {
   return (
-    <article className="grid min-w-0 content-start gap-3 rounded-2xl bg-surface p-4 shadow-float [overflow-wrap:anywhere] sm:p-5">
+    <article className="grid min-w-0 content-start gap-3 rounded-2xl bg-card p-4 shadow-popover [overflow-wrap:anywhere] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="block text-xs font-semibold text-tint">{agent.profile.name || `Agent #${agent.agentId}`}</span>
+          <span className="block text-xs font-semibold text-primary">{agent.profile.name || `Agent #${agent.agentId}`}</span>
           <h3 className="mt-1 text-lg leading-snug font-bold tracking-tight">{ad.name}</h3>
         </div>
-        <Sparkles aria-hidden className="mt-1 size-4 shrink-0 text-tint" />
+        <Sparkles aria-hidden className="mt-1 size-4 shrink-0 text-primary" />
       </div>
       <PresenceBadge agent={agent} />
-      <p className="text-sm leading-relaxed text-label-2">{ad.description}</p>
+      <p className="text-sm leading-relaxed text-muted-foreground">{ad.description}</p>
       <div className="flex flex-wrap gap-2 text-xs">
         <Badge variant="neutral">{ad.price.model}</Badge>
         <Badge variant="neutral">{chain.testnet ? 'Testnet' : 'Discovery only'}</Badge>
         <Badge variant="neutral">Signed ad</Badge>
       </div>
       {!compact && (
-        <dl className="grid gap-3 border-t-[0.5px] border-sep pt-3 text-sm">
+        <dl className="grid gap-3 border-t-[0.5px] border-border pt-3 text-sm">
           <div>
             <dt className="font-medium">Inputs</dt>
-            <dd className="mt-0.5 text-label-2">{ad.inputs}</dd>
+            <dd className="mt-0.5 text-muted-foreground">{ad.inputs}</dd>
           </div>
           <div>
             <dt className="font-medium">Outputs</dt>
-            <dd className="mt-0.5 text-label-2">{ad.outputs}</dd>
+            <dd className="mt-0.5 text-muted-foreground">{ad.outputs}</dd>
           </div>
           <div>
             <dt className="font-medium">Operator turnaround estimate</dt>
-            <dd className="mt-0.5 text-label-2">{Math.ceil(ad.turnaroundSeconds / 60)} minutes · not measured</dd>
+            <dd className="mt-0.5 text-muted-foreground">{Math.ceil(ad.turnaroundSeconds / 60)} minutes · not measured</dd>
           </div>
           <div>
             <dt className="font-medium">Advertised reward price</dt>
-            <dd className="mt-0.5 break-all font-mono text-xs text-label-2">
+            <dd className="mt-0.5 break-all font-mono text-xs text-muted-foreground">
               {ad.price.amountBaseUnits} base units · {ad.price.token}
               <br />
               Chain {agent.chainId}; token metadata unverified
@@ -76,14 +77,17 @@ export function ServiceCard({
           </div>
           <div>
             <dt className="font-medium">Ad expires</dt>
-            <dd className="mt-0.5 text-label-2">{new Date(ad.expiresAt * 1000).toLocaleString()}</dd>
+            <dd className="mt-0.5 text-muted-foreground">{new Date(ad.expiresAt * 1000).toLocaleString()}</dd>
           </div>
         </dl>
       )}
       {compact && (
         <BoardLink
           target={boardRoutes().agent(agent.agentId)}
-          className="press mt-1 inline-flex min-h-11 items-center gap-1 font-semibold text-tint"
+          className={cn(
+            textLinkClass,
+            'transition-transform duration-(--dur-fast) ease-(--ease-out-strong) active:scale-[0.96] mt-1 inline-flex min-h-11 items-center gap-1 font-semibold',
+          )}
         >
           View profile <ArrowUpRight aria-hidden className="size-4" />
         </BoardLink>
@@ -121,7 +125,7 @@ export function ServiceShowcase() {
         </div>
       )}
       {directory.data !== undefined && (
-        <p className="mt-2 text-xs text-label-3">
+        <p className="mt-2 text-xs text-muted-foreground">
           Observed {new Date(directory.data.observedAt * 1000).toLocaleTimeString()} · opted-in Sidequest workers only, not the whole
           registry.
         </p>
@@ -138,7 +142,7 @@ export function DirectorySection({ agent }: { agent: DirectoryAgent }) {
     >
       <div className="mb-3 grid gap-1">
         <PresenceBadge agent={agent} />
-        <p className="text-xs text-label-3">
+        <p className="text-xs text-muted-foreground">
           Opted in · {agent.profileSource} profile · wallet {agent.ownership}
           {agent.presence.lastSeenBucket === null
             ? ' · no heartbeat yet'

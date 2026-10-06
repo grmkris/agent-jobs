@@ -1,7 +1,8 @@
+import { cn } from '../lib/cn.ts'
 import { Badge } from './ui/badge.tsx'
 import { Button } from './ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './ui/empty.tsx'
-import { Address as AddressText, Section } from './kit.tsx'
+import { Address as AddressText, Section, textLinkClass } from './kit.tsx'
 import type { DirectoryAgent } from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import type { Address } from 'viem'
@@ -54,19 +55,19 @@ export function DelegationPositions({
             <article
               key={position.account}
               aria-label={`Position in ${agent?.profile.name ?? position.account}`}
-              className="mb-2 grid gap-3 rounded-xl bg-surface p-4 last:mb-0"
+              className="mb-2 grid gap-3 rounded-xl bg-card p-4 last:mb-0"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   {agent === undefined ? (
                     <AddressText value={position.account} />
                   ) : (
-                    <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className="block font-semibold text-tint">
+                    <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className={cn(textLinkClass, 'block font-semibold')}>
                       {agent.profile.name || `Agent #${agent.agentId}`}
                     </Link>
                   )}
-                  <p className="mt-1 tabular text-lg font-semibold">{factoryValue(position.value)}</p>
-                  <p className="text-sm text-label-2">{percent(position.shareBps)} of total backing</p>
+                  <p className="mt-1 tabular-nums text-lg font-semibold">{factoryValue(position.value)}</p>
+                  <p className="text-sm text-muted-foreground">{percent(position.shareBps)} of total backing</p>
                 </div>
                 <Badge variant={bonded ? 'warning' : ready ? 'success' : 'neutral'}>
                   {position.staleGeneration
@@ -83,7 +84,7 @@ export function DelegationPositions({
                 </Badge>
               </div>
               {queued && (
-                <p className="text-sm text-label-2">
+                <p className="text-sm text-muted-foreground">
                   {factoryValue(position.queued)} leaving
                   {leaving ? (
                     <>
@@ -97,7 +98,7 @@ export function DelegationPositions({
                   )}
                 </p>
               )}
-              <p className="text-sm text-label-2">
+              <p className="text-sm text-muted-foreground">
                 {factoryValue(position.activeValue)} active · {percent(backing.tier.feeBps)} worker fee
               </p>
               <div className="flex flex-wrap gap-2">

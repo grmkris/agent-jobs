@@ -1,7 +1,7 @@
 import { Badge } from '../ui/badge.tsx'
 import { cn } from '../../lib/cn.ts'
 import { Item, ItemGroup, ItemContent } from '../ui/item.tsx'
-import { Address, Section, TxLink } from '../kit.tsx'
+import { Address, Section, TxLink, textLinkClass } from '../kit.tsx'
 /**
  * Where the work is (ADR-0006: a git commit, a patch, a file, a live URL or an on-chain result) and what was checked
  * about it: the board's one-time check at submit (advisory) and any signed attestation of a required GitHub check.
@@ -24,7 +24,7 @@ function Link({ href, children }: { href: string; children: React.ReactNode }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex max-w-full items-center gap-1 text-tint [overflow-wrap:anywhere]"
+      className={cn(textLinkClass, 'inline-flex max-w-full items-center gap-1 [overflow-wrap:anywhere]')}
     >
       <span className="min-w-0">{children}</span>
       <ExternalLink aria-hidden className="size-3 shrink-0" />
@@ -74,10 +74,15 @@ function CheckLine({ check }: { check: DeliverableCheck | null }) {
   if (check === null) return null
   const ok = check.ok === true
   return (
-    <span className={cn('flex items-center gap-1.5 text-ui', ok ? 'text-ok' : check.ok === false ? 'text-bad' : 'text-label-2')}>
+    <span
+      className={cn(
+        'flex items-center gap-1.5 text-ui',
+        ok ? 'text-success-text' : check.ok === false ? 'text-destructive-text' : 'text-muted-foreground',
+      )}
+    >
       {ok ? <Check aria-hidden className="size-3.5" strokeWidth={3} /> : <CircleAlert aria-hidden className="size-3.5" />}
       {ok ? 'Checked at submit' : check.ok === false ? 'Check at submit failed' : 'Not checked'}
-      <span className="text-label-3">· {check.detail}</span>
+      <span className="text-muted-foreground">· {check.detail}</span>
     </span>
   )
 }
@@ -86,7 +91,7 @@ function CheckLine({ check }: { check: DeliverableCheck | null }) {
 export function DeliverableLine({ d, check }: { d: Deliverable; check: DeliverableCheck | null }) {
   return (
     <span className="grid gap-0.5 text-sm">
-      <span className="text-label-2">
+      <span className="text-muted-foreground">
         {KIND[d.kind]} · <Where d={d} />
       </span>
       <CheckLine check={check} />
@@ -127,11 +132,11 @@ export function Delivered({
                 <Badge variant={e.conclusion === 'success' ? 'success' : 'destructive'}>
                   {e.conclusion === 'success' ? 'Check passed' : 'Check failed'}
                 </Badge>
-                <span className="text-label-2">
+                <span className="text-muted-foreground">
                   {e.onchainMatch ? 'on the delivered commit' : e.expired ? 'attestation expired' : 'on a different commit'}
                 </span>
               </span>
-              <span className="flex flex-wrap items-center gap-2 text-ui text-label-3">
+              <span className="flex flex-wrap items-center gap-2 text-ui text-muted-foreground">
                 Signed by <Address value={e.verifier} /> <TxLink hash={e.tx_hash} />
               </span>
             </ItemContent>

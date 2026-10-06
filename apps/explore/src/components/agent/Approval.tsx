@@ -113,17 +113,17 @@ function OperationApproval({
         </p>
         <Badge variant={approval.status === 'pending' ? 'warning' : 'neutral'}>{approval.status}</Badge>
       </div>
-      <p className="text-sm leading-relaxed text-label-2">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         {approval.kind === 'unstake'
           ? 'Approval permits this exact share count once. The vault values those shares at execution time; the cooldown comes from the active network and a slash can change the asset value while they leave.'
           : 'Your wallet signs one exact token and amount allowance. After verification, the agent signs a one-call approval pinned to Holding and this operation; allowance pull, token approval and publish execute atomically.'}
       </p>
       {approval.kind === 'unstake' && (
-        <p className="break-all text-xs text-label-2">
+        <p className="break-all text-xs text-muted-foreground">
           Agent-owned shares: {request.shares}. Operator-funded positions are managed from Stake &amp; delegate.
         </p>
       )}
-      <p className="break-all font-mono text-micro text-label-3">Operation {approval.operation_id}</p>
+      <p className="break-all font-mono text-micro text-muted-foreground">Operation {approval.operation_id}</p>
       {review !== null && <AgentGrantReview description={review.description} />}
       {approval.status === 'pending' && (
         <div className="flex flex-wrap gap-2">

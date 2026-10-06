@@ -1,7 +1,8 @@
+import { cn } from '../lib/cn.ts'
 import { Button } from './ui/button.tsx'
 import { Input } from './ui/input.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { Section } from './kit.tsx'
+import { Section, textLinkClass } from './kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
@@ -179,19 +180,19 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
     >
       <OperatorBalances operator={operator as Address} />
       {backing.isError || backing.data === undefined ? (
-        <p className="text-sm text-label-2">Agent backing is unavailable.</p>
+        <p className="text-sm text-muted-foreground">Agent backing is unavailable.</p>
       ) : (
-        <dl aria-label="This agent’s backing" className="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular">
+        <dl aria-label="This agent’s backing" className="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
           <div>
-            <dt className="text-label-2">Total backing</dt>
+            <dt className="text-muted-foreground">Total backing</dt>
             <dd>{factoryValue(backing.data.backing.assets)}</dd>
           </div>
           <div>
-            <dt className="text-label-2">Active backing</dt>
+            <dt className="text-muted-foreground">Active backing</dt>
             <dd>{factoryValue(backing.data.backing.active)}</dd>
           </div>
           <div>
-            <dt className="text-label-2">Reserved for bonds</dt>
+            <dt className="text-muted-foreground">Reserved for bonds</dt>
             <dd>{factoryValue(backing.data.backing.reserved)}</dd>
           </div>
         </dl>
@@ -217,7 +218,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           </Button>
         </div>
       ) : intent.account.toLowerCase() !== agent.address?.toLowerCase() || intent.kind !== 'delegate' ? (
-        <Link to="/backing" className="min-h-11 content-center font-semibold text-tint">
+        <Link to="/backing" className={cn(textLinkClass, 'min-h-11 content-center font-semibold')}>
           Open your backing to reconcile your saved position action
         </Link>
       ) : (

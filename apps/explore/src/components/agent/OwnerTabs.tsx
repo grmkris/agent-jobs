@@ -52,7 +52,7 @@ export function OwnerTabs({ id, managed, overview }: { id: string; managed: Mana
         <TabsTrigger value="approvals" className={triggerClass}>
           Approvals
           {pending > 0 && (
-            <span className="rounded-full bg-warning/15 px-1.5 text-micro font-semibold text-warning-text tabular">
+            <span className="rounded-full bg-warning/15 px-1.5 text-micro font-semibold text-warning-text tabular-nums">
               {pending}
               <span className="sr-only"> waiting</span>
             </span>

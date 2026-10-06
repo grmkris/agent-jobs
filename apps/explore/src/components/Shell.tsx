@@ -1,3 +1,4 @@
+import { textLinkClass } from './kit.tsx'
 import { cn } from '../lib/cn.ts'
 /**
  * The app's frame, around two places: Jobs (every board's work, quotes and workers) and Agents (the operator's own).
@@ -59,16 +60,15 @@ function places(mine: ReadonlySet<string>): Place[] {
 export function Mark() {
   return (
     <svg aria-hidden viewBox="0 0 32 32" className="size-6 shrink-0">
-      <rect width="32" height="32" rx="7" className="fill-tint" />
+      <rect width="32" height="32" rx="7" className="fill-primary" />
       <path
         d="M8 9h8l8 8M24 23h-8l-8-8"
-        className="stroke-on-tint"
+        className="stroke-primary-foreground"
         strokeWidth="3.5"
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
-      />
-    </svg>
+      />    </svg>
   )
 }
 
@@ -181,7 +181,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <main
           key={pathname}
           className={cn(
-            'mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-spring)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16',
+            'mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-sheet)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16',
             pathname === '/' ? 'max-w-7xl' : 'max-w-3xl',
           )}
         >
@@ -220,8 +220,11 @@ export function Shell({ children }: { children: ReactNode }) {
               target={p.target}
               aria-current={on ? 'page' : undefined}
               className={cn(
-                'relative grid min-h-11 justify-items-center gap-0.5 py-1 text-micro font-medium transition-opacity active:opacity-60',
-                on ? 'text-foreground' : 'text-muted-foreground',
+                textLinkClass,
+                cn(
+                  'relative grid min-h-11 justify-items-center gap-0.5 py-1 text-micro font-medium transition-opacity active:opacity-60',
+                  on ? 'text-foreground' : 'text-muted-foreground',
+                ),
               )}
             >
               <Icon aria-hidden className="size-6" strokeWidth={on ? 2.2 : 1.7} />

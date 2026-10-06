@@ -38,8 +38,8 @@ export function TelegramPage() {
       <>
         <PageTitle sub={SUB}>Telegram</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to link Telegram</h2>
+        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
+          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to link Telegram</h2>
           <SignInToPublish auth={auth} label="Sign in" />
         </section>
       </>
@@ -129,7 +129,7 @@ function TelegramLink({ wallet }: { wallet: string }) {
       {status.isLoading ? (
         <LoadingRows rows={2} />
       ) : status.isError ? (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>Whether Telegram is linked cannot be read right now.</p>
           <Button variant="secondary" onClick={() => void status.refetch()}>
             Retry
@@ -140,7 +140,7 @@ function TelegramLink({ wallet }: { wallet: string }) {
           <ItemGroup>
             <Item className="before:left-14">
               <ItemMedia>
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success/12 text-success-text">
                   <Send aria-hidden data-icon="inline-start" />
                 </span>
               </ItemMedia>
@@ -149,7 +149,7 @@ function TelegramLink({ wallet }: { wallet: string }) {
                   {status.data?.username == null ? 'Your Telegram chat' : `@${status.data.username}`}
                 </ItemTitle>
                 {status.data?.linkedAt != null && (
-                  <span className="block text-ui text-label-2">
+                  <span className="block text-ui text-muted-foreground">
                     Linked <When at={status.data.linkedAt} show="relative" />
                   </span>
                 )}
@@ -160,12 +160,12 @@ function TelegramLink({ wallet }: { wallet: string }) {
         </Section>
       ) : waiting && link !== null ? (
         <Section title="Open Telegram" note="Press Start in the chat. This page updates once the bot has linked your wallet.">
-          <div className="grid gap-3 rounded-2xl bg-surface p-4">
+          <div className="grid gap-3 rounded-2xl bg-card p-4">
             <a href={link} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: 'lg' })}>
               <Send aria-hidden data-icon="inline-start" />
               Open @{TELEGRAM_BOT}
             </a>
-            <p role="status" className="text-center text-sm text-label-2">
+            <p role="status" className="text-center text-sm text-muted-foreground">
               Waiting for Telegram. The code expires in <Countdown to={pending.expiresAt} />.
             </p>
             <Button variant="link" onClick={forget}>
@@ -176,12 +176,12 @@ function TelegramLink({ wallet }: { wallet: string }) {
       ) : (
         <div className="grid gap-2">
           {pending !== null && (
-            <p className="px-4 text-sm text-warn">The last code expired before the bot used it. Link again for a new one.</p>
+            <p className="px-4 text-sm text-warning-text">The last code expired before the bot used it. Link again for a new one.</p>
           )}
           <Button size="lg" busy={busy === 'prepare'} onClick={() => void start()}>
             Link Telegram
           </Button>
-          <p className="px-4 text-ui leading-snug text-label-2">
+          <p className="px-4 text-ui leading-snug text-muted-foreground">
             Your wallet signs a short text to show the chat is yours. It costs nothing and allows nothing else.
           </p>
         </div>
@@ -197,7 +197,7 @@ function TelegramLink({ wallet }: { wallet: string }) {
         <ItemGroup>
           {TELEGRAM_NOTICES.map((n) => (
             <Item key={n} className="before:left-14">
-              <Bell aria-hidden className="size-4 shrink-0 text-tint" />
+              <Bell aria-hidden className="size-4 shrink-0 text-primary" />
               <ItemContent className="flex-1">{n}</ItemContent>
             </Item>
           ))}
@@ -219,7 +219,7 @@ function TelegramLink({ wallet }: { wallet: string }) {
         busy={busy === 'sign'}
         onConfirm={() => void sign()}
       >
-        <pre className="max-h-48 overflow-auto rounded-xl bg-fill p-3 font-mono text-ui leading-snug whitespace-pre-wrap break-all">
+        <pre className="max-h-48 overflow-auto rounded-xl bg-muted p-3 font-mono text-ui leading-snug whitespace-pre-wrap break-all">
           {prep?.message}
         </pre>
       </ConfirmSheet>

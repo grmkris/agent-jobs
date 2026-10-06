@@ -5,7 +5,7 @@ import { Textarea } from '../components/ui/textarea.tsx'
 import { cn } from '../lib/cn.ts'
 import { ItemGroup, Item, ItemContent } from '../components/ui/item.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { CopyButton, PageTitle, Section, Segmented, Select } from '../components/kit.tsx'
+import { CopyButton, PageTitle, Section, Segmented, Select, textLinkClass } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
@@ -167,11 +167,11 @@ function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; on
       <>
         <PageTitle>Hire again</PageTitle>
 
-        <div className="grid gap-3 rounded-2xl bg-surface p-6 text-center">
+        <div className="grid gap-3 rounded-2xl bg-card p-6 text-center">
           <p className="font-semibold">
             {failed ? `Job #${jobId}'s offer is unavailable right now` : `Job #${jobId} cannot be hired again`}
           </p>
-          <p className="text-sm text-label-2">
+          <p className="text-sm text-muted-foreground">
             {failed ? 'Its terms could not be read from the board.' : 'Only a paid job, with the agent that did it, can be hired again.'}
           </p>
           {failed && (
@@ -179,7 +179,7 @@ function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; on
               Retry
             </Button>
           )}
-          <BoardLink target={boardRoutes().publish()} className="text-tint">
+          <BoardLink target={boardRoutes().publish()} className={textLinkClass}>
             Post a new job instead
           </BoardLink>
         </div>
@@ -221,24 +221,24 @@ function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; inv
   if (agentId === undefined) return null
   if (again === undefined)
     return invite !== agentId ? null : (
-      <div role="note" className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
+      <div role="note" className="flex items-start gap-3 rounded-2xl bg-primary/10 px-4 py-3.5">
         <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
         <p className="min-w-0 leading-relaxed">
           <span className="block font-semibold">Hiring Agent ID {agentId}</span>
-          <span className="block text-sm text-label-2">
+          <span className="block text-sm text-muted-foreground">
             It is invited: you can select it as soon as the job is published. It starts when it activates.
           </span>
         </p>
       </div>
     )
   return (
-    <div role="note" className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
+    <div role="note" className="flex items-start gap-3 rounded-2xl bg-primary/10 px-4 py-3.5">
       <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
       <p className="min-w-0 leading-relaxed">
         <span className="block font-semibold">Hiring Agent #{agentId} again</span>
-        <span className="block text-sm text-label-2">
+        <span className="block text-sm text-muted-foreground">
           The same token, reward and terms as{' '}
-          <BoardLink target={boardRoutes().job(again)} className="text-tint">
+          <BoardLink target={boardRoutes().job(again)} className={textLinkClass}>
             job #{again}
           </BoardLink>
           . Agent #{agentId} is invited: you can select it as soon as the job is published. It starts when it activates.
@@ -499,7 +499,7 @@ function PostFlow({
       <PageTitle>{prefill.again !== undefined && f.mode === 'hire' ? 'Hire again' : 'Post a job'}</PageTitle>
       {f.mode === 'hire' && <HiringAgain prefill={prefill} invite={f.invite} />}
       {publishedAs !== null && (
-        <div role="status" className="grid gap-2 rounded-xl bg-ok-bg px-4 py-3 text-sm text-ok">
+        <div role="status" className="grid gap-2 rounded-xl bg-success/12 px-4 py-3 text-sm text-success-text">
           <span>This draft was already published, as job #{publishedAs}.</span>
           <span className="flex flex-wrap gap-4 font-semibold">
             <BoardLink target={boardRoutes().job(publishedAs)} className="underline">
@@ -526,12 +526,12 @@ function PostFlow({
         <fieldset disabled={runningOffer !== null} className="contents">
           <div className="grid gap-2">
             <Progress step={step} of={4} />
-            <p className="px-1 text-ui text-label-2">
+            <p className="px-1 text-ui text-muted-foreground">
               Step {step} of 4 · {step === 3 && quotes ? 'Quotes and deadline' : STEP_TITLE[step]}
             </p>
           </div>
 
-          <div key={step} className="grid animate-[view-in_0.32s_var(--ease-spring)] gap-6">
+          <div key={step} className="grid animate-[view-in_0.32s_var(--ease-sheet)] gap-6">
             {step === 1 && (
               <Section
                 title="What needs doing"
@@ -697,7 +697,7 @@ function PostFlow({
                             placeholder="0x…"
                             autoComplete="off"
                             spellCheck={false}
-                            className="font-mono text-ui"
+                            className="font-mono "
                           />
                         </FieldRow>
                       )}
@@ -708,9 +708,9 @@ function PostFlow({
                           onChange={(e) => set({ reward: e.target.value })}
                           inputMode="decimal"
                           autoComplete="off"
-                          className="tabular w-28 text-right"
+                          className="tabular-nums w-28 text-right"
                         />
-                        <span className="w-12 shrink-0 text-label-2">{symbol}</span>
+                        <span className="w-12 shrink-0 text-muted-foreground">{symbol}</span>
                       </LineRow>
                       <LineRow
                         label="Deliver within"
@@ -745,13 +745,15 @@ function PostFlow({
                     <Item>
                       <ItemContent className="grid min-w-0 gap-1 py-1">
                         <span className="font-semibold [overflow-wrap:anywhere]">{f.title}</span>
-                        <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{f.brief}</span>
+                        <span className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
+                          {f.brief}
+                        </span>
                       </ItemContent>
                     </Item>
                     {criteria.length > 0 && (
                       <Item>
                         <ItemContent className="grid min-w-0 gap-1 py-1">
-                          <span className="text-ui text-label-2">Accepted when</span>
+                          <span className="text-ui text-muted-foreground">Accepted when</span>
                           <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                             {criteria.map((c, i) => (
                               <li key={`${i}-${c}`}>{c}</li>
@@ -772,7 +774,7 @@ function PostFlow({
                       </>
                     ) : (
                       <KV label="Reward" note={tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}` : undefined}>
-                        <span className="tabular font-semibold text-label">{reward}</span>
+                        <span className="tabular-nums font-semibold text-foreground">{reward}</span>
                       </KV>
                     )}
                     <KV label="Deliver by">
@@ -818,14 +820,14 @@ function PostFlow({
                       frozen !== null ? undefined : !auth.signedIn ? (
                         <Item>
                           <Mark tone="none" />
-                          <span className="flex-1 text-label-2">Screened once you sign in and prepare the offer</span>
+                          <span className="flex-1 text-muted-foreground">Screened once you sign in and prepare the offer</span>
                         </Item>
                       ) : freezing ? (
                         <Item>
                           <Mark tone="wait" />
                           <span className="min-w-0 flex-1">
                             <span className="block">Screening your brief…</span>
-                            <span className="block text-ui text-label-2">This can take up to a minute.</span>
+                            <span className="block text-ui text-muted-foreground">This can take up to a minute.</span>
                           </span>
                         </Item>
                       ) : (
@@ -837,9 +839,11 @@ function PostFlow({
                                 <AlertDescription>The board could not prepare this offer: {freezeError}</AlertDescription>
                               </Alert>
                             ) : expired ? (
-                              <span className="text-label-2">Prepared too long ago: its deadlines have passed. Prepare it again.</span>
+                              <span className="text-muted-foreground">
+                                Prepared too long ago: its deadlines have passed. Prepare it again.
+                              </span>
                             ) : (
-                              <span className="text-label-2">Not screened yet</span>
+                              <span className="text-muted-foreground">Not screened yet</span>
                             )}
                           </span>
                           <Button size="sm" variant="secondary" disabled={publishedAs !== null} onClick={() => void freeze()}>
@@ -860,15 +864,15 @@ function PostFlow({
                 />
 
                 {!quotes && (
-                  <div className="flex items-center gap-3.5 rounded-xl bg-surface p-4">
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint/14 text-tint">
+                  <div className="flex items-center gap-3.5 rounded-xl bg-card p-4">
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/14 text-primary">
                       <Lock aria-hidden className="size-5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="tabular block text-2xl leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">
+                      <span className="tabular-nums block text-2xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">
                         {reward}
                       </span>
-                      <span className="block text-sm text-label-2">
+                      <span className="block text-sm text-muted-foreground">
                         Locked in escrow when you publish · due <When at={deliverBy} show="relative" />
                       </span>
                     </span>
@@ -879,13 +883,13 @@ function PostFlow({
                   <Disclosure title="Details">
                     <Item>
                       <ItemContent className="flex-1">Offer ID</ItemContent>
-                      <ItemContent className="font-mono text-ui text-label-2">{frozen.created.taskId}</ItemContent>
+                      <ItemContent className="font-mono text-ui text-muted-foreground">{frozen.created.taskId}</ItemContent>
                       <CopyButton value={frozen.created.taskId} label="Copy offer ID" />
                     </Item>
                     <KV label="Prepared">
                       <When at={frozen.at} />
                     </KV>
-                    <Item render={<a href={frozen.created.manifestUrl} target="_blank" rel="noreferrer" />} className={cn('text-tint')}>
+                    <Item render={<a href={frozen.created.manifestUrl} target="_blank" rel="noreferrer" />} className={textLinkClass}>
                       The full terms, as agents read them
                     </Item>
                   </Disclosure>
@@ -900,7 +904,7 @@ function PostFlow({
             )}
           </div>
 
-          {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-sm text-label-2">{problem}</p>}
+          {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-sm text-muted-foreground">{problem}</p>}
           <StepNav onBack={step === 1 || walletBusy ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
             {step < 3 ? (
               next((step + 1) as Step)
@@ -913,7 +917,7 @@ function PostFlow({
                 Ask for quotes
               </Button>
             ) : frozen !== null ? (
-              <p className="min-w-0 text-center text-sm text-label-2">Complete the wallet steps below to publish {reward}.</p>
+              <p className="min-w-0 text-center text-sm text-muted-foreground">Complete the wallet steps below to publish {reward}.</p>
             ) : (
               <Button size="lg" busy={freezing} disabled={publishedAs !== null} onClick={() => void freeze()}>
                 Prepare to publish
@@ -1071,9 +1075,9 @@ function HireTerms({
                     value={f[field]}
                     onChange={(e) => set({ [field]: e.target.value })}
                     inputMode="decimal"
-                    className="tabular w-20 text-right"
+                    className="tabular-nums w-20 text-right"
                   />
-                  <span className="w-12 shrink-0 text-label-2">hours</span>
+                  <span className="w-12 shrink-0 text-muted-foreground">hours</span>
                 </LineRow>
               ))}
             </>
@@ -1109,22 +1113,22 @@ function HireTerms({
                 placeholder="0x…"
                 autoComplete="off"
                 spellCheck={false}
-                className="font-mono text-ui"
+                className="font-mono "
               />
             </FieldRow>
           ) : (
             <Item className={cn('flex-col items-start gap-0.5')}>
               <span>Sidequest's arbiter</span>
               {defaultArbitrator === null ? (
-                <span className="text-label-3">Reading…</span>
+                <span className="text-muted-foreground">Reading…</span>
               ) : (
-                <span className="font-mono text-xs text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>
+                <span className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{defaultArbitrator}</span>
               )}
             </Item>
           )}
         </ItemGroup>
         {customArbiter && (
-          <p role="alert" className="mx-1 mt-2 rounded-xl bg-warn-bg px-4 py-3 text-sm leading-snug text-warn">
+          <p role="alert" className="mx-1 mt-2 rounded-xl bg-warning/14 px-4 py-3 text-sm leading-snug text-warning-text">
             A custom arbitrator rules on disputes instead of Sidequest's arbiter: their ruling decides who is paid and can burn a bond.
             Choose someone you and the agent both trust. It cannot be you.
           </p>
@@ -1142,9 +1146,9 @@ function HireTerms({
               value={f.creatorBond}
               onChange={(e) => set({ creatorBond: e.target.value })}
               inputMode="decimal"
-              className="tabular w-20 text-right"
+              className="tabular-nums w-20 text-right"
             />
-            <span className="w-16 shrink-0 text-label-2">SIDE</span>
+            <span className="w-16 shrink-0 text-muted-foreground">SIDE</span>
           </LineRow>
           <LineRow
             label="Agent's bond, at least"
@@ -1156,9 +1160,9 @@ function HireTerms({
               value={f.workerBond}
               onChange={(e) => set({ workerBond: e.target.value })}
               inputMode="decimal"
-              className="tabular w-20 text-right"
+              className="tabular-nums w-20 text-right"
             />
-            <span className="w-16 shrink-0 text-label-2">SIDE</span>
+            <span className="w-16 shrink-0 text-muted-foreground">SIDE</span>
           </LineRow>
         </ItemGroup>
       </Section>
@@ -1201,9 +1205,9 @@ function HoursPicker({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             inputMode="decimal"
-            className="tabular text-right"
+            className="tabular-nums text-right"
           />
-          <span className="shrink-0 text-label-2">hours · {hoursText(value)}</span>
+          <span className="shrink-0 text-muted-foreground">hours · {hoursText(value)}</span>
         </span>
       )}
     </span>
@@ -1225,9 +1229,9 @@ function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void
                 value={f.creatorBond}
                 onChange={(e) => set({ creatorBond: e.target.value })}
                 inputMode="decimal"
-                className="tabular w-20 text-right"
+                className="tabular-nums w-20 text-right"
               />
-              <span className="w-16 shrink-0 text-label-2">SIDE</span>
+              <span className="w-16 shrink-0 text-muted-foreground">SIDE</span>
             </LineRow>
 
             <LineRow
@@ -1240,9 +1244,9 @@ function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void
                 value={f.workerBond}
                 onChange={(e) => set({ workerBond: e.target.value })}
                 inputMode="decimal"
-                className="tabular w-20 text-right"
+                className="tabular-nums w-20 text-right"
               />
-              <span className="w-16 shrink-0 text-label-2">SIDE</span>
+              <span className="w-16 shrink-0 text-muted-foreground">SIDE</span>
             </LineRow>
           </>
         )}
@@ -1287,7 +1291,7 @@ function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void
               value={f.check}
               onChange={(e) => set({ check: e.target.value })}
               autoComplete="off"
-              className="w-32 font-mono text-sm"
+              className="w-32 font-mono "
             />
           </LineRow>
         )}
@@ -1341,7 +1345,7 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
                   onChange={(e) => set({ callTarget: e.target.value })}
                   autoComplete="off"
                   spellCheck={false}
-                  className="font-mono text-ui"
+                  className="font-mono "
                 />
               </FieldRow>
 
@@ -1352,7 +1356,7 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
                   onChange={(e) => set({ callFunction: e.target.value })}
                   autoComplete="off"
                   spellCheck={false}
-                  className="font-mono text-xs"
+                  className="font-mono "
                 />
               </FieldRow>
 
@@ -1366,9 +1370,9 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
                   value={f.callCap}
                   onChange={(e) => set({ callCap: e.target.value })}
                   inputMode="decimal"
-                  className="tabular w-20 text-right"
+                  className="tabular-nums w-20 text-right"
                 />
-                <span className="w-16 shrink-0 text-label-2">MON</span>
+                <span className="w-16 shrink-0 text-muted-foreground">MON</span>
               </LineRow>
             </>
           ) : (
@@ -1381,7 +1385,7 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
                   list="post-advance-tokens"
                   autoComplete="off"
                   spellCheck={false}
-                  className="font-mono text-ui"
+                  className="font-mono "
                 />
                 <datalist id="post-advance-tokens">
                   {rewardTokenList().map(([address, t]) => (
@@ -1398,14 +1402,14 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
                   value={f.budgetCap}
                   onChange={(e) => set({ budgetCap: e.target.value })}
                   inputMode="decimal"
-                  className="tabular w-20 text-right"
+                  className="tabular-nums w-20 text-right"
                 />
-                <span className="w-16 shrink-0 truncate text-label-2">{tokenInfo(f.budgetToken).symbol}</span>
+                <span className="w-16 shrink-0 truncate text-muted-foreground">{tokenInfo(f.budgetToken).symbol}</span>
               </LineRow>
             </>
           )}
 
-          <Item className={cn('text-ui leading-snug text-label-2')}>
+          <Item className={cn('text-ui leading-snug text-muted-foreground')}>
             Nothing is locked for it: once the agent has started, you grant it on the job page as an on-chain permission from your wallet,
             and can revoke it any time.
           </Item>

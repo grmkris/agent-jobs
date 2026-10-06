@@ -797,7 +797,7 @@ export function TxSteps({
         </Alert>
       )}
       {record.pending !== null && current?.at === 'uncertain' && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
           <p>{current.error}</p>
           {current.checking !== true && (
             <>
@@ -848,14 +848,14 @@ export function TxSteps({
       {notice !== null && (
         <p
           role="status"
-          className="flex flex-wrap items-center gap-x-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] leading-snug text-warn"
+          className="flex flex-wrap items-center gap-x-2 rounded-xl bg-warning/14 px-4 py-3 text-sm leading-snug text-warning-text"
         >
           {notice.text}
           {notice.hash !== undefined && <TxLink hash={notice.hash} />}
         </p>
       )}
       {record.sponsored === true && current?.at === 'uncertain' && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg px-4 py-3 text-[0.9rem] text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
           <p>{current.error}</p>
           {current.checking !== true && (
             <Button variant="secondary" onClick={() => void run(0)}>
@@ -871,11 +871,11 @@ export function TxSteps({
             <Item key={`${i}-${tx.description}`} className="before:left-14">
               <StepIcon n={i + 1} s={s} />
               <ItemContent className="min-w-0 flex-1">
-                <span className={cn('block text-[0.95rem] first-letter:uppercase', s.at === 'idle' && i !== next && 'text-label-2')}>
+                <span className={cn('block text-base first-letter:uppercase', s.at === 'idle' && i !== next && 'text-muted-foreground')}>
                   {tx.description}
                 </span>
                 {
-                  <span className="flex flex-wrap items-center gap-x-2 text-[0.8rem] text-label-2">
+                  <span className="flex flex-wrap items-center gap-x-2 text-ui text-muted-foreground">
                     {record.sponsored === true && SPONSORED_LABEL[s.at] !== undefined
                       ? SPONSORED_LABEL[s.at]
                       : record.batch && s.at === 'idle'
@@ -963,24 +963,22 @@ export function TxSteps({
 function StepIcon({ n, s }: { n: number; s: Status }) {
   if (s.at === 'recorded') {
     return (
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ok text-background">
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-success-text text-background">
         <Check aria-hidden className="size-3.5" strokeWidth={3} />
       </span>
     )
   }
   if (s.at === 'failed') {
     return (
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-bad text-background">
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-destructive-text text-background">
         <X aria-hidden className="size-3.5" strokeWidth={3} />
       </span>
     )
   }
   if (s.at === 'signing' || s.at === 'sent' || s.at === 'confirmed' || (s.at === 'uncertain' && s.checking === true)) {
-    return <span aria-hidden className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-fill-strong border-t-tint" />
+    return <span aria-hidden className="size-6 shrink-0 animate-spin rounded-full border-[2.5px] border-accent border-t-primary" />
   }
   return (
-    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-fill-strong text-[0.75rem] font-semibold text-label-2">
-      {n}
-    </span>
+    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground">{n}</span>
   )
 }

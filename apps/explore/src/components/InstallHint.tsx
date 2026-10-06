@@ -39,8 +39,8 @@ export function InstallHint() {
     }
   }
   return (
-    <div className="flex items-start gap-3 rounded-2xl bg-tint/10 px-4 py-3.5">
-      <Share aria-hidden className="mt-0.5 size-5 shrink-0 text-tint" />
+    <div className="flex items-start gap-3 rounded-2xl bg-primary/10 px-4 py-3.5">
+      <Share aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
       <p className="flex-1 text-sm leading-snug">
         <span className="font-semibold">Install Sidequest as an app.</span>{' '}
         {where === 'ios' ? (
@@ -49,7 +49,12 @@ export function InstallHint() {
           <>In Safari, choose File, then Add to Dock.</>
         )}
       </p>
-      <button type="button" aria-label="Dismiss" onClick={dismiss} className="grid size-7 shrink-0 place-items-center rounded-full text-label-3 active:bg-fill">
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={dismiss}
+        className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground active:bg-muted"
+      >
         <X className="size-4" />
       </button>
     </div>

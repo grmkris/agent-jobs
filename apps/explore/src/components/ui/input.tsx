@@ -9,7 +9,7 @@ const inputVariants = cva('', {
     variant: {
       default: '',
       /** A short code people copy from an email: monospaced, spaced and large enough to read back. */
-      code: 'font-mono text-lg tracking-[0.2em] tabular-nums md:text-lg',
+      code: 'font-mono text-lg tracking-widest tabular-nums md:text-lg',
     },
   },
   defaultVariants: { variant: 'default' },

@@ -1,5 +1,6 @@
+import { cn } from '../../lib/cn.ts'
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemActions } from '../ui/item.tsx'
-import { Section } from '../kit.tsx'
+import { Section, textLinkClass } from '../kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { erc20Abi, zeroAddress } from 'viem'
@@ -72,7 +73,7 @@ export function Preflight({
             <ItemMedia>
               <Mark tone="none" />
             </ItemMedia>
-            <ItemContent className="flex-1 text-label-2">Sign in to check your balances</ItemContent>
+            <ItemContent className="flex-1 text-muted-foreground">Sign in to check your balances</ItemContent>
           </Item>
         </ItemGroup>
       </Section>
@@ -94,10 +95,10 @@ export function Preflight({
           <ItemContent className="min-w-0 flex-1">
             <span className="block">Gas</span>
             {monValue === 0n && (
-              <span className="block text-ui text-warn">Add {chain.nativeCurrency.symbol} to pay for the transactions.</span>
+              <span className="block text-ui text-warning-text">Add {chain.nativeCurrency.symbol} to pay for the transactions.</span>
             )}
           </ItemContent>
-          <ItemContent className="tabular text-label-2">
+          <ItemContent className="tabular-nums text-muted-foreground">
             {monValue === undefined ? '…' : `${formatNumber(monValue, 18)} ${chain.nativeCurrency.symbol}`}
           </ItemContent>
         </Item>
@@ -113,10 +114,10 @@ export function Preflight({
             <ItemContent className="min-w-0 flex-1">
               <span className="block">Reward · {reward === null ? `— ${sym}` : amount(reward.toString(), token)}</span>
               {reward !== null && tokenHeld !== undefined && tokenHeld < reward && (
-                <span className="block text-ui text-warn">You need {amount((reward - tokenHeld).toString(), token)} more.</span>
+                <span className="block text-ui text-warning-text">You need {amount((reward - tokenHeld).toString(), token)} more.</span>
               )}
             </ItemContent>
-            <ItemActions className="tabular flex-col items-end text-right text-label-2">
+            <ItemActions className="tabular-nums flex-col items-end text-right text-muted-foreground">
               {tokenHeld === undefined || typeof metadata === 'string'
                 ? 'Token amount unavailable'
                 : `You hold ${formatNumber(tokenHeld, metadata.decimals)} ${metadata.symbol}`}
@@ -142,16 +143,16 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
           {need > 0n ? `Your bond · ${formatNumber(need, 18)} SIDE from backing` : 'No bond from you'}
         </span>
         {free !== undefined && free < need && (
-          <span className="block text-ui text-warn">
+          <span className="block text-ui text-warning-text">
             Delegate {formatNumber(need - free, 18)} SIDE more.{' '}
-            <Link to="/backing" className="font-semibold text-tint">
+            <Link to="/backing" className={cn(textLinkClass, 'font-semibold')}>
               Back an agent
             </Link>
           </span>
         )}
-        {unavailable && <span className="block text-ui text-warn">Available backing cannot be read right now.</span>}
+        {unavailable && <span className="block text-ui text-warning-text">Available backing cannot be read right now.</span>}
       </ItemContent>
-      <ItemActions className="tabular flex-col items-end text-right text-label-2">
+      <ItemActions className="tabular-nums flex-col items-end text-right text-muted-foreground">
         {free === undefined ? '…' : `${formatNumber(free, 18)} free`}
       </ItemActions>
     </Item>

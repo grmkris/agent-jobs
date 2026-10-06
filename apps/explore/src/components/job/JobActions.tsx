@@ -219,7 +219,7 @@ export function JobActions({
       )}
 
       {(bar.length > 0 || canDispute) && (
-        <div className="material sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 flex flex-wrap gap-2.5 rounded-2xl p-2.5 shadow-float lg:bottom-4">
+        <div className="material-chrome sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 flex flex-wrap gap-2.5 rounded-2xl p-2.5 shadow-popover lg:bottom-4">
           {bar.map((a) => (
             <Button
               key={a}
@@ -251,10 +251,10 @@ export function JobActions({
 
       {!signedIn && afterSignIn.length > 0 && (
         <div className="grid gap-2">
-          <div className="material sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 grid rounded-2xl p-2.5 shadow-float lg:bottom-4">
+          <div className="material-chrome sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 grid rounded-2xl p-2.5 shadow-popover lg:bottom-4">
             <SignInToPublish auth={auth} label={signInLabel} />
           </div>
-          <p className="px-4 text-ui text-label-2">
+          <p className="px-4 text-ui text-muted-foreground">
             {settleOnly
               ? 'Anyone signed in can send this step; sign in to do it.'
               : 'This wallet has a part in this job. Sign in to see and send what it can do.'}
@@ -278,29 +278,29 @@ export function JobActions({
         <ItemGroup>
           <Item>
             <ItemContent className="flex-1">{agent} receives</ItemContent>
-            <span className="tabular font-semibold">{paid}</span>
+            <span className="tabular-nums font-semibold">{paid}</span>
           </Item>
           {charge !== null && (
             <Item>
               <ItemContent className="flex-1">Sidequest’s {percent(charge.bps)} fee</ItemContent>
-              <ItemContent className="tabular text-label-2">{amount(charge.fee, job.token)}</ItemContent>
+              <ItemContent className="tabular-nums text-muted-foreground">{amount(charge.fee, job.token)}</ItemContent>
             </Item>
           )}
           {job.creatorBond !== null && job.creatorBond !== '0' && (
             <Item>
               <ItemContent className="flex-1">Your bond comes back</ItemContent>
-              <ItemContent className="text-label-2">{bond(job.creatorBond)}</ItemContent>
+              <ItemContent className="text-muted-foreground">{bond(job.creatorBond)}</ItemContent>
             </Item>
           )}
           {job.workerBond !== null && job.workerBond !== '0' && (
             <Item>
               <ItemContent className="flex-1">Its bond comes back</ItemContent>
-              <ItemContent className="text-label-2">{bond(job.workerBond)}</ItemContent>
+              <ItemContent className="text-muted-foreground">{bond(job.workerBond)}</ItemContent>
             </Item>
           )}
           <Item>
             <ItemContent className="flex-1">Its public record</ItemContent>
-            <ItemContent className="text-label-2">+1 completed</ItemContent>
+            <ItemContent className="text-muted-foreground">+1 completed</ItemContent>
           </Item>
         </ItemGroup>
         {error !== null && (
@@ -327,9 +327,9 @@ export function JobActions({
         onConfirm={() => void go()}
       >
         <div className="grid gap-2">
-          <span className="text-ui text-label-2">Why</span>
+          <span className="text-ui text-muted-foreground">Why</span>
           <Segmented label="Why" value={violation} onChange={setViolation} options={VIOLATIONS} />
-          <p className="text-sm leading-snug text-label-2">
+          <p className="text-sm leading-snug text-muted-foreground">
             {violation === 'None'
               ? 'The reward comes back to you and both bonds are returned. Nobody is penalised.'
               : `If the rejection stands, ${agent}'s ${bond(job.workerBond)} bond is burned. Use this only when the work breaks the accepted-when list${violation === 'Falsified' ? ' by faking its evidence' : ''}.`}
@@ -515,17 +515,17 @@ function Applications({
       }
     >
       {selected.size === 0 && job.selection?.some((selection) => selection.state === 'expired') && (
-        <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">
+        <p role="status" className="mb-2 rounded-lg bg-warning/14 px-3 py-2 text-sm text-warning-text">
           The previous selection expired before activation. You can select an applicant again.
         </p>
       )}
       {selected.size === 0 && job.selection?.some((selection) => selection.state === 'invalid') && (
-        <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">
+        <p role="status" className="mb-2 rounded-lg bg-warning/14 px-3 py-2 text-sm text-warning-text">
           The previous selection is no longer valid for this offer. No worker activation is confirmed.
         </p>
       )}
       {job.selection?.some((selection) => selection.state === 'unavailable') && (
-        <p role="status" className="mb-2 rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">
+        <p role="status" className="mb-2 rounded-lg bg-warning/14 px-3 py-2 text-sm text-warning-text">
           Selection verification is unavailable. A stored signature is not proof the worker can still activate.
         </p>
       )}
@@ -550,10 +550,10 @@ function Applications({
                   </BoardLink>
                   {hiredBefore.has(a.agent_id) && <Badge variant="info">Hired before</Badge>}
                 </span>
-                <ItemDescription className="block text-ui text-label-2">
+                <ItemDescription className="block text-ui text-muted-foreground">
                   <AgentRecord agentId={a.agent_id} />
                 </ItemDescription>
-                {a.note !== '' && <span className="block text-sm text-label-2">“{a.note}”</span>}
+                {a.note !== '' && <span className="block text-sm text-muted-foreground">“{a.note}”</span>}
               </ItemContent>
               {selected.has(a.id) ? (
                 <Badge variant="success">Selected</Badge>

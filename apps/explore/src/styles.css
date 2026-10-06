@@ -142,42 +142,9 @@
   --ease-out-strong: cubic-bezier(0.2, 0, 0, 1);
   /* Every surface that slides in from an edge settles like an iOS sheet: fast out of the gate, a long soft landing. */
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-spring: var(--ease-sheet);
   --dur-fast: 120ms;
   --dur-base: 180ms;
   --dur-slow: 240ms;
-}
-
-/*
- * Legacy names (the hand-rolled kit before base-nova), pointed at the new tokens so every page restyles at once.
- * They go when the last page is migrated; design-tokens.test.ts will then guard against their return.
- */
-:root {
-  --tint: var(--primary);
-  --on-tint: var(--primary-foreground);
-  --bg: var(--background);
-  --surface: var(--card);
-  --surface-2: var(--muted);
-  --fill: var(--muted);
-  --fill-strong: color-mix(in oklab, var(--foreground) 8%, transparent);
-  --label: var(--foreground);
-  --label-2: var(--muted-foreground);
-  --label-3: var(--muted-foreground);
-  --sep: var(--border);
-  --bar: color-mix(in oklab, var(--background) 72%, transparent);
-  --side: var(--sidebar);
-  --scrim: var(--overlay);
-  --ok: var(--success-text);
-  --ok-bg: color-mix(in oklab, var(--success) 12%, transparent);
-  --warn: var(--warning-text);
-  --warn-bg: color-mix(in oklab, var(--warning) 14%, transparent);
-  --info-bg: color-mix(in oklab, var(--info) 12%, transparent);
-  --bad: var(--destructive-text);
-  --bad-bg: color-mix(in oklab, var(--destructive) 12%, transparent);
-  --gray: var(--muted-foreground);
-  --gray-bg: var(--muted);
-  --code: var(--muted);
-  --shadow: var(--elevation-popover);
 }
 
 /* `dark:` follows the same two switches as the tokens: the system setting, unless <html data-theme> forces one. */
@@ -246,33 +213,6 @@
   /* One elevation recipe for everything that floats over the page, one for persistent chips. */
   --shadow-popover: var(--elevation-popover);
   --shadow-chip: var(--elevation-chip);
-  /* Legacy utilities (bg-surface, text-label-2, bg-tint/14…), on the new tokens until each page is migrated. */
-  --color-tint: var(--primary);
-  --color-on-tint: var(--primary-foreground);
-  --color-bg: var(--background);
-  --color-surface: var(--card);
-  --color-surface-2: var(--muted);
-  --color-fill: var(--muted);
-  --color-fill-strong: var(--fill-strong);
-  --color-label: var(--foreground);
-  --color-label-2: var(--muted-foreground);
-  --color-label-3: var(--muted-foreground);
-  --color-sep: var(--border);
-  --color-bar: var(--bar);
-  --color-side: var(--sidebar);
-  --color-scrim: var(--overlay);
-  --color-ok: var(--success-text);
-  --color-ok-bg: var(--ok-bg);
-  --color-warn: var(--warning-text);
-  --color-warn-bg: var(--warn-bg);
-  --color-info-bg: var(--info-bg);
-  --color-bad: var(--destructive-text);
-  --color-bad-bg: var(--bad-bg);
-  --color-gray: var(--muted-foreground);
-  --color-gray-bg: var(--muted);
-  --color-code: var(--muted);
-  --shadow-float: var(--elevation-popover);
-  --radius-group: calc(var(--radius) * 1.4);
 }
 
 @layer base {
@@ -344,22 +284,12 @@
   ::placeholder {
     color: var(--muted-foreground);
   }
-  /* The primary is near-black, so a link styled with the legacy tint needs an underline to read as a link. */
-  main a.text-tint:not([data-slot='button']):not([class*='bg-']) {
-    text-decoration: underline;
-    text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
-    text-underline-offset: 3px;
-  }
 }
 @media (forced-colors: active) {
   :focus-visible {
     outline: 2px solid Highlight !important;
     outline-offset: 2px;
   }
-}
-
-@utility tabular {
-  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -369,26 +299,6 @@
  * defined border, where they ask for more contrast.
  */
 @utility material-chrome {
-  background-color: color-mix(in oklab, var(--background) 72%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
-  @supports not (backdrop-filter: blur(1px)) {
-    background-color: var(--background);
-  }
-  @media (prefers-reduced-transparency: reduce) {
-    background-color: var(--background);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  @media (prefers-contrast: more) {
-    background-color: var(--background);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    border-color: var(--foreground);
-  }
-}
-/* The legacy name for the same material. */
-@utility material {
   background-color: color-mix(in oklab, var(--background) 72%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   backdrop-filter: blur(20px) saturate(1.6);
@@ -422,16 +332,6 @@
     &::after {
       display: none;
     }
-  }
-}
-
-/* Feedback on the press itself, instant. */
-@utility press {
-  transition:
-    transform var(--dur-fast) var(--ease-out-strong),
-    opacity var(--dur-fast);
-  &:active {
-    transform: scale(0.96);
   }
 }
 
@@ -475,48 +375,5 @@ dialog::backdrop {
 @keyframes scrim-in {
   from {
     opacity: 0;
-  }
-}
-
-/* A quiet label above a group (no mono, no capitals): the page's structure should not shout. */
-.eyebrow {
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-}
-
-/* The legacy link-as-button class (Connect, Workspace), in the base-nova button's look until those pages migrate. */
-.action-link {
-  display: inline-flex;
-  min-height: 2rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  padding: 0.25rem 0.625rem;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition:
-    transform var(--dur-fast) var(--ease-out-strong),
-    opacity var(--dur-fast);
-}
-.action-link:hover {
-  opacity: 0.88;
-}
-.action-link:active {
-  transform: scale(0.96);
-}
-.action-link.secondary {
-  color: var(--foreground);
-  background: var(--background);
-  border-color: var(--border);
-}
-@media (pointer: coarse) {
-  .action-link {
-    min-height: 2.75rem;
   }
 }

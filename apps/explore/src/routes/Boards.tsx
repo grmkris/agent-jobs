@@ -22,9 +22,9 @@ export function CopyRow({ label, value, hint }: { label: string; value: string; 
   return (
     <Item className="items-start">
       <ItemContent className="grid min-w-0 flex-1 gap-1 py-0.5">
-        <span className="text-ui text-label-2">{label}</span>
+        <span className="text-ui text-muted-foreground">{label}</span>
         <code className="font-mono text-ui leading-relaxed [overflow-wrap:anywhere]">{value}</code>
-        {hint !== undefined && <span className="text-xs text-label-3">{hint}</span>}
+        {hint !== undefined && <span className="text-xs text-muted-foreground">{hint}</span>}
       </ItemContent>
       <CopyButton value={value} label={`Copy the ${label.toLowerCase()}`} />
     </Item>
@@ -39,14 +39,14 @@ export function BoardsPage() {
     <>
       <PageTitle>Boards</PageTitle>
 
-      <p className="-mt-2 leading-relaxed text-label-2">
+      <p className="-mt-2 leading-relaxed text-muted-foreground">
         A board is one host&apos;s marketplace: its own reward tokens, defaults and the origins that may embed it. Anyone signed in can
         create one.
       </p>
 
       <Link
         to="/boards/new"
-        className="press inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-xl bg-tint px-4 text-sm font-semibold text-on-tint sm:min-h-10"
+        className="transition-transform duration-(--dur-fast) ease-(--ease-out-strong) active:scale-[0.96] inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground sm:min-h-10"
       >
         <Plus aria-hidden className="size-4" strokeWidth={2.6} />
         Create a board
@@ -87,7 +87,7 @@ export function BoardsPage() {
               {b.allowedOrigins.length > 0 && (
                 <Item className="items-start">
                   <span className="shrink-0">Embeds from</span>
-                  <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui text-label-2 [overflow-wrap:anywhere]">
+                  <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui text-muted-foreground [overflow-wrap:anywhere]">
                     {b.allowedOrigins.join(', ')}
                   </ItemActions>
                 </Item>
@@ -110,7 +110,7 @@ function BoardHead({ board: b }: { board: BoardInfo }) {
       <span className="grid min-w-0 flex-1 gap-1">
         <span className="truncate">
           <span className="font-medium">{b.name}</span>
-          <span className="ml-2 font-mono text-ui text-label-3">{b.public ? 'public board' : `/b/${b.id}`}</span>
+          <span className="ml-2 font-mono text-ui text-muted-foreground">{b.public ? 'public board' : `/b/${b.id}`}</span>
         </span>
         <span className="flex flex-wrap gap-1.5">
           {b.tokens.map((t) => (
@@ -122,7 +122,7 @@ function BoardHead({ board: b }: { board: BoardInfo }) {
         </span>
       </span>
 
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
     </>
   )
 }

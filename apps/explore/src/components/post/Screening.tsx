@@ -48,7 +48,7 @@ export function ScreeningCard({
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
               <span className="block">Not screened</span>
-              <ItemDescription className="block text-ui leading-snug text-label-2">
+              <ItemDescription className="block text-ui leading-snug text-muted-foreground">
                 The screener was not available for this offer, so nothing was checked.
               </ItemDescription>
             </ItemContent>
@@ -61,7 +61,7 @@ export function ScreeningCard({
             <ItemContent className="min-w-0 flex-1">
               <ItemTitle className="block font-medium">{v.text}</ItemTitle>
               {(screening?.reasons.length ?? 0) > 0 && (
-                <span className="mt-0.5 grid gap-0.5 text-ui leading-snug text-label-2">
+                <span className="mt-0.5 grid gap-0.5 text-ui leading-snug text-muted-foreground">
                   {screening?.reasons.map((r) => (
                     <span key={r} className="block first-letter:uppercase">
                       {r}

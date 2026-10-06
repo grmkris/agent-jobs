@@ -20,7 +20,7 @@ export function Count({ n, kind, className }: { n: number; kind: 'collect' | 'wa
     <span
       aria-label={kind === 'collect' ? `${n} to collect` : `${n} waiting`}
       className={cn(
-        'tabular grid h-[1.1rem] min-w-[1.1rem] place-items-center rounded-full px-1 text-micro leading-none font-semibold',
+        'tabular-nums grid h-[1.1rem] min-w-[1.1rem] place-items-center rounded-full px-1 text-micro leading-none font-semibold',
         kind === 'collect' ? 'bg-destructive-text text-background' : 'bg-warning/15 text-warning-text',
         className,
       )}

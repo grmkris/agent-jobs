@@ -1,8 +1,9 @@
+import { cn } from '../../lib/cn.ts'
 import { Button } from '../ui/button.tsx'
 import { Input } from '../ui/input.tsx'
 import { Alert, AlertDescription } from '../ui/alert.tsx'
 import { Item, ItemGroup, ItemDescription, ItemContent, ItemActions } from '../ui/item.tsx'
-import { Section } from '../kit.tsx'
+import { Section, textLinkClass } from '../kit.tsx'
 /**
  * What a Sidequest v1 job adds to its page (ADR-0011): before activation, the fee a worker would pay and what it would
  * receive, from `quoteActivation`; after activation, a top-up anyone can add to the reward. Both read and write the v1
@@ -46,20 +47,22 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
           <Item>
             <ItemContent className="flex-1">
               <span className="block">Sidequest’s fee{bps === undefined ? '' : ` · ${percent(Number(bps))}`}</span>
-              <ItemDescription className="block text-xs leading-snug text-label-3">Your rate, set by total backing</ItemDescription>
+              <ItemDescription className="block text-xs leading-snug text-muted-foreground">
+                Your rate, set by total backing
+              </ItemDescription>
             </ItemContent>
             {/* min-w-24: the value's room is kept while it loads, so the label does not rewrap when it lands. */}
-            <ItemActions className="tabular min-w-24 flex-col items-end text-right text-label-2">
+            <ItemActions className="tabular-nums min-w-24 flex-col items-end text-right text-muted-foreground">
               {fee === undefined ? '…' : `− ${amount(fee.toString(), token)}`}
             </ItemActions>
           </Item>
           <Item>
             <ItemContent className="flex-1 font-semibold">You receive</ItemContent>
-            <ItemActions className="tabular min-w-24 flex-col items-end text-right font-semibold">
+            <ItemActions className="tabular-nums min-w-24 flex-col items-end text-right font-semibold">
               {net === undefined ? '…' : amount(net.toString(), token)}
             </ItemActions>
           </Item>
-          <Link to="/backing" className="flex min-h-11 items-center px-4 text-sm text-tint">
+          <Link to="/backing" className={cn(textLinkClass, 'flex min-h-11 items-center px-4 text-sm')}>
             Delegate more to pay a lower fee
           </Link>
         </ItemGroup>
@@ -113,12 +116,12 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
       <ItemGroup>
         <Item>
           <ItemContent className="flex-1">Added so far</ItemContent>
-          <span className="tabular">{listing === undefined ? '…' : amount(listing.bonus.toString(), token)}</span>
+          <span className="tabular-nums">{listing === undefined ? '…' : amount(listing.bonus.toString(), token)}</span>
         </Item>
         {mine !== undefined && mine > 0n && (
           <Item>
-            <ItemContent className="flex-1 text-label-2">By you</ItemContent>
-            <ItemContent className="tabular text-label-2">{amount(mine.toString(), token)}</ItemContent>
+            <ItemContent className="flex-1 text-muted-foreground">By you</ItemContent>
+            <ItemContent className="tabular-nums text-muted-foreground">{amount(mine.toString(), token)}</ItemContent>
           </Item>
         )}
       </ItemGroup>
@@ -151,9 +154,9 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
             onChange={(e) => setText(e.target.value)}
             inputMode="decimal"
             placeholder="0.00"
-            className="tabular flex-1 text-right"
+            className="tabular-nums flex-1 text-right"
           />
-          <span className="self-center text-label-2">{tokenInfo(token).symbol}</span>
+          <span className="self-center text-muted-foreground">{tokenInfo(token).symbol}</span>
           <Button type="submit" variant="secondary" disabled={!valid}>
             Add
           </Button>

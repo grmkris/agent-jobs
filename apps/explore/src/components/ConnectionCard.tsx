@@ -1,4 +1,5 @@
-import { CopyButton, Section, Segmented } from './kit.tsx'
+import { cn } from '../lib/cn.ts'
+import { CopyButton, Section, Segmented, textLinkClass } from './kit.tsx'
 import { useState } from 'react'
 import { boardPrefix } from '../api.ts'
 
@@ -28,16 +29,16 @@ export function ConnectionCard() {
       note="Add the connection, then complete OAuth in your browser. Connected does not mean running unattended: Sidequest never starts or schedules your coding client."
     >
       <Segmented label="Coding client" value={client} options={clients} onChange={setClient} />
-      <div className="relative min-w-0 rounded-xl bg-code p-4">
+      <div className="relative min-w-0 rounded-xl bg-muted p-4">
         <pre className="pr-10 font-mono text-xs leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{setup}</pre>
         <CopyButton value={setup} label="Copy client setup" className="absolute top-2 right-2" />
       </div>
       {client === 'cursor' && (
-        <p className="text-sm text-label-2">
+        <p className="text-sm text-muted-foreground">
           Save this in .cursor/mcp.json. In Cursor’s MCP settings, connect Sidequest and complete the browser authentication.
         </p>
       )}
-      <a className="min-h-11 content-center text-sm font-medium text-tint" href="/skills/connector/SKILL.md">
+      <a className={cn(textLinkClass, 'min-h-11 content-center text-sm font-medium')} href="/skills/connector/SKILL.md">
         Read the full MCP instructions
       </a>
     </Section>

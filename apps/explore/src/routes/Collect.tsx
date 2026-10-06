@@ -1,7 +1,8 @@
+import { cn } from '../lib/cn.ts'
 import { Button } from '../components/ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Item, ItemGroup, ItemMedia, ItemContent } from '../components/ui/item.tsx'
-import { LoadingRows, PageTitle } from '../components/kit.tsx'
+import { LoadingRows, PageTitle, textLinkClass } from '../components/kit.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Coins, Gem, Hourglass, type LucideIcon, ReceiptText, RotateCcw, Scale } from 'lucide-react'
 import { Fragment, useState } from 'react'
@@ -45,8 +46,8 @@ export function CollectPage() {
       <>
         <PageTitle sub="Payments, refunds and stake you can claim.">Collect</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to see what you can collect</h2>
+        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
+          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to see what you can collect</h2>
           <SignInToPublish auth={auth} label="Sign in" />
         </section>
       </>
@@ -61,7 +62,7 @@ export function CollectPage() {
       {actions.isLoading ? (
         <LoadingRows rows={3} />
       ) : actions.isError ? (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>What you can collect cannot be read right now. This does not mean there is nothing waiting for you.</p>
           <Button variant="secondary" onClick={() => void actions.refetch()}>
             Retry
@@ -91,7 +92,7 @@ export function CollectPage() {
               <Fragment key={key}>
                 <Item className="before:left-14">
                   <ItemMedia>
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint/14 text-tint">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/14 text-primary">
                       <Icon aria-hidden className="size-4" />
                     </span>
                   </ItemMedia>
@@ -99,26 +100,26 @@ export function CollectPage() {
                     {mining?.ok === true ? (
                       <span className="block font-medium">
                         Mining reward, epoch {String(mining.epoch)} ·{' '}
-                        <span className="tabular font-semibold">{formatNumber(mining.amount, 18)} SIDE</span>, staked when collected
+                        <span className="tabular-nums font-semibold">{formatNumber(mining.amount, 18)} SIDE</span>, staked when collected
                       </span>
                     ) : (
                       <>
                         <span className="block font-medium">{k?.title(a) ?? a.kind}</span>
 
                         {a.amount != null && a.token != null && (
-                          <span className="tabular block font-semibold">{amount(a.amount, a.token)}</span>
+                          <span className="tabular-nums block font-semibold">{amount(a.amount, a.token)}</span>
                         )}
 
-                        <span className="block text-ui leading-snug text-label-2">{a.description}</span>
+                        <span className="block text-ui leading-snug text-muted-foreground">{a.description}</span>
                       </>
                     )}
                     {refused !== null && (
-                      <span role="alert" className="mt-1 block text-ui leading-snug text-bad">
+                      <span role="alert" className="mt-1 block text-ui leading-snug text-destructive-text">
                         Not offered: {refused}
                       </span>
                     )}
                     {a.jobId != null && (
-                      <BoardLink target={boardRoutes().job(a.jobId)} className="text-ui text-tint">
+                      <BoardLink target={boardRoutes().job(a.jobId)} className={cn(textLinkClass, 'text-ui')}>
                         Open the job
                       </BoardLink>
                     )}
@@ -157,7 +158,7 @@ export function CollectPage() {
       )}
 
       {list.length > 0 && (
-        <p className="px-4 text-ui leading-snug text-label-2">
+        <p className="px-4 text-ui leading-snug text-muted-foreground">
           The contracts decide who is paid: settling a job pays out as its outcome says and releases both bonds. What is yours comes to your
           wallet.
         </p>

@@ -121,14 +121,14 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
               <span>Hire · post, select, accept and reject</span>
             </label>
           )}
-          <p className="text-sm text-label-2">
+          <p className="text-sm text-muted-foreground">
             The spending allowance limits transfers of reward tokens. It does not cap bond exposure: an agent can activate any bonded job,
             and a slash is immediate.
           </p>
           <Button busy={busy} disabled={agent.state !== 'active' || request.data === undefined} onClick={() => void decide(true)}>
             Use this agent for this connection
           </Button>
-          <p className="text-sm text-label-2">Spending allowance and SIDE backing can be added later.</p>
+          <p className="text-sm text-muted-foreground">Spending allowance and SIDE backing can be added later.</p>
           {hire && request.data?.request.scopes.includes('sidequest:hire') && (
             <details>
               <summary className="cursor-pointer text-sm font-semibold">Optional weekly spending allowance</summary>

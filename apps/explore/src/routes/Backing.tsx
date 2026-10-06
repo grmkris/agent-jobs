@@ -1,6 +1,7 @@
+import { cn } from '../lib/cn.ts'
 import { Button } from '../components/ui/button.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { LoadingRows, PageTitle, Section } from '../components/kit.tsx'
+import { LoadingRows, PageTitle, Section, textLinkClass } from '../components/kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
@@ -48,9 +49,9 @@ export function BackingPage() {
       <>
         <PageTitle>Back an agent</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5">
+        <section className="grid gap-4 rounded-2xl bg-card p-5">
           <h2 className="font-display text-xl font-bold">Sign in to see your positions</h2>
-          <p className="text-label-2">Back an agent with SIDE and keep ownership of your position.</p>
+          <p className="text-muted-foreground">Back an agent with SIDE and keep ownership of your position.</p>
           <PrivyLogin />
         </section>
       </>
@@ -243,13 +244,13 @@ function Stake({
 
   return (
     <>
-      <Link to="/account" className="min-h-11 w-fit content-center text-tint">
+      <Link to="/account" className={cn(textLinkClass, 'min-h-11 w-fit content-center')}>
         ‹ Account
       </Link>
 
       <PageTitle sub="Back agents with SIDE. You own each position; the agent uses its backing for bonds.">Back an agent</PageTitle>
 
-      <p className="rounded-xl bg-warn-bg p-4 text-sm leading-relaxed text-warn">{DELEGATION_RISK}</p>
+      <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
 
       {initial.error !== null && (
         <Alert variant="destructive">
@@ -268,7 +269,7 @@ function Stake({
       />
 
       {(reads.isError || selected.isError) && (
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>
             {reads.data === undefined
               ? 'Your positions could not be read. This does not mean they are gone.'
@@ -291,8 +292,8 @@ function Stake({
       ) : (
         reads.data !== undefined && (
           <>
-            <p className="px-4 text-sm text-label-2">
-              In your wallet: <span className="tabular font-semibold text-label">{factoryValue(reads.data.wallet)}</span>
+            <p className="px-4 text-sm text-muted-foreground">
+              In your wallet: <span className="tabular-nums font-semibold text-foreground">{factoryValue(reads.data.wallet)}</span>
             </p>
 
             <DelegationPositions
@@ -320,7 +321,9 @@ function Stake({
 
       {operation !== null ? (
         <Section title="Confirm your position action">
-          <p className="px-4 text-sm text-label-2">Backing wallet: {operation.account}. Withdrawals return to your signed-in wallet.</p>
+          <p className="px-4 text-sm text-muted-foreground">
+            Backing wallet: {operation.account}. Withdrawals return to your signed-in wallet.
+          </p>
           <TxSteps
             key={operation.id}
             taskId={`delegation:${operation.id}`}
@@ -405,7 +408,7 @@ function Stake({
       )}
 
       {reads.data?.open === false && (
-        <p role="status" className="rounded-xl bg-tint/10 p-4 text-sm">
+        <p role="status" className="rounded-xl bg-primary/10 p-4 text-sm">
           Delegating opens at launch, once the first Holding is authorized. Your SIDE stays in your wallet until then.
         </p>
       )}

@@ -44,17 +44,13 @@ export function Section({
 /** A label and its value on one row. */
 export function Row({ label, children, hint }: { label: ReactNode; children: ReactNode; hint?: ReactNode }) {
   return (
-    <div
-      className={cn(
-        '-mx-4 flex min-h-10 items-center justify-between gap-4 px-4 py-2 text-sm first:-mt-2 last:-mb-2 pointer-coarse:min-h-11',
-      )}
-    >
+    <Item className="-mx-4 w-auto min-h-10 items-center justify-between gap-4 px-4 py-2 text-sm first:-mt-2 last:-mb-2 pointer-coarse:min-h-11">
       <span className="min-w-0">
         <span className="text-foreground">{label}</span>
         {hint !== undefined && <span className="block text-xs text-muted-foreground">{hint}</span>}
       </span>
       <span className="min-w-0 text-right text-muted-foreground [overflow-wrap:anywhere]">{children}</span>
-    </div>
+    </Item>
   )
 }
 

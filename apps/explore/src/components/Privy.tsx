@@ -93,7 +93,7 @@ function OperatorBridge({ children }: { children: ReactNode }) {
 
 /** The only way in: Privy's login (email or social). Without a Privy app the site is read-only. */
 export function PrivyLogin() {
-  if (privyAppId === '') return <span className="text-xs text-label-3">read-only</span>
+  if (privyAppId === '') return <span className="text-xs text-muted-foreground">read-only</span>
   return <PrivyLoginButton />
 }
 

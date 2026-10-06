@@ -1,7 +1,8 @@
+import { cn } from '../lib/cn.ts'
 import { Button } from './ui/button.tsx'
 import { Input } from './ui/input.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { Address as AddressText, Section, Segmented } from './kit.tsx'
+import { Address as AddressText, Section, Segmented, textLinkClass } from './kit.tsx'
 import type { DirectoryAgent } from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import type { Address } from 'viem'
@@ -57,7 +58,7 @@ export function DelegationForm({
   return (
     <Section title={mode === 'add' ? 'Delegate to an agent' : 'Leave this position'}>
       <form
-        className="grid gap-3 rounded-xl bg-surface p-4"
+        className="grid gap-3 rounded-xl bg-card p-4"
         onSubmit={(event) => {
           event.preventDefault()
           onSubmit()
@@ -67,7 +68,7 @@ export function DelegationForm({
           <span>Agent to back</span>
           <select
             aria-label="Agent to back"
-            className="min-h-11 w-full rounded-xl bg-fill px-3 text-label"
+            className="min-h-11 w-full rounded-xl bg-muted px-3 text-foreground"
             value={account}
             disabled={disabled || busy}
             onChange={(event) => onAccount(event.target.value as Address)}
@@ -88,7 +89,7 @@ export function DelegationForm({
             Load more agents
           </Button>
         )}
-        <div className="grid gap-1 text-sm text-label-2">
+        <div className="grid gap-1 text-sm text-muted-foreground">
           <span>
             Backing wallet <AddressText value={account} />
           </span>
@@ -115,7 +116,7 @@ export function DelegationForm({
               value={text}
               placeholder="0"
               onChange={(event) => onText(event.target.value)}
-              className="min-w-0 flex-1 tabular"
+              className="min-w-0 flex-1 tabular-nums"
             />
             <Button
               variant="secondary"
@@ -126,7 +127,7 @@ export function DelegationForm({
             </Button>
           </span>
         </label>
-        <p className="text-sm text-label-2">
+        <p className="text-sm text-muted-foreground">
           {mode === 'add'
             ? 'One permit signature lets the vault take exactly this amount. Then confirm the delegation in your wallet.'
             : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Bonds do not prevent requesting to leave; they may delay withdrawal.`}
@@ -152,7 +153,7 @@ export function DelegationForm({
           {mode === 'add' ? 'Delegate' : 'Leave'}
           {value === null ? '' : ` ${factoryValue(value)}`}
         </Button>
-        <Link to="/workers" className="min-h-11 content-center text-sm text-tint">
+        <Link to="/workers" className={cn(textLinkClass, 'min-h-11 content-center text-sm')}>
           View the worker directory
         </Link>
       </form>

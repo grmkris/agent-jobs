@@ -25,18 +25,23 @@ function subscribe(fn: () => void) {
 }
 
 /** The current unix second, shared by every clock on the page. */
-export const useNow = (): number => useSyncExternalStore(subscribe, () => now, () => now)
+export const useNow = (): number =>
+  useSyncExternalStore(
+    subscribe,
+    () => now,
+    () => now,
+  )
 
 const utc = (unix: number) => `${new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
 /** "Thu 1 Oct, 14:29 · in 2 h" (or only one half), with the UTC instant on hover. */
 export function When({ at, show = 'both' }: { at: number | null | undefined; show?: 'both' | 'time' | 'relative' }) {
   const t = useNow()
-  if (at === null || at === undefined || at === 0) return <span className="text-label-3">—</span>
+  if (at === null || at === undefined || at === 0) return <span className="text-muted-foreground">—</span>
   return (
-    <time dateTime={new Date(at * 1000).toISOString()} title={utc(at)} className="tabular">
+    <time dateTime={new Date(at * 1000).toISOString()} title={utc(at)} className="tabular-nums">
       {show !== 'relative' && localTime(at)}
-      {show === 'both' && <span className="text-label-3"> · </span>}
+      {show === 'both' && <span className="text-muted-foreground"> · </span>}
       {show !== 'time' && relative(at, t)}
     </time>
   )
@@ -46,7 +51,7 @@ export function When({ at, show = 'both' }: { at: number | null | undefined; sho
 export function Countdown({ to }: { to: number }) {
   const t = useNow()
   return (
-    <time dateTime={new Date(to * 1000).toISOString()} title={utc(to)} className="tabular">
+    <time dateTime={new Date(to * 1000).toISOString()} title={utc(to)} className="tabular-nums">
       {to >= t ? span(to - t) : 'passed'}
     </time>
   )

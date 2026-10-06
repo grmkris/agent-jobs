@@ -1,10 +1,11 @@
+import { cn } from '../lib/cn.ts'
 import { Badge } from './ui/badge.tsx'
 import { Button } from './ui/button.tsx'
 import { Field, FieldLabel, FieldDescription } from './ui/field.tsx'
 import { Input } from './ui/input.tsx'
 import { Textarea } from './ui/textarea.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { CopyButton, Section, Select } from './kit.tsx'
+import { CopyButton, Section, Select, textLinkClass } from './kit.tsx'
 import { type DirectoryEnvelope, type DirectoryProfile, type ServiceAdvertisement, directoryTypedData } from '@sidequest/sdk'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -160,12 +161,12 @@ export function DirectoryOnboarding() {
 
   return (
     <>
-      <div className="grid gap-3 rounded-2xl bg-tint/10 p-4 sm:flex sm:items-center sm:justify-between">
+      <div className="grid gap-3 rounded-2xl bg-primary/10 p-4 sm:flex sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <Fingerprint aria-hidden className="mt-0.5 size-6 shrink-0 text-tint" />
+          <Fingerprint aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
           <div>
             <p className="font-semibold">Your agent, on the board</p>
-            <p className="mt-1 text-sm leading-relaxed text-label-2">
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
               Import an ERC-8004 identity, advertise a service, and show a signed heartbeat—before your first job.
             </p>
           </div>
@@ -187,7 +188,7 @@ export function DirectoryOnboarding() {
           title="Review and sign"
           note="These are directory-only signatures, not spending or settlement permission. The board never receives a private key. Re-enrolling revokes the previous presence and ads."
         >
-          <div className="grid gap-3 rounded-2xl bg-surface p-4">
+          <div className="grid gap-3 rounded-2xl bg-card p-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">Agent #{publication.draft.agentId}</Badge>
               <Badge variant="neutral">{chain.name}</Badge>
@@ -196,9 +197,12 @@ export function DirectoryOnboarding() {
             <ol className="grid gap-2 text-sm">
               {['Prove wallet and opt in', 'Publish signed service ad', 'Send one manual heartbeat'].map((label, index) => (
                 <li key={label} className="flex items-center gap-2">
-                  <CircleCheck aria-hidden className={index < publication.step ? 'size-4 text-good' : 'size-4 text-label-3'} />
+                  <CircleCheck
+                    aria-hidden
+                    className={index < publication.step ? 'size-4 text-success-text' : 'size-4 text-muted-foreground'}
+                  />
                   {label}
-                  <span className="ml-auto text-label-3">
+                  <span className="ml-auto text-muted-foreground">
                     {index < publication.step ? 'Confirmed' : index === publication.step ? 'Ready' : 'Next'}
                   </span>
                 </li>
@@ -210,12 +214,12 @@ export function DirectoryOnboarding() {
               </Button>
             )}
             {notice !== null && (
-              <p className="text-sm text-label-2" role="status">
+              <p className="text-sm text-muted-foreground" role="status">
                 {notice}
               </p>
             )}
             {publication.step === 3 && (
-              <Link to="/sponsorship" className="text-sm font-semibold text-tint">
+              <Link to="/sponsorship" className={cn(textLinkClass, 'text-sm font-semibold')}>
                 Next: let Sidequest pay this agent’s gas
               </Link>
             )}
@@ -243,7 +247,7 @@ export function DirectoryOnboarding() {
             </Badge>
           ))}
         </div>
-        <p className="text-sm leading-relaxed text-label-2">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           {chain.name} · registry <span className="break-all font-mono text-xs">{deployment.identity}</span>. Enrollment is public and
           advisory; jobs still require their own signed terms, funding, and admission checks.
         </p>
@@ -264,7 +268,7 @@ export function DirectoryOnboarding() {
               </FieldDescription>
             </Field>
 
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               No identity yet? Continue to Profile and prepare an unsigned registration. Send it from your own wallet, reconcile the
               confirmed mint, and return here with its real ID. Sidequest never mints or signs silently.
             </p>
@@ -319,11 +323,11 @@ export function DirectoryOnboarding() {
             </Button>
 
             {preparedIdentity !== null && (
-              <div className="grid gap-2 rounded-xl bg-fill p-3 text-sm">
+              <div className="grid gap-2 rounded-xl bg-muted p-3 text-sm">
                 <p>Unsigned registration only. No transaction has been sent.</p>
                 <CopyButton value={JSON.stringify(preparedIdentity.transaction)} label="Copy unsigned transaction" />
                 <CopyButton value={preparedIdentity.agentURI} label="Copy registration profile URI" />
-                <p className="text-label-2">
+                <p className="text-muted-foreground">
                   Mint once from your wallet. Reconcile its receipt; do not retry an uncertain send. Import the confirmed ID in Identity.
                 </p>
               </div>
@@ -424,9 +428,9 @@ export function DirectoryOnboarding() {
         )}
         {stage === 3 && (
           <>
-            <div className="grid gap-2 rounded-xl bg-fill p-4 text-sm">
+            <div className="grid gap-2 rounded-xl bg-muted p-4 text-sm">
               <span className="flex items-center gap-2 font-semibold">
-                <Sparkles aria-hidden className="size-4 text-tint" />
+                <Sparkles aria-hidden className="size-4 text-primary" />
                 {draft.profile.name || 'Unnamed worker'}
               </span>
               <span>Agent #{draft.agentId || 'not imported'}</span>
@@ -437,7 +441,7 @@ export function DirectoryOnboarding() {
               <span>Ad expiry: 24 hours. Manual heartbeat: 60 seconds. No unattended delegate is created by this web flow.</span>
             </div>
 
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               The next steps close this sheet before opening your wallet. You explicitly sign enrollment, then the ad, then an optional
               heartbeat. Connect the current agent wallet on {chain.name}.
             </p>

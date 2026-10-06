@@ -31,7 +31,11 @@ function oklchToLinear(value: string): Rgb {
   const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
   const mm = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
   const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
-  const rgb = [4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * mm + 1.707614701 * s]
+  const rgb = [
+    4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * mm + 1.707614701 * s,
+  ]
   return rgb.map((c) => Math.min(1, Math.max(0, c))) as Rgb
 }
 
@@ -52,7 +56,10 @@ const ratio = (a: Rgb, b: Rgb) => {
 }
 const contrast = (a: string, b: string) => ratio(oklchToLinear(a), oklchToLinear(b))
 
-const colourTokens = (t: Record<string, string>) => Object.keys(t).filter((k) => k !== 'radius').toSorted()
+const colourTokens = (t: Record<string, string>) =>
+  Object.keys(t)
+    .filter((k) => k !== 'radius')
+    .toSorted()
 
 const light = block(':root')
 const dark = block(":root[data-theme='dark']")
@@ -95,7 +102,8 @@ describe.each([
     expect(contrast(t.ring!, t.background!)).toBeGreaterThanOrEqual(3)
   })
   it('solid status fills carry the page colour as text (count badges, timeline marks)', () => {
-    for (const token of ['success-text', 'warning-text', 'info-text', 'destructive-text']) expect(contrast(t.background!, t[token]!)).toBeGreaterThanOrEqual(4.5)
+    for (const token of ['success-text', 'warning-text', 'info-text', 'destructive-text'])
+      expect(contrast(t.background!, t[token]!)).toBeGreaterThanOrEqual(4.5)
   })
   it('status dots read against the page', () => {
     for (const token of ['success', 'info', 'destructive']) expect(contrast(t[token]!, t.background!)).toBeGreaterThanOrEqual(3)
@@ -113,20 +121,64 @@ const sources = (readdirSync(new URL('.', import.meta.url), { recursive: true, e
 
 describe('status colours as rendered', () => {
   it('text uses the -text shade: the base shade is for dots and tints, below 4.5:1 as text (VV2-010)', () => {
-    const offenders = sources.flatMap(([file, text]) => [...text.matchAll(/\btext-(info|success|warning|destructive)(?:\/\d+)?\b(?!-)/g)].map((m) => `${file}: ${m[0]}`))
+    const offenders = sources.flatMap(([file, text]) =>
+      [...text.matchAll(/\btext-(info|success|warning|destructive)(?:\/\d+)?\b(?!-)/g)].map((m) => `${file}: ${m[0]}`),
+    )
     expect(offenders).toEqual([])
   })
   it('white text appears only on the decorative monogram gradients: a solid status fill takes text-background (VV2-010)', () => {
-    const offenders = sources.filter(([file, text]) => /\btext-white\b/.test(text) && !file.endsWith('components/Wallet.tsx')).map(([file]) => file)
+    const offenders = sources
+      .filter(([file, text]) => /\btext-white\b/.test(text) && !file.endsWith('components/Wallet.tsx'))
+      .map(([file]) => file)
     expect(offenders).toEqual([])
   })
-  it('the legacy status text aliases point at the -text shades', () => {
-    for (const [legacy, token] of [
-      ['ok', 'success-text'],
-      ['warn', 'warning-text'],
-      ['bad', 'destructive-text'],
-    ]) {
-      expect(css).toContain(`--color-${legacy}: var(--${token});`)
-    }
+  it('defines no legacy design tokens or utilities', () => {
+    const legacyColours = [
+      'tint',
+      'on-tint',
+      'bg',
+      'surface',
+      'surface-2',
+      'fill',
+      'fill-strong',
+      'label',
+      'label-2',
+      'label-3',
+      'sep',
+      'bar',
+      'side',
+      'scrim',
+      'ok',
+      'ok-bg',
+      'warn',
+      'warn-bg',
+      'info-bg',
+      'bad',
+      'bad-bg',
+      'gray',
+      'gray-bg',
+      'code',
+    ]
+    const token = new RegExp(`--(?:color-)?(?:${legacyColours.join('|')}):|--(?:ease-spring|shadow-float|radius-group):`, 'g')
+    expect([...css.matchAll(token)].map((match) => match[0])).toEqual([])
+    expect(css).not.toMatch(/@utility\s+(?:press|material|tabular)\s*\{|\.(?:eyebrow|action-link)\b/)
+  })
+  it('uses only current utilities and direct component imports throughout source', () => {
+    const colours =
+      'tint|on-tint|bg|surface(?:-2)?|fill(?:-strong)?|label(?:-[23])?|sep|bar|side|scrim|ok(?:-bg)?|warn(?:-bg)?|info-bg|bad(?:-bg)?|gray(?:-bg)?|code|good'
+    const utility = new RegExp(
+      `\\b(?:bg|text|border(?:-[trblxy])?|ring|fill|stroke|accent|outline|divide)-(?:${colours})(?![\\w-])|\\bshadow-float\\b|(?<![\\w-])(?:press|material|tabular|eyebrow|action-link)(?![\\w-])|(?:tracking|leading)-\\[[^\\]]+\\]|--ease-spring`,
+      'g',
+    )
+    const files = (readdirSync(new URL('.', import.meta.url), { recursive: true, encoding: 'utf8' }) as string[]).filter(
+      (file) => /\.(?:ts|tsx|css)$/.test(file) && file !== 'design-tokens.test.ts',
+    )
+    const offenders = files.flatMap((file) => {
+      const source = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, '')
+      return [...source.matchAll(utility), ...source.matchAll(/(?:from|import)\s*['"][^'"]*\/ui(?:\.tsx)?['"]/g)].map(
+        (match) => `${file}: ${match[0]}`,
+      )
+    })
+    expect(offenders).toEqual([])
   })
 })

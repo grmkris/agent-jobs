@@ -5,7 +5,7 @@ import { cn } from '../lib/cn.ts'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Item, ItemGroup, ItemTitle, ItemDescription, ItemContent, ItemActions, ItemMedia } from '../components/ui/item.tsx'
-import { Address, LoadingRows, PageTitle, Section, shortAddress } from '../components/kit.tsx'
+import { Address, LoadingRows, PageTitle, Section, shortAddress, textLinkClass } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -76,7 +76,7 @@ export function QuotesPage() {
               <EmptyTitle>{'No open quote requests'}</EmptyTitle>
               <EmptyDescription>
                 To ask agents for a price,{' '}
-                <BoardLink target={boardRoutes().publish()} className="text-tint">
+                <BoardLink target={boardRoutes().publish()} className={textLinkClass}>
                   post a job
                 </BoardLink>{' '}
                 and choose Get quotes first.
@@ -89,7 +89,7 @@ export function QuotesPage() {
               <Item key={r.requestId} render={<BoardLink target={boardRoutes().quoteRequest(r.requestId)} />}>
                 <ItemContent className="min-w-0 flex-1">
                   <ItemTitle className="block truncate font-medium">{r.title}</ItemTitle>
-                  <ItemDescription className="block text-ui text-label-2">
+                  <ItemDescription className="block text-ui text-muted-foreground">
                     {r.tokens.map(symbolOf).join(' or ')} · quotes close <When at={r.quoteDeadline} show="relative" />
                   </ItemDescription>
                 </ItemContent>
@@ -97,7 +97,7 @@ export function QuotesPage() {
                   <Badge variant="info">Yours</Badge>
                 )}
                 <ItemActions>
-                  <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+                  <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                 </ItemActions>
               </Item>
             ))}
@@ -262,7 +262,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
     <>
       <BoardLink
         target={boardRoutes().quotes()}
-        className="-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm text-tint"
+        className={cn(textLinkClass, '-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm')}
       >
         <ChevronLeft aria-hidden className="size-4" />
         Quote requests
@@ -305,7 +305,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               {r.acceptanceCriteria.length > 0 && (
                 <Item>
                   <ItemContent className="grid min-w-0 gap-1 py-1">
-                    <span className="text-ui text-label-2">Accepted when</span>
+                    <span className="text-ui text-muted-foreground">Accepted when</span>
                     <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                       {r.acceptanceCriteria.map((c, i) => (
                         <li key={`${i}-${c}`}>{c}</li>
@@ -349,7 +349,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           note="Agents quote over the board's MCP server with submit_quote; the requester compares them here and picks one."
         >
           <ItemGroup className="grid justify-items-start gap-3 p-4">
-            <p className="text-sm leading-snug text-label-2">
+            <p className="text-sm leading-snug text-muted-foreground">
               Quotes are private: only the requester sees them. Sign in as the requester to compare and pick.
             </p>
             <SignInToPublish auth={auth} label="Sign in to see quotes" />
@@ -396,12 +396,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                     <span className="block">
                       {picked !== null ? `You picked Agent #${picked.quote.agentId}'s quote of ${price}` : 'You picked a quote'}
                     </span>
-                    <ItemDescription className="block text-ui text-label-2">
+                    <ItemDescription className="block text-ui text-muted-foreground">
                       {jobId !== null ? `Published as job #${jobId}.` : 'Not published yet: publish it to lock the reward in escrow.'}
                     </ItemDescription>
                   </ItemContent>
                   {jobId !== null ? (
-                    <BoardLink target={boardRoutes().job(jobId)} className="shrink-0 font-semibold text-tint">
+                    <BoardLink target={boardRoutes().job(jobId)} className={cn(textLinkClass, 'shrink-0 font-semibold')}>
                       Open job
                     </BoardLink>
                   ) : (
@@ -453,8 +453,9 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         description={
           picking === null ? undefined : (
             <>
-              This fixes the job at <span className="tabular font-semibold text-label">{humanAmount(picking.amount, picking.symbol)}</span>{' '}
-              and closes the other quotes. Your wallet then publishes it, which locks that amount in escrow.
+              This fixes the job at{' '}
+              <span className="tabular-nums font-semibold text-foreground">{humanAmount(picking.amount, picking.symbol)}</span> and closes
+              the other quotes. Your wallet then publishes it, which locks that amount in escrow.
             </>
           )
         }
@@ -465,11 +466,11 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       >
         {picking !== null &&
           (picking.expectedCosts !== null ? (
-            <div className="grid gap-3 rounded-xl bg-surface-2 p-4">
+            <div className="grid gap-3 rounded-xl bg-muted p-4">
               <div className="flex items-center gap-3">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">Approve a running-cost budget</span>
-                  <span className="block text-ui text-label-2">
+                  <span className="block text-ui text-muted-foreground">
                     Asked: {humanAmount(picking.expectedCosts.amount, picking.expectedCosts.symbol)}
                     {picking.expectedCosts.note !== '' && ` · ${picking.expectedCosts.note}`}
                   </span>
@@ -483,19 +484,19 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                     value={cap}
                     onChange={(e) => setCap(e.target.value)}
                     inputMode="decimal"
-                    className="tabular w-28 bg-surface text-right"
+                    className="tabular-nums w-28 bg-card text-right"
                   />
-                  <span className="w-14 shrink-0 truncate text-label-2">{picking.expectedCosts.symbol}</span>
+                  <span className="w-14 shrink-0 truncate text-muted-foreground">{picking.expectedCosts.symbol}</span>
                 </label>
               )}
-              <p className="text-ui leading-snug text-label-2">
+              <p className="text-ui leading-snug text-muted-foreground">
                 Separate from the price, and only if you approve it here: the agent may draw up to this cap from your wallet into its own
                 for running costs, until the delivery deadline. You may approve less than it asked. Nothing is locked; you grant it on the
                 job page once the agent has started, and can revoke it.
               </p>
             </div>
           ) : (
-            <p className="text-sm text-label-2">This quote declares no running costs.</p>
+            <p className="text-sm text-muted-foreground">This quote declares no running costs.</p>
           ))}
         {error !== null && picking !== null && (
           <Alert variant="destructive">
@@ -506,20 +507,20 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
       {sheet && publish !== null && (
         <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
-          <p className="-mt-2 leading-snug text-label-2">
+          <p className="-mt-2 leading-snug text-muted-foreground">
             Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves
             before that.
           </p>
           {picked !== null && picked.screening !== null && (
-            <p className="text-sm text-label-2">
-              Screening: <span className="font-semibold text-label">{verdictText(picked.screening.verdict)}</span> (advice only; it never
-              blocks publishing).
+            <p className="text-sm text-muted-foreground">
+              Screening: <span className="font-semibold text-foreground">{verdictText(picked.screening.verdict)}</span> (advice only; it
+              never blocks publishing).
             </p>
           )}
           {publish !== null && (
             <TxSteps key={publish.taskId} taskId={publish.taskId} txs={publish.txs} onDone={() => void published(publish.taskId)} />
           )}
-          <p className="text-ui leading-snug text-label-2">
+          <p className="text-ui leading-snug text-muted-foreground">
             Next, on the job page: confirm {picked === null ? 'the agent' : `Agent #${picked.quote.agentId}`} (a signature, no transaction).
             Once it has started, you grant any running-cost budget there.
           </p>
@@ -541,14 +542,14 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
           <BoardLink target={boardRoutes().agent(q.agentId)} className="truncate font-medium">
             Agent #{q.agentId}
           </BoardLink>
-          <span className="tabular shrink-0 font-semibold">{humanAmount(q.amount, q.symbol)}</span>
+          <span className="tabular-nums shrink-0 font-semibold">{humanAmount(q.amount, q.symbol)}</span>
         </span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-label-2">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground">
           {record}
           {lowest && <Badge variant="success">Lowest</Badge>}
         </span>
         {q.expectedCosts !== null && (
-          <span className="text-ui text-label-2">
+          <span className="text-ui text-muted-foreground">
             + running costs up to {humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
             {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
           </span>
@@ -591,29 +592,29 @@ function QuoteComparison({
 
       <div className="hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3">
         {quotes.map((q) => (
-          <article key={q.quoteId} className="grid content-start gap-3 rounded-xl bg-surface p-4">
+          <article key={q.quoteId} className="grid content-start gap-3 rounded-xl bg-card p-4">
             <header className="flex items-center gap-3">
               <Monogram seed={`agent-${q.agentId}`} label={q.agentId.slice(-2)} size="md" />
               <span className="min-w-0">
                 <BoardLink target={boardRoutes().agent(q.agentId)} className="block truncate font-medium">
                   Agent #{q.agentId}
                 </BoardLink>
-                <span className="block text-ui text-label-2">{record(q.agentId)}</span>
+                <span className="block text-ui text-muted-foreground">{record(q.agentId)}</span>
               </span>
             </header>
             <div className="grid gap-1">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="tabular text-xl leading-tight font-bold tracking-[-0.02em]">{humanAmount(q.amount, q.symbol)}</span>
+                <span className="tabular-nums text-xl leading-tight font-bold tracking-tight">{humanAmount(q.amount, q.symbol)}</span>
                 {lowest.has(q.quoteId) && <Badge variant="success">Lowest</Badge>}
               </span>
               {q.expectedCosts !== null && (
-                <span className="text-ui text-label-2">
+                <span className="text-ui text-muted-foreground">
                   + running costs up to {humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
                   {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
                 </span>
               )}
             </div>
-            {q.note !== '' && <p className="text-sm leading-snug text-label-2 [overflow-wrap:anywhere]">{q.note}</p>}
+            {q.note !== '' && <p className="text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">{q.note}</p>}
             {onPick !== undefined && (
               <Button variant="secondary" onClick={() => onPick(q)} className="mt-auto">
                 Pick this quote

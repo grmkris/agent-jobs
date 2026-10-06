@@ -5,7 +5,7 @@ import type * as sdk from '@sidequest/sdk'
 export function AgentGrantReview({ description }: { description: ReturnType<typeof sdk.describeGrant> }) {
   return (
     <div className="grid gap-3">
-      <p className="text-sm leading-relaxed text-label-2">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         Review the permission before your wallet signs. It expires on {new Date(description.expiresAt * 1000).toLocaleString()}.
       </p>
       <ItemGroup>
@@ -50,13 +50,13 @@ export function AgentGrantReview({ description }: { description: ReturnType<type
           </Item>
         )}
       </ItemGroup>
-      <details className="rounded-xl border border-sep p-3 text-sm">
+      <details className="rounded-xl border border-border p-3 text-sm">
         <summary className="min-h-8 cursor-pointer font-medium">Allowed contracts and methods</summary>
         <div className="mt-2 grid gap-3">
           {description.targets.map((target) => (
             <div key={target.address} className="grid gap-1">
               <Address value={target.address} />
-              <p className="break-words text-xs text-label-2">{target.methods.join(', ')}</p>
+              <p className="break-words text-xs text-muted-foreground">{target.methods.join(', ')}</p>
             </div>
           ))}
         </div>

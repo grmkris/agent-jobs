@@ -107,11 +107,11 @@ export function BudgetPanel({
       <ItemGroup>
         <Item>
           <ItemContent className="flex-1">Approved</ItemContent>
-          <span className="tabular font-semibold">{cap}</span>
+          <span className="tabular-nums font-semibold">{cap}</span>
         </Item>
         {eb.kind === 'call' && (
           <Item>
-            <ItemContent className="flex-1 text-sm text-label-2">
+            <ItemContent className="flex-1 text-sm text-muted-foreground">
               One call to <span className="font-mono">{/function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'the function'}</span> on{' '}
               <Address value={eb.target} />, made from the creator’s account, so the creator owns what it makes.
             </ItemContent>
@@ -119,7 +119,7 @@ export function BudgetPanel({
         )}
         <Item>
           <ItemContent className="flex-1">Until</ItemContent>
-          <ItemContent className="text-label-2">
+          <ItemContent className="text-muted-foreground">
             <When at={eb.expiresAt} />
           </ItemContent>
         </Item>
@@ -129,7 +129,7 @@ export function BudgetPanel({
               <ItemContent className="flex-1">Status</ItemContent>
               <ItemActions className="flex-col items-end text-right">
                 <Badge variant={STATUS_VARIANT[b.status]}>{STATUS_LABEL[b.status]}</Badge>
-                {b.endedReason !== null && <span className="block text-ui text-label-2">{b.endedReason}</span>}
+                {b.endedReason !== null && <span className="block text-ui text-muted-foreground">{b.endedReason}</span>}
               </ItemActions>
             </Item>
 
@@ -137,14 +137,14 @@ export function BudgetPanel({
               <>
                 <Item>
                   <ItemContent className="flex-1">Drawn by the agent</ItemContent>
-                  <ItemContent className="tabular text-label-2">
+                  <ItemContent className="tabular-nums text-muted-foreground">
                     {b.drawn} {b.symbol}
                   </ItemContent>
                 </Item>
 
                 <Item>
                   <ItemContent className="flex-1">Left</ItemContent>
-                  <ItemContent className="tabular text-label-2">
+                  <ItemContent className="tabular-nums text-muted-foreground">
                     {b.remaining} {b.symbol}
                   </ItemContent>
                 </Item>
@@ -152,7 +152,7 @@ export function BudgetPanel({
             ) : (
               <Item>
                 <ItemContent className="flex-1">The call</ItemContent>
-                <ItemContent className="text-label-2">
+                <ItemContent className="text-muted-foreground">
                   {b.calls?.made ?? 0} of 1 made{b.drawn !== '0' ? `, ${b.drawn} ${b.symbol} sent` : ''}
                 </ItemContent>
               </Item>
@@ -166,7 +166,7 @@ export function BudgetPanel({
                 <ItemContent className="min-w-0 flex-1 text-sm">
                   {x.amount === null ? '' : `${x.amount} ${b.symbol}`}
                   {x.selector !== undefined ? ` · call ${x.selector}` : ''}
-                  {x.note !== '' && <span className="block text-ui text-label-2">{x.note}</span>}
+                  {x.note !== '' && <span className="block text-ui text-muted-foreground">{x.note}</span>}
                 </ItemContent>
                 <TxLink hash={x.txHash} />
               </Item>
@@ -179,12 +179,12 @@ export function BudgetPanel({
           <AlertDescription>{friendlyError(budget.error)}</AlertDescription>
         </Alert>
       )}
-      {!signedIn && <p className="px-4 text-ui text-label-2">Sign in as the creator, approver or agent to see what was spent.</p>}
+      {!signedIn && <p className="px-4 text-ui text-muted-foreground">Sign in as the creator, approver or agent to see what was spent.</p>}
 
       {creator && b !== undefined && (
         <div className="grid gap-2">
           {b.status === 'promised' && status !== 'active' && (
-            <p className="px-4 text-sm text-label-2">Grant it once the agent has started: the grant names that agent.</p>
+            <p className="px-4 text-sm text-muted-foreground">Grant it once the agent has started: the grant names that agent.</p>
           )}
           {b.status === 'promised' && status === 'active' && (
             <Button size="lg" busy={busy === 'grant'} onClick={() => setConfirm('grant')}>
@@ -197,7 +197,7 @@ export function BudgetPanel({
             </Button>
           )}
           {lingering && (
-            <div className="grid gap-2 rounded-xl bg-warn-bg px-4 py-3 text-sm text-warn">
+            <div className="grid gap-2 rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
               <p>
                 The signed grant stays valid on-chain until <When at={b.expiresAt} show="time" />: the agent could still spend it without
                 the board. Disable it now.
@@ -212,7 +212,7 @@ export function BudgetPanel({
             b.status !== 'revoked' &&
             mon.data !== undefined &&
             mon.data.value < BigInt(eb.cap) + RESERVE && (
-              <p className="px-4 text-sm text-warn">
+              <p className="px-4 text-sm text-warning-text">
                 Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to {formatEther(BigInt(eb.cap))} MON, and Monad
                 keeps 10 MON in a delegated account: hold at least {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
               </p>
@@ -220,7 +220,7 @@ export function BudgetPanel({
         </div>
       )}
       {roles.includes('worker') && b?.status === 'live' && (
-        <p className="px-4 text-ui text-label-2">
+        <p className="px-4 text-ui text-muted-foreground">
           {eb.kind === 'call'
             ? 'Your agent makes the call with the MCP tool spend_budget_call, sends the transaction from its wallet, then reports it.'
             : 'Your agent draws with the MCP tool spend_budget, sends the transaction from its wallet, then reports it.'}{' '}
@@ -245,7 +245,7 @@ export function BudgetPanel({
           void grant()
         }}
       >
-        <p className="text-sm text-label-2">
+        <p className="text-sm text-muted-foreground">
           Expires <When at={eb.expiresAt} />. The first grant from this wallet also points it at the delegation contract, which the board’s
           relay sends for you.
         </p>

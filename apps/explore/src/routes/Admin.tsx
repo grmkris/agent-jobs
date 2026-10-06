@@ -167,8 +167,8 @@ export function AdminPage() {
       <>
         <PageTitle>Admin</PageTitle>
 
-        <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
-          <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in as a Safe owner</h2>
+        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
+          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in as a Safe owner</h2>
           <div>
             <PrivyLogin />
           </div>
@@ -201,7 +201,7 @@ function Gate({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addre
       <>
         <PageTitle>Admin</PageTitle>
 
-        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+        <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
           <p>The Safe's owners cannot be read from the chain right now.</p>
           <Button variant="secondary" onClick={() => void reads.refetch()}>
             Retry
@@ -403,7 +403,7 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
 
       {op !== null && refused !== undefined && !refused.ok && (
         <Section title="Saved operation refused">
-          <div role="alert" className="grid gap-2 rounded-xl bg-bad-bg p-4 text-sm text-bad">
+          <div role="alert" className="grid gap-2 rounded-xl bg-destructive/12 p-4 text-sm text-destructive-text">
             <p>
               {reads.every((r) => r.ok)
                 ? 'This funding can no longer be sent:'
@@ -467,7 +467,7 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
 
 function Review({ title, reads, safe }: { title: string; reads: AdminTx[]; safe: Address }) {
   return (
-    <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+    <div className="grid gap-3 rounded-xl bg-card px-4 py-3.5">
       <p className="font-semibold">{title}</p>
       {reads.map((r, i) => (r.ok ? <TxReview key={i} read={r} safe={safe} /> : null))}
     </div>
@@ -478,7 +478,7 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
   return (
     <div className="grid gap-3">
       {read.via === 'atomic' && (
-        <p className="text-sm text-label-2">
+        <p className="text-sm text-muted-foreground">
           One Safe transaction: the Safe delegatecalls MultiSendCallOnly v1.4.1{' '}
           <code className="font-mono break-all">{MULTI_SEND_CALL_ONLY}</code>, which makes these {read.calls.length} calls in order. Both
           happen, or neither.
@@ -486,8 +486,8 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
       )}
       {read.calls.map((call, i) => (
         <div key={i} className="grid gap-2">
-          {read.calls.length > 1 && <p className="text-ui font-semibold tracking-wide text-label-2 uppercase">Call {i + 1}</p>}
-          <ItemGroup className="bg-bg">
+          {read.calls.length > 1 && <p className="text-ui font-semibold tracking-wide text-muted-foreground uppercase">Call {i + 1}</p>}
+          <ItemGroup className="bg-background">
             <KV k="Contract" stack>
               {call.contract} <code className="font-mono text-ui break-all">{call.to}</code>
             </KV>
@@ -502,7 +502,7 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
               </KV>
             ))}
             <KV k="Calldata" stack>
-              <code className="font-mono text-xs break-all text-label-2">{call.data}</code>
+              <code className="font-mono text-xs break-all text-muted-foreground">{call.data}</code>
             </KV>
           </ItemGroup>
         </div>
@@ -510,19 +510,19 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
       {read.outer !== null ? (
         <>
           {read.signature !== undefined ? (
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with
               the signature you made for this exact transaction at the Safe’s current nonce. If any other Safe transaction goes first, the
               Safe refuses this one, so it can never land twice.
             </p>
           ) : (
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with
               your owner signature (r = you, s = 0, v = 1).
             </p>
           )}
 
-          <ItemGroup className="bg-bg">
+          <ItemGroup className="bg-background">
             {read.outer.map(([name, value]) => (
               <KV key={name} k={name} stack>
                 <code className="font-mono text-ui break-all">{value}</code>
@@ -531,7 +531,7 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
           </ItemGroup>
         </>
       ) : (
-        <p className="text-sm text-label-2">Anyone may send this call; it goes straight from your wallet, not through the Safe.</p>
+        <p className="text-sm text-muted-foreground">Anyone may send this call; it goes straight from your wallet, not through the Safe.</p>
       )}
     </div>
   )
@@ -543,7 +543,7 @@ function KV({ k, children, stack = false }: { k: string; children: ReactNode; st
     return (
       <Item>
         <ItemContent className="grid min-w-0 flex-1 gap-0.5">
-          <span className="text-ui text-label-2">{k}</span>
+          <span className="text-ui text-muted-foreground">{k}</span>
           <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
         </ItemContent>
       </Item>
@@ -551,7 +551,7 @@ function KV({ k, children, stack = false }: { k: string; children: ReactNode; st
   }
   return (
     <Item>
-      <ItemContent className="w-24 shrink-0 text-ui text-label-2 sm:w-32">{k}</ItemContent>
+      <ItemContent className="w-24 shrink-0 text-ui text-muted-foreground sm:w-32">{k}</ItemContent>
       <ItemActions className="min-w-0 flex-1 flex-col items-end text-right [overflow-wrap:anywhere]">{children}</ItemActions>
     </Item>
   )
@@ -559,7 +559,7 @@ function KV({ k, children, stack = false }: { k: string; children: ReactNode; st
 
 function Unavailable({ retry }: { retry: () => void }) {
   return (
-    <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+    <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
       <p>These facts cannot be read from the chain right now.</p>
       <Button variant="secondary" onClick={retry}>
         Retry
@@ -602,12 +602,12 @@ function Ownership({ c, safe, act, busy }: { c: SidequestContracts; safe: Addres
               <Item key={name}>
                 <ItemContent className="min-w-0 flex-1">
                   {name}
-                  <ItemDescription className="block text-xs text-label-3">
+                  <ItemDescription className="block text-xs text-muted-foreground">
                     <AddressText value={address} />
                   </ItemDescription>
                 </ItemContent>
                 {owner === undefined ? (
-                  <span className="text-label-3">—</span>
+                  <span className="text-muted-foreground">—</span>
                 ) : same(owner, safe) ? (
                   <Badge variant="success">Safe owns it</Badge>
                 ) : same(pending, safe) ? (
@@ -709,15 +709,15 @@ function Core({
       {base.isError || admin.isError || latest.isError ? (
         <Unavailable retry={() => void Promise.all([base.refetch(), admin.refetch(), latest.refetch()])} />
       ) : (
-        <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+        <div className="grid gap-3 rounded-xl bg-card px-4 py-3.5">
           <p className="flex flex-wrap items-center gap-2">
             {paused === undefined ? '—' : paused ? <Badge variant="destructive">Paused</Badge> : <Badge variant="success">Running</Badge>}
-            <span className="text-ui text-label-2">
+            <span className="text-ui text-muted-foreground">
               <AddressText value={core} />
             </span>
           </p>
           {drift && (
-            <div className="grid gap-2 rounded-xl bg-warn-bg p-3 text-sm text-warn">
+            <div className="grid gap-2 rounded-xl bg-warning/14 p-3 text-sm text-warning-text">
               <p>
                 {paused
                   ? 'The Evaluator has not noted this pause: a worker whose delivery deadline falls inside it could be slashed.'
@@ -734,13 +734,15 @@ function Core({
             </div>
           )}
           {!atomicReady && safeIsAdmin !== false && (
-            <p className="text-sm text-label-2">
+            <p className="text-sm text-muted-foreground">
               Pausing waits for MultiSendCallOnly to be confirmed on this network: the pause and its note go as one transaction or not at
               all.
             </p>
           )}
           {safeIsAdmin === false ? (
-            <p className="text-sm text-label-2">The Safe is not the core's admin on this network, so it cannot pause it from here.</p>
+            <p className="text-sm text-muted-foreground">
+              The Safe is not the core's admin on this network, so it cannot pause it from here.
+            </p>
           ) : (
             <Button
               variant={paused === true ? 'default' : 'destructive'}
@@ -814,7 +816,7 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
         <div className="grid gap-3">
           <ScheduleTable title="In force" schedule={current} />
           {pending !== null && (
-            <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
+            <div className="grid gap-2 rounded-xl bg-primary/10 px-4 py-3.5">
               <ScheduleTable title="Proposed" schedule={pending} />
               <Expiry eta={pending.eta} now={now} grace={feeGrace} verb="Executable" />
               <div className="flex flex-wrap gap-2">
@@ -838,7 +840,7 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
           )}
           {form !== null && (
             <form
-              className="grid gap-3 rounded-xl bg-surface px-4 py-3.5"
+              className="grid gap-3 rounded-xl bg-card px-4 py-3.5"
               onSubmit={(e) => {
                 e.preventDefault()
                 if (proposal === null || typeof proposal === 'string') return
@@ -849,33 +851,33 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
               {form.thresholds.map((t, i) => (
                 <div key={i} className="grid grid-cols-[1fr_6rem] items-end gap-2">
                   <label className="grid gap-1">
-                    <span className="text-ui text-label-2">Tier {i + 1} from (SIDE)</span>
+                    <span className="text-ui text-muted-foreground">Tier {i + 1} from (SIDE)</span>
                     <Input
                       aria-label={`Tier ${i + 1} threshold`}
                       value={t}
                       inputMode="decimal"
-                      className="tabular"
+                      className="tabular-nums"
                       onChange={(e) => setDraft({ ...form, thresholds: form.thresholds.map((x, j) => (j === i ? e.target.value : x)) })}
                     />
                   </label>
                   <label className="grid gap-1">
-                    <span className="text-ui text-label-2">Fee %</span>
+                    <span className="text-ui text-muted-foreground">Fee %</span>
                     <Input
                       aria-label={`Tier ${i + 1} fee`}
                       value={form.rates[i] ?? ''}
                       inputMode="decimal"
-                      className="tabular"
+                      className="tabular-nums"
                       onChange={(e) => setDraft({ ...form, rates: form.rates.map((x, j) => (j === i ? e.target.value : x)) })}
                     />
                   </label>
                 </div>
               ))}
               <label className="grid gap-1">
-                <span className="text-ui text-label-2">Treasury (receives fees)</span>
+                <span className="text-ui text-muted-foreground">Treasury (receives fees)</span>
                 <Input
                   aria-label="Treasury"
                   value={form.treasury}
-                  className="font-mono text-ui"
+                  className="font-mono "
                   onChange={(e) => setDraft({ ...form, treasury: e.target.value })}
                 />
               </label>
@@ -899,7 +901,7 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
 function Expiry({ eta, now, grace, verb }: { eta: number; now: number; grace: number | undefined; verb: string }) {
   if (grace === undefined)
     return (
-      <p className="text-sm text-label-2">
+      <p className="text-sm text-muted-foreground">
         {now < eta ? (
           <>
             {verb} in <Countdown to={eta} /> · <When at={eta} show="time" />.
@@ -912,7 +914,7 @@ function Expiry({ eta, now, grace, verb }: { eta: number; now: number; grace: nu
   const state = proposalState(eta, now, Number(grace))
   const lapses = eta + Number(grace)
   return (
-    <p className="text-sm text-label-2">
+    <p className="text-sm text-muted-foreground">
       {state === 'waiting' ? (
         <>
           {verb} in <Countdown to={eta} /> · <When at={eta} show="time" />. Expires at <When at={lapses} show="time" />.
@@ -922,7 +924,7 @@ function Expiry({ eta, now, grace, verb }: { eta: number; now: number; grace: nu
           {verb} now, by anyone, until <When at={lapses} show="time" /> (<Countdown to={lapses} /> left).
         </>
       ) : (
-        <span className="text-warn">
+        <span className="text-warning-text">
           Expired at <When at={lapses} show="time" />: the contract refuses it now. Cancel it, or propose again.
         </span>
       )}
@@ -933,16 +935,16 @@ function Expiry({ eta, now, grace, verb }: { eta: number; now: number; grace: nu
 function ScheduleTable({ title, schedule }: { title: string; schedule: Schedule }) {
   return (
     <div className="grid gap-1">
-      <p className="px-1 text-ui text-label-2">{title}</p>
+      <p className="px-1 text-ui text-muted-foreground">{title}</p>
       <ItemGroup>
         {schedule.thresholds.map((t, i) => (
           <Item key={i}>
-            <ItemContent className="tabular flex-1">{i === 0 ? 'Any stake' : `From ${fmt(t)}`}</ItemContent>
-            <span className="tabular">{percent(schedule.bps[i] ?? 0)}</span>
+            <ItemContent className="tabular-nums flex-1">{i === 0 ? 'Any stake' : `From ${fmt(t)}`}</ItemContent>
+            <span className="tabular-nums">{percent(schedule.bps[i] ?? 0)}</span>
           </Item>
         ))}
         <Item>
-          <ItemContent className="flex-1 text-label-2">Treasury</ItemContent>
+          <ItemContent className="flex-1 text-muted-foreground">Treasury</ItemContent>
           <AddressText value={schedule.treasury} />
         </Item>
       </ItemGroup>
@@ -1000,7 +1002,7 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
             <Item>
               <ItemContent className="min-w-0 flex-1">
                 v1 Holding
-                <ItemDescription className="block text-xs text-label-3">
+                <ItemDescription className="block text-xs text-muted-foreground">
                   <AddressText value={c.holding} />
                 </ItemDescription>
               </ItemContent>
@@ -1012,7 +1014,7 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
             </Item>
           </ItemGroup>
           {pending !== null && (
-            <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
+            <div className="grid gap-2 rounded-xl bg-primary/10 px-4 py-3.5">
               <p className="text-sm">
                 Proposed Holding <AddressText value={pending.holding} />
               </p>
@@ -1037,7 +1039,7 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
             </div>
           )}
           <form
-            className="grid gap-2 rounded-xl bg-surface px-4 py-3.5"
+            className="grid gap-2 rounded-xl bg-card px-4 py-3.5"
             onSubmit={(e) => {
               e.preventDefault()
               if (valid(proposed)) act('Propose a Holding', vault({ functionName: 'proposeHolding', args: [proposed.trim()] }), 'safe')
@@ -1049,7 +1051,7 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
                 aria-label="Holding to propose"
                 value={proposed}
                 placeholder="0x… Holding contract"
-                className="font-mono text-ui"
+                className="font-mono "
                 onChange={(e) => setProposed(e.target.value)}
               />
             </label>
@@ -1058,7 +1060,7 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
             </Button>
           </form>
           <form
-            className="grid gap-2 rounded-xl bg-surface px-4 py-3.5"
+            className="grid gap-2 rounded-xl bg-card px-4 py-3.5"
             onSubmit={(e) => {
               e.preventDefault()
               if (valid(revoked)) act('Revoke a Holding', vault({ functionName: 'revokeHolding', args: [revoked.trim()] }), 'safe')
@@ -1066,15 +1068,10 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
           >
             <label className="grid gap-1">
               <span className="text-ui font-semibold">Revoke a Holding</span>
-              <span className="text-ui text-label-2">
+              <span className="text-ui text-muted-foreground">
                 Instant. It can no longer reserve bonds; its live jobs still release and slash what they reserved.
               </span>
-              <Input
-                aria-label="Holding to revoke"
-                value={revoked}
-                className="font-mono text-ui"
-                onChange={(e) => setRevoked(e.target.value)}
-              />
+              <Input aria-label="Holding to revoke" value={revoked} className="font-mono " onChange={(e) => setRevoked(e.target.value)} />
             </label>
             <Button type="submit" variant="destructive" disabled={busy || !valid(revoked)}>
               Review the revocation
@@ -1182,14 +1179,14 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
       ) : currentEpoch === undefined ? (
         <LoadingRows rows={2} />
       ) : (
-        <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+        <div className="grid gap-3 rounded-xl bg-card px-4 py-3.5">
           <label className="grid gap-1">
             <span className="text-ui font-semibold">Epoch</span>
             <Input
               aria-label="Price list epoch"
               value={epochText}
               inputMode="numeric"
-              className="tabular w-28"
+              className="tabular-nums w-28"
               onChange={(e) => setPicked(e.target.value)}
             />
           </label>
@@ -1201,7 +1198,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
                 <label key={t} className="grid grid-cols-[1fr_8rem] items-center gap-2">
                   <span className="min-w-0 text-ui">
                     <span className="font-semibold">{tokenMeta(t)?.symbol ?? 'Token'}</span> <AddressText value={t} />
-                    <span className="block text-xs text-label-3">
+                    <span className="block text-xs text-muted-foreground">
                       {read === undefined
                         ? 'Reading decimals…'
                         : read.status === 'success'
@@ -1214,7 +1211,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
                     value={usd[t] ?? ''}
                     placeholder="Not priced"
                     inputMode="decimal"
-                    className="tabular"
+                    className="tabular-nums"
                     onChange={(e) => setUsd({ ...usd, [t]: e.target.value })}
                   />
                 </label>
@@ -1225,7 +1222,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
                 aria-label="Another token"
                 value={adding}
                 placeholder="Another token, 0x…"
-                className="font-mono text-ui"
+                className="font-mono "
                 onChange={(e) => setAdding(e.target.value)}
               />
               <Button
@@ -1252,10 +1249,10 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
               value={factoryUsd}
               placeholder="0.0001"
               inputMode="decimal"
-              className="tabular w-40"
+              className="tabular-nums w-40"
               onChange={(e) => setFactoryUsd(e.target.value)}
             />
-            <span className="text-xs text-label-3">Below $0.0001 the tool counts $0.0001.</span>
+            <span className="text-xs text-muted-foreground">Below $0.0001 the tool counts $0.0001.</span>
           </label>
           {typeof list === 'string' && (picked !== null || factoryUsd !== '' || Object.values(usd).some((v) => v !== '')) && (
             <Alert variant="destructive">
@@ -1273,7 +1270,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
             </Button>
           ) : (
             <>
-              <p className="text-ui text-label-2">
+              <p className="text-ui text-muted-foreground">
                 Signed by you for epoch {epochText.trim()} on {chain.name}. Pass it to{' '}
                 <code className="font-mono">
                   pnpm mining:epoch {epochText.trim()} --prices {shown.name}
@@ -1285,7 +1282,7 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
                 <a
                   href={href}
                   download={shown.name}
-                  className="press flex min-h-11 items-center justify-center rounded-xl bg-tint px-4 text-sm font-semibold text-on-tint"
+                  className="transition-transform duration-(--dur-fast) ease-(--ease-out-strong) active:scale-[0.96] flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
                 >
                   Download {shown.name}
                 </a>
@@ -1372,24 +1369,24 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
             <KV k="Owed, unclaimed">{fmt(result<bigint>(base.data, 3) ?? 0n)}</KV>
             <KV k="Spare in the distributor">{fmt(result<bigint>(base.data, 2) ?? 0n)}</KV>
           </ItemGroup>
-          <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
+          <div className="grid gap-3 rounded-xl bg-card px-4 py-3.5">
             <label className="grid gap-1">
               <span className="text-ui font-semibold">Epoch</span>
               <Input
                 aria-label="Epoch"
                 value={epochText}
                 inputMode="numeric"
-                className="tabular w-28"
+                className="tabular-nums w-28"
                 onChange={(e) => setPicked(e.target.value)}
               />
             </label>
             {epoch !== null && (
-              <ItemGroup className="bg-bg">
+              <ItemGroup className="bg-background">
                 <KV k="Ends">{end === undefined ? '—' : <When at={Number(end)} />}</KV>
                 <KV k="Budget">{budget === undefined ? '—' : fmt(budget)}</KV>
                 <KV k="Budget so far">
                   {cumulative === undefined ? '—' : fmt(cumulative)}
-                  <span className="block text-xs text-label-3">Unspent budget rolls over</span>
+                  <span className="block text-xs text-muted-foreground">Unspent budget rolls over</span>
                 </KV>
                 {hasRoot ? (
                   <KV k="Root" stack>
@@ -1402,9 +1399,9 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
               </ItemGroup>
             )}
             {epoch !== null && hasRoot && (
-              <div className="grid gap-2 rounded-lg bg-fill px-3 py-2.5">
+              <div className="grid gap-2 rounded-lg bg-muted px-3 py-2.5">
                 <p className="text-ui font-semibold">Correct the total</p>
-                <p className="text-ui text-label-2">
+                <p className="text-ui text-muted-foreground">
                   If the posted total is more than the root’s leaves add up to, the difference stays locked. Shrink it to the leaf sum from
                   the epoch’s data; it can never go below what is already claimed.
                 </p>
@@ -1413,7 +1410,7 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                   value={form.resize}
                   placeholder="Leaf sum, SIDE"
                   inputMode="decimal"
-                  className="tabular"
+                  className="tabular-nums"
                   onChange={(e) => setForm({ ...form, resize: e.target.value })}
                 />
                 {form.resize !== '' && resizeProblem(form.resize, root) !== null && (
@@ -1444,13 +1441,13 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                 </Button>
               </div>
             )}
-            <div className="grid gap-2 rounded-lg bg-fill px-3 py-2.5">
+            <div className="grid gap-2 rounded-lg bg-muted px-3 py-2.5">
               <p className="text-ui font-semibold">Epoch file</p>
-              <p className="text-ui text-label-2">
+              <p className="text-ui text-muted-foreground">
                 The root, total and data hash come from <code className="font-mono">pnpm mining:epoch</code>: choose the{' '}
                 <code className="font-mono">epoch-&lt;n&gt;.json</code> it wrote. Nothing is typed by hand.
               </p>
-              <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-tint/14 px-4 text-sm font-semibold text-tint focus-within:ring-2 focus-within:ring-tint/40">
+              <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary/14 px-4 text-sm font-semibold text-primary focus-within:ring-2 focus-within:ring-primary/40">
                 {upload === null ? 'Choose epoch file' : 'Choose another file'}
                 <input
                   type="file"
@@ -1469,7 +1466,7 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
               )}
             </div>
             {loaded !== null && (
-              <ItemGroup className="bg-bg">
+              <ItemGroup className="bg-background">
                 <KV k="File">{upload?.name}</KV>
                 <KV k="Epoch">{String(loaded.epoch)}</KV>
                 <KV k="Total">{fmt(loaded.total)}</KV>
@@ -1489,18 +1486,20 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
               </ItemGroup>
             )}
             {loaded !== null && !forThisEpoch && (
-              <p className="text-ui text-label-2">The file is for epoch {String(loaded.epoch)}; choose that epoch above to use it.</p>
+              <p className="text-ui text-muted-foreground">
+                The file is for epoch {String(loaded.epoch)}; choose that epoch above to use it.
+              </p>
             )}
             {loaded !== null && forThisEpoch && (
               <>
                 {hasRoot && root.root.toLowerCase() !== loaded.root.toLowerCase() && (
-                  <p role="alert" className="rounded-lg bg-warn-bg px-3 py-2 text-ui text-warn">
+                  <p role="alert" className="rounded-lg bg-warning/14 px-3 py-2 text-ui text-warning-text">
                     A different root is already posted for this epoch. The file is not the one on chain.
                   </p>
                 )}
 
                 {!ended && end !== undefined && (
-                  <p className="text-ui text-label-2">
+                  <p className="text-ui text-muted-foreground">
                     This epoch has not ended: the reserve refuses its funding and the distributor its root until it does.
                   </p>
                 )}
@@ -1508,23 +1507,23 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                 <p className="text-ui font-semibold">1. Fund the epoch</p>
 
                 {loaded.fund === null ? (
-                  <p className="text-ui text-label-2">Fully funded when the file was made: nothing to send.</p>
+                  <p className="text-ui text-muted-foreground">Fully funded when the file was made: nothing to send.</p>
                 ) : funding === null ? (
                   <LoadingRows rows={1} />
                 ) : funding === 'stale' ? (
-                  <p role="alert" className="rounded-lg bg-bad-bg px-3 py-2 text-ui text-bad">
+                  <p role="alert" className="rounded-lg bg-destructive/12 px-3 py-2 text-ui text-destructive-text">
                     The reserve has funded {fmt(totalFunded ?? 0n)} in all; the file expected {fmt(loaded.fund.expectTotalFunded)}.
                     Something was funded since it was made, so its amount may be wrong. Run{' '}
                     <code className="font-mono">pnpm mining:epoch {String(loaded.epoch)}</code> again and load the new file. Nothing is
                     offered from this one.
                   </p>
                 ) : funding === 'done' ? (
-                  <p className="text-ui text-label-2">
+                  <p className="text-ui text-muted-foreground">
                     Funded: the remaining {fmt(loaded.fund.amount)} has gone in since the file was made.
                   </p>
                 ) : (
                   <>
-                    <ItemGroup className="bg-bg">
+                    <ItemGroup className="bg-background">
                       <KV k="Funded for it">{fmt(loaded.fund.fundedForEpoch)}</KV>
                       <KV k="Still to fund">{fmt(loaded.fund.amount)}</KV>
                     </ItemGroup>
@@ -1546,7 +1545,7 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                       Review funding · {fmt(loaded.fund.amount)}
                     </Button>
 
-                    <p className="text-ui text-label-2">
+                    <p className="text-ui text-muted-foreground">
                       Your wallet signs this funding for the Safe’s current nonce, then sends it: if any other Safe transaction goes first,
                       the Safe refuses it.
                     </p>
@@ -1562,11 +1561,11 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                 <p className="text-ui font-semibold">2. Post the root</p>
 
                 {hasRoot ? (
-                  <p className="text-ui text-label-2">Posted.</p>
+                  <p className="text-ui text-muted-foreground">Posted.</p>
                 ) : (
                   <>
                     {spare !== undefined && spare < loaded.total && (
-                      <p className="text-ui text-label-2">
+                      <p className="text-ui text-muted-foreground">
                         Fund it first: the root needs {fmt(loaded.total)} in the distributor, which has {fmt(spare)} spare.
                       </p>
                     )}

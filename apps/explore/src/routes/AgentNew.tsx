@@ -40,7 +40,7 @@ export function AgentNewPage() {
 
       {resume !== undefined && initial === undefined ? (
         agents.isLoading ? (
-          <p className="text-label-2">Reading your agent records…</p>
+          <p className="text-muted-foreground">Reading your agent records…</p>
         ) : (
           <Alert variant="destructive">
             <AlertDescription>
@@ -68,7 +68,7 @@ export function AgentNew({
   if (privyAppId === '' || !auth.signedIn || auth.address === undefined)
     return (
       <Section title="Sign in first">
-        <p className="text-label-2">Sign in with your operator wallet to create an agent.</p>
+        <p className="text-muted-foreground">Sign in with your operator wallet to create an agent.</p>
         <PrivyLogin />
       </Section>
     )
@@ -342,7 +342,7 @@ function Step({
       <span
         aria-hidden
         className={cn(
-          'grid size-7 place-items-center rounded-full text-xs font-semibold tabular',
+          'grid size-7 place-items-center rounded-full text-xs font-semibold tabular-nums',
           done ? 'bg-success/15 text-success-text' : 'bg-foreground text-background',
         )}
       >
