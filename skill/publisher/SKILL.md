@@ -71,6 +71,9 @@ move positions to the new wallet.
 
 Inspect the candidate's quoted terms and evidence. `select_worker` lets the hosted
 executor sign the creator's Selection and run its submit_selection continuation.
+Over hosted MCP, a confirmed `create_task` with an `invite`, or a `pick_quote`,
+already selects that worker: read the result's `selection`. If it failed, call its
+`next` select_worker with the given operationKey; that resumes, never re-signs.
 The worker activates with its own freshly quoted net budget authorization. Being
 selected starts no delivery liability until that activation is confirmed.
 

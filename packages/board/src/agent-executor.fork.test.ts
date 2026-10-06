@@ -111,8 +111,11 @@ suite('agent executor through real contracts', () => {
     expect(await boot().execute(input)).toEqual(result)
     expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address })).toBe(nonce)
     expect(db.prepare('SELECT count(*) AS count FROM sponsor_operations').get()).toEqual({ count: 1 })
-    const selection = await boot().execute({ agentId: 'creator-agent', boardId: 'public', operationKey: 'selection-one', tool: 'select_worker', args: { taskId: task.taskId, applicationId: output.result.applicationId } })
-    expect(selection.status).toBe('confirmed')
+    // The invite publish selected its worker in the same call; the derived key resumes that selection, unsigned again.
+    const selected = (result as { result: { selection: { status: string; operationId: Hex } } }).result.selection
+    expect(selected.status).toBe('confirmed')
+    const selection = await boot().execute({ agentId: 'creator-agent', boardId: 'public', operationKey: 'hire-one-sel', tool: 'select_worker', args: { taskId: task.taskId, applicationId: output.result.applicationId } })
+    expect(selection).toMatchObject({ status: 'confirmed', operationId: selected.operationId })
     const activation = await boot().execute({ agentId: 'worker-agent', boardId: 'public', operationKey: 'activation-one', tool: 'prepare_activation', args: { taskId: task.taskId } })
     expect(activation.status).toBe('confirmed')
     expect((await board.getTask({}, { taskId: task.taskId })).chain.status).toBe('active')
@@ -171,8 +174,11 @@ suite('agent executor through real contracts', () => {
       const signatures = db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()
       const nonce = await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address, blockTag: 'pending' })
       await fixture.rpc('evm_mine')
-      expect((await boot().execute(input)).status).toBe('confirmed')
-      expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()).toEqual(signatures)
+      const confirmed = await boot().execute(input)
+      expect(confirmed.status).toBe('confirmed')
+      // Reconciling signs nothing for the publish; the only new signature is the invite's Selection, under its own key.
+      const selection = (confirmed as { result: { selection: { operationId: string } } }).result.selection
+      expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests WHERE purpose <> ?').get(`tool:${selection.operationId}`)).toEqual(signatures)
       expect(await ctx.publicClient.getTransactionCount({ address: fixture.admin.account.address, blockTag: 'pending' })).toBe(nonce)
       expect(db.prepare('SELECT count(*) AS count FROM sponsor_operations WHERE action_key=?').get('pending-hire')).toEqual({ count: 1 })
     } finally {

@@ -1,6 +1,6 @@
 /** Execute a hosted agent action from one frozen intent, signing request and relay journal. */
 import * as sdk from '@agent-jobs/sdk'
-import { type Address, type Hex } from 'viem'
+import { type Address, type Hex, keccak256, stringToHex } from 'viem'
 import { AgentStore, canonicalAgentArgs, type AgentOperationRow, type ApprovalRow } from './agents.ts'
 import { AgentSigning } from './agent-signing.ts'
 import { GrantStore, grantSpecJson, parseGrantSpec } from './grants.ts'
@@ -9,7 +9,7 @@ import { mapAgentCalls, type ApprovedAgentAction } from './agent-call-mapper.ts'
 import { SponsorDesk, type NamedSponsorEntry, type SponsorResult } from './sponsor.ts'
 import type { Sql } from './store.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
-import { AgentFailure } from './agent-failure.ts'
+import { AgentFailure, agentFailureReply } from './agent-failure.ts'
 
 export interface AgentPreparedCall {
   readonly transactions?: readonly sdk.TxRequest[]
@@ -92,9 +92,32 @@ export class AgentExecutor {
       }
       this.agents.freezeStep(operation.id, 'reported', true)
     }
-    this.agents.saveOperation(operation.id, 'confirmed', { result })
+    const selection = await this.#selectInvited(operation, action)
+    const confirmed = selection === undefined ? result : { ...result, selection }
+    this.agents.saveOperation(operation.id, 'confirmed', { result: confirmed })
     this.deps.sql.run("UPDATE approvals SET status='executed' WHERE operation_id=? AND status='approved'", operation.id)
-    return { status: 'confirmed', operationId: operation.id, result }
+    return { status: 'confirmed', operationId: operation.id, result: confirmed }
+  }
+
+  /**
+   * A confirmed publish that names its worker (create_task with an invite, or pick_quote) continues to select_worker
+   * under a key derived from the publish key, so one call hires. It runs #execute directly: this is already inside
+   * the queue, and a queued execute would wait on itself. A retry of the publish key reaches the same derived
+   * operation. Selection never fails the publish; its failure comes back with the call to make instead.
+   */
+  async #selectInvited(operation: AgentOperationRow, action: AgentPreparedCall): Promise<Record<string, unknown> | undefined> {
+    if ((operation.tool !== 'create_task' && operation.tool !== 'pick_quote') || typeof action.taskId !== 'string' || typeof action.applicationId !== 'string') return undefined
+    const args = { taskId: action.taskId, applicationId: action.applicationId }
+    const key = operation.action_key.length <= 124 ? `${operation.action_key}-sel` : `sel-${keccak256(stringToHex(operation.action_key)).slice(2, 62)}`
+    // Retrying with this exact key resumes the same selection instead of signing a second one.
+    const next = { tool: 'select_worker', args: { ...args, operationKey: key } }
+    try {
+      const selected = await this.#execute({ agentId: operation.agent_id, boardId: operation.board_id, operationKey: key, tool: 'select_worker', args })
+      return { status: selected.status, operationId: selected.operationId, ...(selected.status === 'confirmed' ? { result: selected.result } : { next }) }
+    } catch (error) {
+      const { ok: _ok, ...failure } = agentFailureReply(error, 'Selecting the named worker failed')
+      return { status: 'failed', ...failure, next }
+    }
   }
 
   async #approved(operation: AgentOperationRow): Promise<ApprovedAgentAction> {
