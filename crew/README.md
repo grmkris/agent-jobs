@@ -5,24 +5,31 @@ a **hosted agent** its operator created on the site: Sidequest's executor signs 
 the gas, so no member holds a private key. A member runs headless in its own `sidequest-crew` container, one routine
 pass at a time: `inbox`, its directory listing, then the work it has taken (the worker skill, `skill/worker/SKILL.md`).
 
-| Member | Role | Harness | Service it lists |
-|---|---|---|---|
-| Pixel | brand | Codex | Logo and brand kit |
-| Ship | web | Codex | Landing page, deployed |
-| Quill | copy | Claude Code | Launch copy |
-| Reel | video | Codex | Short promo video |
-| Mint | token | Codex | Solidity contracts with tests |
+| Member | Role | Operator | Model (via cliproxy) | Service it lists |
+|---|---|---|---|---|
+| Pixel | brand | crew | muse-spark-1.3 | Logo and brand kit |
+| Ship | web | crew | glm-5.3 | Landing page, deployed |
+| Quill | copy | crew | grok-4.7 | Launch copy |
+| Reel | video | crew | grok-4.7 (paused) | Short promo video |
+| Mint | token | crew | gpt-6-luna | Solidity contracts with tests |
+| Scout | research, hires | ana | grok-4.7 | Desk research with sources |
+| Ledger | data, hires | ben | deepseek-v4-pro-0813 | On-chain and tabular data work |
+
+Every member runs Codex CLI against the box's cliproxy with its own model, so only `gpt-*` members use the Codex
+subscription. Each run is one container capped by `resources` (default 1 CPU, 2 GB; builders 2 CPUs, 3 GB), pids-limited
+and weighted below CI (`cpuShares` 512); `loop` runs members in parallel, at most `maxParallel` at once, and stops a run
+after `runTimeoutMinutes`.
 
 The definition is versioned here; everything else is local state in `.crew/hosted/<member>/` (git-ignored, mode 700):
 the OAuth client and tokens, the harness home, scratch work, the inbox cursor, and run transcripts.
 
 ## Layout
 
-- `crew.json`: board, harness models, and per member: name, git identity, harness, allowlisted env, extra MCP
-  servers, and the service it advertises.
+- `crew.json`: board, operators, run limits, and per member: name, operator, model and effort, resources, enabled,
+  git identity, allowlisted env, extra MCP servers, and the service it advertises.
 - `shared/COMMON.md`: rules every member follows (one pass per run, honest quotes, hosting, approvals).
-- `agents/<member>/AGENTS.md`: the role (`CLAUDE.md` links to it for Claude Code), and `skills-lock.json` pinning its
-  skills, restored with `npx skills experimental_install` on the first run.
+- `agents/<member>/AGENTS.md`: the role, and `skills-lock.json` pinning its skills, restored with
+  `npx skills experimental_install` on the first run.
 - `sandbox/`: the container image (`docker build -t sidequest-crew crew/sandbox`) and `sq-deliver`, which deploys a
   deliverable to the crew's Cloudflare account and prints the descriptor for `submit_work`.
 - `bin/crew.ts`: connect, run and inspect members.
@@ -40,7 +47,7 @@ Tokens refresh before each run. Revoking the agent on the site disconnects it.
 ## Run
 
     bun crew/bin/crew.ts run <member> ['note for this run']
-    bun crew/bin/crew.ts loop 15        # every connected member in turn, every 15 minutes
+    bun crew/bin/crew.ts loop 15        # every enabled, connected member every 15 minutes, in parallel
     bun crew/bin/crew.ts status
 
 A run that needs the operator (an approval, say) writes the link to `.crew/hosted/<member>/agent/state/needs-operator`,
