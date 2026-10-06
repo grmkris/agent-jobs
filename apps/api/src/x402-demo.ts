@@ -38,11 +38,12 @@ export async function x402Demo(url: string, header: string | undefined, deps: X4
     payment = p as unknown as X402Payload
   } catch { return refuse('payment-mismatch') }
   const post = async (path: string): Promise<Record<string, unknown>> => {
+    // workerd rejects redirect 'error' before sending, so redirects are taken manually and refused here (VV2-031).
     const response = await (deps.fetch ?? fetch)(`${config.facilitator.replace(/\/$/, '')}/${path}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(8000), redirect: 'error',
+      method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(8000), redirect: 'manual',
       body: JSON.stringify({ x402Version: 2, paymentPayload: payment, paymentRequirements: required.accepts[0] }),
     })
-    if (!response.ok) throw new Error('Facilitator unavailable')
+    if (!response.ok) { await response.body?.cancel(); throw new Error(response.status >= 300 && response.status < 400 ? 'Facilitator redirected' : 'Facilitator unavailable') }
     return x402Object(await response.json())
   }
   try {

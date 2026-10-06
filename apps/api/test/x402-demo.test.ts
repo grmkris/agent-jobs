@@ -68,7 +68,7 @@ describe('testnet x402 demo', () => {
     expect(timeout.mock.calls).toEqual([[8000], [8000]])
     expect(f.fetcher.mock.calls.map(call => call[0])).toEqual([`${deployment.x402!.facilitator}/verify`, `${deployment.x402!.facilitator}/settle`])
     for (const [, init] of f.fetcher.mock.calls) {
-      expect(init).toMatchObject({ method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, signal: expect.any(AbortSignal) })
+      expect(init).toMatchObject({ method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/json' }, signal: expect.any(AbortSignal) })
       expect(JSON.parse(init!.body as string)).toEqual({ x402Version: 2, paymentPayload: f.payload, paymentRequirements: f.required.accepts[0] })
     }
   })
@@ -87,6 +87,15 @@ describe('testnet x402 demo', () => {
     expect(JSON.stringify(reply)).not.toContain('private facilitator body')
     expect(decodeX402Header(reply.headers['PAYMENT-REQUIRED']!)).toMatchObject({ error: errorReason })
     expect(f.fetcher).toHaveBeenCalledTimes(calls)
+  })
+
+  it.each(['verify', 'settle'] as const)('refuses a facilitator redirect at %s instead of following it (VV2-031)', async stage => {
+    const f = await fixture()
+    f.fetcher.mockImplementation(async input => String(input).endsWith(`/${stage}`)
+      ? new Response(null, { status: 307, headers: { location: 'https://evil.example/' } })
+      : new Response(JSON.stringify({ isValid: true, payer })))
+    expect(await f.pay()).toMatchObject({ status: 402, body: { errorReason: stage === 'verify' ? 'verification-failed' : 'settlement-failed' } })
+    expect(f.fetcher).toHaveBeenCalledTimes(stage === 'verify' ? 1 : 2)
   })
 
   it.each(['verify', 'settle'] as const)('handles a facilitator HTTP failure, malformed body or timeout at %s', async stage => {
