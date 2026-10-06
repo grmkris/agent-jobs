@@ -4,7 +4,7 @@ import { Button } from './ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './ui/empty.tsx'
 import { Address as AddressText, Section, textLinkClass } from './kit.tsx'
 import type { DirectoryAgent } from '@sidequest/sdk'
-import { Link } from '@tanstack/react-router'
+import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import type { Address } from 'viem'
 import type { BackedPosition } from '../delegation-query.ts'
 import { formatNumber } from '../format.ts'
@@ -62,9 +62,9 @@ export function DelegationPositions({
                   {agent === undefined ? (
                     <AddressText value={position.account} />
                   ) : (
-                    <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className={cn(textLinkClass, 'block font-semibold')}>
+                    <BoardLink target={boardRoutes().agent(agent.agentId)} className={cn(textLinkClass, 'block font-semibold')}>
                       {agent.profile.name || `Agent ID ${agent.agentId}`}
-                    </Link>
+                    </BoardLink>
                   )}
                   <p className="mt-1 tabular-nums text-lg font-semibold">{factoryValue(position.value)}</p>
                   <p className="text-sm text-muted-foreground">{percent(position.shareBps)} of total backing</p>
