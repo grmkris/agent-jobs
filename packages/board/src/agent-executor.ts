@@ -137,7 +137,7 @@ export class AgentExecutor {
       if (approval.kind === 'unstake') template = { delegator: agent.address!, salt: BigInt(operation.id), operationId: operation.id, kind: 'unstake', shares: BigInt(request.shares!), start: this.deps.now() }
       else {
         const allowance = this.grants.spec(decision.allowanceHash)
-        if (allowance.kind !== 'allowance-once') throw new Error('Approved hire requires an exact one-off allowance')
+        if (allowance.kind !== 'allowance-once') throw new AgentFailure('conflict', 'Approved hire requires an exact one-off allowance', 'approval-allowance', 'after-operator')
         template = { ...base, kind: 'agent-approve-once', start: allowance.start, token: request.token }
       }
       spec = this.agents.freezeStep(operation.id, step, grantSpecJson(template))
@@ -281,7 +281,7 @@ export class AgentExecutor {
     await ensureAgentGrants(this.deps.context, this.agents, this.grants, this.deps.signing, agent.id, operation.id, this.deps.now())
     const mapped = await mapAgentCalls(this.deps.context, this.grants, { address: agent.address, operator: agent.operator }, transactions, this.deps.now(), approved)
     if (mapped.approval !== undefined) {
-      if (approved.allowanceHash !== undefined) throw new Error('The approved exact allowance is unavailable; this operation has not been sent')
+      if (approved.allowanceHash !== undefined) throw new AgentFailure('conflict', 'The approved exact allowance is unavailable; this operation has not been sent', 'allowance-unavailable', 'after-operator')
       const approval = this.agents.requestApproval(this.agents.operation(operation.id), 'hire-over-limit', mapped.approval)
       return { status: 'approval', operationId: operation.id, approval }
     }

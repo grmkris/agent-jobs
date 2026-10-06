@@ -4,6 +4,7 @@ import { type Address, type Hex, recoverAddress } from 'viem'
 import { migrateAgentSchema } from './agent-schema.ts'
 import type { Sql } from './store.ts'
 import { checkGrantCall } from './grant-calls.ts'
+import { BoardError } from './board-error.ts'
 
 export interface GrantRow {
   delegation_hash: Hex
@@ -82,22 +83,22 @@ export class GrantStore {
        FROM approvals JOIN agents ON agents.id=approvals.agent_id
        WHERE approvals.operation_id=? AND approvals.kind='hire-over-limit'`, spec.operationId)[0]
     if (approval === undefined || approval.status !== 'approved' || approval.state === 'revoked' || approval.chain_id !== this.context.deployment.chainId
-      || approval.operator.toLowerCase() !== owner.toLowerCase() || approval.address?.toLowerCase() !== spec.delegator.toLowerCase()) throw new Error('One-off approval requires a verified operator decision for this operation')
+      || approval.operator.toLowerCase() !== owner.toLowerCase() || approval.address?.toLowerCase() !== spec.delegator.toLowerCase()) throw new BoardError('conflict', 'One-off approval requires a verified operator decision for this operation')
     const request = JSON.parse(approval.request_json) as { token?: string; amount?: string; publish?: Hex }
     const decision = JSON.parse(approval.decision_json ?? '{}') as { allowanceHash?: string }
     if (request.token?.toLowerCase() !== spec.token.toLowerCase() || request.amount !== spec.amount.toString()
-      || !/^0x[0-9a-fA-F]{64}$/.test(decision.allowanceHash ?? '')) throw new Error('One-off approval differs from the approved hire')
-    if (typeof request.publish !== 'string' || publishData !== undefined && request.publish.toLowerCase() !== publishData.toLowerCase()) throw new Error('One-off approval requires the frozen publish for this operation')
+      || !/^0x[0-9a-fA-F]{64}$/.test(decision.allowanceHash ?? '')) throw new BoardError('conflict', 'One-off approval differs from the approved hire')
+    if (typeof request.publish !== 'string' || publishData !== undefined && request.publish.toLowerCase() !== publishData.toLowerCase()) throw new BoardError('conflict', 'One-off approval requires the frozen publish for this operation')
     const publish = checkGrantCall(this.context, { kind: 'agent-work', delegator: spec.delegator, salt: spec.salt, start: spec.start }, { to: this.context.stack.holding, data: request.publish })
     const params = publish.args[0] as { token: Address; reward: bigint }
-    if (publish.method !== 'publish' || params.token.toLowerCase() !== spec.token.toLowerCase() || params.reward !== spec.amount) throw new Error('One-off approval differs from the frozen publish')
+    if (publish.method !== 'publish' || params.token.toLowerCase() !== spec.token.toLowerCase() || params.reward !== spec.amount) throw new BoardError('conflict', 'One-off approval differs from the frozen publish')
     const hash = decision.allowanceHash as Hex
     const allowance = this.get(hash)
     const template = this.spec(hash)
     if (allowance?.status !== 'live' || allowance.signature === null || template.kind !== 'allowance-once'
       || allowance.owner.toLowerCase() !== owner.toLowerCase() || template.delegator.toLowerCase() !== owner.toLowerCase()
       || template.agent.toLowerCase() !== spec.delegator.toLowerCase() || template.token.toLowerCase() !== spec.token.toLowerCase()
-      || template.amount !== spec.amount || allowance.expires_at < sdk.grantExpiry(spec)) throw new Error('One-off approval requires the verified exact operator allowance')
+      || template.amount !== spec.amount || allowance.expires_at < sdk.grantExpiry(spec)) throw new BoardError('conflict', 'One-off approval requires the verified exact operator allowance')
     this.signed(hash)
     return hash
   }
