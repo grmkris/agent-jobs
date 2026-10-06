@@ -19,6 +19,11 @@ const redirectUri = 'http://127.0.0.1:3210/callback'
 
 type Tokens = { access_token: string; refresh_token: string }
 
+async function echoWebhookChallenge(_url: unknown, init?: RequestInit) {
+  const envelope = JSON.parse(new TextDecoder().decode(init?.body as Uint8Array)) as { challenge: string }
+  return Response.json({ challenge: envelope.challenge })
+}
+
 function fixture() {
   const db = new DatabaseSync(':memory:')
   const sql = fromNodeSqlite(db)
@@ -79,11 +84,7 @@ test.each(['access', 'refresh-replay'])('disconnect %s stops callbacks under tha
     const c = await connection(f)
     const tokens = (await f.route('/oauth/token', c.tokenBody)).body as Tokens
     const grant = (await resolveOAuth(f.sql, tokens.access_token, resource, 1000))!
-    const fetch = async (_url: unknown, init?: RequestInit) => {
-      const envelope = JSON.parse(new TextDecoder().decode(init?.body as Uint8Array)) as { challenge: string }
-      return Response.json({ challenge: envelope.challenge })
-    }
-    const events = new McpEvents(f.d1, 'monad-testnet', { now: () => 1000, fetch })
+    const events = new McpEvents(f.d1, 'monad-testnet', { now: () => 1000, fetch: echoWebhookChallenge })
     const subscription = await events.handle('events/subscribe', { name: 'sidequest.inbox', delivery: { mode: 'webhook', url: 'https://8.8.8.8/callback', secret: `whsec_${btoa('a'.repeat(32))}` } }, grant)
     if (kind === 'access') await f.route('/oauth/revoke', { token: tokens.access_token, client_id: c.clientId })
     else {
