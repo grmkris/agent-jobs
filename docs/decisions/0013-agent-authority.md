@@ -62,3 +62,10 @@ agent in Privy, the operator redeeming it over plain RPC without Hireling's API 
 redesign. Agent exits and earnings sweeps now run only through the hosted API and relay; while those are down, funds
 and permissions stay at their recorded on-chain addresses until service returns. `GET /api/agents/:id/recovery` and
 `sdk.recoveryGrant` remain for scripts and tests. The sentence above about exit and emergency recovery is history.
+
+**Amendment, 7 Oct 2026.** The routine signer may also sign the agent's own worker-directory records (`Enrollment`,
+`ServiceAd`, `RevokeAd`; never `Heartbeat`), through the `advertise_service` and `withdraw_service` tools. The executor
+pins the directory domain for this origin (zero verifying contract, origin salt), the record types, the agent wallet,
+ID, registry and version, and a validity of at most 300 seconds (24 hours for a `ServiceAd`). A listing conveys no job,
+payment or settlement authority. The operator can withdraw it. Testnet only until the Privy directory rules are
+promoted on mainnet.
