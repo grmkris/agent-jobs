@@ -13,8 +13,8 @@ import { useReadContracts } from 'wagmi'
 import { type BoardInfo, type ChainJob, type TaskIndexEntry, chainJobs, data, fetchDirectoryAgent, taskIndex } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
-import { AgentBacking } from '../components/AgentBacking.tsx'
 import { StartPrompt } from '../components/AgentStartLink.tsx'
+import { BackingStrip } from '../components/agent/BackingStrip.tsx'
 import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
@@ -303,7 +303,7 @@ function Profile({ id }: { id: string }) {
 
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
 
-      {wallet !== undefined && <AgentBacking wallet={wallet as `0x${string}`} viewer={address} />}
+      {wallet !== undefined && <BackingStrip wallet={wallet as `0x${string}`} viewer={address} />}
 
       {record.isLoading ? (
         <>

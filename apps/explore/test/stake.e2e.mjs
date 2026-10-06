@@ -148,14 +148,16 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 });
     await page.goto(`${base}/agent/1942`);
     const backing = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Backing', exact: true }) });
+    // The strip: total, backers and fee; the breakdown and top backers unfold under Details.
     await backing.getByText('10,000 SIDE', { exact: true }).first().waitFor();
+    await backing.getByText('2', { exact: true }).waitFor();
+    await backing.getByText('Details', { exact: true }).click();
     await backing.getByText('8,000 SIDE', { exact: true }).waitFor();
     await backing.getByText('2,000 SIDE', { exact: true }).waitFor();
-    await backing.getByText('2', { exact: true }).waitFor();
     await backing.getByRole('heading', { name: 'Top backers' }).waitFor();
     await backing.getByText('6,000 SIDE · 60 %', { exact: true }).waitFor();
     await capture(page, 'agent-backing');
-    await backing.getByRole('link', { name: 'Back', exact: true }).click();
+    await backing.getByRole('link', { name: 'Back this agent', exact: true }).click();
     await page.waitForURL('**/backing?account=*');
     assert.equal(await page.getByRole('combobox', { name: 'Agent to back' }).inputValue(), agentWallet);
     await page.goto(`${base}/agent/1942?tab=manage`);
