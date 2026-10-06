@@ -1,49 +1,41 @@
-import { Badge } from '../ui/badge.tsx'
-import { Button } from '../ui/button.tsx'
-import { Alert, AlertDescription } from '../ui/alert.tsx'
-import { Details, Section } from '../kit.tsx'
 import { useSigners } from '@privy-io/react-auth'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ManagedAgent } from '../../api.ts'
 import { agentAction, agentStatus } from '../../agent-api.ts'
-import { AllowanceEditor } from '../AllowanceEditor.tsx'
-import { AgentBalances } from '../AgentBalances.tsx'
-
+import { relative } from '../../format.ts'
+import { AgentNew } from '../../routes/AgentNew.tsx'
+import { Address, TxLink } from '../kit.tsx'
+import { Badge } from '../ui/badge.tsx'
+import { Button } from '../ui/button.tsx'
 import { useAuth } from '../Wallet.tsx'
 import { useNow } from '../Time.tsx'
-import { AgentNew } from '../../routes/AgentNew.tsx'
-import { amount } from '../../format.ts'
-import { useTokenList } from '../../useTokens.ts'
+import { ListingCard } from './ListingCard.tsx'
+import { AgentOwnedBacking, Connection, ManageCard, WalletEarnings, WeeklyBudget, useAgentAction } from './ManageCards.tsx'
 
 /**
- * One managed agent, for its operator: last activity, setup (when incomplete), its weekly budget, earnings and
- * backing, and revocation. Shown on the agent's page. The live harness finds it as an
- * <article> carrying the agent's name and drives revocation by the button text below.
+ * One managed agent, for its operator, as the Manage tab: setup while it is unfinished, then its weekly budget, wallet
+ * and earnings, agent-owned backing, connection and directory listing, and access with revocation last. The live harness finds it as one
+ * <article> carrying the agent's name (the cards inside are sections) and drives it by the exact strings below.
  */
 export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
   const auth = useAuth()
   const queryClient = useQueryClient()
   const { removeSigners } = useSigners()
-  const status = useQuery({
-    queryKey: ['managed-agent-status', agent.id, auth.address],
-    queryFn: () => agentStatus(agent.id),
-    refetchInterval: 20000,
-  })
+  const status = useQuery({ queryKey: ['managed-agent-status', agent.id, auth.address], queryFn: () => agentStatus(agent.id), refetchInterval: 20000 })
   const now = useNow()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [operationKey, setOperationKey] = useState(() => crypto.randomUUID())
   const stopped = agent.state === 'revoked'
-  const last =
-    agent.last_activity_at === null
-      ? 'Unknown · no observed MCP call'
-      : `${new Date(agent.last_activity_at * 1000).toLocaleString()}${now - agent.last_activity_at > 86400 ? ' · stale' : ''}`
-  useTokenList(status.data?.allowances.map((row) => row.token) ?? [])
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['managed-agents'] })
     await status.refetch()
   }
+  const action = useAgentAction(agent, operationKey, () => {
+    setOperationKey(crypto.randomUUID())
+    void refresh()
+  })
   async function revoke() {
     setBusy(true)
     setError(null)
@@ -72,94 +64,63 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
       setBusy(false)
     }
   }
+  const revocation = status.data?.revocation
   return (
-    <article className="grid gap-5 rounded-2xl border border-border bg-card p-5 shadow-popover">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">{agent.name}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {agent.agent_id === null ? 'Registration incomplete' : `Agent ID ${agent.agent_id}`}
-          </p>
-        </div>
-        <Badge variant={agent.state === 'active' ? 'success' : 'neutral'}>{agent.state}</Badge>
+    <article aria-label={agent.name} className="grid gap-7">
+      <header className="grid gap-1 px-1">
+        <h2 className="flex items-center gap-2 text-ui font-medium text-muted-foreground">
+          Managing {agent.name}
+          <Badge variant={agent.state === 'active' ? 'success' : 'neutral'}>{agent.state}</Badge>
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          <strong className="font-medium text-foreground">Last activity:</strong>{' '}
+          {agent.last_activity_at == null ? 'Unknown · no observed MCP call' : `${relative(agent.last_activity_at, now)}${now - agent.last_activity_at > 86400 ? ' · stale' : ''}`}. This is
+          server-observed activity, not a health signal.
+        </p>
       </header>
-      <Details summary="Technical details">
-        <p className="break-all font-mono text-xs">{agent.address ?? 'Wallet creation pending'}</p>
-      </Details>
-      <p className="text-sm text-muted-foreground">
-        <strong className="font-medium text-foreground">Last activity:</strong> {last}. This is server-observed activity, not a health
-        signal.
-      </p>
+
       {!stopped && agent.state !== 'active' && <AgentNew initial={agent} />}
       {agent.state === 'active' && (
         <>
-          <Section title="Spending limit">
-            {status.error !== null ? (
-              <Alert variant="destructive">
-                <AlertDescription>Weekly budget usage is unavailable; no remaining budget is assumed.</AlertDescription>
-              </Alert>
-            ) : status.data?.allowances.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No live weekly budget. Hires go to Approvals.</p>
-            ) : (
-              status.data?.allowances.map((row) => (
-                <div key={row.hash} className="grid gap-1 border-l-2 border-primary pl-4">
-                  <strong>
-                    {amount(row.left, row.token)} left of {amount(row.limit, row.token)}
-                  </strong>
-                  <p className="text-xs text-muted-foreground">
-                    Used {amount(row.used, row.token)} · next fixed period {new Date(row.periodEnd * 1000).toLocaleString()} · expires{' '}
-                    {new Date(row.expiresAt * 1000).toLocaleString()}
-                  </p>
-                </div>
-              ))
-            )}
-            <details className="rounded-xl border border-border p-3">
-              <summary className="min-h-8 cursor-pointer font-medium">Change or renew the weekly budget</summary>
-              <div className="mt-3">
-                <AllowanceEditor agent={agent} onConfirmed={() => void refresh()} />
-              </div>
-            </details>
-          </Section>
-
-          <AgentBalances
-            agent={agent}
-            operationKey={operationKey}
-            onConfirmed={() => {
-              setOperationKey(crypto.randomUUID())
-              void refresh()
-            }}
-          />
+          <WeeklyBudget agent={agent} status={status} onChanged={() => void refresh()} />
+          <WalletEarnings agent={agent} action={action} />
+          <AgentOwnedBacking agent={agent} action={action} />
         </>
       )}
-      <Section title="Revocation">
-        <p className="text-sm">
-          Hosted access:{' '}
-          {status.data?.revocation.hostedAccessStopped
-            ? status.data.revocation.signerRemoved
-              ? 'Stopped · Privy signer removal confirmed'
-              : 'Server stopped · Privy signer removal pending'
-            : stopped
-              ? 'Server stopped · provider status unknown'
-              : 'Enabled'}
-        </p>
-        <p className="text-sm">
-          On-chain permissions:{' '}
-          {status.data?.revocation.onchainPermissionsDisabled ? 'Disabled · confirmed receipts' : 'Disablement unconfirmed'}
-        </p>
-        {status.data?.revocation.receipts?.map((receipt) => (
-          <p key={receipt.tx_hash} className="break-all font-mono text-xs text-muted-foreground">
-            {receipt.status} · {receipt.tx_hash}
+      <Connection />
+      {agent.agent_id !== null && (
+        <section id="manage-listing" aria-label="Directory listing" className="scroll-mt-20">
+          <ListingCard agent={agent} />
+        </section>
+      )}
+
+      <ManageCard title="Access" tone="danger" note="Stopping access ends hosted actions at once, removes the Privy signer and disables the agent's on-chain permissions.">
+        <div className="grid gap-1 text-sm">
+          <p>
+            Agent wallet: <Address value={agent.address} />
           </p>
-        ))}
-        <Button variant="destructive" busy={busy} onClick={() => void revoke()}>
+          <p>
+            Hosted access:{' '}
+            {revocation?.hostedAccessStopped
+              ? revocation.signerRemoved
+                ? 'Stopped · Privy signer removal confirmed'
+                : 'Server stopped · Privy signer removal pending'
+              : stopped
+                ? 'Server stopped · provider status unknown'
+                : 'Enabled'}
+          </p>
+          <p>On-chain permissions: {revocation?.onchainPermissionsDisabled ? 'Disabled · confirmed receipts' : 'Disablement unconfirmed'}</p>
+          {revocation?.receipts?.map((receipt) => (
+            <p key={receipt.tx_hash} className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {receipt.status} · <TxLink hash={receipt.tx_hash} />
+            </p>
+          ))}
+        </div>
+        <Button variant="destructive" busy={busy} onClick={() => void revoke()} className="justify-self-start">
           {stopped ? 'Reconcile revocation and signer removal' : 'Stop hosted access and revoke'}
         </Button>
-        {error !== null && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-      </Section>
+        {error !== null && <p className="text-ui text-destructive-text [overflow-wrap:anywhere]">{error}</p>}
+      </ManageCard>
     </article>
   )
 }
