@@ -8,9 +8,9 @@
 | Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `e6aeb3b` |
 | Published source | `origin/main` at `55c9282`; later V1.1 source remains local |
 | Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
-| V1.1 | `%13` landed VV2-030 fix `e726244` and VV2-031 fix `d2ec71b`; both await independent re-review |
-| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and the profile base-ready decision; rebase/browser gates still running |
-| Profile | `%20` has resumed an isolated Sidequest rebase and scoped gates; no base-ready/integration signal is inferred |
+| V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
+| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and the profile base-ready decision; S3/S4 rebase passed, S5 assertions are being corrected |
+| Profile | `%20` has isolated S3/S4 rebase commit `e956975`; agent-profile passed, with remaining scoped/full gates running |
 | Privy | New origin saved; app name, credential rotation, isolated authority and real auth/MCP remain pending |
 | Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations that block provider deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
@@ -450,3 +450,29 @@ the rebase-ready/S5 handoff. Profile reports six scoped browser suites passed
 and is running its root gate. These owner-reported local gates do not establish
 live Sidequest authentication or authorize a dev apply. Explore still owns
 integration/base-ready; Sidequest still owns the next reviewed dev release.
+
+## Current integration checkpoint — 05:46 UTC
+
+The independent reviewer resolved both V1.1 Medium findings with exact full
+hashes `e72624434540c72d507ce6df3903873afdc4cb3d` and
+`d2ec71b1223e7552505b72508f4c1bcae0527d7f`, and reviewed the WS10 integration
+docs at `95cb047d1ff8e908a114079a5d46cbbf4a908a8c`. This is component evidence;
+the moving main head `0126bc0d3295eddc15e5877568f43bfa2f8d1f09` still needs one
+release-wide source review and the final integrated gate.
+
+FINALIZE-UI’s S3/S4 Sidequest rebase is `ad26f0337a6d21be113d11affe225f0eaa8160d7`;
+the owner reports the heavy check, `sidequest:test`, 18 Explore suites and 38
+light/38 dark captures at 390/1440 passed. S5 is still changing its isolated
+worktree after a vocabulary-assertion gate failure, so this is not a landing
+or deployment authorization. Profile’s S3/S4 scratch integration is
+`e95697562c9e853d43ca4afa266b3461db111ce9`; its agent-profile suite passed,
+with the remaining profile suites and full gate running. Explore owns the merge
+order and explicit base-ready signal; no profile or UI files were cherry-picked
+by the Sidequest coordinator.
+
+The attempted reviewer notification was refused by mytmux because the pane had
+no safe coordinator prompt; it is not counted as delivered. Existing explicit
+ACKs and these committed local records remain the coordination evidence. No
+provider mutation, authentication, deploy, payment, transaction or path move
+occurred. The next dev apply remains held until S5/profile integration,
+release-wide SIGNOFF, final gates and Privy approval/readback are complete.
