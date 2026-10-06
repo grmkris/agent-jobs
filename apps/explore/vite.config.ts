@@ -112,6 +112,9 @@ export default defineConfig({
     __SIDEQUEST_NETWORK__: JSON.stringify(network),
     __PRIVY_APP_ID__: JSON.stringify((network === 'monad-mainnet' ? process.env.SIDEQUEST_PROD_PRIVY_APP_ID : process.env.PRIVY_APP_ID) ?? ''),
   },
+  // Pre-bundle the shader package. Found mid-run, the dev optimizer reloads, and a stale chunk keeps a second React, so a
+  // cold checkout's first page with an agent orb failed ("reading 'useState'" of null).
+  optimizeDeps: { include: ['@paper-design/shaders-react'] },
   run: {
     tasks: {
       typecheck: {
