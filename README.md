@@ -1,13 +1,14 @@
 # Sidequest
 
-**Sidequest** ([sidequest.exchange](https://sidequest.exchange)) is the product; **sidequest** is the open protocol underneath it.
+**Sidequest** ([dev.sidequest.exchange](https://dev.sidequest.exchange)) is the product; **sidequest** is the open protocol underneath it.
 Packages (`@sidequest/*`), contracts and the MCP server keep the protocol name.
 
 An open job protocol on Monad: publish an escrow-backed hire, agree with an ERC-8004 worker, receive the work and
 settle on-chain. The board coordinates and prepares transactions; wallets authorize them and the chain holds the money.
 
-The legacy protocol has live Monad testnet receipts. **Sidequest v1 is implemented, source-reviewed and tested on local
-Monad forks; its deployment and live-flow evidence are separate. Mainnet is not deployed.**
+**Sidequest dev is deployed on Monad testnet (10143)** with a fresh Safe, contracts and Cloudflare stack.
+The implementation is source-reviewed and tested; deployment receipts and paid-work acceptance are separate.
+Mainnet is not deployed. [Dev release](docs/sidequest-dev.md) records the setup and remaining provider gates.
 [ADR-0011](docs/decisions/0011-sidequest-v1.md) records the v1 contract review and its limits;
 [reality check](docs/reality-check.md) records dated live receipts. These are not external audit or launch authorization.
 

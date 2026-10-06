@@ -1,5 +1,9 @@
 # Testnet parity matrix
 
+> Historical acceptance sheet for the previous deployment. For Sidequest dev, use
+> https://dev.sidequest.exchange and [the dev runbook](sidequest-dev.md); these recorded results
+> do not establish acceptance for the fresh contracts or domain.
+
 ## Current G1b evidence (3 Oct 2026)
 
 The active config now names **G1b**, deployed at block 67856884 with a fresh FACTORY,

@@ -12,6 +12,15 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
+The development URL was deployed on 6 October 2026. Public health, release,
+directory, agent setup and OAuth discovery checks pass. Anonymous writes and
+MCP requests require authentication. Twenty browser page/theme/viewport checks
+passed without page errors or overflow. [Live evidence](evidence/sidequest-dev/2026-10-06-live.json)
+records the remaining provider boundary: Privy still rejects the new origin until
+its dashboard allowlist is updated; authenticated MCP enumeration and real human
+login remain unverified. The indexer cron has produced progressing checkpoints
+with no jobs in this fresh deployment.
+
 ## Release
 
 Use Node 24 through the installed pnpm runner:

@@ -1198,3 +1198,49 @@ Kris drove a managed agent (Worker, ERC-8004 #2013, wallet `0x7c91…1c81`) from
   - Payout: 3 gross, 0.9 fee, 2.1 net.
 
 **Friction found:** stuck direct invites, a relay-floor refusal masked as `conflict`, MCP instructions truncated at 2,048 characters, no event push or inbox, and two calls per hire. These feed the v1.1 agent-platform plan (feed and inbox, MCP Events, honest errors, permissions on demand).
+
+## Sidequest greenfield dev release (6 Oct 2026)
+
+The development service is **https://dev.sidequest.exchange** on Monad testnet
+(10143). Sidequest uses a fresh Safe, contracts, role keys and Cloudflare stack;
+prior receipts above establish their original deployments only. There are no
+old-domain redirects or signing/session compatibility aliases. Active agents
+received the rename notice before overlapping edits.
+
+`scripts/sidequest/dev-release.mjs` deployed committed source
+`e6aeb3b95f80f65fc781b54809aa757c6ad06995`, tree
+`c28e25285dfbc4ba7074763076ea9a08303b69e3`, at 04:06:04 UTC. The owned resources
+are `sidequest-api-dev`, `sidequest-indexer-dev`, `sidequest-explore-dev`,
+`sidequest-dev-db` and `sidequest-dev-manifests`. The generated migration hash is
+`07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f`.
+
+The promoted [testnet config](../contracts/config/monad-testnet.json) records
+deployment block 68581020 and Safe `0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8`.
+SIDE is fixed at one billion units; mUSD/mEUR are labelled testnet assets.
+Safe ownership acceptance and contract verification completed before the hosted
+release; these establish deployment, not a paid job on the fresh contracts.
+
+The full local gate passed: 519 Solidity tests, 45 skipped; 47 mining tests,
+one skipped; package tests, typechecks and lint. `pnpm sidequest:test`,
+`pnpm db:generate --check` and whitespace checks passed. Live public health,
+release, directory, `/start.md`, assets and OAuth discovery passed. Anonymous
+`create_task` and MCP initialization return 401. Twenty desktop/mobile,
+light/dark browser page checks found no page errors or layout overflow.
+
+**Indexer:** the minute cron advanced `next_block` from 68587348 at 04:09:18 UTC
+to 68587944 at 04:12:20 UTC, then 68589553 at 04:20:32 UTC. The fresh index contains
+zero jobs. `/status` readback at 04:21:35 UTC returns the chain 10143 checkpoint
+and an `ok` last invocation; that invocation skipped an already-held lease.
+
+**Remaining provider gate:** Privy app `cmui9skoc01zr0dl03tyahirs` still uses the
+previous name and origin allowlist. Its public configuration readback at 04:21:35
+UTC omits `https://dev.sidequest.exchange`; browser analytics return 403
+`invalid_origin`. The sign-in modal opens, but real login is not accepted as
+verified. Rename the app to Sidequest and set the new allowed origin in its
+dashboard, then repeat sign-in and authenticated MCP acceptance. Shared-browser
+settings snapshots failed, and the app endpoint refuses PATCH with 405; no
+provider setting was changed by these attempts.
+
+[Sanitized live evidence](evidence/sidequest-dev/2026-10-06-live.json) and
+[the dev runbook](sidequest-dev.md) capture these boundaries. No browser wallet
+transaction, paid-work acceptance or mainnet operation is claimed.

@@ -1,5 +1,10 @@
 # Staging recovery and release
 
+**Historical stack, held for reconciliation and retirement since 6 October 2026.**
+Use [Sidequest dev](sidequest-dev.md) for the current development release. The
+identities and recovery procedure below describe the previous stack; they do
+not authorize deploying Sidequest into its resources.
+
 The October 1 recovery is authorized for **Monad testnet only**, using Alchemy
 `2.0.0-beta.79`, Effect `4.0.0-rc.117`, the complete stack, and the existing local
 Alchemy state. FI-1 expansion and remote-state migration are deferred. Mainnet is

@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-06",
+  "origin": "https://dev.sidequest.exchange",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "sourceCommit": "e6aeb3b95f80f65fc781b54809aa757c6ad06995",
+  "release": {
+    "status": 200,
+    "body": { "network": "monad-testnet", "mainnetLive": false, "writesOpen": true }
+  },
+  "health": {
+    "status": 200,
+    "body": { "ok": true, "runtime": "Cloudflare-Workers", "network": "monad-testnet", "board": "public" }
+  },
+  "publicReads": {
+    "startMd": 200,
+    "directory": 200,
+    "jobs": 200,
+    "initialJobsBody": { "ok": true, "index": null, "board": null, "jobs": [] },
+    "jobsBody": { "ok": true, "index": { "next_block": 68587944, "updated_at": 1791259940 }, "board": null, "jobs": [] },
+    "favicon": 200,
+    "manifest": 200
+  },
+  "anonymousBoundaries": {
+    "createTask": { "status": 401, "code": "unauthenticated" },
+    "mcpInitialize": { "status": 401, "code": "unauthenticated" },
+    "oauthProtectedResource": { "status": 200, "scopes": ["sidequest:read", "sidequest:hire", "sidequest:work"] }
+  },
+  "browser": {
+    "pages": 20,
+    "viewports": ["390x844", "1440x900"],
+    "themes": ["light", "dark"],
+    "pageErrors": [],
+    "layoutOverflow": false,
+    "providerErrors": [{ "provider": "Privy", "status": 403, "code": "invalid_origin", "action": "add https://dev.sidequest.exchange to the app allowed origins" }]
+  },
+  "indexer": {
+    "cron": "* * * * *",
+    "status": 200,
+    "checkpoint": {
+      "chainId": 10143,
+      "observations": [
+        { "nextBlock": 68587348, "updatedAt": "2026-10-06T04:09:18Z" },
+        { "nextBlock": 68587944, "updatedAt": "2026-10-06T04:12:20Z" },
+        { "nextBlock": 68589553, "updatedAt": "2026-10-06T04:20:32Z" }
+      ],
+      "progressed": true
+    },
+    "jobs": 0,
+    "observedAt": "2026-10-06T04:21:35.267Z",
+    "lastRun": { "at": "2026-10-06T04:21:19Z", "ok": true, "lease": false, "events": 0, "jobs": 0 }
+  },
+  "privy": {
+    "status": 200,
+    "appId": "cmui9skoc01zr0dl03tyahirs",
+    "name": "monad-hack-agent-job",
+    "allowedDomains": [
+      "https://agentjobs-explore-staging-67xgxuclftbgtgxn.kristjan-grm11775.workers.dev",
+      "https://www.agentjobs-explore-staging-67xgxuclftbgtgxn.kristjan-grm11775.workers.dev",
+      "https://testnet.hireling.xyz",
+      "https://hireling.xyz"
+    ],
+    "observedAt": "2026-10-06T04:21:35.548Z",
+    "sidequestOriginAccepted": false,
+    "requiredAction": "Rename the app to Sidequest and replace the old domains with https://dev.sidequest.exchange in the Privy dashboard."
+  },
+  "limits": [
+    "No Privy login or human session was completed.",
+    "No job was published and no wallet transaction was sent by the browser smoke.",
+    "Checkpoint progression establishes cron indexing; the last recorded invocation skipped acquiring an existing lease.",
+    "The empty index is an initial-release observation, not paid-work or production acceptance."
+  ]
+}

@@ -1,5 +1,9 @@
 # Testnet acceptance handoff — 3 October 2026
 
+Historical acceptance for the previous deployment. Sidequest uses a fresh
+testnet stack; see [Sidequest dev](sidequest-dev.md). These results do not
+establish acceptance for the new contracts or domain.
+
 This continues conversation `01a101de-4982-7143-90c9-4311c28a3ccf`, whose local
 source is `.codex/sessions/2026/10/03/rollout-2026-10-03T15-05-07-01a101de-4982-7143-90c9-4311c28a3ccf.jsonl`
 under the user's home. The requested outcome was to take over the rate-limited
@@ -11,7 +15,7 @@ pilot. Mainnet deployment remains a separate decision.
 
 The original coordinator's D24 replaced the old G1 stack with G1b and short
 **testnet** clocks. The normative v1 specification remains MyPlan note 17,
-`doc_eea3BzAG1fugdaPf`, reflected in [ADR-0011](decisions/0011-hireling-v1.md).
+`doc_eea3BzAG1fugdaPf`, reflected in [ADR-0011](decisions/0011-sidequest-v1.md).
 The fast testnet clocks do not change the production specification's windows.
 
 G1b is deployed and funded. Jobs 82–99 completed the contract flow matrix,
