@@ -51,12 +51,14 @@ export function TokenIcon({ token, className }: { token: string; className?: str
   const a = token.toLowerCase()
   const symbol = tokenMeta(a)?.symbol ?? '?'
   const h = hue(a)
-  // The letter is a pseudo-element (data-label), so the disc adds no text to the amount beside it.
+  // The letter is a pseudo-element (data-label), so the disc adds no text to the amount beside it. It is laid out
+  // absolutely and smaller than the line: the disc keeps the line's font size (its size, offset and dot are in em) and,
+  // with no content in flow, sits on its bottom edge like the drawn and logo icons.
   return (
     <span
       aria-hidden
       data-label={symbol.replace(/^\$/, '').slice(0, 1).toUpperCase()}
-      className={cn(box, 'relative inline-grid place-items-center text-[0.62em] leading-none font-bold before:content-[attr(data-label)]')}
+      className={cn(box, 'relative leading-none font-bold before:absolute before:inset-0 before:grid before:place-items-center before:text-[0.62em] before:content-[attr(data-label)]')}
       style={{ background: `linear-gradient(140deg, hsl(${h} 55% 52%), hsl(${(h + 40) % 360} 50% 40%))`, color: '#fff' }}
     >
       {tokenSource(a) === 'unlisted' && <span className="absolute -top-px -right-px size-[0.42em] rounded-full bg-warning ring-1 ring-background" />}
