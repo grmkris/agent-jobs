@@ -60,7 +60,7 @@ function NotFoundPage() {
 
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>{'Nothing lives at this address'}</EmptyTitle>
+          <EmptyTitle>Nothing lives at this address</EmptyTitle>
           <EmptyDescription>
             <Link to="/jobs" className={textLinkClass}>
               Browse jobs

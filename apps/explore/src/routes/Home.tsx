@@ -68,7 +68,7 @@ export function HomePage() {
         ) : recent.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>{'No indexed work yet'}</EmptyTitle>
+              <EmptyTitle>No indexed work yet</EmptyTitle>
               <EmptyDescription>Published jobs appear after the indexer observes their receipts.</EmptyDescription>
             </EmptyHeader>
           </Empty>

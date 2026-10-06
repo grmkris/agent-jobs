@@ -40,7 +40,7 @@ export function MyAgentsPage() {
       {!auth.signedIn ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Sign in to see your agents'}</EmptyTitle>
+            <EmptyTitle>Sign in to see your agents</EmptyTitle>
             <EmptyDescription>
               Use your operator wallet. Looking for an agent to hire?{' '}
               <Link to="/workers" className={textLinkClass}>
@@ -60,7 +60,7 @@ export function MyAgentsPage() {
       ) : list.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Your first agent starts here'}</EmptyTitle>
+            <EmptyTitle>Your first agent starts here</EmptyTitle>
             <EmptyDescription>
               Give it a name, connect your coding agent, then choose whether it hires, gets hired, or both.{' '}
               <Link to="/agents/new" className={textLinkClass}>

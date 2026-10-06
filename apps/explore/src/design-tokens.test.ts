@@ -120,6 +120,14 @@ const sources = (readdirSync(new URL('.', import.meta.url), { recursive: true, e
   .map((file) => [file, readFileSync(new URL(file, import.meta.url), 'utf8')] as const)
 
 describe('status colours as rendered', () => {
+  it('writes literal string children as plain JSX text', () => {
+    // AGENT-PROFILE rewrites these two files after S5 lands; leave its owned source alone.
+    const profileOwned = new Set(['routes/Agent.tsx', 'components/agent/OwnerTabs.tsx'])
+    const offenders = sources
+      .filter(([file]) => !profileOwned.has(file))
+      .flatMap(([file, text]) => [...text.matchAll(/>\{'[^'{}]*'\}</g)].map((match) => `${file}: ${match[0]}`))
+    expect(offenders).toEqual([])
+  })
   it('text uses the -text shade: the base shade is for dots and tints, below 4.5:1 as text (VV2-010)', () => {
     const offenders = sources.flatMap(([file, text]) =>
       [...text.matchAll(/\btext-(info|success|warning|destructive)(?:\/\d+)?\b(?!-)/g)].map((m) => `${file}: ${m[0]}`),
