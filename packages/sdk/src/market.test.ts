@@ -64,6 +64,17 @@ describe('the SIDE market', () => {
     expect(expired.map(t => t.to)).toEqual([m.permit2, m.universalRouter])
   })
 
+  it('encodes the original ExactInputSingleParams for a router without the per-hop floor (Monad mainnet)', async () => {
+    const original = { ...m, minHopPrice: false }
+    const [swap] = await swapTransactions(ctx({ tokenAllowance: 10n ** 30n, permit: [10n ** 30n, 2_100_000_000] }), original, { owner, tokenIn: m.quote, amountIn: 2_000_000n, minOut: 7n, deadline: 2_000_000_000 })
+    const { args } = decodeFunctionData({ abi: universalRouterAbi, data: swap!.data })
+    const [, params] = decodeAbiParameters(parseAbiParameters('bytes, bytes[]'), args[1][0]!)
+    const [single] = decodeAbiParameters(parseAbiParameters('((address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) poolKey, bool zeroForOne, uint128 amountIn, uint128 amountOutMinimum, bytes hookData)'), params[0]!)
+    expect(single).toMatchObject({ zeroForOne: true, amountIn: 2_000_000n, amountOutMinimum: 7n, hookData: '0x' })
+    // Five fields: key (5 words), zeroForOne, amountIn, amountOutMinimum, hookData offset; then the empty hookData.
+    expect((params[0]!.length - 2) / 64).toBe(1 + 5 + 3 + 1 + 1)
+  })
+
   it('refuses a token the pool does not trade, applies slippage, and reads the mid price', async () => {
     await expect(swapTransactions(ctx({}), m, { owner, tokenIn: owner, amountIn: 1n, minOut: 0n, deadline: 1 })).rejects.toThrow('SIDE and its quote token only')
     expect(minOutFor(10_000n)).toBe(9_900n)
