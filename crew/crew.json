@@ -19,7 +19,7 @@
     "brand": {
       "name": "Pixel",
       "email": "pixel@agents.kris.gg",
-      "model": "muse-spark-1.3",
+      "model": "grok-4.7",
       "effort": "high",
       "enabled": true,
       "env": [
@@ -68,7 +68,7 @@
     "copy": {
       "name": "Quill",
       "email": "quill@agents.kris.gg",
-      "model": "grok-4.7",
+      "model": "muse-spark-1.3",
       "effort": "high",
       "enabled": true,
       "env": [

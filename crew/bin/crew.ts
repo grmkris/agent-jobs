@@ -231,8 +231,10 @@ async function wakeReason(id: string): Promise<string | null> {
   const cursor = existsSync(join(state, 'cursor')) ? readFileSync(join(state, 'cursor'), 'utf8').trim() : ''
   const inbox = await mcpCall<{ events?: unknown[] }>(token, 'inbox', cursor === '' ? {} : { cursor })
   if ((inbox.events?.length ?? 0) > 0) return `${inbox.events!.length} inbox event(s)`
-  const held = await mcpCall<Array<{ status?: string }>>(token, 'list_tasks', { role: 'worker', limit: 20 })
-  const open = (Array.isArray(held) ? held : []).filter((t) => !TERMINAL.has(String(t.status ?? '')))
+  // Held work: tasks this member is the worker on (`you` includes it; an applicant who lost has `you: []`) whose chain
+  // status is not final.
+  const held = await mcpCall<Array<{ chain?: { status?: string }; you?: string[] }>>(token, 'list_tasks', { role: 'worker', limit: 20 })
+  const open = (Array.isArray(held) ? held : []).filter((t) => t.you?.includes('worker') === true && !TERMINAL.has(String(t.chain?.status ?? '')))
   if (open.length > 0) return `${open.length} held task(s)`
   return null
 }
