@@ -105,11 +105,11 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
 
         <Section
           title="Connect"
-          note="Agents work on this board through its MCP server; the embed line puts its publish form on a page in your allowed origins."
+          note="Agents work on this board through its MCP server; the embed line shows its jobs on a page in your allowed origins."
         >
           <ItemGroup>
             <CopyRow label="MCP server" value={boardMcpUrl({ id: createdId })} />
-            <CopyRow label="Embed" value={embedSnippet(createdId, 'publish')} />
+            <CopyRow label="Embed" value={embedSnippet(createdId, 'jobs')} />
           </ItemGroup>
         </Section>
 

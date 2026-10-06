@@ -20,16 +20,12 @@ import './styles.css'
 import { wagmiConfig } from './wallet.ts'
 import { AgentPage } from './routes/Agent.tsx'
 import { ConnectPage } from './routes/Connect.tsx'
-import { PublishPage } from './routes/Publish.tsx'
 import { QuoteRequestPage, QuotesPage } from './routes/Quotes.tsx'
 import { BoardsPage } from './routes/Boards.tsx'
 import { BoardNewPage } from './routes/BoardNew.tsx'
 import { EmbedPage } from './routes/Embed.tsx'
-import { BackingPage } from './routes/Backing.tsx'
 import { AdminPage } from './routes/Admin.tsx'
-import { CollectPage } from './routes/Collect.tsx'
 import { SponsorshipPage } from './routes/Sponsorship.tsx'
-import { TelegramPage } from './routes/Telegram.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 import { AgentNewPage } from './routes/AgentNew.tsx'
 import { HomePage } from './routes/Home.tsx'
@@ -82,19 +78,6 @@ const job = createRoute({
     return <JobPage auth={useAuth()} />
   },
 })
-// Pages that write are "launching soon" on mainnet before launch (D16), also when opened by URL.
-const publish = createRoute({
-  getParentRoute: () => root,
-  path: '/publish',
-  component: function PublishRoute() {
-    const auth = useAuth()
-    return (
-      <LaunchGate title="Post a job">
-        <PublishPage auth={auth} />
-      </LaunchGate>
-    )
-  },
-})
 const quotes = createRoute({ getParentRoute: () => root, path: '/quotes', component: QuotesPage })
 const quoteRequest = createRoute({
   getParentRoute: () => root,
@@ -135,43 +118,12 @@ const agentNew = createRoute({
   ),
 })
 const account = createRoute({ getParentRoute: () => root, path: '/account', component: AccountPage })
-// Backing is the protocol's, not a board's: one page for every board.
-const backing = createRoute({
-  getParentRoute: () => root,
-  path: '/backing',
-  validateSearch: (search: Record<string, unknown>): { account?: string } =>
-    typeof search.account === 'string' ? { account: search.account } : {},
-  component: () => (
-    <LaunchGate title="Back an agent">
-      <BackingPage />
-    </LaunchGate>
-  ),
-})
 const admin = createRoute({
   getParentRoute: () => root,
   path: '/admin',
   component: () => (
     <LaunchGate title="Admin">
       <AdminPage />
-    </LaunchGate>
-  ),
-})
-// What the wallet can close or claim, on every board.
-const collect = createRoute({
-  getParentRoute: () => root,
-  path: '/collect',
-  component: () => (
-    <LaunchGate title="Collect">
-      <CollectPage />
-    </LaunchGate>
-  ),
-})
-const telegram = createRoute({
-  getParentRoute: () => root,
-  path: '/telegram',
-  component: () => (
-    <LaunchGate title="Telegram">
-      <TelegramPage />
     </LaunchGate>
   ),
 })
@@ -207,18 +159,6 @@ const boardJob = createRoute({
     return <JobPage auth={useAuth()} />
   },
 })
-const boardPublish = createRoute({
-  getParentRoute: () => board,
-  path: '/publish',
-  component: function BoardPublishRoute() {
-    const auth = useAuth()
-    return (
-      <LaunchGate title="Post a job">
-        <PublishPage auth={auth} />
-      </LaunchGate>
-    )
-  },
-})
 const boardQuotes = createRoute({
   getParentRoute: () => board,
   path: '/quotes',
@@ -247,7 +187,6 @@ const router = createRouter({
     jobs,
     listings,
     job,
-    publish,
     quotes,
     quoteRequest,
     agent,
@@ -256,15 +195,12 @@ const router = createRouter({
     connect,
     account,
     agentNew,
-    backing,
     admin,
-    collect,
-    telegram,
     sponsorship,
     boards,
     boardNew,
     embed,
-    board.addChildren([boardJobs, boardJob, boardPublish, boardQuotes, boardQuoteRequest, boardWorkers, boardAgent]),
+    board.addChildren([boardJobs, boardJob, boardQuotes, boardQuoteRequest, boardWorkers, boardAgent]),
   ]),
 })
 

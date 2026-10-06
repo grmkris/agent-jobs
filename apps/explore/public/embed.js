@@ -1,16 +1,6 @@
-/*
- * sidequest drop-in widget (ADR-0008). Put this on any page:
- *
- *   <script src="https://<explore-host>/embed.js" data-board="monad-pet" data-view="publish"
- *           data-title="New skin for the pet"></script>
- *
- * It inserts an iframe of the hosted widget for that board right after the script tag, relays the widget's events
- * to `window.Sidequest.on(type, fn)` (ready, signed-in, published, approved, rejected, cancelled, disputed, settled,
- * error, resize), and lets the page prefill the form with `Sidequest.prefill({title, brief, reward, token})`.
- * data-* attributes: board, view (publish | task | jobs), taskId, jobId (for the "Open in Sidequest" link of a task
- * view), title, brief, reward, token, mode (hire | quotes), wallet (privy | injected), worker, agentId,
- * theme (light | dark | auto: follow the visitor's system, the default), accent (a #rrggbb colour for buttons and
- * links), explore (override the widget origin), height.
+/* Sidequest board widget: jobs (default) or one task. Attributes: board, view, taskId,
+ * jobId, wallet, theme, accent, explore, height. Events: ready, signed-in, approved,
+ * rejected, cancelled, disputed, settled, error, resize. Listen with Sidequest.on(type, fn).
  */
 ;(() => {
   const script = document.currentScript
@@ -18,9 +8,9 @@
   const ds = script.dataset
   const base = (ds.explore || new URL(script.src).origin).replace(/\/$/, '')
   const board = ds.board || 'public'
-  const view = ds.view || 'publish'
+  const view = ds.view || 'jobs'
   const params = new URLSearchParams()
-  for (const k of ['taskId', 'title', 'brief', 'reward', 'token', 'mode', 'wallet', 'worker', 'agentId', 'theme']) if (ds[k]) params.set(k, ds[k])
+  for (const k of ['taskId', 'wallet', 'theme']) if (ds[k]) params.set(k, ds[k])
   if (ds.accent && /^#?[0-9a-fA-F]{6}$/.test(ds.accent)) params.set('accent', ds.accent.replace(/^#/, ''))
   params.set('view', view)
   const iframe = document.createElement('iframe')
@@ -32,7 +22,7 @@
   wrap.className = 'sidequest-embed'
   wrap.appendChild(iframe)
   const open = document.createElement('a')
-  const target = view === 'task' && ds.jobId ? `${base}/b/${board}/job/${ds.jobId}` : view === 'jobs' ? `${base}/b/${board}` : `${base}/b/${board}/publish?${params.toString()}`
+  const target = view === 'task' && ds.jobId ? `${base}/b/${board}/job/${ds.jobId}` : `${base}/b/${board}`
   open.href = target
   open.target = '_blank'
   open.rel = 'noreferrer'
@@ -48,9 +38,6 @@
       return () => {
         listeners[type] = (listeners[type] || []).filter((f) => f !== fn)
       }
-    },
-    prefill(payload) {
-      if (iframe.contentWindow) iframe.contentWindow.postMessage({ source: 'sidequest-host', type: 'prefill', payload }, base)
     },
     iframe,
     board,

@@ -1,10 +1,7 @@
-import { cn } from '../lib/cn.ts'
 import { Button } from './ui/button.tsx'
 import { Input } from './ui/input.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { Address as AddressText, Section, Segmented, textLinkClass } from './kit.tsx'
-import type { DirectoryAgent } from '@sidequest/sdk'
-import { Link } from '@tanstack/react-router'
+import { Address as AddressText, Section, Segmented } from './kit.tsx'
 import type { Address } from 'viem'
 import { duration } from '../duration.ts'
 import { factoryAmount } from '../stake.ts'
@@ -14,7 +11,6 @@ import { factoryValue } from './DelegationPositions.tsx'
 export function DelegationForm({
   account,
   owner,
-  agents,
   mode,
   text,
   wallet,
@@ -23,17 +19,12 @@ export function DelegationForm({
   disabled,
   busy,
   error,
-  onAccount,
   onMode,
   onText,
   onSubmit,
-  hasMore,
-  loadingMore,
-  onLoadMore,
 }: {
   account: Address
   owner: Address
-  agents: DirectoryAgent[]
   mode: 'add' | 'leave'
   text: string
   wallet: bigint | undefined
@@ -42,21 +33,16 @@ export function DelegationForm({
   disabled: boolean
   busy: boolean
   error: string | null
-  onAccount: (account: Address) => void
   onMode: (mode: 'add' | 'leave') => void
   onText: (text: string) => void
   onSubmit: () => void
-  hasMore: boolean
-  loadingMore: boolean
-  onLoadMore: () => void
 }) {
   const value = factoryAmount(text)
   const maximum = mode === 'add' ? wallet : active
   const invalid = text.trim() !== '' && value === null
   const tooMuch = value !== null && maximum !== undefined && value > maximum
-  const known = agents.some((agent) => agent.wallet.toLowerCase() === account.toLowerCase())
   return (
-    <Section title={mode === 'add' ? 'Back an agent' : 'Leave this position'}>
+    <Section title={mode === 'add' ? account.toLowerCase() === owner.toLowerCase() ? 'Back my wallet' : 'Back this agent' : 'Leave this position'}>
       <form
         className="grid gap-3 rounded-xl bg-card p-4"
         onSubmit={(event) => {
@@ -64,31 +50,6 @@ export function DelegationForm({
           onSubmit()
         }}
       >
-        <label className="grid gap-1.5 text-sm">
-          <span>Agent to back</span>
-          <select
-            aria-label="Agent to back"
-            className="min-h-11 w-full rounded-xl bg-muted px-3 text-foreground"
-            value={account}
-            disabled={disabled || busy}
-            onChange={(event) => onAccount(event.target.value as Address)}
-          >
-            <option value={owner}>My own wallet</option>
-            {!known && account.toLowerCase() !== owner.toLowerCase() && <option value={account}>{account}</option>}
-            {agents
-              .filter((agent) => agent.wallet.toLowerCase() !== owner.toLowerCase())
-              .map((agent) => (
-                <option key={agent.agentId} value={agent.wallet}>
-                  {agent.profile.name || `Agent ID ${agent.agentId}`} · #{agent.agentId}
-                </option>
-              ))}
-          </select>
-        </label>
-        {hasMore && (
-          <Button variant="secondary" size="sm" busy={loadingMore} onClick={onLoadMore}>
-            Load more agents
-          </Button>
-        )}
         <div className="grid gap-1 text-sm text-muted-foreground">
           <span>
             Backing wallet <AddressText value={account} />
@@ -129,7 +90,7 @@ export function DelegationForm({
         </label>
         <p className="text-sm text-muted-foreground">
           {mode === 'add'
-            ? 'One permit signature lets the vault take exactly this amount. Then confirm the backing in your wallet.'
+            ? 'Review the exact amount, then confirm the backing in your wallet.'
             : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Deposits at risk do not prevent requesting to leave; they may delay withdrawal.`}
         </p>
         {invalid && (
@@ -152,9 +113,6 @@ export function DelegationForm({
         <Button type="submit" size="lg" busy={busy} disabled={disabled || maximum === undefined || value === null || tooMuch}>
           {mode === 'add' ? `Back with ${value === null ? 'SIDE' : factoryValue(value)}` : value === null ? 'Leave' : `Leave ${factoryValue(value)}`}
         </Button>
-        <Link to="/workers" className={cn(textLinkClass, 'min-h-11 content-center text-sm')}>
-          View the worker directory
-        </Link>
       </form>
     </Section>
   )

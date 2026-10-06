@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 
-// Hire again (U4): a paid job's creator, and its agent's profile, open Post prefilled as a direct hire of the same
-// agent with the same token, reward and terms; the agent is marked as hired before among the new job's applicants.
+// Hire again: paid jobs and agent profiles hand context to the exact owned publisher. The agent is still marked
+// as hired before among a later job's applicants.
 // Mocked Chromium only: no live jobs, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/sidequest-hire-again-evidence';
@@ -70,6 +70,7 @@ async function fixture(viewport, address = creator) {
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [] });
     if (url.pathname.includes('/api/')) {
       const name = url.pathname.split('/').at(-1);
+      if (name === 'agents') return reply({ ok: true, result: { agents: [{ id: 'publisher', agent_id: '8123', name: 'My publisher', address: '0x2222222222222222222222222222222222222222', state: 'active' }] } });
       if (name === 'task_index') return reply({ ok: true, result: tasks });
       if (name === 'get_task') {
         const { taskId } = route.request().postDataJSON();
@@ -103,93 +104,52 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page, state } = await fixture(viewport);
-    // The paid job's creator: Hire again opens Post as a direct hire of the same agent, with the same terms.
     await page.goto(`${base}/job/58`);
     await page.getByText('Paid', { exact: true }).first().waitFor();
-    await capture(page, `${device}-paid-job`);
-    await page.getByRole('link', { name: 'Hire again' }).click();
-    await page.waitForURL(/\/publish\?again=/);
-    await page.getByText('Hiring Agent ID 7001 again', { exact: true }).waitFor();
-    assert.equal(await page.locator('#post-title').inputValue(), 'Fix the flaky test (job 58)');
-    assert.equal(await page.locator('#post-brief').inputValue(), 'It fails one run in ten. Find out why.');
-    assert.equal(await page.locator('#post-criteria').inputValue(), 'CI is green\nNo retries added');
-    await capture(page, `${device}-hire-again-prefilled`);
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    assert.equal(await page.getByRole('radio', { name: /Direct hire/ }).getAttribute('aria-checked'), 'true');
-    assert.equal(await page.locator('#post-invite').inputValue(), '7001');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    assert.equal(await page.locator('#post-reward').inputValue(), '12.5');
-    await page.getByRole('button', { name: 'Review', exact: true }).click();
-    await page.getByRole('button', { name: /Confirm/ }).first().waitFor();
-    assert.equal(state.created.length, 1);
-    const args = state.created[0];
-    assert.deepEqual({ ...args, deliveryDeadline: undefined }, {
-      title: 'Fix the flaky test (job 58)', brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'], token, reward: '12.5',
-      creatorBond: '2', workerBond: '1.5', deliveryDeadline: undefined, mode: 'hire', requiredChecks: ['ci'], deliverable: { accepts: ['git', 'url'], target: 'https://example.test' },
-      invite: { agentId: '7001' }, windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 },
-    });
-    assert.ok(Math.abs(args.deliveryDeadline - (Math.floor(Date.now() / 1000) + 72 * 3600)) < 120, `72 hours to deliver, as before: ${args.deliveryDeadline}`);
+    await page.getByRole('button', { name: 'Hire again', exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'Create with your agent' });
+    await sheet.getByRole('textbox', { name: 'Agent instruction' }).waitFor();
+    const prompt = await sheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue();
+    assert.match(prompt, /Read job #58 and its frozen offer/);
+    assert.match(prompt, /publisher must be my agent #8123/);
+    assert.equal(new URL(page.url()).pathname, '/job/58');
+    assert.deepEqual(state.created, []);
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-    await capture(page, `${device}-hire-again-review`);
-
-    // The agent's profile offers the same, from the latest job this creator paid it for.
+    await capture(page, `${device}-hire-again-prompt`);
+    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
     await page.goto(`${base}/agent/7001`);
-    const link = page.getByRole('link', { name: 'Hire again' });
-    await link.waitFor();
-    assert.match(await link.getAttribute('href'), /again=%2258%22|again=58/);
-    await page.getByText('You paid this agent for job #58.', { exact: false }).waitFor();
-    await capture(page, `${device}-agent-hire-again`);
-
-    // On the new job, the agent is marked as hired before and listed first.
+    await page.getByRole('button', { name: 'Hire again', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Hire again', exact: true }).click();
+    await sheet.getByRole('textbox', { name: 'Agent instruction' }).waitFor();
+    assert.match(await sheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue(), /Read job #58/);
+    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
     await page.goto(`${base}/job/61`);
     await page.getByText('Applications · 2', { exact: true }).waitFor();
     const first = page.locator('a[href$="/agent/7001"], a[href$="/agent/7002"]').first();
     assert.equal(await first.innerText(), 'Worker #7001');
     assert.equal(await page.getByText('Hired before', { exact: true }).count(), 1);
-    await capture(page, `${device}-hired-before`);
-    results.push({ device, checks: ['paid job creator sees Hire again', 'prefill: agent, token, reward, terms, delivery time', 'create_task args match the past offer as a hire', 'agent profile Hire again from latest paid job', 'hired-before applicant first'], passed: true });
+    results.push({ device, passed: true, checks: ['paid creator contextual prompt', 'publisher separate from worker', 'no create or send', 'profile latest paid context', 'hired-before applicant first'] });
     await context.close();
   }
-
-  // Anyone else sees no Hire again: not on the paid job, not on the agent's profile.
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, stranger);
     await page.goto(`${base}/job/58`);
     await page.getByText('Paid', { exact: true }).first().waitFor();
-    await page.getByText('People', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('link', { name: 'Hire again' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Hire again', exact: true }).count(), 0);
     await page.goto(`${base}/agent/7001`);
     await page.getByText(/Jobs · 2/).waitFor();
-    assert.equal(await page.getByRole('link', { name: 'Hire again' }).count(), 0);
-    // An open job cannot be hired again, even by URL.
+    assert.equal(await page.getByRole('button', { name: 'Hire again', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Hire this agent', exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'Create with your agent' });
+    await sheet.getByRole('textbox', { name: 'Agent instruction' }).waitFor();
+    const prompt = await sheet.getByRole('textbox', { name: 'Agent instruction' }).inputValue();
+    assert.match(prompt, /invite.agentId="7001"/);
+    assert.match(prompt, /publisher must be my agent #8123/);
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
     await page.goto(`${base}/publish?again=61`);
-    await page.getByText('Job #61 cannot be hired again', { exact: true }).waitFor();
-    results.push({ checks: ['non-creator sees no Hire again', 'unpaid job refused by URL'], passed: true });
-    await context.close();
-  }
-
-  // C7: an agent's "Hire this agent" link (`/publish?invite=<id>`, which the router writes with the id quoted) opens Post
-  // as a direct hire with that agent invited.
-  {
-    const { context, page } = await fixture({ width: 1440, height: 900 }, stranger);
-    await page.goto(`${base}/publish?invite=%227001%22`);
-    const note = page.getByRole('note').filter({ hasText: 'Hiring Agent ID 7001' });
-    await note.waitFor();
-    await page.locator('#post-title').fill('A job for this agent');
-    await page.locator('#post-brief').fill('Straight from its profile.');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    assert.equal(await page.getByRole('radio', { name: /Direct hire/ }).getAttribute('aria-checked'), 'true');
-    assert.equal(await page.locator('#post-invite').inputValue(), '7001');
-    // Clearing the field un-invites it; the note follows the field, not the link.
-    await page.locator('#post-invite').fill('');
-    await note.waitFor({ state: 'detached' });
-    // A typed link works too; anything but digits is a plain Post form.
-    await page.goto(`${base}/publish?invite=7002`);
-    await page.getByRole('note').filter({ hasText: 'Hiring Agent ID 7002' }).waitFor();
-    await page.goto(`${base}/publish?invite=abc`);
-    await page.getByRole('heading', { name: 'Post a job' }).waitFor();
-    assert.equal(await page.getByRole('note').filter({ hasText: /Hiring Agent ID/ }).count(), 0);
-    results.push({ checks: ['the Hire link opens Post with the agent invited', 'clearing the field drops the note', '?invite= typed by hand; non-digits ignored'], passed: true });
+    await page.getByRole('heading', { name: 'Page not found', exact: true }).waitFor();
+    results.push({ passed: true, checks: ['stranger has no hire-again shortcut', 'hire invitation contextual prompt', 'manual posting route removed'] });
     await context.close();
   }
   assert.deepEqual(errors, []);

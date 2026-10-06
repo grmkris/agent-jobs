@@ -3,7 +3,7 @@ import { cn } from '../lib/cn.ts'
 /**
  * The app's frame, around two places: Jobs (every board's work, quotes and workers) and Agents (the operator's own).
  * On a wide screen: a sidebar with both, the operator's agents nested under Agents with what each waits on, and the
- * account menu at its foot. On a phone: a translucent top bar and a tab bar (Jobs, Agents, Account), clear of the
+ * account link at its foot. On a phone: a translucent top bar and a tab bar (Jobs, Agents, Account), clear of the
  * notch and the home indicator. Content scrolls under the translucent chrome.
  */
 import { Link, useLocation } from '@tanstack/react-router'
@@ -12,7 +12,7 @@ import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
 import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 import { isMainnet, usePaused } from '../wallet.ts'
-import { AccountMenu, Count } from './AccountMenu.tsx'
+import { AccountLink, Count } from './AccountLink.tsx'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
 import { LaunchBanner } from './LaunchGate.tsx'
 import { NetworkSwitch } from './NetworkSwitch.tsx'
@@ -30,7 +30,7 @@ interface Place {
 }
 
 /** Pages that belong to the account rather than to a job or an agent. */
-const ACCOUNT_PATHS = ['/account', '/collect', '/backing', '/sponsorship', '/telegram', '/admin']
+const ACCOUNT_PATHS = ['/account', '/sponsorship', '/admin']
 const AGENT_PATHS = ['/agents', '/connect']
 const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
@@ -159,7 +159,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
         <div className="mt-auto grid gap-3 pt-6">
           {auth.signedIn ? (
-            <AccountMenu collect={collect} />
+            <AccountLink collect={collect} />
           ) : (
             <div className="px-1">
               <AccountControl auth={auth} account={account} full />

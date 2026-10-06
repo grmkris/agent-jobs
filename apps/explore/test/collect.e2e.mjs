@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
-// The Collect place (U3): five primary tabs, mobile Me -> Collect and desktop Collect counts, the wallet's collect actions from the board, one tap per action
+// Collection inside Account (U3): direct mobile/desktop account navigation and counts, the wallet's collect actions from the board, one tap per action
 // (the tap opens the wallet), v1 payout calls with their gas limits, a mining claim read back from its calldata
 // (U-MINE, B8b), empty, unavailable and signed-out states. Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
@@ -101,21 +101,14 @@ try {
       assert.deepEqual(tabs.map((t) => t.text?.replace(/3$/, '')), ['Jobs', 'Agents', 'Account']);
       assert.ok(tabs.every((t) => t.width >= 44 && t.height >= 44), JSON.stringify(tabs));
     }
-    if (viewport.width === 390) {
-      await nav.getByRole('link', { name: /^Account/ }).click();
-      const mobileCollect = page.getByRole('main').getByRole('link', { name: /^Collect/ });
-      await mobileCollect.getByLabel('3 to collect').waitFor();
-      const target = await mobileCollect.boundingBox();
-      assert.ok(target.width >= 44 && target.height >= 44, JSON.stringify(target));
-      await mobileCollect.click();
-    } else {
-      // On a wide screen Collect is in the account menu, its count on the menu's trigger and on the item.
-      await nav.getByRole('button', { name: /^Account/ }).click();
-      const collectItem = page.getByRole('menuitem', { name: /^Collect/ });
-      await collectItem.getByLabel('3 to collect').waitFor();
-      await collectItem.click();
-    }
-    await page.waitForURL('**/collect');
+    const account = nav.getByRole('link', { name: /^Account/ });
+    const target = await account.boundingBox();
+    assert.ok(target.width >= 44 && target.height >= 44, JSON.stringify(target));
+    await account.click();
+    await page.waitForURL('**/account');
+    assert.equal(await page.getByRole('menuitem').count(), 0);
+    await page.getByRole('heading', { name: 'Collect', exact: true }).waitFor();
+    await page.getByRole('main').getByLabel('3 to collect').waitFor();
     await page.getByText('Settle job #72', { exact: true }).waitFor();
     await page.getByText('Your top-up back from job #71', { exact: true }).waitFor();
     await page.getByText('2 mUSD', { exact: true }).waitFor();
@@ -149,7 +142,7 @@ try {
     await page.getByText('Nothing to collect', { exact: true }).waitFor();
     assert.equal(await nav.getByLabel(/to collect/).count(), 0);
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 3);
-    results.push({ device, checks: ['five primary tabs at least 44 px', device === 'mobile' ? 'Me -> Collect with count and 44 px target' : 'secondary Collect link with count', 'count badge updates after collection', 'list from collect_actions', 'one tap opens the wallet', 'settle 1M gas', 'top-up refund 450k gas', 'decline then retry', 'empty after collecting'], passed: true });
+    results.push({ device, checks: ['direct Account link at least 44 px', 'Collect inline on Account with count', 'count badge updates after collection', 'list from collect_actions', 'one tap opens the wallet', 'settle 1M gas', 'top-up refund 450k gas', 'decline then retry', 'empty after collecting'], passed: true });
     await context.close();
   }
 
@@ -158,7 +151,7 @@ try {
   // A claim whose calldata names another wallet is shown but not offered.
   {
     const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [miningClaim(me), { ...miningClaim('0x2222222222222222222222222222222222222222'), epoch: '1', transactions: miningClaim('0x2222222222222222222222222222222222222222').transactions.map((t) => ({ ...t, data: encodeFunctionData({ abi: claimAbi, functionName: 'claim', args: [1n, '0x2222222222222222222222222222222222222222', 1234n * 10n ** 18n, []] }) })) }] });
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     await page.getByText('Mining reward, epoch 0 · 1,234 SIDE, backed when collected', { exact: true }).waitFor();
     await page.getByText('Mining reward, epoch 1', { exact: true }).waitFor();
     await page.getByRole('alert').filter({ hasText: 'Not offered: It would stake the reward for another wallet.' }).waitFor();
@@ -179,13 +172,13 @@ try {
 
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { error: true });
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     await page.getByText('What you can collect cannot be read right now. This does not mean there is nothing waiting for you.', { exact: true }).waitFor();
     assert.equal(await page.getByText('Nothing to collect', { exact: true }).count(), 0);
     await capture(page, 'collect-unavailable');
     await context.close();
     const signedOut = await fixture({ width: 390, height: 844 }, { session: false });
-    await signedOut.page.goto(`${base}/collect`);
+    await signedOut.page.goto(`${base}/account`);
     await signedOut.page.getByText('Sign in to see what you can collect', { exact: true }).waitFor();
     await signedOut.context.close();
     results.push({ checks: ['unavailable is not empty', 'signed out asks to sign in'], passed: true });

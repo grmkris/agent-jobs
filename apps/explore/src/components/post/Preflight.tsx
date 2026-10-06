@@ -11,7 +11,7 @@ import { useToken } from '../../useTokens.ts'
 import { chain, isMainnet } from '../../wallet.ts'
 
 import { TokenAmount } from '../token/TokenAmount.tsx'
-import { Mark } from './parts.tsx'
+import { Mark } from '../controls.tsx'
 
 type Hex = `0x${string}`
 
@@ -146,8 +146,8 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
         {free !== undefined && free < need && (
           <span className="block text-ui text-warning-text">
             Back with {formatNumber(need - free, 18)} more SIDE.{' '}
-            <Link to="/backing" className={cn(textLinkClass, 'font-semibold')}>
-              Back an agent
+            <Link to="/account" className={cn(textLinkClass, 'font-semibold')}>
+              Manage your backing
             </Link>
           </span>
         )}

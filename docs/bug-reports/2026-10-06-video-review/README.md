@@ -21,6 +21,8 @@ This folder preserves the extracted voice, timestamped transcript, and app-only 
 
 The last two rows are product proposals in the recording rather than confirmed defects; the issues are labeled as enhancements.
 
+The [implementation and validation note](IMPLEMENTATION.md) records the final behavior and product decisions for all eight findings.
+
 ## Evidence
 
 - [Voice extract](voice.mp3)

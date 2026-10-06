@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { output, base, owner, agentWallet, contracts, errors, server, browser, fixture } from './stake-fixture.mjs';
+import { output, base, owner, contracts, errors, server, browser, fixture } from './stake-fixture.mjs';
 
 const results = [];
 const pointerKey = `sidequest.delegation-op:10143:${contracts.vault}:${owner}`;
+async function openProfileBacking(page) {
+  await page.goto(`${base}/agent/1942`);
+  await page.getByRole('button', { name: 'Back this agent', exact: true }).first().click();
+  await page.locator('#profile-backing').getByRole('heading', { name: 'Confirm your position action', exact: true }).waitFor();
+}
 async function prepare(page) {
   await page.goto(`${base}/agents/new`);
   await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-  await page.getByRole('textbox', { name: 'SIDE to back this agent' }).fill('100');
-  await page.getByRole('button', { name: 'Review backing', exact: true }).click();
+  await page.locator('#stake-amount').fill('100');
+  await page.getByRole('button', { name: 'Back with 100 SIDE', exact: true }).click();
   await page.getByText('Back with 100 SIDE to My worker', { exact: true }).waitFor();
 }
 try {
@@ -16,7 +21,7 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 }, { delegated: true });
     await prepare(page);
     const before = await page.evaluate(key => localStorage.getItem(key), pointerKey);
-    if (surface === 'stake') await page.goto(`${base}/backing?account=${agentWallet}`);
+    if (surface === 'stake') await openProfileBacking(page);
     await page.evaluate(() => { window.__stake.code = {}; });
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByText(/Your wallet's batch permission changed/).waitFor();
@@ -30,7 +35,7 @@ try {
   for (const surface of ['setup', 'stake']) {
     const { context, page } = await fixture({ width: 1440, height: 900 }, { delegated: true });
     await prepare(page);
-    if (surface === 'stake') await page.goto(`${base}/backing?account=${agentWallet}`);
+    if (surface === 'stake') await openProfileBacking(page);
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture', exact: true }).waitFor();
     // Revoke after the guard, while the wallet prompt is open: the chain accepts a successful no-op self-call.
@@ -55,7 +60,7 @@ try {
       });
     }
     // A different surface/reload must retain the failure and offer a retry rather than clear the intent.
-    await page.goto(`${base}/backing?account=${agentWallet}`);
+    await openProfileBacking(page);
     await page.getByText(/Not backed: the receipt has no exact Delegated event/).waitFor();
     assert.ok(await page.evaluate(key => localStorage.getItem(key), pointerKey), 'old recorded flags cannot clear an unproved delegation');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);

@@ -72,7 +72,7 @@ async function fixture(viewport, options = {}) {
     if (url.pathname === '/data/directory') return reply({ ok: true, agents: [agent], nextCursor: null, observedAt: 100, chainId: 10143, identityRegistry: contracts.factory, scope: 'fixture' });
     if (url.pathname === '/data/directory/1942') return reply({ ok: true, agent });
     if (url.pathname === '/data/agents/1942') return reply({ ok: false, message: 'Fixture has no job history' }, 404);
-    if (url.pathname === '/api/agents/managed') return reply({ ok: true, result: { allowances: [], grants: [], revocation: {} } });
+    if (url.pathname === '/api/agents/managed') return reply({ ok: true, result: { connected: false, allowances: [], grants: [], revocation: {} } });
     if (url.pathname === '/api/agents/managed/recovery') return reply({ ok: true, result: { grants: [] } });
     if (url.pathname === '/api/agents' && route.request().method() === 'POST') return reply({ ok: true, result: { id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' } });
     if (url.pathname === '/api/agents') return reply({ ok: true, result: { agents: [{ id: 'managed', name: 'My worker', address: agentWallet, agent_id: '1942', state: 'active' }] } });

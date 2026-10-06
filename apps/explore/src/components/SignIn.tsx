@@ -1,10 +1,10 @@
-import { Button } from '../ui/button.tsx'
-import { Alert, AlertDescription } from '../ui/alert.tsx'
+import { Button } from './ui/button.tsx'
+import { Alert, AlertDescription } from './ui/alert.tsx'
 import { usePrivy } from '@privy-io/react-auth'
 import { useState } from 'react'
-import { privyAppId } from '../../wallet.ts'
+import { privyAppId } from '../wallet.ts'
 
-import type { useSignedIn } from '../Wallet.tsx'
+import type { useSignedIn } from './Wallet.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
 
@@ -12,7 +12,7 @@ type Auth = ReturnType<typeof useSignedIn>
  * The last step's button for someone not signed in: Privy's login when there is no wallet yet, else the board's
  * one sign-in signature. Without a Privy app (a read-only copy of the site) it says why nothing can be published.
  */
-export function SignInToPublish({ auth, label = 'Sign in to publish', className }: { auth: Auth; label?: string; className?: string }) {
+export function SignIn({ auth, label = 'Sign in', className }: { auth: Auth; label?: string; className?: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   if (auth.address !== undefined) {

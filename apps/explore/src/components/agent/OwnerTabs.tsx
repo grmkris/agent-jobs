@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, createContext, useContext, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { Address } from 'viem'
 import type { ManagedAgent } from '../../api.ts'
 import { agentStatus } from '../../agent-api.ts'
@@ -18,10 +18,6 @@ import { ManagedAgentCard } from './ManagedAgentCard.tsx'
 import { NeedsYouStrip } from './NeedsYouStrip.tsx'
 import { PastApprovals } from './PastApprovals.tsx'
 
-/** Lets the Overview's content (a new agent's next steps) open a tab, scrolled to one of its cards. */
-const OwnerNav = createContext<((tab: OwnerTab, card?: string) => void) | undefined>(undefined)
-export const useOwnerNav = () => useContext(OwnerNav)
-
 const triggerClass = 'flex-none px-0 min-h-9 pointer-coarse:min-h-11 group-data-horizontal/tabs:after:bottom-[-1px]'
 
 /**
@@ -29,7 +25,7 @@ const triggerClass = 'flex-none px-0 min-h-9 pointer-coarse:min-h-11 group-data-
  * approvals (waiting first, then the decided ones) and Manage (budget, wallet, backing, connection, access). The tab
  * is kept in the URL; an approval link (`?tab=approvals&approval=<id>`) opens Approvals with that approval in view.
  */
-export function OwnerTabs({ managed, overview, posted, taken }: { managed: ManagedAgent; overview: ReactNode; posted: readonly RecordJob[] | undefined; taken: readonly RecordJob[] | undefined }) {
+export function OwnerTabs({ managed, overview, posted, taken, overviewRequest = 0, onBack }: { managed: ManagedAgent; overview: ReactNode; posted: readonly RecordJob[] | undefined; taken: readonly RecordJob[] | undefined; overviewRequest?: number; onBack: () => void }) {
   const [tab, setTab] = useState(() => ownerTab(window.location.search))
   const [focus, setFocus] = useState(() => focusedApproval(window.location.search))
   const [scrollTo, setScrollTo] = useState<string | null>(null)
@@ -67,8 +63,13 @@ export function OwnerTabs({ managed, overview, posted, taken }: { managed: Manag
     go(next)
     if (card !== undefined) setScrollTo(card)
   }
+  useEffect(() => {
+    if (overviewRequest === 0) return
+    setTab('overview')
+    setFocus(null)
+    setScrollTo('profile-backing')
+  }, [overviewRequest])
   return (
-    <OwnerNav.Provider value={open}>
       <Tabs value={tab} onValueChange={(value) => go(value as OwnerTab)} className="gap-7">
         <TabsList variant="line" aria-label="Your agent" className="w-full justify-start gap-5 rounded-none border-b p-0 group-data-horizontal/tabs:h-auto">
           <TabsTrigger value="overview" className={triggerClass}>
@@ -95,10 +96,9 @@ export function OwnerTabs({ managed, overview, posted, taken }: { managed: Manag
           <Approvals managed={managed} posted={posted} focus={focus} />
         </TabsContent>
         <TabsContent value="manage" className="grid gap-7 text-base">
-          <ManagedAgentCard agent={managed} />
+          <ManagedAgentCard agent={managed} onBack={onBack} />
         </TabsContent>
       </Tabs>
-    </OwnerNav.Provider>
   )
 }
 

@@ -10,7 +10,7 @@ import { useSignTypedData } from 'wagmi'
 import { waitForTransactionReceipt } from 'wagmi/actions'
 import type { TxRequest } from '../api.ts'
 import { useDelegatorUpgrade } from '../components/Privy.tsx'
-import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
+import { SignIn } from '../components/SignIn.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
@@ -47,7 +47,7 @@ export function SponsorshipPage() {
 
         <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
           <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to stop paying gas</h2>
-          <SignInToPublish auth={auth} label="Sign in" />
+          <SignIn auth={auth} label="Sign in" />
         </section>
       </>
     )

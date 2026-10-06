@@ -1,24 +1,21 @@
-import { cn } from '../lib/cn.ts'
-import { Button } from '../components/ui/button.tsx'
-import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { LoadingRows, PageTitle, Section, textLinkClass } from '../components/kit.tsx'
+import { Button } from './ui/button.tsx'
+import { Alert, AlertDescription } from './ui/alert.tsx'
+import { LoadingRows, Section } from './kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useSearch } from '@tanstack/react-router'
+
 import { useEffect, useState } from 'react'
-import { type Address, encodeFunctionData, isAddress, parseSignature } from 'viem'
+import { type Address, encodeFunctionData, erc20Abi, parseSignature } from 'viem'
 import { useSignTypedData } from 'wagmi'
 import { type ManagedAgent, agentEndpoint } from '../api.ts'
-import { DelegationForm } from '../components/DelegationForm.tsx'
-import { DELEGATION_RISK, DelegationPositions, factoryValue } from '../components/DelegationPositions.tsx'
-import { HoldingControls } from '../components/HoldingControls.tsx'
-import { PrivyLogin } from '../components/Privy.tsx'
-import { useToast } from '../components/Sheet.tsx'
-import { TxSteps } from '../components/TxSteps.tsx'
-import { emptyJournal, readTxJournalDurable, txJournalKey, writeTxJournalDurable } from '../components/txJournal.ts'
-import { withWalletStepLock } from '../components/txOperation.ts'
+import { DelegationForm, exactFactory } from './DelegationForm.tsx'
+import { DELEGATION_RISK, DelegationPositions, factoryValue } from './DelegationPositions.tsx'
+import { HoldingControls } from './HoldingControls.tsx'
+import { useToast } from './Sheet.tsx'
+import { TxSteps } from './TxSteps.tsx'
+import { emptyJournal, readTxJournalDurable, txJournalKey, writeTxJournalDurable } from './txJournal.ts'
+import { withWalletStepLock } from './txOperation.ts'
 
-import { useAuth } from '../components/Wallet.tsx'
 import { useDelegations, useIndexedBacking } from '../delegation-query.ts'
 import { useDirectory } from '../directory-query.ts'
 import { type SidequestContracts, sidequest } from '../sidequest.ts'
@@ -26,7 +23,7 @@ import { stakeContext } from '../stake-context.ts'
 import { factoryAmount } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { vaultOperationGuards } from '../vault-proof.ts'
-import { chain } from '../wallet.ts'
+import { chain, deployment, writesOpen } from '../wallet.ts'
 import {
   InterruptedVaultPreparation,
   type VaultIntent as Operation,
@@ -38,36 +35,28 @@ import {
   vaultIntentKey,
   withVaultIntentLock,
 } from '../vault-lock.ts'
-import { VaultPreparationRecovery } from '../components/VaultPreparationRecovery.tsx'
+import { VaultPreparationRecovery } from './VaultPreparationRecovery.tsx'
 
-export function BackingPage() {
-  const auth = useAuth()
-  const search = useSearch({ strict: false }) as { account?: string }
-  const initialAccount = search.account !== undefined && isAddress(search.account) ? search.account : undefined
-  if (auth.address === undefined) {
-    return (
-      <>
-        <PageTitle>Back an agent</PageTitle>
-
-        <section className="grid gap-4 rounded-2xl bg-card p-5">
-          <h2 className="font-display text-xl font-bold">Sign in to see your positions</h2>
-          <p className="text-muted-foreground">Back an agent with SIDE and keep ownership of your position.</p>
-          <PrivyLogin />
-        </section>
-      </>
-    )
-  }
-  return <Stake key={auth.address} contracts={sidequest} owner={auth.address} initialAccount={initialAccount} />
+export function BackingManager({
+  owner,
+  scope = { kind: 'account' },
+}: {
+  owner: Address
+  scope?: { kind: 'account' } | { kind: 'agent'; account: Address; agentId?: string }
+}) {
+  return <Stake key={`${owner}:${scope.kind === 'agent' ? scope.account : 'account'}`} contracts={sidequest} owner={owner} initialAccount={scope.kind === 'agent' ? scope.account : undefined} scope={scope} />
 }
 
 function Stake({
   contracts,
   owner,
   initialAccount,
+  scope,
 }: {
   contracts: SidequestContracts
   owner: Address
   initialAccount: Address | undefined
+  scope: { kind: 'account' } | { kind: 'agent'; account: Address; agentId?: string }
 }) {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -123,31 +112,36 @@ function Stake({
   const agents = directory.data?.agents ?? []
   const mine = new Set((managed.data?.agents ?? []).flatMap((agent) => (agent.address === null ? [] : [agent.address.toLowerCase()])))
   const rank = (wallet: string) => (mine.has(wallet) ? 0 : wallet === owner.toLowerCase() ? 1 : 2)
-  const positions = (reads.data?.positions ?? []).toSorted((left, right) => {
+  const scopedPositions = scope.kind === 'agent' ? (selected.data?.position === null || selected.data?.position === undefined || selected.data?.backing === undefined ? [] : [{ position: selected.data.position, backing: selected.data.backing }]) : reads.data?.positions ?? []
+  const positions = scopedPositions.toSorted((left, right) => {
     const a = left.position.account.toLowerCase()
     const b = right.position.account.toLowerCase()
     return rank(a) - rank(b) || a.localeCompare(b)
   })
   const unavailable = reads.isError || selected.isError || reads.data === undefined || selected.data === undefined || initial.error !== null
-  const disabled = unavailable || busy || operation !== null || reads.data?.open !== true
+  const disabled = unavailable || busy || operation !== null || reads.data?.open !== true || !writesOpen
 
   function reportFailure(failure: unknown) {
     if (failure instanceof InterruptedVaultPreparation) setInterrupted(failure)
     setError(friendlyError(failure))
   }
 
-  async function savePrepared(kind: Operation['kind'], target: Address, description: string, data: `0x${string}`) {
+  async function saveOperation(kind: Operation['kind'], target: Address, txs: Operation['txs']) {
     const next: Operation = {
       id: crypto.randomUUID(),
       kind,
       account: target,
-      txs: [{ description, chainId: chain.id, to: contracts.vault, value: '0', data }],
+      txs,
     }
     await writeTxJournalDurable(localStorage, txJournalKey(`delegation:${next.id}`, next.txs), emptyJournal())
     await writeVaultIntent(localStorage, key, next)
     setOperation(next)
     setSafeToDismiss(false)
     setText('')
+  }
+
+  async function savePrepared(kind: Operation['kind'], target: Address, description: string, data: `0x${string}`) {
+    await saveOperation(kind, target, [{ description, chainId: chain.id, to: contracts.vault, value: '0', data }])
   }
 
   async function prepare(kind: Operation['kind'], target: Address, description: string, data: `0x${string}`) {
@@ -190,15 +184,30 @@ function Stake({
         })
         if (amount > balance) throw new Error('That is more SIDE than your wallet holds.')
         const agent = agents.find((entry) => entry.wallet.toLowerCase() === account.toLowerCase())
-        if (agent !== undefined) {
+        const agentId = scope.kind === 'agent' ? scope.agentId : agent?.agentId
+        if (agentId !== undefined) {
           const wallet = await ctx.publicClient.readContract({
             address: ctx.deployment.identity,
             abi: sdk.identityAbi,
             functionName: 'getAgentWallet',
-            args: [BigInt(agent.agentId)],
+            args: [BigInt(agentId)],
           })
           if (wallet.toLowerCase() !== account.toLowerCase())
             throw new Error('This agent changed its wallet. Refresh the directory before backing.')
+        }
+        const delegatedTo = await sdk.delegationOf(ctx.publicClient, owner)
+        if (delegatedTo?.toLowerCase() === deployment.delegation.delegator.toLowerCase()) {
+          await saveOperation('delegate', account, [{
+            chainId: chain.id,
+            description: `Back with ${exactFactory(amount)} SIDE to ${agent?.profile.name ?? account}`,
+            to: owner,
+            value: '0',
+            data: sdk.batchCalldata([
+              { chainId: chain.id, description: 'Approve SIDE for the vault', to: contracts.factory, value: '0', data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [contracts.vault, amount] }) },
+              { chainId: chain.id, description: 'Back this wallet', to: contracts.vault, value: '0', data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [account, amount] }) },
+            ]),
+          }])
+          return
         }
         const permit = await sdk.delegatePermit(ctx, owner, amount, BigInt(Math.floor(Date.now() / 1000) + 3600))
         await withVaultPermitPreparation(
@@ -209,7 +218,7 @@ function Stake({
             await savePrepared(
               'delegate',
               account,
-              `Back with ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
+              `Back with ${exactFactory(amount)} SIDE to ${agent?.profile.name ?? account}`,
               encodeFunctionData({
                 abi: sdk.stakeVaultAbi,
                 functionName: 'delegateWithPermit',
@@ -244,12 +253,6 @@ function Stake({
 
   return (
     <>
-      <Link to="/account" className={cn(textLinkClass, 'min-h-11 w-fit content-center')}>
-        ‹ Account
-      </Link>
-
-      <PageTitle sub="Back agents with SIDE. You own each position; the agent uses its backing for deposits at risk.">Back an agent</PageTitle>
-
       <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
 
       {initial.error !== null && (
@@ -287,7 +290,7 @@ function Stake({
         </div>
       )}
 
-      {reads.isPending ? (
+      {scope.kind === 'account' && reads.isPending ? (
         <LoadingRows rows={3} />
       ) : (
         reads.data !== undefined && (
@@ -311,13 +314,15 @@ function Stake({
         )
       )}
 
-      {directory.isError && (
+      {scope.kind === 'account' && directory.isError && (
         <Alert variant="destructive">
           <AlertDescription>
             The directory is unavailable. You can still manage existing positions once their chain reads answer.
           </AlertDescription>
         </Alert>
       )}
+
+      {scope.kind === 'account' && account.toLowerCase() !== owner.toLowerCase() && operation === null && <Button variant="secondary" disabled={disabled} onClick={() => { setAccount(owner); setMode('add') }}>Back my own wallet</Button>}
 
       {operation !== null ? (
         <Section title="Confirm your position action">
@@ -388,7 +393,6 @@ function Stake({
         <DelegationForm
           account={account}
           owner={owner}
-          agents={agents.filter((agent) => agent.ownership === 'verified')}
           mode={mode}
           text={text}
           wallet={reads.data?.wallet}
@@ -397,13 +401,9 @@ function Stake({
           disabled={disabled}
           busy={busy}
           error={error}
-          onAccount={setAccount}
           onMode={setMode}
           onText={setText}
           onSubmit={() => void submit()}
-          hasMore={directory.hasNextPage}
-          loadingMore={directory.isFetchingNextPage}
-          onLoadMore={() => void directory.fetchNextPage()}
         />
       )}
 
@@ -413,7 +413,7 @@ function Stake({
         </p>
       )}
 
-      <HoldingControls
+      {scope.kind === 'account' && <HoldingControls
         contracts={contracts}
         account={owner}
         disabled={disabled}
@@ -429,7 +429,7 @@ function Stake({
             }),
           ).catch(reportFailure)
         }}
-      />
+      />}
     </>
   )
 }

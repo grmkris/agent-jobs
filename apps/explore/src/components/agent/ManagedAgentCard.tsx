@@ -18,7 +18,7 @@ import { AgentOwnedBacking, Connection, ManageCard, WalletEarnings, WeeklyBudget
  * and earnings, agent-owned backing, connection and directory listing, and access with revocation last. The live harness finds it as one
  * <article> carrying the agent's name (the cards inside are sections) and drives it by the exact strings below.
  */
-export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
+export function ManagedAgentCard({ agent, onBack }: { agent: ManagedAgent; onBack?: () => void }) {
   const auth = useAuth()
   const queryClient = useQueryClient()
   const { removeSigners } = useSigners()
@@ -84,7 +84,7 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
         <>
           <WeeklyBudget agent={agent} status={status} onChanged={() => void refresh()} />
           <WalletEarnings agent={agent} action={action} />
-          <AgentOwnedBacking agent={agent} action={action} />
+          <AgentOwnedBacking agent={agent} action={action} onBack={onBack} />
         </>
       )}
       <Connection />

@@ -5,6 +5,12 @@ import { output, base, owner, agentWallet, contracts, errors, results, server, b
 const text = (page, value) => page.getByText(value, { exact: true }).first().waitFor();
 const position = page => page.getByRole('article', { name: 'Position in My worker', exact: true });
 const amount = page => page.locator('#stake-amount');
+async function openProfileBacking(page) {
+  await page.goto(`${base}/agent/1942`);
+  await page.getByRole('button', { name: 'Back this agent', exact: true }).first().click();
+  await page.locator('#profile-backing').waitFor({ state: 'visible' });
+}
+const review = page => page.getByRole('button', { name: /^Back with (?:.+ )?SIDE$/ });
 async function capture(page, name) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: horizontal overflow`);
   await page.screenshot({ path: `${output}/${name}.png`, fullPage: true });
@@ -28,15 +34,14 @@ try {
     const name = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page } = await fixture(viewport);
     await page.goto(`${base}/account`);
-    await page.getByRole('link', { name: /Back an agent/ }).click();
-    await page.waitForURL('**/backing');
+    await page.getByRole('heading', { name: 'My backing positions', exact: true }).waitFor();
     await text(page, '50,000 SIDE');
     await position(page).getByText('6,000 SIDE', { exact: true }).waitFor();
     await position(page).getByText('60 % of total backing', { exact: true }).waitFor();
     await text(page, 'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs secured against its backing, withdrawal waits until they settle.');
     assert.ok((await page.locator('article[aria-label^="Position in"]').first().innerText()).includes('My worker'), 'operator agent position first');
     await capture(page, `${name}-positions`);
-    await page.getByRole('combobox', { name: 'Agent to back' }).selectOption(agentWallet);
+    await position(page).getByRole('button', { name: 'Add', exact: true }).click();
     await amount(page).fill('60000');
     await text(page, 'That is more SIDE than your wallet holds.');
     assert.equal(await page.getByRole('button', { name: 'Back with 60,000 SIDE', exact: true }).isDisabled(), true);
@@ -102,7 +107,7 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { dust: true });
-    await page.goto(`${base}/backing?account=${agentWallet}`);
+    await openProfileBacking(page);
     await position(page).waitFor();
     await page.getByRole('radio', { name: 'Leave', exact: true }).click();
     await page.getByRole('button', { name: 'Max', exact: true }).click();
@@ -115,7 +120,7 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { retired: true });
-    await page.goto(`${base}/backing`);
+    await page.goto(`${base}/account`);
     await position(page).getByText('Lost in a full slash', { exact: true }).waitFor();
     assert.equal(await position(page).getByRole('button', { name: 'Leave', exact: true }).count(), 0);
     await capture(page, 'retired-generation');
@@ -124,11 +129,11 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { down: true });
-    await page.goto(`${base}/backing`);
+    await page.goto(`${base}/account`);
     await text(page, 'Your positions could not be read. This does not mean they are gone.');
     assert.equal(await page.getByRole('button', { name: 'Back with SIDE', exact: true }).isDisabled(), true);
     await page.evaluate(() => { window.__stake.down = false; });
-    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await page.locator('section').filter({ hasText: 'Your positions could not be read.' }).getByRole('button', { name: 'Retry', exact: true }).click();
     await position(page).getByText('6,000 SIDE', { exact: true }).waitFor();
     await page.evaluate(() => { window.__stake.down = true; });
     await refresh(page);
@@ -139,9 +144,9 @@ try {
   }
   for (const options of [{ connected: false }, { open: false }]) {
     const { context, page } = await fixture({ width: 390, height: 844 }, options);
-    await page.goto(`${base}/backing`);
-    if (options.connected === false) await text(page, 'Sign in to see your positions');
-    if (options.open === false) { await page.getByText(/Backing opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Back with SIDE', exact: true }).isDisabled(), true); }
+    await page.goto(`${base}/account`);
+    if (options.connected === false) await page.getByRole('heading', { name: 'Sign in to post and approve work' }).waitFor();
+    if (options.open === false) { await openProfileBacking(page); await page.getByText(/Backing opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Back with SIDE', exact: true }).isDisabled(), true); }
     await context.close();
   }
   {
@@ -157,9 +162,10 @@ try {
     await backing.getByRole('heading', { name: 'Top backers' }).waitFor();
     await backing.getByText('6,000 SIDE · 60 %', { exact: true }).waitFor();
     await capture(page, 'agent-backing');
-    await backing.getByRole('link', { name: 'Back this agent', exact: true }).click();
-    await page.waitForURL('**/backing?account=*');
-    assert.equal(await page.getByRole('combobox', { name: 'Agent to back' }).inputValue(), agentWallet);
+    await backing.getByRole('button', { name: 'Back this agent', exact: true }).click();
+    await page.locator('#profile-backing').getByRole('heading', { name: 'Back this agent' }).waitFor();
+    assert.equal(new URL(page.url()).pathname, '/agent/1942');
+    assert.equal(await page.getByRole('combobox', { name: 'Agent to back' }).count(), 0);
     await page.goto(`${base}/agent/1942?tab=manage`);
     await text(page, 'This agent does not own a position. Operator backing belongs to the operator wallet.');
     assert.equal(await page.getByRole('button', { name: 'Request leaving approval' }).count(), 0);
@@ -200,23 +206,19 @@ try {
     assert.equal(await page.getByRole('textbox', { name: 'Other budget token address', exact: true }).isVisible(), false);
     assert.ok((await page.getByRole('link', { name: 'View token contract', exact: true }).getAttribute('href')).startsWith('https://testnet.monadscan.com/address/'));
     const delegate = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Back this agent' }) });
-    const balances = delegate.getByLabel('Your operator wallet balances');
-    await balances.getByText('50,000', { exact: true }).waitFor();
-    await balances.getByText('25', { exact: true }).waitFor();
-    await balances.getByText('0.5', { exact: true }).waitFor();
-    await delegate.getByLabel('This agent’s backing').getByText('8,000 SIDE', { exact: true }).waitFor();
+    await page.getByText('In your wallet:', { exact: false }).waitFor();
     await delegate.getByRole('button', { name: 'Max', exact: true }).click();
-    assert.equal(await page.getByRole('textbox', { name: 'SIDE to back this agent' }).inputValue(), '50000');
+    assert.equal(await amount(page).inputValue(), '50000');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0, 'Max only fills the operator balance');
-    await page.getByRole('textbox', { name: 'SIDE to back this agent' }).fill('1');
+    await amount(page).fill('1');
     await page.evaluate(() => { window.__wallet.declineSign = true; });
-    await page.getByRole('button', { name: 'Review backing', exact: true }).click();
+    await review(page).click();
     await text(page, 'You cancelled in your wallet. Nothing was sent.');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await page.evaluate(() => { window.__wallet.declineSign = false; });
     for (const round of [1, 2]) {
-      await page.getByRole('textbox', { name: 'SIDE to back this agent' }).fill('1.000000000000000001');
-      await page.getByRole('button', { name: 'Review backing', exact: true }).click();
+      await amount(page).fill('1.000000000000000001');
+      await review(page).click();
       await text(page, 'Back with 1.000000000000000001 SIDE to My worker');
       const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { owner: p.message.owner, spender: p.message.spender, value: String(p.message.value) }; });
       assert.deepEqual(permit, { owner, spender: contracts.vault, value: '1000000000000000001' });
@@ -228,7 +230,7 @@ try {
       }
       await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
       await page.getByRole('button', { name: 'Confirm fixture' }).click();
-      await page.getByRole('button', { name: 'Review backing', exact: true }).waitFor();
+      await review(page).waitFor();
       assert.equal(await page.evaluate(() => window.__wallet.sends.length), round, 'each delegation needs exactly one transaction');
       const call = await page.evaluate(() => window.__stake.calls.at(-1));
       assert.equal(call.functionName, 'delegateWithPermit');
@@ -243,8 +245,8 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 }, { delegated: true });
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    await page.getByRole('textbox', { name: 'SIDE to back this agent' }).fill('100');
-    await page.getByRole('button', { name: 'Review backing', exact: true }).click();
+    await amount(page).fill('100');
+    await review(page).click();
     await text(page, 'Back with 100 SIDE to My worker');
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'already-upgraded wallet needs no permit or upgrade signature');
     const code = await page.evaluate(() => window.__stake.code[window.__wallet.address]);
@@ -255,7 +257,7 @@ try {
     await page.evaluate(savedCode => { window.__stake.code[window.__wallet.address] = savedCode; }, code);
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
-    await page.getByRole('button', { name: 'Review backing', exact: true }).waitFor();
+    await review(page).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
     assert.equal(await page.evaluate(() => window.__wallet.sends[0].to), owner);
     const calls = await page.evaluate(() => ({ approval: window.__stake.approvalCalls, delegation: window.__stake.calls.at(-1) }));
@@ -273,7 +275,7 @@ try {
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
-    await Promise.all([page.goto(`${base}/backing?account=${agentWallet}`), second.goto(`${base}/backing?account=${agentWallet}`)]);
+    await Promise.all([openProfileBacking(page), openProfileBacking(second)]);
     await Promise.all([amount(page).fill('1'), amount(second).fill('1')]);
     await page.evaluate(() => { window.__wallet.signGate = true; });
     await page.getByRole('button', { name: 'Back with 1 SIDE', exact: true }).click();
@@ -344,14 +346,15 @@ try {
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
-    await page.goto(`${base}/${surface === 'stake' ? `backing?account=${agentWallet}` : 'agents/new'}`);
+    if (surface === 'stake') await openProfileBacking(page);
+    else await page.goto(`${base}/agents/new`);
     if (surface === 'setup') await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    const firstAmount = surface === 'stake' ? amount(page) : page.getByRole('textbox', { name: 'SIDE to back this agent' });
-    const review = () => page.getByRole('button', { name: surface === 'stake' ? 'Back with 1 SIDE' : 'Review backing', exact: true });
+    const firstAmount = amount(page);
+    const prepare = () => page.getByRole('button', { name: 'Back with 1 SIDE', exact: true });
     await firstAmount.fill('1');
-    await second.goto(`${base}/backing?account=${agentWallet}`);
+    await openProfileBacking(second);
     await amount(second).fill('1');
-    await review().click();
+    await prepare().click();
     await text(page, 'vault intent write aborted');
     await second.getByRole('button', { name: 'Back with 1 SIDE', exact: true }).click();
     await text(second, 'vault intent write aborted');
@@ -366,7 +369,7 @@ try {
         return this === localStorage && item === key ? null : getItem.call(this, item);
       };
     }, pointerKey);
-    await review().click();
+    await prepare().click();
     await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 1);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null, 'rejected final pointer write stays unexposed after signing');
@@ -374,6 +377,7 @@ try {
     await second.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'durable reservation blocks the stale renderer before a second signature');
     await second.reload();
+    await second.getByRole('button', { name: 'Back this agent', exact: true }).first().click();
     await amount(second).fill('1');
     await second.getByRole('button', { name: 'Back with 1 SIDE', exact: true }).click();
     await second.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
@@ -381,7 +385,7 @@ try {
     await page.evaluate(() => { window.__rejectVaultWrite = false; });
     await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).click();
     await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor({ state: 'detached' });
-    await review().click();
+    await prepare().click();
     await page.getByText('Back with 1 SIDE to My worker', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 2, 'explicit discard permits one fresh preparation');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
@@ -392,8 +396,8 @@ try {
     const { context, page } = await fixture({ width: 1440, height: 900 }, { delegated: true });
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    await page.getByRole('textbox', { name: 'SIDE to back this agent' }).fill('1');
-    await page.getByRole('button', { name: 'Review backing', exact: true }).click();
+    await amount(page).fill('1');
+    await review(page).click();
     await text(page, 'Back with 1 SIDE to My worker');
     const journal = await page.evaluate(() => {
       const key = Object.keys(localStorage).find(item => item.startsWith('sidequest.op:delegation:'));
@@ -402,7 +406,7 @@ try {
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
-    await second.goto(`${base}/backing?account=${agentWallet}`);
+    await openProfileBacking(second);
     await second.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
     await second.evaluate(({ key, raw }) => {
       const getItem = Storage.prototype.getItem;

@@ -8,7 +8,7 @@ import { CopyButton, LoadingRows, PageTitle, Section, textLinkClass } from '../k
 import { useQuery } from '@tanstack/react-query'
 import { Lock } from 'lucide-react'
 import { useState } from 'react'
-import { type DeliverableKind, type DeliverableSpec, type TxRequest, currentBoardId, tool } from '../../api.ts'
+import { type DeliverableKind, type DeliverableSpec, type TxRequest, boardApi, currentBoardId } from '../../api.ts'
 import { amount, bond } from '../../format.ts'
 import { useToken } from '../../useTokens.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../BoardLink.tsx'
@@ -17,10 +17,10 @@ import { When, useNow } from '../Time.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 
 import type { useSignedIn } from '../Wallet.tsx'
-import { KV } from './parts.tsx'
+import { KV } from '../controls.tsx'
 import { Preflight } from './Preflight.tsx'
 import { ScreeningCard } from './Screening.tsx'
-import { SignInToPublish } from './SignInToPublish.tsx'
+import { SignIn } from '../SignIn.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
 
@@ -68,9 +68,13 @@ export function ResumeOffer({
   const navigate = useBoardNavigate()
   const toast = useToast()
   const now = useNow()
+  const scope = new URLSearchParams(window.location.search).get('board')
+  const boardId = scope !== null && /^[a-z0-9-]{3,32}$/.test(scope) ? scope : currentBoardId()
+  const api = boardApi(boardId)
+  const routes = boardRoutes(boardId)
   const task = useQuery({
-    queryKey: ['resume-offer', currentBoardId(), taskId, auth.signedIn],
-    queryFn: () => tool<SavedOffer>('get_task', { taskId }),
+    queryKey: ['resume-offer', boardId, taskId, auth.signedIn],
+    queryFn: () => api.tool<SavedOffer>('get_task', { taskId }),
   })
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -81,9 +85,7 @@ export function ResumeOffer({
 
   const header = (
     <>
-      <BoardLink target={boardRoutes().publish()} className={cn(textLinkClass, 'text-sm')}>
-        Post a new job instead
-      </BoardLink>
+      <BoardLink target={routes.jobs()} className={cn(textLinkClass, 'text-sm')}>Back to jobs</BoardLink>
 
       <PageTitle sub={t !== undefined && t.jobId === null ? <Badge variant="warning">Not published yet</Badge> : undefined}>
         {t?.title ?? 'A saved offer'}
@@ -120,7 +122,7 @@ export function ResumeOffer({
         <Empty>
           <EmptyHeader>
             <EmptyTitle>This offer is on an earlier contract</EmptyTitle>
-            <EmptyDescription>It can no longer be published. Post the job again.</EmptyDescription>
+            <EmptyDescription>It can no longer be published. Create a fresh job with your agent.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </>
@@ -135,7 +137,7 @@ export function ResumeOffer({
           <EmptyHeader>
             <EmptyTitle>Already published</EmptyTitle>
             <EmptyDescription>
-              <BoardLink target={boardRoutes().job(t.jobId)} className={textLinkClass}>
+              <BoardLink target={routes.job(t.jobId)} className={textLinkClass}>
                 Open job #{t.jobId}
               </BoardLink>
             </EmptyDescription>
@@ -158,7 +160,7 @@ export function ResumeOffer({
     setBusy(true)
     setError(null)
     try {
-      const r = await tool<{ transactions: TxRequest[] }>('publish_transactions', { taskId })
+      const r = await api.tool<{ transactions: TxRequest[] }>('publish_transactions', { taskId })
       setTxs(r.transactions)
     } catch (e) {
       setError((e as Error).message)
@@ -167,13 +169,13 @@ export function ResumeOffer({
     }
   }
   const published = async (hashes: string[]) => {
-    const jobId = await tool<{ jobId: string | null }>('get_task', { taskId }).then(
+    const jobId = await api.tool<{ jobId: string | null }>('get_task', { taskId }).then(
       (x) => x.jobId,
       () => null,
     )
     toast(`Published · ${reward} locked in escrow`)
     if (onPublished !== undefined) onPublished({ taskId, jobId, txHash: hashes.at(-1) ?? null })
-    else await navigate(jobId !== null ? boardRoutes().job(jobId) : boardRoutes().jobs())
+    else await navigate(jobId !== null ? routes.job(jobId) : routes.jobs())
   }
 
   return (
@@ -230,14 +232,14 @@ export function ResumeOffer({
 
       {!auth.signedIn ? (
         <Section note="Only the person who prepared this offer can publish it.">
-          <SignInToPublish auth={auth} />
+          <SignIn auth={auth} />
         </Section>
       ) : !mine ? (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>Not your offer</EmptyTitle>
             <EmptyDescription>
-              Only the person who prepared this offer can publish it. You can post a job of your own from Post.
+              Only the person who prepared this offer can publish it. You can create a job of your own with your agent.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -259,7 +261,7 @@ export function ResumeOffer({
 
           {lapsed && (
             <p className="rounded-xl bg-warning/14 px-4 py-3 text-sm text-warning-text">
-              Its delivery deadline has passed, so it can no longer be published. Post the job again with new dates.
+              Its delivery deadline has passed, so it can no longer be published. Create a fresh job with your agent and new dates.
             </p>
           )}
 
@@ -275,6 +277,7 @@ export function ResumeOffer({
           >
             {txs !== null ? (
               <TxSteps
+                boardId={boardId}
                 key={taskId}
                 taskId={taskId}
                 txs={txs}

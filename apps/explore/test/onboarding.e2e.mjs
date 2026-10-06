@@ -140,12 +140,11 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
 
-    // Telegram: from Me, link with a signed text, open the bot, survive a reload, then the bot links the chat.
+    // Telegram inline on Account: link with a signed text, open the bot, survive a reload, then the bot links the chat.
     {
       const { context, page, state } = await fixture(viewport);
       await page.goto(`${base}/account`);
-      await page.getByRole('link', { name: /Telegram/ }).click();
-      await page.waitForURL('**/telegram');
+      await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor();
       await page.getByRole('button', { name: 'Link Telegram' }).click();
       const sheet = page.getByRole('dialog', { name: 'Sign to link Telegram?' });
       assert.equal(await sheet.getByText(`Code: ${NONCE}`, { exact: false }).isVisible(), false);
@@ -195,9 +194,7 @@ try {
       assert.equal(await open.count(), 0);
       await capture(page, `${device}-telegram-linked`);
       await page.goto(`${base}/account`);
-      await page.getByRole('link', { name: /Telegram/ }).getByText('Linked', { exact: true }).waitFor();
-
-      await page.goto(`${base}/telegram`);
+      await page.getByText('@kris_fixture', { exact: true }).waitFor();
       await page.getByRole('button', { name: 'Unlink Telegram' }).click();
       await page.getByRole('dialog', { name: 'Unlink Telegram?' }).getByRole('button', { name: 'Unlink', exact: true }).click();
       await page.getByRole('status').filter({ hasText: 'Telegram unlinked' }).waitFor();
@@ -215,7 +212,7 @@ try {
       // The wallet record restarts with each page load: since the last one, only the declined request reached it.
       assert.deepEqual((await wallet(page)).messages, [textFor(me)]);
       assert.equal(state.confirmed.length, 1);
-      results.push({ device, flow: 'telegram', checks: ['Me row', 'signed text names wallet and code', 't.me deep link with code', 'waits across reload', 'linked by the bot', 'Me badge', 'unlink', 'foreign text refused', 'decline links nothing'], passed: true });
+      results.push({ device, flow: 'telegram', checks: ['Notifications inline on Account', 'signed text names wallet and code', 't.me deep link with code', 'waits across reload', 'linked by the bot', 'Account linked status', 'unlink', 'foreign text refused', 'decline links nothing'], passed: true });
       await context.close();
     }
 
@@ -270,7 +267,7 @@ try {
   // Unavailable is not "off"; no v1 on the network says so.
   {
     const { context, page } = await fixture({ width: 390, height: 844 }, { telegramDown: true, sponsorDown: true });
-    await page.goto(`${base}/telegram`);
+    await page.goto(`${base}/account`);
     await page.getByText('Whether Telegram is linked cannot be read right now.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Link Telegram' }).count(), 0);
     await page.goto(`${base}/sponsorship`);

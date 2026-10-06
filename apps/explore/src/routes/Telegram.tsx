@@ -2,13 +2,14 @@ import { Badge } from '../components/ui/badge.tsx'
 import { Button, buttonVariants } from '../components/ui/button.tsx'
 import { Item, ItemGroup, ItemMedia, ItemTitle, ItemContent } from '../components/ui/item.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { Details, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
+import { Details, LoadingRows, Section } from '../components/kit.tsx'
+import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSignMessage } from 'wagmi'
 import { walletRefused } from '../components/txOperation.ts'
-import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
+import { SignIn } from '../components/SignIn.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { Countdown, When, useNow } from '../components/Time.tsx'
 
@@ -24,6 +25,7 @@ import {
   useTelegramStatus,
 } from '../telegram.ts'
 import { friendlyError } from '../txErrors.ts'
+import { writesOpen } from '../wallet.ts'
 
 const SUB = 'A message from the bot when a job needs you.'
 
@@ -31,21 +33,20 @@ const SUB = 'A message from the bot when a job needs you.'
  * Link Telegram (U7): the board mints a one-time code, the wallet signs a text naming itself and the code, and the
  * bot's `/start <code>` ties the chat to the wallet. The page polls until the bot has done it.
  */
-export function TelegramPage() {
+export function TelegramSection() {
   const auth = useAuth()
+  if (!writesOpen) return <Section title="Notifications"><LaunchNotice /></Section>
   if (auth.address === undefined || !auth.signedIn) {
     return (
-      <>
-        <PageTitle sub={SUB}>Telegram</PageTitle>
-
-        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
-          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to link Telegram</h2>
-          <SignInToPublish auth={auth} label="Sign in" />
-        </section>
-      </>
+      <Section title="Notifications">
+        <div className="grid gap-3 rounded-2xl bg-card p-4">
+          <p className="font-medium">Sign in to link Telegram</p>
+          <SignIn auth={auth} />
+        </div>
+      </Section>
     )
   }
-  return <TelegramLink wallet={auth.address} />
+  return <Section title="Notifications" note={SUB}><TelegramLink key={auth.address} wallet={auth.address} /></Section>
 }
 
 function TelegramLink({ wallet }: { wallet: string }) {
@@ -124,8 +125,6 @@ function TelegramLink({ wallet }: { wallet: string }) {
   const link = pending === null ? null : deepLink(pending.nonce)
   return (
     <>
-      <PageTitle sub={SUB}>Telegram</PageTitle>
-
       {status.isLoading ? (
         <LoadingRows rows={2} />
       ) : status.isError ? (

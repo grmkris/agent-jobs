@@ -27,7 +27,7 @@ const output = process.argv[2] ?? '/tmp/sidequest-g1-readonly';
 const outDir = `${output}/build`;
 const client = createPublicClient({ chain: monadTestnet, transport: http(rpcUrl) });
 const rpcMethods = new Set(['eth_call', 'eth_chainId', 'eth_blockNumber', 'eth_getCode', 'eth_getBalance', 'eth_getBlockByNumber', 'eth_getTransactionCount']);
-const readTools = new Set(['task_index', 'get_task', 'collect_actions', 'sponsor_status', 'get_board', 'list_applications']);
+const readTools = new Set(['task_index', 'get_task', 'collect_actions', 'sponsor_status', 'telegram_status', 'get_board', 'list_applications']);
 const results = [];
 const errors = [];
 const refused = [];
@@ -110,10 +110,10 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     const capture = async (name) => page.screenshot({ path: `${output}/${name}-${width}.png`, fullPage: true });
 
-    await page.goto(`${base}/backing`);
+    await page.goto(`${base}/account`);
     await page.getByRole('heading', { name: 'Your fee as a worker', exact: true }).waitFor({ timeout: 60_000 });
     await capture('stake');
-    results.push({ page: '/backing', width, passed: true, vault: h.vault });
+    results.push({ page: '/account#backing', width, passed: true, vault: h.vault });
 
     await page.goto(`${base}/admin`);
     await page.getByText('Safe owns it', { exact: true }).nth(5).waitFor({ timeout: 60_000 });
@@ -123,20 +123,18 @@ try {
     await capture('admin');
     results.push({ page: '/admin', width, passed: true, safe: h.safe, feeEta: Number(pending[1]) });
 
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     await page.getByText(/What you can collect cannot be read right now|Nothing to collect|Mining reward/).first().waitFor({ timeout: 60_000 });
     const collectText = await page.locator('main').innerText();
     await capture('collect');
-    results.push({ page: '/collect', width, passed: true, state: collectText.includes('cannot be read') ? 'live board unavailable without a real session' : 'live board answered' });
+    results.push({ page: '/account#collect', width, passed: true, state: collectText.includes('cannot be read') ? 'live board unavailable without a real session' : 'live board answered' });
 
-    await page.goto(`${base}/publish`);
-    await page.locator('#post-title').fill('Read-only G1 check; never published');
-    await page.locator('#post-brief').fill('Check promoted contract terms without freezing an offer or signing.');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByText(arbitrator, { exact: true }).waitFor({ timeout: 60_000 });
-    await capture('publish');
-    results.push({ page: '/publish', width, passed: true, holding: contracts.holding, arbitrator });
+    await page.goto(`${base}/jobs`);
+    await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Create with your agent' }).waitFor();
+    await page.getByRole('link', { name: 'Set up an agent', exact: true }).waitFor();
+    await capture('create-with-agent');
+    results.push({ page: '/jobs', width, passed: true, state: 'publisher handoff offers setup; no real owner session' });
 
     const jobId = v1Job?.job_id ?? '74';
     await page.goto(`${base}/job/${jobId}`);

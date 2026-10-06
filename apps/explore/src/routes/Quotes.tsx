@@ -13,10 +13,10 @@ import { useState } from 'react'
 import { parseUnits } from 'viem'
 import { type DeliverableKind, type DeliverableSpec, type Quote, type QuoteRequest, type TxRequest, currentBoardId, tool } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
-import { humanAmount } from '../components/post/form.ts'
-import { KV, Mark, Switch } from '../components/post/parts.tsx'
-import { verdictText } from '../components/post/Screening.tsx'
-import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
+import { humanAmount } from '../format.ts'
+import { KV, Mark, Switch } from '../components/controls.tsx'
+import { verdictText } from '../screening.ts'
+import { SignIn } from '../components/SignIn.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
@@ -29,6 +29,8 @@ import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
 import { useAgents } from './Agents.tsx'
+import { useManagedAgents } from '../managed.ts'
+import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
 /** What `list_quote_requests` carries beyond the shared type: the request as frozen (checks, deliverable spec). */
@@ -78,11 +80,8 @@ export function QuotesPage() {
             <EmptyHeader>
               <EmptyTitle>No open quote requests</EmptyTitle>
               <EmptyDescription>
-                To ask agents for a price,{' '}
-                <BoardLink target={boardRoutes().publish()} className={textLinkClass}>
-                  post a job
-                </BoardLink>{' '}
-                and choose Get quotes first.
+                Ask your publisher to describe the work and request prices.
+                <CreateWithAgent context="quotes" variant="outline">Ask for quotes</CreateWithAgent>
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -157,11 +156,12 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
   const r = requests.data?.find((x) => x.requestId === requestId)
   const quotes = useQuery({
     queryKey: ['list_quotes', boardId, requestId, auth.signedIn],
-    queryFn: () => tool<{ picked: string | null; quotes: Quote[] }>('list_quotes', { requestId }),
+    queryFn: () => tool<{ creator: string; picked: string | null; quotes: Quote[] }>('list_quotes', { requestId }),
     enabled: auth.signedIn,
     refetchInterval: 15_000,
   })
   const agents = useAgents()
+  const managed = useManagedAgents()
 
   const [picking, setPicking] = useState<Quote | null>(null)
   const [budgetOn, setBudgetOn] = useState(true)
@@ -175,9 +175,14 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
   const me = auth.address?.toLowerCase()
   const list = quotes.data?.quotes ?? []
-  // Once quoting closes the request leaves the open list; list_quotes still answers its requester (every quote) and a
-  // bidder (its own), so a quote from someone else means this is the requester.
-  const mine = me !== undefined && (r !== undefined ? r.creator.toLowerCase() === me : list.some((q) => q.worker.toLowerCase() !== me))
+  // The board exposes the frozen creator so a browser wallet may pick only its own request. A bidder's private view
+  // never implies requester ownership, even when another quote is visible in stale UI state.
+  const creator = quotes.data?.creator ?? r?.creator
+  const mine = me !== undefined && creator !== undefined && creator.toLowerCase() === me
+  // Keep the handoff button mounted during refresh. Its sheet validates a fresh owner list before showing any
+  // instruction; unmounting it on every fetch would make its own useManagedAgents subscription refetch in a loop.
+  const ownedPublisher = managed.isSuccess && !managed.isError ? managed.data?.agents.find(agent =>
+    agent.state === 'active' && agent.agent_id !== null && agent.address !== null && creator !== undefined && agent.address.toLowerCase() === creator.toLowerCase()) : undefined
   const pendingTask = picked?.taskId ?? quotes.data?.picked ?? null
   const pickedTask = useQuery({
     queryKey: ['quote-picked-task', boardId, pendingTask],
@@ -341,6 +346,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <KV label="Requester">
                 <Address value={r.creator} you={r.creator.toLowerCase() === me} />
               </KV>
+              {(r.tags ?? []).length > 0 && <KV label="Tags">{r.tags?.join(', ')}</KV>}
             </ItemGroup>
           </Section>
         </>
@@ -355,7 +361,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             <p className="text-sm leading-snug text-muted-foreground">
               Quotes are private: only the requester sees them. Sign in as the requester to compare and pick.
             </p>
-            <SignInToPublish auth={auth} label="Sign in to see quotes" />
+            <SignIn auth={auth} label="Sign in to see quotes" />
           </ItemGroup>
         </Section>
       ) : quotes.isLoading ? (
@@ -369,6 +375,10 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           title={list.length > 0 ? 'Your quote' : 'Quotes'}
           note="Quotes are private: only the requester sees all of them. Agents quote over the board's MCP server with submit_quote."
         >
+          {ownedPublisher !== undefined && creator !== undefined && <div className="mb-3 rounded-xl bg-primary/8 p-3">
+            <p className="text-sm leading-snug text-muted-foreground">This request belongs to your hosted publisher, so the browser wallet cannot pick its private quotes.</p>
+            <CreateWithAgent context="pick" requestId={requestId} publisherAddress={creator}>Choose with your agent</CreateWithAgent>
+          </div>}
           {list.length === 0 ? (
             <Empty>
               <EmptyHeader>

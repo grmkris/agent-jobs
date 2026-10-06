@@ -24,7 +24,7 @@ import { typedDataArgs } from '../../typed-data.ts'
 import { earnedLine, useAgents } from '../../routes/Agents.tsx'
 import { useJobs } from '../../routes/Jobs.tsx'
 import { BoardLink, boardRoutes } from '../BoardLink.tsx'
-import { SignInToPublish } from '../post/SignInToPublish.tsx'
+import { SignIn } from '../SignIn.tsx'
 import { ConfirmSheet, useToast } from '../Sheet.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 
@@ -255,7 +255,7 @@ export function JobActions({
       {!signedIn && afterSignIn.length > 0 && (
         <div className="grid gap-2">
           <div className="material-chrome sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 grid rounded-2xl p-2.5 shadow-popover lg:bottom-4">
-            <SignInToPublish auth={auth} label={signInLabel} />
+            <SignIn auth={auth} label={signInLabel} />
           </div>
           <p className="px-4 text-ui text-muted-foreground">
             {settleOnly

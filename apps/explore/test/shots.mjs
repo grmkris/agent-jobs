@@ -169,7 +169,7 @@ const lifecycle = (name, status, timeline, ruled = null) => ({
 });
 const PAGES = [
   {
-    name: 'backing', wagmi: 'stake-wagmi.mjs', path: '/backing',
+    name: 'account-backing', wagmi: 'stake-wagmi.mjs', path: '/account',
     init: () => {
       const backingUnit = 10n ** 18n;
       const owner = '0x1111111111111111111111111111111111111111';
@@ -185,7 +185,7 @@ const PAGES = [
     },
   },
   {
-    name: 'collect', wagmi: 'wagmi.mjs', path: '/collect',
+    name: 'account-collect', wagmi: 'wagmi.mjs', path: '/account',
     api: { collect_actions: () => [
       { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the deposits at risk.', transactions: [{ description: 'Settle job #72', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
       { kind: 'claimTopUpRefund', jobId: '71', token, amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
@@ -212,20 +212,14 @@ const PAGES = [
     },
   },
   {
-    name: 'telegram', wagmi: 'onboarding-wagmi.mjs', privy: 'onboarding-privy.mjs', path: '/telegram',
+    name: 'account-notifications', wagmi: 'onboarding-wagmi.mjs', privy: 'onboarding-privy.mjs', path: '/account',
     api: { telegram_status: () => ({ linked: false, username: null, linkedAt: null }) },
   },
   {
-    name: 'publish', wagmi: 'v1-wagmi.mjs', path: '/publish', v1: true,
+    name: 'create-with-agent', wagmi: 'v1-wagmi.mjs', path: '/jobs', v1: true,
     prepare: async (page) => {
-      await page.locator('#post-title').fill('Fix the checkout on mobile Safari');
-      await page.locator('#post-brief').fill('The checkout button does nothing on iOS 18 Safari. Find out why and fix it.');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.locator('#post-invite').fill('1942');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.locator('#post-reward').fill('25');
-      await page.locator('#post-creator-bond').fill('5');
-      await page.locator('#post-worker-bond').fill('3');
+      await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Create with your agent' }).waitFor();
     },
   },
   {
@@ -252,27 +246,9 @@ const PAGES = [
   lifecycle('job-ruled', 'completed', [...story.published, ...story.active, ...story.deliveredEarlier, ...story.ruled], { for_worker: 1, slash_loser: 1, reason_hash: `0x${'7b'.repeat(32)}`, tx_hash: hash(10) }),
   { name: 'home', wagmi: 'v1-wagmi.mjs', path: '/', visitor: true, jobs: { 74: 'open', 75: 'active', 76: 'submitted', 77: 'completed', 78: 'completed' } },
   { name: 'directory', wagmi: 'directory-wagmi.mjs', path: '/workers', visitor: true },
-  {
-    name: 'publish-review', wagmi: 'v1-wagmi.mjs', path: '/publish', v1: true, v1State: { free: 20_000n * K },
-    init: () => { window.__balances = { native: 3n * 10n ** 18n, balanceOf: 120_000_000n }; },
-    api: { create_task: () => ({ taskId: 'task-74', termsHash: `0x${'74'.repeat(32)}`, manifestUrl: '/offers/74.json', screening: { verdict: 'clean', reasons: [] }, transactions: [{ description: 'Approve reward token', chainId: 10143, to: token, data: '0x01', value: '0' }, { description: 'Publish job', chainId: 10143, to: contracts.holding, data: '0x02', value: '0' }] }) },
-    prepare: async (page) => {
-      await page.locator('#post-title').fill('Fix the checkout on mobile Safari');
-      await page.locator('#post-brief').fill('The checkout button does nothing on iOS 18 Safari. Find out why and fix it.');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.locator('#post-invite').fill('1942');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.locator('#post-reward').fill('25');
-      await page.getByRole('radio', { name: 'Fast', exact: true }).click();
-      await page.locator('#post-creator-bond').fill('5');
-      await page.locator('#post-worker-bond').fill('3');
-      await page.getByRole('button', { name: 'Review', exact: true }).click();
-      await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
-    },
-  },
   // The production mainnet build as it is before launch day (no deployment in the config, MAINNET_LIVE false): Explore's
   // own wagmi and Privy, no fixture modules, nothing indexed yet.
-  ...['/', '/backing'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Sidequest directory' }) } })),
+  ...['/', '/account'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Sidequest directory' }) } })),
 ];
 
 mkdirSync(output, { recursive: true });

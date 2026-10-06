@@ -1,24 +1,22 @@
 /**
  * The SIDE behind an agent, for anyone: total backing, how many back it and the worker fee it pays, with how far it
  * is from the next (lower) fee tier, and "Back this agent". Details unfold in place — the split between active,
- * reserved, available and leaving, the top backers and the viewer's own position — because /backing shows only the
- * signed-in wallet's positions and the breakdown must stay public.
+ * reserved, available and leaving, the top backers and the viewer's own position — while the action stays scoped to
+ * this agent's wallet.
  */
-import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Address } from 'viem'
 import { tierProgress } from '../../agent-stats.ts'
 import { useIndexedBacking } from '../../delegation-query.ts'
 import { sidequest } from '../../sidequest.ts'
-import { cn } from '../../lib/cn.ts'
 import { percent } from '../../stake.ts'
 import { deployed } from '../../wallet.ts'
 import { DELEGATION_RISK } from '../DelegationPositions.tsx'
 import { Address as AddressText, LoadingRows, Section } from '../kit.tsx'
 import { Countdown, useNow } from '../Time.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
-import { buttonVariants } from '../ui/button.tsx'
+import { Button } from '../ui/button.tsx'
 import { Meter } from '../ui/meter.tsx'
 
 function Figure({ value, label }: { value: ReactNode; label: string }) {
@@ -39,7 +37,7 @@ function Line({ label, children }: { label: ReactNode; children: ReactNode }) {
   )
 }
 
-export function BackingStrip({ wallet, viewer }: { wallet: Address; viewer: Address | undefined }) {
+export function BackingStrip({ wallet, viewer, onBack }: { wallet: Address; viewer: Address | undefined; onBack: () => void }) {
   const read = useIndexedBacking(wallet, viewer)
   const now = useNow()
   if (!deployed) return null
@@ -57,13 +55,7 @@ export function BackingStrip({ wallet, viewer }: { wallet: Address; viewer: Addr
             <Figure value={<TokenAmount value={snapshot.backing.assets} token={factory} />} label="total backing" />
             <Figure value={snapshot.delegatorCount} label={snapshot.delegatorCount === 1 ? 'backer' : 'backers'} />
             <Figure value={percent(snapshot.backing.tier.feeBps)} label="worker fee" />
-            <Link
-              to="/backing"
-              search={{ account: wallet }}
-              className={cn(buttonVariants({ variant: 'secondary' }), 'ml-auto max-sm:w-full')}
-            >
-              Back this agent
-            </Link>
+            <Button variant="secondary" onClick={onBack} className="ml-auto max-sm:w-full">Back this agent</Button>
           </div>
           {snapshot.backing.tier.nextThreshold === null ? (
             <p className="text-xs text-muted-foreground">It pays the lowest fee.</p>

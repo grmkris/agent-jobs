@@ -40,7 +40,7 @@ async function fixture(viewport, options = {}) {
     if (!localStorage.getItem('sidequest.session')) localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
     if (!localStorage.getItem('sidequest.session-owner')) localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { owner: options.address ?? creator, batch: options.batch ?? false, connected: options.connected ?? true, session: options.session ?? true, arbiter: arbitrator });
-  const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false, signIns: 0 };
+  const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false, signIns: 0, deadline: offer.deliveryDeadline };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== base) return route.abort('blockedbyclient');
@@ -54,7 +54,7 @@ async function fixture(viewport, options = {}) {
     if (url.pathname.endsWith('/api/get_task')) {
       if (state.taskError) return reply({ ok: false, message: 'Board unavailable' }, 503);
       const jobId = state.published ? '61' : route.request().frame().url().includes('/job/') ? '60' : null;
-      return reply({ ok: true, result: { ...offer, jobId, you: jobId === null ? [] : (options.you ?? ['creator', 'approver']), chain: { status: jobId === null ? 'awaiting-publish' : state.boardStatus, provider: jobId === null ? null : creator, timely: true, submittedAt: jobId === null ? null : now - 10, reviewEndsAt: options.reviewEndsAt ?? now + 3600, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
+      return reply({ ok: true, result: { ...offer, deliveryDeadline: state.deadline, jobId, you: jobId === null ? [] : (options.you ?? ['creator', 'approver']), chain: { status: jobId === null ? 'awaiting-publish' : state.boardStatus, provider: jobId === null ? null : creator, timely: true, submittedAt: jobId === null ? null : now - 10, reviewEndsAt: options.reviewEndsAt ?? now + 3600, disputeEndsAt: null, arbitrationEndsAt: null, violation: null, listingMatchesOffer: true, paused: false } } });
     }
     if (url.pathname.endsWith('/api/auth_challenge')) return reply({ ok: true, result: { message: 'Fixture sign-in message; no real session' } });
     if (url.pathname.endsWith('/api/auth_login')) {
@@ -73,6 +73,7 @@ async function fixture(viewport, options = {}) {
       return reply({ ok: true, result: {} });
     }
     if (url.pathname.endsWith('/api/list_quote_requests')) return reply({ ok: true, result: [] });
+    if (url.pathname.endsWith('/api/agents')) return reply({ ok: true, result: { agents: [] } });
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     if (url.pathname === '/data/jobs') return state.chainError
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
@@ -99,7 +100,7 @@ async function snap(page, device, name) {
 async function testPublish(viewport, batch = false) {
   const { context, page, state } = await fixture(viewport, { batch });
   const device = viewport.width === 390 ? 'mobile' : 'desktop';
-  await page.goto(`${base}/publish?resume=fixture-offer`);
+  await page.goto(`${base}/account?resume=fixture-offer`);
   await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
   const confirm = () => page.getByRole('button', { name: batch ? /Confirm all 3/ : /Confirm step/ });
   await confirm().waitFor();
@@ -216,25 +217,16 @@ async function testControls(viewport) {
   assert.equal(await page.getByRole('radio', { name: /Done/ }).getAttribute('aria-checked'), 'true');
   await page.keyboard.press('Home');
   assert.equal(await all.getAttribute('tabindex'), '0');
-  await page.goto(`${base}/publish`);
-  await page.locator('#post-title').fill('Control fixture');
-  await page.locator('#post-brief').fill('Control sizes and keyboard semantics.');
-  await page.locator('#post-criteria').fill('Keyboard and touch controls work.');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  // v1 publishing: a direct hire or quotes, no contest.
-  assert.equal(await page.getByRole('radio').count(), 2);
-  assert.equal(await page.getByRole('radio', { name: /contest/i }).count(), 0);
-  const choice = page.getByRole('radio', { name: /Direct hire/ });
-  await choice.focus();
-  await page.keyboard.press('ArrowDown');
-  const quotes = page.getByRole('radio', { name: /Request quotes/ });
-  assert.equal(await quotes.getAttribute('aria-checked'), 'true');
-  assert.equal(await quotes.evaluate((button) => button === document.activeElement), true);
-  await page.keyboard.press('Home');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByText('Advanced', { exact: true }).click();
-  const targets = await page.locator('[role="radio"], [role="switch"], [aria-pressed], button[aria-label^="Copy"]').evaluateAll((elements) => elements.filter((element) => element.getBoundingClientRect().width > 0).map((element) => ({ text: element.textContent, width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })));
-  assert.ok(targets.length > 5);
+  await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
+  const creation = page.getByRole('dialog', { name: 'Create with your agent' });
+  await creation.waitFor();
+  await page.getByRole('link', { name: 'Set up an agent', exact: true }).waitFor();
+  await creation.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+  });
+  await page.waitForTimeout(250);
+  const targets = await creation.locator('button, [role="radio"]').evaluateAll((elements) => elements.filter((element) => element.getBoundingClientRect().width > 0).map((element) => ({ text: element.textContent, width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })));
+  assert.ok(targets.length > 0);
   assert.ok(targets.every(({ width, height }) => Math.round(width * 1000) >= minTarget * 1000 && Math.round(height * 1000) >= minTarget * 1000), JSON.stringify(targets));
   await snap(page, viewport.width === 390 ? 'mobile' : 'desktop', 'controls-44px-keyboard');
   results.push({ name: 'controls', viewport, targets });
@@ -269,7 +261,7 @@ async function testUncertainSend() {
   // A wallet error after the broadcast: the nonce snapshot finds the mined step, so it continues without a resend.
   {
     const { context, page, state } = await fixture({ width: 390, height: 844 });
-    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.goto(`${base}/account?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
     await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
@@ -286,7 +278,7 @@ async function testUncertainSend() {
   // The chain cannot answer: the step stays uncertain with a check again, never a resend, until the chain finds it.
   {
     const { context, page } = await fixture({ width: 390, height: 844 });
-    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.goto(`${base}/account?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
     await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
@@ -307,7 +299,7 @@ async function testUncertainSend() {
   // A reload while the chain is being checked picks the check up again from the stored snapshot.
   {
     const { context, page } = await fixture({ width: 390, height: 844 });
-    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.goto(`${base}/account?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
     await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
@@ -324,7 +316,7 @@ async function testUncertainSend() {
   // A wallet error before anything was broadcast: the unchanged nonce proves it, and a real retry is offered.
   {
     const { context, page } = await fixture({ width: 390, height: 844 });
-    await page.goto(`${base}/publish?resume=fixture-offer`);
+    await page.goto(`${base}/account?resume=fixture-offer`);
     await page.getByRole('button', { name: 'Prepare wallet steps' }).click();
     await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
     await page.getByRole('dialog', { name: 'Wallet confirmation fixture' }).waitFor();
@@ -380,42 +372,13 @@ async function testSignedOutSettle() {
   }
 }
 
-async function testNewPublishOwner() {
-  const { context, page } = await fixture({ width: 390, height: 844 });
-  await page.goto(`${base}/publish`);
-  await page.locator('#post-title').fill('Prepared by account A');
-  await page.locator('#post-brief').fill('A frozen account-bound offer.');
-  await page.locator('#post-criteria').fill('Keep the original wallet and terms.');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.locator('#post-reward').fill('10');
-  await page.getByRole('button', { name: 'Review', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).waitFor();
-  const accountB = `0x${'3'.repeat(40)}`;
-  await page.evaluate((address) => { window.__wallet.address = address; localStorage.setItem('fixture-wallet-address', address); window.dispatchEvent(new Event('fixture-wallet-change')); }, accountB);
-  await page.getByText('Return to the wallet that prepared this offer before confirming more steps.').waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).isDisabled(), true);
+async function testResumeOwner() {
+  const { context, page } = await fixture({ width: 390, height: 844 }, { address: `0x${'3'.repeat(40)}` });
+  await page.goto(`${base}/account?resume=fixture-offer`);
+  await page.getByText(/Only the person who prepared this offer/).first().waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Prepare wallet steps' }).count(), 0);
   assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-  await page.reload();
-  await page.locator('#post-title').waitFor();
-  assert.equal(await page.locator('#post-title').inputValue(), '');
-  assert.equal(await page.getByRole('button', { name: 'Confirm step 1 of 3' }).count(), 0);
-  assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-  await page.evaluate((address) => { window.__wallet.address = address; localStorage.setItem('fixture-wallet-address', address); window.dispatchEvent(new Event('fixture-wallet-change')); }, creator);
-  await page.getByText('Prepared by account A', { exact: true }).first().waitFor();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
-  await page.getByRole('button', { name: 'Decline fixture' }).click();
-  await page.getByRole('button', { name: 'Try again' }).waitFor();
-  await page.reload();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).waitFor();
-  const snapshots = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('sidequest.post-draft:')).map((key) => ({ key, value: JSON.parse(localStorage.getItem(key)) })));
-  assert.ok(snapshots.some(({ key, value }) => key.endsWith(creator) && value.frozen.owner === creator && value.frozen.started === true));
-  assert.equal(snapshots.some(({ key, value }) => key.endsWith(accountB) && value.frozen !== null), false);
-  await page.reload();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).waitFor();
-  await page.getByText('Prepared by account A', { exact: true }).first().waitFor();
-  assert.equal(await page.evaluate(() => localStorage.getItem('fixture-wallet-address')), creator);
-  results.push({ name: 'new-publish-owner-bound-before-first-send-and-reload', passed: true });
+  results.push({ name: 'saved-offer-recovery-requires-original-creator', passed: true });
   await context.close();
 }
 
@@ -440,59 +403,28 @@ async function testConflictingActions() {
 }
 
 async function testFrozenRecovery() {
-  for (const confirmed of [false, true]) {
-    const { context, page } = await fixture({ width: 390, height: 844 });
-    await page.goto(`${base}/publish`);
-    await page.locator('#post-title').fill('Expiry fixture');
-    await page.locator('#post-brief').fill('Frozen terms');
-    await page.locator('#post-criteria').fill('Keep the frozen terms.');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByRole('button', { name: 'Review', exact: true }).click();
-    await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
-    await page.getByRole('button', { name: confirmed ? 'Confirm fixture' : 'Decline fixture' }).click();
-    await page.getByRole('button', { name: confirmed ? 'Confirm step 2 of 3' : 'Try again' }).waitFor();
-    await page.evaluate(() => {
-      const key = Object.keys(localStorage).find((entry) => entry.startsWith('sidequest.post-draft:'));
-      const draft = JSON.parse(localStorage.getItem(key));
-      draft.frozen.deliveryDeadline = Math.floor(Date.now() / 1000) - 1;
-      localStorage.setItem(key, JSON.stringify(draft));
-    });
-    await page.reload();
-    await page.getByText('This offer has expired. Prepare a new offer before confirming any new steps.').waitFor();
-    const confirm = page.getByRole('button', { name: confirmed ? 'Confirm step 2 of 3' : 'Confirm step 1 of 3' });
-    assert.equal(await confirm.isDisabled(), true);
-    const restart = page.getByRole('button', { name: 'Start a new offer', exact: true });
-    assert.equal(await restart.isDisabled(), false);
-    await restart.click();
-    assert.equal(await page.locator('#post-title').isEnabled(), true);
-    assert.equal(await page.evaluate(() => window.__wallet.sends.length), confirmed ? 1 : 0);
-    results.push({ name: `expired-offer-safe-restart-after-${confirmed ? 'confirmed-approval' : 'wallet-refusal'}`, passed: true });
-    await context.close();
-  }
+  const { context, page, state } = await fixture({ width: 390, height: 844 });
+  state.deadline = now - 1;
+  await page.goto(`${base}/account?resume=fixture-offer`);
+  await page.getByText(/expired|delivery deadline has passed/).first().waitFor();
+  const prepare = page.getByRole('button', { name: 'Prepare wallet steps' });
+  assert.equal(await prepare.isDisabled(), true);
+  assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+  results.push({ name: 'expired-saved-offer-cannot-publish', passed: true });
+  await context.close();
 }
 
-async function testFrozenPrefill() {
+async function testRetiredAuthoring() {
   const { context, page } = await fixture({ width: 390, height: 844 });
   await page.goto(`${base}/embed/public?view=publish&title=Original%20offer&brief=Original%20terms&reward=10`);
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Review', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
-  await page.evaluate((replacementToken) => window.postMessage({ source: 'sidequest-host', type: 'prefill', payload: { title: 'Changed offer', brief: 'Changed terms', reward: '999', token: replacementToken, mode: 'contest' } }, '*'), token);
-  await page.getByRole('button', { name: 'Decline fixture' }).click();
-  await page.getByRole('button', { name: 'Try again' }).waitFor();
-  await page.getByText('Original offer', { exact: true }).first().waitFor();
-  assert.equal(await page.getByText('Changed offer', { exact: true }).count(), 0);
-  const snapshot = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((entry) => entry.startsWith('sidequest.post-draft:')))));
-  assert.equal(snapshot.frozen.form.reward, '10');
-  assert.equal(snapshot.frozen.form.mode, 'hire');
-  assert.notEqual(snapshot.frozen.form.token, token);
-  await page.reload();
-  await page.getByText('Original offer', { exact: true }).first().waitFor();
-  await page.getByRole('button', { name: 'Confirm step 1 of 3' }).waitFor();
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => window.postMessage({ source: 'sidequest-host', type: 'prefill', payload: { title: 'Changed offer', brief: 'Changed terms', reward: '999', mode: 'contest' } }, '*'));
+  assert.equal(await page.locator('#post-title').count(), 0);
+  assert.equal(await page.getByRole('button', { name: /Confirm step|Review|Ask for quotes/ }).count(), 0);
   assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-  results.push({ name: 'host-prefill-cannot-change-frozen-consent-after-reload', passed: true });
+  await page.goto(`${base}/publish`);
+  await page.getByRole('heading', { name: 'Page not found' }).waitFor();
+  results.push({ name: 'retired-form-and-embed-prefill-cannot-author-or-publish', passed: true });
   await context.close();
 }
 
@@ -545,8 +477,8 @@ async function testLongToken() {
 
 try {
   // One case by name (`node test/ux.e2e.mjs <dir> uncertain-send`), or all of them.
-  const only = { 'long-token': testLongToken, 'uncertain-send': testUncertainSend, 'signed-out-settle': testSignedOutSettle, 'new-publish-owner': testNewPublishOwner,
-    'conflicting-actions': testConflictingActions, 'frozen-recovery': testFrozenRecovery, 'frozen-prefill': testFrozenPrefill,
+  const only = { 'long-token': testLongToken, 'uncertain-send': testUncertainSend, 'signed-out-settle': testSignedOutSettle, 'resume-owner': testResumeOwner,
+    'conflicting-actions': testConflictingActions, 'frozen-recovery': testFrozenRecovery, 'retired-authoring': testRetiredAuthoring,
     'stale-board-detail': testStaleBoardDetail, 'chain-detail-failure': testChainDetailFailureWithBoardData }[process.argv[3] ?? ''];
   if (only !== undefined) {
     await only();
@@ -562,16 +494,16 @@ try {
     await testChainFailure();
     await testUncertainSend();
     await testSignedOutSettle();
-    await testNewPublishOwner();
+    await testResumeOwner();
     await testConflictingActions();
     await testFrozenRecovery();
-    await testFrozenPrefill();
+    await testRetiredAuthoring();
     await testStaleBoardDetail();
     await testChainDetailFailureWithBoardData();
     await testLongToken();
   }
   assert.deepEqual(failures, []);
-  console.log(`PASS: ${results.length} publish browser evidence records`);
+  console.log(`PASS: ${results.length} browser evidence records`);
 } finally {
   mkdirSync(output, { recursive: true });
   writeFileSync(`${output}/e2e.json`, JSON.stringify({ results, failures }, null, 2));

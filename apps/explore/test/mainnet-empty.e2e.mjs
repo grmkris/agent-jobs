@@ -78,12 +78,16 @@ try {
       assert.equal(await page.getByText('Something went wrong', { exact: false }).count(), 0, `${path}: the error screen`);
       if (!path.startsWith('/embed')) await page.getByRole('note').filter({ hasText: 'Launching soon.' }).first().waitFor({ timeout: 10_000 });
       assert.ok((await page.locator('body').innerText()).trim().length > 0, `${path}: blank`);
-      if (['/backing', '/admin', '/collect', '/publish', '/telegram', '/sponsorship', '/boards/new', '/b/acme/publish'].includes(path)) {
+      if (['/admin', '/sponsorship', '/boards/new'].includes(path)) {
         await page.getByRole('status').filter({ hasText: 'Sidequest on mainnet opens soon' }).waitFor({ timeout: 10_000 });
         await page.getByRole('link', { name: 'Try it on testnet' }).first().waitFor();
       }
+      if (['/publish', '/backing', '/collect', '/telegram', '/b/acme/publish', '/no-such-page'].includes(path)) {
+        await page.getByRole('heading', { name: 'Page not found', level: 1 }).waitFor();
+        assert.equal(new URL(page.url()).pathname, path, `${path}: must not redirect`);
+      }
       assert.deepEqual(errors, [], `${path}: ${errors.join(' | ')}`);
-      if (['/', '/backing', '/job/12', '/account'].includes(path)) await page.screenshot({ path: `${output}/${session ? 'session' : 'visitor'}${path.replaceAll('/', '-') || '-home'}.png`, fullPage: true });
+      if (['/', '/jobs', '/job/12', '/account'].includes(path)) await page.screenshot({ path: `${output}/${session ? 'session' : 'visitor'}${path.replaceAll('/', '-') || '-home'}.png`, fullPage: true });
     }
     const rpc = blocked.filter((b) => /monad|rpc/i.test(b));
     assert.deepEqual(rpc, [], `requests to a Monad RPC: ${rpc.join(' | ')}`);

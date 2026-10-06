@@ -43,7 +43,7 @@ export function DelegationPositions({
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No positions yet</EmptyTitle>
-            <EmptyDescription>Choose an agent below to back it with SIDE.</EmptyDescription>
+            <EmptyDescription>Back it with SIDE in the form below.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (

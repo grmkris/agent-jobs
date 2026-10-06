@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { BaseError, ContractFunctionRevertedError, maxUint256, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
@@ -12,7 +13,10 @@ import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
 import { ProfileHeader } from '../components/agent/ProfileHeader.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
-import { Address, Details, PageTitle } from '../components/kit.tsx'
+import { PageTitle } from '../components/kit.tsx'
+import { SetupChecklist } from '../components/agent/SetupChecklist.tsx'
+import { BackingManager } from '../components/BackingManager.tsx'
+import { PrivyLogin } from '../components/Privy.tsx'
 import { useNow } from '../components/Time.tsx'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../components/ui/empty.tsx'
 import { Skeleton } from '../components/ui/skeleton.tsx'
@@ -222,15 +226,24 @@ function Profile({ id }: { id: string }) {
   const wallet = (identity.wallet ?? record.data?.currentWallet ?? record.data?.wallets[0]) as `0x${string}` | undefined
   const { address } = useAuth()
   const now = useNow()
+  const [backingOpen, setBackingOpen] = useState(false)
+  const [overviewRequest, setOverviewRequest] = useState(0)
+  const openBacking = () => { setBackingOpen(true); setOverviewRequest((request) => request + 1) }
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
   const managed = useOwnedAgent(id)
+  useEffect(() => {
+    if (managed !== undefined || overviewRequest === 0) return
+    const frame = requestAnimationFrame(() => document.getElementById('profile-backing')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    return () => cancelAnimationFrame(frame)
+  }, [managed, overviewRequest])
   const overview = (
     <>
+      {managed !== undefined && address !== undefined && <SetupChecklist agent={managed} operator={address} wallet={wallet} backingOpen={backingOpen} onBackingOpenChange={setBackingOpen} />}
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
-          <p className="px-4 text-ui text-muted-foreground">You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.</p>
+          <p className="px-4 text-ui text-muted-foreground">You paid this agent for job #{again.job_id}. Hire again gives your publisher that job as context for a fresh hire.</p>
         </div>
       )}
       {record.isLoading ? (
@@ -254,16 +267,16 @@ function Profile({ id }: { id: string }) {
           </EmptyHeader>
         </Empty>
       ) : isNew(record.data) ? (
-        <NewAgentCard wallet={wallet} />
+        managed === undefined ? <NewAgentCard /> : null
       ) : (
         <>
           <HeroStats record={record.data!} now={now} owner={managed !== undefined} />
           <AgentJobs record={record.data!} />
         </>
       )}
-      {wallet !== undefined && identity.exists !== false && <BackingStrip wallet={wallet} viewer={address} />}
+      {wallet !== undefined && identity.exists !== false && <BackingStrip wallet={wallet} viewer={address} onBack={openBacking} />}
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
-      {identity.exists !== false && <Registration id={id} identity={identity} />}
+      {managed === undefined && backingOpen && wallet !== undefined && <section id="profile-backing" aria-label="Back this agent" className="grid scroll-mt-24 gap-4">{address === undefined ? <><p className="text-sm text-muted-foreground">Sign in to back this agent.</p><PrivyLogin /></> : <BackingManager owner={address} scope={{ kind: 'agent', account: wallet, agentId: id }} />}</section>}
       {managed === undefined && identity.exists !== false && (
         <Link to="/connect" className="justify-self-start px-1 text-ui text-muted-foreground underline decoration-current/30 underline-offset-4 hover:text-foreground">
           Is this your agent? Connect it
@@ -273,57 +286,8 @@ function Profile({ id }: { id: string }) {
   )
   return (
     <>
-      <ProfileHeader id={id} identity={identity} wallet={wallet} directory={directory.data?.agent} owner={managed !== undefined} />
-      {managed === undefined ? overview : <OwnerTabs managed={managed} overview={overview} posted={record.data?.posted} taken={record.data?.jobs} />}
+      <ProfileHeader id={id} identity={identity} wallet={wallet} directory={directory.data?.agent} owner={managed !== undefined} onBack={openBacking} />
+      {managed === undefined ? overview : <OwnerTabs managed={managed} overview={overview} posted={record.data?.posted} taken={record.data?.jobs} overviewRequest={overviewRequest} onBack={openBacking} />}
     </>
-  )
-}
-
-/** What the agent registered on-chain, folded away: owner, agent wallet and profile. */
-function Registration({ id, identity }: { id: string; identity: AgentIdentity }) {
-  const p = identity.profile
-  return (
-    <Details summary="Registration">
-      {identity.loading ? (
-        <Skeleton className="h-4 w-2/5" />
-      ) : identity.exists === null ? (
-        <p className="text-sm text-muted-foreground">The identity registry did not answer. Retry in a moment.</p>
-      ) : (
-        <div className="grid text-sm">
-          <div className="flex min-h-10 items-center justify-between gap-4">
-            <span>Owner</span>
-            <Address value={identity.owner} />
-          </div>
-          <div className="flex min-h-10 items-center justify-between gap-4 border-t border-border/70">
-            <span>
-              Agent wallet
-              <span className="block text-xs text-muted-foreground">Signs its applications and transactions</span>
-            </span>
-            <Address value={identity.wallet} />
-          </div>
-          <div className="flex min-h-10 items-center justify-between gap-4 border-t border-border/70">
-            <span className="shrink-0">{p?.kind === 'json' ? 'Profile' : 'Profile link'}</span>
-            <span className="min-w-0 truncate text-right text-muted-foreground">
-              {p === null ? (
-                'None'
-              ) : p.kind === 'json' ? (
-                'JSON profile, on-chain'
-              ) : p.href !== null ? (
-                <a href={p.href} target="_blank" rel="noreferrer noopener" className="text-foreground underline decoration-foreground/30 underline-offset-4">
-                  {p.url.replace(/^https:\/\//, '')}
-                </a>
-              ) : (
-                p.url
-              )}
-            </span>
-          </div>
-          {p?.kind === 'link' && (
-            <p className="pt-2 text-xs text-muted-foreground">
-              This agent registered a web link, not a profile, so Sidequest can&apos;t show a name, picture or description.
-            </p>
-          )}
-        </div>
-      )}
-    </Details>
   )
 }

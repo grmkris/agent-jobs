@@ -40,6 +40,15 @@ const reply = (route, body) => route.fulfill({ status: 200, contentType: 'applic
 
 async function profile(viewport, { mine = true } = {}) {
   const { context, page } = await fixture(viewport);
+  await context.addInitScript(() => {
+    window.__copied = [];
+    window.__nativeShares = 0;
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async value => {
+      if (window.__clipboardFails) throw new Error('Clipboard unavailable');
+      window.__copied.push(value);
+    } } });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { window.__nativeShares += 1; } });
+  });
   await context.route('**/data/agents/1942', (route) => reply(route, record));
   await context.route('**/api/approvals', (route) => reply(route, { ok: true, result: { approvals } }));
   if (!mine) await context.route('**/api/agents', (route) => reply(route, { ok: true, result: { agents: [] } }));
@@ -67,14 +76,26 @@ try {
     await page.getByRole('heading', { level: 1, name: 'My worker' }).waitFor();
     await page.getByText('Agent ID 1942', { exact: true }).waitFor();
     assert.equal(await page.getByRole('tablist', { name: 'Your agent' }).count(), 0, 'a visitor gets no owner tabs');
-    const hire = page.getByRole('link', { name: 'Hire this agent' });
-    assert.match(await hire.getAttribute('href'), /\/publish\?invite=(%221942%22|1942)$/);
+    const hire = page.getByRole('button', { name: 'Hire this agent' });
+    await hire.click();
+    await page.getByRole('dialog', { name: 'Create with your agent' }).waitFor();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
     // Where else to look it up: its identity NFT, its 8004scan profile and its wallet.
     await page.getByRole('button', { name: 'Look it up on an explorer' }).click();
-    assert.match(await page.getByRole('menuitem', { name: 'Agent on Monadscan' }).getAttribute('href'), /\/nft\/0x[0-9a-fA-F]{40}\/1942$/);
-    assert.match(await page.getByRole('menuitem', { name: 'Agent on 8004scan' }).getAttribute('href'), /^https:\/\/8004scan\.io\/agents\/monad-testnet\/1942$/);
-    assert.match(await page.getByRole('menuitem', { name: 'Wallet on Monadscan' }).getAttribute('href'), /\/address\/0x2222222222222222222222222222222222222222$/i);
+    assert.match(await page.getByRole('link', { name: /^Agent on Monadscan/ }).getAttribute('href'), /\/nft\/0x[0-9a-fA-F]{40}\/1942$/);
+    assert.match(await page.getByRole('link', { name: /^Agent on 8004scan/ }).getAttribute('href'), /^https:\/\/8004scan\.io\/agents\/monad-testnet\/1942$/);
+    assert.match(await page.getByRole('link', { name: /^Wallet on Monadscan/ }).getAttribute('href'), /\/address\/0x2222222222222222222222222222222222222222$/i);
+    const explorerCopy = page.getByRole('button', { name: 'Copy Agent on Monadscan URL' });
+    await explorerCopy.click();
+    await page.getByRole('button', { name: 'Copy Agent on Monadscan URL copied' }).waitFor();
+    assert.equal(new URL(page.url()).pathname, '/agent/1942');
+    assert.equal(await page.evaluate(() => window.__copied.at(-1)), await page.getByRole('link', { name: /^Agent on Monadscan/ }).getAttribute('href'));
     await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: 'Share this agent' }).click();
+    await page.getByRole('button', { name: 'Share this agent copied' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__copied.at(-1)), `${new URL(page.url()).origin}/agent/1942`);
+    assert.equal(await page.evaluate(() => window.__nativeShares), 0);
 
     await page.getByText('75 %', { exact: true }).waitFor();
     await page.getByText('3 of 4 paid · 1 open', { exact: true }).waitFor();
@@ -105,7 +126,7 @@ try {
     // Backing: the summary, then the breakdown and the backers in place; a token chip says what the token is.
     const backing = page.getByRole('region', { name: 'Backing' }).or(page.locator('section', { has: page.getByRole('heading', { name: 'Backing', exact: true }) })).first();
     await backing.getByText('total backing', { exact: true }).waitFor();
-    await backing.getByRole('link', { name: 'Back this agent' }).waitFor();
+    await backing.getByRole('button', { name: 'Back this agent' }).waitFor();
     await backing.getByText('Details', { exact: true }).click();
     await backing.getByText('Top backers', { exact: true }).waitFor();
     await backing.getByText('Reserved by live jobs', { exact: true }).waitFor();
@@ -117,13 +138,90 @@ try {
     await context.close();
   }
   {
+    const focused = await profile({ width: 390, height: 844 }, { mine: false });
+    await focused.page.goto(`${base}/agent/1942`);
+    await focused.page.getByRole('button', { name: 'Agent owner information' }).focus();
+    await focused.page.getByRole('heading', { name: 'Agent owner' }).waitFor();
+    await focused.page.keyboard.press('Escape');
+    await focused.page.getByRole('heading', { name: 'Agent owner' }).waitFor({ state: 'detached' });
+    await focused.page.getByRole('button', { name: 'Look it up on an explorer' }).focus();
+    await focused.page.getByRole('button', { name: 'Agent owner information' }).focus();
+    await focused.page.getByRole('heading', { name: 'Agent owner' }).waitFor();
+    await focused.context.close();
+    const touched = await profile({ width: 390, height: 844 }, { mine: false });
+    await touched.page.goto(`${base}/agent/1942`);
+    await touched.page.getByRole('button', { name: 'Agent owner information' }).click();
+    await touched.page.getByRole('heading', { name: 'Agent owner' }).waitFor();
+    await touched.context.close();
+    results.push({ test: 'owner details opens on keyboard focus and touch/click', passed: true });
+  }
+  {
+    const { context, page } = await profile({ width: 1440, height: 900 }, { mine: false });
+    await page.goto(`${base}/b/studio/agent/1942?tab=manage#backing`);
+    await page.getByRole('button', { name: 'Share this agent' }).click();
+    await page.getByRole('button', { name: 'Share this agent copied' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__copied.at(-1)), `${base}/agent/1942`, 'Share drops board, query and hash');
+    assert.equal(await page.evaluate(() => window.__nativeShares), 0);
+    await page.evaluate(() => { window.__clipboardFails = true; });
+    await page.getByRole('button', { name: 'Share this agent copied' }).click();
+    await page.getByRole('status').filter({ hasText: 'Copy failed' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__copied.length), 1, 'failed clipboard does not report another copy');
+    await context.close();
+    results.push({ test: 'Share copies the global profile URL on a tenant tab/hash and reports clipboard failure', passed: true });
+  }
+  {
+    const { context, page } = await profile({ width: 1440, height: 900 });
+    let failed = true;
+    let connected = true;
+    let liveBudget = true;
+    await context.route('**/api/agents/managed', route => failed
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, message: 'Status unavailable' }) })
+      : reply(route, { ok: true, result: { connected, allowances: [{ token: musd, hash: 'fixture', limit: '1000000', used: '1000000', left: '0', periodEnd: now + 86400, expiresAt: liveBudget ? now + 86400 : now - 1 }], grants: [], revocation: {} } }));
+    await context.route('**/data/backing/*', route => failed
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, message: 'Backing unavailable' }) })
+      : route.fallback());
+    await page.goto(`${base}/agent/1942`);
+    const setup = page.getByRole('region', { name: 'Agent setup' });
+    await setup.getByText('status unavailable', { exact: true }).nth(2).waitFor();
+    assert.equal(await setup.getByText('complete', { exact: true }).count(), 0);
+    failed = false;
+    const refreshSetup = () => page.evaluate(async () => {
+      await Promise.all([
+        window.__stakingQueryClient.invalidateQueries({ queryKey: ['managed-agent-status'] }),
+        window.__stakingQueryClient.invalidateQueries({ queryKey: ['indexed-backing'] }),
+      ]);
+    });
+    await refreshSetup();
+    await setup.getByText('complete', { exact: true }).nth(2).waitFor();
+    await page.reload();
+    await setup.getByText('complete', { exact: true }).nth(2).waitFor();
+    await setup.locator('#profile-backing > summary').click();
+    await setup.getByRole('heading', { name: 'Back this agent', exact: true }).waitFor();
+    await setup.getByRole('button', { name: 'Buy SIDE', exact: true }).waitFor();
+    connected = false;
+    liveBudget = false;
+    await page.evaluate(account => {
+      const position = window.__stake.pools[account].positions[window.__wallet.address];
+      position.queuedShares = position.shares;
+      window.__stake.pools[account].queuedShares = position.shares;
+    }, agentWallet);
+    await refreshSetup();
+    await setup.getByText('not complete', { exact: true }).nth(2).waitFor();
+    failed = true;
+    await refreshSetup();
+    await setup.getByText('status unavailable', { exact: true }).nth(2).waitFor();
+    assert.equal(await setup.getByText('complete', { exact: true }).count(), 0, 'failed current facts do not retain cached checks');
+    await context.close();
+    results.push({ test: 'inline setup: unknown, confirmed exhausted-budget completion, reload, expired/revoked/queued-only facts, and failure after cached success', passed: true });
+  }
+  {
     // Its operator: no Hire; Needs you on Overview leads to the waiting approval.
     const { context, page } = await profile({ width: 1440, height: 900 });
     await page.goto(`${base}/agent/1942`);
     const tabs = page.getByRole('tablist', { name: 'Your agent' });
     await tabs.waitFor();
     assert.equal(await tabs.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected'), 'true');
-    assert.equal(await page.getByRole('link', { name: 'Hire this agent' }).count(), 0, 'the operator does not hire their own agent');
+    assert.equal(await page.getByRole('button', { name: 'Hire this agent' }).count(), 0, 'the operator does not hire their own agent');
     const needs = page.getByRole('region', { name: 'Needs you' });
     await needs.getByText('One decision is waiting for you', { exact: true }).waitFor();
     await needs.getByText('Past its delivery deadline with nothing delivered: job #75', { exact: true }).waitFor();

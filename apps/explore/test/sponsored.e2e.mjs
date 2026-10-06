@@ -135,7 +135,7 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
     const { context, page, state } = await fixture(viewport);
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     await page.getByText('Settle job #72', { exact: true }).waitFor();
 
     // The settle goes through the relay: no wallet prompt. The first answer is lost; asking again with the same key
@@ -197,7 +197,7 @@ try {
   // the step stays unknown and is never sent from the wallet on top; checking again finds the one operation.
   {
     const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [ACTIONS[1]] });
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     state.collecting = 'claimTopUpRefund';
     state.script = ['lose', 'rate-limited'];
     await page.getByRole('button', { name: 'Collect', exact: true }).click();
@@ -215,7 +215,7 @@ try {
   // wallet is offered with the dropped hash, and the next sponsored action carries a new key, never the dropped one.
   {
     const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [ACTIONS[0], ACTIONS[2]] });
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     state.collecting = 'settle';
     state.receiptDown = true;
     await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
@@ -247,7 +247,7 @@ try {
   // relay's transaction is not mined yet, so it is checked again (same key, same operation), never resent.
   {
     const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [ACTIONS[0]] });
-    await page.goto(`${base}/collect`);
+    await page.goto(`${base}/account`);
     state.collecting = 'settle';
     state.script = Array.from({ length: 6 }, () => 'lose');
     await page.getByRole('button', { name: 'Collect', exact: true }).click();

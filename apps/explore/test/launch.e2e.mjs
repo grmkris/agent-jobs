@@ -6,13 +6,13 @@ import { createServer } from 'vite';
 import { PRODUCTION_CLOCKS } from '../../../packages/sdk/src/deployment.ts';
 
 // The mainnet launch gate (PROD-GATE-006, D16). A mainnet build with MAINNET_LIVE false is reads only: every page that
-// writes says "launching soon" when opened by its URL (also under a board and in the widget), a banner says so on every
+// writes says "launching soon" when opened by its URL, retired routes stay absent, and a banner says so on every
 // page, the board is asked only read tools, and /release.json reports the pinned value. With MAINNET_LIVE true the
 // same pages open, and a testnet build links to mainnet instead of "soon". Mocked Chromium only: no board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/sidequest-launch-evidence';
 const me = '0x1111111111111111111111111111111111111111';
-const READ_TOOLS = new Set(['get_task', 'task_index', 'get_board', 'list_boards', 'list_quote_requests', 'list_quotes', 'list_directory', 'get_directory_agent', 'collect_actions', 'sponsor_status', 'telegram_status', 'auth_challenge', 'auth_login', 'whoami', 'list_tasks']);
+const READ_TOOLS = new Set(['get_task', 'task_index', 'get_board', 'list_boards', 'list_quote_requests', 'list_quotes', 'list_directory', 'get_directory_agent', 'collect_actions', 'sponsor_status', 'telegram_status', 'auth_challenge', 'auth_login', 'whoami', 'list_tasks', 'agents']);
 // Until mainnet is deployed its config has no deployment block and Explore cannot load; like the directory e2e, the
 // run borrows testnet's for contracts it never calls, and the gate under test does not depend on it.
 const readConfig = (name) => JSON.parse(readFileSync(new URL(`../../../contracts/config/${name}.json`, import.meta.url), 'utf8'));
@@ -79,9 +79,9 @@ async function capture(page, name) {
 
 // Every page that writes, by direct URL, with the title its "launching soon" state keeps.
 const WRITE_ROUTES = [
-  ['/publish', 'Post a job'], ['/backing', 'Back an agent'], ['/collect', 'Collect'], ['/admin', 'Admin'], ['/telegram', 'Telegram'],
-  ['/sponsorship', 'Gas sponsorship'], ['/boards/new', 'Create a board'], ['/b/acme/publish', 'Post a job'], ['/embed/acme?view=publish', 'Post a job'],
+  ['/admin', 'Admin'], ['/sponsorship', 'Gas sponsorship'], ['/boards/new', 'Create a board'],
 ];
+const RETIRED_ROUTES = ['/publish', '/backing', '/collect', '/telegram', '/b/acme/publish'];
 
 const drained = await serve(5204, 'monad-mainnet', false);
 try {
@@ -103,8 +103,23 @@ try {
     assert.equal(await page.getByRole('textbox').count(), 0, `${path}: a form field`);
     assert.equal(await page.getByRole('button', { name: /^(Review|Stake|Collect|Confirm|Link Telegram|Turn on|Create)/ }).count(), 0, `${path}: a write button`);
     await page.getByRole('link', { name: 'Try it on testnet' }).first().waitFor();
-    if (path === '/backing') await capture(page, 'mainnet-backing-drained');
+
   }
+  for (const path of RETIRED_ROUTES) {
+    await page.goto(`${base}${path}`);
+    await page.getByRole('heading', { name: 'Page not found', level: 1 }).waitFor();
+    assert.equal(new URL(page.url()).pathname, path, `${path}: must not redirect`);
+  }
+  await page.goto(`${base}/account`);
+  await page.getByRole('heading', { name: 'Account', level: 1 }).waitFor();
+  for (const section of ['Collect', 'Notifications', 'My backing positions']) await page.getByRole('heading', { name: section, exact: true }).waitFor();
+  assert.ok(await page.getByRole('status').filter({ hasText: 'Sidequest on mainnet opens soon' }).count() >= 3);
+  assert.equal(await page.getByRole('button', { name: /^(Collect|Link Telegram|Back an agent|Buy SIDE|Confirm)/ }).count(), 0);
+  await capture(page, 'mainnet-account-drained');
+  await page.goto(`${base}/jobs`);
+  await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Sidequest on mainnet opens soon' }).first().waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Copy instruction' }).count(), 0);
   assert.deepEqual(errors, []);
   const writes = tools.filter((t) => !READ_TOOLS.has(t));
   assert.deepEqual(writes, [], `write tools reached the board: ${writes.join(', ')}`);
@@ -118,14 +133,15 @@ const live = await serve(5205, 'monad-mainnet', true);
 try {
   const base = 'http://127.0.0.1:5205';
   const { context, page } = await open(base, 143);
-  await page.goto(`${base}/publish`);
-  await page.getByRole('heading', { name: 'Post a job', level: 1 }).waitFor();
+  await page.goto(`${base}/jobs`);
+  await page.getByRole('button', { name: 'Create with agent', exact: true }).click();
+  await page.getByRole('dialog').waitFor();
   assert.equal(await page.getByText('Sidequest on mainnet opens soon').count(), 0);
   assert.equal(await page.getByRole('note').filter({ hasText: 'Launching soon.' }).count(), 0);
-  await page.goto(`${base}/backing`);
-  await page.getByRole('heading', { name: 'Back an agent', level: 1 }).waitFor();
+  await page.goto(`${base}/account`);
+  await page.getByRole('heading', { name: 'My backing positions', exact: true }).waitFor();
   assert.equal(await page.getByText('Sidequest on mainnet opens soon').count(), 0);
-  results.push({ build: 'mainnet, MAINNET_LIVE true', checks: ['write pages open', 'no banner'], passed: true });
+  results.push({ build: 'mainnet, MAINNET_LIVE true', checks: ['agent handoff and unified Account open', 'no banner'], passed: true });
   await context.close();
 } finally {
   await live.close();

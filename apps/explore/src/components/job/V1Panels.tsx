@@ -19,7 +19,7 @@ import type { TxRequest } from '../../api.ts'
 import { amount, tokenInfo } from '../../format.ts'
 import { percent } from '../../stake.ts'
 import { chain } from '../../wallet.ts'
-import { toBase } from '../post/form.ts'
+import { toBase } from '../../format.ts'
 import { useToast } from '../Sheet.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
 import { TxSteps } from '../TxSteps.tsx'
@@ -67,7 +67,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
               {net === undefined ? '…' : <TokenAmount value={net} token={token} />}
             </ItemActions>
           </Item>
-          <Link to="/backing" className={cn(textLinkClass, 'flex min-h-11 items-center px-4 text-sm')}>
+          <Link to="/account" className={cn(textLinkClass, 'flex min-h-11 items-center px-4 text-sm')}>
             Back more to pay a lower fee
           </Link>
         </ItemGroup>

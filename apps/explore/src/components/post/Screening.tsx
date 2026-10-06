@@ -2,21 +2,12 @@ import { Item, ItemGroup, ItemMedia, ItemDescription, ItemContent, ItemTitle } f
 import { Section } from '../kit.tsx'
 import type { ReactNode } from 'react'
 
-import { Mark } from './parts.tsx'
+import { Mark } from '../controls.tsx'
+import { VERDICT } from '../../screening.ts'
 
 export interface ScreeningResult {
   verdict: string
   reasons: string[]
-}
-
-/** The screener's verdict in plain words: "Looks fine", "Flagged for a closer look", "Flagged as risky", "Not screened". */
-export const verdictText = (verdict: string | undefined) =>
-  verdict === undefined ? 'Not screened' : (VERDICT[verdict]?.text ?? 'Not screened')
-
-const VERDICT: Record<string, { text: string; tone: 'ok' | 'warn' | 'bad' | 'none' }> = {
-  clean: { text: 'Looks fine', tone: 'ok' },
-  caution: { text: 'Flagged for a closer look', tone: 'warn' },
-  reject: { text: 'Flagged as risky', tone: 'bad' },
 }
 
 /**

@@ -4,7 +4,6 @@
  * (`useAgentAction`), so a saved operation is reconciled before any other starts. The live harness drives these by
  * their exact strings; keep them.
  */
-import { Link } from '@tanstack/react-router'
 import { type ReactNode, useState } from 'react'
 import { type Address, erc20Abi } from 'viem'
 import { useReadContracts } from 'wagmi'
@@ -21,7 +20,7 @@ import { AllowanceEditor } from '../AllowanceEditor.tsx'
 import { ConnectionCard } from '../ConnectionCard.tsx'
 import { Countdown, useNow } from '../Time.tsx'
 import { TokenAmount } from '../token/TokenAmount.tsx'
-import { Button, buttonVariants } from '../ui/button.tsx'
+import { Button } from '../ui/button.tsx'
 import { Meter } from '../ui/meter.tsx'
 
 /** A titled card of the Manage tab; `id` lets the Overview's next steps scroll to it. */
@@ -173,7 +172,7 @@ export function WalletEarnings({ agent, action }: { agent: ManagedAgent; action:
 }
 
 /** The position the agent owns itself (mining rewards claimed into the vault); operator backing is managed elsewhere. */
-export function AgentOwnedBacking({ agent, action }: { agent: ManagedAgent; action: AgentAction }) {
+export function AgentOwnedBacking({ agent, action, onBack }: { agent: ManagedAgent; action: AgentAction; onBack?: (() => void) | undefined }) {
   const wallet = agent.address as Address
   const backingRead = useBacking(wallet, wallet)
   const now = useNow()
@@ -240,9 +239,7 @@ export function AgentOwnedBacking({ agent, action }: { agent: ManagedAgent; acti
           )}
         </>
       )}
-      <Link to="/backing" search={{ account: wallet }} className={cn(buttonVariants({ variant: 'link' }), 'justify-self-start')}>
-        Back it from your own wallet
-      </Link>
+      {onBack !== undefined && <Button variant="link" className="justify-self-start" onClick={onBack}>Back it from your own wallet</Button>}
       <SavedAction action={action} />
     </ManageCard>
   )

@@ -3,6 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/
 import { ItemGroup } from '../components/ui/item.tsx'
 import { LoadingRows } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
+import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { StartPrompt } from '../components/AgentStartLink.tsx'
@@ -94,11 +95,9 @@ export function HomePage() {
       </section>
 
       <section className="grid justify-items-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Rather do it by hand?</p>
+        <p className="text-sm text-muted-foreground">Have work for an agent?</p>
         <div className="flex flex-wrap justify-center gap-2">
-          <Link to="/publish" className={buttonVariants({ variant: 'outline' })}>
-            Post a job
-          </Link>
+          <CreateWithAgent variant="outline">Create with agent</CreateWithAgent>
           <Link to="/connect" className={buttonVariants({ variant: 'ghost' })}>
             Set up an agent in the browser
           </Link>

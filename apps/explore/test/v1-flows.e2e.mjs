@@ -6,7 +6,7 @@ import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
 // The flow matrix's Explore rows on a v1 deployment that no single page test walks end to end: a direct hire from
-// publishing to payment, request → quote → hire, a ruling for the worker with and without the creator's bond burned,
+// recovering publication to payment, an agent-created request → quote → hire, a ruling for the worker with and without the creator's bond burned,
 // and the fee an agent sees before activating in each fee tier. Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const output = process.argv[2] ?? '/tmp/sidequest-v1-flows-evidence';
@@ -98,11 +98,12 @@ async function fixture(viewport, account = creator) {
       case 'get_task': {
         const { taskId } = body();
         const id = state.tasks[taskId];
-        if (id === undefined) return reply({ ok: true, result: { taskId, jobId: null, creator } });
+        if (id === undefined) return reply({ ok: true, result: { ...offer('98'), taskId, jobId: null, title: 'Fix the checkout', creator, terms: { brief: 'The checkout fails on mobile Safari.', acceptanceCriteria: ['Done'] }, invite: { agentId: '7001' } } });
         const j = state.jobs[id];
         const you = account === creator ? ['creator', 'approver'] : account === agentWallet && j.status !== 'open' ? ['worker'] : [];
         return reply({ ok: true, result: { ...offer(id), you, selection: [], terms: { brief: 'A v1 hire.', acceptanceCriteria: ['Done'], windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 } }, chain: { status: j.status, provider: j.status === 'open' ? null : agentWallet, timely: true, submittedAt: j.status === 'submitted' ? now - 600 : null, reviewEndsAt: j.status === 'submitted' ? now + 3600 : null, disputeEndsAt: null, arbitrationEndsAt: null, violation: j.violation ?? null, listingMatchesOffer: true, paused: false } } });
       }
+      case 'publish_transactions': return reply({ ok: true, result: { transactions: publishTxs } });
       case 'create_task':
         state.created.push(body());
         return reply({ ok: true, result: { taskId: 'task-99', termsHash: `0x${'9'.repeat(64)}`, manifestUrl: '/offers/99.json', screening: null, transactions: publishTxs } });
@@ -156,16 +157,9 @@ try {
     // and delivers, the creator approves with Evaluator.accept at its 1.2M limit.
     {
       const { context, page, state } = await fixture(viewport);
-      await page.goto(`${base}/publish`);
-      await page.locator('#post-title').fill('Fix the checkout');
-      await page.locator('#post-brief').fill('The checkout fails on mobile Safari.');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.locator('#post-invite').fill('7001');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.locator('#post-reward').fill('5');
-      await page.getByRole('button', { name: 'Review', exact: true }).click();
-      await page.getByText('Agent ID 7001 · invited', { exact: true }).waitFor();
-      assert.deepEqual(state.created.map((a) => ({ mode: a.mode, invite: a.invite, reward: a.reward })), [{ mode: 'hire', invite: { agentId: '7001' }, reward: '5' }]);
+      await page.goto(`${base}/account?resume=task-99`);
+      await page.getByRole('button', { name: 'Prepare wallet steps', exact: true }).click();
+      assert.equal(state.created.length, 0, 'recovery uses the original frozen offer');
       state.publishing = { taskId: 'task-99', jobId: '99' };
       await steps(page, 2);
       await page.waitForURL('**/job/99');
@@ -183,24 +177,16 @@ try {
       await page.getByRole('status').filter({ hasText: 'Paid 5 mUSD to Worker #7001' }).waitFor();
       assert.deepEqual((await sends(page)).at(-1), { to: contracts.evaluator, gas: '1200000' });
       await capture(page, `${device}-direct-hire-paid`);
-      results.push({ device, flow: 'direct hire, publish to payment', checks: ['named agent', 'create_task invite', 'approve + publish', 'lands on the job page', 'agent delivers', 'approve via Evaluator.accept 1.2M gas', 'paid toast'], note: 'activation is the agent’s own transaction over MCP; the creator’s sponsored actions are in v1-job.e2e', passed: true });
+      results.push({ device, flow: 'direct hire, publish to payment', checks: ['existing agent-created frozen offer', 'original offer recovery', 'approve + publish', 'lands on the job page', 'agent delivers', 'approve via Evaluator.accept 1.2M gas', 'paid toast'], note: 'activation is the agent’s own transaction over MCP; the creator’s sponsored actions are in v1-job.e2e', passed: true });
       await context.close();
     }
 
     // Request → quote → hire: ask for quotes (nothing locked), compare, pick the lowest, publish it, land on the job.
     {
       const { context, page, state } = await fixture(viewport);
-      await page.goto(`${base}/publish`);
-      await page.locator('#post-title').fill('Translate the docs');
-      await page.locator('#post-brief').fill('Translate the user guide into German.');
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.getByRole('radio', { name: /Request quotes/ }).click();
-      await page.getByRole('button', { name: 'Continue', exact: true }).click();
-      await page.getByRole('button', { name: 'Review', exact: true }).click();
-      await page.getByRole('button', { name: 'Ask for quotes', exact: true }).click();
-      await page.waitForURL('**/quotes/rq-1');
-      assert.equal(state.requested.length, 1);
-      assert.equal('stack' in state.requested[0], false, 'the board publishes quotes on its v1 pair');
+      state.request = { requestId: 'rq-1', requestHash: `0x${'1'.repeat(64)}`, status: 'open', creator, title: 'Translate the docs', brief: 'Translate the user guide into German.', acceptanceCriteria: ['Complete German guide'], tokens: [token], creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, quoteDeadline: now + 3600, stack: 'main' };
+      await page.goto(`${base}/quotes/rq-1`);
+      assert.equal(state.requested.length, 0, 'request already created by the agent');
       assert.equal(state.created.length, 0);
       assert.equal((await sends(page)).length, 0);
       await page.getByText('Lowest', { exact: true }).filter({ visible: true }).first().waitFor();
@@ -214,7 +200,7 @@ try {
       await page.waitForURL('**/job/97');
       await page.getByRole('status').filter({ hasText: 'Published · 4 mUSD locked in escrow' }).waitFor();
       assert.deepEqual(await sends(page), [{ to: token, gas: null }, { to: contracts.holding, gas: null }]);
-      results.push({ device, flow: 'request → quote → hire', checks: ['request_quotes on the v1 stack, nothing sent', 'quotes compared, lowest marked', 'pick_quote with the picked quote', 'approve + publish', 'lands on the job with the quoted price'], passed: true });
+      results.push({ device, flow: 'request → quote → hire', checks: ['agent-created request, no browser authoring', 'quotes compared, lowest marked', 'pick_quote with the picked quote', 'approve + publish', 'lands on the job with the quoted price'], passed: true });
       await context.close();
     }
 

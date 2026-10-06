@@ -2,22 +2,12 @@ import { Button } from './ui/button.tsx'
 import { cn } from '../lib/cn.ts'
 import { textLinkClass } from './kit.tsx'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { Check, ChevronsUpDown, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { type BoardInfo, data } from '../api.ts'
 import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { Sheet } from './Sheet.tsx'
-import { buttonVariants } from './ui/button.tsx'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu.tsx'
+import { CreateWithAgent } from './CreateWithAgent.tsx'
 
 import { useAuth } from './Wallet.tsx'
 
@@ -30,8 +20,7 @@ export const useBoards = () =>
   useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
 
 /**
- * The Jobs area's header, shared by its three pages: the page title with the board it shows, Post a job, and the
- * area's tabs (Jobs · Quotes · Workers). Boards are a switcher here rather than a place of their own.
+ * Shared discovery tabs and the agent creation handoff. Scoped tenant pages show their policy context by name.
  */
 export function JobsHeader({ current }: { current: JobsArea }) {
   const routes = boardRoutes()
@@ -47,7 +36,7 @@ export function JobsHeader({ current }: { current: JobsArea }) {
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="text-2xl leading-tight font-semibold tracking-tight">{TITLE[current]}</h1>
-          <BoardSwitcher />
+          <BoardName />
         </div>
         <div className="flex items-center gap-2">
           {address === undefined && (
@@ -55,10 +44,10 @@ export function JobsHeader({ current }: { current: JobsArea }) {
               How it works
             </Button>
           )}
-          <BoardLink target={routes.publish()} className={buttonVariants({ size: 'sm' })}>
+          <CreateWithAgent context={current === 'quotes' ? 'quotes' : 'job'}>
             <Plus data-icon="inline-start" />
-            Post a job
-          </BoardLink>
+            Create with agent
+          </CreateWithAgent>
         </div>
       </div>
       <nav aria-label="Jobs" className="-mb-1 flex gap-5 border-b">
@@ -84,45 +73,17 @@ export function JobsHeader({ current }: { current: JobsArea }) {
   )
 }
 
-/** Which board's jobs these are: a quiet pill that opens a menu of every hosted board. */
-function BoardSwitcher() {
+/** Tenant policy remains visible on its scoped page; public discovery needs no board switcher. */
+function BoardName() {
   const { boardId } = boardRoutes()
   const boards = useBoards()
-  const navigate = useNavigate()
-  const list = boards.data?.boards ?? []
-  const name = boardId === 'public' ? 'Public board' : (list.find((b) => b.id === boardId)?.name ?? boardId)
-  const go = (id: string) =>
-    id === 'public' ? void navigate({ to: '/jobs' }) : void navigate({ to: '/b/$boardId', params: { boardId: id } })
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`Board: ${name}`}
-        className="inline-flex min-h-7 items-center gap-1 rounded-full bg-muted px-2.5 text-ui font-medium text-muted-foreground transition-colors duration-(--dur-fast) hover:text-foreground data-popup-open:text-foreground pointer-coarse:min-h-11"
-      >
-        {name}
-        <ChevronsUpDown aria-hidden className="size-3.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-56">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Boards</DropdownMenuLabel>
-          {(list.length === 0 ? [{ id: 'public', name: 'Public board' }] : list).map((b) => (
-            <DropdownMenuItem key={b.id} onClick={() => go(b.id)}>
-              <span className="flex-1 truncate">{b.id === 'public' ? 'Public board' : b.name}</span>
-              {b.id === boardId && <Check aria-hidden className="size-4" />}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void navigate({ to: '/boards' })}>All boards</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => void navigate({ to: '/boards/new' })}>Create a board</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
+  if (boardId === 'public') return null
+  return <span className="rounded-full bg-muted px-2.5 py-1 text-ui text-muted-foreground">{boards.data?.boards.find(board => board.id === boardId)?.name ?? boardId}</span>
 }
 
 function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
   const steps = [
-    ['You post a task', 'The reward is locked in escrow on Monad, not held by Sidequest.'],
+    ['Your agent publishes a task', 'The reward is locked in escrow on Monad, not held by Sidequest.'],
     ['An AI agent takes it', 'It puts down a deposit it loses if it misses the deadline or cheats.'],
     ['It delivers', 'A commit, a live URL or a file, checked when it is submitted.'],
     [

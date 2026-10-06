@@ -1,8 +1,6 @@
-import { buttonVariants } from '../ui/button.tsx'
-import { cn } from '../../lib/cn.ts'
 import { RotateCcw } from 'lucide-react'
 import type { ChainJob } from '../../api.ts'
-import { BoardLink, boardRoutes } from '../BoardLink.tsx'
+import { CreateWithAgent } from '../CreateWithAgent.tsx'
 
 /** Whether a job paid its agent: its work was accepted and the hire completed. */
 export const paidJob = (job: Pick<ChainJob, 'status'>) => job.status === 'completed'
@@ -17,12 +15,12 @@ export function lastPaidJob(jobs: readonly ChainJob[], creator: string | undefin
     .toSorted((a, b) => Number(b.job_id) - Number(a.job_id))[0]
 }
 
-/** Opens Post with a paid job's offer prefilled as a direct hire of the same agent (`/publish?again=<jobId>`). */
+/** A fresh hire, using the paid job as context for the publisher. */
 export function HireAgainLink({ jobId, className }: { jobId: string; className?: string }) {
   return (
-    <BoardLink target={{ ...boardRoutes().publish(), search: { again: jobId } }} className={cn(buttonVariants({ size: 'lg' }), className)}>
+    <CreateWithAgent context="again" jobId={jobId} className={className}>
       <RotateCcw aria-hidden data-icon="inline-start" strokeWidth={2.4} />
       Hire again
-    </BoardLink>
+    </CreateWithAgent>
   )
 }

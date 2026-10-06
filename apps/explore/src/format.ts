@@ -1,4 +1,4 @@
-import { formatUnits } from 'viem'
+import { parseUnits, formatUnits } from 'viem'
 import type { AdvanceBudgetTerms, CallBudgetTerms } from './api.ts'
 import { deployment, isMainnet } from './wallet.ts'
 
@@ -111,4 +111,21 @@ export function localTime(unix: number): string {
 export function when(unix: number | null | undefined): string {
   if (unix === null || unix === undefined || unix === 0) return '—'
   return `${localTime(unix)} (${relative(unix)})`
+}
+
+export function toBase(value: string, token: string): bigint | null {
+  try {
+    return parseUnits(value.trim(), tokenInfo(token).decimals)
+  } catch {
+    return null
+  }
+}
+
+/** "1,000.5 mUSD" for a decimal amount a person typed; the text as typed if it is not a number. */
+export function humanAmount(value: string, symbol: string): string {
+  const [whole = '', frac = ''] = value.trim().split('.')
+  if (!/^\d+$/.test(whole || '0') || !/^\d*$/.test(frac)) return `${value} ${symbol}`
+  const grouped = BigInt(whole || '0').toLocaleString('en-US')
+  const f = frac.replace(/0+$/, '')
+  return `${f === '' ? grouped : `${grouped}.${f}`} ${symbol}`
 }

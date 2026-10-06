@@ -1,97 +1,110 @@
-/**
- * The top of an agent's page: its orb, its name (or "Agent ID N"), its wallet and presence, what it says it does, and
- * what a visitor can do — hire it, back it, share it, look it up on the explorer. Its owner gets no Hire.
- */
+/** The public identity, its contextual actions, and compact owner/explorer details. */
 import type { DirectoryAgent } from '@sidequest/sdk'
-import { Link } from '@tanstack/react-router'
-import { Check, ExternalLink, Radio, Share } from 'lucide-react'
-import { useState } from 'react'
+import { ExternalLink, Info, Radio } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { directoryLiveness, presenceLabel } from '../../directory-presence.ts'
 import { cn } from '../../lib/cn.ts'
 import type { AgentIdentity } from '../../routes/Agent.tsx'
 import { agentExplorerLinks, explorer } from '../../wallet.ts'
-import { BoardLink, boardRoutes } from '../BoardLink.tsx'
-import { Address } from '../kit.tsx'
+import { CreateWithAgent } from '../CreateWithAgent.tsx'
+import { Address, CopyButton } from '../kit.tsx'
 import { useNow } from '../Time.tsx'
-import { buttonVariants } from '../ui/button.tsx'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx'
+import { Button, buttonVariants } from '../ui/button.tsx'
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '../ui/popover.tsx'
 import { AgentOrb } from './AgentOrb.tsx'
 
-/** Where else to look it up: its identity NFT and 8004scan profile, and its wallet. */
+/** The identity is global to the network: board context, owner tabs and anchors are never shared. */
+export const canonicalAgentUrl = (origin: string, id: string) => `${new URL(origin).origin}/agent/${id}`
+
 function ExplorerMenu({ id, wallet }: { id: string; wallet: `0x${string}` | undefined }) {
-  const links = [...agentExplorerLinks(id).map((l) => ({ label: `Agent on ${l.name}`, href: l.href })), ...(wallet === undefined ? [] : [{ label: 'Wallet on Monadscan', href: explorer('address', wallet) }])]
+  const links = [...agentExplorerLinks(id).map((link) => ({ label: `Agent on ${link.name}`, href: link.href })), ...(wallet === undefined ? [] : [{ label: 'Wallet on Monadscan', href: explorer('address', wallet) }])]
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger aria-label="Look it up on an explorer" title="Look it up on an explorer" className={buttonVariants({ variant: 'outline', size: 'icon' })}>
+    <Popover>
+      <PopoverTrigger aria-label="Look it up on an explorer" title="Look it up on an explorer" className={buttonVariants({ variant: 'outline', size: 'icon' })}>
         <ExternalLink aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
-        <DropdownMenuGroup>
-          {links.map((link) => (
-            <DropdownMenuItem key={link.label} render={<a href={link.href} target="_blank" rel="noreferrer" />}>
-              {link.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(27rem,calc(100vw-1rem))]">
+        <PopoverTitle className="sr-only">Explorer links</PopoverTitle>
+        {links.map((link) => (
+          <div key={link.label} className="flex min-w-0 items-center gap-2 rounded-md p-1">
+            <a href={link.href} target="_blank" rel="noreferrer noopener" className="grid min-w-0 flex-1 gap-0.5 rounded-md px-1 py-1.5 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring">
+              <span className="font-medium">{link.label}</span>
+              <span className="break-all font-mono text-xs text-muted-foreground">{link.href}</span>
+            </a>
+            <span onClick={(event) => event.stopPropagation()}>
+              <CopyButton value={link.href} label={`Copy ${link.label} URL`} />
+            </span>
+          </div>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }
 
-function ShareButton({ title }: { title: string }) {
-  const [copied, setCopied] = useState(false)
-  async function share() {
-    const url = window.location.href.split('?')[0] as string
-    // The native sheet where there is one (iPhone, Mac Safari); otherwise the link goes to the clipboard.
-    if (typeof navigator.share === 'function' && navigator.canShare?.({ url }) !== false) {
-      await navigator.share({ title, url }).catch(() => undefined)
-      return
-    }
-    await navigator.clipboard.writeText(url).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1400)
-    }, () => undefined)
-  }
+function OwnerDetails({ identity }: { identity: AgentIdentity }) {
+  const [open, setOpen] = useState(false)
+  const ignoreClosingFocus = useRef(false)
+  const profile = identity.profile
   return (
-    <button type="button" onClick={() => void share()} aria-label={copied ? 'Link copied' : 'Share this agent'} title="Share" className={buttonVariants({ variant: 'outline', size: 'icon' })}>
-      {copied ? <Check aria-hidden /> : <Share aria-hidden />}
-    </button>
+    <Popover open={open} onOpenChange={(next, details) => { if (!next && details.reason === 'escape-key') ignoreClosingFocus.current = true; setOpen(next) }}>
+      <PopoverTrigger
+        aria-label="Agent owner information"
+        openOnHover
+        delay={150}
+        closeDelay={150}
+        onPointerDown={() => { ignoreClosingFocus.current = false }}
+        onKeyDown={(event) => { if (event.key !== 'Tab') ignoreClosingFocus.current = false }}
+        onFocus={(event) => {
+          if (ignoreClosingFocus.current) {
+            ignoreClosingFocus.current = false
+            return
+          }
+          if (event.currentTarget.matches(':focus-visible')) setOpen(true)
+        }}
+        className="inline-flex min-h-8 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11"
+      >
+        <Info aria-hidden className="size-3.5" />
+        Owner
+      </PopoverTrigger>
+      <PopoverContent align="start">
+        <PopoverTitle>Agent owner</PopoverTitle>
+        {identity.owner === undefined ? <p className="text-muted-foreground">Owner information is unavailable.</p> : <Address value={identity.owner} />}
+        {profile?.kind === 'link' && (
+          profile.href === null ? <p className="break-all text-xs text-muted-foreground">{profile.url}</p> : (
+            <a href={profile.href} target="_blank" rel="noreferrer noopener" className="break-all text-sm underline underline-offset-4">{profile.url}</a>
+          )
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }
 
-export function ProfileHeader({
-  id,
-  identity,
-  wallet,
-  directory,
-  owner,
-}: {
+export function ProfileHeader({ id, identity, wallet, directory, owner, onBack }: {
   id: string
   identity: AgentIdentity
   wallet: `0x${string}` | undefined
   directory: DirectoryAgent | undefined
   owner: boolean
+  onBack: () => void
 }) {
   const profile = identity.profile?.kind === 'json' ? identity.profile : null
   const name = profile?.name ?? directory?.profile.name ?? null
   const title = name ?? `Agent ID ${id}`
   const now = useNow()
-  // The ring: working while it reports itself busy, live on a fresh heartbeat or an MCP call in the last ten minutes.
   const status = directory === undefined ? 'idle' : directoryLiveness(directory, now)
   return (
     <header className="grid gap-4">
       <div className="flex items-center gap-5">
         {profile?.image !== null && profile?.image !== undefined ? (
           <img src={profile.image} alt="" className="size-18 shrink-0 rounded-full bg-muted object-cover" />
-        ) : (
-          <AgentOrb agentId={id} size="lg" status={status} />
-        )}
+        ) : <AgentOrb agentId={id} size="lg" status={status} />}
         <div className="grid min-w-0 gap-1">
           <h1 className="text-3xl leading-tight font-semibold tracking-tight [overflow-wrap:anywhere]">{title}</h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
             {name !== null && <span>Agent ID {id}</span>}
             {identity.exists === null && <span>Identity check unavailable</span>}
             {wallet !== undefined && <Address value={wallet} />}
+            <OwnerDetails identity={identity} />
             {directory !== undefined && (
               <span className="inline-flex items-center gap-1.5">
                 <Radio aria-hidden className={cn('size-3.5 shrink-0', status !== 'idle' && 'text-success-text')} />
@@ -104,17 +117,9 @@ export function ProfileHeader({
       {profile?.description !== null && profile?.description !== undefined && <p className="leading-relaxed text-muted-foreground">{profile.description}</p>}
       {identity.exists !== false && (
         <div className="flex flex-wrap items-center gap-2">
-          {!owner && (
-            <BoardLink target={{ ...boardRoutes().publish(), search: { invite: id } }} className={buttonVariants()}>
-              Hire this agent
-            </BoardLink>
-          )}
-          {wallet !== undefined && (
-            <Link to="/backing" search={{ account: wallet }} className={buttonVariants({ variant: 'secondary' })}>
-              Back this agent
-            </Link>
-          )}
-          <ShareButton title={title} />
+          {!owner && <CreateWithAgent context="hire" agentId={id}>Hire this agent</CreateWithAgent>}
+          {wallet !== undefined && <Button variant="secondary" onClick={onBack}>Back this agent</Button>}
+          <CopyButton value={canonicalAgentUrl(window.location.origin, id)} label="Share this agent" className={buttonVariants({ variant: 'outline', size: 'icon' })} />
           <ExplorerMenu id={id} wallet={wallet} />
         </div>
       )}

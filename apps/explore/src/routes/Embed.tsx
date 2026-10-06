@@ -10,16 +10,13 @@ import { type BoardInfo, currentBoardId, tool } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
 
 import { FundButton } from '../components/Fund.tsx'
-import { LaunchGate } from '../components/LaunchGate.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { JobPage } from './Job.tsx'
 import { JobsPage } from './Jobs.tsx'
-import { PublishPage } from './Publish.tsx'
 
 export type EmbedEvent =
   | 'ready'
   | 'signed-in'
-  | 'published'
   | 'approved'
   | 'rejected'
   | 'cancelled'
@@ -35,7 +32,7 @@ export function postToHost(board: string, type: EmbedEvent, payload: Record<stri
 }
 
 /**
- * The drop-in widget (`/embed/<board>?view=publish|task|jobs&…`): the board's publish form, one job, or its jobs
+ * The drop-in widget (`/embed/<board>?view=task|jobs&…`): one job or the board's jobs
  * list, with no site chrome, inside a host page's iframe (`embed.js`). Wallet: Privy by default; `wallet=injected`
  * connects the page's own `window.ethereum` (a host that already has a wallet, or a test harness).
  */
@@ -43,8 +40,8 @@ export function EmbedPage() {
   const { boardId } = useParams({ strict: false }) as { boardId: string }
   const search = new URLSearchParams(window.location.search)
   const wallet = search.get('wallet') ?? 'privy'
-  const [view, setView] = useState(search.get('view') ?? 'publish')
-  const [taskId, setTaskId] = useState<string | null>(search.get('taskId'))
+  const view = search.get('view') ?? 'jobs'
+  const taskId = search.get('taskId')
   const auth = useAuth()
   const { isConnected } = useAccount()
   const { connect, connectors } = useConnect()
@@ -55,28 +52,12 @@ export function EmbedPage() {
     enabled: taskId !== null,
     refetchInterval: 10_000,
   })
-  const [prefill, setPrefill] = useState<Record<string, string>>(() => {
-    const p: Record<string, string> = {}
-    for (const k of ['title', 'brief', 'reward', 'token', 'mode', 'worker', 'agentId']) {
-      const v = search.get(k)
-      if (v !== null) p[k] = v
-    }
-    return p
-  })
 
   useEffect(() => {
     postToHost(boardId, 'ready', { view })
     const ro = new ResizeObserver(() => postToHost(boardId, 'resize', { height: document.documentElement.scrollHeight }))
     ro.observe(document.body)
-    const onMessage = (e: MessageEvent) => {
-      const m = e.data as { source?: string; type?: string; payload?: Record<string, string> }
-      if (m?.source === 'sidequest-host' && m.type === 'prefill' && m.payload !== undefined) setPrefill((p) => ({ ...p, ...m.payload }))
-    }
-    window.addEventListener('message', onMessage)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('message', onMessage)
-    }
+    return () => ro.disconnect()
   }, [boardId, view])
 
   const injected = connectors.find((c) => c.id === 'injected')
@@ -168,25 +149,13 @@ export function EmbedPage() {
         </Alert>
       )}
       {view === 'jobs' && <JobsPage />}
-      {view === 'publish' && (
-        <LaunchGate title="Post a job">
-          <PublishPage
-            auth={auth}
-            prefill={prefill}
-            onPublished={(t) => {
-              postToHost(boardId, 'published', { taskId: t.taskId, jobId: t.jobId, txHash: t.txHash })
-              setTaskId(t.taskId)
-              setView('task')
-            }}
-          />
-        </LaunchGate>
-      )}
+      {view !== 'jobs' && view !== 'task' && <p role="status">Choose a supported widget view: jobs or task.</p>}
       {view === 'task' &&
         (task.data?.jobId !== undefined && task.data.jobId !== null ? (
           <JobPage auth={auth} jobId={task.data.jobId} onEvent={(type, payload) => postToHost(boardId, type, { taskId, ...payload })} />
         ) : (
           <p className="text-sm text-muted-foreground">
-            {taskId === null ? 'No job selected.' : 'Waiting for the publish transaction to confirm…'}
+            {taskId === null ? 'No job selected.' : 'This job is not published yet.'}
           </p>
         ))}
     </div>

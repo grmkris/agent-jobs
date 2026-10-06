@@ -2,12 +2,14 @@ import { cn } from '../lib/cn.ts'
 import { Button } from '../components/ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Item, ItemGroup, ItemMedia, ItemContent } from '../components/ui/item.tsx'
-import { LoadingRows, PageTitle, textLinkClass } from '../components/kit.tsx'
+import { LoadingRows, Section, textLinkClass } from '../components/kit.tsx'
+import { Badge } from '../components/ui/badge.tsx'
+import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Coins, Gem, Hourglass, type LucideIcon, ReceiptText, RotateCcw, Scale } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
-import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
+import { SignIn } from '../components/SignIn.tsx'
 import { useToast } from '../components/Sheet.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
@@ -15,7 +17,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { type CollectAction, type CollectKind, readMiningClaim, useCollectActions } from '../collect.ts'
 import { sidequest } from '../sidequest.ts'
-import { chain, deployment } from '../wallet.ts'
+import { chain, deployment, writesOpen } from '../wallet.ts'
 
 const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) => string; done: string }> = {
   settle: { icon: Scale, title: (a) => `Settle job #${a.jobId ?? '?'}`, done: 'Settled' },
@@ -34,7 +36,7 @@ const keyOf = (a: CollectAction) =>
  * through Sidequest's relay when the wallet's gas sponsorship covers it). Read from the board's `collect_actions`; when
  * the board cannot answer, the page says so rather than guessing an empty list.
  */
-export function CollectPage() {
+export function CollectSection() {
   const auth = useAuth()
   const qc = useQueryClient()
   const toast = useToast()
@@ -43,23 +45,22 @@ export function CollectPage() {
 
   if (auth.address === undefined || !auth.signedIn) {
     return (
-      <>
-        <PageTitle sub="Payments, refunds and backing you can claim.">Collect</PageTitle>
-
-        <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
-          <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to see what you can collect</h2>
-          <SignInToPublish auth={auth} label="Sign in" />
-        </section>
-      </>
+      <Section title="Collect">
+        <div className="grid gap-3 rounded-2xl bg-card p-4">
+          <p className="font-medium">Sign in to see what you can collect</p>
+          <SignIn auth={auth} />
+        </div>
+      </Section>
     )
   }
   const wallet = auth.address
   const list = actions.data ?? []
   return (
-    <>
-      <PageTitle sub="Payments, refunds and backing you can claim, one tap each.">Collect</PageTitle>
-
-      {actions.isLoading ? (
+    <Section
+      title="Collect"
+      action={!actions.isError && list.length > 0 ? <Badge variant="neutral" aria-label={`${list.length} to collect`}>{list.length}</Badge> : undefined}
+    >
+      {!writesOpen ? <LaunchNotice /> : actions.isLoading ? (
         <LoadingRows rows={3} />
       ) : actions.isError ? (
         <div role="status" className="grid gap-2 rounded-xl bg-warning/14 p-4 text-sm text-warning-text">
@@ -163,6 +164,6 @@ export function CollectPage() {
           wallet.
         </p>
       )}
-    </>
+    </Section>
   )
 }

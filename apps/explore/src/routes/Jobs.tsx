@@ -3,14 +3,15 @@ import { Button } from '../components/ui/button.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
 import { ItemGroup, Item, ItemTitle, ItemContent, ItemActions } from '../components/ui/item.tsx'
-import { LoadingRows, Segmented, textLinkClass } from '../components/kit.tsx'
+import { LoadingRows, Segmented } from '../components/kit.tsx'
 import type { Phase } from '@sidequest/react'
+import { JOB_TAG_LABELS, JOB_TAGS, type JobTag } from '@sidequest/sdk'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { type ChainJob, type TaskIndexEntry, chainJobs, currentBoardId, taskIndex } from '../api.ts'
-import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
+import { boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
@@ -21,6 +22,7 @@ import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { relative } from '../format.ts'
 import { useToken } from '../useTokens.ts'
+import { cn } from '../lib/cn.ts'
 
 export interface JobListItem {
   jobId: string | null
@@ -133,19 +135,19 @@ function rowNote(phase: Phase | null, now: number, agentId: string | null | unde
   }
 }
 
-function readView(): { view: View; q: string } {
+function readView(): { view: View; q: string; tags: JobTag[] } {
   const p = new URLSearchParams(window.location.search)
   const v = p.get('view')
-  return { view: v === 'open' || v === 'progress' || v === 'done' || v === 'mine' ? v : 'all', q: p.get('q') ?? '' }
+  const tags = (p.get('tags') ?? '').split(',').filter((tag): tag is JobTag => (JOB_TAGS as readonly string[]).includes(tag))
+  return { view: v === 'open' || v === 'progress' || v === 'done' || v === 'mine' ? v : 'all', q: p.get('q') ?? '', tags: [...new Set(tags)] }
 }
 
 export function JobsPage() {
   const { items, index, loading, error, chainError, boardError, chainReady, chainUpdatedAt, chainUnavailable, refetch } = useJobs()
   const { address } = useAuth()
-  const routes = boardRoutes()
   const now = useNow()
   const minute = Math.floor(now / 60) * 60
-  const [{ view, q }, setFilter] = useState(readView)
+  const [{ view, q, tags }, setFilter] = useState(readView)
   // Filters live in the URL, so a link or a reload keeps them.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -153,9 +155,11 @@ export function JobsPage() {
     else p.set('view', view)
     if (q === '') p.delete('q')
     else p.set('q', q)
+    if (tags.length === 0) p.delete('tags')
+    else p.set('tags', tags.toSorted().join(','))
     const s = p.toString()
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${s === '' ? '' : `?${s}`}`)
-  }, [view, q])
+  }, [view, q, tags])
 
   const me = address?.toLowerCase()
   const rows = useMemo(
@@ -179,7 +183,8 @@ export function JobsPage() {
   const shown = rows.filter(
     (r) =>
       (view === 'all' || (r.phase !== null && (view === 'mine' ? mine(r.item) : viewOf(r.phase) === view))) &&
-      (needle === '' || (r.item.task?.title ?? '').toLowerCase().includes(needle) || r.item.jobId === needle.replace(/^#/, '')),
+      (needle === '' || (r.item.task?.title ?? '').toLowerCase().includes(needle) || r.item.jobId === needle.replace(/^#/, '')) &&
+      (tags.length === 0 || tags.some(tag => r.item.task?.tags?.includes(tag) === true)),
   )
   const views: Array<readonly [View, string]> = [
     ['all', 'All'],
@@ -198,7 +203,7 @@ export function JobsPage() {
           <Search aria-hidden className="size-4 shrink-0" />
           <input
             value={q}
-            onChange={(e) => setFilter({ view, q: e.target.value })}
+            onChange={(e) => setFilter({ view, q: e.target.value, tags })}
             placeholder="Search jobs"
             aria-label="Search jobs"
             className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none md:text-sm"
@@ -207,7 +212,7 @@ export function JobsPage() {
         <Segmented
           label="Which jobs"
           value={view}
-          onChange={(v) => setFilter({ view: v, q })}
+          onChange={(v) => setFilter({ view: v, q, tags })}
           options={views.map(
             ([v, l]) =>
               [
@@ -218,6 +223,17 @@ export function JobsPage() {
               ] as const,
           )}
         />
+      </div>
+      <div role="group" className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Filter by tags">
+        <span className="mr-1 text-xs font-medium text-muted-foreground">Tags</span>
+        {JOB_TAGS.map(tag => {
+          const on = tags.includes(tag)
+          return <button key={tag} type="button" aria-pressed={on} onClick={() => setFilter({ view, q, tags: on ? tags.filter(t => t !== tag) : [...tags, tag] })}
+            className={cn('min-h-8 rounded-full px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11', on ? 'bg-primary/14 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground')}>
+            {JOB_TAG_LABELS[tag]}
+          </button>
+        })}
+        {tags.length > 0 && <button type="button" className="min-h-8 px-2 text-xs text-muted-foreground underline underline-offset-4" onClick={() => setFilter({ view, q, tags: [] })}>Clear</button>}
       </div>
 
       {(chainError !== null || boardError !== null) && (
@@ -273,13 +289,9 @@ export function JobsPage() {
       ) : shown.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{needle !== '' ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}</EmptyTitle>
+            <EmptyTitle>{needle !== '' || tags.length > 0 ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}</EmptyTitle>
             <EmptyDescription>
-              {view === 'mine' || rows.length === 0 ? (
-                <BoardLink target={routes.publish()} className={textLinkClass}>
-                  Post the first one
-                </BoardLink>
-              ) : null}
+              {needle !== '' || tags.length > 0 ? 'Try fewer tags or a different search.' : 'Create with your agent using the action above.'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -324,7 +336,7 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
   const other = routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public' ? item.chain.board_id : null
   const target =
     item.jobId === null
-      ? { ...routes.publish(), search: { resume: item.task?.taskId } }
+      ? { to: '/account', search: { resume: item.task?.taskId ?? '', board: routes.boardId } }
       : other !== null
         ? { to: '/b/$boardId/job/$jobId', params: { boardId: other, jobId: item.jobId } }
         : routes.job(item.jobId)
@@ -348,8 +360,9 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       )}
       <ItemContent className="min-w-0 flex-1">
         <ItemTitle className="block truncate font-medium">{item.task?.title ?? `Job #${item.jobId}`}</ItemTitle>
-        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-ui text-muted-foreground">
+        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground">
           <PhaseBadge phase={phase} />
+          {(item.task?.tags ?? []).map(tag => <Badge key={tag} variant="neutral">{JOB_TAG_LABELS[tag]}</Badge>)}
           {other !== null && <Badge variant="info">{other}</Badge>}
           <span className="truncate">{note}</span>
         </span>
