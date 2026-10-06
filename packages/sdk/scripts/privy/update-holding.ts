@@ -26,7 +26,7 @@ function address(value: unknown): string {
   return value
 }
 
-function writablePolicy(policy: JsonRecord): JsonRecord {
+export function writablePolicy(policy: JsonRecord): JsonRecord {
   const fields = new Set(['id', 'created_at', 'version', 'name', 'chain_type', 'owner_id', 'rules'])
   if (Object.keys(policy).some(field => !fields.has(field)) || !Array.isArray(policy.rules)) {
     throw new HoldingUpdateError('Unexpected policy fields; refusing update')
@@ -59,7 +59,7 @@ function selectionContract(policy: JsonRecord): JsonRecord {
   return contracts[0]!
 }
 
-function canonical(policy: JsonRecord): string {
+export function canonical(policy: JsonRecord): string {
   return formatPrivyAuthorizationPayload({ method: 'PATCH', url: '', headers: {}, body: policy })
 }
 

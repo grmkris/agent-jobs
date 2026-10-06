@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
+import { zeroAddress } from 'viem'
 import { DELEGATION_TYPES } from '../../src/delegation/index.ts'
+import { directoryDomainFields, directoryDomainName, directoryRecordFields } from '../../src/directory.ts'
 import { selectionTypes, setBudgetTypes, submitTypes } from '../../src/typed-data.ts'
 
 export const config = JSON.parse(readFileSync(new URL('../../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'))
@@ -21,14 +23,36 @@ export const agentWalletTypes = {
   ],
 }
 
+/** EIP-3009, as x402 `exact` payments sign it against the token's own domain (testnet USDC: "USDC", version "2"). */
+export const transferWithAuthorizationTypes = {
+  TransferWithAuthorization: [
+    { name: 'from', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'validAfter', type: 'uint256' },
+    { name: 'validBefore', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' },
+  ],
+}
+
+/** The most one x402 payment may move, in USDC base units (6 decimals). The hosted ledger caps each day below it. */
+export const X402_PAYMENT_CAP = '5000000'
+
+/** Directory records a hosted agent may sign (V1.1 WS8); Heartbeat stays refused by hosted signing. */
+export const DIRECTORY_RECORD_KINDS = ['Enrollment', 'ServiceAd', 'RevokeAd'] as const
+
 export interface SigningShape {
   name: string
   contract: string
   types: Record<string, readonly { name: string; type: string }[]>
+  /** The EIP712Domain fields the signer sends, when not name/version/chainId/verifyingContract. */
+  domain?: readonly { name: string; type: string }[]
   primaryType: string
   field: string
   operator: string
   value: string
+  /** Further message conditions, all required. */
+  also?: readonly { field: string; operator: string; value: string }[]
 }
 
 export const signingShapes: readonly SigningShape[] = [
@@ -42,10 +66,19 @@ export const signingShapes: readonly SigningShape[] = [
     primaryType: 'Delegation', field: 'delegate', operator: 'eq', value: config.roles.relay },
   { name: 'ERC8004IdentityRegistry', contract: config.erc8004.identity, types: agentWalletTypes,
     primaryType: 'AgentWalletSet', field: 'newWallet', operator: 'eq', value: '{{wallet.address}}' },
+  // x402 (ADR-0013 amendment): only from the agent's own wallet, only the configured USDC, at most one payment cap.
+  { name: 'USDC', contract: config.x402.usdc, types: transferWithAuthorizationTypes,
+    primaryType: 'TransferWithAuthorization', field: 'from', operator: 'eq', value: '{{wallet.address}}',
+    also: [{ field: 'value', operator: 'lte', value: X402_PAYMENT_CAP }] },
+  // Directory records: the agent's own wallet on this identity registry, record version 1; the domain's name and its
+  // salt (the audience) are application-enforced, as Privy conditions only chainId and verifyingContract.
+  ...DIRECTORY_RECORD_KINDS.map(kind => ({ name: directoryDomainName(kind), contract: zeroAddress, types: { [kind]: directoryRecordFields },
+    domain: directoryDomainFields, primaryType: kind, field: 'wallet', operator: 'eq', value: '{{wallet.address}}',
+    also: [{ field: 'identityRegistry', operator: 'eq', value: config.erc8004.identity }, { field: 'version', operator: 'eq', value: '1' }] })),
 ]
 
 export function schema(shape: SigningShape): { types: Record<string, readonly { name: string; type: string }[]>; primary_type: string } {
-  return { types: { EIP712Domain: domainTypes, ...shape.types }, primary_type: shape.primaryType }
+  return { types: { EIP712Domain: shape.domain ?? domainTypes, ...shape.types }, primary_type: shape.primaryType }
 }
 
 export function authorityPolicy(ownerId: string) {
@@ -58,6 +91,7 @@ export function authorityPolicy(ownerId: string) {
       { field_source: 'ethereum_typed_data_domain', field: 'verifyingContract', operator: 'eq', value: shape.contract },
       { field_source: 'ethereum_typed_data_message', typed_data: schema(shape), field: shape.field,
         operator: shape.operator, value: shape.value },
+      ...(shape.also ?? []).map(condition => ({ field_source: 'ethereum_typed_data_message', typed_data: schema(shape), ...condition })),
     ],
   }))
   return {
@@ -77,6 +111,9 @@ export function authorityPolicy(ownerId: string) {
 /** Unsupported policy fields stay explicit until the application validator and live fixtures prove them. */
 export const appEnforced = [
   'EIP-712 domain name and version',
+  'x402 payee, validity window (≤ 600 s), nonce uniqueness and the 24 h hosted ledger',
+  'Directory record domain salt = keccak256(audience), agentId = the bound agent, audience = the request origin, '
+    + 'expiresAt − issuedAt ≤ 300 s (86 400 s for ServiceAd); Heartbeat refused',
   'Selection spending limit and linkage to the frozen job',
   'SetBudgetAuthorization freshly quoted net and activated job',
   'Delegation B1/B2/B3 caveat templates, including pinned arguments',
