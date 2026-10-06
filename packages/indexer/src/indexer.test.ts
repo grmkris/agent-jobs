@@ -196,44 +196,14 @@ describe('block times for job timelines', () => {
 })
 
 describe('agent reads', () => {
-  it('lists every agent that took a job, most completed first, with earnings summed per token', async () => {
-    const agents = await listAgents(liveDb, contracts.chainId)
-    expect(agents.length).toBeGreaterThan(0)
-    expect(agents.map((a) => a.completed)).toEqual(agents.map((a) => a.completed).toSorted((a, b) => b - a))
-    const jobs = await liveDb.all<{ agent_id: string; status: string }>("SELECT agent_id, status FROM jobs WHERE agent_id IS NOT NULL AND agent_id <> '0'")
-    for (const a of agents) {
-      expect(a.jobs).toBe(jobs.filter((j) => j.agent_id === a.agentId).length)
-      expect(a.completed).toBe(jobs.filter((j) => j.agent_id === a.agentId && j.status === 'completed').length)
-    }
-    const paid = await liveDb.all<{ agent_id: string; token: string; amount: string }>(
-      "SELECT j.agent_id, j.token, r.amount FROM reward_outcomes r JOIN jobs j USING (chain_id, job_id) WHERE r.kind = 'paid' AND lower(r.recipient) = lower(j.worker)",
-    )
-    for (const a of agents) {
-      for (const [token, total] of Object.entries(a.earned)) {
-        const expected = paid.filter((p) => p.agent_id === a.agentId && p.token === token).reduce((sum, p) => sum + BigInt(p.amount), 0n)
-        expect(total).toBe(expected.toString())
-      }
-    }
-  })
-
-  it("finds a wallet's agents whatever the address case, and an agent's record", async () => {
-    const wallet = '0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571'
-    const ids = await agentsOfWallet(liveDb, contracts.chainId, wallet.toLowerCase())
-    expect(ids.length).toBeGreaterThan(0)
-    const detail = await agentDetail(liveDb, contracts.chainId, ids[0] as string)
-    expect(detail?.wallets).toContain(wallet)
-    expect(detail?.jobs.every((j) => j.agent_id === ids[0])).toBe(true)
-    expect(detail?.agent.jobs).toBe(detail?.jobs.length)
-    expect(await agentDetail(liveDb, contracts.chainId, '999999999')).toBeUndefined()
-  })
-
-  it('network stats agree with the job rows', async () => {
-    const stats = await networkStats(liveDb, contracts.chainId)
-    const jobs = await liveDb.all<{ status: string }>('SELECT status FROM jobs')
-    expect(stats.jobs).toBe(jobs.length)
-    expect(stats.completed).toBe(jobs.filter((j) => j.status === 'completed').length)
-    const paid = await liveDb.all<{ token: string; amount: string }>("SELECT j.token, r.amount FROM reward_outcomes r JOIN jobs j USING (chain_id, job_id) WHERE r.kind = 'paid'")
-    const total = paid.reduce((sum, p) => sum + BigInt(p.amount), 0n)
-    expect(Object.values(stats.paidOut).reduce((sum, v) => sum + BigInt(v), 0n)).toBe(total)
+  it('count Hireling v1 jobs only: a chain of pre-v1 jobs has no agents, no agent record and no stats', async () => {
+    const kinds = await liveDb.all<{ kind: string }>('SELECT DISTINCT kind FROM jobs')
+    expect(kinds).toEqual([{ kind: 'legacy' }])
+    const [worker] = await liveDb.all<{ agent_id: string; worker: string }>("SELECT agent_id, worker FROM jobs WHERE agent_id IS NOT NULL AND agent_id <> '0' LIMIT 1")
+    expect(worker).toBeDefined()
+    expect(await listAgents(liveDb, contracts.chainId)).toEqual([])
+    expect(await agentsOfWallet(liveDb, contracts.chainId, worker!.worker)).toEqual([])
+    expect(await agentDetail(liveDb, contracts.chainId, worker!.agent_id)).toBeUndefined()
+    expect(await networkStats(liveDb, contracts.chainId)).toMatchObject({ jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {}, accounting: {} })
   })
 })

@@ -205,6 +205,10 @@ function sumAccounting(rows: ReadonlyArray<{ token: string | null; reward: strin
   }]))
 }
 
+/** Hireling v1 jobs: agent records and network stats count only these, never a pre-v1 pair's. */
+const V1_JOB = "kind = 'hireling-v1'"
+const V1_JOB_IDS = `SELECT job_id FROM jobs WHERE chain_id = ? AND ${V1_JOB}`
+
 async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly string[] | null, limit: number): Promise<AgentSummary[]> {
   const only = agentIds === null ? '' : `AND agent_id IN (${agentIds.map(() => '?').join(', ')})`
   const ids = agentIds ?? []
@@ -214,7 +218,7 @@ async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly stri
        SUM(CASE WHEN status IN (${IN_PROGRESS.map(() => '?').join(', ')}) AND COALESCE(outcome, 'None') = 'None' THEN 1 ELSE 0 END) AS in_progress,
        SUM(CASE WHEN status IN ('rejected', 'expired') AND COALESCE(outcome, 'None') NOT IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS lost,
        MAX(updated_block) AS last_block
-     FROM jobs WHERE chain_id = ? AND agent_id IS NOT NULL AND agent_id <> '0' ${only}
+     FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND agent_id IS NOT NULL AND agent_id <> '0' ${only}
      GROUP BY agent_id ORDER BY completed DESC, last_block DESC LIMIT ?`,
     ...IN_PROGRESS, chainId, ...ids, limit,
   )
@@ -224,13 +228,13 @@ async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly stri
   const paid = await sql.all<{ key: string; token: string | null; amount: string }>(
     `SELECT j.agent_id AS key, j.token, r.amount FROM reward_outcomes r
      JOIN jobs j ON j.chain_id = r.chain_id AND j.job_id = r.job_id
-     WHERE r.chain_id = ? AND r.kind = 'paid' AND lower(r.recipient) = lower(j.worker) AND j.agent_id IN (${marks})`,
+     WHERE r.chain_id = ? AND r.kind = 'paid' AND lower(r.recipient) = lower(j.worker) AND j.${V1_JOB} AND j.agent_id IN (${marks})`,
     chainId, ...listed,
   )
   const earned = sumBy(paid)
   const tags = await sql.all<{ agent_id: string; tag: string | null; n: number }>(
-    `SELECT agent_id, tag, COUNT(*) AS n FROM feedback WHERE chain_id = ? AND recorded = 1 AND agent_id IN (${marks}) GROUP BY agent_id, tag`,
-    chainId, ...listed,
+    `SELECT agent_id, tag, COUNT(*) AS n FROM feedback WHERE chain_id = ? AND recorded = 1 AND agent_id IN (${marks}) AND job_id IN (${V1_JOB_IDS}) GROUP BY agent_id, tag`,
+    chainId, ...listed, chainId,
   )
   return counts.map((c) => ({
     agentId: c.agent_id,
@@ -244,7 +248,7 @@ async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly stri
   }))
 }
 
-/** Every agent that has taken a job here, most completed first. */
+/** Every agent that has taken a Hireling v1 job here, most completed first. */
 export async function listAgents(sql: AsyncSql, chainId: number, limit = 200): Promise<AgentSummary[]> {
   return summaries(sql, chainId, null, limit)
 }
@@ -252,7 +256,7 @@ export async function listAgents(sql: AsyncSql, chainId: number, limit = 200): P
 /** The agents a wallet has worked as (ERC-8004 has no reverse lookup; only agents with a job are found). */
 export async function agentsOfWallet(sql: AsyncSql, chainId: number, wallet: string): Promise<string[]> {
   const rows = await sql.all<{ agent_id: string }>(
-    "SELECT DISTINCT agent_id FROM jobs WHERE chain_id = ? AND lower(worker) = lower(?) AND agent_id IS NOT NULL AND agent_id <> '0' ORDER BY agent_id",
+    `SELECT DISTINCT agent_id FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND lower(worker) = lower(?) AND agent_id IS NOT NULL AND agent_id <> '0' ORDER BY agent_id`,
     chainId, wallet,
   )
   return rows.map((r) => r.agent_id)
@@ -307,46 +311,46 @@ export async function agentDetail(sql: AsyncSql, chainId: number, agentId: strin
   const [summary] = await summaries(sql, chainId, [agentId], 1)
   const jobs = summary === undefined ? [] : await sql.all<JobRow & { submitted_block: number | null }>(
     `SELECT j.*, s.block AS submitted_block FROM jobs j LEFT JOIN submissions s ON s.chain_id = j.chain_id AND s.job_id = j.job_id
-     WHERE j.chain_id = ? AND j.agent_id = ? ORDER BY CAST(j.job_id AS INTEGER) DESC`,
+     WHERE j.chain_id = ? AND j.${V1_JOB} AND j.agent_id = ? ORDER BY CAST(j.job_id AS INTEGER) DESC`,
     chainId, agentId,
   )
   const worked = [...new Set(jobs.map((j) => j.worker).filter((w): w is string => w !== null))]
   const known = [...new Set([...wallets, ...worked].map((w) => w.toLowerCase()))].slice(0, 50)
   const marks = known.map(() => '?').join(', ')
   const posted = known.length === 0 ? [] : await sql.all<JobRow>(
-    `SELECT * FROM jobs WHERE chain_id = ? AND lower(creator) IN (${marks}) ORDER BY CAST(job_id AS INTEGER) DESC LIMIT 200`,
+    `SELECT * FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND lower(creator) IN (${marks}) ORDER BY CAST(job_id AS INTEGER) DESC LIMIT 200`,
     chainId, ...known,
   )
   if (summary === undefined && posted.length === 0) return undefined
   const [hiring] = known.length === 0 ? [{ posted: 0, open: 0 }] : await sql.all<{ posted: number; open: number }>(
     `SELECT COUNT(*) AS posted, SUM(CASE WHEN status IN ('open', ${IN_PROGRESS.map(() => '?').join(', ')}) AND COALESCE(outcome, 'None') = 'None' THEN 1 ELSE 0 END) AS open
-     FROM jobs WHERE chain_id = ? AND lower(creator) IN (${marks})`,
+     FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND lower(creator) IN (${marks})`,
     ...IN_PROGRESS, chainId, ...known,
   )
   const paidOut = known.length === 0 ? [] : await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
     `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
-     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND lower(creator) IN (${marks}) AND ${PAID_JOB}`,
+     FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND reward IS NOT NULL AND lower(creator) IN (${marks}) AND ${PAID_JOB}`,
     chainId, ...known,
   )
   const earned = await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
     `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
-     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND agent_id = ? AND ${PAID_JOB}`,
+     FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND reward IS NOT NULL AND agent_id = ? AND ${PAID_JOB}`,
     chainId, agentId,
   )
   const bonds = await sql.all<{ outcome: string; n: number }>(
     `SELECT b.outcome, COUNT(*) AS n FROM bond_outcomes b JOIN jobs j ON j.chain_id = b.chain_id AND j.job_id = b.job_id
-     WHERE b.chain_id = ? AND j.agent_id = ? AND b.side = 'worker' GROUP BY b.outcome`,
+     WHERE b.chain_id = ? AND j.${V1_JOB} AND j.agent_id = ? AND b.side = 'worker' GROUP BY b.outcome`,
     chainId, agentId,
   )
   const feedback = await sql.all<{ job_id: string; value: string | null; tag: string | null; recorded: number; tx_hash: string }>(
-    'SELECT job_id, value, tag, recorded, tx_hash FROM feedback WHERE chain_id = ? AND agent_id = ? ORDER BY CAST(job_id AS INTEGER) DESC',
-    chainId, agentId,
+    `SELECT job_id, value, tag, recorded, tx_hash FROM feedback WHERE chain_id = ? AND agent_id = ? AND job_id IN (${V1_JOB_IDS}) ORDER BY CAST(job_id AS INTEGER) DESC`,
+    chainId, agentId, chainId,
   )
   // When it started (activation of a job it took, or publication of one it posted), when it last moved, and how long
   // its hires took from activation to submission.
   const activations = jobs.length === 0 ? [] : await sql.all<{ job_id: string; block: number }>(
-    `SELECT job_id, MIN(block) AS block FROM events WHERE chain_id = ? AND job_id IN (SELECT job_id FROM jobs WHERE chain_id = ? AND agent_id = ?)
-       AND name IN ('Activated', 'Awarded') GROUP BY job_id`,
+    `SELECT job_id, MIN(block) AS block FROM events WHERE chain_id = ? AND job_id IN (${V1_JOB_IDS} AND agent_id = ?)
+       AND name = 'Activated' GROUP BY job_id`,
     chainId, chainId, agentId,
   )
   const firstBlocks = [...activations.map((a) => a.block), ...posted.map((j) => j.published_block).filter((b): b is number => b !== null)]
@@ -379,39 +383,33 @@ export async function agentDetail(sql: AsyncSql, chainId: number, agentId: strin
   }
 }
 
-/** The network's headline numbers for a first visit: jobs, paid jobs, agents, what is paid out and what is held now. */
+/** The network's headline numbers for a first visit, on Hireling v1: jobs, paid jobs, agents, paid out, held now. */
 export async function networkStats(sql: AsyncSql, chainId: number) {
   const [counts] = await sql.all<{ jobs: number; completed: number; agents: number }>(
     `SELECT COUNT(*) AS jobs, SUM(CASE WHEN status = 'completed' OR outcome IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS completed,
        COUNT(DISTINCT CASE WHEN agent_id IS NOT NULL AND agent_id <> '0' THEN agent_id END) AS agents
-     FROM jobs WHERE chain_id = ?`,
+     FROM jobs WHERE chain_id = ? AND ${V1_JOB}`,
     chainId,
   )
   const paid = await sql.all<{ key: string; token: string | null; amount: string }>(
     `SELECT 'all' AS key, j.token, r.amount FROM reward_outcomes r JOIN jobs j ON j.chain_id = r.chain_id AND j.job_id = r.job_id
-     WHERE r.chain_id = ? AND r.kind = 'paid'`,
+     WHERE r.chain_id = ? AND r.kind = 'paid' AND j.${V1_JOB}`,
     chainId,
   )
   const accounting = await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
     `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
-     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND ${PAID_JOB}`,
+     FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND reward IS NOT NULL AND ${PAID_JOB}`,
     chainId,
   )
   const workerTransfers = await sql.all<{ key: string; token: string | null; amount: string }>(
     `SELECT 'all' AS key, j.token, r.amount FROM reward_outcomes r JOIN jobs j ON j.chain_id = r.chain_id AND j.job_id = r.job_id
-     WHERE r.chain_id = ? AND r.kind = 'paid' AND lower(r.recipient) = lower(j.worker)`,
+     WHERE r.chain_id = ? AND r.kind = 'paid' AND lower(r.recipient) = lower(j.worker) AND j.${V1_JOB}`,
     chainId,
   )
   const workerPaid = sumBy(workerTransfers).get('all') ?? {}
-  const activity = await sql.all<{ demo: number; total: number }>(
-    `SELECT SUM(CASE WHEN stack LIKE 'demo%' THEN 1 ELSE 0 END) AS demo, COUNT(*) AS total FROM jobs WHERE chain_id = ?`,
-    chainId,
-  )
-  const demo = activity[0]?.demo ?? 0
-  const total = activity[0]?.total ?? 0
   // Held in escrow now: published jobs whose reward has not left Holding or the core.
   const held = await sql.all<{ key: string; token: string | null; amount: string }>(
-    `SELECT 'all' AS key, token, reward AS amount FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND status IN ('open', ${IN_PROGRESS.map(() => '?').join(', ')})`,
+    `SELECT 'all' AS key, token, reward AS amount FROM jobs WHERE chain_id = ? AND ${V1_JOB} AND reward IS NOT NULL AND status IN ('open', ${IN_PROGRESS.map(() => '?').join(', ')})`,
     chainId, ...IN_PROGRESS,
   )
   return {
@@ -420,7 +418,6 @@ export async function networkStats(sql: AsyncSql, chainId: number) {
     agents: counts?.agents ?? 0,
     paidOut: sumBy(paid).get('all') ?? {},
     inEscrow: sumBy(held).get('all') ?? {},
-    activity: { demo, unclassified: Math.max(0, total - demo), independent: null },
     accounting: Object.fromEntries(Object.entries(sumAccounting(accounting)).map(([token, row]) => [token, {
       ...row,
       paid: workerPaid[token] ?? '0',

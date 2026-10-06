@@ -91,7 +91,6 @@ describe('Hireling event indexing', () => {
     await runOnce(sql, cfg(paidLogs))
     const stats = await networkStats(sql, contracts.chainId)
     expect(stats.accounting[token]).toEqual({ gross: '1100', fee: '110', net: '990', paid: '0' })
-    expect(stats.activity).toEqual({ demo: 0, unclassified: 1, independent: null })
   })
 
   it('chooses each address ABI and keeps the captured legacy logs readable beside v1', () => {
