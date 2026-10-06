@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import type { ComponentProps } from 'react'
 import { currentBoardId } from '../api.ts'
 
 export interface LinkTarget {
@@ -14,7 +14,8 @@ export interface LinkTarget {
  */
 export function boardRoutes(boardId = currentBoardId()) {
   const on = boardId !== 'public'
-  const p = (to: string, params: Record<string, string> = {}): LinkTarget => (on ? { to: `/b/$boardId${to === '/' ? '' : to}`, params: { boardId, ...params } } : { to, params })
+  const p = (to: string, params: Record<string, string> = {}): LinkTarget =>
+    on ? { to: `/b/$boardId${to === '/' ? '' : to}`, params: { boardId, ...params } } : { to, params }
   return {
     boardId,
     jobs: () => p(on ? '/' : '/jobs'),
@@ -27,10 +28,10 @@ export function boardRoutes(boardId = currentBoardId()) {
   }
 }
 
-export function BoardLink({ target, className, children, 'aria-current': current }: { target: LinkTarget; className?: string; children: ReactNode; 'aria-current'?: 'page' | undefined }) {
+export function BoardLink({ target, ...props }: { target: LinkTarget } & Omit<ComponentProps<'a'>, 'href' | 'target'>) {
   return (
-    <Link to={target.to as '/'} params={(target.params ?? {}) as never} search={target.search as never} className={className} aria-current={current}>
-      {children}
+    <Link to={target.to as '/'} params={(target.params ?? {}) as never} search={target.search as never} {...props}>
+      {props.children}
     </Link>
   )
 }

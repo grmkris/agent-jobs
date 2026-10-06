@@ -1,3 +1,11 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Input } from '../components/ui/input.tsx'
+import { cn } from '../lib/cn.ts'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
+import { Item, ItemGroup, ItemTitle, ItemDescription, ItemContent, ItemActions, ItemMedia } from '../components/ui/item.tsx'
+import { Address, LoadingRows, PageTitle, Section, shortAddress } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -13,7 +21,7 @@ import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
-import { Address, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section, cn, rowClass, shortAddress } from '../components/ui.tsx'
+
 import { Monogram, useAuth, type useSignedIn } from '../components/Wallet.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
@@ -24,11 +32,21 @@ type Auth = ReturnType<typeof useSignedIn>
 type Request = QuoteRequest & { requiredChecks?: string[]; deliverable?: DeliverableSpec }
 
 const symbolOf = (address: string) => TOKENS[address.toLowerCase()]?.symbol ?? shortAddress(address)
-const KIND_LABEL: Record<DeliverableKind, string> = { git: 'Git commit', patch: 'Patch', artifact: 'File', url: 'Live URL', onchain: 'On-chain' }
+const KIND_LABEL: Record<DeliverableKind, string> = {
+  git: 'Git commit',
+  patch: 'Patch',
+  artifact: 'File',
+  url: 'Live URL',
+  onchain: 'On-chain',
+}
 
 const useRequests = () => {
   const boardId = currentBoardId()
-  return useQuery({ queryKey: ['list_quote_requests', boardId], queryFn: () => tool<Request[]>('list_quote_requests'), refetchInterval: 20_000 })
+  return useQuery({
+    queryKey: ['list_quote_requests', boardId],
+    queryFn: () => tool<Request[]>('list_quote_requests'),
+    refetchInterval: 20_000,
+  })
 }
 
 /** Open quote requests: jobs whose price agents bid over the board's MCP server; nothing is escrowed until one is picked. */
@@ -39,35 +57,51 @@ export function QuotesPage() {
   return (
     <>
       <JobsHeader current="quotes" />
+
       <p className="-mt-2 text-muted-foreground">Jobs where agents bid a price. Nothing is locked until the requester picks a quote.</p>
-      <Section title="Taking quotes" note="Agents quote over the board's MCP server (submit_quote). Quotes are private: only the requester sees them.">
+
+      <Section
+        title="Taking quotes"
+        note="Agents quote over the board's MCP server (submit_quote). Quotes are private: only the requester sees them."
+      >
         {requests.isLoading ? (
           <LoadingRows rows={3} />
         ) : requests.error !== null ? (
-          <ErrorText>Quote requests are unavailable right now.</ErrorText>
+          <Alert variant="destructive">
+            <AlertDescription>Quote requests are unavailable right now.</AlertDescription>
+          </Alert>
         ) : list.length === 0 ? (
-          <EmptyState title="No open quote requests">
-            To ask agents for a price,{' '}
-            <BoardLink target={boardRoutes().publish()} className="text-tint">
-              post a job
-            </BoardLink>{' '}
-            and choose Get quotes first.
-          </EmptyState>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{'No open quote requests'}</EmptyTitle>
+              <EmptyDescription>
+                To ask agents for a price,{' '}
+                <BoardLink target={boardRoutes().publish()} className="text-tint">
+                  post a job
+                </BoardLink>{' '}
+                and choose Get quotes first.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <Group>
+          <ItemGroup>
             {list.map((r) => (
-              <BoardLink key={r.requestId} target={boardRoutes().quoteRequest(r.requestId)} className={rowClass({ interactive: true })}>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{r.title}</span>
-                  <span className="block text-ui text-label-2">
+              <Item key={r.requestId} render={<BoardLink target={boardRoutes().quoteRequest(r.requestId)} />}>
+                <ItemContent className="min-w-0 flex-1">
+                  <ItemTitle className="block truncate font-medium">{r.title}</ItemTitle>
+                  <ItemDescription className="block text-ui text-label-2">
                     {r.tokens.map(symbolOf).join(' or ')} · quotes close <When at={r.quoteDeadline} show="relative" />
-                  </span>
-                </span>
-                {auth.address !== undefined && r.creator.toLowerCase() === auth.address.toLowerCase() && <Badge tone="info">Yours</Badge>}
-                <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
-              </BoardLink>
+                  </ItemDescription>
+                </ItemContent>
+                {auth.address !== undefined && r.creator.toLowerCase() === auth.address.toLowerCase() && (
+                  <Badge variant="info">Yours</Badge>
+                )}
+                <ItemActions>
+                  <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+                </ItemActions>
+              </Item>
             ))}
-          </Group>
+          </ItemGroup>
         )}
       </Section>
     </>
@@ -215,25 +249,30 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 
   const status =
     pendingTask !== null ? (
-      <Badge tone="success">Quote picked</Badge>
+      <Badge variant="success">Quote picked</Badge>
     ) : r === undefined ? (
-      <Badge tone="neutral">Closed</Badge>
+      <Badge variant="neutral">Closed</Badge>
     ) : r.quoteDeadline > now ? (
-      <Badge tone="info">Taking quotes</Badge>
+      <Badge variant="info">Taking quotes</Badge>
     ) : (
-      <Badge tone="neutral">Quotes closed</Badge>
+      <Badge variant="neutral">Quotes closed</Badge>
     )
 
   return (
     <>
-      <BoardLink target={boardRoutes().quotes()} className="-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm text-tint">
+      <BoardLink
+        target={boardRoutes().quotes()}
+        className="-mt-3 -mb-6 inline-flex items-center gap-0.5 justify-self-start py-3 text-sm text-tint"
+      >
         <ChevronLeft aria-hidden className="size-4" />
         Quote requests
       </BoardLink>
+
       <PageTitle
         sub={
           <>
             {status}
+
             {r !== undefined && pendingTask === null && (
               <span>
                 Quotes close <When at={r.quoteDeadline} />
@@ -249,31 +288,37 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         <LoadingRows rows={3} />
       ) : r === undefined ? (
         !mine && (
-          <EmptyState title="This request is closed">Only open requests are listed: quoting has closed, or the requester picked a quote.</EmptyState>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{'This request is closed'}</EmptyTitle>
+              <EmptyDescription>Only open requests are listed: quoting has closed, or the requester picked a quote.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )
       ) : (
         <>
           <Section title="The job">
-            <Group>
-              <ListRow>
+            <ItemGroup>
+              <Item>
                 <span className="py-1 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{r.brief}</span>
-              </ListRow>
+              </Item>
               {r.acceptanceCriteria.length > 0 && (
-                <ListRow>
-                  <span className="grid min-w-0 gap-1 py-1">
+                <Item>
+                  <ItemContent className="grid min-w-0 gap-1 py-1">
                     <span className="text-ui text-label-2">Accepted when</span>
                     <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                       {r.acceptanceCriteria.map((c, i) => (
                         <li key={`${i}-${c}`}>{c}</li>
                       ))}
                     </ul>
-                  </span>
-                </ListRow>
+                  </ItemContent>
+                </Item>
               )}
-            </Group>
+            </ItemGroup>
           </Section>
+
           <Section title="Terms">
-            <Group>
+            <ItemGroup>
               <KV label="Accepted tokens">{r.tokens.map(symbolOf).join(', ')}</KV>
               <KV label="Quotes close">
                 <When at={r.quoteDeadline} />
@@ -293,49 +338,68 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <KV label="Requester">
                 <Address value={r.creator} you={r.creator.toLowerCase() === me} />
               </KV>
-            </Group>
+            </ItemGroup>
           </Section>
         </>
       )}
 
       {!auth.signedIn ? (
-        <Section title="Quotes" note="Agents quote over the board's MCP server with submit_quote; the requester compares them here and picks one.">
-          <Group className="grid justify-items-start gap-3 p-4">
-            <p className="text-sm leading-snug text-label-2">Quotes are private: only the requester sees them. Sign in as the requester to compare and pick.</p>
+        <Section
+          title="Quotes"
+          note="Agents quote over the board's MCP server with submit_quote; the requester compares them here and picks one."
+        >
+          <ItemGroup className="grid justify-items-start gap-3 p-4">
+            <p className="text-sm leading-snug text-label-2">
+              Quotes are private: only the requester sees them. Sign in as the requester to compare and pick.
+            </p>
             <SignInToPublish auth={auth} label="Sign in to see quotes" />
-          </Group>
+          </ItemGroup>
         </Section>
       ) : quotes.isLoading ? (
         <LoadingRows rows={2} />
       ) : quotes.error !== null ? (
-        <ErrorText>{(quotes.error as Error).message}</ErrorText>
+        <Alert variant="destructive">
+          <AlertDescription>{(quotes.error as Error).message}</AlertDescription>
+        </Alert>
       ) : !mine ? (
-        <Section title={list.length > 0 ? 'Your quote' : 'Quotes'} note="Quotes are private: only the requester sees all of them. Agents quote over the board's MCP server with submit_quote.">
+        <Section
+          title={list.length > 0 ? 'Your quote' : 'Quotes'}
+          note="Quotes are private: only the requester sees all of them. Agents quote over the board's MCP server with submit_quote."
+        >
           {list.length === 0 ? (
-            <EmptyState title="Quotes are private">Only the requester sees the quotes on this request. An agent quotes over MCP; its own quote then shows here.</EmptyState>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>{'Quotes are private'}</EmptyTitle>
+                <EmptyDescription>
+                  Only the requester sees the quotes on this request. An agent quotes over MCP; its own quote then shows here.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
-            <Group>
+            <ItemGroup>
               {list.map((q) => (
                 <QuoteRow key={q.quoteId} q={q} record={record(q.agentId)} lowest={false} />
               ))}
-            </Group>
+            </ItemGroup>
           )}
         </Section>
       ) : (
         <>
           {pendingTask !== null && (
             <Section title="Picked">
-              <Group>
-                <ListRow inset>
-                  <Mark tone={jobId !== null ? 'ok' : 'warn'} />
-                  <span className="min-w-0 flex-1">
+              <ItemGroup>
+                <Item className="before:left-14">
+                  <ItemMedia>
+                    <Mark tone={jobId !== null ? 'ok' : 'warn'} />
+                  </ItemMedia>
+                  <ItemContent className="min-w-0 flex-1">
                     <span className="block">
                       {picked !== null ? `You picked Agent #${picked.quote.agentId}'s quote of ${price}` : 'You picked a quote'}
                     </span>
-                    <span className="block text-ui text-label-2">
+                    <ItemDescription className="block text-ui text-label-2">
                       {jobId !== null ? `Published as job #${jobId}.` : 'Not published yet: publish it to lock the reward in escrow.'}
-                    </span>
-                  </span>
+                    </ItemDescription>
+                  </ItemContent>
                   {jobId !== null ? (
                     <BoardLink target={boardRoutes().job(jobId)} className="shrink-0 font-semibold text-tint">
                       Open job
@@ -345,17 +409,34 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                       Publish
                     </Button>
                   )}
-                </ListRow>
-              </Group>
-              {error !== null && picking === null && <ErrorText>{error}</ErrorText>}
+                </Item>
+              </ItemGroup>
+              {error !== null && picking === null && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
             </Section>
           )}
+
           <Section
             title={`Quotes · ${list.length}`}
-            note={r !== undefined ? <>Every quote delivers by <When at={r.deliveryDeadline} show="time" />. The record is each agent&apos;s jobs on this deployment, from chain records.</> : undefined}
+            note={
+              r !== undefined ? (
+                <>
+                  Every quote delivers by <When at={r.deliveryDeadline} show="time" />. The record is each agent&apos;s jobs on this
+                  deployment, from chain records.
+                </>
+              ) : undefined
+            }
           >
             {list.length === 0 ? (
-              <EmptyState title="No quotes yet">Agents quote over MCP; quotes appear here as they arrive.</EmptyState>
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>{'No quotes yet'}</EmptyTitle>
+                  <EmptyDescription>Agents quote over MCP; quotes appear here as they arrive.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <QuoteComparison quotes={list} record={record} onPick={pendingTask === null && writesOpen ? choose : undefined} />
             )}
@@ -372,8 +453,8 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         description={
           picking === null ? undefined : (
             <>
-              This fixes the job at <span className="tabular font-semibold text-label">{humanAmount(picking.amount, picking.symbol)}</span> and closes the other quotes. Your wallet then publishes it, which
-              locks that amount in escrow.
+              This fixes the job at <span className="tabular font-semibold text-label">{humanAmount(picking.amount, picking.symbol)}</span>{' '}
+              and closes the other quotes. Your wallet then publishes it, which locks that amount in escrow.
             </>
           )
         }
@@ -398,33 +479,52 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               {budgetOn && (
                 <label className="flex items-center gap-2">
                   <span className="flex-1 text-sm">Up to</span>
-                  <Input value={cap} onChange={(e) => setCap(e.target.value)} inputMode="decimal" className="tabular w-28 bg-surface text-right" />
+                  <Input
+                    value={cap}
+                    onChange={(e) => setCap(e.target.value)}
+                    inputMode="decimal"
+                    className="tabular w-28 bg-surface text-right"
+                  />
                   <span className="w-14 shrink-0 truncate text-label-2">{picking.expectedCosts.symbol}</span>
                 </label>
               )}
               <p className="text-ui leading-snug text-label-2">
-                Separate from the price, and only if you approve it here: the agent may draw up to this cap from your wallet into its own for running costs, until the delivery deadline. You may
-                approve less than it asked. Nothing is locked; you grant it on the job page once the agent has started, and can revoke it.
+                Separate from the price, and only if you approve it here: the agent may draw up to this cap from your wallet into its own
+                for running costs, until the delivery deadline. You may approve less than it asked. Nothing is locked; you grant it on the
+                job page once the agent has started, and can revoke it.
               </p>
             </div>
           ) : (
             <p className="text-sm text-label-2">This quote declares no running costs.</p>
           ))}
-        {error !== null && picking !== null && <ErrorText>{error}</ErrorText>}
+        {error !== null && picking !== null && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </ConfirmSheet>
 
-      {sheet && publish !== null && <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
-        <p className="-mt-2 leading-snug text-label-2">Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves before that.</p>
-        {picked !== null && picked.screening !== null && (
-          <p className="text-sm text-label-2">
-            Screening: <span className="font-semibold text-label">{verdictText(picked.screening.verdict)}</span> (advice only; it never blocks publishing).
+      {sheet && publish !== null && (
+        <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
+          <p className="-mt-2 leading-snug text-label-2">
+            Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves
+            before that.
           </p>
-        )}
-        {publish !== null && <TxSteps key={publish.taskId} taskId={publish.taskId} txs={publish.txs} onDone={() => void published(publish.taskId)} />}
-        <p className="text-ui leading-snug text-label-2">
-          Next, on the job page: confirm {picked === null ? 'the agent' : `Agent #${picked.quote.agentId}`} (a signature, no transaction). Once it has started, you grant any running-cost budget there.
-        </p>
-      </Section>}
+          {picked !== null && picked.screening !== null && (
+            <p className="text-sm text-label-2">
+              Screening: <span className="font-semibold text-label">{verdictText(picked.screening.verdict)}</span> (advice only; it never
+              blocks publishing).
+            </p>
+          )}
+          {publish !== null && (
+            <TxSteps key={publish.taskId} taskId={publish.taskId} txs={publish.txs} onDone={() => void published(publish.taskId)} />
+          )}
+          <p className="text-ui leading-snug text-label-2">
+            Next, on the job page: confirm {picked === null ? 'the agent' : `Agent #${picked.quote.agentId}`} (a signature, no transaction).
+            Once it has started, you grant any running-cost budget there.
+          </p>
+        </Section>
+      )}
     </>
   )
 }
@@ -432,9 +532,11 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
 /** One quote as a row: who, their record, the price and what else they declared. */
 function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; lowest: boolean; onPick?: (() => void) | undefined }) {
   return (
-    <div className={cn(rowClass({ inset: true }), 'items-start py-3')}>
-      <Monogram seed={`agent-${q.agentId}`} label={q.agentId.slice(-2)} size="md" />
-      <span className="grid min-w-0 flex-1 gap-0.5">
+    <Item className={cn('items-start py-3')}>
+      <ItemMedia>
+        <Monogram seed={`agent-${q.agentId}`} label={q.agentId.slice(-2)} size="md" />
+      </ItemMedia>
+      <ItemContent className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex items-baseline justify-between gap-3">
           <BoardLink target={boardRoutes().agent(q.agentId)} className="truncate font-medium">
             Agent #{q.agentId}
@@ -443,7 +545,7 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
         </span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-label-2">
           {record}
-          {lowest && <Badge tone="success">Lowest</Badge>}
+          {lowest && <Badge variant="success">Lowest</Badge>}
         </span>
         {q.expectedCosts !== null && (
           <span className="text-ui text-label-2">
@@ -453,25 +555,40 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
         )}
         {q.note !== '' && <span className="text-sm leading-snug [overflow-wrap:anywhere]">{q.note}</span>}
         {onPick !== undefined && (
-          <Button size="sm" variant="tinted" onClick={onPick} className="mt-1.5 justify-self-start">
+          <Button size="sm" variant="secondary" onClick={onPick} className="mt-1.5 justify-self-start">
             Pick
           </Button>
         )}
-      </span>
-    </div>
+      </ItemContent>
+    </Item>
   )
 }
 
 /** Side by side on a wide screen, as rows on a phone. */
-function QuoteComparison({ quotes, record, onPick }: { quotes: Quote[]; record: (agentId: string) => string; onPick?: ((q: Quote) => void) | undefined }) {
+function QuoteComparison({
+  quotes,
+  record,
+  onPick,
+}: {
+  quotes: Quote[]
+  record: (agentId: string) => string
+  onPick?: ((q: Quote) => void) | undefined
+}) {
   const lowest = lowestIds(quotes)
   return (
     <>
-      <Group className="sm:hidden">
+      <ItemGroup className="sm:hidden">
         {quotes.map((q) => (
-          <QuoteRow key={q.quoteId} q={q} record={record(q.agentId)} lowest={lowest.has(q.quoteId)} onPick={onPick === undefined ? undefined : () => onPick(q)} />
+          <QuoteRow
+            key={q.quoteId}
+            q={q}
+            record={record(q.agentId)}
+            lowest={lowest.has(q.quoteId)}
+            onPick={onPick === undefined ? undefined : () => onPick(q)}
+          />
         ))}
-      </Group>
+      </ItemGroup>
+
       <div className="hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3">
         {quotes.map((q) => (
           <article key={q.quoteId} className="grid content-start gap-3 rounded-xl bg-surface p-4">
@@ -487,7 +604,7 @@ function QuoteComparison({ quotes, record, onPick }: { quotes: Quote[]; record: 
             <div className="grid gap-1">
               <span className="flex flex-wrap items-center gap-2">
                 <span className="tabular text-xl leading-tight font-bold tracking-[-0.02em]">{humanAmount(q.amount, q.symbol)}</span>
-                {lowest.has(q.quoteId) && <Badge tone="success">Lowest</Badge>}
+                {lowest.has(q.quoteId) && <Badge variant="success">Lowest</Badge>}
               </span>
               {q.expectedCosts !== null && (
                 <span className="text-ui text-label-2">
@@ -498,7 +615,7 @@ function QuoteComparison({ quotes, record, onPick }: { quotes: Quote[]; record: 
             </div>
             {q.note !== '' && <p className="text-sm leading-snug text-label-2 [overflow-wrap:anywhere]">{q.note}</p>}
             {onPick !== undefined && (
-              <Button variant="tinted" onClick={() => onPick(q)} className="mt-auto">
+              <Button variant="secondary" onClick={() => onPick(q)} className="mt-auto">
                 Pick this quote
               </Button>
             )}

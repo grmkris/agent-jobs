@@ -1,6 +1,6 @@
+import { Button } from './button.tsx'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
-import { Button } from './ui.tsx'
 
 test('a busy button keeps its label as its whole accessible name', () => {
   const html = renderToStaticMarkup(<Button busy>Sign</Button>)

@@ -1,9 +1,10 @@
+import { Button } from './ui/button.tsx'
+import { cn } from '../lib/cn.ts'
 import { type ReactNode, createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
 import { session, setSession, tool } from '../api.ts'
 import { PrivyLogin, usePrivyLogout } from './Privy.tsx'
-import { Button, cn } from './ui.tsx'
 
 /** Which address the stored session belongs to, and until when (seconds): a session outlives the tab now. */
 const OWNER_KEY = 'sidequest.session-owner'
@@ -123,7 +124,15 @@ export function useSignOut(auth: ReturnType<typeof useSignedIn>) {
  * Who is signed in, compactly: the login button, a Sign in button when the signature is still missing, or the
  * address. `full` adds Sign out (the sidebar); on a phone the address links to Me, where signing out lives.
  */
-export function AccountControl({ auth, account, full = false }: { auth: ReturnType<typeof useSignedIn>; account: AutoSignIn; full?: boolean }) {
+export function AccountControl({
+  auth,
+  account,
+  full = false,
+}: {
+  auth: ReturnType<typeof useSignedIn>
+  account: AutoSignIn
+  full?: boolean
+}) {
   const signOut = useSignOut(auth)
   if (auth.address === undefined) return <PrivyLogin />
   return (
@@ -133,7 +142,9 @@ export function AccountControl({ auth, account, full = false }: { auth: ReturnTy
         <Link to="/account" className="flex min-h-11 min-w-0 items-center" aria-label="Your wallet">
           <span className="flex min-w-0 items-center gap-2 rounded-full bg-fill py-1 pr-3 pl-1 text-ui font-medium">
             <Monogram seed={auth.address} />
-            <span className="truncate font-mono text-ui">{auth.address.slice(0, 6)}…{auth.address.slice(-4)}</span>
+            <span className="truncate font-mono text-ui">
+              {auth.address.slice(0, 6)}…{auth.address.slice(-4)}
+            </span>
           </span>
         </Link>
       ) : (
@@ -143,7 +154,7 @@ export function AccountControl({ auth, account, full = false }: { auth: ReturnTy
       )}
       {/* Always a way out, even when the signature was declined. */}
       {full && (
-        <Button variant="plain" size="sm" onClick={signOut}>
+        <Button variant="link" size="sm" onClick={signOut}>
           Sign out
         </Button>
       )}
@@ -161,7 +172,12 @@ export function Monogram({ seed, label, size = 'sm' }: { seed: string; label?: s
   return (
     <span
       aria-hidden
-      className={cn('grid shrink-0 place-items-center rounded-full font-bold text-white', size === 'sm' && 'size-6 text-micro', size === 'md' && 'size-9 text-xs', size === 'lg' && 'size-16 text-lg')}
+      className={cn(
+        'grid shrink-0 place-items-center rounded-full font-bold text-white',
+        size === 'sm' && 'size-6 text-micro',
+        size === 'md' && 'size-9 text-xs',
+        size === 'lg' && 'size-16 text-lg',
+      )}
       style={{ background: `linear-gradient(140deg, hsl(${h} 62% 56%), hsl(${(h + 40) % 360} 58% 44%))` }}
     >
       {label ?? ''}

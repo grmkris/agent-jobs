@@ -1,3 +1,8 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button, buttonVariants } from '../components/ui/button.tsx'
+import { Item, ItemGroup, ItemMedia, ItemTitle, ItemContent } from '../components/ui/item.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { LoadingRows, PageTitle, Section } from '../components/kit.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -6,9 +11,18 @@ import { walletRefused } from '../components/txOperation.ts'
 import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
 import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { Countdown, When, useNow } from '../components/Time.tsx'
-import { Badge, Button, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
+
 import { useAuth } from '../components/Wallet.tsx'
-import { TELEGRAM_BOT, TELEGRAM_NOTICES, type TelegramLinkPrep, deepLink, linkMessageProblem, pendingLink, telegramApi, useTelegramStatus } from '../telegram.ts'
+import {
+  TELEGRAM_BOT,
+  TELEGRAM_NOTICES,
+  type TelegramLinkPrep,
+  deepLink,
+  linkMessageProblem,
+  pendingLink,
+  telegramApi,
+  useTelegramStatus,
+} from '../telegram.ts'
 import { friendlyError } from '../txErrors.ts'
 
 const SUB = 'A message from the bot when a job needs you.'
@@ -23,6 +37,7 @@ export function TelegramPage() {
     return (
       <>
         <PageTitle sub={SUB}>Telegram</PageTitle>
+
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
           <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to link Telegram</h2>
           <SignInToPublish auth={auth} label="Sign in" />
@@ -110,70 +125,87 @@ function TelegramLink({ wallet }: { wallet: string }) {
   return (
     <>
       <PageTitle sub={SUB}>Telegram</PageTitle>
+
       {status.isLoading ? (
         <LoadingRows rows={2} />
       ) : status.isError ? (
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>Whether Telegram is linked cannot be read right now.</p>
-          <Button variant="tinted" onClick={() => void status.refetch()}>Retry</Button>
+          <Button variant="secondary" onClick={() => void status.refetch()}>
+            Retry
+          </Button>
         </div>
       ) : linked ? (
         <Section title="Linked">
-          <Group>
-            <ListRow inset>
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
-                <Send aria-hidden className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">{status.data?.username == null ? 'Your Telegram chat' : `@${status.data.username}`}</span>
+          <ItemGroup>
+            <Item className="before:left-14">
+              <ItemMedia>
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
+                  <Send aria-hidden data-icon="inline-start" />
+                </span>
+              </ItemMedia>
+              <ItemContent className="min-w-0 flex-1">
+                <ItemTitle className="block font-medium">
+                  {status.data?.username == null ? 'Your Telegram chat' : `@${status.data.username}`}
+                </ItemTitle>
                 {status.data?.linkedAt != null && (
                   <span className="block text-ui text-label-2">
                     Linked <When at={status.data.linkedAt} show="relative" />
                   </span>
                 )}
-              </span>
-              <Badge tone="success">On</Badge>
-            </ListRow>
-          </Group>
+              </ItemContent>
+              <Badge variant="success">On</Badge>
+            </Item>
+          </ItemGroup>
         </Section>
       ) : waiting && link !== null ? (
         <Section title="Open Telegram" note="Press Start in the chat. This page updates once the bot has linked your wallet.">
           <div className="grid gap-3 rounded-2xl bg-surface p-4">
-            <a href={link} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-[3.125rem] items-center justify-center gap-2 rounded-2xl bg-tint px-5 text-base font-semibold text-on-tint">
-              <Send aria-hidden className="size-4" />
+            <a href={link} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: 'lg' })}>
+              <Send aria-hidden data-icon="inline-start" />
               Open @{TELEGRAM_BOT}
             </a>
             <p role="status" className="text-center text-sm text-label-2">
               Waiting for Telegram. The code expires in <Countdown to={pending.expiresAt} />.
             </p>
-            <Button variant="plain" onClick={forget}>
+            <Button variant="link" onClick={forget}>
               Start again
             </Button>
           </div>
         </Section>
       ) : (
         <div className="grid gap-2">
-          {pending !== null && <p className="px-4 text-sm text-warn">The last code expired before the bot used it. Link again for a new one.</p>}
+          {pending !== null && (
+            <p className="px-4 text-sm text-warn">The last code expired before the bot used it. Link again for a new one.</p>
+          )}
           <Button size="lg" busy={busy === 'prepare'} onClick={() => void start()}>
             Link Telegram
           </Button>
-          <p className="px-4 text-ui leading-snug text-label-2">Your wallet signs a short text to show the chat is yours. It costs nothing and allows nothing else.</p>
+          <p className="px-4 text-ui leading-snug text-label-2">
+            Your wallet signs a short text to show the chat is yours. It costs nothing and allows nothing else.
+          </p>
         </div>
       )}
-      {error !== null && <ErrorText>{error}</ErrorText>}
+
+      {error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Section title="What the bot tells you" note={linked ? undefined : 'Private messages about jobs you are part of.'}>
-        <Group>
+        <ItemGroup>
           {TELEGRAM_NOTICES.map((n) => (
-            <ListRow key={n} inset>
+            <Item key={n} className="before:left-14">
               <Bell aria-hidden className="size-4 shrink-0 text-tint" />
-              <span className="flex-1">{n}</span>
-            </ListRow>
+              <ItemContent className="flex-1">{n}</ItemContent>
+            </Item>
           ))}
-        </Group>
+        </ItemGroup>
       </Section>
+
       {linked && (
-        <Button variant="danger" busy={busy === 'unlink'} onClick={() => setUnlinking(true)}>
+        <Button variant="destructive" busy={busy === 'unlink'} onClick={() => setUnlinking(true)}>
           Unlink Telegram
         </Button>
       )}
@@ -187,8 +219,11 @@ function TelegramLink({ wallet }: { wallet: string }) {
         busy={busy === 'sign'}
         onConfirm={() => void sign()}
       >
-        <pre className="max-h-48 overflow-auto rounded-xl bg-fill p-3 font-mono text-ui leading-snug whitespace-pre-wrap break-all">{prep?.message}</pre>
+        <pre className="max-h-48 overflow-auto rounded-xl bg-fill p-3 font-mono text-ui leading-snug whitespace-pre-wrap break-all">
+          {prep?.message}
+        </pre>
       </ConfirmSheet>
+
       <ConfirmSheet
         open={unlinking}
         onClose={() => setUnlinking(false)}

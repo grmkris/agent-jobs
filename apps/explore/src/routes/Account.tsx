@@ -1,10 +1,14 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Item, ItemGroup, ItemDescription, ItemContent, ItemActions } from '../components/ui/item.tsx'
+import { PageTitle, Section } from '../components/kit.tsx'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { useCollectActions } from '../collect.ts'
 import { WalletCard } from '../components/Fund.tsx'
 import { InstallHint } from '../components/InstallHint.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
-import { Badge, Button, Group, PageTitle, Section, rowClass } from '../components/ui.tsx'
+
 import { useAuth, useSignOut } from '../components/Wallet.tsx'
 import { useSponsorStatus } from '../sponsor.ts'
 import { useTelegramStatus } from '../telegram.ts'
@@ -25,13 +29,17 @@ export function AccountPage() {
     return (
       <>
         <PageTitle>Account</PageTitle>
+
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
           <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to post and approve work</h2>
-          <p className="leading-relaxed text-label-2">Use your email or Google. Sidequest makes you a wallet, so no browser extension is needed; you sign once to prove it is you.</p>
+          <p className="leading-relaxed text-label-2">
+            Use your email or Google. Sidequest makes you a wallet, so no browser extension is needed; you sign once to prove it is you.
+          </p>
           <div>
             <PrivyLogin />
           </div>
         </section>
+
         <InstallHint />
       </>
     )
@@ -39,53 +47,73 @@ export function AccountPage() {
   return (
     <>
       <PageTitle>Account</PageTitle>
+
       <InstallHint />
+
       <WalletCard address={auth.address} />
+
       <Section title="Settings">
-        <Group>
-          <Link to="/collect" className={rowClass({ interactive: true })}>
-            <span className="flex-1">
+        <ItemGroup>
+          <Item render={<Link to="/collect" />}>
+            <ItemContent className="flex-1">
               Collect
-              <span className="block text-xs text-label-3">Payouts, refunds and mining ready for your wallet</span>
-            </span>
-            {collect > 0 && <span aria-label={`${collect} to collect`}><Badge>{collect}</Badge></span>}
-            <ChevronRight aria-hidden className="size-4 text-label-3" />
-          </Link>
-          <Link to="/backing" className={rowClass({ interactive: true })}>
-            <span className="flex-1">
-              Back an agent
-              <span className="block text-xs text-label-3">Your positions, backing and leaving</span>
-            </span>
-            <ChevronRight aria-hidden className="size-4 text-label-3" />
-          </Link>
-          <Link to="/sponsorship" className={rowClass({ interactive: true })}>
-            <span className="flex-1">
-              Gas sponsorship
-              <span className="block text-xs text-label-3">Sidequest pays the gas for your Sidequest transactions</span>
-            </span>
-            {sponsor.data?.status === 'live' && <Badge tone="success">On</Badge>}
-            <ChevronRight aria-hidden className="size-4 text-label-3" />
-          </Link>
-          <Link to="/telegram" className={rowClass({ interactive: true })}>
-            <span className="flex-1">
-              Telegram
-              <span className="block text-xs text-label-3">A message when a job needs you</span>
-            </span>
-            {telegram.data?.linked === true && <Badge tone="success">Linked</Badge>}
-            <ChevronRight aria-hidden className="size-4 text-label-3" />
-          </Link>
-          {owner === true && (
-            <Link to="/admin" className={rowClass({ interactive: true })}>
-              <span className="flex-1">
-                Admin
-                <span className="block text-xs text-label-3">You own the Safe that owns Sidequest</span>
+              <ItemDescription className="block text-xs text-label-3">Payouts, refunds and mining ready for your wallet</ItemDescription>
+            </ItemContent>
+            {collect > 0 && (
+              <span aria-label={`${collect} to collect`}>
+                <Badge variant="neutral">{collect}</Badge>
               </span>
+            )}
+            <ItemActions>
               <ChevronRight aria-hidden className="size-4 text-label-3" />
-            </Link>
+            </ItemActions>
+          </Item>
+          <Item render={<Link to="/backing" />}>
+            <ItemContent className="flex-1">
+              Back an agent
+              <ItemDescription className="block text-xs text-label-3">Your positions, backing and leaving</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ChevronRight aria-hidden className="size-4 text-label-3" />
+            </ItemActions>
+          </Item>
+          <Item render={<Link to="/sponsorship" />}>
+            <ItemContent className="flex-1">
+              Gas sponsorship
+              <ItemDescription className="block text-xs text-label-3">
+                Sidequest pays the gas for your Sidequest transactions
+              </ItemDescription>
+            </ItemContent>
+            {sponsor.data?.status === 'live' && <Badge variant="success">On</Badge>}
+            <ItemActions>
+              <ChevronRight aria-hidden className="size-4 text-label-3" />
+            </ItemActions>
+          </Item>
+          <Item render={<Link to="/telegram" />}>
+            <ItemContent className="flex-1">
+              Telegram
+              <ItemDescription className="block text-xs text-label-3">A message when a job needs you</ItemDescription>
+            </ItemContent>
+            {telegram.data?.linked === true && <Badge variant="success">Linked</Badge>}
+            <ItemActions>
+              <ChevronRight aria-hidden className="size-4 text-label-3" />
+            </ItemActions>
+          </Item>
+          {owner === true && (
+            <Item render={<Link to="/admin" />}>
+              <ItemContent className="flex-1">
+                Admin
+                <ItemDescription className="block text-xs text-label-3">You own the Safe that owns Sidequest</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <ChevronRight aria-hidden className="size-4 text-label-3" />
+              </ItemActions>
+            </Item>
           )}
-        </Group>
+        </ItemGroup>
       </Section>
-      <Button variant="danger" size="lg" onClick={signOut}>
+
+      <Button variant="destructive" size="lg" onClick={signOut}>
         Sign out
       </Button>
     </>

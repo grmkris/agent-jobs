@@ -1,9 +1,14 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { ItemGroup, Item, ItemMedia, ItemTitle, ItemContent, ItemActions } from '../components/ui/item.tsx'
+import { LoadingRows, textLinkClass } from '../components/kit.tsx'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight, Plus } from 'lucide-react'
 import type { ManagedAgent } from '../api.ts'
 import { BoardLink } from '../components/BoardLink.tsx'
 import { buttonVariants } from '../components/ui/button.tsx'
-import { Badge, EmptyState, ErrorText, Group, LoadingRows, rowClass, textLinkClass } from '../components/ui.tsx'
+
 import { Monogram, useAuth } from '../components/Wallet.tsx'
 import { agentHome, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 
@@ -31,30 +36,45 @@ export function MyAgentsPage() {
           </Link>
         )}
       </header>
+
       {!auth.signedIn ? (
-        <EmptyState title="Sign in to see your agents">
-          Use your operator wallet. Looking for an agent to hire?{' '}
-          <Link to="/workers" className={textLinkClass}>
-            Browse workers
-          </Link>
-        </EmptyState>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'Sign in to see your agents'}</EmptyTitle>
+            <EmptyDescription>
+              Use your operator wallet. Looking for an agent to hire?{' '}
+              <Link to="/workers" className={textLinkClass}>
+                Browse workers
+              </Link>
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : agents.error !== null ? (
-        <ErrorText>Agent records are unavailable. Your chain funds and existing permissions remain at their recorded addresses.</ErrorText>
+        <Alert variant="destructive">
+          <AlertDescription>
+            Agent records are unavailable. Your chain funds and existing permissions remain at their recorded addresses.
+          </AlertDescription>
+        </Alert>
       ) : agents.isLoading ? (
         <LoadingRows rows={3} />
       ) : list.length === 0 ? (
-        <EmptyState title="Your first agent starts here">
-          Give it a name, connect your coding agent, then choose whether it hires, gets hired, or both.{' '}
-          <Link to="/agents/new" className={textLinkClass}>
-            Create an agent
-          </Link>
-        </EmptyState>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'Your first agent starts here'}</EmptyTitle>
+            <EmptyDescription>
+              Give it a name, connect your coding agent, then choose whether it hires, gets hired, or both.{' '}
+              <Link to="/agents/new" className={textLinkClass}>
+                Create an agent
+              </Link>
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <Group>
+        <ItemGroup>
           {list.map((agent) => (
             <AgentRow key={agent.id} agent={agent} waiting={pending.get(agent.id) ?? 0} />
           ))}
-        </Group>
+        </ItemGroup>
       )}
     </>
   )
@@ -63,17 +83,21 @@ export function MyAgentsPage() {
 function AgentRow({ agent, waiting }: { agent: ManagedAgent; waiting: number }) {
   const state = agent.state === 'active' ? 'Active' : agent.state === 'revoked' ? 'Stopped' : 'Setup not finished'
   return (
-    <BoardLink target={agentHome(agent)} className={rowClass({ inset: true, interactive: true })}>
-      <Monogram seed={agent.agent_id ?? agent.id} label={initials(agent.name)} size="md" />
-      <span className="grid min-w-0 flex-1">
-        <span className="truncate font-medium">{agent.name}</span>
+    <Item render={<BoardLink target={agentHome(agent)} />}>
+      <ItemMedia>
+        <Monogram seed={agent.agent_id ?? agent.id} label={initials(agent.name)} size="md" />
+      </ItemMedia>
+      <ItemContent className="grid min-w-0 flex-1">
+        <ItemTitle className="truncate font-medium">{agent.name}</ItemTitle>
         <span className="truncate text-ui text-muted-foreground">
           {agent.agent_id === null ? 'No Agent ID yet' : `Agent ID ${agent.agent_id}`} · {state}
         </span>
-      </span>
-      {waiting > 0 && <Badge tone="warning">{waiting} waiting</Badge>}
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-    </BoardLink>
+      </ItemContent>
+      {waiting > 0 && <Badge variant="warning">{waiting} waiting</Badge>}
+      <ItemActions>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      </ItemActions>
+    </Item>
   )
 }
 

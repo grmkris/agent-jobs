@@ -1,3 +1,11 @@
+import { Button } from '../components/ui/button.tsx'
+import { Input } from '../components/ui/input.tsx'
+import { Skeleton } from '../components/ui/skeleton.tsx'
+import { Textarea } from '../components/ui/textarea.tsx'
+import { cn } from '../lib/cn.ts'
+import { ItemGroup, Item, ItemContent } from '../components/ui/item.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { CopyButton, PageTitle, Section, Segmented, Select } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
@@ -46,7 +54,7 @@ import { Chip, Choices, Disclosure, FieldRow, KV, LineRow, Mark, Progress, StepN
 import { useToast } from '../components/Sheet.tsx'
 import { When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
-import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, Skeleton, TextArea, cn, rowClass } from '../components/ui.tsx'
+
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { rewardTokenList, span, tokenInfo } from '../format.ts'
 import { sidequest } from '../sidequest.ts'
@@ -91,7 +99,13 @@ const QUOTING: ReadonlyArray<readonly [string, string]> = [
   ['6', '6 h'],
   ['24', '1 day'],
 ]
-const KIND_LABEL: Record<DeliverableKind, string> = { git: 'Git commit', patch: 'Patch', artifact: 'File', url: 'Live URL', onchain: 'On-chain' }
+const KIND_LABEL: Record<DeliverableKind, string> = {
+  git: 'Git commit',
+  patch: 'Patch',
+  artifact: 'File',
+  url: 'Live URL',
+  onchain: 'On-chain',
+}
 
 const STEP_TITLE: Record<Step, string> = { 1: 'What needs doing', 2: 'How agents compete', 3: 'Reward and deadline', 4: 'Review' }
 
@@ -106,7 +120,15 @@ const STEP_TITLE: Record<Step, string> = { 1: 'What needs doing', 2: 'How agents
  * A hire may carry an execution budget (ADR-0009): what the agent may spend from your wallet on running costs, apart
  * from the reward. It is bound into the offer; you grant it on the job page once the agent has started.
  */
-export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; prefill?: Record<string, string>; onPublished?: (p: Published) => void }) {
+export function PublishPage({
+  auth,
+  prefill = {},
+  onPublished,
+}: {
+  auth: Auth
+  prefill?: Record<string, string>
+  onPublished?: (p: Published) => void
+}) {
   // Re-read on every navigation: the same page serves a new job and `?resume=`. The id is read raw; only a value the
   // router quoted (an all-digit id, or one like `1e5…`, which it would otherwise read as a number) is unquoted.
   useLocation()
@@ -126,7 +148,11 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
  * of the same agent (`hireAgainPrefill`). Only a paid job with an agent can be hired again.
  */
 function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; onPublished?: ((p: Published) => void) | undefined }) {
-  const detail = useQuery({ queryKey: ['job', jobId], queryFn: () => data<{ job: { status: string; agent_id: string | null; worker: string | null }; board: { boardId: string } | null }>(`jobs/${jobId}`) })
+  const detail = useQuery({
+    queryKey: ['job', jobId],
+    queryFn: () =>
+      data<{ job: { status: string; agent_id: string | null; worker: string | null }; board: { boardId: string } | null }>(`jobs/${jobId}`),
+  })
   const boardId = detail.data?.board?.boardId ?? 'public'
   const index = useQuery({ queryKey: ['task_index', boardId], queryFn: () => taskIndex(boardId), enabled: detail.data !== undefined })
   const task = index.data?.find((t) => t.jobId === jobId)
@@ -140,11 +166,22 @@ function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; on
     return (
       <>
         <PageTitle>Hire again</PageTitle>
+
         <div className="grid gap-3 rounded-2xl bg-surface p-6 text-center">
-          <p className="font-semibold">{failed ? `Job #${jobId}'s offer is unavailable right now` : `Job #${jobId} cannot be hired again`}</p>
-          <p className="text-sm text-label-2">{failed ? 'Its terms could not be read from the board.' : 'Only a paid job, with the agent that did it, can be hired again.'}</p>
-          {failed && <Button variant="tinted" onClick={() => void Promise.all([detail.refetch(), index.refetch()])}>Retry</Button>}
-          <BoardLink target={boardRoutes().publish()} className="text-tint">Post a new job instead</BoardLink>
+          <p className="font-semibold">
+            {failed ? `Job #${jobId}'s offer is unavailable right now` : `Job #${jobId} cannot be hired again`}
+          </p>
+          <p className="text-sm text-label-2">
+            {failed ? 'Its terms could not be read from the board.' : 'Only a paid job, with the agent that did it, can be hired again.'}
+          </p>
+          {failed && (
+            <Button variant="secondary" onClick={() => void Promise.all([detail.refetch(), index.refetch()])}>
+              Retry
+            </Button>
+          )}
+          <BoardLink target={boardRoutes().publish()} className="text-tint">
+            Post a new job instead
+          </BoardLink>
         </div>
       </>
     )
@@ -153,6 +190,7 @@ function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; on
     return (
       <>
         <PageTitle>Hire again</PageTitle>
+
         <div className="grid gap-3" aria-busy="true">
           <Skeleton className="h-6 w-2/3" />
           <Skeleton className="h-40 w-full rounded-xl" />
@@ -187,7 +225,9 @@ function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; inv
         <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
         <p className="min-w-0 leading-relaxed">
           <span className="block font-semibold">Hiring Agent ID {agentId}</span>
-          <span className="block text-sm text-label-2">It is invited: you can select it as soon as the job is published. It starts when it activates.</span>
+          <span className="block text-sm text-label-2">
+            It is invited: you can select it as soon as the job is published. It starts when it activates.
+          </span>
         </p>
       </div>
     )
@@ -208,7 +248,15 @@ function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; inv
   )
 }
 
-function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<string, string>; onPublished?: ((p: Published) => void) | undefined }) {
+function PostFlow({
+  auth,
+  prefill,
+  onPublished,
+}: {
+  auth: Auth
+  prefill: Record<string, string>
+  onPublished?: ((p: Published) => void) | undefined
+}) {
   const navigate = useBoardNavigate()
   const toast = useToast()
   const now = useNow()
@@ -233,7 +281,9 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   }
   const [draft, setDraft] = useState<Draft>(() => restore(key) ?? { v: 1, step: 1, form: defaults(), prefill: pk, frozen: null })
   const [saved, setSaved] = useState(false)
-  const [runningOffer, setRunningOffer] = useState<{ frozen: Frozen; owner: string; reward: string } | null>(() => draft.frozen !== null ? { frozen: draft.frozen, owner: draft.frozen.owner, reward: rewardText(draft.frozen.form) } : null)
+  const [runningOffer, setRunningOffer] = useState<{ frozen: Frozen; owner: string; reward: string } | null>(() =>
+    draft.frozen !== null ? { frozen: draft.frozen, owner: draft.frozen.owner, reward: rewardText(draft.frozen.form) } : null,
+  )
   const [safeToRestart, setSafeToRestart] = useState(false)
   const dirty = useRef(false)
   const finished = useRef(false)
@@ -461,6 +511,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
           </span>
         </div>
       )}
+
       <form
         className="grid gap-6"
         onSubmit={(e) => {
@@ -473,309 +524,465 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         }}
       >
         <fieldset disabled={runningOffer !== null} className="contents">
-        <div className="grid gap-2">
-          <Progress step={step} of={4} />
-          <p className="px-1 text-ui text-label-2">
-            Step {step} of 4 · {step === 3 && quotes ? 'Quotes and deadline' : STEP_TITLE[step]}
-          </p>
-        </div>
+          <div className="grid gap-2">
+            <Progress step={step} of={4} />
+            <p className="px-1 text-ui text-label-2">
+              Step {step} of 4 · {step === 3 && quotes ? 'Quotes and deadline' : STEP_TITLE[step]}
+            </p>
+          </div>
 
-        <div key={step} className="grid animate-[view-in_0.32s_var(--ease-spring)] gap-6">
-          {step === 1 && (
-            <Section title="What needs doing" note="Agents read all of this before they take the job. The work is judged against exactly these criteria.">
-              <Group>
-                <FieldRow label="Title" htmlFor="post-title">
-                  <Input id="post-title" value={f.title} onChange={(e) => set({ title: e.target.value })} placeholder="A short name for the job" autoComplete="off" enterKeyHint="next" />
-                </FieldRow>
-                <FieldRow label="Brief · what done looks like, with the repository link" htmlFor="post-brief">
-                  <TextArea id="post-brief" value={f.brief} onChange={(e) => set({ brief: e.target.value })} rows={5} placeholder="What needs doing, where, and anything the agent must not touch." />
-                </FieldRow>
-                <FieldRow label="Accepted when · one per line" htmlFor="post-criteria">
-                  <TextArea id="post-criteria" value={f.criteria} onChange={(e) => set({ criteria: e.target.value })} rows={3} />
-                </FieldRow>
-              </Group>
-            </Section>
-          )}
-
-          {step === 2 && (
-            <>
-              <Section title="How agents compete">
-                <Choices label="How agents compete" value={f.mode} onChange={(mode) => set({ mode })} options={MODES} />
+          <div key={step} className="grid animate-[view-in_0.32s_var(--ease-spring)] gap-6">
+            {step === 1 && (
+              <Section
+                title="What needs doing"
+                note="Agents read all of this before they take the job. The work is judged against exactly these criteria."
+              >
+                <ItemGroup>
+                  <FieldRow label="Title" htmlFor="post-title">
+                    <Input
+                      id="post-title"
+                      value={f.title}
+                      onChange={(e) => set({ title: e.target.value })}
+                      placeholder="A short name for the job"
+                      autoComplete="off"
+                      enterKeyHint="next"
+                    />
+                  </FieldRow>
+                  <FieldRow label="Brief · what done looks like, with the repository link" htmlFor="post-brief">
+                    <Textarea
+                      id="post-brief"
+                      value={f.brief}
+                      onChange={(e) => set({ brief: e.target.value })}
+                      rows={5}
+                      placeholder="What needs doing, where, and anything the agent must not touch."
+                    />
+                  </FieldRow>
+                  <FieldRow label="Accepted when · one per line" htmlFor="post-criteria">
+                    <Textarea id="post-criteria" value={f.criteria} onChange={(e) => set({ criteria: e.target.value })} rows={3} />
+                  </FieldRow>
+                </ItemGroup>
               </Section>
-              {f.mode === 'hire' && (
-                <Section note="A named agent is invited: you can select it as soon as the job is published. Leave it empty and agents apply.">
-                  <Group>
-                    <FieldRow label="Agent to hire · optional" htmlFor="post-invite">
-                      <Input id="post-invite" value={f.invite} onChange={(e) => set({ invite: e.target.value.trim() })} inputMode="numeric" placeholder="Agent number, like 1942" autoComplete="off" />
-                    </FieldRow>
-                  </Group>
-                </Section>
-              )}
-            </>
-          )}
+            )}
 
-          {step === 3 && (
-            <>
-              {quotes ? (
-                <Section title="Quotes" note="Agents quote an exact amount in one of these tokens. Nothing is locked until you pick a quote; then the job is published at that price.">
-                  <Group>
-                    <LineRow label="Accepted tokens" stack>
-                      <span className="flex flex-wrap gap-2">
-                        {tokens.map(([address, t]) => (
-                          <Chip
-                            key={address}
-                            on={f.quoteTokens.includes(address)}
-                            onClick={() => set({ quoteTokens: f.quoteTokens.includes(address) ? f.quoteTokens.filter((x) => x !== address) : [...f.quoteTokens, address] })}
-                          >
-                            {t.symbol}
-                          </Chip>
-                        ))}
-                      </span>
-                    </LineRow>
-                    <LineRow label="Quotes close in" note={<>Closes <When at={hours(f.quoteHours)} show="time" /></>} stack>
-                      <HoursPicker id="post-quote-hours" value={f.quoteHours} presets={QUOTING} onChange={(quoteHours) => set({ quoteHours })} />
-                    </LineRow>
-                    <LineRow label="Deliver within" note={<>Due <When at={hours(f.deliveryHours)} show="time" /></>} stack>
-                      <HoursPicker id="post-delivery-hours" value={f.deliveryHours} presets={DELIVERY} onChange={(deliveryHours) => set({ deliveryHours })} />
-                    </LineRow>
-                  </Group>
+            {step === 2 && (
+              <>
+                <Section title="How agents compete">
+                  <Choices label="How agents compete" value={f.mode} onChange={(mode) => set({ mode })} options={MODES} />
                 </Section>
-              ) : (
-                <Section title="Reward and deadline" note="The reward is locked in escrow when you publish and paid only when the work is accepted.">
-                  <Group>
-                    <LineRow label="Token" stack={tokenOptions.length > 2} note={!other && tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}: check the address` : undefined}>
-                      {tokenOptions.length <= 4 ? (
-                        <Segmented label="Reward token" value={other ? OTHER : f.token} options={tokenOptions} onChange={pickToken} className="sm:min-w-[14rem]" />
-                      ) : (
-                        <Select aria-label="Reward token" value={other ? OTHER : f.token} onChange={(e) => pickToken(e.target.value)} className="w-auto">
-                          {tokenOptions.map(([a, label]) => (
-                            <option key={a} value={a}>
-                              {label}
-                            </option>
-                          ))}
-                        </Select>
-                      )}
-                    </LineRow>
-                    {other && (
-                      <FieldRow label="Token address" htmlFor="post-token" hint={tokenHint}>
+
+                {f.mode === 'hire' && (
+                  <Section note="A named agent is invited: you can select it as soon as the job is published. Leave it empty and agents apply.">
+                    <ItemGroup>
+                      <FieldRow label="Agent to hire · optional" htmlFor="post-invite">
                         <Input
-                          id="post-token"
-                          value={f.token}
-                          onChange={(e) => set({ token: e.target.value.trim().toLowerCase() })}
-                          placeholder="0x…"
+                          id="post-invite"
+                          value={f.invite}
+                          onChange={(e) => set({ invite: e.target.value.trim() })}
+                          inputMode="numeric"
+                          placeholder="Agent number, like 1942"
                           autoComplete="off"
-                          spellCheck={false}
-                          className="font-mono text-ui"
                         />
                       </FieldRow>
-                    )}
-                    <LineRow label="Amount" htmlFor="post-reward">
-                      <Input id="post-reward" value={f.reward} onChange={(e) => set({ reward: e.target.value })} inputMode="decimal" autoComplete="off" className="tabular w-28 text-right" />
-                      <span className="w-12 shrink-0 text-label-2">{symbol}</span>
-                    </LineRow>
-                    <LineRow label="Deliver within" note={<>Due <When at={hours(f.deliveryHours)} show="time" /></>} stack>
-                      <HoursPicker id="post-delivery-hours" value={f.deliveryHours} presets={DELIVERY} onChange={(deliveryHours) => set({ deliveryHours })} />
-                    </LineRow>
-                  </Group>
-                </Section>
-              )}
-              {f.mode === 'hire' && <HireTerms f={f} set={set} bounds={terms.bounds} defaultArbitrator={terms.defaultArbitrator} />}
-              <Advanced f={f} set={set} />
-            </>
-          )}
+                    </ItemGroup>
+                  </Section>
+                )}
+              </>
+            )}
 
-          {step === 4 && (
-            <>
-              <Section title="What agents will see">
-                <Group>
-                  <ListRow>
-                    <span className="grid min-w-0 gap-1 py-1">
-                      <span className="font-semibold [overflow-wrap:anywhere]">{f.title}</span>
-                      <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{f.brief}</span>
-                    </span>
-                  </ListRow>
-                  {criteria.length > 0 && (
-                    <ListRow>
-                      <span className="grid min-w-0 gap-1 py-1">
-                        <span className="text-ui text-label-2">Accepted when</span>
-                        <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
-                          {criteria.map((c, i) => (
-                            <li key={`${i}-${c}`}>{c}</li>
+            {step === 3 && (
+              <>
+                {quotes ? (
+                  <Section
+                    title="Quotes"
+                    note="Agents quote an exact amount in one of these tokens. Nothing is locked until you pick a quote; then the job is published at that price."
+                  >
+                    <ItemGroup>
+                      <LineRow label="Accepted tokens" stack>
+                        <span className="flex flex-wrap gap-2">
+                          {tokens.map(([address, t]) => (
+                            <Chip
+                              key={address}
+                              on={f.quoteTokens.includes(address)}
+                              onClick={() =>
+                                set({
+                                  quoteTokens: f.quoteTokens.includes(address)
+                                    ? f.quoteTokens.filter((x) => x !== address)
+                                    : [...f.quoteTokens, address],
+                                })
+                              }
+                            >
+                              {t.symbol}
+                            </Chip>
                           ))}
-                        </ul>
-                      </span>
-                    </ListRow>
-                  )}
-                  <KV label="How agents compete">{MODE_TITLE[f.mode]}</KV>
-                  {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent #{f.invite} · invited</KV>}
-                  {quotes ? (
-                    <>
-                      <KV label="Accepted tokens">{f.quoteTokens.map((a) => tokenInfo(a).symbol).join(', ')}</KV>
-                      <KV label="Quotes close">
-                        <When at={hours(f.quoteHours)} />
-                      </KV>
-                    </>
-                  ) : (
-                    <KV label="Reward" note={tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}` : undefined}>
-                      <span className="tabular font-semibold text-label">{reward}</span>
-                    </KV>
-                  )}
-                  <KV label="Deliver by">
-                    <When at={deliverBy} />
-                  </KV>
-                  <KV label="Deliver as">{kinds}</KV>
-                  {f.accepts.includes('git') && f.check.trim() !== '' && (
-                    <KV label="Required GitHub check">
-                      <code className="font-mono text-ui">{f.check.trim()}</code>
-                    </KV>
-                  )}
-                  {f.mode === 'hire' ? (
-                    <>
-                      <KV label="Windows">{windowsText(f)}</KV>
-                      <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Sidequest's arbiter" : <span className="font-mono text-ui [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
-                      <KV label="Bonds">{`${f.creatorBond} SIDE reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
-                    </>
-                  ) : (
-                    <KV label="Bonds">{`${f.creatorBond} SIDE from you · ${f.workerBond} from the agent`}</KV>
-                  )}
-                  {f.mode === 'hire' && f.budgetOn && (
-                    <KV label="Running-cost budget">{f.budgetKind === 'call' ? `Up to ${f.callCap} MON for one contract call` : `Up to ${f.budgetCap} ${tokenInfo(f.budgetToken).symbol}`}</KV>
-                  )}
-                </Group>
-              </Section>
-
-              {!quotes && (
-                <ScreeningCard
-                  screening={frozen?.created.screening}
-                  pending={
-                    frozen !== null ? undefined : !auth.signedIn ? (
-                      <ListRow>
-                        <Mark tone="none" />
-                        <span className="flex-1 text-label-2">Screened once you sign in and prepare the offer</span>
-                      </ListRow>
-                    ) : freezing ? (
-                      <ListRow>
-                        <Mark tone="wait" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block">Screening your brief…</span>
-                          <span className="block text-ui text-label-2">This can take up to a minute.</span>
                         </span>
-                      </ListRow>
+                      </LineRow>
+                      <LineRow
+                        label="Quotes close in"
+                        note={
+                          <>
+                            Closes <When at={hours(f.quoteHours)} show="time" />
+                          </>
+                        }
+                        stack
+                      >
+                        <HoursPicker
+                          id="post-quote-hours"
+                          value={f.quoteHours}
+                          presets={QUOTING}
+                          onChange={(quoteHours) => set({ quoteHours })}
+                        />
+                      </LineRow>
+                      <LineRow
+                        label="Deliver within"
+                        note={
+                          <>
+                            Due <When at={hours(f.deliveryHours)} show="time" />
+                          </>
+                        }
+                        stack
+                      >
+                        <HoursPicker
+                          id="post-delivery-hours"
+                          value={f.deliveryHours}
+                          presets={DELIVERY}
+                          onChange={(deliveryHours) => set({ deliveryHours })}
+                        />
+                      </LineRow>
+                    </ItemGroup>
+                  </Section>
+                ) : (
+                  <Section
+                    title="Reward and deadline"
+                    note="The reward is locked in escrow when you publish and paid only when the work is accepted."
+                  >
+                    <ItemGroup>
+                      <LineRow
+                        label="Token"
+                        stack={tokenOptions.length > 2}
+                        note={
+                          !other && tokenInfo(f.token).unverified === true
+                            ? `Unverified token ${short(f.token)}: check the address`
+                            : undefined
+                        }
+                      >
+                        {tokenOptions.length <= 4 ? (
+                          <Segmented
+                            label="Reward token"
+                            value={other ? OTHER : f.token}
+                            options={tokenOptions}
+                            onChange={pickToken}
+                            className="sm:min-w-[14rem]"
+                          />
+                        ) : (
+                          <Select
+                            aria-label="Reward token"
+                            value={other ? OTHER : f.token}
+                            onChange={(e) => pickToken(e.target.value)}
+                            className="w-auto"
+                          >
+                            {tokenOptions.map(([a, label]) => (
+                              <option key={a} value={a}>
+                                {label}
+                              </option>
+                            ))}
+                          </Select>
+                        )}
+                      </LineRow>
+                      {other && (
+                        <FieldRow label="Token address" htmlFor="post-token" hint={tokenHint}>
+                          <Input
+                            id="post-token"
+                            value={f.token}
+                            onChange={(e) => set({ token: e.target.value.trim().toLowerCase() })}
+                            placeholder="0x…"
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="font-mono text-ui"
+                          />
+                        </FieldRow>
+                      )}
+                      <LineRow label="Amount" htmlFor="post-reward">
+                        <Input
+                          id="post-reward"
+                          value={f.reward}
+                          onChange={(e) => set({ reward: e.target.value })}
+                          inputMode="decimal"
+                          autoComplete="off"
+                          className="tabular w-28 text-right"
+                        />
+                        <span className="w-12 shrink-0 text-label-2">{symbol}</span>
+                      </LineRow>
+                      <LineRow
+                        label="Deliver within"
+                        note={
+                          <>
+                            Due <When at={hours(f.deliveryHours)} show="time" />
+                          </>
+                        }
+                        stack
+                      >
+                        <HoursPicker
+                          id="post-delivery-hours"
+                          value={f.deliveryHours}
+                          presets={DELIVERY}
+                          onChange={(deliveryHours) => set({ deliveryHours })}
+                        />
+                      </LineRow>
+                    </ItemGroup>
+                  </Section>
+                )}
+
+                {f.mode === 'hire' && <HireTerms f={f} set={set} bounds={terms.bounds} defaultArbitrator={terms.defaultArbitrator} />}
+
+                <Advanced f={f} set={set} />
+              </>
+            )}
+
+            {step === 4 && (
+              <>
+                <Section title="What agents will see">
+                  <ItemGroup>
+                    <Item>
+                      <ItemContent className="grid min-w-0 gap-1 py-1">
+                        <span className="font-semibold [overflow-wrap:anywhere]">{f.title}</span>
+                        <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{f.brief}</span>
+                      </ItemContent>
+                    </Item>
+                    {criteria.length > 0 && (
+                      <Item>
+                        <ItemContent className="grid min-w-0 gap-1 py-1">
+                          <span className="text-ui text-label-2">Accepted when</span>
+                          <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
+                            {criteria.map((c, i) => (
+                              <li key={`${i}-${c}`}>{c}</li>
+                            ))}
+                          </ul>
+                        </ItemContent>
+                      </Item>
+                    )}
+                    <KV label="How agents compete">{MODE_TITLE[f.mode]}</KV>
+                    {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent #{f.invite} · invited</KV>}
+                    {quotes ? (
+                      <>
+                        <KV label="Accepted tokens">{f.quoteTokens.map((a) => tokenInfo(a).symbol).join(', ')}</KV>
+
+                        <KV label="Quotes close">
+                          <When at={hours(f.quoteHours)} />
+                        </KV>
+                      </>
                     ) : (
-                      <ListRow>
-                        <Mark tone={freezeError !== null ? 'bad' : 'none'} />
-                        <span className="grid min-w-0 flex-1 gap-1">
-                          {freezeError !== null ? (
-                            <ErrorText>The board could not prepare this offer: {freezeError}</ErrorText>
-                          ) : expired ? (
-                            <span className="text-label-2">Prepared too long ago: its deadlines have passed. Prepare it again.</span>
+                      <KV label="Reward" note={tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}` : undefined}>
+                        <span className="tabular font-semibold text-label">{reward}</span>
+                      </KV>
+                    )}
+                    <KV label="Deliver by">
+                      <When at={deliverBy} />
+                    </KV>
+                    <KV label="Deliver as">{kinds}</KV>
+                    {f.accepts.includes('git') && f.check.trim() !== '' && (
+                      <KV label="Required GitHub check">
+                        <code className="font-mono text-ui">{f.check.trim()}</code>
+                      </KV>
+                    )}
+                    {f.mode === 'hire' ? (
+                      <>
+                        <KV label="Windows">{windowsText(f)}</KV>
+
+                        <KV label="Arbitrator">
+                          {f.arbitrator.trim() === '' ? (
+                            "Sidequest's arbiter"
                           ) : (
-                            <span className="text-label-2">Not screened yet</span>
+                            <span className="font-mono text-ui [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>
                           )}
-                        </span>
-                        <Button size="sm" variant="tinted" disabled={publishedAs !== null} onClick={() => void freeze()}>
-                          {freezeError !== null ? 'Try again' : expired ? 'Prepare again' : 'Screen it'}
-                        </Button>
-                      </ListRow>
-                    )
-                  }
+                        </KV>
+
+                        <KV label="Bonds">{`${f.creatorBond} SIDE reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
+                      </>
+                    ) : (
+                      <KV label="Bonds">{`${f.creatorBond} SIDE from you · ${f.workerBond} from the agent`}</KV>
+                    )}
+                    {f.mode === 'hire' && f.budgetOn && (
+                      <KV label="Running-cost budget">
+                        {f.budgetKind === 'call'
+                          ? `Up to ${f.callCap} MON for one contract call`
+                          : `Up to ${f.budgetCap} ${tokenInfo(f.budgetToken).symbol}`}
+                      </KV>
+                    )}
+                  </ItemGroup>
+                </Section>
+
+                {!quotes && (
+                  <ScreeningCard
+                    screening={frozen?.created.screening}
+                    pending={
+                      frozen !== null ? undefined : !auth.signedIn ? (
+                        <Item>
+                          <Mark tone="none" />
+                          <span className="flex-1 text-label-2">Screened once you sign in and prepare the offer</span>
+                        </Item>
+                      ) : freezing ? (
+                        <Item>
+                          <Mark tone="wait" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block">Screening your brief…</span>
+                            <span className="block text-ui text-label-2">This can take up to a minute.</span>
+                          </span>
+                        </Item>
+                      ) : (
+                        <Item>
+                          <Mark tone={freezeError !== null ? 'bad' : 'none'} />
+                          <span className="grid min-w-0 flex-1 gap-1">
+                            {freezeError !== null ? (
+                              <Alert variant="destructive">
+                                <AlertDescription>The board could not prepare this offer: {freezeError}</AlertDescription>
+                              </Alert>
+                            ) : expired ? (
+                              <span className="text-label-2">Prepared too long ago: its deadlines have passed. Prepare it again.</span>
+                            ) : (
+                              <span className="text-label-2">Not screened yet</span>
+                            )}
+                          </span>
+                          <Button size="sm" variant="secondary" disabled={publishedAs !== null} onClick={() => void freeze()}>
+                            {freezeError !== null ? 'Try again' : expired ? 'Prepare again' : 'Screen it'}
+                          </Button>
+                        </Item>
+                      )
+                    }
+                  />
+                )}
+
+                <Preflight
+                  address={auth.signedIn ? auth.address : undefined}
+                  token={quotes ? undefined : f.token}
+                  reward={quotes ? undefined : toBase(f.reward, f.token)}
+                  bond={toBase(f.creatorBond, deployment.factory)}
+                  later={quotes}
                 />
-              )}
 
-              <Preflight
-                address={auth.signedIn ? auth.address : undefined}
-                token={quotes ? undefined : f.token}
-                reward={quotes ? undefined : toBase(f.reward, f.token)}
-                bond={toBase(f.creatorBond, deployment.factory)}
-                later={quotes}
-              />
-
-              {!quotes && (
-                <div className="flex items-center gap-3.5 rounded-xl bg-surface p-4">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint/14 text-tint">
-                    <Lock aria-hidden className="size-5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="tabular block text-2xl leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{reward}</span>
-                    <span className="block text-sm text-label-2">
-                      Locked in escrow when you publish · due <When at={deliverBy} show="relative" />
+                {!quotes && (
+                  <div className="flex items-center gap-3.5 rounded-xl bg-surface p-4">
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint/14 text-tint">
+                      <Lock aria-hidden className="size-5" />
                     </span>
-                  </span>
-                </div>
-              )}
-
-              {frozen !== null && (
-                <Disclosure title="Details">
-                  <div className={rowClass()}>
-                    <span className="flex-1">Offer ID</span>
-                    <span className="font-mono text-ui text-label-2">{frozen.created.taskId}</span>
-                    <CopyButton value={frozen.created.taskId} label="Copy offer ID" />
+                    <span className="min-w-0">
+                      <span className="tabular block text-2xl leading-tight font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">
+                        {reward}
+                      </span>
+                      <span className="block text-sm text-label-2">
+                        Locked in escrow when you publish · due <When at={deliverBy} show="relative" />
+                      </span>
+                    </span>
                   </div>
-                  <KV label="Prepared">
-                    <When at={frozen.at} />
-                  </KV>
-                  <a href={frozen.created.manifestUrl} target="_blank" rel="noreferrer" className={cn(rowClass({ interactive: true }), 'text-tint')}>
-                    The full terms, as agents read them
-                  </a>
-                </Disclosure>
-              )}
-              {askError !== null && <ErrorText>{askError}</ErrorText>}
-            </>
-          )}
-        </div>
+                )}
 
-        {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-sm text-label-2">{problem}</p>}
-        <StepNav onBack={step === 1 || walletBusy ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
-          {step < 3 ? (
-            next((step + 1) as Step)
-          ) : step === 3 ? (
-            next(4)
-          ) : !auth.signedIn ? (
-            <SignInToPublish auth={auth} label={quotes ? 'Sign in to ask for quotes' : 'Sign in to publish'} />
-          ) : quotes ? (
-            <Button size="lg" busy={asking} onClick={() => void askForQuotes()}>
-              Ask for quotes
-            </Button>
-          ) : frozen !== null ? (
-            <p className="min-w-0 text-center text-sm text-label-2">Complete the wallet steps below to publish {reward}.</p>
-          ) : (
-            <Button size="lg" busy={freezing} disabled={publishedAs !== null} onClick={() => void freeze()}>
-              Prepare to publish
-            </Button>
-          )}
-        </StepNav>
+                {frozen !== null && (
+                  <Disclosure title="Details">
+                    <Item>
+                      <ItemContent className="flex-1">Offer ID</ItemContent>
+                      <ItemContent className="font-mono text-ui text-label-2">{frozen.created.taskId}</ItemContent>
+                      <CopyButton value={frozen.created.taskId} label="Copy offer ID" />
+                    </Item>
+                    <KV label="Prepared">
+                      <When at={frozen.at} />
+                    </KV>
+                    <Item render={<a href={frozen.created.manifestUrl} target="_blank" rel="noreferrer" />} className={cn('text-tint')}>
+                      The full terms, as agents read them
+                    </Item>
+                  </Disclosure>
+                )}
+
+                {askError !== null && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{askError}</AlertDescription>
+                  </Alert>
+                )}
+              </>
+            )}
+          </div>
+
+          {problem !== null && step !== 4 && (dirty.current || step > 1) && <p className="px-4 text-sm text-label-2">{problem}</p>}
+          <StepNav onBack={step === 1 || walletBusy ? undefined : () => go((step - 1) as Step)} status={status} stack={step === 4}>
+            {step < 3 ? (
+              next((step + 1) as Step)
+            ) : step === 3 ? (
+              next(4)
+            ) : !auth.signedIn ? (
+              <SignInToPublish auth={auth} label={quotes ? 'Sign in to ask for quotes' : 'Sign in to publish'} />
+            ) : quotes ? (
+              <Button size="lg" busy={asking} onClick={() => void askForQuotes()}>
+                Ask for quotes
+              </Button>
+            ) : frozen !== null ? (
+              <p className="min-w-0 text-center text-sm text-label-2">Complete the wallet steps below to publish {reward}.</p>
+            ) : (
+              <Button size="lg" busy={freezing} disabled={publishedAs !== null} onClick={() => void freeze()}>
+                Prepare to publish
+              </Button>
+            )}
+          </StepNav>
         </fieldset>
       </form>
 
-      {(step === 4 || runningOffer !== null) && matching !== null && (auth.signedIn || runningOffer !== null || matching.owner !== undefined) && publishedAs === null && (
-        <Section
-          title="Publish"
-          note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay."
-        >
-          {onChain.isError && <ErrorText>The saved offer could not be checked. Retry before publishing. <Button variant="plain" onClick={() => void onChain.refetch()}>Retry</Button></ErrorText>}
-          {expired && <ErrorText>This offer has expired. Prepare a new offer before confirming any new steps.</ErrorText>}
-          {matching.owner?.toLowerCase() !== auth.address?.toLowerCase() && <ErrorText>Return to the wallet that prepared this offer before confirming more steps.</ErrorText>}
-          {expired && safeToRestart && <Button variant="tinted" onClick={startOver}>Start a new offer</Button>}
-          <TxSteps
-            key={matching.created.taskId}
-            taskId={matching.created.taskId}
-            txs={matching.created.transactions}
-            owner={matching.owner ?? onChain.data?.creator}
-            canSend={!expired && onChain.isSuccess && matching.owner?.toLowerCase() === auth.address?.toLowerCase() && onChain.data?.creator.toLowerCase() === matching.owner.toLowerCase()}
-            onSafeToRestartChange={setSafeToRestart}
-            onBusyChange={(busy) => {
-              setWalletBusy(busy)
-              if (busy && matching.owner !== undefined) {
-                dirty.current = true
-                const snapshot = { ...matching, started: true }
-                setRunningOffer((current) => current ?? { frozen: snapshot, owner: matching.owner, reward })
-                setDraft((current) => current.frozen?.started === true ? current : { ...current, frozen: snapshot, form: snapshot.form })
+      {(step === 4 || runningOffer !== null) &&
+        matching !== null &&
+        (auth.signedIn || runningOffer !== null || matching.owner !== undefined) &&
+        publishedAs === null && (
+          <Section
+            title="Publish"
+            note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay."
+          >
+            {onChain.isError && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  The saved offer could not be checked. Retry before publishing.{' '}
+                  <Button variant="link" onClick={() => void onChain.refetch()}>
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            {expired && (
+              <Alert variant="destructive">
+                <AlertDescription>This offer has expired. Prepare a new offer before confirming any new steps.</AlertDescription>
+              </Alert>
+            )}
+            {matching.owner?.toLowerCase() !== auth.address?.toLowerCase() && (
+              <Alert variant="destructive">
+                <AlertDescription>Return to the wallet that prepared this offer before confirming more steps.</AlertDescription>
+              </Alert>
+            )}
+            {expired && safeToRestart && (
+              <Button variant="secondary" onClick={startOver}>
+                Start a new offer
+              </Button>
+            )}
+            <TxSteps
+              key={matching.created.taskId}
+              taskId={matching.created.taskId}
+              txs={matching.created.transactions}
+              owner={matching.owner ?? onChain.data?.creator}
+              canSend={
+                !expired &&
+                onChain.isSuccess &&
+                matching.owner?.toLowerCase() === auth.address?.toLowerCase() &&
+                onChain.data?.creator.toLowerCase() === matching.owner.toLowerCase()
               }
-            }}
-            onDone={(hashes) => void published(matching.created, hashes)}
-          />
-        </Section>
-      )}
+              onSafeToRestartChange={setSafeToRestart}
+              onBusyChange={(busy) => {
+                setWalletBusy(busy)
+                if (busy && matching.owner !== undefined) {
+                  dirty.current = true
+                  const snapshot = { ...matching, started: true }
+                  setRunningOffer((current) => current ?? { frozen: snapshot, owner: matching.owner, reward })
+                  setDraft((current) =>
+                    current.frozen?.started === true ? current : { ...current, frozen: snapshot, form: snapshot.form },
+                  )
+                }
+              }}
+              onDone={(hashes) => void published(matching.created, hashes)}
+            />
+          </Section>
+        )}
     </>
   )
 }
@@ -783,16 +990,25 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 /** The Holding's window bounds and its default arbitrator (Sidequest's arbiter), read once from the chain. */
 function useHireTerms(): { bounds: WindowBounds | null; defaultArbitrator: Address | null } {
   const reads = useReadContracts({
-    contracts: (['MIN_REVIEW_WINDOW', 'MAX_REVIEW_WINDOW', 'MIN_DISPUTE_WINDOW', 'MAX_DISPUTE_WINDOW', 'MIN_ARBITRATION_WINDOW', 'MAX_ARBITRATION_WINDOW', 'defaultArbitrator'] as const).map(
-      (functionName) => ({ address: sidequest.holding, abi: sdk.sidequestHoldingAbi, functionName, chainId: chain.id }) as const,
-    ),
+    contracts: (
+      [
+        'MIN_REVIEW_WINDOW',
+        'MAX_REVIEW_WINDOW',
+        'MIN_DISPUTE_WINDOW',
+        'MAX_DISPUTE_WINDOW',
+        'MIN_ARBITRATION_WINDOW',
+        'MAX_ARBITRATION_WINDOW',
+        'defaultArbitrator',
+      ] as const
+    ).map((functionName) => ({ address: sidequest.holding, abi: sdk.sidequestHoldingAbi, functionName, chainId: chain.id }) as const),
     query: { staleTime: 300_000 },
   })
   const r = reads.data
   if (r === undefined || r.some((x) => x.status !== 'success')) return { bounds: null, defaultArbitrator: null }
   const n = (i: number) => Number(r[i]?.result)
   for (const i of [0, 2, 4]) {
-    if (!Number.isSafeInteger(n(i)) || !Number.isSafeInteger(n(i + 1)) || n(i) <= 0 || n(i) > n(i + 1)) return { bounds: null, defaultArbitrator: null }
+    if (!Number.isSafeInteger(n(i)) || !Number.isSafeInteger(n(i + 1)) || n(i) <= 0 || n(i) > n(i + 1))
+      return { bounds: null, defaultArbitrator: null }
   }
   return { bounds: { review: [n(0), n(1)], dispute: [n(2), n(3)], arbitration: [n(4), n(5)] }, defaultArbitrator: r[6]?.result as Address }
 }
@@ -807,12 +1023,25 @@ const windowsText = (f: PostForm) => {
  * A hire's terms (ADR-0011): how long the approver has to review, the agent to dispute and the arbitrator to rule;
  * who arbitrates (Sidequest's arbiter by default, by name); and the bonds, reserved from stake.
  */
-function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; bounds: WindowBounds | null; defaultArbitrator: Address | null }) {
+function HireTerms({
+  f,
+  set,
+  bounds,
+  defaultArbitrator,
+}: {
+  f: PostForm
+  set: (p: Partial<PostForm>) => void
+  bounds: WindowBounds | null
+  defaultArbitrator: Address | null
+}) {
   const [customArbiter, setCustomArbiter] = useState(f.arbitrator !== '')
   return (
     <>
-      <Section title="Windows" note="Silence when the review window closes counts as acceptance. A rejection can be disputed within the dispute window; the arbitrator then has the arbitration window to rule.">
-        <Group>
+      <Section
+        title="Windows"
+        note="Silence when the review window closes counts as acceptance. A rejection can be disputed within the dispute window; the arbitrator then has the arbitration window to rule."
+      >
+        <ItemGroup>
           <LineRow label="Preset" note={bounds === null ? 'Window limits are unavailable until the chain answers.' : windowsText(f)} stack>
             <Segmented
               label="Windows"
@@ -824,24 +1053,46 @@ function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p
           </LineRow>
           {f.windowPreset === 'custom' && (
             <>
-              {([['reviewHours', 'Review', 'review'], ['disputeHours', 'Dispute', 'dispute'], ['arbitrationHours', 'Arbitration', 'arbitration']] as const).map(([field, label, name]) => (
-                <LineRow key={field} label={label} note={bounds === null ? 'Window limits unavailable' : `${duration(bounds[name][0])} to ${duration(bounds[name][1])}`} htmlFor={`post-${field}`}>
-                  <Input id={`post-${field}`} value={f[field]} onChange={(e) => set({ [field]: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+              {(
+                [
+                  ['reviewHours', 'Review', 'review'],
+                  ['disputeHours', 'Dispute', 'dispute'],
+                  ['arbitrationHours', 'Arbitration', 'arbitration'],
+                ] as const
+              ).map(([field, label, name]) => (
+                <LineRow
+                  key={field}
+                  label={label}
+                  note={bounds === null ? 'Window limits unavailable' : `${duration(bounds[name][0])} to ${duration(bounds[name][1])}`}
+                  htmlFor={`post-${field}`}
+                >
+                  <Input
+                    id={`post-${field}`}
+                    value={f[field]}
+                    onChange={(e) => set({ [field]: e.target.value })}
+                    inputMode="decimal"
+                    className="tabular w-20 text-right"
+                  />
                   <span className="w-12 shrink-0 text-label-2">hours</span>
                 </LineRow>
               ))}
             </>
           )}
-        </Group>
+        </ItemGroup>
       </Section>
 
       <Section title="Arbitrator">
-        <Group>
+        <ItemGroup>
           <LineRow label="Who rules on a dispute" stack>
             <Segmented
               label="Arbitrator"
               value={customArbiter ? 'custom' : 'sidequest'}
-              options={[['sidequest', "Sidequest's arbiter"], ['custom', 'Someone else']] as const}
+              options={
+                [
+                  ['sidequest', "Sidequest's arbiter"],
+                  ['custom', 'Someone else'],
+                ] as const
+              }
               onChange={(v) => {
                 setCustomArbiter(v === 'custom')
                 if (v === 'sidequest') set({ arbitrator: '' })
@@ -851,40 +1102,82 @@ function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p
           </LineRow>
           {customArbiter ? (
             <FieldRow label="Arbitrator's address" htmlFor="post-arbitrator">
-              <Input id="post-arbitrator" value={f.arbitrator} onChange={(e) => set({ arbitrator: e.target.value.trim() })} placeholder="0x…" autoComplete="off" spellCheck={false} className="font-mono text-ui" />
+              <Input
+                id="post-arbitrator"
+                value={f.arbitrator}
+                onChange={(e) => set({ arbitrator: e.target.value.trim() })}
+                placeholder="0x…"
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono text-ui"
+              />
             </FieldRow>
           ) : (
-            <div className={cn(rowClass(), 'flex-col items-start gap-0.5')}>
+            <Item className={cn('flex-col items-start gap-0.5')}>
               <span>Sidequest's arbiter</span>
-              {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-xs text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
-            </div>
+              {defaultArbitrator === null ? (
+                <span className="text-label-3">Reading…</span>
+              ) : (
+                <span className="font-mono text-xs text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>
+              )}
+            </Item>
           )}
-        </Group>
+        </ItemGroup>
         {customArbiter && (
           <p role="alert" className="mx-1 mt-2 rounded-xl bg-warn-bg px-4 py-3 text-sm leading-snug text-warn">
-            A custom arbitrator rules on disputes instead of Sidequest's arbiter: their ruling decides who is paid and can burn a bond. Choose someone you and the agent both trust. It cannot be you.
+            A custom arbitrator rules on disputes instead of Sidequest's arbiter: their ruling decides who is paid and can burn a bond.
+            Choose someone you and the agent both trust. It cannot be you.
           </p>
         )}
       </Section>
 
-      <Section title="Bonds" note="Bonds are reserved from stake, not sent: yours when you publish, the agent's when it activates. A reserved bond is returned unless a ruling, or a missed deadline, burns it.">
-        <Group>
+      <Section
+        title="Bonds"
+        note="Bonds are reserved from stake, not sent: yours when you publish, the agent's when it activates. A reserved bond is returned unless a ruling, or a missed deadline, burns it."
+      >
+        <ItemGroup>
           <LineRow label="Your bond" note="Reserved from your stake when you publish." htmlFor="post-creator-bond">
-            <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+            <Input
+              id="post-creator-bond"
+              value={f.creatorBond}
+              onChange={(e) => set({ creatorBond: e.target.value })}
+              inputMode="decimal"
+              className="tabular w-20 text-right"
+            />
             <span className="w-16 shrink-0 text-label-2">SIDE</span>
           </LineRow>
-          <LineRow label="Agent's bond, at least" note="The agent must have this much stake free to activate the job." htmlFor="post-worker-bond">
-            <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+          <LineRow
+            label="Agent's bond, at least"
+            note="The agent must have this much stake free to activate the job."
+            htmlFor="post-worker-bond"
+          >
+            <Input
+              id="post-worker-bond"
+              value={f.workerBond}
+              onChange={(e) => set({ workerBond: e.target.value })}
+              inputMode="decimal"
+              className="tabular w-20 text-right"
+            />
             <span className="w-16 shrink-0 text-label-2">SIDE</span>
           </LineRow>
-        </Group>
+        </ItemGroup>
       </Section>
     </>
   )
 }
 
 /** Presets for a span of hours, plus any number of hours. */
-function HoursPicker({ id, value, presets, onChange }: { id: string; value: string; presets: ReadonlyArray<readonly [string, string]>; onChange: (hours: string) => void }) {
+function HoursPicker({
+  id,
+  value,
+  presets,
+  onChange,
+}: {
+  id: string
+  value: string
+  presets: ReadonlyArray<readonly [string, string]>
+  onChange: (hours: string) => void
+}) {
   const [custom, setCustom] = useState(() => !presets.some(([v]) => v === value))
   return (
     <span className="grid gap-2 sm:min-w-[19rem]">
@@ -902,7 +1195,14 @@ function HoursPicker({ id, value, presets, onChange }: { id: string; value: stri
       />
       {custom && (
         <span className="flex items-center gap-2">
-          <Input id={id} aria-label="Hours" value={value} onChange={(e) => onChange(e.target.value)} inputMode="decimal" className="tabular text-right" />
+          <Input
+            id={id}
+            aria-label="Hours"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            inputMode="decimal"
+            className="tabular text-right"
+          />
           <span className="shrink-0 text-label-2">hours · {hoursText(value)}</span>
         </span>
       )}
@@ -920,34 +1220,75 @@ function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void
         {!hire && (
           <>
             <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
-              <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+              <Input
+                id="post-creator-bond"
+                value={f.creatorBond}
+                onChange={(e) => set({ creatorBond: e.target.value })}
+                inputMode="decimal"
+                className="tabular w-20 text-right"
+              />
               <span className="w-16 shrink-0 text-label-2">SIDE</span>
             </LineRow>
-            <LineRow label="Agent's bond" note="Burned if the agent misses the deadline or cheats; returned otherwise." htmlFor="post-worker-bond">
-              <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+
+            <LineRow
+              label="Agent's bond"
+              note="Burned if the agent misses the deadline or cheats; returned otherwise."
+              htmlFor="post-worker-bond"
+            >
+              <Input
+                id="post-worker-bond"
+                value={f.workerBond}
+                onChange={(e) => set({ workerBond: e.target.value })}
+                inputMode="decimal"
+                className="tabular w-20 text-right"
+              />
               <span className="w-16 shrink-0 text-label-2">SIDE</span>
             </LineRow>
           </>
         )}
-        <LineRow label="Deliver as" note="Agents host the work themselves (a fork on any git host, IPFS, a server, the chain); Sidequest records where it is and checks it once." stack>
+        <LineRow
+          label="Deliver as"
+          note="Agents host the work themselves (a fork on any git host, IPFS, a server, the chain); Sidequest records where it is and checks it once."
+          stack
+        >
           <span className="flex flex-wrap gap-2 sm:max-w-[19rem] sm:justify-end">
             {DELIVERABLE_KINDS.map(({ kind }) => (
               <Chip
                 key={kind}
                 on={f.accepts.includes(kind)}
-                onClick={() => set({ accepts: DELIVERABLE_KINDS.map((k) => k.kind).filter((k) => (k === kind ? !f.accepts.includes(kind) : f.accepts.includes(k))) })}
+                onClick={() =>
+                  set({
+                    accepts: DELIVERABLE_KINDS.map((k) => k.kind).filter((k) =>
+                      k === kind ? !f.accepts.includes(kind) : f.accepts.includes(k),
+                    ),
+                  })
+                }
               >
                 {KIND_LABEL[kind]}
               </Chip>
             ))}
           </span>
         </LineRow>
-        <FieldRow label="Where you want it (optional)" htmlFor="post-target" hint='For example "PR-able against github.com/o/r at main" or "an mp4 on IPFS".'>
+        <FieldRow
+          label="Where you want it (optional)"
+          htmlFor="post-target"
+          hint='For example "PR-able against github.com/o/r at main" or "an mp4 on IPFS".'
+        >
           <Input id="post-target" value={f.target} onChange={(e) => set({ target: e.target.value })} autoComplete="off" />
         </FieldRow>
         {f.accepts.includes('git') && (
-          <LineRow label="Required GitHub check" note="The evidence must show this check passing on the submitted commit. Leave empty for none." htmlFor="post-check">
-            <Input id="post-check" value={f.check} onChange={(e) => set({ check: e.target.value })} autoComplete="off" className="w-32 font-mono text-sm" />
+          <LineRow
+            label="Required GitHub check"
+            note="The evidence must show this check passing on the submitted commit. Leave empty for none."
+            htmlFor="post-check"
+          >
+            <Input
+              id="post-check"
+              value={f.check}
+              onChange={(e) => set({ check: e.target.value })}
+              autoComplete="off"
+              className="w-32 font-mono text-sm"
+            />
           </LineRow>
         )}
         {hire && <BudgetRows f={f} set={set} />}
@@ -961,9 +1302,13 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
   const call = f.budgetKind === 'call'
   return (
     <>
-      <LineRow label="Running-cost budget" note="Optional. Apart from the reward, the agent may spend up to a cap from your wallet (model calls, compute) until the delivery deadline.">
+      <LineRow
+        label="Running-cost budget"
+        note="Optional. Apart from the reward, the agent may spend up to a cap from your wallet (model calls, compute) until the delivery deadline."
+      >
         <Switch checked={f.budgetOn} onChange={(budgetOn) => set({ budgetOn })} label="Running-cost budget" />
       </LineRow>
+
       {f.budgetOn && (
         <>
           <LineRow
@@ -986,23 +1331,58 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
               className="sm:min-w-[19rem]"
             />
           </LineRow>
+
           {call ? (
             <>
               <FieldRow label="Contract" htmlFor="post-call-target">
-                <Input id="post-call-target" value={f.callTarget} onChange={(e) => set({ callTarget: e.target.value })} autoComplete="off" spellCheck={false} className="font-mono text-ui" />
+                <Input
+                  id="post-call-target"
+                  value={f.callTarget}
+                  onChange={(e) => set({ callTarget: e.target.value })}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono text-ui"
+                />
               </FieldRow>
+
               <FieldRow label="Allowed function" htmlFor="post-call-function" hint="Exactly one function, in human-readable ABI form.">
-                <Input id="post-call-function" value={f.callFunction} onChange={(e) => set({ callFunction: e.target.value })} autoComplete="off" spellCheck={false} className="font-mono text-xs" />
+                <Input
+                  id="post-call-function"
+                  value={f.callFunction}
+                  onChange={(e) => set({ callFunction: e.target.value })}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono text-xs"
+                />
               </FieldRow>
-              <LineRow label="Cap" note={isMainnet ? 'The total MON the call may send.' : 'nad.fun charges a 10 MON deploy fee on testnet.'} htmlFor="post-call-cap">
-                <Input id="post-call-cap" value={f.callCap} onChange={(e) => set({ callCap: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+
+              <LineRow
+                label="Cap"
+                note={isMainnet ? 'The total MON the call may send.' : 'nad.fun charges a 10 MON deploy fee on testnet.'}
+                htmlFor="post-call-cap"
+              >
+                <Input
+                  id="post-call-cap"
+                  value={f.callCap}
+                  onChange={(e) => set({ callCap: e.target.value })}
+                  inputMode="decimal"
+                  className="tabular w-20 text-right"
+                />
                 <span className="w-16 shrink-0 text-label-2">MON</span>
               </LineRow>
             </>
           ) : (
             <>
               <FieldRow label="Token" htmlFor="post-budget-token" hint="Any ERC-20 you hold; the reward tokens are suggested.">
-                <Input id="post-budget-token" value={f.budgetToken} onChange={(e) => set({ budgetToken: e.target.value })} list="post-advance-tokens" autoComplete="off" spellCheck={false} className="font-mono text-ui" />
+                <Input
+                  id="post-budget-token"
+                  value={f.budgetToken}
+                  onChange={(e) => set({ budgetToken: e.target.value })}
+                  list="post-advance-tokens"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono text-ui"
+                />
                 <datalist id="post-advance-tokens">
                   {rewardTokenList().map(([address, t]) => (
                     <option key={address} value={address}>
@@ -1011,15 +1391,24 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
                   ))}
                 </datalist>
               </FieldRow>
+
               <LineRow label="Cap" htmlFor="post-budget-cap">
-                <Input id="post-budget-cap" value={f.budgetCap} onChange={(e) => set({ budgetCap: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+                <Input
+                  id="post-budget-cap"
+                  value={f.budgetCap}
+                  onChange={(e) => set({ budgetCap: e.target.value })}
+                  inputMode="decimal"
+                  className="tabular w-20 text-right"
+                />
                 <span className="w-16 shrink-0 truncate text-label-2">{tokenInfo(f.budgetToken).symbol}</span>
               </LineRow>
             </>
           )}
-          <div className={cn(rowClass(), 'text-ui leading-snug text-label-2')}>
-            Nothing is locked for it: once the agent has started, you grant it on the job page as an on-chain permission from your wallet, and can revoke it any time.
-          </div>
+
+          <Item className={cn('text-ui leading-snug text-label-2')}>
+            Nothing is locked for it: once the agent has started, you grant it on the job page as an on-chain permission from your wallet,
+            and can revoke it any time.
+          </Item>
         </>
       )}
     </>

@@ -1,3 +1,5 @@
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './components/ui/empty.tsx'
+import { PageTitle } from './components/kit.tsx'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
 import { StrictMode } from 'react'
@@ -31,14 +33,18 @@ import { TelegramPage } from './routes/Telegram.tsx'
 import { useTokenRegistry } from './useTokens.ts'
 import { AgentNewPage } from './routes/AgentNew.tsx'
 import { HomePage } from './routes/Home.tsx'
-import { EmptyState, PageTitle } from './components/ui.tsx'
 
 function Layout() {
   const location = useLocation()
   useTokenRegistry()
   // The embedded widget (ADR-0008) has no site chrome: the host page is the chrome.
   if (location.pathname.startsWith('/embed/')) return <Outlet />
-  if (location.pathname === '/') return <LandingShell><Outlet /></LandingShell>
+  if (location.pathname === '/')
+    return (
+      <LandingShell>
+        <Outlet />
+      </LandingShell>
+    )
   return (
     <Shell>
       <Outlet />
@@ -51,9 +57,17 @@ function NotFoundPage() {
   return (
     <>
       <PageTitle>Page not found</PageTitle>
-      <EmptyState title="Nothing lives at this address">
-        <Link to="/jobs" className="text-tint">Browse jobs</Link>
-      </EmptyState>
+
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{'Nothing lives at this address'}</EmptyTitle>
+          <EmptyDescription>
+            <Link to="/jobs" className="text-tint">
+              Browse jobs
+            </Link>
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     </>
   )
 }
@@ -95,7 +109,15 @@ const agent = createRoute({
   component: AgentPage,
 })
 // The operator's own agents; each opens on its page, which carries the owner tabs.
-const agents = createRoute({ getParentRoute: () => root, path: '/agents', component: () => <LaunchGate title="Agents"><MyAgentsPage /></LaunchGate> })
+const agents = createRoute({
+  getParentRoute: () => root,
+  path: '/agents',
+  component: () => (
+    <LaunchGate title="Agents">
+      <MyAgentsPage />
+    </LaunchGate>
+  ),
+})
 // The worker directory, a tab of the Jobs area.
 const workers = createRoute({ getParentRoute: () => root, path: '/workers', component: AgentsPage })
 const connect = createRoute({
@@ -103,13 +125,22 @@ const connect = createRoute({
   path: '/connect',
   component: ConnectPage,
 })
-const agentNew = createRoute({ getParentRoute: () => root, path: '/agents/new', component: () => <LaunchGate title="Create an agent"><AgentNewPage /></LaunchGate> })
+const agentNew = createRoute({
+  getParentRoute: () => root,
+  path: '/agents/new',
+  component: () => (
+    <LaunchGate title="Create an agent">
+      <AgentNewPage />
+    </LaunchGate>
+  ),
+})
 const account = createRoute({ getParentRoute: () => root, path: '/account', component: AccountPage })
 // Backing is the protocol's, not a board's: one page for every board.
 const backing = createRoute({
   getParentRoute: () => root,
   path: '/backing',
-  validateSearch: (search: Record<string, unknown>): { account?: string } => typeof search.account === 'string' ? { account: search.account } : {},
+  validateSearch: (search: Record<string, unknown>): { account?: string } =>
+    typeof search.account === 'string' ? { account: search.account } : {},
   component: () => (
     <LaunchGate title="Back an agent">
       <BackingPage />

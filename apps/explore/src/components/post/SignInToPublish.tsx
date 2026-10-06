@@ -1,7 +1,9 @@
+import { Button } from '../ui/button.tsx'
+import { Alert, AlertDescription } from '../ui/alert.tsx'
 import { usePrivy } from '@privy-io/react-auth'
 import { useState } from 'react'
 import { privyAppId } from '../../wallet.ts'
-import { Button, ErrorText } from '../ui.tsx'
+
 import type { useSignedIn } from '../Wallet.tsx'
 
 type Auth = ReturnType<typeof useSignedIn>
@@ -34,7 +36,11 @@ export function SignInToPublish({ auth, label = 'Sign in to publish', className 
         >
           {label}
         </Button>
-        {error !== null && <ErrorText>{error}</ErrorText>}
+        {error !== null && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </span>
     )
   }

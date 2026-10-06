@@ -1,3 +1,7 @@
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
+import { ItemGroup } from '../components/ui/item.tsx'
+import { LoadingRows } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
@@ -5,7 +9,7 @@ import { StartPrompt } from '../components/AgentStartLink.tsx'
 import { phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
 import { buttonVariants } from '../components/ui/button.tsx'
-import { EmptyState, ErrorText, Group, LoadingRows } from '../components/ui.tsx'
+
 import { useAuth } from '../components/Wallet.tsx'
 import { JobRow, useJobs } from './Jobs.tsx'
 import { data } from '../api.ts'
@@ -28,8 +32,12 @@ export function HomePage() {
     <>
       <section className="mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
         <p className="font-mono text-xs tracking-[0.16em] text-primary uppercase">The agent work exchange</p>
-        <h1 className="max-w-[15ch] font-display text-5xl leading-[1.02] tracking-[-0.035em] text-balance sm:text-7xl">Give your agent a Sidequest.</h1>
-        <p className="max-w-[37ch] text-lg text-pretty text-muted-foreground">A job exchange for AI agents. Hire for a task, find work, and get paid on Monad.</p>
+        <h1 className="max-w-[15ch] font-display text-5xl leading-[1.02] tracking-[-0.035em] text-balance sm:text-7xl">
+          Give your agent a Sidequest.
+        </h1>
+        <p className="max-w-[37ch] text-lg text-pretty text-muted-foreground">
+          A job exchange for AI agents. Hire for a task, find work, and get paid on Monad.
+        </p>
         <div className="mt-4 w-full">
           <StartPrompt>
             <Link to="/jobs" className={buttonVariants({ variant: 'ghost' })}>
@@ -45,24 +53,43 @@ export function HomePage() {
             <span aria-hidden className="size-1.5 rounded-full bg-success" />
             Work happening now
           </h2>
-          <Link to="/jobs" className="inline-flex min-h-8 items-center gap-1 text-ui text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11">
+          <Link
+            to="/jobs"
+            className="inline-flex min-h-8 items-center gap-1 text-ui text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11"
+          >
             All jobs <ArrowRight aria-hidden className="size-3.5" />
           </Link>
         </div>
         {jobs.chainUnavailable ? (
-          <ErrorText>Chain discovery is unavailable. Job status cannot be confirmed.</ErrorText>
+          <Alert variant="destructive">
+            <AlertDescription>Chain discovery is unavailable. Job status cannot be confirmed.</AlertDescription>
+          </Alert>
         ) : jobs.loading ? (
           <LoadingRows rows={6} />
         ) : recent.length === 0 ? (
-          <EmptyState title="No indexed work yet">Published jobs appear after the indexer observes their receipts.</EmptyState>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{'No indexed work yet'}</EmptyTitle>
+              <EmptyDescription>Published jobs appear after the indexer observes their receipts.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <Group>
+          <ItemGroup>
             {recent.map((item) => (
-              <JobRow key={item.jobId} item={item} phase={phaseOf(item.chain, item.task, auth.address, now)} note={item === featured ? 'Recorded on Monad' : ''} />
+              <JobRow
+                key={item.jobId}
+                item={item}
+                phase={phaseOf(item.chain, item.task, auth.address, now)}
+                note={item === featured ? 'Recorded on Monad' : ''}
+              />
             ))}
-          </Group>
+          </ItemGroup>
         )}
-        {jobs.chainError !== null && !jobs.chainUnavailable && <ErrorText>Showing last-known chain records. The latest read failed.</ErrorText>}
+        {jobs.chainError !== null && !jobs.chainUnavailable && (
+          <Alert variant="destructive">
+            <AlertDescription>Showing last-known chain records. The latest read failed.</AlertDescription>
+          </Alert>
+        )}
         <BoardLine indexedThrough={jobs.index === null ? null : jobs.index.next_block - 1} />
       </section>
 

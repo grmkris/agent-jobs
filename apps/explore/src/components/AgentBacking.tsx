@@ -1,17 +1,19 @@
-import { Link } from "@tanstack/react-router";
-import type { Address } from "viem";
-import { useIndexedBacking } from "../delegation-query.ts";
-import { percent } from "../stake.ts";
-import { deployed } from "../wallet.ts";
-import { DELEGATION_RISK, factoryValue } from "./DelegationPositions.tsx";
-import { Countdown, useNow } from "./Time.tsx";
-import { Address as AddressText, Group, ListRow, LoadingRows, ErrorText, Section } from "./ui.tsx";
+import { Alert, AlertDescription } from './ui/alert.tsx'
+import { Item, ItemGroup, ItemContent, ItemActions } from './ui/item.tsx'
+import { Address as AddressText, LoadingRows, Section } from './kit.tsx'
+import { Link } from '@tanstack/react-router'
+import type { Address } from 'viem'
+import { useIndexedBacking } from '../delegation-query.ts'
+import { percent } from '../stake.ts'
+import { deployed } from '../wallet.ts'
+import { DELEGATION_RISK, factoryValue } from './DelegationPositions.tsx'
+import { Countdown, useNow } from './Time.tsx'
 
 export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Address | undefined }) {
-  const read = useIndexedBacking(wallet, viewer);
-  const now = useNow();
-  if (!deployed) return null;
-  const snapshot = read.data;
+  const read = useIndexedBacking(wallet, viewer)
+  const now = useNow()
+  if (!deployed) return null
+  const snapshot = read.data
   return (
     <Section
       title="Backing"
@@ -20,64 +22,66 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
       {read.isPending ? (
         <LoadingRows rows={3} />
       ) : read.isError || snapshot === undefined ? (
-        <ErrorText>This agent&apos;s backing index is unavailable right now.</ErrorText>
+        <Alert variant="destructive">
+          <AlertDescription>This agent&apos;s backing index is unavailable right now.</AlertDescription>
+        </Alert>
       ) : (
         <>
-          <Group>
-            <ListRow>
-              <span className="flex-1">Total backing</span>
+          <ItemGroup>
+            <Item>
+              <ItemContent className="flex-1">Total backing</ItemContent>
               <span className="tabular font-semibold">{factoryValue(snapshot.backing.assets)}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Active backing</span>
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Active backing</ItemContent>
               <span className="tabular">{factoryValue(snapshot.backing.active)}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Reserved by live jobs</span>
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Reserved by live jobs</ItemContent>
               <span className="tabular">{factoryValue(snapshot.backing.reserved)}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Available for new bonds</span>
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Available for new bonds</ItemContent>
               <span className="tabular">{factoryValue(snapshot.backing.available)}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Leaving</span>
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Leaving</ItemContent>
               <span className="tabular">{factoryValue(snapshot.backing.queued)}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Delegators</span>
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Delegators</ItemContent>
               <span className="tabular">{snapshot.delegatorCount}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Worker fee</span>
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Worker fee</ItemContent>
               <span className="tabular">{percent(snapshot.backing.tier.feeBps)}</span>
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Next fee tier</span>
-              <span className="tabular text-right">
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Next fee tier</ItemContent>
+              <ItemActions className="tabular flex-col items-end text-right">
                 {snapshot.backing.tier.nextThreshold === null
-                  ? "Lowest fee reached"
+                  ? 'Lowest fee reached'
                   : `${factoryValue(snapshot.backing.tier.needed)} more to pay ${percent(snapshot.backing.tier.nextFeeBps!)}`}
-              </span>
-            </ListRow>
-          </Group>
+              </ItemActions>
+            </Item>
+          </ItemGroup>
+
           {snapshot.topDelegators.length > 0 && (
             <Section title="Top delegators" className="mt-3">
-              <Group>
+              <ItemGroup>
                 {snapshot.topDelegators.map((position) => (
-                  <ListRow key={position.delegator}>
+                  <Item key={position.delegator}>
                     <AddressText value={position.delegator} />
-                    <span className="tabular ml-auto text-right">
+                    <ItemActions className="tabular ml-auto flex-col items-end text-right">
                       {factoryValue(position.value)}
-                      <span className="block text-xs text-label-2">
-                        {percent(position.shareBps)} of backing
-                      </span>
-                    </span>
-                  </ListRow>
+                      <span className="block text-xs text-label-2">{percent(position.shareBps)} of backing</span>
+                    </ItemActions>
+                  </Item>
                 ))}
-              </Group>
+              </ItemGroup>
             </Section>
           )}
+
           {snapshot.position !== null && (
             <div className="mt-2 grid gap-1 rounded-xl bg-tint/10 p-4">
               <p className="text-sm font-semibold">Your position</p>
@@ -86,20 +90,21 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
               </p>
               {snapshot.position.queuedShares > 0n && (
                 <p className="text-sm text-label-2">
-                  {factoryValue(snapshot.position.queued)} leaving ·{" "}
+                  {factoryValue(snapshot.position.queued)} leaving ·{' '}
                   {snapshot.position.unlockAt > now ? (
                     <Countdown to={snapshot.position.unlockAt} />
-                  ) : snapshot.backing.assets - snapshot.position.queued <
-                    snapshot.backing.reserved ? (
-                    "Waiting for bonds to clear"
+                  ) : snapshot.backing.assets - snapshot.position.queued < snapshot.backing.reserved ? (
+                    'Waiting for bonds to clear'
                   ) : (
-                    "Ready to withdraw"
+                    'Ready to withdraw'
                   )}
                 </p>
               )}
             </div>
           )}
+
           <p className="mt-3 text-sm leading-relaxed text-label-2">{DELEGATION_RISK}</p>
+
           <Link
             to="/backing"
             search={{ account: wallet }}
@@ -110,5 +115,5 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
         </>
       )}
     </Section>
-  );
+  )
 }

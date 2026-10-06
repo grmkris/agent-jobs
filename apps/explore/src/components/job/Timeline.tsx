@@ -1,3 +1,5 @@
+import { cn } from '../../lib/cn.ts'
+import { TxLink } from '../kit.tsx'
 /**
  * A job's story as steps: what happened on-chain (from the indexer's timeline, with block times and transactions)
  * and what comes next (from the shared lifecycle model, with its deadline). Protocol bookkeeping events are folded
@@ -9,7 +11,6 @@ import { type Hex, hexToString } from 'viem'
 import { amount, bond } from '../../format.ts'
 import { Sentence } from '../Phase.tsx'
 import { When } from '../Time.tsx'
-import { TxLink, cn } from '../ui.tsx'
 
 export interface TimelineEvent {
   name: string
@@ -69,7 +70,13 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'done', title: `Posted · ${amount(String(a.reward ?? job.reward ?? '0'), job.token)} locked in escrow`, at, tx })
         break
       case 'Activated':
-        steps.push({ mark: 'done', title: `Agent #${String(a.agentId)} started`, sub: String(a.workerBond ?? '0') !== '0' ? `Reserved its ${bond(String(a.workerBond))} bond from stake` : undefined, at, tx })
+        steps.push({
+          mark: 'done',
+          title: `Agent #${String(a.agentId)} started`,
+          sub: String(a.workerBond ?? '0') !== '0' ? `Reserved its ${bond(String(a.workerBond))} bond from stake` : undefined,
+          at,
+          tx,
+        })
         break
       case 'ToppedUp':
         steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} added to the reward`, at, tx })
@@ -80,7 +87,13 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         break
       }
       case 'EvidenceAttached':
-        steps.push({ mark: Number(a.conclusion) === 1 ? 'done' : 'warn', title: Number(a.conclusion) === 1 ? 'Required check passed' : 'Required check failed', sub: 'Signed attestation of the GitHub check run', at, tx })
+        steps.push({
+          mark: Number(a.conclusion) === 1 ? 'done' : 'warn',
+          title: Number(a.conclusion) === 1 ? 'Required check passed' : 'Required check failed',
+          sub: 'Signed attestation of the GitHub check run',
+          at,
+          tx,
+        })
         break
       case 'Rejected':
         steps.push({ mark: 'warn', title: `Rejected ${VIOLATION[Number(a.violation)] ?? ''}`.trim(), at, tx })
@@ -92,7 +105,12 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({
           mark: a.forWorker === true ? 'done' : 'fail',
           title: a.forWorker === true ? `The arbitrator ruled for ${agent}` : 'The arbitrator ruled for the creator',
-          sub: a.slashLoser === true ? (a.forWorker === true ? "Bad-faith rejection: the creator's bond is burned" : "The agent's bond is burned") : undefined,
+          sub:
+            a.slashLoser === true
+              ? a.forWorker === true
+                ? "Bad-faith rejection: the creator's bond is burned"
+                : "The agent's bond is burned"
+              : undefined,
           at,
           tx,
         })
@@ -111,7 +129,15 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
       case 'RewardSettled':
         // A completed job's agent was paid by the core already (PaymentReleased); a paid settlement adds the top-ups.
         if (String(a.amount) === '0') break
-        steps.push({ mark: 'done', title: Number(a.outcome) === PAID ? `${amount(String(a.amount), job.token)} paid to ${agent}` : `${amount(String(a.amount), job.token)} returned to the creator`, at, tx })
+        steps.push({
+          mark: 'done',
+          title:
+            Number(a.outcome) === PAID
+              ? `${amount(String(a.amount), job.token)} paid to ${agent}`
+              : `${amount(String(a.amount), job.token)} returned to the creator`,
+          at,
+          tx,
+        })
         break
       case 'FeeCharged':
         steps.push({ mark: 'done', title: `Sidequest's fee: ${amount(String(a.amount), job.token)}`, at, tx })
@@ -126,10 +152,22 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'fail', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} bond slashed`, at, tx })
         break
       case 'PayoutDeferred':
-        steps.push({ mark: 'warn', title: 'Payout held: the transfer could not go through', sub: a.refundedToHolding === true ? 'The reward is back in escrow; anyone can retry the payout.' : 'Anyone can retry the payout.', at, tx })
+        steps.push({
+          mark: 'warn',
+          title: 'Payout held: the transfer could not go through',
+          sub: a.refundedToHolding === true ? 'The reward is back in escrow; anyone can retry the payout.' : 'Anyone can retry the payout.',
+          at,
+          tx,
+        })
         break
       case 'PayoutOwed':
-        steps.push({ mark: 'warn', title: `${amount(String(a.amount), job.token)} owed: the transfer failed`, sub: 'The recipient withdraws it from the contract.', at, tx })
+        steps.push({
+          mark: 'warn',
+          title: `${amount(String(a.amount), job.token)} owed: the transfer failed`,
+          sub: 'The recipient withdraws it from the contract.',
+          at,
+          tx,
+        })
         break
       case 'Cancelled':
         steps.push({ mark: 'fail', title: 'Cancelled before anyone started', at, tx })
@@ -154,9 +192,19 @@ function nextSteps(phase: Phase | null): Step[] {
   switch (phase.key) {
     case 'draft':
     case 'draft-stale':
-      return [now('Publish: the reward is locked in escrow'), { mark: 'next', title: 'An agent starts' }, { mark: 'next', title: 'Delivered and reviewed' }, { mark: 'next', title: 'Paid' }]
+      return [
+        now('Publish: the reward is locked in escrow'),
+        { mark: 'next', title: 'An agent starts' },
+        { mark: 'next', title: 'Delivered and reviewed' },
+        { mark: 'next', title: 'Paid' },
+      ]
     case 'hire-open':
-      return [now('Taking applications'), { mark: 'next', title: 'An agent starts' }, { mark: 'next', title: 'Delivered and reviewed' }, { mark: 'next', title: 'Paid' }]
+      return [
+        now('Taking applications'),
+        { mark: 'next', title: 'An agent starts' },
+        { mark: 'next', title: 'Delivered and reviewed' },
+        { mark: 'next', title: 'Paid' },
+      ]
     case 'active':
       return [now('Working on it'), { mark: 'next', title: 'Delivered and reviewed' }, { mark: 'next', title: 'Paid' }]
     case 'in-review':
@@ -176,8 +224,16 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
   return (
     <ol className="grid rounded-xl bg-surface px-4 pt-3.5 pb-1">
       {steps.map((s, i) => (
-        <li key={`${i}-${s.title}`} className="relative grid min-w-0 grid-cols-[1.375rem_minmax(0,1fr)] gap-x-3 pb-4 sm:grid-cols-[1.375rem_minmax(0,1fr)_auto]">
-          {i < steps.length - 1 && <span aria-hidden className={cn('absolute top-6 bottom-0 left-[0.625rem] w-0.5', s.mark === 'done' ? 'bg-tint/45' : 'bg-sep')} />}
+        <li
+          key={`${i}-${s.title}`}
+          className="relative grid min-w-0 grid-cols-[1.375rem_minmax(0,1fr)] gap-x-3 pb-4 sm:grid-cols-[1.375rem_minmax(0,1fr)_auto]"
+        >
+          {i < steps.length - 1 && (
+            <span
+              aria-hidden
+              className={cn('absolute top-6 bottom-0 left-[0.625rem] w-0.5', s.mark === 'done' ? 'bg-tint/45' : 'bg-sep')}
+            />
+          )}
           <Dot mark={s.mark} />
           <span className="min-w-0 [overflow-wrap:anywhere]">
             <span className={cn('block leading-snug font-medium', s.mark === 'next' && 'font-normal text-label-2')}>{s.title}</span>
@@ -193,7 +249,9 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
               </span>
             )}
           </span>
-          <span className="col-start-2 min-w-0 text-ui text-label-2 sm:col-start-auto sm:text-right">{s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}</span>
+          <span className="col-start-2 min-w-0 text-ui text-label-2 sm:col-start-auto sm:text-right">
+            {s.at !== undefined && s.at !== null && <When at={s.at} show={s.mark === 'now' ? 'relative' : 'time'} />}
+          </span>
         </li>
       ))}
     </ol>
@@ -202,9 +260,29 @@ export function Timeline({ events, job, phase }: { events: TimelineEvent[]; job:
 
 function Dot({ mark }: { mark: Mark }) {
   const base = 'relative z-10 mt-0.5 grid size-[1.375rem] place-items-center rounded-full'
-  if (mark === 'done') return <span className={cn(base, 'bg-tint text-on-tint')}><Check aria-hidden className="size-3" strokeWidth={3.5} /></span>
-  if (mark === 'fail') return <span className={cn(base, 'bg-bad text-background')}><X aria-hidden className="size-3" strokeWidth={3.5} /></span>
-  if (mark === 'warn') return <span className={cn(base, 'bg-warn text-background')}><AlertTriangle aria-hidden className="size-3" strokeWidth={3} /></span>
-  if (mark === 'now') return <span className={cn(base, 'bg-surface ring-2 ring-tint ring-inset')}><span className="size-2 rounded-full bg-tint" /></span>
+  if (mark === 'done')
+    return (
+      <span className={cn(base, 'bg-tint text-on-tint')}>
+        <Check aria-hidden className="size-3" strokeWidth={3.5} />
+      </span>
+    )
+  if (mark === 'fail')
+    return (
+      <span className={cn(base, 'bg-bad text-background')}>
+        <X aria-hidden className="size-3" strokeWidth={3.5} />
+      </span>
+    )
+  if (mark === 'warn')
+    return (
+      <span className={cn(base, 'bg-warn text-background')}>
+        <AlertTriangle aria-hidden className="size-3" strokeWidth={3} />
+      </span>
+    )
+  if (mark === 'now')
+    return (
+      <span className={cn(base, 'bg-surface ring-2 ring-tint ring-inset')}>
+        <span className="size-2 rounded-full bg-tint" />
+      </span>
+    )
   return <span className={cn(base, 'bg-fill-strong')} />
 }

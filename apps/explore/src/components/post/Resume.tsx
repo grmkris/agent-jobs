@@ -1,3 +1,9 @@
+import { Badge } from '../ui/badge.tsx'
+import { Button } from '../ui/button.tsx'
+import { Alert, AlertDescription } from '../ui/alert.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../ui/empty.tsx'
+import { Item, ItemGroup, ItemContent } from '../ui/item.tsx'
+import { CopyButton, LoadingRows, PageTitle, Section } from '../kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { Lock } from 'lucide-react'
 import { useState } from 'react'
@@ -8,7 +14,7 @@ import { BoardLink, boardRoutes, useBoardNavigate } from '../BoardLink.tsx'
 import { useToast } from '../Sheet.tsx'
 import { When, useNow } from '../Time.tsx'
 import { TxSteps } from '../TxSteps.tsx'
-import { Badge, Button, CopyButton, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, rowClass } from '../ui.tsx'
+
 import type { useSignedIn } from '../Wallet.tsx'
 import { KV } from './parts.tsx'
 import { Preflight } from './Preflight.tsx'
@@ -36,18 +42,35 @@ interface SavedOffer {
   terms: { brief?: string; acceptanceCriteria?: string[]; evidencePolicy?: { checks?: string[] } | null }
 }
 
-const KIND_LABEL: Record<DeliverableKind, string> = { git: 'Git commit', patch: 'Patch', artifact: 'File', url: 'Live URL', onchain: 'On-chain' }
+const KIND_LABEL: Record<DeliverableKind, string> = {
+  git: 'Git commit',
+  patch: 'Patch',
+  artifact: 'File',
+  url: 'Live URL',
+  onchain: 'On-chain',
+}
 
 /**
  * An offer the board froze that never reached the chain (`?resume=<taskId>`, linked from the drafts in Jobs): shown as
  * agents will see it, with its screening, and published by its creator through the board's `publish_transactions`,
  * which hands out the approvals and the publish again (a terms hash lists once, so it cannot publish twice).
  */
-export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; auth: Auth; onPublished?: ((p: { taskId: string; jobId: string | null; txHash: string | null }) => void) | undefined }) {
+export function ResumeOffer({
+  taskId,
+  auth,
+  onPublished,
+}: {
+  taskId: string
+  auth: Auth
+  onPublished?: ((p: { taskId: string; jobId: string | null; txHash: string | null }) => void) | undefined
+}) {
   const navigate = useBoardNavigate()
   const toast = useToast()
   const now = useNow()
-  const task = useQuery({ queryKey: ['resume-offer', currentBoardId(), taskId, auth.signedIn], queryFn: () => tool<SavedOffer>('get_task', { taskId }) })
+  const task = useQuery({
+    queryKey: ['resume-offer', currentBoardId(), taskId, auth.signedIn],
+    queryFn: () => tool<SavedOffer>('get_task', { taskId }),
+  })
   const [txs, setTxs] = useState<TxRequest[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,13 +83,17 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
       <BoardLink target={boardRoutes().publish()} className="text-sm text-tint">
         Post a new job instead
       </BoardLink>
-      <PageTitle sub={t !== undefined && t.jobId === null ? <Badge tone="attention">Not published yet</Badge> : undefined}>{t?.title ?? 'A saved offer'}</PageTitle>
+
+      <PageTitle sub={t !== undefined && t.jobId === null ? <Badge variant="warning">Not published yet</Badge> : undefined}>
+        {t?.title ?? 'A saved offer'}
+      </PageTitle>
     </>
   )
   if (task.isLoading) {
     return (
       <>
         {header}
+
         <LoadingRows rows={4} />
       </>
     )
@@ -75,7 +102,12 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
     return (
       <>
         {header}
-        <ErrorText>This offer could not be loaded: {(task.error as Error | null)?.message ?? 'it was not found on this board'}.</ErrorText>
+
+        <Alert variant="destructive">
+          <AlertDescription>
+            This offer could not be loaded: {(task.error as Error | null)?.message ?? 'it was not found on this board'}.
+          </AlertDescription>
+        </Alert>
       </>
     )
   }
@@ -83,7 +115,13 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
     return (
       <>
         {header}
-        <EmptyState title="This offer is on an earlier contract">It can no longer be published. Post the job again.</EmptyState>
+
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'This offer is on an earlier contract'}</EmptyTitle>
+            <EmptyDescription>It can no longer be published. Post the job again.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </>
     )
   }
@@ -91,11 +129,17 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
     return (
       <>
         {header}
-        <EmptyState title="Already published">
-          <BoardLink target={boardRoutes().job(t.jobId)} className="text-tint">
-            Open job #{t.jobId}
-          </BoardLink>
-        </EmptyState>
+
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'Already published'}</EmptyTitle>
+            <EmptyDescription>
+              <BoardLink target={boardRoutes().job(t.jobId)} className="text-tint">
+                Open job #{t.jobId}
+              </BoardLink>
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </>
     )
   }
@@ -134,25 +178,28 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
   return (
     <>
       {header}
+
       <Section title="What agents will see">
-        <Group>
-          <ListRow>
-            <span className="grid min-w-0 gap-1 py-1">
+        <ItemGroup>
+          <Item>
+            <ItemContent className="grid min-w-0 gap-1 py-1">
               <span className="font-semibold [overflow-wrap:anywhere]">{t.title}</span>
-              <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">{t.terms.brief ?? ''}</span>
-            </span>
-          </ListRow>
+              <span className="text-sm leading-relaxed whitespace-pre-wrap text-label-2 [overflow-wrap:anywhere]">
+                {t.terms.brief ?? ''}
+              </span>
+            </ItemContent>
+          </Item>
           {criteria.length > 0 && (
-            <ListRow>
-              <span className="grid min-w-0 gap-1 py-1">
+            <Item>
+              <ItemContent className="grid min-w-0 gap-1 py-1">
                 <span className="text-ui text-label-2">Accepted when</span>
                 <ul className="grid list-disc gap-0.5 pl-5 text-sm [overflow-wrap:anywhere]">
                   {criteria.map((c, i) => (
                     <li key={`${i}-${c}`}>{c}</li>
                   ))}
                 </ul>
-              </span>
-            </ListRow>
+              </ItemContent>
+            </Item>
           )}
           <KV label="How agents compete">Direct hire</KV>
           <KV label="Reward">
@@ -169,9 +216,13 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
           )}
           <KV label="Bonds">{`${bond(t.creatorBond)} reserved from your stake · at least ${bond(t.workerBond)} from the agent's`}</KV>
           {t.executionBudget !== null && (
-            <KV label="Running-cost budget">{t.executionBudget.kind === 'call' ? `Up to ${t.executionBudget.amount} ${t.executionBudget.symbol} for one contract call` : `Up to ${t.executionBudget.amount} ${t.executionBudget.symbol}`}</KV>
+            <KV label="Running-cost budget">
+              {t.executionBudget.kind === 'call'
+                ? `Up to ${t.executionBudget.amount} ${t.executionBudget.symbol} for one contract call`
+                : `Up to ${t.executionBudget.amount} ${t.executionBudget.symbol}`}
+            </KV>
           )}
-        </Group>
+        </ItemGroup>
       </Section>
 
       <ScreeningCard screening={t.screening} />
@@ -181,10 +232,18 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
           <SignInToPublish auth={auth} />
         </Section>
       ) : !mine ? (
-        <EmptyState title="Not your offer">Only the person who prepared this offer can publish it. You can post a job of your own from Post.</EmptyState>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'Not your offer'}</EmptyTitle>
+            <EmptyDescription>
+              Only the person who prepared this offer can publish it. You can post a job of your own from Post.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <>
           <Preflight address={auth.address} token={t.token} reward={BigInt(t.reward)} bond={BigInt(t.creatorBond)} />
+
           <div className="flex items-center gap-3.5 rounded-xl bg-surface p-4">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint/14 text-tint">
               <Lock aria-hidden className="size-5" />
@@ -196,31 +255,53 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
               </span>
             </span>
           </div>
+
           {lapsed && (
             <p className="rounded-xl bg-warn-bg px-4 py-3 text-sm text-warn">
               Its delivery deadline has passed, so it can no longer be published. Post the job again with new dates.
             </p>
           )}
-          {error !== null && <ErrorText>{error}</ErrorText>}
-          <Section title="Publish" note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay.">
-            {txs !== null ? <TxSteps key={taskId} taskId={taskId} txs={txs} owner={t.creator} canSend={!lapsed && mine} onDone={(hashes) => void published(hashes)} /> : <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>Prepare wallet steps</Button>}
+
+          {error !== null && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <Section
+            title="Publish"
+            note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay."
+          >
+            {txs !== null ? (
+              <TxSteps
+                key={taskId}
+                taskId={taskId}
+                txs={txs}
+                owner={t.creator}
+                canSend={!lapsed && mine}
+                onDone={(hashes) => void published(hashes)}
+              />
+            ) : (
+              <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>
+                Prepare wallet steps
+              </Button>
+            )}
           </Section>
         </>
       )}
 
       <Section title="Details">
-        <Group>
-          <div className={rowClass()}>
-            <span className="flex-1">Offer ID</span>
-            <span className="font-mono text-ui text-label-2">{t.taskId}</span>
+        <ItemGroup>
+          <Item>
+            <ItemContent className="flex-1">Offer ID</ItemContent>
+            <ItemContent className="font-mono text-ui text-label-2">{t.taskId}</ItemContent>
             <CopyButton value={t.taskId} label="Copy offer ID" />
-          </div>
-          <a href={t.manifestUrl} target="_blank" rel="noreferrer" className={`${rowClass({ interactive: true })} text-tint`}>
+          </Item>
+          <Item render={<a href={t.manifestUrl} target="_blank" rel="noreferrer" />} className={`text-tint`}>
             The full terms, as agents read them
-          </a>
-        </Group>
+          </Item>
+        </ItemGroup>
       </Section>
-
     </>
   )
 }

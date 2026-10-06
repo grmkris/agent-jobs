@@ -1,0 +1,256 @@
+/** App-only compositions over the vendored base-nova components. */
+import { Check, ChevronRight, Copy, ExternalLink } from 'lucide-react'
+import { type ReactNode, type SelectHTMLAttributes, useState } from 'react'
+import { amount as formatAmount } from '../format.ts'
+import { explorer } from '../wallet.ts'
+import { selectRadio } from './radio.ts'
+import { cn } from '../lib/cn.ts'
+import { Badge } from './ui/badge.tsx'
+import { Button } from './ui/button.tsx'
+import { Item, ItemGroup, ItemContent } from './ui/item.tsx'
+import { Skeleton } from './ui/skeleton.tsx'
+
+const FIELD =
+  'w-full min-w-0 min-h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors duration-(--dur-fast) outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm pointer-coarse:min-h-11'
+
+/** A titled block: a quiet header above a surface, and an optional footnote below it. */
+export function Section({
+  title,
+  note,
+  children,
+  className,
+  action,
+}: {
+  title?: ReactNode
+  note?: ReactNode
+  children: ReactNode
+  className?: string
+  action?: ReactNode
+}) {
+  return (
+    <section className={cn('grid min-w-0 content-start gap-2', className)}>
+      {(title !== undefined || action !== undefined) && (
+        <div className="flex min-h-6 items-center justify-between gap-3 px-1">
+          {title !== undefined && <h2 className="text-ui font-medium text-muted-foreground">{title}</h2>}
+          {action}
+        </div>
+      )}
+      {children}
+      {note !== undefined && <p className="px-1 text-ui text-muted-foreground">{note}</p>}
+    </section>
+  )
+}
+
+/** A label and its value on one row. */
+export function Row({ label, children, hint }: { label: ReactNode; children: ReactNode; hint?: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        '-mx-4 flex min-h-10 items-center justify-between gap-4 px-4 py-2 text-sm first:-mt-2 last:-mb-2 pointer-coarse:min-h-11',
+      )}
+    >
+      <span className="min-w-0">
+        <span className="text-foreground">{label}</span>
+        {hint !== undefined && <span className="block text-xs text-muted-foreground">{hint}</span>}
+      </span>
+      <span className="min-w-0 text-right text-muted-foreground [overflow-wrap:anywhere]">{children}</span>
+    </div>
+  )
+}
+
+/** Copies `value` and shows a check for a moment; falls back to selecting nothing when the clipboard is refused. */
+export function CopyButton({ value, label = 'Copy', className }: { value: string; label?: string; className?: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={label}
+      title={label}
+      onClick={() => {
+        void navigator.clipboard.writeText(value).then(
+          () => {
+            setDone(true)
+            setTimeout(() => setDone(false), 1400)
+          },
+          () => undefined,
+        )
+      }}
+      className={cn(
+        'inline-grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-(--dur-fast) active:bg-muted pointer-coarse:size-11 [@media(hover:hover)]:hover:bg-muted [@media(hover:hover)]:hover:text-foreground',
+        done && 'text-success-text',
+        className,
+      )}
+    >
+      {done ? <Check data-icon="inline-start" strokeWidth={2.5} /> : <Copy data-icon="inline-start" />}
+    </Button>
+  )
+}
+
+export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
+
+/** An address: shortened, linked to the explorer, copyable. */
+export function Address({ value, you = false }: { value: string | null | undefined; you?: boolean }) {
+  if (value === null || value === undefined) return <span className="text-muted-foreground">—</span>
+  return (
+    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center justify-end gap-0.5 font-mono text-ui">
+      <a
+        href={explorer('address', value)}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex min-h-8 items-center text-muted-foreground hover:text-foreground pointer-coarse:min-h-11"
+      >
+        {shortAddress(value)}
+      </a>
+      {you && (
+        <Badge variant="info" className="ml-1 font-sans">
+          You
+        </Badge>
+      )}
+      <CopyButton value={value} label="Copy address" />
+    </span>
+  )
+}
+
+export function TxLink({ hash, label }: { hash: string | null | undefined; label?: string }) {
+  if (hash === null || hash === undefined) return null
+  return (
+    // py-3.5 -my-3.5: a 44 px target that takes no more room in its line.
+    <a
+      href={explorer('tx', hash)}
+      target="_blank"
+      rel="noreferrer"
+      className="-my-3.5 inline-flex items-center gap-1 py-3.5 font-mono text-ui text-muted-foreground underline decoration-current/30 underline-offset-4 hover:text-foreground"
+    >
+      {label ?? `${hash.slice(0, 10)}…`}
+      <ExternalLink aria-hidden className="size-3" />
+    </a>
+  )
+}
+
+/** An amount in a token, with tabular figures. */
+export function Amount({
+  value,
+  token,
+  className,
+}: {
+  value: string | null | undefined
+  token: string | null | undefined
+  className?: string
+}) {
+  return <span className={cn('tabular-nums font-medium whitespace-nowrap', className)}>{formatAmount(value, token)}</span>
+}
+
+/** A link in running text: the primary is near-black, so the underline is what says "link". */
+export const textLinkClass =
+  'text-foreground underline decoration-foreground/30 underline-offset-4 transition-colors duration-(--dur-fast) hover:decoration-foreground'
+
+/** A native <select>: a portalled Base UI menu would sit below a modal <dialog> sheet's top layer. */
+export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select data-slot="select" {...props} className={cn(FIELD, 'appearance-auto pr-8', className)}>
+      {children}
+    </select>
+  )
+}
+
+/** The segmented control (a radiogroup): base-nova's tabs-list look, iOS semantics. */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  className,
+  label,
+}: {
+  value: T
+  options: ReadonlyArray<readonly [T, ReactNode]>
+  onChange: (v: T) => void
+  className?: string
+  label?: string
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className={cn('flex min-w-0 flex-wrap gap-0.5 rounded-lg bg-muted p-[3px]', className)}>
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          tabIndex={value === v ? 0 : -1}
+          onClick={() => onChange(v)}
+          onKeyDown={(event) =>
+            selectRadio(
+              event,
+              options.findIndex(([option]) => option === v),
+              options.length,
+              (index) => onChange(options[index]![0]),
+            )
+          }
+          className={cn(
+            'min-h-8 min-w-min flex-1 rounded-md px-2.5 py-1 text-ui font-medium break-words transition-[background-color,color,box-shadow] duration-(--dur-fast) pointer-coarse:min-h-11',
+            value === v
+              ? 'bg-background text-foreground shadow-sm ring-1 ring-foreground/5'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Rows of placeholder while a list loads, so loading never reads as "empty". */
+export function LoadingRows({ rows = 3 }: { rows?: number }) {
+  return (
+    <ItemGroup>
+      {Array.from({ length: rows }, (_, i) => (
+        <Item key={i}>
+          <ItemContent className="gap-2 py-1">
+            <Skeleton className="h-3.5 w-3/5" />
+            <Skeleton className="h-3 w-2/5" />
+          </ItemContent>
+        </Item>
+      ))}
+    </ItemGroup>
+  )
+}
+
+/** The page's title: one size step up, semibold, tight; the sub line carries status and context. */
+export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
+  return (
+    <header className="grid gap-1">
+      <h1 className="text-2xl leading-tight font-semibold tracking-tight">{children}</h1>
+      {sub !== undefined && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{sub}</div>}
+    </header>
+  )
+}
+
+/**
+ * Advanced detail kept out of the main path (0x addresses, 7702, delegation, raw allowance): a native disclosure, so
+ * it works without script and tests can find it by its summary text.
+ */
+export function Details({
+  summary,
+  children,
+  className,
+  open,
+}: {
+  summary: ReactNode
+  children: ReactNode
+  className?: string
+  open?: boolean
+}) {
+  return (
+    <details open={open} className={cn('group/details rounded-xl bg-card ring-1 ring-foreground/10', className)}>
+      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-4 text-sm font-medium select-none pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          aria-hidden
+          className="size-4 text-muted-foreground transition-transform duration-(--dur-fast) group-open/details:rotate-90"
+        />
+        {summary}
+      </summary>
+      <div className="grid gap-3 px-4 pt-1 pb-4">{children}</div>
+    </details>
+  )
+}

@@ -1,3 +1,6 @@
+import { Button } from './ui/button.tsx'
+import { cn } from '../lib/cn.ts'
+import { textLinkClass } from './kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, ChevronsUpDown, Plus } from 'lucide-react'
@@ -6,8 +9,16 @@ import { type BoardInfo, data } from '../api.ts'
 import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { Sheet } from './Sheet.tsx'
 import { buttonVariants } from './ui/button.tsx'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu.tsx'
-import { Button, cn, textLinkClass } from './ui.tsx'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu.tsx'
+
 import { useAuth } from './Wallet.tsx'
 
 export type JobsArea = 'jobs' | 'quotes' | 'workers'
@@ -15,7 +26,8 @@ export type JobsArea = 'jobs' | 'quotes' | 'workers'
 const TITLE: Record<JobsArea, string> = { jobs: 'Jobs', quotes: 'Quote requests', workers: 'Workers' }
 
 /** Every hosted board (ADR-0008), shared with the Boards page. */
-export const useBoards = () => useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
+export const useBoards = () =>
+  useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
 
 /**
  * The Jobs area's header, shared by its three pages: the page title with the board it shows, Post a job, and the
@@ -39,7 +51,7 @@ export function JobsHeader({ current }: { current: JobsArea }) {
         </div>
         <div className="flex items-center gap-2">
           {address === undefined && (
-            <Button variant="gray" size="sm" onClick={() => setHow(true)}>
+            <Button variant="secondary" size="sm" onClick={() => setHow(true)}>
               How it works
             </Button>
           )}
@@ -76,7 +88,8 @@ function BoardSwitcher() {
   const navigate = useNavigate()
   const list = boards.data?.boards ?? []
   const name = boardId === 'public' ? 'Public board' : (list.find((b) => b.id === boardId)?.name ?? boardId)
-  const go = (id: string) => (id === 'public' ? void navigate({ to: '/jobs' }) : void navigate({ to: '/b/$boardId', params: { boardId: id } }))
+  const go = (id: string) =>
+    id === 'public' ? void navigate({ to: '/jobs' }) : void navigate({ to: '/b/$boardId', params: { boardId: id } })
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -109,7 +122,10 @@ function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['You post a task', 'The reward is locked in escrow on Monad, not held by Sidequest.'],
     ['An AI agent takes it', 'It puts down a deposit it loses if it misses the deadline or cheats.'],
     ['It delivers', 'A commit, a live URL or a file, checked when it is submitted.'],
-    ['You approve, or say nothing', 'Approval pays it. Silence past the review window also pays it. A rejection can be disputed before a neutral arbitrator.'],
+    [
+      'You approve, or say nothing',
+      'Approval pays it. Silence past the review window also pays it. A rejection can be disputed before a neutral arbitrator.',
+    ],
   ] as const
   return (
     <Sheet open={open} onClose={onClose} title="How Sidequest works">

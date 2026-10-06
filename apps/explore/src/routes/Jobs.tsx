@@ -1,3 +1,9 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { ItemGroup, Item, ItemTitle, ItemContent, ItemActions } from '../components/ui/item.tsx'
+import { LoadingRows, Segmented } from '../components/kit.tsx'
 import type { Phase } from '@sidequest/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -9,7 +15,7 @@ import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 import { NeedsYou } from '../components/NeedsYou.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Badge, Button, EmptyState, ErrorText, Group, LoadingRows, Segmented, rowClass } from '../components/ui.tsx'
+
 import { Monogram, useAuth } from '../components/Wallet.tsx'
 import { amount, relative } from '../format.ts'
 import { useToken } from '../useTokens.ts'
@@ -21,14 +27,31 @@ export interface JobListItem {
 }
 
 /** Stable, so useQueries keeps the combined array until one of the lists changes. */
-const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) => results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
+const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) =>
+  results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
 
 export function useJobs() {
-  const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => taskIndex(), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
+  const tasks = useQuery({
+    queryKey: ['task_index', currentBoardId()],
+    queryFn: () => taskIndex(),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  })
   const boardId = currentBoardId()
-  const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => chainJobs(boardId), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
+  const chain = useQuery({
+    queryKey: ['chain-jobs', boardId],
+    queryFn: () => chainJobs(boardId),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  })
   // The public list also shows jobs published on other boards; their titles and board state come from those boards.
-  const others = useMemo(() => [...new Set((chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])))].toSorted(), [chain.data, boardId])
+  const others = useMemo(
+    () =>
+      [...new Set((chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])))].toSorted(),
+    [chain.data, boardId],
+  )
   const otherData = useQueries({
     queries: others.map((id) => ({ queryKey: ['task_index', id], queryFn: () => taskIndex(id), refetchInterval: 60_000 })),
     combine: dataOf,
@@ -60,7 +83,9 @@ export function useJobs() {
     chainReady: chain.data !== undefined,
     chainUpdatedAt: chain.dataUpdatedAt,
     chainUnavailable: chain.error !== null && chain.data === undefined,
-    refetch: async () => { await Promise.all([tasks.refetch(), chain.refetch(), ...otherData.map((result) => result.refetch())]) },
+    refetch: async () => {
+      await Promise.all([tasks.refetch(), chain.refetch(), ...otherData.map((result) => result.refetch())])
+    },
   }
 }
 
@@ -140,7 +165,8 @@ export function JobsPage() {
     [items, me, address, minute],
   )
   const mine = (i: JobListItem) =>
-    me !== undefined && [i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some((a) => a?.toLowerCase() === me)
+    me !== undefined &&
+    [i.chain?.creator, i.chain?.approver, i.chain?.worker, i.task?.creator, i.task?.approver].some((a) => a?.toLowerCase() === me)
   const counts = { all: rows.length, open: 0, progress: 0, done: 0, mine: 0 }
   for (const r of rows) {
     const category = viewOf(r.phase)
@@ -164,8 +190,9 @@ export function JobsPage() {
   return (
     <>
       <JobsHeader current="jobs" />
+
       <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:items-center">
-        <label className="flex min-h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-muted-foreground transition-colors duration-(--dur-fast) focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:min-h-11 dark:bg-input/30">
+        <label className="flex min-h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-muted-foreground transition-colors duration-(--dur-fast) focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 pointer-coarse:min-h-11">
           <Search aria-hidden className="size-4 shrink-0" />
           <input
             value={q}
@@ -179,46 +206,105 @@ export function JobsPage() {
           label="Which jobs"
           value={view}
           onChange={(v) => setFilter({ view: v, q })}
-          options={views.map(([v, l]) => [v, <span key={v}>{l} <span className="tabular text-label-3">{chainReady ? counts[v] : '—'}</span></span>] as const)}
+          options={views.map(
+            ([v, l]) =>
+              [
+                v,
+                <span key={v}>
+                  {l} <span className="tabular text-label-3">{chainReady ? counts[v] : '—'}</span>
+                </span>,
+              ] as const,
+          )}
         />
       </div>
+
       {(chainError !== null || boardError !== null) && (
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
-          {chainError !== null && <p>Chain data is unavailable.{chainReady ? ` Showing last-known chain facts from ${new Date(chainUpdatedAt).toLocaleString()}; statuses have not been changed.` : ' Payment statuses and counts cannot be confirmed.'}</p>}
-          {boardError !== null && <p>Board details are unavailable. Existing chain facts still determine payment status; some titles or board details may be missing.</p>}
-          <Button variant="tinted" onClick={() => void refetch()}>Retry</Button>
+          {chainError !== null && (
+            <p>
+              Chain data is unavailable.
+              {chainReady
+                ? ` Showing last-known chain facts from ${new Date(chainUpdatedAt).toLocaleString()}; statuses have not been changed.`
+                : ' Payment statuses and counts cannot be confirmed.'}
+            </p>
+          )}
+          {boardError !== null && (
+            <p>
+              Board details are unavailable. Existing chain facts still determine payment status; some titles or board details may be
+              missing.
+            </p>
+          )}
+          <Button variant="secondary" onClick={() => void refetch()}>
+            Retry
+          </Button>
         </div>
       )}
+
       {chainUnavailable ? (
-        <EmptyState title="Chain jobs are unavailable">
-          The board list is available, but chain status and counts are not. Retry when the chain index is reachable.
-          <Button size="md" variant="tinted" onClick={() => void refetch()}>Retry chain data</Button>
-        </EmptyState>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'Chain jobs are unavailable'}</EmptyTitle>
+            <EmptyDescription>
+              The board list is available, but chain status and counts are not. Retry when the chain index is reachable.
+              <Button size="default" variant="secondary" onClick={() => void refetch()}>
+                Retry chain data
+              </Button>
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : error !== null && items.length === 0 ? (
-        <EmptyState title="Jobs are unavailable"><ErrorText>{(error as Error).message}</ErrorText><Button size="md" variant="tinted" onClick={() => void refetch()}>Retry</Button></EmptyState>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'Jobs are unavailable'}</EmptyTitle>
+            <EmptyDescription>
+              <Alert variant="destructive">
+                <AlertDescription>{(error as Error).message}</AlertDescription>
+              </Alert>
+              <Button size="default" variant="secondary" onClick={() => void refetch()}>
+                Retry
+              </Button>
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : loading ? (
         <LoadingRows rows={6} />
       ) : shown.length === 0 ? (
-        <EmptyState title={needle !== '' ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}>
-          {view === 'mine' || rows.length === 0 ? (
-            <BoardLink target={routes.publish()} className="text-tint">
-              Post the first one
-            </BoardLink>
-          ) : null}
-        </EmptyState>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{needle !== '' ? 'No jobs match' : view === 'mine' ? 'Nothing of yours yet' : 'No jobs here yet'}</EmptyTitle>
+            <EmptyDescription>
+              {view === 'mine' || rows.length === 0 ? (
+                <BoardLink target={routes.publish()} className="text-tint">
+                  Post the first one
+                </BoardLink>
+              ) : null}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <>
           {view === 'mine' && <NeedsYou rows={shown} />}
-          <Group>
-          {shown.map(({ item, phase }) => (
-            <JobRow key={item.jobId ?? item.task?.taskId} item={item} phase={phase} note={phase === null ? 'Status unavailable · retry chain data' : rowNote(phase, now, item.chain?.agent_id)} />
-          ))}
-          </Group>
+
+          <ItemGroup>
+            {shown.map(({ item, phase }) => (
+              <JobRow
+                key={item.jobId ?? item.task?.taskId}
+                item={item}
+                phase={phase}
+                note={phase === null ? 'Status unavailable · retry chain data' : rowNote(phase, now, item.chain?.agent_id)}
+              />
+            ))}
+          </ItemGroup>
         </>
       )}
+
       <p className="px-4 text-xs text-label-3">
-        {!chainReady ? 'Chain facts are unavailable.' : index === null ? 'The chain index is not built yet.' : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`} Jobs from before titles were
-        kept show as “Job #N”.
+        {!chainReady
+          ? 'Chain facts are unavailable.'
+          : index === null
+            ? 'The chain index is not built yet.'
+            : `Chain facts up to block ${(index.next_block - 1).toLocaleString('en-US')}, refreshed every minute.`}{' '}
+        Jobs from before titles were kept show as “Job #N”.
       </p>
     </>
   )
@@ -240,11 +326,14 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
         : routes.job(item.jobId)
   const Icon = item.task?.quoted === true ? TagIcon : BriefcaseBusiness
   return (
-    <Link
-      to={target.to as '/'}
-      params={(target.params ?? {}) as never}
-      search={('search' in target ? target.search : undefined) as never}
-      className={rowClass({ inset: true, interactive: true })}
+    <Item
+      render={
+        <Link
+          to={target.to as '/'}
+          params={(target.params ?? {}) as never}
+          search={('search' in target ? target.search : undefined) as never}
+        />
+      }
     >
       {agentId != null && agentId !== '0' ? (
         <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
@@ -253,19 +342,21 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
           <Icon aria-hidden className="size-[1.1rem]" />
         </span>
       )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{item.task?.title ?? `Job #${item.jobId}`}</span>
+      <ItemContent className="min-w-0 flex-1">
+        <ItemTitle className="block truncate font-medium">{item.task?.title ?? `Job #${item.jobId}`}</ItemTitle>
         <span className="mt-0.5 flex min-w-0 items-center gap-2 text-ui text-label-2">
           <PhaseBadge phase={phase} />
-          {other !== null && <Badge tone="info">{other}</Badge>}
+          {other !== null && <Badge variant="info">{other}</Badge>}
           <span className="truncate">{note}</span>
         </span>
-      </span>
-      <span className="min-w-0 max-w-[38%] shrink text-right">
+      </ItemContent>
+      <ItemActions className="min-w-0 max-w-[38%] shrink flex-col items-end text-right">
         <span className="tabular block whitespace-normal font-semibold [overflow-wrap:anywhere]">{rewardText}</span>
         <span className="block text-xs text-label-3">{item.jobId !== null ? `#${item.jobId}` : 'Draft'}</span>
-      </span>
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
-    </Link>
+      </ItemActions>
+      <ItemActions>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+      </ItemActions>
+    </Item>
   )
 }

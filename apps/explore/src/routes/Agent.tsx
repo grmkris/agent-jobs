@@ -1,3 +1,9 @@
+import { Skeleton } from '../components/ui/skeleton.tsx'
+import { cn } from '../lib/cn.ts'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { Item, ItemGroup, ItemContent, ItemTitle, ItemDescription, ItemActions } from '../components/ui/item.tsx'
+import { Address, Amount, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } from 'lucide-react'
@@ -13,7 +19,7 @@ import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Address, Amount, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section, Skeleton, cn, rowClass } from '../components/ui.tsx'
+
 import { Monogram, useAuth } from '../components/Wallet.tsx'
 import { amount } from '../format.ts'
 import { useOwnedAgent } from '../managed.ts'
@@ -23,9 +29,27 @@ import type { AgentSummary } from './Agents.tsx'
 
 /** The ERC-8004 identity registry's reads the operator console needs (the SDK's ABI has no `tokenURI`). */
 export const identityAbi = [
-  { type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'getAgentWallet', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'string' }] },
+  {
+    type: 'function',
+    name: 'ownerOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'agentId', type: 'uint256' }],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'getAgentWallet',
+    stateMutability: 'view',
+    inputs: [{ name: 'agentId', type: 'uint256' }],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'tokenURI',
+    stateMutability: 'view',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ type: 'string' }],
+  },
 ] as const
 
 /** An agent number as the registry numbers them: digits only, without leading zeros; null for anything else. */
@@ -217,7 +241,13 @@ export function AgentPage() {
     return (
       <>
         <PageTitle>Agent</PageTitle>
-        <EmptyState title="That is not an agent number">Agents are numbered by the ERC-8004 identity registry, like 1942.</EmptyState>
+
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{'That is not an agent number'}</EmptyTitle>
+            <EmptyDescription>Agents are numbered by the ERC-8004 identity registry, like 1942.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </>
     )
   }
@@ -239,7 +269,9 @@ function Profile({ id }: { id: string }) {
       <header className="flex items-center gap-4">
         <AgentAvatar id={id} image={profile?.image} size="lg" />
         <div className="grid min-w-0 gap-1">
-          <h1 className="text-3xl leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
+          <h1 className="text-3xl leading-[1.12] font-bold tracking-[-0.022em] [overflow-wrap:anywhere]">
+            {profile?.name ?? `Agent #${id}`}
+          </h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-label-2">
             {profile?.name !== null && profile?.name !== undefined && <span>Agent #{id} ·</span>}
             {identity.exists === true && (
@@ -252,7 +284,10 @@ function Profile({ id }: { id: string }) {
           </div>
         </div>
       </header>
-      {profile?.description !== null && profile?.description !== undefined && <p className="-mt-2 leading-relaxed text-label-2">{profile.description}</p>}
+
+      {profile?.description !== null && profile?.description !== undefined && (
+        <p className="-mt-2 leading-relaxed text-label-2">{profile.description}</p>
+      )}
     </>
   )
   const overview = (
@@ -260,13 +295,18 @@ function Profile({ id }: { id: string }) {
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
-          <p className="px-4 text-ui text-label-2">You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.</p>
+          <p className="px-4 text-ui text-label-2">
+            You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.
+          </p>
         </div>
       )}
 
       {managed === undefined && <StartPrompt />}
+
       {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
+
       {wallet !== undefined && <AgentBacking wallet={wallet as `0x${string}`} viewer={address} />}
+
       {record.isLoading ? (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -277,23 +317,36 @@ function Profile({ id }: { id: string }) {
               </div>
             ))}
           </div>
+
           <LoadingRows rows={4} />
         </>
       ) : record.error !== null ? (
-        <ErrorText>This agent&apos;s record is unavailable right now. Its identity below is read from the chain.</ErrorText>
+        <Alert variant="destructive">
+          <AlertDescription>This agent&apos;s record is unavailable right now. Its identity below is read from the chain.</AlertDescription>
+        </Alert>
       ) : record.data === null || record.data === undefined ? (
         identity.exists === false ? (
-          <EmptyState title={`No agent #${id}`}>
-            Nothing is registered under this number on the ERC-8004 identity registry.{' '}
-            <Link to="/connect" className="text-tint">
-              Register an agent
-            </Link>
-          </EmptyState>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{`No agent #${id}`}</EmptyTitle>
+              <EmptyDescription>
+                Nothing is registered under this number on the ERC-8004 identity registry.{' '}
+                <Link to="/connect" className="text-tint">
+                  Register an agent
+                </Link>
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <EmptyState title="This agent has not taken a job here yet">Its record starts with its first job: jobs paid, ratings and earnings show up here.</EmptyState>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{'This agent has not taken a job here yet'}</EmptyTitle>
+              <EmptyDescription>Its record starts with its first job: jobs paid, ratings and earnings show up here.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )
-        ) : (
-          <Record record={record.data} />
+      ) : (
+        <Record record={record.data} />
       )}
 
       {identity.exists !== false && <Registration id={id} identity={identity} />}
@@ -304,11 +357,11 @@ function Profile({ id }: { id: string }) {
   return (
     <>
       {header}
+
       {managed === undefined ? overview : <OwnerTabs id={id} managed={managed} overview={overview} />}
     </>
   )
 }
-
 
 function Record({ record }: { record: AgentRecord }) {
   const now = useNow()
@@ -316,7 +369,10 @@ function Record({ record }: { record: AgentRecord }) {
   const a = record.agent
   useTokenList(Object.keys(a.earned))
   // Open and past the delivery deadline: nothing was submitted, so anyone can close it (refund, and any bond burns).
-  const overdue = useMemo(() => record.jobs.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < minute), [record.jobs, minute])
+  const overdue = useMemo(
+    () => record.jobs.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < minute),
+    [record.jobs, minute],
+  )
   const bondAtStake = overdue.some((j) => j.worker_bond !== null && j.worker_bond !== '0')
   const earned = Object.entries(a.earned).map(([token, v]) => amount(v, token))
   const rated = ratings(a.feedback)
@@ -347,41 +403,49 @@ function Record({ record }: { record: AgentRecord }) {
         <div role="status" className="flex items-start gap-3 rounded-2xl bg-warn-bg px-4 py-3.5 leading-snug">
           <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
           <p className="text-sm">
-            <span className="font-semibold">Needs attention:</span> {overdue.length === 1 ? 'one of its open jobs is' : `${overdue.length} of its open jobs are`} past the delivery
-            deadline with nothing delivered. Anyone can close {overdue.length === 1 ? 'it' : 'them'}; the creator gets the reward back
+            <span className="font-semibold">Needs attention:</span>{' '}
+            {overdue.length === 1 ? 'one of its open jobs is' : `${overdue.length} of its open jobs are`} past the delivery deadline with
+            nothing delivered. Anyone can close {overdue.length === 1 ? 'it' : 'them'}; the creator gets the reward back
             {bondAtStake ? ' and the posted bond burns' : ''}.
           </p>
         </div>
       )}
 
-      <Section title="Ratings" note="Each job's evaluator writes a rating to the ERC-8004 reputation registry when the job settles; bonds are counted as the chain settled them.">
-        <Group>
+      <Section
+        title="Ratings"
+        note="Each job's evaluator writes a rating to the ERC-8004 reputation registry when the job settles; bonds are counted as the chain settled them."
+      >
+        <ItemGroup>
           {rated.length === 0 && (bonds.returned ?? 0) === 0 && (bonds.burned ?? 0) === 0 && (
-            <ListRow>
-              <span className="text-label-2">No ratings yet: they are written when a job settles.</span>
-            </ListRow>
+            <Item>
+              <ItemContent className="text-label-2">No ratings yet: they are written when a job settles.</ItemContent>
+            </Item>
           )}
           {rated.map((r) => (
-            <ListRow key={r.tag}>
-              {r.good ? <CircleCheck aria-hidden className="size-5 shrink-0 text-ok" /> : <CircleX aria-hidden className="size-5 shrink-0 text-bad" />}
-              <span className="flex-1">
-                <span className="tabular font-semibold">{r.count}</span> {r.words}
-              </span>
-            </ListRow>
+            <Item key={r.tag}>
+              {r.good ? (
+                <CircleCheck aria-hidden className="size-5 shrink-0 text-ok" />
+              ) : (
+                <CircleX aria-hidden className="size-5 shrink-0 text-bad" />
+              )}
+              <ItemContent className="flex-1">
+                <ItemTitle className="tabular font-semibold">{r.count}</ItemTitle> {r.words}
+              </ItemContent>
+            </Item>
           ))}
           {(bonds.returned ?? 0) > 0 && (
-            <ListRow>
+            <Item>
               <RotateCcw aria-hidden className="size-5 shrink-0 text-label-3" />
-              <span className="flex-1">Bond returned {times(bonds.returned ?? 0)}</span>
-            </ListRow>
+              <ItemContent className="flex-1">Bond returned {times(bonds.returned ?? 0)}</ItemContent>
+            </Item>
           )}
           {(bonds.burned ?? 0) > 0 && (
-            <ListRow>
+            <Item>
               <Flame aria-hidden className="size-5 shrink-0 text-bad" />
-              <span className="flex-1">Bond burned {times(bonds.burned ?? 0)}</span>
-            </ListRow>
+              <ItemContent className="flex-1">Bond burned {times(bonds.burned ?? 0)}</ItemContent>
+            </Item>
           )}
-        </Group>
+        </ItemGroup>
       </Section>
     </>
   )
@@ -394,42 +458,42 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
       title="Registration"
       note={
         p?.kind === 'link' ? (
-          <>
-            This agent registered a web link, not a profile, so Sidequest can&apos;t show a name, picture or description.
-          </>
+          <>This agent registered a web link, not a profile, so Sidequest can&apos;t show a name, picture or description.</>
         ) : p?.kind === 'json' ? (
           'The name and description come from the profile the agent registered on-chain.'
         ) : undefined
       }
     >
-      <Group>
+      <ItemGroup>
         {identity.loading ? (
-          <ListRow>
-            <span className="grid flex-1 gap-2 py-1">
+          <Item>
+            <ItemContent className="grid flex-1 gap-2 py-1">
               <Skeleton className="h-4 w-2/5" />
               <Skeleton className="h-3 w-3/5" />
-            </span>
-          </ListRow>
+            </ItemContent>
+          </Item>
         ) : identity.exists === null ? (
-          <ListRow>
-            <span className="text-label-2">The identity registry did not answer. Retry in a moment.</span>
-          </ListRow>
+          <Item>
+            <ItemContent className="text-label-2">The identity registry did not answer. Retry in a moment.</ItemContent>
+          </Item>
         ) : (
           <>
-            <ListRow>
-              <span className="flex-1">Owner</span>
+            <Item>
+              <ItemContent className="flex-1">Owner</ItemContent>
               <Address value={identity.owner} />
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">
+            </Item>
+
+            <Item>
+              <ItemContent className="flex-1">
                 Agent wallet
-                <span className="block text-xs text-label-3">Signs its applications and transactions</span>
-              </span>
+                <ItemDescription className="block text-xs text-label-3">Signs its applications and transactions</ItemDescription>
+              </ItemContent>
               <Address value={identity.wallet} />
-            </ListRow>
-            <ListRow>
+            </Item>
+
+            <Item>
               <span className="shrink-0">{p?.kind === 'json' ? 'Profile' : 'Profile link'}</span>
-              <span className="min-w-0 flex-1 truncate text-right text-sm text-label-2">
+              <ItemActions className="min-w-0 flex-1 truncate flex-col items-end text-right text-sm text-label-2">
                 {p === null ? (
                   'None'
                 ) : p.kind === 'json' ? (
@@ -441,11 +505,11 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
                 ) : (
                   p.url
                 )}
-              </span>
-            </ListRow>
+              </ItemActions>
+            </Item>
           </>
         )}
-      </Group>
+      </ItemGroup>
     </Section>
   )
 }
@@ -459,7 +523,10 @@ function Jobs({ record }: { record: AgentRecord }) {
   const all = useQuery({ queryKey: ['chain-jobs', 'public'], queryFn: () => chainJobs('public'), refetchInterval: 60_000 })
   const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
   const boardOf = useMemo(() => new Map((all.data?.jobs ?? []).map((j) => [j.job_id, j.board_id ?? 'public'])), [all.data])
-  const boardIds = useMemo(() => [...new Set(['public', ...record.jobs.map((j) => boardOf.get(j.job_id) ?? 'public')])], [record.jobs, boardOf])
+  const boardIds = useMemo(
+    () => [...new Set(['public', ...record.jobs.map((j) => boardOf.get(j.job_id) ?? 'public')])],
+    [record.jobs, boardOf],
+  )
   const indexes = useQueries({
     queries: boardIds.map((b) => ({ queryKey: ['task_index', b], queryFn: () => taskIndex(b), staleTime: 60_000 })),
   })
@@ -469,28 +536,30 @@ function Jobs({ record }: { record: AgentRecord }) {
   const jobs = record.jobs.toSorted((a, b) => Number(b.job_id) - Number(a.job_id))
   return (
     <Section title={`Jobs · ${jobs.length}`} note="Every job this agent took, on every board, from chain records.">
-      <Group>
+      <ItemGroup>
         {jobs.map((j) => {
           const b = boardOf.get(j.job_id) ?? 'public'
           const task = tasks.get(j.job_id)
           const phase = phaseOf(j, task, address, minute)
           return (
-            <BoardLink key={j.job_id} target={boardRoutes(b).job(j.job_id)} className={rowClass({ interactive: true })}>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{task?.title ?? `Job #${j.job_id}`}</span>
-                <span className="block truncate text-ui text-label-2">
+            <Item key={j.job_id} render={<BoardLink target={boardRoutes(b).job(j.job_id)} />}>
+              <ItemContent className="min-w-0 flex-1">
+                <ItemTitle className="block truncate font-medium">{task?.title ?? `Job #${j.job_id}`}</ItemTitle>
+                <ItemDescription className="block truncate text-ui text-label-2">
                   #{j.job_id} · {b === 'public' ? 'Public board' : (names.get(b) ?? b)} · {j.mode === 'contest' ? 'Contest' : 'Hire'}
-                </span>
-              </span>
+                </ItemDescription>
+              </ItemContent>
               <span className="grid shrink-0 justify-items-end gap-1">
                 <Amount value={j.reward} token={j.token} />
                 <PhaseBadge phase={phase} />
               </span>
-              <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
-            </BoardLink>
+              <ItemActions>
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
+              </ItemActions>
+            </Item>
           )
         })}
-      </Group>
+      </ItemGroup>
     </Section>
   )
 }

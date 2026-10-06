@@ -1,3 +1,10 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Input } from '../components/ui/input.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { ItemGroup, Item, ItemContent, ItemActions, ItemDescription } from '../components/ui/item.tsx'
+import { Address as AddressText, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
@@ -10,13 +17,33 @@ import { useToast } from '../components/Sheet.tsx'
 import { Countdown, When, useNow } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { walletRefused } from '../components/txOperation.ts'
-import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, Input, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
+
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber, rewardTokenList, subscribeTokens, tokenMeta, tokenRegistryVersion } from '../format.ts'
-import { type AdminContext, type AdminTx, type EpochFile, type FundGuard, fundProblem, readAdminOp, readEpochFile, resizeProblem, scheduleProposal } from '../admin.ts'
+import {
+  type AdminContext,
+  type AdminTx,
+  type EpochFile,
+  type FundGuard,
+  fundProblem,
+  readAdminOp,
+  readEpochFile,
+  resizeProblem,
+  scheduleProposal,
+} from '../admin.ts'
 import { type SidequestContracts, sidequest } from '../sidequest.ts'
 import { type PriceDraft, priceListFile, priceListOf, priceTypedData } from '../prices.ts'
-import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execSigned, execTransaction, safeAbi, safeTxTypedData, walletSignature } from '../safe.ts'
+import {
+  MULTI_SEND_CALL_ONLY,
+  type Call,
+  atomically,
+  calldata,
+  execSigned,
+  execTransaction,
+  safeAbi,
+  safeTxTypedData,
+  walletSignature,
+} from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, deployed, deployment, wagmiConfig } from '../wallet.ts'
@@ -24,7 +51,8 @@ import { duration } from '../duration.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} SIDE`
 const same = (a: string | undefined, b: string | undefined) => a !== undefined && b !== undefined && a.toLowerCase() === b.toLowerCase()
-const result = <T,>(data: ReadonlyArray<{ status: string; result?: unknown }> | undefined, i: number): T | undefined => (data?.[i]?.status === 'success' ? (data[i]?.result as T) : undefined)
+const result = <T,>(data: ReadonlyArray<{ status: string; result?: unknown }> | undefined, i: number): T | undefined =>
+  data?.[i]?.status === 'success' ? (data[i]?.result as T) : undefined
 
 /**
  * Whether `address` owns the Safe that owns Sidequest v1: null while unknown (not deployed, loading or unreadable), so
@@ -57,7 +85,10 @@ function loadOp(me: string): Omit<Op, 'title'> | null {
     const saved = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as { txs?: unknown; guard?: unknown } | null
     if (saved === null || !Array.isArray(saved.txs)) return null
     const g = saved.guard as Partial<FundGuard> | undefined
-    const guard = g !== undefined && typeof g.nonce === 'string' && typeof g.totalFunded === 'string' ? { nonce: g.nonce, totalFunded: g.totalFunded } : undefined
+    const guard =
+      g !== undefined && typeof g.nonce === 'string' && typeof g.totalFunded === 'string'
+        ? { nonce: g.nonce, totalFunded: g.totalFunded }
+        : undefined
     return { txs: saved.txs as TxRequest[], ...(guard === undefined ? {} : { guard }) }
   } catch {
     return null
@@ -76,7 +107,12 @@ function saveOp(me: string, op: Op | null) {
  * The contracts this console calls, from the deployment config, with what it sends to each as the Safe and what it
  * sends directly (permissionless). Every transaction is held to this before it is shown or sent.
  */
-const target = (name: string, abi: unknown, asSafe: string[], direct: string[] = []) => ({ name, abi: abi as Abi, safe: ['acceptOwnership', ...asSafe], direct })
+const target = (name: string, abi: unknown, asSafe: string[], direct: string[] = []) => ({
+  name,
+  abi: abi as Abi,
+  safe: ['acceptOwnership', ...asSafe],
+  direct,
+})
 function adminContext(c: SidequestContracts, safe: Address, me: Address): AdminContext {
   return {
     chainId: chain.id,
@@ -84,7 +120,12 @@ function adminContext(c: SidequestContracts, safe: Address, me: Address): AdminC
     owner: me,
     targets: {
       [c.feeSchedule.toLowerCase()]: target('FeeSchedule', sdk.feeScheduleAbi, ['propose', 'cancel'], ['execute']),
-      [c.vault.toLowerCase()]: target('StakeVault', sdk.stakeVaultAbi, ['proposeHolding', 'cancelHoldingProposal', 'revokeHolding'], ['acceptHolding']),
+      [c.vault.toLowerCase()]: target(
+        'StakeVault',
+        sdk.stakeVaultAbi,
+        ['proposeHolding', 'cancelHoldingProposal', 'revokeHolding'],
+        ['acceptHolding'],
+      ),
       [c.holding.toLowerCase()]: target('SidequestHolding', sdk.sidequestHoldingAbi, []),
       [c.evaluator.toLowerCase()]: target('SidequestEvaluator', sdk.sidequestEvaluatorAbi, ['notePause'], ['notePause']),
       [c.miningReserve.toLowerCase()]: target('MiningReserve', sdk.miningReserveAbi, ['fund']),
@@ -96,7 +137,8 @@ function adminContext(c: SidequestContracts, safe: Address, me: Address): AdminC
 
 /** A title read from the calls themselves, for a draft restored from storage. */
 const titleOf = (reads: AdminTx[]) =>
-  reads.flatMap((r) => (r.ok ? r.calls.map((x) => `${x.contract}.${x.functionName}`) : [])).join(' + ') + (reads.some((r) => r.ok && r.via !== 'direct') ? ' as the Safe' : '')
+  reads.flatMap((r) => (r.ok ? r.calls.map((x) => `${x.contract}.${x.functionName}`) : [])).join(' + ') +
+  (reads.some((r) => r.ok && r.via !== 'direct') ? ' as the Safe' : '')
 
 /**
  * `act(title, call, via)`: show a call for review; `busy` while one is under review or being sent. Several calls
@@ -124,6 +166,7 @@ export function AdminPage() {
     return (
       <>
         <PageTitle>Admin</PageTitle>
+
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
           <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in as a Safe owner</h2>
           <div>
@@ -146,14 +189,23 @@ function Gate({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addre
   })
   const owners = result<readonly Address[]>(reads.data, 0)
   const threshold = result<bigint>(reads.data, 1)
-  if (reads.isLoading) return <><PageTitle>Admin</PageTitle><LoadingRows rows={3} /></>
+  if (reads.isLoading)
+    return (
+      <>
+        <PageTitle>Admin</PageTitle>
+        <LoadingRows rows={3} />
+      </>
+    )
   if (owners === undefined || threshold === undefined) {
     return (
       <>
         <PageTitle>Admin</PageTitle>
+
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>The Safe's owners cannot be read from the chain right now.</p>
-          <Button variant="tinted" onClick={() => void reads.refetch()}>Retry</Button>
+          <Button variant="secondary" onClick={() => void reads.refetch()}>
+            Retry
+          </Button>
         </div>
       </>
     )
@@ -162,7 +214,13 @@ function Gate({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addre
     return (
       <>
         <PageTitle>Admin</PageTitle>
-        <EmptyState title="Only the Safe's owners see this">This wallet is not an owner of the Safe that owns Sidequest v1.</EmptyState>
+
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{"Only the Safe's owners see this"}</EmptyTitle>
+            <EmptyDescription>This wallet is not an owner of the Safe that owns Sidequest v1.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </>
     )
   }
@@ -170,7 +228,15 @@ function Gate({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addre
     return (
       <>
         <PageTitle>Admin</PageTitle>
-        <EmptyState title={`The Safe needs ${threshold} signatures`}>This console sends as a single owner (threshold 1). With a higher threshold, use the Safe's own app.</EmptyState>
+
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{`The Safe needs ${threshold} signatures`}</EmptyTitle>
+            <EmptyDescription>
+              This console sends as a single owner (threshold 1). With a higher threshold, use the Safe's own app.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </>
     )
   }
@@ -201,19 +267,43 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
   const atomicReady = multiSendCode.data !== undefined && multiSendCode.data !== '0x'
   const act: Act = (title, call, via) => {
     const tx: TxRequest = Array.isArray(call)
-      ? { description: `${call.map((x) => `${x.contract}.${x.functionName}`).join(' + ')} as the Safe, in one transaction`, chainId: chain.id, to: safe, data: atomically(me, call.map((x) => ({ to: x.to, data: calldata(x) }))), value: '0' }
+      ? {
+          description: `${call.map((x) => `${x.contract}.${x.functionName}`).join(' + ')} as the Safe, in one transaction`,
+          chainId: chain.id,
+          to: safe,
+          data: atomically(
+            me,
+            call.map((x) => ({ to: x.to, data: calldata(x) })),
+          ),
+          value: '0',
+        }
       : (() => {
           const one = call as Call
           const data = calldata(one)
           return via === 'safe'
-            ? { description: `${one.contract}.${one.functionName} as the Safe`, chainId: chain.id, to: safe, data: execTransaction(me, { to: one.to, data }), value: '0' }
+            ? {
+                description: `${one.contract}.${one.functionName} as the Safe`,
+                chainId: chain.id,
+                to: safe,
+                data: execTransaction(me, { to: one.to, data }),
+                value: '0',
+              }
             : { description: `${one.contract}.${one.functionName}`, chainId: chain.id, to: one.to, data, value: '0' }
         })()
     setOp({ title, txs: [tx] })
     window.scrollTo({ top: 0 })
   }
   const fund: Fund = async (epoch, amount, expectTotalFunded) => {
-    const call = { to: c.miningReserve, data: calldata({ contract: 'MiningReserve', to: c.miningReserve, abi: sdk.miningReserveAbi as Abi, functionName: 'fund', args: [epoch, amount] }) }
+    const call = {
+      to: c.miningReserve,
+      data: calldata({
+        contract: 'MiningReserve',
+        to: c.miningReserve,
+        abi: sdk.miningReserveAbi as Abi,
+        functionName: 'fund',
+        args: [epoch, amount],
+      }),
+    }
     // One block for both reads, so the nonce signed for is the one at which the reserve had funded this much.
     const blockNumber = await getBlockNumber(wagmiConfig, { chainId: chain.id })
     const [nonce, totalFunded] = await readContracts(wagmiConfig, {
@@ -224,7 +314,8 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
       blockNumber,
       allowFailure: false,
     })
-    if (totalFunded !== expectTotalFunded) return `The reserve has funded ${fmt(totalFunded)} in all; the file expected ${fmt(expectTotalFunded)}. Run pnpm mining:epoch ${epoch} again and load the new file.`
+    if (totalFunded !== expectTotalFunded)
+      return `The reserve has funded ${fmt(totalFunded)} in all; the file expected ${fmt(expectTotalFunded)}. Run pnpm mining:epoch ${epoch} again and load the new file.`
     const typed = safeTxTypedData(chain.id, safe, call, nonce)
     let signature: Hex | null
     try {
@@ -237,7 +328,15 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
     }
     setOp({
       title: `Fund epoch ${epoch}`,
-      txs: [{ description: `MiningReserve.fund as the Safe, signed for Safe nonce ${nonce}`, chainId: chain.id, to: safe, data: execSigned(signature, call), value: '0' }],
+      txs: [
+        {
+          description: `MiningReserve.fund as the Safe, signed for Safe nonce ${nonce}`,
+          chainId: chain.id,
+          to: safe,
+          data: execSigned(signature, call),
+          value: '0',
+        },
+      ],
       guard: { nonce: nonce.toString(), totalFunded: totalFunded.toString() },
     })
     window.scrollTo({ top: 0 })
@@ -261,7 +360,11 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
   const liveFunded = result<bigint>(live.data, 1)
   const signer = useQuery({
     queryKey: ['safe-signer', boundCall?.data, bound?.signature, liveNonce?.toString()],
-    queryFn: () => recoverTypedDataAddress({ ...safeTxTypedData(chain.id, safe, { to: boundCall?.to ?? zeroAddress, data: boundCall?.data ?? '0x' }, liveNonce ?? 0n), signature: bound?.signature ?? '0x' }),
+    queryFn: () =>
+      recoverTypedDataAddress({
+        ...safeTxTypedData(chain.id, safe, { to: boundCall?.to ?? zeroAddress, data: boundCall?.data ?? '0x' }, liveNonce ?? 0n),
+        signature: bound?.signature ?? '0x',
+      }),
     enabled: bound !== undefined && liveNonce !== undefined,
     staleTime: Infinity,
   })
@@ -277,26 +380,51 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
     refused !== undefined
       ? null
       : checking
-        ? live.isError ? 'The Safe’s nonce cannot be read right now, so this funding is not offered. Try again in a moment.' : 'Checking the Safe’s nonce…'
-        : atomic && !atomicReady ? (multiSendCode.isLoading ? 'Checking MultiSendCallOnly on this network…' : `MultiSendCallOnly has no code at ${MULTI_SEND_CALL_ONLY} on this network, so these calls cannot go as one transaction. Nothing is sent.`) : null
+        ? live.isError
+          ? 'The Safe’s nonce cannot be read right now, so this funding is not offered. Try again in a moment.'
+          : 'Checking the Safe’s nonce…'
+        : atomic && !atomicReady
+          ? multiSendCode.isLoading
+            ? 'Checking MultiSendCallOnly on this network…'
+            : `MultiSendCallOnly has no code at ${MULTI_SEND_CALL_ONLY} on this network, so these calls cannot go as one transaction. Nothing is sent.`
+          : null
   const busy = op !== null
   return (
     <>
-      <PageTitle sub={<span>As the Safe <AddressText value={safe} /> · threshold 1</span>}>Admin</PageTitle>
+      <PageTitle
+        sub={
+          <span>
+            As the Safe <AddressText value={safe} /> · threshold 1
+          </span>
+        }
+      >
+        Admin
+      </PageTitle>
+
       {op !== null && refused !== undefined && !refused.ok && (
         <Section title="Saved operation refused">
           <div role="alert" className="grid gap-2 rounded-xl bg-bad-bg p-4 text-sm text-bad">
             <p>
-              {reads.every((r) => r.ok) ? 'This funding can no longer be sent:' : 'A saved admin operation does not read as one this console sends for this Safe and wallet:'} {refused.problem} It was not sent.
+              {reads.every((r) => r.ok)
+                ? 'This funding can no longer be sent:'
+                : 'A saved admin operation does not read as one this console sends for this Safe and wallet:'}{' '}
+              {refused.problem} It was not sent.
             </p>
-            <Button variant="danger" onClick={() => setOp(null)}>Discard it</Button>
+            <Button variant="destructive" onClick={() => setOp(null)}>
+              Discard it
+            </Button>
           </div>
         </Section>
       )}
+
       {op !== null && refused === undefined && (
         <Section title="Review and send" note="This is exactly what your wallet will send, decoded from its calldata.">
           <Review title={op.title} reads={reads} safe={safe} />
-          {blocked !== null && <ErrorText>{blocked}</ErrorText>}
+          {blocked !== null && (
+            <Alert variant="destructive">
+              <AlertDescription>{blocked}</AlertDescription>
+            </Alert>
+          )}
           <div className="mt-3">
             <TxSteps
               key={op.txs.map((x) => x.data).join()}
@@ -315,17 +443,23 @@ function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Addr
             />
           </div>
           {dismissable && (
-            <Button variant="plain" size="sm" className="mt-2 justify-self-center" onClick={() => setOp(null)}>
+            <Button variant="link" size="sm" className="mt-2 justify-self-center" onClick={() => setOp(null)}>
               Not now
             </Button>
           )}
         </Section>
       )}
+
       <Ownership c={c} safe={safe} act={act} busy={busy} />
+
       <Core c={c} safe={safe} act={act} busy={busy} atomicReady={atomicReady} />
+
       <Fees c={c} act={act} busy={busy} />
+
       <Holdings c={c} act={act} busy={busy} />
+
       <Prices c={c} me={me} />
+
       <Mining c={c} act={act} fund={fund} busy={busy} />
     </>
   )
@@ -345,18 +479,22 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
     <div className="grid gap-3">
       {read.via === 'atomic' && (
         <p className="text-sm text-label-2">
-          One Safe transaction: the Safe delegatecalls MultiSendCallOnly v1.4.1 <code className="font-mono break-all">{MULTI_SEND_CALL_ONLY}</code>, which makes these {read.calls.length} calls in order. Both happen, or neither.
+          One Safe transaction: the Safe delegatecalls MultiSendCallOnly v1.4.1{' '}
+          <code className="font-mono break-all">{MULTI_SEND_CALL_ONLY}</code>, which makes these {read.calls.length} calls in order. Both
+          happen, or neither.
         </p>
       )}
       {read.calls.map((call, i) => (
         <div key={i} className="grid gap-2">
           {read.calls.length > 1 && <p className="text-ui font-semibold tracking-wide text-label-2 uppercase">Call {i + 1}</p>}
-          <Group className="bg-bg">
+          <ItemGroup className="bg-bg">
             <KV k="Contract" stack>
               {call.contract} <code className="font-mono text-ui break-all">{call.to}</code>
             </KV>
             <KV k="Function" stack>
-              <code className="font-mono text-ui">{call.functionName}({call.args.map(([name]) => name).join(', ')})</code>
+              <code className="font-mono text-ui">
+                {call.functionName}({call.args.map(([name]) => name).join(', ')})
+              </code>
             </KV>
             {call.args.map(([name, value]) => (
               <KV key={name} k={name} stack>
@@ -366,27 +504,31 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
             <KV k="Calldata" stack>
               <code className="font-mono text-xs break-all text-label-2">{call.data}</code>
             </KV>
-          </Group>
+          </ItemGroup>
         </div>
       ))}
       {read.outer !== null ? (
         <>
           {read.signature !== undefined ? (
             <p className="text-sm text-label-2">
-              Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with the signature you made for this exact transaction at the Safe’s current nonce. If any other Safe transaction goes first, the Safe refuses this one, so it can never land twice.
+              Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with
+              the signature you made for this exact transaction at the Safe’s current nonce. If any other Safe transaction goes first, the
+              Safe refuses this one, so it can never land twice.
             </p>
           ) : (
             <p className="text-sm text-label-2">
-              Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with your owner signature (r = you, s = 0, v = 1).
+              Sent as the Safe <AddressText value={safe} />: your wallet calls its <code className="font-mono">execTransaction</code> with
+              your owner signature (r = you, s = 0, v = 1).
             </p>
           )}
-          <Group className="bg-bg">
+
+          <ItemGroup className="bg-bg">
             {read.outer.map(([name, value]) => (
               <KV key={name} k={name} stack>
                 <code className="font-mono text-ui break-all">{value}</code>
               </KV>
             ))}
-          </Group>
+          </ItemGroup>
         </>
       ) : (
         <p className="text-sm text-label-2">Anyone may send this call; it goes straight from your wallet, not through the Safe.</p>
@@ -399,19 +541,19 @@ function TxReview({ read, safe }: { read: Extract<AdminTx, { ok: true }>; safe: 
 function KV({ k, children, stack = false }: { k: string; children: ReactNode; stack?: boolean }) {
   if (stack) {
     return (
-      <ListRow>
-        <span className="grid min-w-0 flex-1 gap-0.5">
+      <Item>
+        <ItemContent className="grid min-w-0 flex-1 gap-0.5">
           <span className="text-ui text-label-2">{k}</span>
           <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
-        </span>
-      </ListRow>
+        </ItemContent>
+      </Item>
     )
   }
   return (
-    <ListRow>
-      <span className="w-24 shrink-0 text-ui text-label-2 sm:w-32">{k}</span>
-      <span className="min-w-0 flex-1 text-right [overflow-wrap:anywhere]">{children}</span>
-    </ListRow>
+    <Item>
+      <ItemContent className="w-24 shrink-0 text-ui text-label-2 sm:w-32">{k}</ItemContent>
+      <ItemActions className="min-w-0 flex-1 flex-col items-end text-right [overflow-wrap:anywhere]">{children}</ItemActions>
+    </Item>
   )
 }
 
@@ -419,7 +561,9 @@ function Unavailable({ retry }: { retry: () => void }) {
   return (
     <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
       <p>These facts cannot be read from the chain right now.</p>
-      <Button variant="tinted" onClick={retry}>Retry</Button>
+      <Button variant="secondary" onClick={retry}>
+        Retry
+      </Button>
     </div>
   )
 }
@@ -450,34 +594,42 @@ function Ownership({ c, safe, act, busy }: { c: SidequestContracts; safe: Addres
       {reads.isError ? (
         <Unavailable retry={() => void reads.refetch()} />
       ) : (
-        <Group>
+        <ItemGroup>
           {owned.map(([name, address, abi], i) => {
             const owner = result<Address>(reads.data, i * 2)
             const pending = result<Address>(reads.data, i * 2 + 1)
             return (
-              <ListRow key={name}>
-                <span className="min-w-0 flex-1">
+              <Item key={name}>
+                <ItemContent className="min-w-0 flex-1">
                   {name}
-                  <span className="block text-xs text-label-3"><AddressText value={address} /></span>
-                </span>
+                  <ItemDescription className="block text-xs text-label-3">
+                    <AddressText value={address} />
+                  </ItemDescription>
+                </ItemContent>
                 {owner === undefined ? (
                   <span className="text-label-3">—</span>
                 ) : same(owner, safe) ? (
-                  <Badge tone="success">Safe owns it</Badge>
+                  <Badge variant="success">Safe owns it</Badge>
                 ) : same(pending, safe) ? (
-                  <Button size="sm" disabled={busy} onClick={() => act(`Accept ownership of ${name}`, { contract: name, to: address, abi, functionName: 'acceptOwnership' }, 'safe')}>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      act(`Accept ownership of ${name}`, { contract: name, to: address, abi, functionName: 'acceptOwnership' }, 'safe')
+                    }
+                  >
                     Accept ownership
                   </Button>
                 ) : (
                   <span className="grid justify-items-end gap-0.5 text-ui">
-                    <Badge tone="attention">Not the Safe</Badge>
+                    <Badge variant="warning">Not the Safe</Badge>
                     <AddressText value={owner} />
                   </span>
                 )}
-              </ListRow>
+              </Item>
             )
           })}
-        </Group>
+        </ItemGroup>
       )}
     </Section>
   )
@@ -487,7 +639,19 @@ function Ownership({ c, safe, act, busy }: { c: SidequestContracts; safe: Addres
 // Core: pause and unpause (ADMIN_ROLE). On testnet the core is reused and its admin may not be the Safe.
 // ---------------------------------------------------------------------------------------------------------------
 
-function Core({ c, safe, act, busy, atomicReady }: { c: SidequestContracts; safe: Address; act: Act; busy: boolean; atomicReady: boolean }) {
+function Core({
+  c,
+  safe,
+  act,
+  busy,
+  atomicReady,
+}: {
+  c: SidequestContracts
+  safe: Address
+  act: Act
+  busy: boolean
+  atomicReady: boolean
+}) {
   const core = deployment.core
   const base = useReadContracts({
     contracts: [
@@ -502,30 +666,55 @@ function Core({ c, safe, act, busy, atomicReady }: { c: SidequestContracts; safe
   const count = result<bigint>(base.data, 2)
   // The Evaluator's pause history is append-only (C9-007): the latest interval is open while its end is 0.
   const latest = useReadContracts({
-    contracts: [{ address: c.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'pauseAt', args: [count !== undefined && count > 0n ? count - 1n : 0n], chainId: chain.id }],
+    contracts: [
+      {
+        address: c.evaluator,
+        abi: sdk.sidequestEvaluatorAbi,
+        functionName: 'pauseAt',
+        args: [count !== undefined && count > 0n ? count - 1n : 0n],
+        chainId: chain.id,
+      },
+    ],
     query: { enabled: count !== undefined && count > 0n, refetchInterval: 30_000 },
   })
   const interval = result<{ start: number; end: number }>(latest.data, 0)
   const admin = useReadContracts({
-    contracts: [{ address: core, abi: sdk.coreAbi, functionName: 'hasRole', args: [role ?? `0x${'0'.repeat(64)}`, safe], chainId: chain.id }],
+    contracts: [
+      { address: core, abi: sdk.coreAbi, functionName: 'hasRole', args: [role ?? `0x${'0'.repeat(64)}`, safe], chainId: chain.id },
+    ],
     query: { enabled: role !== undefined },
   })
   const safeIsAdmin = result<boolean>(admin.data, 0)
-  const call = (functionName: 'pause' | 'unpause'): Call => ({ contract: 'Core', to: core, abi: sdk.coreAbi as unknown as Abi, functionName })
+  const call = (functionName: 'pause' | 'unpause'): Call => ({
+    contract: 'Core',
+    to: core,
+    abi: sdk.coreAbi as unknown as Abi,
+    functionName,
+  })
   // D4b: the Evaluator records the pause, so a delivery deadline that falls inside it is never slashed. It goes in the
   // same send as the pause or unpause; anyone may also send it alone when the two have drifted apart.
-  const note: Call = { contract: 'SidequestEvaluator', to: c.evaluator, abi: sdk.sidequestEvaluatorAbi as unknown as Abi, functionName: 'notePause' }
+  const note: Call = {
+    contract: 'SidequestEvaluator',
+    to: c.evaluator,
+    abi: sdk.sidequestEvaluatorAbi as unknown as Abi,
+    functionName: 'notePause',
+  }
   const noted = count === undefined ? undefined : count === 0n ? false : interval === undefined ? undefined : Number(interval.end) === 0
   const drift = paused !== undefined && noted !== undefined && paused !== noted
   return (
-    <Section title="Core" note="Pausing stops every call on the job core: nothing can be funded, delivered or paid. The Evaluator notes the pause in the same send, so a delivery deadline inside it is never slashed.">
+    <Section
+      title="Core"
+      note="Pausing stops every call on the job core: nothing can be funded, delivered or paid. The Evaluator notes the pause in the same send, so a delivery deadline inside it is never slashed."
+    >
       {base.isError || admin.isError || latest.isError ? (
         <Unavailable retry={() => void Promise.all([base.refetch(), admin.refetch(), latest.refetch()])} />
       ) : (
         <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
           <p className="flex flex-wrap items-center gap-2">
-            {paused === undefined ? '—' : paused ? <Badge tone="danger">Paused</Badge> : <Badge tone="success">Running</Badge>}
-            <span className="text-ui text-label-2"><AddressText value={core} /></span>
+            {paused === undefined ? '—' : paused ? <Badge variant="destructive">Paused</Badge> : <Badge variant="success">Running</Badge>}
+            <span className="text-ui text-label-2">
+              <AddressText value={core} />
+            </span>
           </p>
           {drift && (
             <div className="grid gap-2 rounded-xl bg-warn-bg p-3 text-sm text-warn">
@@ -534,21 +723,31 @@ function Core({ c, safe, act, busy, atomicReady }: { c: SidequestContracts; safe
                   ? 'The Evaluator has not noted this pause: a worker whose delivery deadline falls inside it could be slashed.'
                   : 'The Evaluator still counts the core as paused.'}
               </p>
-              <Button variant="tinted" size="sm" disabled={busy} onClick={() => act(paused ? 'Note the pause on the Evaluator' : 'Note the unpause on the Evaluator', note, 'direct')}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={() => act(paused ? 'Note the pause on the Evaluator' : 'Note the unpause on the Evaluator', note, 'direct')}
+              >
                 {paused ? 'Note the pause' : 'Note the unpause'}
               </Button>
             </div>
           )}
           {!atomicReady && safeIsAdmin !== false && (
-            <p className="text-sm text-label-2">Pausing waits for MultiSendCallOnly to be confirmed on this network: the pause and its note go as one transaction or not at all.</p>
+            <p className="text-sm text-label-2">
+              Pausing waits for MultiSendCallOnly to be confirmed on this network: the pause and its note go as one transaction or not at
+              all.
+            </p>
           )}
           {safeIsAdmin === false ? (
             <p className="text-sm text-label-2">The Safe is not the core's admin on this network, so it cannot pause it from here.</p>
           ) : (
             <Button
-              variant={paused === true ? 'primary' : 'danger'}
+              variant={paused === true ? 'default' : 'destructive'}
               disabled={busy || paused === undefined || safeIsAdmin !== true || !atomicReady}
-              onClick={() => act(paused === true ? 'Unpause the core' : 'Pause the core', [call(paused === true ? 'unpause' : 'pause'), note], 'safe')}
+              onClick={() =>
+                act(paused === true ? 'Unpause the core' : 'Pause the core', [call(paused === true ? 'unpause' : 'pause'), note], 'safe')
+              }
             >
               {paused === true ? 'Unpause the core' : 'Pause the core'}
             </Button>
@@ -584,14 +783,26 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
   const feeGrace = result<number>(reads.data, 4)
   const pending = pendingRead !== undefined && Number(pendingRead[1]) !== 0 ? { ...pendingRead[0], eta: Number(pendingRead[1]) } : null
   const [draft, setDraft] = useState<{ thresholds: string[]; rates: string[]; treasury: string } | null>(null)
-  const form = draft ?? (current === undefined ? null : {
-    thresholds: current.thresholds.map((t) => formatNumber(t, 18).replaceAll(',', '')),
-    rates: current.bps.map((b) => String(b / 100)),
-    treasury: current.treasury,
-  })
+  const form =
+    draft ??
+    (current === undefined
+      ? null
+      : {
+          thresholds: current.thresholds.map((t) => formatNumber(t, 18).replaceAll(',', '')),
+          rates: current.bps.map((b) => String(b / 100)),
+          treasury: current.treasury,
+        })
   const proposal = form === null || maxBps === undefined ? null : scheduleProposal(form, Number(maxBps))
-  const fee = (call: Omit<Call, 'contract' | 'to' | 'abi'>): Call => ({ contract: 'FeeSchedule', to: c.feeSchedule, abi: sdk.feeScheduleAbi, ...call })
-  const timing = delay === undefined ? 'The fee-change delay cannot be read from the chain right now.' : `A change takes effect ${duration(Number(delay))} after it is proposed, when anyone executes it.`
+  const fee = (call: Omit<Call, 'contract' | 'to' | 'abi'>): Call => ({
+    contract: 'FeeSchedule',
+    to: c.feeSchedule,
+    abi: sdk.feeScheduleAbi,
+    ...call,
+  })
+  const timing =
+    delay === undefined
+      ? 'The fee-change delay cannot be read from the chain right now.'
+      : `A change takes effect ${duration(Number(delay))} after it is proposed, when anyone executes it.`
 
   return (
     <Section title="Fee schedule" note={`${timing} Jobs keep the rate they were activated with.`}>
@@ -607,10 +818,19 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
               <ScheduleTable title="Proposed" schedule={pending} />
               <Expiry eta={pending.eta} now={now} grace={feeGrace} verb="Executable" />
               <div className="flex flex-wrap gap-2">
-                <Button className="flex-1" disabled={busy || feeGrace === undefined || proposalState(pending.eta, now, Number(feeGrace)) !== 'open'} onClick={() => act('Execute the proposed fee schedule', fee({ functionName: 'execute' }), 'direct')}>
+                <Button
+                  className="flex-1"
+                  disabled={busy || feeGrace === undefined || proposalState(pending.eta, now, Number(feeGrace)) !== 'open'}
+                  onClick={() => act('Execute the proposed fee schedule', fee({ functionName: 'execute' }), 'direct')}
+                >
                   Execute
                 </Button>
-                <Button variant="danger" className="flex-1" disabled={busy} onClick={() => act('Cancel the proposed fee schedule', fee({ functionName: 'cancel' }), 'safe')}>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={() => act('Cancel the proposed fee schedule', fee({ functionName: 'cancel' }), 'safe')}
+                >
                   Cancel proposal
                 </Button>
               </div>
@@ -630,19 +850,40 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
                 <div key={i} className="grid grid-cols-[1fr_6rem] items-end gap-2">
                   <label className="grid gap-1">
                     <span className="text-ui text-label-2">Tier {i + 1} from (SIDE)</span>
-                    <Input aria-label={`Tier ${i + 1} threshold`} value={t} inputMode="decimal" className="tabular" onChange={(e) => setDraft({ ...form, thresholds: form.thresholds.map((x, j) => (j === i ? e.target.value : x)) })} />
+                    <Input
+                      aria-label={`Tier ${i + 1} threshold`}
+                      value={t}
+                      inputMode="decimal"
+                      className="tabular"
+                      onChange={(e) => setDraft({ ...form, thresholds: form.thresholds.map((x, j) => (j === i ? e.target.value : x)) })}
+                    />
                   </label>
                   <label className="grid gap-1">
                     <span className="text-ui text-label-2">Fee %</span>
-                    <Input aria-label={`Tier ${i + 1} fee`} value={form.rates[i] ?? ''} inputMode="decimal" className="tabular" onChange={(e) => setDraft({ ...form, rates: form.rates.map((x, j) => (j === i ? e.target.value : x)) })} />
+                    <Input
+                      aria-label={`Tier ${i + 1} fee`}
+                      value={form.rates[i] ?? ''}
+                      inputMode="decimal"
+                      className="tabular"
+                      onChange={(e) => setDraft({ ...form, rates: form.rates.map((x, j) => (j === i ? e.target.value : x)) })}
+                    />
                   </label>
                 </div>
               ))}
               <label className="grid gap-1">
                 <span className="text-ui text-label-2">Treasury (receives fees)</span>
-                <Input aria-label="Treasury" value={form.treasury} className="font-mono text-ui" onChange={(e) => setDraft({ ...form, treasury: e.target.value })} />
+                <Input
+                  aria-label="Treasury"
+                  value={form.treasury}
+                  className="font-mono text-ui"
+                  onChange={(e) => setDraft({ ...form, treasury: e.target.value })}
+                />
               </label>
-              {typeof proposal === 'string' && <ErrorText>{proposal}</ErrorText>}
+              {typeof proposal === 'string' && (
+                <Alert variant="destructive">
+                  <AlertDescription>{proposal}</AlertDescription>
+                </Alert>
+              )}
               <Button type="submit" disabled={busy || proposal === null || typeof proposal === 'string'}>
                 Review the proposal
               </Button>
@@ -656,17 +897,34 @@ function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean
 
 /** When a timelocked proposal can be executed, and when it lapses (the contract's `PROPOSAL_GRACE()` after its eta). */
 function Expiry({ eta, now, grace, verb }: { eta: number; now: number; grace: number | undefined; verb: string }) {
-  if (grace === undefined) return <p className="text-sm text-label-2">{now < eta ? <>{verb} in <Countdown to={eta} /> · <When at={eta} show="time" />.</> : 'When it lapses cannot be read right now.'}</p>
+  if (grace === undefined)
+    return (
+      <p className="text-sm text-label-2">
+        {now < eta ? (
+          <>
+            {verb} in <Countdown to={eta} /> · <When at={eta} show="time" />.
+          </>
+        ) : (
+          'When it lapses cannot be read right now.'
+        )}
+      </p>
+    )
   const state = proposalState(eta, now, Number(grace))
   const lapses = eta + Number(grace)
   return (
     <p className="text-sm text-label-2">
       {state === 'waiting' ? (
-        <>{verb} in <Countdown to={eta} /> · <When at={eta} show="time" />. Expires at <When at={lapses} show="time" />.</>
+        <>
+          {verb} in <Countdown to={eta} /> · <When at={eta} show="time" />. Expires at <When at={lapses} show="time" />.
+        </>
       ) : state === 'open' ? (
-        <>{verb} now, by anyone, until <When at={lapses} show="time" /> (<Countdown to={lapses} /> left).</>
+        <>
+          {verb} now, by anyone, until <When at={lapses} show="time" /> (<Countdown to={lapses} /> left).
+        </>
       ) : (
-        <span className="text-warn">Expired at <When at={lapses} show="time" />: the contract refuses it now. Cancel it, or propose again.</span>
+        <span className="text-warn">
+          Expired at <When at={lapses} show="time" />: the contract refuses it now. Cancel it, or propose again.
+        </span>
       )}
     </p>
   )
@@ -676,18 +934,18 @@ function ScheduleTable({ title, schedule }: { title: string; schedule: Schedule 
   return (
     <div className="grid gap-1">
       <p className="px-1 text-ui text-label-2">{title}</p>
-      <Group>
+      <ItemGroup>
         {schedule.thresholds.map((t, i) => (
-          <ListRow key={i}>
-            <span className="tabular flex-1">{i === 0 ? 'Any stake' : `From ${fmt(t)}`}</span>
+          <Item key={i}>
+            <ItemContent className="tabular flex-1">{i === 0 ? 'Any stake' : `From ${fmt(t)}`}</ItemContent>
             <span className="tabular">{percent(schedule.bps[i] ?? 0)}</span>
-          </ListRow>
+          </Item>
         ))}
-        <ListRow>
-          <span className="flex-1 text-label-2">Treasury</span>
+        <Item>
+          <ItemContent className="flex-1 text-label-2">Treasury</ItemContent>
           <AddressText value={schedule.treasury} />
-        </ListRow>
-      </Group>
+        </Item>
+      </ItemGroup>
     </div>
   )
 }
@@ -714,11 +972,20 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
   const delay = result<number>(reads.data, 2)
   const active = result<boolean>(reads.data, 3)
   const vaultGrace = result<number>(reads.data, 4)
-  const pending = pendingRead !== undefined && !same(pendingRead[0], zeroAddress) ? { holding: pendingRead[0], eta: Number(pendingRead[1]) } : null
+  const pending =
+    pendingRead !== undefined && !same(pendingRead[0], zeroAddress) ? { holding: pendingRead[0], eta: Number(pendingRead[1]) } : null
   const [proposed, setProposed] = useState('')
   const [revoked, setRevoked] = useState<string>(c.holding)
-  const vault = (call: Omit<Call, 'contract' | 'to' | 'abi'>): Call => ({ contract: 'StakeVault', to: c.vault, abi: sdk.stakeVaultAbi, ...call })
-  const timing = delay === undefined ? 'The Holding admission delay cannot be read from the chain right now.' : `A proposed Holding can be accepted ${duration(Number(delay))} after it is proposed, so every staker can leave or refuse it first.`
+  const vault = (call: Omit<Call, 'contract' | 'to' | 'abi'>): Call => ({
+    contract: 'StakeVault',
+    to: c.vault,
+    abi: sdk.stakeVaultAbi,
+    ...call,
+  })
+  const timing =
+    delay === undefined
+      ? 'The Holding admission delay cannot be read from the chain right now.'
+      : `A proposed Holding can be accepted ${duration(Number(delay))} after it is proposed, so every staker can leave or refuse it first.`
   const valid = (a: string) => isAddress(a.trim(), { strict: false }) && !same(a.trim(), zeroAddress)
 
   return (
@@ -729,28 +996,41 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
         <LoadingRows rows={2} />
       ) : (
         <div className="grid gap-3">
-          <Group>
-            <ListRow>
-              <span className="min-w-0 flex-1">
+          <ItemGroup>
+            <Item>
+              <ItemContent className="min-w-0 flex-1">
                 v1 Holding
-                <span className="block text-xs text-label-3"><AddressText value={c.holding} /></span>
-              </span>
-              {active === true ? <Badge tone="success">Authorized</Badge> : <Badge tone="attention">Not authorized</Badge>}
-            </ListRow>
-            <ListRow>
-              <span className="flex-1">Staking</span>
-              {bootstrapped ? <Badge tone="success">Open</Badge> : <Badge tone="attention">Closed until a first Holding</Badge>}
-            </ListRow>
-          </Group>
+                <ItemDescription className="block text-xs text-label-3">
+                  <AddressText value={c.holding} />
+                </ItemDescription>
+              </ItemContent>
+              {active === true ? <Badge variant="success">Authorized</Badge> : <Badge variant="warning">Not authorized</Badge>}
+            </Item>
+            <Item>
+              <ItemContent className="flex-1">Staking</ItemContent>
+              {bootstrapped ? <Badge variant="success">Open</Badge> : <Badge variant="warning">Closed until a first Holding</Badge>}
+            </Item>
+          </ItemGroup>
           {pending !== null && (
             <div className="grid gap-2 rounded-xl bg-tint/10 px-4 py-3.5">
-              <p className="text-sm">Proposed Holding <AddressText value={pending.holding} /></p>
+              <p className="text-sm">
+                Proposed Holding <AddressText value={pending.holding} />
+              </p>
               <Expiry eta={pending.eta} now={now} grace={vaultGrace} verb="Acceptable" />
               <div className="flex flex-wrap gap-2">
-                <Button className="flex-1" disabled={busy || vaultGrace === undefined || proposalState(pending.eta, now, Number(vaultGrace)) !== 'open'} onClick={() => act('Accept the proposed Holding', vault({ functionName: 'acceptHolding' }), 'direct')}>
+                <Button
+                  className="flex-1"
+                  disabled={busy || vaultGrace === undefined || proposalState(pending.eta, now, Number(vaultGrace)) !== 'open'}
+                  onClick={() => act('Accept the proposed Holding', vault({ functionName: 'acceptHolding' }), 'direct')}
+                >
                   Accept
                 </Button>
-                <Button variant="danger" className="flex-1" disabled={busy} onClick={() => act('Cancel the Holding proposal', vault({ functionName: 'cancelHoldingProposal' }), 'safe')}>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={() => act('Cancel the Holding proposal', vault({ functionName: 'cancelHoldingProposal' }), 'safe')}
+                >
                   Cancel proposal
                 </Button>
               </div>
@@ -765,9 +1045,17 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
           >
             <label className="grid gap-1">
               <span className="text-ui font-semibold">Propose a Holding</span>
-              <Input aria-label="Holding to propose" value={proposed} placeholder="0x… Holding contract" className="font-mono text-ui" onChange={(e) => setProposed(e.target.value)} />
+              <Input
+                aria-label="Holding to propose"
+                value={proposed}
+                placeholder="0x… Holding contract"
+                className="font-mono text-ui"
+                onChange={(e) => setProposed(e.target.value)}
+              />
             </label>
-            <Button type="submit" disabled={busy || !valid(proposed)}>Review the proposal</Button>
+            <Button type="submit" disabled={busy || !valid(proposed)}>
+              Review the proposal
+            </Button>
           </form>
           <form
             className="grid gap-2 rounded-xl bg-surface px-4 py-3.5"
@@ -778,10 +1066,19 @@ function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boo
           >
             <label className="grid gap-1">
               <span className="text-ui font-semibold">Revoke a Holding</span>
-              <span className="text-ui text-label-2">Instant. It can no longer reserve bonds; its live jobs still release and slash what they reserved.</span>
-              <Input aria-label="Holding to revoke" value={revoked} className="font-mono text-ui" onChange={(e) => setRevoked(e.target.value)} />
+              <span className="text-ui text-label-2">
+                Instant. It can no longer reserve bonds; its live jobs still release and slash what they reserved.
+              </span>
+              <Input
+                aria-label="Holding to revoke"
+                value={revoked}
+                className="font-mono text-ui"
+                onChange={(e) => setRevoked(e.target.value)}
+              />
             </label>
-            <Button type="submit" variant="danger" disabled={busy || !valid(revoked)}>Review the revocation</Button>
+            <Button type="submit" variant="destructive" disabled={busy || !valid(revoked)}>
+              Review the revocation
+            </Button>
           </form>
         </div>
       )}
@@ -803,7 +1100,9 @@ type EpochRoot = { root: Hex; total: bigint; claimed: bigint; dataHash: Hex }
  */
 function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
   useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
-  const reserve = useReadContracts({ contracts: [{ address: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'currentEpoch', chainId: chain.id }] })
+  const reserve = useReadContracts({
+    contracts: [{ address: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'currentEpoch', chainId: chain.id }],
+  })
   const currentEpoch = result<bigint>(reserve.data, 0)
   const [picked, setPicked] = useState<string | null>(null)
   // Prices are signed when an epoch has ended: the last one that has.
@@ -818,7 +1117,11 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
     contracts: tokens.map((t) => ({ address: t as Address, abi: erc20Abi, functionName: 'decimals', chainId: chain.id }) as const),
     query: { enabled: tokens.length > 0, staleTime: Infinity, retry: 1 },
   })
-  const draft: PriceDraft = { epoch: epochText, factoryUsd, tokens: tokens.map((t, i) => ({ token: t, decimals: result<number>(decimals.data, i) ?? null, usd: usd[t] ?? '' })) }
+  const draft: PriceDraft = {
+    epoch: epochText,
+    factoryUsd,
+    tokens: tokens.map((t, i) => ({ token: t, decimals: result<number>(decimals.data, i) ?? null, usd: usd[t] ?? '' })),
+  }
   const list = priceListOf(draft)
   const listKey = typeof list === 'string' ? null : JSON.stringify(priceListFile(chain.id, c.distributor, list, me, '0x').message)
   const { signTypedDataAsync } = useSignTypedData()
@@ -829,8 +1132,20 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
   const shown = signed !== null && signed.key === listKey ? signed : null
   const json = shown?.json ?? null
   const href = useMemo(() => (json === null ? null : URL.createObjectURL(new Blob([json], { type: 'application/json' }))), [json])
-  useEffect(() => () => { if (href !== null) URL.revokeObjectURL(href) }, [href])
-  const addProblem = adding.trim() === '' ? null : !isAddress(adding.trim(), { strict: false }) ? 'Not a token address.' : tokens.includes(adding.trim().toLowerCase()) ? 'Already listed.' : null
+  useEffect(
+    () => () => {
+      if (href !== null) URL.revokeObjectURL(href)
+    },
+    [href],
+  )
+  const addProblem =
+    adding.trim() === ''
+      ? null
+      : !isAddress(adding.trim(), { strict: false })
+        ? 'Not a token address.'
+        : tokens.includes(adding.trim().toLowerCase())
+          ? 'Already listed.'
+          : null
   const sign = async () => {
     if (typeof list === 'string' || listKey === null) return
     setProblem(null)
@@ -840,10 +1155,16 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
       const signature = await signTypedDataAsync({ ...typed, account: me })
       const signer = await recoverTypedDataAddress({ ...typed, signature })
       if (!same(signer, me)) {
-        setProblem(`The signature recovers ${signer}, not your address. The mining tool takes only a plain wallet (EOA) signature from a Safe owner. Nothing to download.`)
+        setProblem(
+          `The signature recovers ${signer}, not your address. The mining tool takes only a plain wallet (EOA) signature from a Safe owner. Nothing to download.`,
+        )
         return
       }
-      setSigned({ key: listKey, json: `${JSON.stringify(priceListFile(chain.id, c.distributor, list, signer, signature), null, 2)}\n`, name: `prices-epoch-${list.epoch}.json` })
+      setSigned({
+        key: listKey,
+        json: `${JSON.stringify(priceListFile(chain.id, c.distributor, list, signer, signature), null, 2)}\n`,
+        name: `prices-epoch-${list.epoch}.json`,
+      })
     } catch (failure) {
       setProblem(walletRefused(failure) ? 'You declined to sign. Nothing was signed.' : friendlyError(failure))
     } finally {
@@ -852,7 +1173,10 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
   }
 
   return (
-    <Section title="Mining prices" note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. pnpm mining:epoch --prices takes the file signed here; fees in a token with no price do not count.">
+    <Section
+      title="Mining prices"
+      note="Each epoch’s fees are valued in USD from a price list a Safe owner signs. pnpm mining:epoch --prices takes the file signed here; fees in a token with no price do not count."
+    >
       {reserve.isError || decimals.isError ? (
         <Unavailable retry={() => void Promise.all([reserve.refetch(), decimals.refetch()])} />
       ) : currentEpoch === undefined ? (
@@ -861,7 +1185,13 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
         <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
           <label className="grid gap-1">
             <span className="text-ui font-semibold">Epoch</span>
-            <Input aria-label="Price list epoch" value={epochText} inputMode="numeric" className="tabular w-28" onChange={(e) => setPicked(e.target.value)} />
+            <Input
+              aria-label="Price list epoch"
+              value={epochText}
+              inputMode="numeric"
+              className="tabular w-28"
+              onChange={(e) => setPicked(e.target.value)}
+            />
           </label>
           <div className="grid gap-2">
             <p className="text-ui font-semibold">USD per whole token</p>
@@ -872,17 +1202,34 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
                   <span className="min-w-0 text-ui">
                     <span className="font-semibold">{tokenMeta(t)?.symbol ?? 'Token'}</span> <AddressText value={t} />
                     <span className="block text-xs text-label-3">
-                      {read === undefined ? 'Reading decimals…' : read.status === 'success' ? `${String(read.result)} decimals` : 'No decimals on chain: not a token?'}
+                      {read === undefined
+                        ? 'Reading decimals…'
+                        : read.status === 'success'
+                          ? `${String(read.result)} decimals`
+                          : 'No decimals on chain: not a token?'}
                     </span>
                   </span>
-                  <Input aria-label={`USD price of ${tokenMeta(t)?.symbol ?? t}`} value={usd[t] ?? ''} placeholder="Not priced" inputMode="decimal" className="tabular" onChange={(e) => setUsd({ ...usd, [t]: e.target.value })} />
+                  <Input
+                    aria-label={`USD price of ${tokenMeta(t)?.symbol ?? t}`}
+                    value={usd[t] ?? ''}
+                    placeholder="Not priced"
+                    inputMode="decimal"
+                    className="tabular"
+                    onChange={(e) => setUsd({ ...usd, [t]: e.target.value })}
+                  />
                 </label>
               )
             })}
             <div className="grid grid-cols-[1fr_auto] gap-2">
-              <Input aria-label="Another token" value={adding} placeholder="Another token, 0x…" className="font-mono text-ui" onChange={(e) => setAdding(e.target.value)} />
+              <Input
+                aria-label="Another token"
+                value={adding}
+                placeholder="Another token, 0x…"
+                className="font-mono text-ui"
+                onChange={(e) => setAdding(e.target.value)}
+              />
               <Button
-                variant="tinted"
+                variant="secondary"
                 disabled={adding.trim() === '' || addProblem !== null}
                 onClick={() => {
                   setAdded([...added, adding.trim().toLowerCase()])
@@ -892,15 +1239,34 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
                 Add
               </Button>
             </div>
-            {addProblem !== null && <ErrorText>{addProblem}</ErrorText>}
+            {addProblem !== null && (
+              <Alert variant="destructive">
+                <AlertDescription>{addProblem}</AlertDescription>
+              </Alert>
+            )}
           </div>
           <label className="grid gap-1">
             <span className="text-ui font-semibold">SIDE, USD</span>
-            <Input aria-label="SIDE price in USD" value={factoryUsd} placeholder="0.0001" inputMode="decimal" className="tabular w-40" onChange={(e) => setFactoryUsd(e.target.value)} />
+            <Input
+              aria-label="SIDE price in USD"
+              value={factoryUsd}
+              placeholder="0.0001"
+              inputMode="decimal"
+              className="tabular w-40"
+              onChange={(e) => setFactoryUsd(e.target.value)}
+            />
             <span className="text-xs text-label-3">Below $0.0001 the tool counts $0.0001.</span>
           </label>
-          {typeof list === 'string' && (picked !== null || factoryUsd !== '' || Object.values(usd).some((v) => v !== '')) && <ErrorText>{list}</ErrorText>}
-          {problem !== null && <ErrorText>{problem}</ErrorText>}
+          {typeof list === 'string' && (picked !== null || factoryUsd !== '' || Object.values(usd).some((v) => v !== '')) && (
+            <Alert variant="destructive">
+              <AlertDescription>{list}</AlertDescription>
+            </Alert>
+          )}
+          {problem !== null && (
+            <Alert variant="destructive">
+              <AlertDescription>{problem}</AlertDescription>
+            </Alert>
+          )}
           {shown === null ? (
             <Button disabled={typeof list === 'string' || signing} onClick={() => void sign()}>
               {signing ? 'Waiting for your wallet…' : 'Sign the price list'}
@@ -908,10 +1274,19 @@ function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
           ) : (
             <>
               <p className="text-ui text-label-2">
-                Signed by you for epoch {epochText.trim()} on {chain.name}. Pass it to <code className="font-mono">pnpm mining:epoch {epochText.trim()} --prices {shown.name}</code>.
+                Signed by you for epoch {epochText.trim()} on {chain.name}. Pass it to{' '}
+                <code className="font-mono">
+                  pnpm mining:epoch {epochText.trim()} --prices {shown.name}
+                </code>
+                .
               </p>
+
               {href !== null && (
-                <a href={href} download={shown.name} className="press flex min-h-11 items-center justify-center rounded-xl bg-tint px-4 text-sm font-semibold text-on-tint">
+                <a
+                  href={href}
+                  download={shown.name}
+                  className="press flex min-h-11 items-center justify-center rounded-xl bg-tint px-4 text-sm font-semibold text-on-tint"
+                >
                   Download {shown.name}
                 </a>
               )}
@@ -971,29 +1346,45 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
   // read. Any funding since moves it; exactly the remainder means this file's funding already went in.
   const totalFunded = result<bigint>(base.data, 1)
   const spare = result<bigint>(base.data, 2)
-  const funding = loaded?.fund == null || totalFunded === undefined ? null : totalFunded === loaded.fund.expectTotalFunded ? 'due' : totalFunded - loaded.fund.expectTotalFunded === loaded.fund.amount ? 'done' : 'stale'
+  const funding =
+    loaded?.fund == null || totalFunded === undefined
+      ? null
+      : totalFunded === loaded.fund.expectTotalFunded
+        ? 'due'
+        : totalFunded - loaded.fund.expectTotalFunded === loaded.fund.amount
+          ? 'done'
+          : 'stale'
 
   return (
-    <Section title="Mining" note="After an epoch ends, the Safe funds it from the reserve and posts its Merkle root, both from the epoch file; then anyone claims, and claims are staked.">
+    <Section
+      title="Mining"
+      note="After an epoch ends, the Safe funds it from the reserve and posts its Merkle root, both from the epoch file; then anyone claims, and claims are staked."
+    >
       {base.isError || detail.isError ? (
         <Unavailable retry={() => void Promise.all([base.refetch(), detail.refetch()])} />
       ) : currentEpoch === undefined ? (
         <LoadingRows rows={2} />
       ) : (
         <div className="grid gap-3">
-          <Group>
+          <ItemGroup>
             <KV k="Current epoch">{String(currentEpoch)}</KV>
             <KV k="Funded so far">{fmt(result<bigint>(base.data, 1) ?? 0n)}</KV>
             <KV k="Owed, unclaimed">{fmt(result<bigint>(base.data, 3) ?? 0n)}</KV>
             <KV k="Spare in the distributor">{fmt(result<bigint>(base.data, 2) ?? 0n)}</KV>
-          </Group>
+          </ItemGroup>
           <div className="grid gap-3 rounded-xl bg-surface px-4 py-3.5">
             <label className="grid gap-1">
               <span className="text-ui font-semibold">Epoch</span>
-              <Input aria-label="Epoch" value={epochText} inputMode="numeric" className="tabular w-28" onChange={(e) => setPicked(e.target.value)} />
+              <Input
+                aria-label="Epoch"
+                value={epochText}
+                inputMode="numeric"
+                className="tabular w-28"
+                onChange={(e) => setPicked(e.target.value)}
+              />
             </label>
             {epoch !== null && (
-              <Group className="bg-bg">
+              <ItemGroup className="bg-bg">
                 <KV k="Ends">{end === undefined ? '—' : <When at={Number(end)} />}</KV>
                 <KV k="Budget">{budget === undefined ? '—' : fmt(budget)}</KV>
                 <KV k="Budget so far">
@@ -1008,23 +1399,45 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                   <KV k="Root">{root === undefined ? '—' : 'Not posted'}</KV>
                 )}
                 {hasRoot && <KV k="Claimed">{`${fmt(root.claimed)} of ${fmt(root.total)}`}</KV>}
-              </Group>
+              </ItemGroup>
             )}
             {epoch !== null && hasRoot && (
               <div className="grid gap-2 rounded-lg bg-fill px-3 py-2.5">
                 <p className="text-ui font-semibold">Correct the total</p>
                 <p className="text-ui text-label-2">
-                  If the posted total is more than the root’s leaves add up to, the difference stays locked. Shrink it to the leaf sum from the epoch’s data; it can never go below what is already claimed.
+                  If the posted total is more than the root’s leaves add up to, the difference stays locked. Shrink it to the leaf sum from
+                  the epoch’s data; it can never go below what is already claimed.
                 </p>
-                <Input aria-label="New epoch total" value={form.resize} placeholder="Leaf sum, SIDE" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, resize: e.target.value })} />
-                {form.resize !== '' && resizeProblem(form.resize, root) !== null && <ErrorText>{resizeProblem(form.resize, root)}</ErrorText>}
+                <Input
+                  aria-label="New epoch total"
+                  value={form.resize}
+                  placeholder="Leaf sum, SIDE"
+                  inputMode="decimal"
+                  className="tabular"
+                  onChange={(e) => setForm({ ...form, resize: e.target.value })}
+                />
+                {form.resize !== '' && resizeProblem(form.resize, root) !== null && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{resizeProblem(form.resize, root)}</AlertDescription>
+                  </Alert>
+                )}
                 <Button
-                  variant="tinted"
+                  variant="secondary"
                   disabled={busy || resizeProblem(form.resize, root) !== null}
                   onClick={() => {
                     const total = factoryAmount(form.resize) ?? 0n
                     if (resizeProblem(form.resize, root) !== null) return
-                    act(`Shrink the total of epoch ${epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'resizeRoot', args: [epoch, total] }, 'safe')
+                    act(
+                      `Shrink the total of epoch ${epoch}`,
+                      {
+                        contract: 'EpochDistributor',
+                        to: c.distributor,
+                        abi: sdk.epochDistributorAbi,
+                        functionName: 'resizeRoot',
+                        args: [epoch, total],
+                      },
+                      'safe',
+                    )
                   }}
                 >
                   Review the new total
@@ -1034,56 +1447,90 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
             <div className="grid gap-2 rounded-lg bg-fill px-3 py-2.5">
               <p className="text-ui font-semibold">Epoch file</p>
               <p className="text-ui text-label-2">
-                The root, total and data hash come from <code className="font-mono">pnpm mining:epoch</code>: choose the <code className="font-mono">epoch-&lt;n&gt;.json</code> it wrote. Nothing is typed by hand.
+                The root, total and data hash come from <code className="font-mono">pnpm mining:epoch</code>: choose the{' '}
+                <code className="font-mono">epoch-&lt;n&gt;.json</code> it wrote. Nothing is typed by hand.
               </p>
               <label className="flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-tint/14 px-4 text-sm font-semibold text-tint focus-within:ring-2 focus-within:ring-tint/40">
                 {upload === null ? 'Choose epoch file' : 'Choose another file'}
-                <input type="file" accept="application/json,.json" aria-label="Epoch file" className="sr-only" onChange={(e) => void choose(e.target.files?.[0])} />
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  aria-label="Epoch file"
+                  className="sr-only"
+                  onChange={(e) => void choose(e.target.files?.[0])}
+                />
               </label>
-              {upload !== null && 'problem' in upload && <ErrorText>{upload.name}: {upload.problem}</ErrorText>}
+              {upload !== null && 'problem' in upload && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {upload.name}: {upload.problem}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
             {loaded !== null && (
-              <Group className="bg-bg">
+              <ItemGroup className="bg-bg">
                 <KV k="File">{upload?.name}</KV>
                 <KV k="Epoch">{String(loaded.epoch)}</KV>
                 <KV k="Total">{fmt(loaded.total)}</KV>
                 <KV k="Emission">{fmt(loaded.emission)}</KV>
                 {loaded.leaves !== null && <KV k="Accounts">{String(loaded.leaves)}</KV>}
-                {loaded.priceSigner !== null && <KV k="Prices signed by"><AddressText value={loaded.priceSigner} /></KV>}
+                {loaded.priceSigner !== null && (
+                  <KV k="Prices signed by">
+                    <AddressText value={loaded.priceSigner} />
+                  </KV>
+                )}
                 <KV k="Root" stack>
                   <code className="font-mono text-xs break-all">{loaded.root}</code>
                 </KV>
                 <KV k="Data hash" stack>
                   <code className="font-mono text-xs break-all">{loaded.dataHash}</code>
                 </KV>
-              </Group>
+              </ItemGroup>
             )}
-            {loaded !== null && !forThisEpoch && <p className="text-ui text-label-2">The file is for epoch {String(loaded.epoch)}; choose that epoch above to use it.</p>}
+            {loaded !== null && !forThisEpoch && (
+              <p className="text-ui text-label-2">The file is for epoch {String(loaded.epoch)}; choose that epoch above to use it.</p>
+            )}
             {loaded !== null && forThisEpoch && (
               <>
                 {hasRoot && root.root.toLowerCase() !== loaded.root.toLowerCase() && (
-                  <p role="alert" className="rounded-lg bg-warn-bg px-3 py-2 text-ui text-warn">A different root is already posted for this epoch. The file is not the one on chain.</p>
+                  <p role="alert" className="rounded-lg bg-warn-bg px-3 py-2 text-ui text-warn">
+                    A different root is already posted for this epoch. The file is not the one on chain.
+                  </p>
                 )}
-                {!ended && end !== undefined && <p className="text-ui text-label-2">This epoch has not ended: the reserve refuses its funding and the distributor its root until it does.</p>}
+
+                {!ended && end !== undefined && (
+                  <p className="text-ui text-label-2">
+                    This epoch has not ended: the reserve refuses its funding and the distributor its root until it does.
+                  </p>
+                )}
+
                 <p className="text-ui font-semibold">1. Fund the epoch</p>
+
                 {loaded.fund === null ? (
                   <p className="text-ui text-label-2">Fully funded when the file was made: nothing to send.</p>
                 ) : funding === null ? (
                   <LoadingRows rows={1} />
                 ) : funding === 'stale' ? (
                   <p role="alert" className="rounded-lg bg-bad-bg px-3 py-2 text-ui text-bad">
-                    The reserve has funded {fmt(totalFunded ?? 0n)} in all; the file expected {fmt(loaded.fund.expectTotalFunded)}. Something was funded since it was made, so its amount may be wrong. Run <code className="font-mono">pnpm mining:epoch {String(loaded.epoch)}</code> again and load the new file. Nothing is offered from this one.
+                    The reserve has funded {fmt(totalFunded ?? 0n)} in all; the file expected {fmt(loaded.fund.expectTotalFunded)}.
+                    Something was funded since it was made, so its amount may be wrong. Run{' '}
+                    <code className="font-mono">pnpm mining:epoch {String(loaded.epoch)}</code> again and load the new file. Nothing is
+                    offered from this one.
                   </p>
                 ) : funding === 'done' ? (
-                  <p className="text-ui text-label-2">Funded: the remaining {fmt(loaded.fund.amount)} has gone in since the file was made.</p>
+                  <p className="text-ui text-label-2">
+                    Funded: the remaining {fmt(loaded.fund.amount)} has gone in since the file was made.
+                  </p>
                 ) : (
                   <>
-                    <Group className="bg-bg">
+                    <ItemGroup className="bg-bg">
                       <KV k="Funded for it">{fmt(loaded.fund.fundedForEpoch)}</KV>
                       <KV k="Still to fund">{fmt(loaded.fund.amount)}</KV>
-                    </Group>
+                    </ItemGroup>
+
                     <Button
-                      variant="tinted"
+                      variant="secondary"
                       disabled={busy || preparing}
                       busy={preparing}
                       onClick={() => {
@@ -1098,19 +1545,47 @@ function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund:
                     >
                       Review funding · {fmt(loaded.fund.amount)}
                     </Button>
-                    <p className="text-ui text-label-2">Your wallet signs this funding for the Safe’s current nonce, then sends it: if any other Safe transaction goes first, the Safe refuses it.</p>
-                    {fundError !== null && <ErrorText>{fundError}</ErrorText>}
+
+                    <p className="text-ui text-label-2">
+                      Your wallet signs this funding for the Safe’s current nonce, then sends it: if any other Safe transaction goes first,
+                      the Safe refuses it.
+                    </p>
+
+                    {fundError !== null && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{fundError}</AlertDescription>
+                      </Alert>
+                    )}
                   </>
                 )}
+
                 <p className="text-ui font-semibold">2. Post the root</p>
+
                 {hasRoot ? (
                   <p className="text-ui text-label-2">Posted.</p>
                 ) : (
                   <>
-                    {spare !== undefined && spare < loaded.total && <p className="text-ui text-label-2">Fund it first: the root needs {fmt(loaded.total)} in the distributor, which has {fmt(spare)} spare.</p>}
+                    {spare !== undefined && spare < loaded.total && (
+                      <p className="text-ui text-label-2">
+                        Fund it first: the root needs {fmt(loaded.total)} in the distributor, which has {fmt(spare)} spare.
+                      </p>
+                    )}
+
                     <Button
                       disabled={busy || spare === undefined || spare < loaded.total}
-                      onClick={() => act(`Post the root of epoch ${loaded.epoch}`, { contract: 'EpochDistributor', to: c.distributor, abi: sdk.epochDistributorAbi, functionName: 'setRoot', args: [loaded.epoch, loaded.root, loaded.total, loaded.dataHash] }, 'safe')}
+                      onClick={() =>
+                        act(
+                          `Post the root of epoch ${loaded.epoch}`,
+                          {
+                            contract: 'EpochDistributor',
+                            to: c.distributor,
+                            abi: sdk.epochDistributorAbi,
+                            functionName: 'setRoot',
+                            args: [loaded.epoch, loaded.root, loaded.total, loaded.dataHash],
+                          },
+                          'safe',
+                        )
+                      }
                     >
                       Review the root
                     </Button>

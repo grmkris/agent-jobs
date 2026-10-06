@@ -1,3 +1,9 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Skeleton } from '../components/ui/skeleton.tsx'
+import { cn } from '../lib/cn.ts'
+import { ItemGroup, Item, ItemContent, ItemMedia, ItemTitle, ItemDescription, ItemActions } from '../components/ui/item.tsx'
+import { Address, Row, Section, TxLink } from '../components/kit.tsx'
 import { type JobAction, type LifecycleInput, type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@sidequest/react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -15,7 +21,7 @@ import { type ActionJob, type JobEvent, JobActions } from '../components/job/Job
 import { type TimelineEvent, Timeline } from '../components/job/Timeline.tsx'
 import { PhaseBadge, Sentence } from '../components/Phase.tsx'
 import { useNow } from '../components/Time.tsx'
-import { Address, Badge, Button, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
+
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
 import { sidequest } from '../sidequest.ts'
@@ -88,14 +94,30 @@ interface BoardTask {
   }
   you: string[] | null
   selection?: ActionJob['selection']
-  terms: { brief?: string; acceptanceCriteria?: string[]; windows?: { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } }
-  deliverables?: Array<{ repo: string; branch: string; sha: string; deliverable_hash: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>
+  terms: {
+    brief?: string
+    acceptanceCriteria?: string[]
+    windows?: { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number }
+  }
+  deliverables?: Array<{
+    repo: string
+    branch: string
+    sha: string
+    deliverable_hash: string
+    descriptor?: Deliverable
+    check?: DeliverableCheck | null
+  }>
   evidence?: Array<{ submissionHash: string; label: string }>
 }
 
 type Auth = ReturnType<typeof useSignedIn>
 
-const VERDICT: Record<string, string> = { clean: 'Looks fine', caution: 'Flagged for a closer look', reject: 'Flagged as risky', unscreened: 'Not screened' }
+const VERDICT: Record<string, string> = {
+  clean: 'Looks fine',
+  caution: 'Flagged for a closer look',
+  reject: 'Flagged as risky',
+  unscreened: 'Not screened',
+}
 const VIOLATION: Record<string, string> = { None: 'no fault named', Quality: 'not good enough', Falsified: 'faked evidence' }
 /** A viewer who is no party to any job: the permissionless steps are exactly what it may send. */
 const STRANGER = '0x0000000000000000000000000000000000000001'
@@ -116,13 +138,26 @@ function outcomeOf(d: Detail | undefined) {
   return null
 }
 
-export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: string; onEvent?: (type: JobEvent, payload: Record<string, unknown>) => void }) {
+export function JobPage({
+  auth,
+  jobId: given,
+  onEvent,
+}: {
+  auth: Auth
+  jobId?: string
+  onEvent?: (type: JobEvent, payload: Record<string, unknown>) => void
+}) {
   const params = useParams({ strict: false }) as { jobId?: string }
   const jobId = given ?? params.jobId ?? ''
   const now = useNow()
   const { items } = useJobs()
   const listed = items.find((i) => i.jobId === jobId)?.task
-  const chain = useQuery({ queryKey: ['job', jobId], queryFn: () => data<Detail>(`jobs/${jobId}`), refetchInterval: 15_000, enabled: /^\d+$/.test(jobId) })
+  const chain = useQuery({
+    queryKey: ['job', jobId],
+    queryFn: () => data<Detail>(`jobs/${jobId}`),
+    refetchInterval: 15_000,
+    enabled: /^\d+$/.test(jobId),
+  })
   const d = chain.data
   // The offer lives on the board it was frozen on, which may not be the one this page is on.
   const boardId = d?.board?.boardId ?? currentBoardId()
@@ -134,27 +169,35 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
     refetchInterval: 15_000,
   })
   const t = board.data
-  const roles = auth.signedIn ? t?.you ?? [] : []
+  const roles = auth.signedIn ? (t?.you ?? []) : []
 
   let input: LifecycleInput | null = null
   if (t !== undefined && !board.isError) {
     const lifecycleTask = lifecycleFromTask(t)
-    if (roles.includes('creator') && auth.address !== undefined && lifecycleTask.parties.creator?.toLowerCase() !== auth.address.toLowerCase()) {
+    if (
+      roles.includes('creator') &&
+      auth.address !== undefined &&
+      lifecycleTask.parties.creator?.toLowerCase() !== auth.address.toLowerCase()
+    ) {
       lifecycleTask.parties = { ...lifecycleTask.parties, creator: auth.address }
     }
     input = { ...lifecycleTask, outcome: outcomeOf(d) }
-  }
-  else if (d !== undefined) {
+  } else if (d !== undefined) {
     const settlePending = ['rejected', 'cancelled', 'expired'].includes(d.job.status) && d.rewards.length === 0
     input = { ...lifecycleFromIndexed(d.job), outcome: outcomeOf(d), settlePending }
   }
-  const phase: Phase | null = input === null ? null : lifecycle(input, auth.signedIn ? auth.address ?? null : null, now)
+  const phase: Phase | null = input === null ? null : lifecycle(input, auth.signedIn ? (auth.address ?? null) : null, now)
   // What this wallet could send once signed in (with no wallet yet, what any signed-in stranger could): offered as a
   // sign-in action, never as a button that does nothing.
   const afterSignIn: JobAction[] = input === null || auth.signedIn ? [] : lifecycle(input, auth.address ?? STRANGER, now).actions
 
   const selection = auth.signedIn ? t?.selection : undefined
-  const waitingForActivation = !board.isError && !chain.isError && phase?.key === 'hire-open' && t?.chain.provider === null && selection?.some((record) => record.state === 'signed') === true
+  const waitingForActivation =
+    !board.isError &&
+    !chain.isError &&
+    phase?.key === 'hire-open' &&
+    t?.chain.provider === null &&
+    selection?.some((record) => record.state === 'signed') === true
 
   const title = listed?.title ?? t?.title ?? (/^\d+$/.test(jobId) ? `Job #${jobId}` : 'Job')
   const brief = listed?.brief ?? t?.terms.brief
@@ -171,6 +214,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
     return (
       <>
         <Back />
+
         <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
           <p className="font-semibold">Job #{jobId} is on an earlier contract</p>
           <p className="text-sm text-label-2">Sidequest shows jobs on its v1 contracts only.</p>
@@ -182,10 +226,17 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
     return (
       <>
         <Back />
+
         <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
           <p className="font-semibold">{chain.isError ? 'Chain job details are unavailable' : `Job #${jobId} is not indexed yet`}</p>
-          <p className="text-sm text-label-2">{chain.isError ? 'The chain index could not be read. This does not mean the job is still in progress or unpaid.' : 'A newly published job appears about a minute after its block is final.'}</p>
-          <Button variant="tinted" onClick={() => void chain.refetch()}>Retry job details</Button>
+          <p className="text-sm text-label-2">
+            {chain.isError
+              ? 'The chain index could not be read. This does not mean the job is still in progress or unpaid.'
+              : 'A newly published job appears about a minute after its block is final.'}
+          </p>
+          <Button variant="secondary" onClick={() => void chain.refetch()}>
+            Retry job details
+          </Button>
         </div>
       </>
     )
@@ -194,22 +245,51 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   return (
     <>
       <Back />
+
       {chain.isError && (
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
-          <p>Chain job details are unavailable.{d === undefined ? ' Payment history cannot be confirmed from the index.' : ` Showing last-known indexed facts from ${new Date(chain.dataUpdatedAt).toLocaleString()}.`}</p>
-          <Button variant="tinted" onClick={() => void chain.refetch()}>Retry job details</Button>
+          <p>
+            Chain job details are unavailable.
+            {d === undefined
+              ? ' Payment history cannot be confirmed from the index.'
+              : ` Showing last-known indexed facts from ${new Date(chain.dataUpdatedAt).toLocaleString()}.`}
+          </p>
+          <Button variant="secondary" onClick={() => void chain.refetch()}>
+            Retry job details
+          </Button>
         </div>
       )}
-      {board.isError && <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn"><p>Board details are unavailable. {d !== undefined ? 'Showing indexed chain facts instead; actions are paused until the offer refreshes.' : 'Offer terms and actions cannot be confirmed.'}</p><Button variant="tinted" onClick={() => void board.refetch()}>Retry offer details</Button></div>}
+
+      {board.isError && (
+        <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
+          <p>
+            Board details are unavailable.{' '}
+            {d !== undefined
+              ? 'Showing indexed chain facts instead; actions are paused until the offer refreshes.'
+              : 'Offer terms and actions cannot be confirmed.'}
+          </p>
+          <Button variant="secondary" onClick={() => void board.refetch()}>
+            Retry offer details
+          </Button>
+        </div>
+      )}
+
       <header className="grid min-w-0 gap-2">
         <h1 className="text-2xl leading-[1.15] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-sm text-label-2">
-          {waitingForActivation ? <><Badge tone="success">Selected</Badge><span>On-chain: Open</span></> : <PhaseBadge phase={phase} />}
+          {waitingForActivation ? (
+            <>
+              <Badge variant="success">Selected</Badge>
+              <span>On-chain: Open</span>
+            </>
+          ) : (
+            <PhaseBadge phase={phase} />
+          )}
           {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
           <span>· {listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
-          {otherBoard && <Badge tone="info">{d?.board?.boardId}</Badge>}
+          {otherBoard && <Badge variant="info">{d?.board?.boardId}</Badge>}
           {roles.map((r) => (
-            <Badge key={r} tone="info">
+            <Badge key={r} variant="info">
               You: {r}
             </Badge>
           ))}
@@ -218,16 +298,32 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
 
       {reward !== null && <Money phase={phase} reward={reward} token={token} agentId={agentId} charge={chargeOf(d)} />}
 
-      {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-sm text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
-
-      {writesOpen && phase?.key === 'completed' && agentId !== null && auth.address !== undefined && (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
-        <div className="grid gap-1.5">
-          <HireAgainLink jobId={jobId} />
-          <p className="px-4 text-ui text-label-2">A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.</p>
+      {waitingForActivation ? (
+        <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5">
+          <p className="font-semibold">Selected — waiting for worker activation</p>
+          <p className="text-sm text-label-2">
+            Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.
+          </p>
         </div>
+      ) : (
+        phase !== null && <NextStep phase={phase} />
       )}
 
+      {writesOpen &&
+        phase?.key === 'completed' &&
+        agentId !== null &&
+        auth.address !== undefined &&
+        (d?.job.creator ?? listed?.creator)?.toLowerCase() === auth.address.toLowerCase() && (
+          <div className="grid gap-1.5">
+            <HireAgainLink jobId={jobId} />
+            <p className="px-4 text-ui text-label-2">
+              A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.
+            </p>
+          </div>
+        )}
+
       {phase !== null && t !== undefined && taskId !== undefined && !writesOpen && <LaunchNotice />}
+
       {writesOpen && phase !== null && t !== undefined && taskId !== undefined && (
         <JobActions
           job={{
@@ -254,9 +350,16 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       {writesOpen && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
         <FeeQuote jobId={jobId} holding={sidequest.holding} viewer={auth.address as Account} token={token} />
       )}
-      {writesOpen && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
-        <TopUp jobId={jobId} holding={sidequest.holding} token={token as Account} viewer={auth.address as Account} />
-      )}
+
+      {writesOpen &&
+        token !== null &&
+        auth.signedIn &&
+        auth.address !== undefined &&
+        phase !== null &&
+        !phase.terminal &&
+        ['active', 'submitted'].includes(t?.chain.status ?? '') && (
+          <TopUp jobId={jobId} holding={sidequest.holding} token={token as Account} viewer={auth.address as Account} />
+        )}
 
       {d !== undefined && (d.timeline?.length ?? 0) > 0 && (
         <Section title="Progress">
@@ -269,15 +372,27 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       )}
 
       <Delivered
-        deliverables={(t?.deliverables ?? []).map((x) => ({ deliverable_hash: x.deliverable_hash, descriptor: x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha }, check: x.check ?? null }))}
+        deliverables={(t?.deliverables ?? []).map((x) => ({
+          deliverable_hash: x.deliverable_hash,
+          descriptor: x.descriptor ?? { kind: 'git', url: x.repo, ref: x.branch, sha: x.sha },
+          check: x.check ?? null,
+        }))}
         evidence={d?.evidence ?? []}
       />
 
       {writesOpen && listed !== undefined && listed.executionBudget !== null && boardId === currentBoardId() && (
-        <BudgetPanel task={listed} status={t?.chain.status ?? d?.job.status ?? 'unknown'} roles={roles} signedIn={auth.signedIn} address={auth.address} />
+        <BudgetPanel
+          task={listed}
+          status={t?.chain.status ?? d?.job.status ?? 'unknown'}
+          roles={roles}
+          signedIn={auth.signedIn}
+          address={auth.address}
+        />
       )}
 
-      {d !== undefined && (d.job.violation !== null || d.ruling !== null) && <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />}
+      {d !== undefined && (d.job.violation !== null || d.ruling !== null) && (
+        <Dispute d={d} boardId={boardId} taskId={taskId} signedIn={auth.signedIn} isParty={roles.length > 0} />
+      )}
 
       {brief !== undefined && (
         <Section title="The job">
@@ -288,7 +403,9 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
                 <p className="text-ui text-label-2">Accepted when</p>
                 <ul className="mt-1 list-disc pl-5">
                   {criteria.map((c) => (
-                    <li key={c} className="[overflow-wrap:anywhere]">{c}</li>
+                    <li key={c} className="[overflow-wrap:anywhere]">
+                      {c}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -317,11 +434,14 @@ function JobSkeleton() {
   return (
     <>
       <Back />
+
       <div className="grid gap-3">
         <Skeleton className="h-8 w-4/5" />
         <Skeleton className="h-4 w-2/5" />
       </div>
+
       <Skeleton className="h-20 w-full rounded-2xl" />
+
       <Skeleton className="h-40 w-full rounded-xl" />
     </>
   )
@@ -336,7 +456,19 @@ const chargeOf = (d: Detail | undefined): Charge =>
  * Where the reward is: locked in escrow, paid, or back with the creator. The agent is paid the reward less Sidequest's
  * fee (D11), so once the fee is fixed the paid amount is that net, never the reward.
  */
-function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null; reward: string; token: string | null; agentId: string | null; charge: Charge }) {
+function Money({
+  phase,
+  reward,
+  token,
+  agentId,
+  charge,
+}: {
+  phase: Phase | null
+  reward: string
+  token: string | null
+  agentId: string | null
+  charge: Charge
+}) {
   const terminal = phase?.terminal === true
   const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
   const paid = phase?.key === 'completed'
@@ -345,7 +477,9 @@ function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null;
   const where = draft
     ? 'Not locked yet: publishing locks it in escrow'
     : paid
-      ? charge === null ? `Paid to ${agent}` : `Paid to ${agent}: the ${amount(reward, token)} reward${afterFee}`
+      ? charge === null
+        ? `Paid to ${agent}`
+        : `Paid to ${agent}: the ${amount(reward, token)} reward${afterFee}`
       : terminal
         ? 'Back with the creator'
         : phase === null
@@ -355,14 +489,23 @@ function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null;
             : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Sidequest’s ${percent(charge.bps)} fee`
   return (
     <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
-      <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2')}>
+      <span
+        className={cn(
+          'grid size-10 shrink-0 place-items-center rounded-xl',
+          !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2',
+        )}
+      >
         {!terminal && !draft ? <Lock aria-hidden className="size-5" /> : <ReceiptText aria-hidden className="size-5" />}
       </span>
       <span className="min-w-0">
-        <span className="tabular block text-2xl leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{amount(paid && charge !== null ? charge.net : reward, token)}</span>
+        <span className="tabular block text-2xl leading-none font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">
+          {amount(paid && charge !== null ? charge.net : reward, token)}
+        </span>
         <span className="mt-1 block text-sm text-label-2">{where}</span>
         {token !== null && tokenInfo(token).unverified === true && (
-          <span className="mt-1 block text-ui text-label-3 [overflow-wrap:anywhere]">Unverified token {token}: anyone can deploy a token under any name</span>
+          <span className="mt-1 block text-ui text-label-3 [overflow-wrap:anywhere]">
+            Unverified token {token}: anyone can deploy a token under any name
+          </span>
         )}
       </span>
     </div>
@@ -372,13 +515,21 @@ function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null;
 /** What happens next and who acts: addressed to the viewer when it is theirs to do. */
 function NextStep({ phase }: { phase: Phase }) {
   if (phase.terminal && phase.actions.length === 0) {
-    return <p className="px-1 text-sm leading-relaxed text-label-2"><Sentence parts={phase.next} /></p>
+    return (
+      <p className="px-1 text-sm leading-relaxed text-label-2">
+        <Sentence parts={phase.next} />
+      </p>
+    )
   }
   const you = phase.youAct && phase.toYou !== null
   return (
     <div className="grid gap-2">
       <div className={cn('flex gap-3 rounded-2xl px-4 py-3.5 leading-relaxed', you ? 'bg-warn-bg' : 'bg-tint/10')}>
-        {you ? <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" /> : <Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-tint" />}
+        {you ? (
+          <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
+        ) : (
+          <Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-tint" />
+        )}
         <p>
           {you && <span className="font-semibold">You: </span>}
           <Sentence parts={you ? (phase.toYou ?? phase.next) : phase.next} />
@@ -393,17 +544,40 @@ function NextStep({ phase }: { phase: Phase }) {
   )
 }
 
-function Dispute({ d, boardId, taskId, signedIn, isParty }: { d: Detail; boardId: string; taskId: string | undefined; signedIn: boolean; isParty: boolean }) {
+function Dispute({
+  d,
+  boardId,
+  taskId,
+  signedIn,
+  isParty,
+}: {
+  d: Detail
+  boardId: string
+  taskId: string | undefined
+  signedIn: boolean
+  isParty: boolean
+}) {
   const bundle = useQuery({
     queryKey: ['bundle', boardId, taskId],
-    queryFn: () => boardApi(boardId).tool<{ bundle: { rejection: { reasonText: string | null }; statements: Array<{ role: string; text: string }> } }>('get_dispute_bundle', { taskId }),
+    queryFn: () =>
+      boardApi(boardId).tool<{ bundle: { rejection: { reasonText: string | null }; statements: Array<{ role: string; text: string }> } }>(
+        'get_dispute_bundle',
+        { taskId },
+      ),
     enabled: signedIn && isParty && taskId !== undefined && d.job.violation !== null,
     retry: false,
   })
   const reason = bundle.data?.bundle.rejection.reasonText
   return (
-    <Section title="Rejection and dispute" note={reason === undefined || reason === null ? 'The written reason is shown to the creator, the approver and the agent; everyone else sees its fingerprint on-chain.' : undefined}>
-      <Group className="px-4 py-2">
+    <Section
+      title="Rejection and dispute"
+      note={
+        reason === undefined || reason === null
+          ? 'The written reason is shown to the creator, the approver and the agent; everyone else sees its fingerprint on-chain.'
+          : undefined
+      }
+    >
+      <ItemGroup className="px-4 py-2">
         {d.job.violation !== null && <Row label="Rejected as">{VIOLATION[d.job.violation] ?? d.job.violation}</Row>}
         <Row label="Reason">{reason ?? <span className="font-mono text-ui">{d.job.rejection_reason_hash?.slice(0, 14) ?? '—'}…</span>}</Row>
         {bundle.data?.bundle.statements.map((s, i) => (
@@ -414,45 +588,63 @@ function Dispute({ d, boardId, taskId, signedIn, isParty }: { d: Detail; boardId
         {d.ruling !== null && (
           <Row label="Ruling">
             <span className="inline-flex flex-wrap items-center justify-end gap-2">
-              <Badge tone={d.ruling.for_worker === 1 ? 'success' : 'danger'}>{d.ruling.for_worker === 1 ? 'For the agent' : 'For the creator'}</Badge>
-              {d.ruling.slash_loser === 1 && <Badge tone="danger">{d.ruling.for_worker === 1 ? 'Creator’s bond burned' : 'Agent’s bond burned'}</Badge>}
+              <Badge variant={d.ruling.for_worker === 1 ? 'success' : 'destructive'}>
+                {d.ruling.for_worker === 1 ? 'For the agent' : 'For the creator'}
+              </Badge>
+              {d.ruling.slash_loser === 1 && (
+                <Badge variant="destructive">{d.ruling.for_worker === 1 ? 'Creator’s bond burned' : 'Agent’s bond burned'}</Badge>
+              )}
               <TxLink hash={d.ruling.tx_hash} />
             </span>
           </Row>
         )}
-      </Group>
+      </ItemGroup>
     </Section>
   )
 }
 
-function People({ d, listed, agentId, viewer }: { d: Detail | undefined; listed: TaskIndexEntry | undefined; agentId: string | null; viewer: string | undefined }) {
+function People({
+  d,
+  listed,
+  agentId,
+  viewer,
+}: {
+  d: Detail | undefined
+  listed: TaskIndexEntry | undefined
+  agentId: string | null
+  viewer: string | undefined
+}) {
   const creator = d?.job.creator ?? listed?.creator ?? null
   const approver = d?.job.approver ?? listed?.approver ?? null
   const worker = d?.job.worker ?? null
   const same = creator !== null && approver !== null && creator.toLowerCase() === approver.toLowerCase()
   const me = (a: string | null) => viewer !== undefined && a !== null && a.toLowerCase() === viewer.toLowerCase()
   const Person = ({ label, address }: { label: string; address: string | null }): ReactNode => (
-    <ListRow>
-      <span className="min-w-0 flex-1">{label}</span>
+    <Item>
+      <ItemContent className="min-w-0 flex-1">{label}</ItemContent>
       <Address value={address} you={me(address)} />
-    </ListRow>
+    </Item>
   )
   return (
     <Section title="People" note={same ? 'The creator also approves the work.' : undefined}>
-      <Group>
+      <ItemGroup>
         <Person label={same ? 'Creator · pays and approves' : 'Creator · pays'} address={creator} />
         {!same && <Person label="Approver · judges the work" address={approver} />}
         {agentId !== null && (
-          <BoardLink target={boardRoutes().agent(agentId)} className={rowClass({ inset: true, interactive: true })}>
-            <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">Agent #{agentId}</span>
-              <span className="block truncate font-mono text-ui text-label-2">{worker}</span>
-            </span>
-            <ChevronRight aria-hidden className="size-4 text-label-3" />
-          </BoardLink>
+          <Item render={<BoardLink target={boardRoutes().agent(agentId)} />}>
+            <ItemMedia>
+              <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
+            </ItemMedia>
+            <ItemContent className="min-w-0 flex-1">
+              <ItemTitle className="block font-medium">Agent #{agentId}</ItemTitle>
+              <ItemDescription className="block truncate font-mono text-ui text-label-2">{worker}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ChevronRight aria-hidden className="size-4 text-label-3" />
+            </ItemActions>
+          </Item>
         )}
-      </Group>
+      </ItemGroup>
     </Section>
   )
 }
@@ -483,7 +675,9 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
             {listed.deliverable?.target !== undefined && <span className="block text-ui">{listed.deliverable.target}</span>}
           </Row>
         )}
-        {listed !== undefined && listed.requiredChecks.length > 0 && <Row label="Required GitHub check">{listed.requiredChecks.join(', ')}</Row>}
+        {listed !== undefined && listed.requiredChecks.length > 0 && (
+          <Row label="Required GitHub check">{listed.requiredChecks.join(', ')}</Row>
+        )}
         {screening !== undefined && (
           <Row label="Screening" hint="An AI screener reads every brief; its verdict is advice">
             {VERDICT[screening.verdict] ?? screening.verdict}
@@ -492,7 +686,12 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
         )}
         {termsHash !== undefined && (
           <Row label="Offer ID">
-            <a className="-my-3.5 inline-flex py-3.5 font-mono text-ui text-tint" href={`/offers/${termsHash}.json`} target="_blank" rel="noreferrer">
+            <a
+              className="-my-3.5 inline-flex py-3.5 font-mono text-ui text-tint"
+              href={`/offers/${termsHash}.json`}
+              target="_blank"
+              rel="noreferrer"
+            >
               {termsHash.slice(0, 12)}…
             </a>
           </Row>

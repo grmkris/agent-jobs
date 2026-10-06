@@ -1,3 +1,4 @@
+import { Button } from './ui/button.tsx'
 import * as sdk from '@sidequest/sdk'
 import { PrivyProvider, usePrivy, useSign7702Authorization, useWallets } from '@privy-io/react-auth'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
@@ -5,7 +6,6 @@ import { type EIP1193Provider, type Hex, createPublicClient, http, toHex } from 
 import { useConnect } from 'wagmi'
 import { type TxRequest, tool } from '../api.ts'
 import { chain, deployment, privyAppId, setPrivyProvider } from '../wallet.ts'
-import { Button } from './ui.tsx'
 
 /**
  * The site's only sign-in: email or social login (whatever the Privy dashboard enables: email, Google, X…) with a
@@ -49,14 +49,14 @@ function OperatorBridge({ children }: { children: ReactNode }) {
   const connected = useRef<string | undefined>(undefined)
   const pending = useRef(false)
   const [error, setError] = useState<string | null>(null)
-  const primary = user?.linkedAccounts.find(account =>
-    account.type === 'wallet' && account.walletClientType === 'privy' &&
-    (account.walletIndex === 0 || account.walletIndex === null),
+  const primary = user?.linkedAccounts.find(
+    (account) =>
+      account.type === 'wallet' && account.walletClientType === 'privy' && (account.walletIndex === 0 || account.walletIndex === null),
   )
   const address = primary?.type === 'wallet' ? primary.address : undefined
   const currentAddress = useRef(address)
   currentAddress.current = authenticated ? address : undefined
-  const operator = wallets.find(wallet => wallet.address.toLowerCase() === address?.toLowerCase())
+  const operator = wallets.find((wallet) => wallet.address.toLowerCase() === address?.toLowerCase())
   useEffect(() => {
     if (!authenticated) {
       connected.current = undefined
@@ -69,19 +69,26 @@ function OperatorBridge({ children }: { children: ReactNode }) {
       await operator!.switchChain(chain.id)
       const provider = await operator!.getEthereumProvider()
       if (currentAddress.current !== address) return
-      const connector = connectors.find(candidate => candidate.id === 'privy')
+      const connector = connectors.find((candidate) => candidate.id === 'privy')
       if (connector === undefined) throw new Error('The operator wallet connector is unavailable.')
       setPrivyProvider(provider as EIP1193Provider)
       await connectAsync({ connector })
       connected.current = address
     }
-    void connectOperator().catch((failure: unknown) => {
-      if (currentAddress.current === address) setError(failure instanceof Error ? failure.message : 'Operator wallet connection failed.')
-    }).finally(() => {
-      pending.current = false
-    })
+    void connectOperator()
+      .catch((failure: unknown) => {
+        if (currentAddress.current === address) setError(failure instanceof Error ? failure.message : 'Operator wallet connection failed.')
+      })
+      .finally(() => {
+        pending.current = false
+      })
   }, [authenticated, address, operator?.address, connectAsync])
-  return <>{error !== null && <p role="alert">{error}</p>}{children}</>
+  return (
+    <>
+      {error !== null && <p role="alert">{error}</p>}
+      {children}
+    </>
+  )
 }
 
 /** The only way in: Privy's login (email or social). Without a Privy app the site is read-only. */
@@ -154,8 +161,9 @@ function useDelegatorAccountInner(address: string | undefined): DelegatorAccount
   const { authenticated } = usePrivy()
   const { wallets } = useWallets()
   const { signAuthorization } = useSign7702Authorization()
-  const embedded = wallets.find(wallet => wallet.walletClientType === 'privy' && wallet.address.toLowerCase() === address?.toLowerCase())
-  if (!authenticated || embedded === undefined || address === undefined || embedded.address.toLowerCase() !== address.toLowerCase()) return null
+  const embedded = wallets.find((wallet) => wallet.walletClientType === 'privy' && wallet.address.toLowerCase() === address?.toLowerCase())
+  if (!authenticated || embedded === undefined || address === undefined || embedded.address.toLowerCase() !== address.toLowerCase())
+    return null
   const me = embedded.address as Hex
   const delegate = deployment.delegation.delegator
   const delegated = async () => {

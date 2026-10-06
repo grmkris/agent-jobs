@@ -1,10 +1,10 @@
+import { textLinkClass } from './kit.tsx'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { LaunchBanner } from './LaunchGate.tsx'
 import { NetworkSwitch } from './NetworkSwitch.tsx'
 import { Mark } from './Shell.tsx'
 import { buttonVariants } from './ui/button.tsx'
-import { textLinkClass } from './ui.tsx'
 
 /**
  * The public front door: a translucent bar with the brand and one way in ("Open app"), the page, and a footer that

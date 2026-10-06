@@ -1,8 +1,17 @@
+import { cn } from '../lib/cn.ts'
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronsUpDown, CircleUserRound, HandCoins, Landmark, LogOut, Send, ShieldCheck, Zap } from 'lucide-react'
 import { useSafeOwner } from '../routes/Admin.tsx'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu.tsx'
-import { cn } from './ui.tsx'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu.tsx'
+
 import { Monogram, useAuth, useSignOut } from './Wallet.tsx'
 
 /** A small count, as on an app icon. `collect` counts actions ready in Collect; `waiting`, decisions an agent waits on. */

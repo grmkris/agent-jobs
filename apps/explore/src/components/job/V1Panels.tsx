@@ -1,3 +1,8 @@
+import { Button } from '../ui/button.tsx'
+import { Input } from '../ui/input.tsx'
+import { Alert, AlertDescription } from '../ui/alert.tsx'
+import { Item, ItemGroup, ItemDescription, ItemContent, ItemActions } from '../ui/item.tsx'
+import { Section } from '../kit.tsx'
 /**
  * What a Sidequest v1 job adds to its page (ADR-0011): before activation, the fee a worker would pay and what it would
  * receive, from `quoteActivation`; after activation, a top-up anyone can add to the reward. Both read and write the v1
@@ -16,38 +21,48 @@ import { chain } from '../../wallet.ts'
 import { toBase } from '../post/form.ts'
 import { useToast } from '../Sheet.tsx'
 import { TxSteps } from '../TxSteps.tsx'
-import { Button, ErrorText, Group, Input, ListRow, Section } from '../ui.tsx'
 
 /** Before activation: the viewer's fee tier and net payout if they activate now. */
 export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; holding: Address; viewer: Address; token: string | null }) {
   const quote = useReadContracts({
-    contracts: [{ address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'quoteActivation', args: [BigInt(jobId), viewer], chainId: chain.id }],
+    contracts: [
+      { address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'quoteActivation', args: [BigInt(jobId), viewer], chainId: chain.id },
+    ],
     query: { refetchInterval: 30_000 },
   })
   const r = quote.data?.[0]
   const [bps, fee, net] = r?.status === 'success' ? (r.result as readonly [number, bigint, bigint]) : [undefined, undefined, undefined]
   return (
-    <Section title="If you take this job" note="Your fee rate is fixed when you activate: a later change of stake or schedule does not move it.">
+    <Section
+      title="If you take this job"
+      note="Your fee rate is fixed when you activate: a later change of stake or schedule does not move it."
+    >
       {quote.isError || r?.status === 'failure' ? (
-        <ErrorText>Your fee for this job cannot be read from the chain right now.</ErrorText>
+        <Alert variant="destructive">
+          <AlertDescription>Your fee for this job cannot be read from the chain right now.</AlertDescription>
+        </Alert>
       ) : (
-        <Group>
-          <ListRow>
-            <span className="flex-1">
+        <ItemGroup>
+          <Item>
+            <ItemContent className="flex-1">
               <span className="block">Sidequest’s fee{bps === undefined ? '' : ` · ${percent(Number(bps))}`}</span>
-              <span className="block text-xs leading-snug text-label-3">Your rate, set by total backing</span>
-            </span>
+              <ItemDescription className="block text-xs leading-snug text-label-3">Your rate, set by total backing</ItemDescription>
+            </ItemContent>
             {/* min-w-24: the value's room is kept while it loads, so the label does not rewrap when it lands. */}
-            <span className="tabular min-w-24 text-right text-label-2">{fee === undefined ? '…' : `− ${amount(fee.toString(), token)}`}</span>
-          </ListRow>
-          <ListRow>
-            <span className="flex-1 font-semibold">You receive</span>
-            <span className="tabular min-w-24 text-right font-semibold">{net === undefined ? '…' : amount(net.toString(), token)}</span>
-          </ListRow>
+            <ItemActions className="tabular min-w-24 flex-col items-end text-right text-label-2">
+              {fee === undefined ? '…' : `− ${amount(fee.toString(), token)}`}
+            </ItemActions>
+          </Item>
+          <Item>
+            <ItemContent className="flex-1 font-semibold">You receive</ItemContent>
+            <ItemActions className="tabular min-w-24 flex-col items-end text-right font-semibold">
+              {net === undefined ? '…' : amount(net.toString(), token)}
+            </ItemActions>
+          </Item>
           <Link to="/backing" className="flex min-h-11 items-center px-4 text-sm text-tint">
             Delegate more to pay a lower fee
           </Link>
-        </Group>
+        </ItemGroup>
       )}
     </Section>
   )
@@ -73,8 +88,20 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
   const add = () => {
     if (!valid || value === null) return
     setTxs([
-      { description: `Approve ${amount(value.toString(), token)} for the job`, chainId: chain.id, to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [holding, value] }), value: '0' },
-      { description: `Add ${amount(value.toString(), token)} to job #${jobId}`, chainId: chain.id, to: holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'topUp', args: [BigInt(jobId), value] }), value: '0' },
+      {
+        description: `Approve ${amount(value.toString(), token)} for the job`,
+        chainId: chain.id,
+        to: token,
+        data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [holding, value] }),
+        value: '0',
+      },
+      {
+        description: `Add ${amount(value.toString(), token)} to job #${jobId}`,
+        chainId: chain.id,
+        to: holding,
+        data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'topUp', args: [BigInt(jobId), value] }),
+        value: '0',
+      },
     ])
     setText('')
   }
@@ -83,18 +110,18 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
       title="Add to the reward"
       note="Anyone can add to the reward while the job is under way. The agent is paid it with the reward, minus the same fee rate. If the creator is refunded instead, each contributor can claim their top-up back."
     >
-      <Group>
-        <ListRow>
-          <span className="flex-1">Added so far</span>
+      <ItemGroup>
+        <Item>
+          <ItemContent className="flex-1">Added so far</ItemContent>
           <span className="tabular">{listing === undefined ? '…' : amount(listing.bonus.toString(), token)}</span>
-        </ListRow>
+        </Item>
         {mine !== undefined && mine > 0n && (
-          <ListRow>
-            <span className="flex-1 text-label-2">By you</span>
-            <span className="tabular text-label-2">{amount(mine.toString(), token)}</span>
-          </ListRow>
+          <Item>
+            <ItemContent className="flex-1 text-label-2">By you</ItemContent>
+            <ItemContent className="tabular text-label-2">{amount(mine.toString(), token)}</ItemContent>
+          </Item>
         )}
-      </Group>
+      </ItemGroup>
       {txs !== null ? (
         <div className="mt-2">
           <TxSteps
@@ -118,9 +145,16 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
             add()
           }}
         >
-          <Input aria-label="Amount to add" value={text} onChange={(e) => setText(e.target.value)} inputMode="decimal" placeholder="0.00" className="tabular flex-1 text-right" />
+          <Input
+            aria-label="Amount to add"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            inputMode="decimal"
+            placeholder="0.00"
+            className="tabular flex-1 text-right"
+          />
           <span className="self-center text-label-2">{tokenInfo(token).symbol}</span>
-          <Button type="submit" variant="tinted" disabled={!valid}>
+          <Button type="submit" variant="secondary" disabled={!valid}>
             Add
           </Button>
         </form>

@@ -1,3 +1,8 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Item, ItemGroup, ItemMedia, ItemContent, ItemActions } from '../components/ui/item.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { Address, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Fuel } from 'lucide-react'
 import { useState } from 'react'
@@ -10,9 +15,17 @@ import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { walletRefused } from '../components/txOperation.ts'
-import { Address, Badge, Button, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
+
 import { useAuth } from '../components/Wallet.tsx'
-import { type SponsorPolicy, type SponsorPrep, type SponsorRules, readDelegation, sponsorApi, sponsorRules, useSponsorStatus } from '../sponsor.ts'
+import {
+  type SponsorPolicy,
+  type SponsorPrep,
+  type SponsorRules,
+  readDelegation,
+  sponsorApi,
+  sponsorRules,
+  useSponsorStatus,
+} from '../sponsor.ts'
 import { friendlyError } from '../txErrors.ts'
 import { typedDataArgs } from '../typed-data.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
@@ -31,6 +44,7 @@ export function SponsorshipPage() {
     return (
       <>
         <PageTitle sub={SUB}>Gas sponsorship</PageTitle>
+
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
           <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to stop paying gas</h2>
           <SignInToPublish auth={auth} label="Sign in" />
@@ -75,7 +89,10 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
     setError(null)
     try {
       if (p.upgrade !== null) {
-        if (upgrade === null) throw new Error('Turn this on from your Sidequest email or Google wallet: it points that wallet at the delegation contract first.')
+        if (upgrade === null)
+          throw new Error(
+            'Turn this on from your Sidequest email or Google wallet: it points that wallet at the delegation contract first.',
+          )
         const hash = await upgrade()
         if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       }
@@ -114,42 +131,54 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
   return (
     <>
       <PageTitle sub={SUB}>Gas sponsorship</PageTitle>
+
       {status.isLoading ? (
         <LoadingRows rows={3} />
       ) : status.isError || s === undefined ? (
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>Whether Sidequest pays your gas cannot be read right now.</p>
-          <Button variant="tinted" onClick={() => void status.refetch()}>Retry</Button>
+          <Button variant="secondary" onClick={() => void status.refetch()}>
+            Retry
+          </Button>
         </div>
       ) : live !== null ? (
         live.ok ? (
           <>
-            <Section title="On" note="The relay sends your Sidequest transactions and pays their gas. It can do nothing outside these limits.">
-              <Group>
-                <ListRow inset>
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
-                    <Fuel aria-hidden className="size-4" />
-                  </span>
-                  <span className="flex-1 font-medium">Sidequest pays your gas</span>
-                  <Badge tone="success">On</Badge>
-                </ListRow>
-                <ListRow>
-                  <span className="flex-1">Calls used</span>
-                  <span className="tabular text-label-2">
+            <Section
+              title="On"
+              note="The relay sends your Sidequest transactions and pays their gas. It can do nothing outside these limits."
+            >
+              <ItemGroup>
+                <Item className="before:left-14">
+                  <ItemMedia>
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
+                      <Fuel aria-hidden className="size-4" />
+                    </span>
+                  </ItemMedia>
+                  <ItemContent className="flex-1 font-medium">Sidequest pays your gas</ItemContent>
+                  <Badge variant="success">On</Badge>
+                </Item>
+                <Item>
+                  <ItemContent className="flex-1">Calls used</ItemContent>
+                  <ItemContent className="tabular text-label-2">
                     {s.callsUsed} of {live.policy.calls.toString()}
-                  </span>
-                </ListRow>
-              </Group>
+                  </ItemContent>
+                </Item>
+              </ItemGroup>
             </Section>
+
             <Policy policy={live.policy} />
-            <Button variant="danger" busy={busy === 'revoke'} onClick={() => setTurningOff(true)}>
+
+            <Button variant="destructive" busy={busy === 'revoke'} onClick={() => setTurningOff(true)}>
               Turn off
             </Button>
           </>
         ) : (
           <div className="grid gap-2">
-            <ErrorText>The permission on file does not read as Sidequest’s: {live.problem} Turn it off.</ErrorText>
-            <Button variant="danger" busy={busy === 'revoke'} onClick={() => setTurningOff(true)}>
+            <Alert variant="destructive">
+              <AlertDescription>The permission on file does not read as Sidequest’s: {live.problem} Turn it off.</AlertDescription>
+            </Alert>
+            <Button variant="destructive" busy={busy === 'revoke'} onClick={() => setTurningOff(true)}>
               Turn off
             </Button>
           </div>
@@ -157,27 +186,43 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
       ) : (
         <div className="grid gap-3">
           <Section>
-            <Group>
-              <ListRow inset>
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint/14 text-tint">
-                  <Fuel aria-hidden className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1 text-sm leading-snug">
-                  You sign one permission. Sidequest’s relay then sends your hires, deliveries, approvals and payouts, and pays their gas: only calls to Sidequest’s contracts, a limited number of times, until it expires.
-                </span>
-              </ListRow>
-            </Group>
+            <ItemGroup>
+              <Item className="before:left-14">
+                <ItemMedia>
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-tint/14 text-tint">
+                    <Fuel aria-hidden className="size-4" />
+                  </span>
+                </ItemMedia>
+                <ItemContent className="min-w-0 flex-1 text-sm leading-snug">
+                  You sign one permission. Sidequest’s relay then sends your hires, deliveries, approvals and payouts, and pays their gas:
+                  only calls to Sidequest’s contracts, a limited number of times, until it expires.
+                </ItemContent>
+              </Item>
+            </ItemGroup>
           </Section>
-          {s.status !== 'none' && s.status !== 'live' && <p className="px-4 text-sm text-label-2">{ENDED[s.status]} Turn it on again for a new one.</p>}
+          {s.status !== 'none' && s.status !== 'live' && (
+            <p className="px-4 text-sm text-label-2">{ENDED[s.status]} Turn it on again for a new one.</p>
+          )}
           <Button size="lg" busy={busy === 'prepare'} onClick={() => void begin()}>
             Turn on
           </Button>
-          <p className="px-4 text-ui leading-snug text-label-2">Agents turn it on the same way, signing the same permission from the agent’s own wallet.</p>
+          <p className="px-4 text-ui leading-snug text-label-2">
+            Agents turn it on the same way, signing the same permission from the agent’s own wallet.
+          </p>
         </div>
       )}
-      {error !== null && <ErrorText>{error}</ErrorText>}
+
+      {error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {txs !== null && (
-        <Section title="Send from your wallet" note="Disabling the permission on-chain is one transaction from your wallet; the board already stopped using it.">
+        <Section
+          title="Send from your wallet"
+          note="Disabling the permission on-chain is one transaction from your wallet; the board already stopped using it."
+        >
           <TxSteps
             taskId={`sponsor-revoke:${wallet.toLowerCase()}`}
             txs={txs}
@@ -203,8 +248,11 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
         onConfirm={() => void enable()}
       >
         {prep !== null && <Policy policy={prep.policy} />}
-        {prep !== null && prep.prep.upgrade !== null && <p className="text-sm text-label-2">First your wallet points at the delegation contract. The relay sends that for you.</p>}
+        {prep !== null && prep.prep.upgrade !== null && (
+          <p className="text-sm text-label-2">First your wallet points at the delegation contract. The relay sends that for you.</p>
+        )}
       </ConfirmSheet>
+
       <ConfirmSheet
         open={turningOff}
         onClose={() => setTurningOff(false)}
@@ -223,32 +271,34 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
 function Policy({ policy }: { policy: SponsorPolicy }) {
   return (
     <Section title="What the relay may do">
-      <Group>
-        <ListRow>
-          <span className="flex-1">Relay</span>
+      <ItemGroup>
+        <Item>
+          <ItemContent className="flex-1">Relay</ItemContent>
           <Address value={deployment.relay} />
-        </ListRow>
+        </Item>
         {policy.targets.map((t) => (
-          <ListRow key={t.address}>
-            <span className="flex-1">Call {t.name}</span>
+          <Item key={t.address}>
+            <ItemContent className="flex-1">Call {t.name}</ItemContent>
             <Address value={t.address} />
-          </ListRow>
+          </Item>
         ))}
-        <ListRow>
+        <Item>
           <span className="shrink-0">Only</span>
-          <span className="min-w-0 flex-1 text-right font-mono text-ui break-words text-label-2">{policy.methods.map((x) => x.name).join(', ')}</span>
-        </ListRow>
-        <ListRow>
-          <span className="flex-1">At most</span>
-          <span className="tabular text-label-2">{policy.calls.toString()} calls</span>
-        </ListRow>
-        <ListRow>
-          <span className="flex-1">Until</span>
-          <span className="text-label-2">
+          <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui break-words text-label-2">
+            {policy.methods.map((x) => x.name).join(', ')}
+          </ItemActions>
+        </Item>
+        <Item>
+          <ItemContent className="flex-1">At most</ItemContent>
+          <ItemContent className="tabular text-label-2">{policy.calls.toString()} calls</ItemContent>
+        </Item>
+        <Item>
+          <ItemContent className="flex-1">Until</ItemContent>
+          <ItemContent className="text-label-2">
             <When at={policy.validUntil} />
-          </span>
-        </ListRow>
-      </Group>
+          </ItemContent>
+        </Item>
+      </ItemGroup>
     </Section>
   )
 }

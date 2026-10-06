@@ -1,3 +1,4 @@
+import { cn } from '../lib/cn.ts'
 /**
  * The app's frame, around two places: Jobs (every board's work, quotes and workers) and Agents (the operator's own).
  * On a wide screen: a sidebar with both, the operator's agents nested under Agents with what each waits on, and the
@@ -14,7 +15,7 @@ import { AccountMenu, Count } from './AccountMenu.tsx'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
 import { LaunchBanner } from './LaunchGate.tsx'
 import { NetworkSwitch } from './NetworkSwitch.tsx'
-import { cn } from './ui.tsx'
+
 import { useCollectActions } from '../collect.ts'
 import { AccountControl, Monogram, useAuth, useAutoSignIn } from './Wallet.tsx'
 
@@ -43,7 +44,12 @@ function places(mine: ReadonlySet<string>): Place[] {
   }
   const agents = (p: string) => AGENT_PATHS.some((a) => p.startsWith(a)) || ownAgent(p)
   return [
-    { label: 'Jobs', icon: BriefcaseBusiness, target: r.boardId === 'public' ? { to: '/jobs' } : r.jobs(), active: (p) => p !== '/' && !agents(p) && !onAccount(p) },
+    {
+      label: 'Jobs',
+      icon: BriefcaseBusiness,
+      target: r.boardId === 'public' ? { to: '/jobs' } : r.jobs(),
+      active: (p) => p !== '/' && !agents(p) && !onAccount(p),
+    },
     { label: 'Agents', icon: Bot, target: { to: '/agents' }, active: agents },
     { label: 'Account', icon: CircleUserRound, target: { to: '/account' }, active: onAccount },
   ]
@@ -54,7 +60,14 @@ export function Mark() {
   return (
     <svg aria-hidden viewBox="0 0 32 32" className="size-6 shrink-0">
       <rect width="32" height="32" rx="7" className="fill-tint" />
-      <path d="M8 9h8l8 8M24 23h-8l-8-8" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path
+        d="M8 9h8l8 8M24 23h-8l-8-8"
+        className="stroke-on-tint"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </svg>
   )
 }
@@ -98,13 +111,26 @@ export function Shell({ children }: { children: ReactNode }) {
   const collect = useCollectActions(auth.address, auth.signedIn).data?.length ?? 0
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
-      <aside className="sticky top-0 hidden h-dvh flex-col gap-1 overflow-y-auto border-r bg-sidebar px-3 pt-4 pb-4 text-sidebar-foreground lg:flex" aria-label="Sections">
+      <aside
+        className="sticky top-0 hidden h-dvh flex-col gap-1 overflow-y-auto border-r bg-sidebar px-3 pt-4 pb-4 text-sidebar-foreground lg:flex"
+        aria-label="Sections"
+      >
         <div className="px-2 pb-4">
           <Brand />
         </div>
         <nav className="grid gap-0.5" aria-label="Places">
           {jobs !== undefined && <SideItem place={jobs} on={jobs.active(pathname)} />}
-          {agentsPlace !== undefined && <SideItem place={agentsPlace} on={agentsPlace.active(pathname) && !(auth.signedIn && pathname === '/agents/new') && !agents.some((a) => onAgent(pathname, a.agent_id))} count={waiting > 0 ? <Count n={waiting} kind="waiting" /> : null} />}
+          {agentsPlace !== undefined && (
+            <SideItem
+              place={agentsPlace}
+              on={
+                agentsPlace.active(pathname) &&
+                !(auth.signedIn && pathname === '/agents/new') &&
+                !agents.some((a) => onAgent(pathname, a.agent_id))
+              }
+              count={waiting > 0 ? <Count n={waiting} kind="waiting" /> : null}
+            />
+          )}
           {auth.signedIn && (
             <ul className="ml-4.5 grid gap-0.5 border-l border-sidebar-border pl-2" aria-label="Your agents">
               {agents.map((agent) => {
@@ -130,7 +156,13 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </nav>
         <div className="mt-auto grid gap-3 pt-6">
-          {auth.signedIn ? <AccountMenu collect={collect} /> : <div className="px-1"><AccountControl auth={auth} account={account} full /></div>}
+          {auth.signedIn ? (
+            <AccountMenu collect={collect} />
+          ) : (
+            <div className="px-1">
+              <AccountControl auth={auth} account={account} full />
+            </div>
+          )}
           <div className="grid gap-3 px-2">
             <NetworkSwitch />
             <TestTokens />
@@ -146,11 +178,18 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main key={pathname} className={cn('mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-spring)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16', pathname === '/' ? 'max-w-7xl' : 'max-w-3xl')}>
+        <main
+          key={pathname}
+          className={cn(
+            'mx-auto grid min-w-0 w-full animate-[view-in_0.32s_var(--ease-spring)] gap-7 pt-5 pr-[max(1rem,var(--safe-right))] pb-[calc(6.5rem+var(--safe-bottom))] pl-[max(1rem,var(--safe-left))] lg:px-10 lg:pt-10 lg:pb-16',
+            pathname === '/' ? 'max-w-7xl' : 'max-w-3xl',
+          )}
+        >
           <LaunchBanner />
           {paused && (
             <div role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive-text">
-              The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are unpaused, and deadlines keep running.{' '}
+              The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are unpaused, and
+              deadlines keep running.{' '}
               <a className="underline" href="https://github.com/grmkris/sidequest#trust" target="_blank" rel="noreferrer">
                 What the admin can do
               </a>
@@ -166,17 +205,30 @@ export function Shell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <nav aria-label="Sections" className="material-chrome fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden">
+      <nav
+        aria-label="Sections"
+        className="material-chrome fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-border/60 pt-1.5 pr-[var(--safe-right)] pb-[calc(0.375rem+var(--safe-bottom))] pl-[var(--safe-left)] lg:hidden"
+      >
         {[jobs, agentsPlace, accountPlace].map((p) => {
           if (p === undefined) return null
           const on = p.active(pathname)
           const Icon = p.icon
           const n = p.label === 'Agents' ? waiting : p.label === 'Account' ? collect : 0
           return (
-            <BoardLink key={p.label} target={p.target} aria-current={on ? 'page' : undefined} className={cn('relative grid min-h-11 justify-items-center gap-0.5 py-1 text-micro font-medium transition-opacity active:opacity-60', on ? 'text-foreground' : 'text-muted-foreground')}>
+            <BoardLink
+              key={p.label}
+              target={p.target}
+              aria-current={on ? 'page' : undefined}
+              className={cn(
+                'relative grid min-h-11 justify-items-center gap-0.5 py-1 text-micro font-medium transition-opacity active:opacity-60',
+                on ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
               <Icon aria-hidden className="size-6" strokeWidth={on ? 2.2 : 1.7} />
               {p.label}
-              {n > 0 && <Count n={n} kind={p.label === 'Account' ? 'collect' : 'waiting'} className="absolute top-0 left-[calc(50%+0.5rem)]" />}
+              {n > 0 && (
+                <Count n={n} kind={p.label === 'Account' ? 'collect' : 'waiting'} className="absolute top-0 left-[calc(50%+0.5rem)]" />
+              )}
             </BoardLink>
           )
         })}

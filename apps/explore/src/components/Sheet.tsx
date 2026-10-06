@@ -1,3 +1,5 @@
+import { Button } from './ui/button.tsx'
+import { cn } from '../lib/cn.ts'
 /**
  * Sheets and toasts. A sheet is a native modal <dialog> (top layer, focus trapped, Escape closes, the page behind
  * is inert): a bottom sheet on a phone that follows the finger and is flicked away with momentum, a centred panel on
@@ -5,7 +7,6 @@
  */
 import { X } from 'lucide-react'
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
-import { Button, cn } from './ui.tsx'
 
 /** Apple's momentum projection: where a flick released at `velocity` px/s comes to rest. */
 const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 1000) * decelerationRate) / (1 - decelerationRate)
@@ -16,7 +17,21 @@ const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 100
  * While one is pending the sheet stays on screen as a non-modal dialog, and nothing in it dismisses it: closing the sheet
  * would not cancel the request, which could still be confirmed after the review had gone.
  */
-export function Sheet({ open, onClose, title, children, className, walletPrompt = false }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; className?: string; walletPrompt?: boolean }) {
+export function Sheet({
+  open,
+  onClose,
+  title,
+  children,
+  className,
+  walletPrompt = false,
+}: {
+  open: boolean
+  onClose: () => void
+  title: ReactNode
+  children: ReactNode
+  className?: string
+  walletPrompt?: boolean
+}) {
   const ref = useRef<HTMLDialogElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const drag = useRef<{ start: number; y: number; t: number; v: number } | null>(null)
@@ -101,12 +116,26 @@ export function Sheet({ open, onClose, title, children, className, walletPrompt 
           className,
         )}
       >
-        <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} className="-mx-5 cursor-grab touch-none px-5 pt-1 pb-1 sm:hidden">
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          className="-mx-5 cursor-grab touch-none px-5 pt-1 pb-1 sm:hidden"
+        >
           <div className="mx-auto h-1 w-9 rounded-full bg-foreground/15" />
         </div>
         <div className="flex items-start justify-between gap-3">
-          <h2 id={titleId} className="pt-1 text-base leading-snug font-semibold tracking-tight">{title}</h2>
-          <button type="button" aria-label="Close" disabled={walletPrompt} onClick={dismiss} className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition-colors duration-(--dur-fast) hover:text-foreground disabled:opacity-40 pointer-coarse:size-11">
+          <h2 id={titleId} className="pt-1 text-base leading-snug font-semibold tracking-tight">
+            {title}
+          </h2>
+          <button
+            type="button"
+            aria-label="Close"
+            disabled={walletPrompt}
+            onClick={dismiss}
+            className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition-colors duration-(--dur-fast) hover:text-foreground disabled:opacity-40 pointer-coarse:size-11"
+          >
             <X className="size-4" />
           </button>
         </div>
@@ -150,10 +179,10 @@ export function ConfirmSheet({
       {description !== undefined && <div className="-mt-2 leading-snug text-muted-foreground">{description}</div>}
       {children}
       <div className="grid gap-2">
-        <Button size="lg" variant={tone === 'destructive' ? 'destructive' : 'primary'} busy={busy} disabled={disabled} onClick={onConfirm}>
+        <Button size="lg" variant={tone === 'destructive' ? 'destructive' : 'default'} busy={busy} disabled={disabled} onClick={onConfirm}>
           {confirm}
         </Button>
-        <Button size="lg" variant="gray" disabled={busy === true} onClick={onClose}>
+        <Button size="lg" variant="secondary" disabled={busy === true} onClick={onClose}>
           {cancelLabel}
         </Button>
       </div>
@@ -177,7 +206,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div aria-live="polite" role="status" className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+var(--safe-top))] z-50 grid justify-items-center gap-2 px-4">
+      <div
+        aria-live="polite"
+        role="status"
+        className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+var(--safe-top))] z-50 grid justify-items-center gap-2 px-4"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -186,7 +219,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               t.tone === 'error' && 'text-destructive-text',
             )}
           >
-            <span className={cn('grid size-5 shrink-0 place-items-center rounded-full text-micro font-semibold text-background', t.tone === 'error' ? 'bg-destructive-text' : 'bg-success-text')}>{t.tone === 'error' ? '!' : '✓'}</span>
+            <span
+              className={cn(
+                'grid size-5 shrink-0 place-items-center rounded-full text-micro font-semibold text-background',
+                t.tone === 'error' ? 'bg-destructive-text' : 'bg-success-text',
+              )}
+            >
+              {t.tone === 'error' ? '!' : '✓'}
+            </span>
             {t.text}
           </div>
         ))}

@@ -1,3 +1,8 @@
+import { Badge } from './ui/badge.tsx'
+import { Button } from './ui/button.tsx'
+import { Item, ItemGroup, ItemContent, ItemActions } from './ui/item.tsx'
+import { Alert, AlertDescription } from './ui/alert.tsx'
+import { Address, Section, TxLink } from './kit.tsx'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { formatEther, parseEther } from 'viem'
@@ -13,9 +18,8 @@ import { useDelegatorUpgrade } from './Privy.tsx'
 import { TxSteps } from './TxSteps.tsx'
 import { ConfirmSheet } from './Sheet.tsx'
 import { When } from './Time.tsx'
-import { Address, Badge, Button, ErrorText, Group, ListRow, Section, TxLink } from './ui.tsx'
 
-const STATUS_TONE = { promised: 'attention', live: 'success', revoked: 'danger', ended: 'neutral' } as const
+const STATUS_VARIANT = { promised: 'warning', live: 'success', revoked: 'destructive', ended: 'neutral' } as const
 const STATUS_LABEL = { promised: 'Approved, not granted yet', live: 'Granted', revoked: 'Revoked', ended: 'Expired or used up' } as const
 /** Monad: a transaction may not lower a delegated account's MON below 10 by more than its gas fee. */
 const RESERVE = parseEther('10')
@@ -25,7 +29,19 @@ const RESERVE = parseEther('10')
  * on-chain by the MetaMask Delegation Framework. The creator grants it here once the worker has activated (the
  * wallet points at the DeleGator, then signs the delegation), watches the draws, and revokes it on-chain.
  */
-export function BudgetPanel({ task, status, roles, signedIn, address }: { task: TaskIndexEntry; status: string; roles: string[]; signedIn: boolean; address: string | undefined }) {
+export function BudgetPanel({
+  task,
+  status,
+  roles,
+  signedIn,
+  address,
+}: {
+  task: TaskIndexEntry
+  status: string
+  roles: string[]
+  signedIn: boolean
+  address: string | undefined
+}) {
   const qc = useQueryClient()
   const creator = roles.includes('creator')
   const party = roles.length > 0
@@ -62,9 +78,12 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
   }
 
   const grant = act('grant', async () => {
-    const prep = await tool<{ sign: { typedData: string }; upgrade: { delegator: string } | null }>('budget_grant_prepare', { taskId: task.taskId })
+    const prep = await tool<{ sign: { typedData: string }; upgrade: { delegator: string } | null }>('budget_grant_prepare', {
+      taskId: task.taskId,
+    })
     if (prep.upgrade !== null) {
-      if (upgrade === null) throw new Error('Grant from the Privy email/Google wallet that published the task: it points at the DeleGator first.')
+      if (upgrade === null)
+        throw new Error('Grant from the Privy email/Google wallet that published the task: it points at the DeleGator first.')
       const hash = await upgrade()
       if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
     }
@@ -85,94 +104,119 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
       title="Running-cost budget"
       note="Money the agent may spend on the job, apart from the reward: from the creator’s wallet, not escrowed, capped and expiring. The chain enforces the cap through a delegation from the creator’s account."
     >
-      <Group>
-        <ListRow>
-          <span className="flex-1">Approved</span>
+      <ItemGroup>
+        <Item>
+          <ItemContent className="flex-1">Approved</ItemContent>
           <span className="tabular font-semibold">{cap}</span>
-        </ListRow>
+        </Item>
         {eb.kind === 'call' && (
-          <ListRow>
-            <span className="flex-1 text-sm text-label-2">
-              One call to <span className="font-mono">{/function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'the function'}</span> on <Address value={eb.target} />, made from the creator’s account, so the creator owns what it makes.
-            </span>
-          </ListRow>
+          <Item>
+            <ItemContent className="flex-1 text-sm text-label-2">
+              One call to <span className="font-mono">{/function\s+(\w+)/.exec(eb.function ?? '')?.[1] ?? 'the function'}</span> on{' '}
+              <Address value={eb.target} />, made from the creator’s account, so the creator owns what it makes.
+            </ItemContent>
+          </Item>
         )}
-        <ListRow>
-          <span className="flex-1">Until</span>
-          <span className="text-label-2"><When at={eb.expiresAt} /></span>
-        </ListRow>
+        <Item>
+          <ItemContent className="flex-1">Until</ItemContent>
+          <ItemContent className="text-label-2">
+            <When at={eb.expiresAt} />
+          </ItemContent>
+        </Item>
         {b !== undefined && (
           <>
-            <ListRow>
-              <span className="flex-1">Status</span>
-              <span className="text-right">
-                <Badge tone={STATUS_TONE[b.status]}>{STATUS_LABEL[b.status]}</Badge>
+            <Item>
+              <ItemContent className="flex-1">Status</ItemContent>
+              <ItemActions className="flex-col items-end text-right">
+                <Badge variant={STATUS_VARIANT[b.status]}>{STATUS_LABEL[b.status]}</Badge>
                 {b.endedReason !== null && <span className="block text-ui text-label-2">{b.endedReason}</span>}
-              </span>
-            </ListRow>
+              </ItemActions>
+            </Item>
+
             {b.kind === 'advance' ? (
               <>
-                <ListRow>
-                  <span className="flex-1">Drawn by the agent</span>
-                  <span className="tabular text-label-2">{b.drawn} {b.symbol}</span>
-                </ListRow>
-                <ListRow>
-                  <span className="flex-1">Left</span>
-                  <span className="tabular text-label-2">{b.remaining} {b.symbol}</span>
-                </ListRow>
+                <Item>
+                  <ItemContent className="flex-1">Drawn by the agent</ItemContent>
+                  <ItemContent className="tabular text-label-2">
+                    {b.drawn} {b.symbol}
+                  </ItemContent>
+                </Item>
+
+                <Item>
+                  <ItemContent className="flex-1">Left</ItemContent>
+                  <ItemContent className="tabular text-label-2">
+                    {b.remaining} {b.symbol}
+                  </ItemContent>
+                </Item>
               </>
             ) : (
-              <ListRow>
-                <span className="flex-1">The call</span>
-                <span className="text-label-2">{b.calls?.made ?? 0} of 1 made{b.drawn !== '0' ? `, ${b.drawn} ${b.symbol} sent` : ''}</span>
-              </ListRow>
+              <Item>
+                <ItemContent className="flex-1">The call</ItemContent>
+                <ItemContent className="text-label-2">
+                  {b.calls?.made ?? 0} of 1 made{b.drawn !== '0' ? `, ${b.drawn} ${b.symbol} sent` : ''}
+                </ItemContent>
+              </Item>
             )}
+
             {b.draws.map((x) => (
-              <ListRow key={x.drawId}>
-                <Badge tone={x.status === 'confirmed' ? 'success' : x.status === 'failed' ? 'danger' : 'attention'}>{x.status === 'confirmed' ? 'Spent' : x.status === 'failed' ? 'Failed' : 'Pending'}</Badge>
-                <span className="min-w-0 flex-1 text-sm">
+              <Item key={x.drawId}>
+                <Badge variant={x.status === 'confirmed' ? 'success' : x.status === 'failed' ? 'destructive' : 'warning'}>
+                  {x.status === 'confirmed' ? 'Spent' : x.status === 'failed' ? 'Failed' : 'Pending'}
+                </Badge>
+                <ItemContent className="min-w-0 flex-1 text-sm">
                   {x.amount === null ? '' : `${x.amount} ${b.symbol}`}
                   {x.selector !== undefined ? ` · call ${x.selector}` : ''}
                   {x.note !== '' && <span className="block text-ui text-label-2">{x.note}</span>}
-                </span>
+                </ItemContent>
                 <TxLink hash={x.txHash} />
-              </ListRow>
+              </Item>
             ))}
           </>
         )}
-      </Group>
-      {b === undefined && signedIn && party && budget.error !== null && <ErrorText>{friendlyError(budget.error)}</ErrorText>}
+      </ItemGroup>
+      {b === undefined && signedIn && party && budget.error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{friendlyError(budget.error)}</AlertDescription>
+        </Alert>
+      )}
       {!signedIn && <p className="px-4 text-ui text-label-2">Sign in as the creator, approver or agent to see what was spent.</p>}
 
       {creator && b !== undefined && (
         <div className="grid gap-2">
-          {b.status === 'promised' && status !== 'active' && <p className="px-4 text-sm text-label-2">Grant it once the agent has started: the grant names that agent.</p>}
+          {b.status === 'promised' && status !== 'active' && (
+            <p className="px-4 text-sm text-label-2">Grant it once the agent has started: the grant names that agent.</p>
+          )}
           {b.status === 'promised' && status === 'active' && (
             <Button size="lg" busy={busy === 'grant'} onClick={() => setConfirm('grant')}>
               Grant the budget
             </Button>
           )}
           {(b.status === 'promised' || b.status === 'live') && (
-            <Button variant="danger" busy={busy === 'revoke'} onClick={() => setConfirm('revoke')}>
+            <Button variant="destructive" busy={busy === 'revoke'} onClick={() => setConfirm('revoke')}>
               Revoke
             </Button>
           )}
           {lingering && (
             <div className="grid gap-2 rounded-xl bg-warn-bg px-4 py-3 text-sm text-warn">
               <p>
-                The signed grant stays valid on-chain until <When at={b.expiresAt} show="time" />: the agent could still spend it without the board. Disable it now.
+                The signed grant stays valid on-chain until <When at={b.expiresAt} show="time" />: the agent could still spend it without
+                the board. Disable it now.
               </p>
-              <Button variant="danger" busy={busy === 'revoke'} onClick={() => setConfirm('disable')}>
+              <Button variant="destructive" busy={busy === 'revoke'} onClick={() => setConfirm('disable')}>
                 Disable on-chain
               </Button>
             </div>
           )}
-          {eb.kind === 'call' && b.status !== 'ended' && b.status !== 'revoked' && mon.data !== undefined && mon.data.value < BigInt(eb.cap) + RESERVE && (
-            <p className="px-4 text-sm text-warn">
-              Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to {formatEther(BigInt(eb.cap))} MON, and Monad keeps 10 MON in a delegated account: hold at least{' '}
-              {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
-            </p>
-          )}
+          {eb.kind === 'call' &&
+            b.status !== 'ended' &&
+            b.status !== 'revoked' &&
+            mon.data !== undefined &&
+            mon.data.value < BigInt(eb.cap) + RESERVE && (
+              <p className="px-4 text-sm text-warn">
+                Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to {formatEther(BigInt(eb.cap))} MON, and Monad
+                keeps 10 MON in a delegated account: hold at least {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
+              </p>
+            )}
         </div>
       )}
       {roles.includes('worker') && b?.status === 'live' && (
@@ -183,7 +227,11 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
           get_budget holds the signed grant, which works without the board.
         </p>
       )}
-      {error !== null && <ErrorText>{error}</ErrorText>}
+      {error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <ConfirmSheet
         open={confirm === 'grant'}
@@ -198,7 +246,8 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
         }}
       >
         <p className="text-sm text-label-2">
-          Expires <When at={eb.expiresAt} />. The first grant from this wallet also points it at the delegation contract, which the board’s relay sends for you.
+          Expires <When at={eb.expiresAt} />. The first grant from this wallet also points it at the delegation contract, which the board’s
+          relay sends for you.
         </p>
       </ConfirmSheet>
       <ConfirmSheet
@@ -214,18 +263,20 @@ export function BudgetPanel({ task, status, roles, signedIn, address }: { task: 
           void revoke()
         }}
       />
-      {txs !== null && <Section title="Send from your wallet">
-        {txs !== null && (
-          <TxSteps
-            taskId={task.taskId}
-            txs={txs}
-            onDone={() => {
-              setTxs(null)
-              void refresh()
-            }}
-          />
-        )}
-      </Section>}
+      {txs !== null && (
+        <Section title="Send from your wallet">
+          {txs !== null && (
+            <TxSteps
+              taskId={task.taskId}
+              txs={txs}
+              onDone={() => {
+                setTxs(null)
+                void refresh()
+              }}
+            />
+          )}
+        </Section>
+      )}
     </Section>
   )
 }

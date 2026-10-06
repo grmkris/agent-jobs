@@ -1,3 +1,5 @@
+import { Alert, AlertDescription } from '../ui/alert.tsx'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../ui/empty.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useState } from 'react'
 import type { Address } from 'viem'
@@ -6,7 +8,7 @@ import { useManagedApprovals } from '../../managed.ts'
 import { StartPrompt } from '../AgentStartLink.tsx'
 import { ConnectionCard } from '../ConnectionCard.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs.tsx'
-import { EmptyState, ErrorText } from '../ui.tsx'
+
 import { useAuth } from '../Wallet.tsx'
 import { Approval } from './Approval.tsx'
 import { ManagedAgentCard } from './ManagedAgentCard.tsx'
@@ -20,8 +22,7 @@ export function ownerTab(search: string): OwnerTab {
   return TABS.find((t) => t === tab) ?? 'overview'
 }
 
-const triggerClass =
-  'flex-none px-0 min-h-9 pointer-coarse:min-h-11 group-data-horizontal/tabs:after:bottom-[-1px]'
+const triggerClass = 'flex-none px-0 min-h-9 pointer-coarse:min-h-11 group-data-horizontal/tabs:after:bottom-[-1px]'
 
 /**
  * An agent's page as its operator sees it: the public profile under Overview, then what only the operator can do —
@@ -40,7 +41,11 @@ export function OwnerTabs({ id, managed, overview }: { id: string; managed: Mana
   }, [tab])
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as OwnerTab)} className="gap-7">
-      <TabsList variant="line" aria-label="Your agent" className="w-full justify-start gap-5 rounded-none border-b p-0 group-data-horizontal/tabs:h-auto">
+      <TabsList
+        variant="line"
+        aria-label="Your agent"
+        className="w-full justify-start gap-5 rounded-none border-b p-0 group-data-horizontal/tabs:h-auto"
+      >
         <TabsTrigger value="overview" className={triggerClass}>
           Overview
         </TabsTrigger>
@@ -82,10 +87,27 @@ function Approvals({ managed }: { managed: ManagedAgent }) {
   const auth = useAuth()
   const queryClient = useQueryClient()
   const approvals = useManagedApprovals()
-  const mine = (approvals.data?.approvals ?? []).filter((a) => a.agent_id === managed.id).toSorted((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending'))
+  const mine = (approvals.data?.approvals ?? [])
+    .filter((a) => a.agent_id === managed.id)
+    .toSorted((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending'))
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['managed-approvals', auth.address] })
-  if (approvals.error !== null) return <ErrorText>Approval records are unavailable. No decision has been submitted.</ErrorText>
+  if (approvals.error !== null)
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>Approval records are unavailable. No decision has been submitted.</AlertDescription>
+      </Alert>
+    )
   if (approvals.isLoading) return <p className="text-muted-foreground">Reading this agent’s decisions…</p>
-  if (mine.length === 0) return <EmptyState title="Nothing waiting for you">Hires within the weekly budget go ahead without asking. Bigger spends wait here for you.</EmptyState>
-  return mine.map((approval) => <Approval key={approval.id} approval={approval} agent={managed} operator={auth.address as Address} refresh={refresh} />)
+  if (mine.length === 0)
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{'Nothing waiting for you'}</EmptyTitle>
+          <EmptyDescription>Hires within the weekly budget go ahead without asking. Bigger spends wait here for you.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  return mine.map((approval) => (
+    <Approval key={approval.id} approval={approval} agent={managed} operator={auth.address as Address} refresh={refresh} />
+  ))
 }

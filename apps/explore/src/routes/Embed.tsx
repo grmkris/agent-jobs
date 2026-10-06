@@ -1,10 +1,14 @@
+import { Badge } from '../components/ui/badge.tsx'
+import { Button } from '../components/ui/button.tsx'
+import { Alert, AlertDescription } from '../components/ui/alert.tsx'
+import { Address } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect } from 'wagmi'
 import { type BoardInfo, currentBoardId, tool } from '../api.ts'
 import { PrivyLogin } from '../components/Privy.tsx'
-import { Address, Badge, Button, ErrorText } from '../components/ui.tsx'
+
 import { FundButton } from '../components/Fund.tsx'
 import { LaunchGate } from '../components/LaunchGate.tsx'
 import { useAuth } from '../components/Wallet.tsx'
@@ -45,7 +49,12 @@ export function EmbedPage() {
   const { isConnected } = useAccount()
   const { connect, connectors } = useConnect()
   const board = useQuery({ queryKey: ['get_board', boardId], queryFn: async () => (await tool<{ board: BoardInfo }>('get_board')).board })
-  const task = useQuery({ queryKey: ['embed-task', taskId], queryFn: () => tool<{ jobId: string | null }>('get_task', { taskId }), enabled: taskId !== null, refetchInterval: 10_000 })
+  const task = useQuery({
+    queryKey: ['embed-task', taskId],
+    queryFn: () => tool<{ jobId: string | null }>('get_task', { taskId }),
+    enabled: taskId !== null,
+    refetchInterval: 10_000,
+  })
   const [prefill, setPrefill] = useState<Record<string, string>>(() => {
     const p: Record<string, string> = {}
     for (const k of ['title', 'brief', 'reward', 'token', 'mode', 'worker', 'agentId']) {
@@ -126,7 +135,11 @@ export function EmbedPage() {
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (
             wallet === 'injected' ? (
-              <Button size="sm" disabled={injected === undefined} onClick={() => injected !== undefined && connect({ connector: injected })}>
+              <Button
+                size="sm"
+                disabled={injected === undefined}
+                onClick={() => injected !== undefined && connect({ connector: injected })}
+              >
                 Connect wallet
               </Button>
             ) : (
@@ -135,9 +148,11 @@ export function EmbedPage() {
           ) : (
             <>
               <Address value={auth.address} />
+
               <FundButton address={auth.address} />
+
               {auth.signedIn ? (
-                <Badge tone="success">Signed in</Badge>
+                <Badge variant="success">Signed in</Badge>
               ) : (
                 <Button size="sm" busy={busy} onClick={signIn}>
                   Sign in
@@ -147,19 +162,23 @@ export function EmbedPage() {
           )}
         </span>
       </header>
-      {error !== null && <ErrorText>{error}</ErrorText>}
+      {error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       {view === 'jobs' && <JobsPage />}
       {view === 'publish' && (
         <LaunchGate title="Post a job">
-        <PublishPage
-          auth={auth}
-          prefill={prefill}
-          onPublished={(t) => {
-            postToHost(boardId, 'published', { taskId: t.taskId, jobId: t.jobId, txHash: t.txHash })
-            setTaskId(t.taskId)
-            setView('task')
-          }}
-        />
+          <PublishPage
+            auth={auth}
+            prefill={prefill}
+            onPublished={(t) => {
+              postToHost(boardId, 'published', { taskId: t.taskId, jobId: t.jobId, txHash: t.txHash })
+              setTaskId(t.taskId)
+              setView('task')
+            }}
+          />
         </LaunchGate>
       )}
       {view === 'task' &&
