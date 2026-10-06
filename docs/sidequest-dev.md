@@ -12,7 +12,17 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest guarded dev application release is `760b0a7`, deployed on 6 October 2026
+The latest guarded dev application release is `d167a0d`, deployed on 6 October 2026
+at 20:01:33 UTC at V11's READY-FOR-DEV-CUT request. The
+[dated live receipt](evidence/sidequest-dev/2026-10-06-d167a0d-live.json) records the
+source/tree, V11's green `heavy pnpm check`, the runner tests and migration drift check,
+the successful guarded update and the anonymous readback (health, release and OAuth
+metadata 200; every anonymous MCP method 401). It adds function-name-only stack frames
+to the agent-failure log so a masked internal failure names where it was thrown, and
+gives each crew run a token that outlives it. Host acceptance and authenticated MCP
+calls remain unverified.
+
+The previous guarded dev application release was `760b0a7`, deployed on 6 October 2026
 at 19:38:24 UTC at V11's READY-FOR-DEV-CUT request for `3109c14` (`760b0a7` adds only a
 crew scenario document, so the deployed application source is `3109c14`). The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-760b0a7-live.json) records the

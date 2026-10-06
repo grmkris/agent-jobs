@@ -1,0 +1,117 @@
+{
+ "observedAt": "2026-10-06T20:02:50.589324+00:00",
+ "sourceCommit": "d167a0dd884d6eb9297e5ec3ffefeb366590ba89",
+ "sourceTree": "fd637b49b7c298d103f4afc921b7d6f9fbf4d7ee",
+ "deployedAt": "2026-10-06T20:01:33.009Z",
+ "finishedAt": "2026-10-06T20:02:30.163Z",
+ "origin": "https://dev.sidequest.exchange",
+ "chainId": 10143,
+ "evidenceTier": "live-dev-guarded-runner-and-anonymous-readback",
+ "runner": {
+  "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
+  "planPassed": true,
+  "exitCode": 0,
+  "operation": "update",
+  "status": "deployed"
+ },
+ "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
+ "newMigration": false,
+ "gates": {
+  "heavy pnpm check": "passed on d167a0d by V11 (/tmp/v11-gates/diag-check.log, 0 fail, 22:00 CEST)",
+  "heavy pnpm sidequest:test": "9 passed",
+  "heavy pnpm db:generate --check": "passed"
+ },
+ "contents": "agent-failure log gains function-name-only stack frames (errorSite); crew run token lifetime fix; tests",
+ "publicReadback": {
+  "observedAt": "2026-10-06T20:02:50.589324+00:00",
+  "origin": "https://dev.sidequest.exchange",
+  "evidenceTier": "live-dev-anonymous-readback",
+  "publicChecks": [
+   {
+    "path": "/health",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/release.json",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/.well-known/oauth-protected-resource",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/.well-known/oauth-authorization-server",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "initialize"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "server/discover"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "resources/read"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "skills/list"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "tools/list"
+   }
+  ],
+  "health": {
+   "ok": true,
+   "runtime": "Cloudflare-Workers",
+   "network": "monad-testnet",
+   "board": "public"
+  },
+  "release": {
+   "network": "monad-testnet",
+   "mainnetLive": false,
+   "writesOpen": true
+  },
+  "oauth": {
+   "issuer": "https://dev.sidequest.exchange",
+   "resource": "https://dev.sidequest.exchange/mcp",
+   "scopes": [
+    "sidequest:read",
+    "sidequest:hire",
+    "sidequest:work"
+   ]
+  },
+  "authenticatedCapabilities": "not-verified; discovery requires OAuth",
+  "hostAcceptance": "not-verified"
+ },
+ "noAuthentication": true,
+ "noHostConnection": true,
+ "noTransactions": true,
+ "releasedBy": "Claude coordinator pane agent-jobs:0.1 at V11's READY-FOR-DEV-CUT request"
+}
