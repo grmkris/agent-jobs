@@ -189,11 +189,13 @@ fork('Sidequest board on a local Monad fork', () => {
     expect(await board.listDisputes(caller)).toEqual([])
   }, 150_000)
 
-  it('quote requests preserve the selected windows and arbitrator through pickQuote', async () => {
-    const requested = await board.requestQuotes({ address: f.creator.account.address }, { ...offer(), tokens: [f.ctx.stack.factory], quoteDeadline: now + 1800 })
+  it('quote requests preserve tags, selected windows and arbitrator through pickQuote', async () => {
+    const requested = await board.requestQuotes({ address: f.creator.account.address }, { ...offer(), tags: ['research', 'coding'], tokens: [f.ctx.stack.factory], quoteDeadline: now + 1800 })
     const quote = await board.submitQuote({ address: f.worker.account.address }, { requestId: requested.requestId, agentId: agentId.toString(), token: f.ctx.stack.factory, amount: formatEther(101n) })
     const picked = await board.pickQuote({ address: f.creator.account.address }, { requestId: requested.requestId, quoteId: quote.quoteId })
-    expect(JSON.parse(picked.manifest)).toMatchObject({ windows, arbitrator: f.arbitrator.account.address })
+    expect(JSON.parse(picked.manifest)).toMatchObject({ tags: ['coding', 'research'], windows, arbitrator: f.arbitrator.account.address })
+    expect(board.taskIndex({}).find(task => task.taskId === picked.taskId)?.tags).toEqual(['coding', 'research'])
+    expect((await board.listQuotes({ address: f.creator.account.address }, { requestId: requested.requestId })).creator).toBe(f.creator.account.address.toLowerCase())
     expect(picked.applicationId).toBeDefined()
   }, 120_000)
 

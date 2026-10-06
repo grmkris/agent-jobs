@@ -41,6 +41,23 @@ const offer = (over: Partial<OfferTerms> = {}): OfferTerms => ({
   ...over,
 })
 
+describe('discovery tags in frozen terms', () => {
+  it('leaves existing untagged signed manifests unchanged', () => {
+    const original = offer()
+    const back = parseTerms(canonicalJson(original))
+    expect(back).not.toHaveProperty('tags')
+    expect(termsHash(back)).toBe(termsHash(original))
+    expect(termsHash({ ...original, tags: undefined } as unknown as OfferTerms)).toBe(termsHash(original))
+  })
+  it('binds the tags into the manifest without reordering stored signed terms', () => {
+    const tagged = offer({ tags: ['research', 'coding'] })
+    const back = parseTerms(canonicalJson(tagged))
+    expect(back.tags).toEqual(['research', 'coding'])
+    expect(termsHash(back)).toBe(termsHash(tagged))
+    expect(termsHash(tagged)).not.toBe(termsHash(offer()))
+  })
+})
+
 describe('v1 offer windows and arbitrator', () => {
   const windows = { reviewSeconds: 3600, disputeSeconds: 86400, arbitrationSeconds: 43200 }
   const v1 = () => offer({ windows, arbitrator: A(8) })

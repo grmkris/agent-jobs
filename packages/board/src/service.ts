@@ -183,15 +183,17 @@ export interface BudgetInput {
   expiresAt?: number
 }
 
-/** The spec as frozen into terms: kinds de-duplicated in canonical order, an empty target dropped. */
-/**
- * A refusal from local offer validation (its try block does no I/O): our TermsError text, or a static message for
- * anything else, so a caught error's own text never becomes a trusted reply.
- */
+function normalizeTags(value: unknown): sdk.JobTag[] {
+  try { return sdk.jobTags(value) }
+  catch (error) { throw new BoardError('invalid', (error as Error).message) }
+}
+
+/** A local validation refusal; provider error text never becomes a trusted reply. */
 function invalidTerms(error: unknown): BoardError {
   return new BoardError('invalid', error instanceof TermsError ? error.message : 'the offer terms are invalid')
 }
 
+/** The spec as frozen into terms: kinds de-duplicated in canonical order, an empty target dropped. */
 function normalSpec(spec: DeliverableSpec): DeliverableSpec {
   const problem = validateSpec(spec)
   if (problem !== undefined) throw new BoardError('invalid', `deliverable: ${problem}`)
@@ -590,6 +592,7 @@ export class Board {
       title: string
       brief: string
       acceptanceCriteria: string[]
+      tags?: readonly sdk.JobTag[]
       /** A reward token symbol from the deployment (`mUSD`, `mEUR`, `USDC`) or its address. */
       token: string
       /** Decimal amounts in the token's and SIDE's own units ("25" = 25 mEUR). */
@@ -633,6 +636,7 @@ export class Board {
       this.#task(saved.taskId)
       return saved
     }
+    const tags = input.tags === undefined ? [] : normalizeTags(input.tags)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     await this.#requireUnpaused(stack)
@@ -661,6 +665,7 @@ export class Board {
       title: input.title,
       brief: input.brief,
       acceptanceCriteria: input.acceptanceCriteria,
+      ...(tags.length === 0 ? {} : { tags }),
       token,
       reward: parseUnits(input.reward, decimals),
       creatorBond: parseUnits(input.creatorBond, 18),
@@ -1421,6 +1426,7 @@ export class Board {
       title: string
       brief: string
       acceptanceCriteria: string[]
+      tags?: readonly sdk.JobTag[]
       tokens: string[]
       creatorBond: string
       workerBond: string
@@ -1439,6 +1445,7 @@ export class Board {
     const creator = this.#requireCaller(caller)
     const saved = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
     if (saved !== undefined) return this.#withRequestDeadlines(saved)
+    const tags = input.tags === undefined ? [] : normalizeTags(input.tags)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     if (input.tokens.length === 0) throw new BoardError('invalid', 'name at least one accepted token')
@@ -1456,6 +1463,7 @@ export class Board {
       title: input.title,
       brief: input.brief,
       acceptanceCriteria: input.acceptanceCriteria,
+      ...(tags.length === 0 ? {} : { tags }),
       tokens,
       creatorBond: input.creatorBond,
       workerBond: input.workerBond,
@@ -1598,7 +1606,7 @@ export class Board {
         quoteHash: q.quote_hash,
       })
     }
-    return { requestId: req.id, requestHash: req.request_hash, picked: req.task_id, quotes: out }
+    return { requestId: req.id, requestHash: req.request_hash, creator: req.creator, picked: req.task_id, quotes: out }
   }
 
   /**
@@ -1640,6 +1648,7 @@ export class Board {
       title: string; brief: string; acceptanceCriteria: string[]; creatorBond: string; workerBond: string
       deliveryDeadline: number; approver: Address; requiredChecks: string[]; deliverable?: DeliverableSpec
       windows?: import('./terms.ts').EvaluatorWindows; arbitrator?: Address
+      tags?: sdk.JobTag[]
     }
     const decimals = await ctx.publicClient.readContract({ address: q.token as Address, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
     const created = await this.createTask(
@@ -1649,6 +1658,7 @@ export class Board {
         title: r.title,
         brief: r.brief,
         acceptanceCriteria: r.acceptanceCriteria,
+        ...(r.tags === undefined ? {} : { tags: r.tags }),
         token: q.token,
         reward: formatUnits(BigInt(q.amount), decimals),
         creatorBond: r.creatorBond,
@@ -2602,6 +2612,7 @@ export class Board {
         brief: terms.brief,
         acceptanceCriteria: terms.acceptanceCriteria,
         mode: terms.mode,
+        tags: terms.tags ?? [],
         token: terms.token,
         reward: terms.reward.toString(),
         creatorBond: terms.creatorBond.toString(),

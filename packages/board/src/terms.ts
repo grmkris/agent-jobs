@@ -5,7 +5,7 @@
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
 import { type AbiFunction, type Address, type Hex, isAddress, keccak256, parseAbiItem, stringToHex, zeroAddress } from 'viem'
-import { type WindowBounds, validateOfferWindows, windowBounds } from '@sidequest/sdk'
+import { type JobTag, type WindowBounds, validateOfferWindows, windowBounds } from '@sidequest/sdk'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
 
@@ -94,6 +94,8 @@ export interface OfferTerms {
   title: string
   brief: string
   acceptanceCriteria: readonly string[]
+  /** Discovery tags frozen with the offer. Absent on untagged offers. */
+  tags?: readonly JobTag[]
   token: Address
   reward: bigint
   creatorBond: bigint

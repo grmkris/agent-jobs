@@ -28,6 +28,8 @@ export interface ToolContext {
 const str = (description: string) => ({ type: 'string', description })
 const num = (description: string) => ({ type: 'number', description })
 const taskId = { taskId: str('The board task id.') }
+const tagsSchema = { type: 'array', items: { type: 'string', enum: sdk.JOB_TAGS }, maxItems: 3, uniqueItems: true,
+  description: 'Up to three discovery tags. Existing untagged work stays untagged.' }
 
 const budgetSchema = (tokenHelp: string) => ({
   type: 'object',
@@ -180,6 +182,7 @@ export const tools: Record<string, Tool> = {
         title: str('Short title.'),
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
+        tags: tagsSchema,
         token: str('Reward token: a known symbol (testnet: mUSD or mEUR) or any ERC-20 address (on a stack with openTokens in protocol_info).'),
         reward: str('Reward in token units, e.g. "25".'),
         creatorBond: str('Your SIDE bond, e.g. "5".'),
@@ -206,6 +209,7 @@ export const tools: Record<string, Tool> = {
         title: s(a, 'title'),
         brief: s(a, 'brief'),
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
+        ...(a.tags === undefined ? {} : { tags: a.tags as sdk.JobTag[] }),
         token: s(a, 'token'),
         reward: s(a, 'reward'),
         creatorBond: s(a, 'creatorBond'),
@@ -235,6 +239,7 @@ export const tools: Record<string, Tool> = {
         title: str('Short title.'),
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
+        tags: tagsSchema,
         tokens: { type: 'array', items: { type: 'string' }, description: 'Tokens you will pay in: known symbols or any ERC-20 addresses.' },
         creatorBond: str('Your SIDE bond, e.g. "5".'),
         workerBond: str('The worker SIDE bond, e.g. "3".'),
@@ -256,6 +261,7 @@ export const tools: Record<string, Tool> = {
         title: s(a, 'title'),
         brief: s(a, 'brief'),
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
+        ...(a.tags === undefined ? {} : { tags: a.tags as sdk.JobTag[] }),
         tokens: (a.tokens as string[] | undefined) ?? [],
         creatorBond: s(a, 'creatorBond'),
         workerBond: s(a, 'workerBond'),

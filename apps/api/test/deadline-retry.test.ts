@@ -80,3 +80,28 @@ it('the board refuses a budget expiry that is not integer seconds, whatever the 
   await expect(f.board.createTask({ address: creator }, { ...f.offer, token: f.token, reward: '1', mode: 'hire', deliveryDeadline: T + 86_400,
     executionBudget: { kind: 'advance', token: f.token, cap: '1', expiresAt: '3d' as never } })).rejects.toMatchObject({ code: 'invalid', message: expect.stringContaining('expiresAt') })
 })
+
+it('tags are frozen through API creation and quote picking; quote privacy follows the exact creator', async () => {
+  const f = fixture()
+  const created = await f.run('create_task', { ...f.offer, tags: ['research', 'coding'], token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })
+  expect(JSON.parse(created.manifest as string).tags).toEqual(['coding', 'research'])
+  const untagged = await f.run('create_task', { ...f.offer, tags: [], token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })
+  expect(JSON.parse(untagged.manifest as string)).not.toHaveProperty('tags')
+  const request = await f.run('request_quotes', { ...f.offer, tags: ['writing', 'design'], tokens: [f.token], deliveryDeadline: '3d', quoteDeadline: '1d' })
+  expect(f.board.listQuoteRequests({})[0]).toMatchObject({ tags: ['design', 'writing'] })
+  const quote = await f.board.submitQuote({ address: worker }, { requestId: request.requestId as string, agentId: '7', token: f.token, amount: '1' })
+  const unrelated = '0x5555555555555555555555555555555555555555' as const
+  expect(await f.run('list_quotes', { requestId: request.requestId }, unrelated)).toMatchObject({ creator, quotes: [] })
+  const picked = await f.run('pick_quote', { requestId: request.requestId, quoteId: quote.quoteId })
+  expect(JSON.parse(picked.manifest as string).tags).toEqual(['design', 'writing'])
+  expect(f.board.taskIndex({}).find(task => task.taskId === picked.taskId)?.tags).toEqual(['design', 'writing'])
+  await expect(f.run('pick_quote', { requestId: request.requestId, quoteId: quote.quoteId }, unrelated)).rejects.toMatchObject({ code: 'forbidden' })
+})
+
+it('invalid tag inputs fail as validation errors before any preparation is persisted', async () => {
+  const f = fixture()
+  for (const tags of [['unknown'], ['coding', 'design', 'writing', 'research'], 'coding']) {
+    await expect(f.run('create_task', { ...f.offer, tags, token: f.token, reward: '1', mode: 'hire', deliveryDeadline: '3d' })).rejects.toMatchObject({ code: 'invalid' })
+  }
+  expect(f.board.taskIndex({})).toEqual([])
+})

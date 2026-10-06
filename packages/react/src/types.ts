@@ -2,6 +2,8 @@
  * What the board's tools return, typed once for every consumer (Explore, the widget, a host's own UI). These mirror
  * the board service's replies; amounts are strings in base units unless a field says otherwise.
  */
+import type { JobTag } from '@sidequest/sdk'
+
 export interface TxRequest {
   description: string
   chainId: number
@@ -63,6 +65,7 @@ export interface TaskIndexEntry {
   title: string
   brief: string
   acceptanceCriteria: string[]
+  tags?: readonly JobTag[]
   mode: 'hire' | 'contest'
   token: `0x${string}`
   reward: string
@@ -144,6 +147,7 @@ export interface QuoteRequest {
   title: string
   brief: string
   acceptanceCriteria: string[]
+  tags?: readonly JobTag[]
   tokens: string[]
   creatorBond: string
   workerBond: string
