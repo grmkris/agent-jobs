@@ -5,8 +5,9 @@ import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useEffect, useState } from 'react'
-import { type Address, encodeFunctionData, erc20Abi, parseSignature } from 'viem'
-import { useSignTypedData } from 'wagmi'
+import { Link } from '@tanstack/react-router'
+import { type Address, encodeFunctionData, erc20Abi, formatEther, parseEther, parseSignature } from 'viem'
+import { useBalance, useSignTypedData } from 'wagmi'
 import { type ManagedAgent, agentEndpoint } from '../api.ts'
 import { DelegationForm, exactFactory } from './DelegationForm.tsx'
 import { DELEGATION_RISK, DelegationPositions, factoryValue } from './DelegationPositions.tsx'
@@ -37,6 +38,9 @@ import {
 } from '../vault-lock.ts'
 import { VaultPreparationRecovery } from './VaultPreparationRecovery.tsx'
 
+/** About one backing send at testnet gas prices, with room to spare: backing is not gas-sponsored. */
+const BACKING_GAS = parseEther('0.03')
+
 export function BackingManager({
   owner,
   scope = { kind: 'account' },
@@ -61,6 +65,7 @@ function Stake({
   const toast = useToast()
   const queryClient = useQueryClient()
   const reads = useDelegations(contracts, owner)
+  const mon = useBalance({ address: owner, chainId: chain.id, query: { refetchInterval: 15_000 } })
   const directory = useDirectory()
   const managed = useQuery({
     queryKey: ['managed-agents', owner.toLowerCase()],
@@ -390,21 +395,36 @@ function Stake({
           )}
         </Section>
       ) : (
-        <DelegationForm
-          account={account}
-          owner={owner}
-          mode={mode}
-          text={text}
-          wallet={reads.data?.wallet}
-          active={selected.data?.position?.activeValue}
-          cooldown={reads.data?.cooldown}
-          disabled={disabled}
-          busy={busy}
-          error={error}
-          onMode={setMode}
-          onText={setText}
-          onSubmit={() => void submit()}
-        />
+        <>
+          {mode === 'add' && mon.data !== undefined && mon.data.value < BACKING_GAS && (
+            <Alert>
+              <AlertDescription>
+                Backing is sent from your wallet, which pays the gas in MON; Sidequest does not sponsor it. Your wallet holds{' '}
+                {Number(formatEther(mon.data.value)).toLocaleString(undefined, { maximumFractionDigits: 4 })} MON and a backing costs about 0.02.{' '}
+                {deployment.testnetFaucet !== null ? (
+                  <Link to="/account" className="underline underline-offset-2">Get test tokens</Link>
+                ) : (
+                  'Add MON to your wallet first.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          <DelegationForm
+            account={account}
+            owner={owner}
+            mode={mode}
+            text={text}
+            wallet={reads.data?.wallet}
+            active={selected.data?.position?.activeValue}
+            cooldown={reads.data?.cooldown}
+            disabled={disabled}
+            busy={busy}
+            error={error}
+            onMode={setMode}
+            onText={setText}
+            onSubmit={() => void submit()}
+          />
+        </>
       )}
 
       {reads.data?.open === false && (

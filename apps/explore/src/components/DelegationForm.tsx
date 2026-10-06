@@ -90,7 +90,7 @@ export function DelegationForm({
         </label>
         <p className="text-sm text-muted-foreground">
           {mode === 'add'
-            ? 'Review the exact amount, then confirm the backing in your wallet.'
+            ? 'Review the exact amount, then confirm the backing in your wallet. Your wallet pays the gas in MON.'
             : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Deposits at risk do not prevent requesting to leave; they may delay withdrawal.`}
         </p>
         {invalid && (
