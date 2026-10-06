@@ -1336,3 +1336,19 @@ Default Python urllib received 403; both outcomes are retained in the
 apply or authenticated flow occurred. The narrow Privy credential/isolated
 authority cutover is now awaiting the explicit approval request recorded in the
 handoff; no mutation is claimed while that response is pending.
+
+**6 October 2026, 05:34 UTC supervisor readback:** four anonymous public checks
+passed again at `https://dev.sidequest.exchange`; checkpoint `68603831`, zero
+fresh jobs, Monad testnet metadata and the three Sidequest scopes. Remote main
+remains `55c9282`; the private dev journal still records deployed source
+`e6aeb3b`, with no new apply. [Public receipt](evidence/sidequest-dev/2026-10-06-supervisor-readback.json).
+
+The independent scoped [legacy chain reconciliation](evidence/sidequest-dev/2026-10-06-legacy-chain-reconciliation.json)
+positively verifies jobs 81/45 Open, jobs 59/58/48/44/40 Funded with no
+submission and penalties due, and job 131 Completed/Accepted but unsettled at
+its original Holding. Named legacy rewards/collateral and the saved unconsumed
+Collect intent remain obligations. The old demo-v2 owed getter and current
+grant/DO authority inventory remain unknown. Read-only action simulations are
+not mined outcomes; no signing, sending, funding, key revocation, provider
+deletion, journal mutation or runner restart occurred. Old provider retirement
+is held on these verified obligations and unresolved authority records.

@@ -1,0 +1,1287 @@
+{
+  "createdAt": "2026-10-06T05:34:23.508147+00:00",
+  "tier": "live-verified-read-only-monad-testnet-and-retained-D1-candidates",
+  "scope": "Independent read-only legacy retirement reconciliation of jobs 81,59,58,48,45,44,40,131; no new deployment, transaction, provider mutation, key revocation, resource deletion or runner restart.",
+  "sources": {
+    "legacyConfig": "contracts/config/archive/pre-sidequest-monad-testnet.json",
+    "legacyConfigSha256": "f2d73d9c81c8b01340ccdae6959527f63b0a3b12e877781a6709c3f28da00e97",
+    "priorProviderInventory": "docs/evidence/sidequest-dev/2026-10-06-provider-inventory.json",
+    "priorIndexerObligations": "docs/evidence/sidequest-dev/2026-10-06-legacy-obligations.json",
+    "priorDockerStops": "docs/evidence/sidequest-dev/2026-10-06-legacy-workloads.json",
+    "currentDevDeployedSource": "e6aeb3b"
+  },
+  "authoritativeChainReadback": {
+    "observedAt": "2026-10-06T05:28:57.886Z",
+    "chainId": 10143,
+    "blockNumber": "68602973",
+    "blockTimestamp": "1791264537",
+    "blockHash": "0xc4f377007ced3004bcdf8511fd84e7698b441da74207d74bfb6bdda15e0814e1",
+    "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+    "paused": false,
+    "rows": [
+      {
+        "jobId": "81",
+        "core": {
+          "client": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+          "status": 0,
+          "provider": "0x0000000000000000000000000000000000000000",
+          "expiredAt": 1792249022,
+          "evaluator": "0xc0c8A4D4bDE3f6B0Ab3A3741ba555523B37D90D3",
+          "submittedAt": 0,
+          "budget": "0",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0x0000000000000000000000000000000000000000",
+          "providerAgentId": "0",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "main-v3",
+          "evaluator": "0xc0c8A4D4bDE3f6B0Ab3A3741ba555523B37D90D3",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+          "kind": "legacy",
+          "openTokens": true
+        },
+        "coreStatusName": "Open",
+        "listing": {
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "worker": "0x0000000000000000000000000000000000000000",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1791039422,
+          "selectionDeadline": 0,
+          "funded": false,
+          "workerBondPosted": false,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "1000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "manifestHash": "0x3760012d7401c73d2d366ab9eb9dd476fb4885421bffe31d7e2bc1dd4b79cb1f",
+          "policyHash": "0xd9b92f0e98b41502f982f0ef9e441515caa6887c65e6ecc81fc28db1a4f3d9c2"
+        },
+        "owed": [
+          {
+            "wallet": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": "0"
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": false,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 259200,
+          "disputeWindow": 259200,
+          "arbitrationWindow": 604800,
+          "settlementWindow": 1209600
+        },
+        "rewardLocationAssessment": "Original Holding reward escrow",
+        "retirementBlocker": "Original main-v3 Holding retains 1 mUSD for an unactivated Open hire; rewardSettled=false. Core expiry is 1792249022 and the current permissionless claimRefund simulation reverts.",
+        "safeNextAction": "Owner-approved cancellation by listed creator on original main-v3 Holding; eth_call as creator succeeded. Do not expect permissionless core refund before its recorded expiry; preserve access and manifests until settlement receipt exists.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "59",
+        "core": {
+          "client": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "status": 1,
+          "provider": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+          "expiredAt": 1790693476,
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "submittedAt": 0,
+          "budget": "1000000",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "providerAgentId": "1942",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "demo-v2",
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "kind": "legacy"
+        },
+        "coreStatusName": "Funded",
+        "listing": {
+          "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+          "approver": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+          "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1790692876,
+          "selectionDeadline": 0,
+          "funded": true,
+          "workerBondPosted": true,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "1000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "manifestHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139",
+          "policyHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139"
+        },
+        "owed": [
+          {
+            "wallet": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          },
+          {
+            "wallet": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": true,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 120,
+          "disputeWindow": 120,
+          "arbitrationWindow": 300,
+          "settlementWindow": 600
+        },
+        "rewardLocationAssessment": "Core reward escrow",
+        "retirementBlocker": "Core Funded with no submission, rewardSettled=false and bond settlement flags false; penalty due is true. Original demo-v2 settlement and event receipt required.",
+        "safeNextAction": "Owner-approved permissionless original evaluator.rejectAfterDeliveryDeadline(jobId), followed by original Holding.settle(jobId); reconcile receipts and read reward/bond flags after each operation. eth_call for the first step succeeded but does not prove execution. Do not waive due worker burns.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "58",
+        "core": {
+          "client": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "status": 1,
+          "provider": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+          "expiredAt": 1790693443,
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "submittedAt": 0,
+          "budget": "1000000",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "providerAgentId": "1942",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "demo-v2",
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "kind": "legacy"
+        },
+        "coreStatusName": "Funded",
+        "listing": {
+          "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+          "approver": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+          "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1790692843,
+          "selectionDeadline": 0,
+          "funded": true,
+          "workerBondPosted": true,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "1000000",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "manifestHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3",
+          "policyHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3"
+        },
+        "owed": [
+          {
+            "wallet": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          },
+          {
+            "wallet": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": true,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 120,
+          "disputeWindow": 120,
+          "arbitrationWindow": 300,
+          "settlementWindow": 600
+        },
+        "rewardLocationAssessment": "Core reward escrow",
+        "retirementBlocker": "Core Funded with no submission, rewardSettled=false and bond settlement flags false; penalty due is true. Original demo-v2 settlement and event receipt required.",
+        "safeNextAction": "Owner-approved permissionless original evaluator.rejectAfterDeliveryDeadline(jobId), followed by original Holding.settle(jobId); reconcile receipts and read reward/bond flags after each operation. eth_call for the first step succeeded but does not prove execution. Do not waive due worker burns.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "48",
+        "core": {
+          "client": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "status": 1,
+          "provider": "0x3E75092B9484b66a29DF10d19e0e61507349a1F6",
+          "expiredAt": 1790617165,
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "submittedAt": 0,
+          "budget": "1000000",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "providerAgentId": "1944",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "demo-v2",
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "kind": "legacy"
+        },
+        "coreStatusName": "Funded",
+        "listing": {
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "worker": "0x3E75092B9484b66a29DF10d19e0e61507349a1F6",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1790616565,
+          "selectionDeadline": 0,
+          "funded": true,
+          "workerBondPosted": true,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "1000000",
+          "creatorBond": "1000000000000000000",
+          "workerBond": "1000000000000000000",
+          "manifestHash": "0x991009aed0307d873e7a3c5b0d303c560203ad0cb0ba6ef9a8c9c4806164e714",
+          "policyHash": "0x991009aed0307d873e7a3c5b0d303c560203ad0cb0ba6ef9a8c9c4806164e714"
+        },
+        "owed": [
+          {
+            "wallet": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          },
+          {
+            "wallet": "0x3E75092B9484b66a29DF10d19e0e61507349a1F6",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": true,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 120,
+          "disputeWindow": 120,
+          "arbitrationWindow": 300,
+          "settlementWindow": 600
+        },
+        "rewardLocationAssessment": "Core reward escrow",
+        "retirementBlocker": "Core Funded with no submission, rewardSettled=false and bond settlement flags false; penalty due is true. Original demo-v2 settlement and event receipt required.",
+        "safeNextAction": "Owner-approved permissionless original evaluator.rejectAfterDeliveryDeadline(jobId), followed by original Holding.settle(jobId); reconcile receipts and read reward/bond flags after each operation. eth_call for the first step succeeded but does not prove execution. Do not waive due worker burns.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "45",
+        "core": {
+          "client": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "status": 0,
+          "provider": "0x0000000000000000000000000000000000000000",
+          "expiredAt": 1790617054,
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "submittedAt": 0,
+          "budget": "0",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0x0000000000000000000000000000000000000000",
+          "providerAgentId": "0",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "demo-v2",
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "kind": "legacy"
+        },
+        "coreStatusName": "Open",
+        "listing": {
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "worker": "0x0000000000000000000000000000000000000000",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1790616454,
+          "selectionDeadline": 0,
+          "funded": false,
+          "workerBondPosted": false,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "1000000",
+          "creatorBond": "1000000000000000000",
+          "workerBond": "1000000000000000000",
+          "manifestHash": "0x85038505e5755e887b078eb13479b9269644f39d816b3fb22030ef46e3738269",
+          "policyHash": "0x85038505e5755e887b078eb13479b9269644f39d816b3fb22030ef46e3738269"
+        },
+        "owed": [
+          {
+            "wallet": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": false,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 120,
+          "disputeWindow": 120,
+          "arbitrationWindow": 300,
+          "settlementWindow": 600
+        },
+        "rewardLocationAssessment": "Original Holding reward escrow",
+        "retirementBlocker": "Original demo-v2 Holding retains 1 mUSD reward and 1 FACTORY v1 creator bond for an unactivated Open hire. The 1 FACTORY worker bond in terms was never posted.",
+        "safeNextAction": "Owner-approved creator cancellation on original demo-v2 Holding; creator cancel eth_call succeeded. Alternatively the expired core claimRefund eth_call succeeds, but does not pay the creator out of Holding; follow original Holding.settle and reconcile all flags.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "44",
+        "core": {
+          "client": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "status": 1,
+          "provider": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+          "expiredAt": 1790617007,
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "submittedAt": 0,
+          "budget": "1000000",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "providerAgentId": "1939",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "demo-v2",
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "kind": "legacy"
+        },
+        "coreStatusName": "Funded",
+        "listing": {
+          "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+          "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1790616407,
+          "selectionDeadline": 0,
+          "funded": true,
+          "workerBondPosted": true,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "1000000",
+          "creatorBond": "1000000000000000000",
+          "workerBond": "1000000000000000000",
+          "manifestHash": "0x66f4087da29671a90b4679c19e5c9169699016e766479717fc7f8453e228309d",
+          "policyHash": "0x66f4087da29671a90b4679c19e5c9169699016e766479717fc7f8453e228309d"
+        },
+        "owed": [
+          {
+            "wallet": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          },
+          {
+            "wallet": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": true,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 120,
+          "disputeWindow": 120,
+          "arbitrationWindow": 300,
+          "settlementWindow": 600
+        },
+        "rewardLocationAssessment": "Core reward escrow",
+        "retirementBlocker": "Core Funded with no submission, rewardSettled=false and bond settlement flags false; penalty due is true. Original demo-v2 settlement and event receipt required.",
+        "safeNextAction": "Owner-approved permissionless original evaluator.rejectAfterDeliveryDeadline(jobId), followed by original Holding.settle(jobId); reconcile receipts and read reward/bond flags after each operation. eth_call for the first step succeeded but does not prove execution. Do not waive due worker burns.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "40",
+        "core": {
+          "client": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "status": 1,
+          "provider": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+          "expiredAt": 1790618301,
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "submittedAt": 0,
+          "budget": "5000000",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "providerAgentId": "1942",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "demo-v2",
+          "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+          "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
+          "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+          "kind": "legacy"
+        },
+        "coreStatusName": "Funded",
+        "listing": {
+          "creator": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+          "approver": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+          "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "mode": 0,
+          "deliveryDeadline": 1790617701,
+          "selectionDeadline": 0,
+          "funded": true,
+          "workerBondPosted": true,
+          "rewardSettled": false,
+          "creatorBondSettled": false,
+          "workerBondSettled": false,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "reward": "5000000",
+          "creatorBond": "2000000000000000000",
+          "workerBond": "1000000000000000000",
+          "manifestHash": "0xaa2cfb53d73e3d39674b74d98863fde5cf224a7918d89288b81a1cb4267ed7a1",
+          "policyHash": "0xaa2cfb53d73e3d39674b74d98863fde5cf224a7918d89288b81a1cb4267ed7a1"
+        },
+        "owed": [
+          {
+            "wallet": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          },
+          {
+            "wallet": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": {
+              "errorName": "ContractFunctionExecutionError",
+              "shortMessage": "The contract function \"owed\" reverted."
+            }
+          }
+        ],
+        "holdingRewardTokenBalance": "1000000",
+        "evaluatorReadback": {
+          "earnedByWorker": false,
+          "workerPenaltyDue": true,
+          "rejectedAt": 0,
+          "disputedAt": 0,
+          "violationOf": 0
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "evaluatorWindows": {
+          "reviewWindow": 120,
+          "disputeWindow": 120,
+          "arbitrationWindow": 300,
+          "settlementWindow": 600
+        },
+        "rewardLocationAssessment": "Core reward escrow",
+        "retirementBlocker": "Core Funded with no submission, rewardSettled=false and bond settlement flags false; penalty due is true. Original demo-v2 settlement and event receipt required.",
+        "safeNextAction": "Owner-approved permissionless original evaluator.rejectAfterDeliveryDeadline(jobId), followed by original Holding.settle(jobId); reconcile receipts and read reward/bond flags after each operation. eth_call for the first step succeeded but does not prove execution. Do not waive due worker burns.",
+        "bondAccounting": "Legacy ERC20 FACTORY v1 collateral held by original Holding; not StakeVault v2 reservations",
+        "deferredStateLimit": "These legacy pairs do not expose the v1 caseOf/payoutDeferred state. Current core has no submission, and unsettled status is directly verified; no claim of globally absent deferred payouts."
+      },
+      {
+        "jobId": "131",
+        "core": {
+          "client": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+          "status": 3,
+          "provider": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+          "expiredAt": 1791261548,
+          "evaluator": "0x593D5AbB4E8Bd7244078f655d964089931BF0f1F",
+          "submittedAt": 1791244387,
+          "budget": "2100000",
+          "hook": "0x0000000000000000000000000000000000000000",
+          "paymentToken": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "providerAgentId": "1994",
+          "settledAmount": "0",
+          "payoutReceiver": "0x0000000000000000000000000000000000000000"
+        },
+        "originalHolding": {
+          "name": "hireling-main",
+          "evaluator": "0x593D5AbB4E8Bd7244078f655d964089931BF0f1F",
+          "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
+          "holding": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+          "kind": "v1",
+          "openTokens": true
+        },
+        "coreStatusName": "Completed",
+        "listing": {
+          "creator": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+          "outcome": 0,
+          "funded": true,
+          "rewardSettled": false,
+          "creatorBondSettled": true,
+          "workerBondSettled": true,
+          "creatorBondBurned": false,
+          "workerBondBurned": false,
+          "workerBondReserved": true,
+          "approver": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+          "deliveryDeadline": 1791253928,
+          "expiredAt": 1791261548,
+          "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+          "reviewWindow": 3600,
+          "disputeWindow": 120,
+          "feeBps": 3000,
+          "worker": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+          "arbitrationWindow": 300,
+          "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+          "reward": "3000000",
+          "fee": "900000",
+          "bonus": "0",
+          "creatorBond": "0",
+          "workerBond": "0",
+          "manifestHash": "0xbef6f0c8eef2edc36e65fb6edd082548be6f443c71d3e81bc59d5be45c3101cb",
+          "policyHash": "0xbef6f0c8eef2edc36e65fb6edd082548be6f443c71d3e81bc59d5be45c3101cb"
+        },
+        "owed": [
+          {
+            "wallet": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": "0"
+          },
+          {
+            "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+            "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+            "amount": "0"
+          }
+        ],
+        "holdingRewardTokenBalance": "1800000",
+        "evaluatorReadback": {
+          "earnedByWorker": true,
+          "workerPenaltyDue": false,
+          "creatorPenaltyDue": false,
+          "caseOf": {
+            "rejectedAt": 0,
+            "disputedAt": 0,
+            "violation": 0,
+            "outcome": 1,
+            "slashed": 0,
+            "payoutDeferred": false,
+            "rejectionReason": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "outcome": 1,
+          "payoutDeferred": false
+        },
+        "pendingClaimHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "vault": "0xfa1eA4A0fF138f7cbB271806aB6d122d0DAa47C6",
+        "reservations": [
+          {
+            "wallet": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+            "reservedByOriginalHolding": "0",
+            "reservedOf": "0",
+            "stakeOf": "0"
+          },
+          {
+            "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+            "reservedByOriginalHolding": "0",
+            "reservedOf": "0",
+            "stakeOf": "20000000000000000000"
+          }
+        ],
+        "rewardLocationAssessment": "Core worker net already Completed; Holding fee/bonus settlement remains",
+        "retirementBlocker": "Core Completed and evaluator Accepted, but original v1 Holding rewardSettled=false and outcome=None; 900000 mUSD atomic units of fee remain due for this job. Saved collect intent remains unresolved.",
+        "safeNextAction": "Keep original journal stopped and retained. Reconcile saved collect hash/nonce, simulation using its exact gas/fee envelope, wallet funding and chain state before any owner-approved retry. Permissionless Holding.settle(131) eth_call with 2000000 gas succeeds from another caller, but is not a mined replacement or authorization to broadcast.",
+        "bondAccounting": "v1 StakeVault reservations; direct creator/worker reservedBy/reservedOf readback is zero"
+      }
+    ],
+    "savedCollect": {
+      "journalPath": "/home/kristjan/code/agent-jobs/.crew/demand/journal.json",
+      "hash": "0x282b1e4ce139d871aafecdad1125df7e7fe2b5283361114a952895612298b3c3",
+      "computedHash": "0x282b1e4ce139d871aafecdad1125df7e7fe2b5283361114a952895612298b3c3",
+      "nonce": 7,
+      "wallet": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+      "recoveredSender": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+      "chainId": 10143,
+      "type": "eip1559",
+      "to": "0xa3c73f08de9edb25d9b79623bbe6c824f1ddc667",
+      "gas": "591905",
+      "maxFeePerGas": "200000000000",
+      "maxPriorityFeePerGas": "2000000000",
+      "decodedCall": {
+        "functionName": "settle",
+        "args": [
+          "131"
+        ]
+      },
+      "receipt": null,
+      "transaction": null,
+      "latestNonce": 7,
+      "pendingNonce": 7,
+      "nativeBalance": "50993450000000000",
+      "baseFeePerGas": "100000000000",
+      "recordedClosed": "approved",
+      "recordedSettledAt": null,
+      "rawBytesPublished": false,
+      "journalSha256": "f52c95324d2487461e971ecb167a1cd0b54d13ecb25f7b1e27a387b80a18f0bc",
+      "upfrontMaxGasWei": "118381000000000000",
+      "upfrontShortfallWei": "67387550000000000",
+      "gasDiagnosis": {
+        "tier": "inference-from-readback-and-saved-envelope",
+        "assessment": "Saved gas=591905 and maxFeePerGas=200000000000 require up to 0.118381 MON upfront, while the creator holds 0.05099345 MON. Insufficient upfront gas balance is a concrete candidate cause of repeated unmined retries, not a replayed RPC rejection or permission to fund/re-sign."
+      },
+      "nullLimit": "TransactionNotFound and TransactionReceiptNotFound from the queried RPC; no visible pending nonce. This is not proof no other node has the signed bytes."
+    },
+    "readMode": "latest RPC state; reads were rate-limited and not an atomic block-pinned snapshot",
+    "snapshotLimit": "Initial fixed-block read attempts encountered RPC failures. Successful job and balance reads use latest state; start block is a time marker, not a guarantee every result came from that exact block."
+  },
+  "readOnlySimulationsAndBalances": {
+    "observedAt": "2026-10-06T05:32:25.994Z",
+    "startBlock": "68603653",
+    "blockTimestamp": "1791264745",
+    "actions": [
+      {
+        "jobId": "81",
+        "label": "creator-cancel",
+        "address": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+        "functionName": "cancel",
+        "args": [
+          "81"
+        ],
+        "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "81",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "81"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": false,
+        "error": {
+          "errorName": "ContractFunctionExecutionError",
+          "shortMessage": "The contract function \"claimRefund\" reverted."
+        },
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "59",
+        "label": "permissionless-missed-delivery",
+        "address": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+        "functionName": "rejectAfterDeliveryDeadline",
+        "args": [
+          "59"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "59",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "59"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "58",
+        "label": "permissionless-missed-delivery",
+        "address": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+        "functionName": "rejectAfterDeliveryDeadline",
+        "args": [
+          "58"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "58",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "58"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "48",
+        "label": "permissionless-missed-delivery",
+        "address": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+        "functionName": "rejectAfterDeliveryDeadline",
+        "args": [
+          "48"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "48",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "48"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "45",
+        "label": "creator-cancel",
+        "address": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+        "functionName": "cancel",
+        "args": [
+          "45"
+        ],
+        "account": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "45",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "45"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "44",
+        "label": "permissionless-missed-delivery",
+        "address": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+        "functionName": "rejectAfterDeliveryDeadline",
+        "args": [
+          "44"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "44",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "44"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "40",
+        "label": "permissionless-missed-delivery",
+        "address": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+        "functionName": "rejectAfterDeliveryDeadline",
+        "args": [
+          "40"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "40",
+        "label": "permissionless-core-refund",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "functionName": "claimRefund",
+        "args": [
+          "40"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      },
+      {
+        "jobId": "131",
+        "label": "permissionless-collect",
+        "address": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+        "functionName": "settle",
+        "args": [
+          "131"
+        ],
+        "account": "0x675269d710692d4d0d7166da11B76463577aad73",
+        "simulation": "read-only-eth_call",
+        "success": true,
+        "note": "Success only establishes current contract preconditions; it is not a transaction receipt."
+      }
+    ],
+    "balances": [
+      {
+        "label": "demo-v2",
+        "address": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+        "mUSD": "1000000",
+        "factoryV1": "8000000000000000000",
+        "factoryV2": "0"
+      },
+      {
+        "label": "main-v3",
+        "address": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+        "mUSD": "1000000",
+        "factoryV1": "0",
+        "factoryV2": "0"
+      },
+      {
+        "label": "hireling-main",
+        "address": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+        "mUSD": "1800000",
+        "factoryV1": "0",
+        "factoryV2": "0"
+      },
+      {
+        "label": "legacy-core",
+        "address": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+        "mUSD": "12500000",
+        "factoryV1": "0",
+        "factoryV2": "0"
+      }
+    ],
+    "grants": [],
+    "grantDiscovery": {
+      "error": {
+        "errorName": "RpcRequestError",
+        "shortMessage": "RPC Request failed."
+      },
+      "fromBlock": "66696120",
+      "toBlock": "66696350"
+    },
+    "creatorCode": "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b",
+    "endBlock": "68603699",
+    "finishedAt": "2026-10-06T05:32:39.763Z"
+  },
+  "retainedD1CandidateLookup": [
+    {
+      "sql": "SELECT job_id,contract,name,block,tx_hash FROM events WHERE chain_id=10143 AND job_id IN ('58','59') ORDER BY block,log_index",
+      "success": true,
+      "results": [
+        {
+          "job_id": "58",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "JobCreated",
+          "block": 66696120,
+          "tx_hash": "0x142515c003d0d60b80d8a810125881fb1b7c67f62abec209cb6a9d5196e34631"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "Published",
+          "block": 66696120,
+          "tx_hash": "0x142515c003d0d60b80d8a810125881fb1b7c67f62abec209cb6a9d5196e34631"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "Activated",
+          "block": 66696133,
+          "tx_hash": "0xf1d5435bf20818074f11613bd34e21eaba01f73b7d9c8a62c0dfb1f6dccc1800"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "ProviderSet",
+          "block": 66696133,
+          "tx_hash": "0xf1d5435bf20818074f11613bd34e21eaba01f73b7d9c8a62c0dfb1f6dccc1800"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "WorkerBondPosted",
+          "block": 66696133,
+          "tx_hash": "0xf1d5435bf20818074f11613bd34e21eaba01f73b7d9c8a62c0dfb1f6dccc1800"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "BudgetSet",
+          "block": 66696133,
+          "tx_hash": "0xf1d5435bf20818074f11613bd34e21eaba01f73b7d9c8a62c0dfb1f6dccc1800"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "JobFunded",
+          "block": 66696133,
+          "tx_hash": "0xf1d5435bf20818074f11613bd34e21eaba01f73b7d9c8a62c0dfb1f6dccc1800"
+        },
+        {
+          "job_id": "58",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "Funded",
+          "block": 66696133,
+          "tx_hash": "0xf1d5435bf20818074f11613bd34e21eaba01f73b7d9c8a62c0dfb1f6dccc1800"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "JobCreated",
+          "block": 66696225,
+          "tx_hash": "0xed2de505e2315f8514bd6eb8b452cca1a6671574015b4d22f2b55c1050895e31"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "Published",
+          "block": 66696225,
+          "tx_hash": "0xed2de505e2315f8514bd6eb8b452cca1a6671574015b4d22f2b55c1050895e31"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "Activated",
+          "block": 66696237,
+          "tx_hash": "0x8422026a67bc6e8d78b8aafedbc139096eda71edc13d523f967bc5de2f6cbab8"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "ProviderSet",
+          "block": 66696237,
+          "tx_hash": "0x8422026a67bc6e8d78b8aafedbc139096eda71edc13d523f967bc5de2f6cbab8"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "WorkerBondPosted",
+          "block": 66696237,
+          "tx_hash": "0x8422026a67bc6e8d78b8aafedbc139096eda71edc13d523f967bc5de2f6cbab8"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "BudgetSet",
+          "block": 66696237,
+          "tx_hash": "0x8422026a67bc6e8d78b8aafedbc139096eda71edc13d523f967bc5de2f6cbab8"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+          "name": "JobFunded",
+          "block": 66696237,
+          "tx_hash": "0x8422026a67bc6e8d78b8aafedbc139096eda71edc13d523f967bc5de2f6cbab8"
+        },
+        {
+          "job_id": "59",
+          "contract": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+          "name": "Funded",
+          "block": 66696237,
+          "tx_hash": "0x8422026a67bc6e8d78b8aafedbc139096eda71edc13d523f967bc5de2f6cbab8"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "sql": "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+      "success": true,
+      "results": [
+        {
+          "name": "__alchemy_migrations"
+        },
+        {
+          "name": "_cf_KV"
+        },
+        {
+          "name": "block_times"
+        },
+        {
+          "name": "board_offers"
+        },
+        {
+          "name": "boards"
+        },
+        {
+          "name": "bond_outcomes"
+        },
+        {
+          "name": "checkpoint"
+        },
+        {
+          "name": "directory_agents"
+        },
+        {
+          "name": "drips"
+        },
+        {
+          "name": "events"
+        },
+        {
+          "name": "evidence"
+        },
+        {
+          "name": "fee_charges"
+        },
+        {
+          "name": "feed_checkpoints"
+        },
+        {
+          "name": "feed_events"
+        },
+        {
+          "name": "feedback"
+        },
+        {
+          "name": "indexer_runs"
+        },
+        {
+          "name": "jobs"
+        },
+        {
+          "name": "lease"
+        },
+        {
+          "name": "mcp_sessions"
+        },
+        {
+          "name": "payout_owed"
+        },
+        {
+          "name": "protocol_events"
+        },
+        {
+          "name": "reward_outcomes"
+        },
+        {
+          "name": "rulings"
+        },
+        {
+          "name": "sessions"
+        },
+        {
+          "name": "siwe_nonces"
+        },
+        {
+          "name": "sqlite_sequence"
+        },
+        {
+          "name": "submissions"
+        },
+        {
+          "name": "telegram_challenges"
+        },
+        {
+          "name": "telegram_links"
+        },
+        {
+          "name": "telegram_notified_events"
+        },
+        {
+          "name": "telegram_outbox"
+        },
+        {
+          "name": "telegram_updates"
+        },
+        {
+          "name": "top_ups"
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "grantAssessment": {
+    "tier": "current-code-positive; historic-grant-state-not-reverified",
+    "manager": "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3",
+    "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "creatorCode": "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b",
+    "codeAssessment": "The creator still points at the archived DeleGator. A job ending and an API/Worker deletion do not revoke off-chain signed delegations.",
+    "historicalReference": "docs/reality-check.md section 29 Sep: execution budgets as delegations, jobs 58-59",
+    "historicalStateNotCurrentProof": [
+      "Job58 advance was recorded revoked after 1.5 mEUR drawn.",
+      "Job59 faucet grant was recorded call-limit exhausted after one call."
+    ],
+    "currentGrantReadback": "unknown: filtered historical RedeemedDelegation eth_getLogs failed at the public RPC; no current disabledDelegations/enforcer counters recovered.",
+    "inventoryLimit": "Retained D1 exposes event/index tables, but no grants/budget_delegations/sponsor_operations tables. Those authority records live in Board Durable Object SQLite and were not queried or modified. Unpublished off-chain grants cannot be exhaustively discovered from chain logs.",
+    "safeNextAction": "Legacy authority owner must retain/export sanitized grant identifiers and pending operation metadata from original Board storage, then verify exact known grant hashes, expiry, disabled state and counters on chain before authority retirement; do not infer revocation from terminal jobs or delete Durable Objects first."
+  },
+  "positiveRetirementBlockers": [
+    {
+      "resources": [
+        "agentjobs-api-staging-ba2zqmaom6el4lws",
+        "agentjobs-explore-staging-67xgxuclftbgtgxn",
+        "agentjobs-indexer-staging-2unhvhpefxd7n2wb"
+      ],
+      "blocker": "Seven directly verified nonterminal legacy jobs and one uncollected accepted v1 job remain. Keep their original settlement discovery and transaction reporting surfaces plus cron/index continuity until dated economic reconciliation receipts exist. The new Sidequest D1 starts fresh and does not carry these records."
+    },
+    {
+      "resources": [
+        "legacy D1 1b2ddfdd-650e-4846-8b55-fca07872efec",
+        "legacy Board namespace eab5801c233a4d1f952a457050958175",
+        "legacy DirectoryObject namespace 8ae279bb120d4a1ca4dfbcb87ba3f97c"
+      ],
+      "blocker": "Original index/board terms, grant/operation records and reconciliation mapping must remain recoverable. Grant/relay operation inventory is not established by D1 job status counts."
+    },
+    {
+      "resources": [
+        "agentjobs-manifests-staging-4yyroq65le7dnxbm",
+        "old artifact Workers listed in prior provider inventory"
+      ],
+      "blocker": "Preserve published offer/evidence material and historical artifact URLs until each retained content reference has a verified archive or owner clearance. This scoped chain audit establishes no per-artifact migration or safe-delete proof."
+    },
+    {
+      "resources": [
+        "hireling-crew-demand container and original /state journal"
+      ],
+      "blocker": "Exact signed demand-4/collect/0 intent is unconsumed and unmined at queried RPC; preserve original bytes and operation key. Removing a stopped runner would not reconcile that operation."
+    }
+  ],
+  "knownAmounts": {
+    "unactivatedHoldingRewardMUsd": "2",
+    "fundedCoreRewardMUsdForNamedJobs": "9",
+    "legacyFactoryV1CreatorBondsUnsettled": "5",
+    "legacyFactoryV1WorkerBondsPostedUnsettled": "3",
+    "legacyDemoHoldingFactoryV1Balance": "8",
+    "job131FeeAtomicMUsd": "900000",
+    "note": "Balances are shared contract totals, not per-job escrow proofs. Terms and settlement flags establish each named obligation. The original v1 Holding has 1.8 mUSD total; this audit does not allocate the other 0.9 mUSD to a specific job."
+  },
+  "limits": [
+    "Scoped to eight named jobs and the known budget run; not a global no-obligation certificate.",
+    "Original demo-v2 owed(token,wallet) getter reverted for every participant; unsupported old ABI or non-exposed mapping means unknown, never zero.",
+    "Legacy bonds are FACTORY v1 ERC20 custody, not SIDE/FACTORY v2 StakeVault reservations.",
+    "Only job131 creator and worker reservations were read; their zero reservations do not establish zero global vault liabilities.",
+    "eth_call simulates current preconditions without signing or broadcasting and is not mined settlement evidence.",
+    "Grant state remains unknown in current chain readback; the creator still has the original DeleGator code.",
+    "All original journals and dated evidence remain unchanged."
+  ],
+  "actionsNotPerformed": [
+    "signing",
+    "broadcast",
+    "funding",
+    "nonce replacement",
+    "saved-byte regeneration",
+    "provider mutation",
+    "resource deletion",
+    "key revocation",
+    "runner restart",
+    "mainnet operation"
+  ]
+}

@@ -8,11 +8,11 @@
 | Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `e6aeb3b` |
 | Published source | `origin/main` at `55c9282`; later V1.1 source remains local |
 | Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
-| V1.1 | `%13` owns active repairs for VV2-030 (revocation/subscription race) and VV2-031 (workerd paid x402 path) |
+| V1.1 | `%13` landed VV2-030 fix `e726244` and VV2-031 fix `d2ec71b`; both await independent re-review |
 | UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and the profile base-ready decision; rebase/browser gates still running |
 | Profile | `%20` has resumed an isolated Sidequest rebase and scoped gates; no base-ready/integration signal is inferred |
 | Privy | New origin saved; app name, credential rotation, isolated authority and real auth/MCP remain pending |
-| Legacy retirement | Old containers stopped and retained; contract/intent reconciliation still blocks provider deletion |
+| Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations that block provider deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
 
 The dated entries below preserve the actual observations and earlier handoffs.
@@ -406,3 +406,47 @@ notice retry, composer submission, path move, provider deletion or recovery
 journal mutation has occurred. The next dev cut waits for both Medium findings
 to be resolved with SHA-bound review, completed owned UI/profile integration,
 the final candidate gates, and provider approval/readback.
+
+## Public and legacy readback — 05:34 UTC
+
+Fresh anonymous HTTP checks passed health, release metadata, jobs and OAuth
+protected-resource discovery. The fresh index is empty and its checkpoint has
+advanced to `68603831`. GitHub remote readback still gives
+`55c9282c050627f6a7ea8dcfc0eb66ed0180f4fc`; the stored dev release remains
+`e6aeb3b95f80f65fc781b54809aa757c6ad06995`. No new deployment or authenticated
+acceptance is claimed. [Public receipt](evidence/sidequest-dev/2026-10-06-supervisor-readback.json).
+
+The scoped [legacy chain reconciliation](evidence/sidequest-dev/2026-10-06-legacy-chain-reconciliation.json)
+checks all eight named jobs against their original contract pairs:
+
+- Jobs 81 and 45 are Open with unsettled rewards; creator cancellation
+  simulations succeed, but no cancellation was sent.
+- Jobs 59, 58, 48, 44 and 40 remain Funded without submission and have a
+  worker penalty due. Permissionless deadline rejection simulations succeed;
+  settlement through each original Holding still requires mined receipts.
+- Job 131 is Completed/Accepted without deferred payout, but its Holding reward
+  remains unsettled. Its creator/worker reservations and owed balances read zero.
+  The original Collect intent's hash, sender, chain, target and unconsumed nonce
+  were verified; the saved gas settings imply an upfront balance shortfall.
+  That inference grants no funding, rebroadcast or replacement authorization.
+
+The named old jobs retain 2 mUSD of unactivated rewards, 9 mUSD of funded
+rewards, and 8 FACTORY v1 collateral units. Job 131 has a 0.9 mUSD fee due.
+The older demo-v2 `owed` getter reverts, so its owed balances remain unknown.
+Legacy grant authority is also not fully reconciled: Board Durable Object
+records were not queried, the filtered known-grant log read failed, and the
+creator still points at its original DeleGator. Historical grant receipts are
+not current revocation proof. This is scoped read-only evidence, not a global
+no-obligation certificate; retain original Workers, D1/DO/R2, artifacts,
+keys/authority recovery and operation journals until the owner completes the
+documented economic/grant reconciliation. Nothing was signed, sent, funded,
+revoked, restarted or deleted.
+
+V1.1 has landed `e726244` (VV2-030) and `d2ec71b` (VV2-031), with its owner
+reporting a full local check passed. Their independent review is queued;
+there is no final integrated release SIGNOFF. FINALIZE-UI reports 18 local
+browser suites and its root gate passed and is capturing screenshots before
+the rebase-ready/S5 handoff. Profile reports six scoped browser suites passed
+and is running its root gate. These owner-reported local gates do not establish
+live Sidequest authentication or authorize a dev apply. Explore still owns
+integration/base-ready; Sidequest still owns the next reviewed dev release.

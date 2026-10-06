@@ -1,0 +1,56 @@
+{
+  "observedAt": "2026-10-06T05:34:35.726234+00:00",
+  "origin": "https://dev.sidequest.exchange",
+  "checks": [
+    {
+      "path": "/health",
+      "body": {
+        "ok": true,
+        "runtime": "Cloudflare-Workers",
+        "network": "monad-testnet",
+        "board": "public"
+      }
+    },
+    {
+      "path": "/release.json",
+      "body": {
+        "network": "monad-testnet",
+        "mainnetLive": false,
+        "writesOpen": true
+      }
+    },
+    {
+      "path": "/data/jobs",
+      "body": {
+        "ok": true,
+        "index": {
+          "next_block": 68603831,
+          "updated_at": 1791264799
+        },
+        "board": null,
+        "jobs": []
+      }
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "body": {
+        "resource": "https://dev.sidequest.exchange/mcp",
+        "authorization_servers": [
+          "https://dev.sidequest.exchange"
+        ],
+        "scopes_supported": [
+          "sidequest:read",
+          "sidequest:hire",
+          "sidequest:work"
+        ],
+        "bearer_methods_supported": [
+          "header"
+        ]
+      }
+    }
+  ],
+  "limits": [
+    "Anonymous HTTP readback only. No authentication, signing, payment or provider mutation.",
+    "No new release apply. Published, local and deployed source remain separate evidence."
+  ]
+}
