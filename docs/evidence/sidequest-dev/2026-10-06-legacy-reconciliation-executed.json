@@ -1,0 +1,642 @@
+{
+ "createdAt": "2026-10-06T06:50:00Z",
+ "tier": "executed-monad-testnet-legacy-contracts",
+ "authority": "Kris directed the V11 session at 08:37 CEST (06:37Z): \"Can you start to reconcile all the jobs right now?\" Sidequest coordinator acknowledged V11 ownership in triage at 06:46Z.",
+ "plan": "docs/evidence/sidequest-dev/2026-10-06-legacy-chain-reconciliation.json (read-only plan, 05:34Z)",
+ "senders": {
+  "permissionless": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571 (TESTNET_WORKER)",
+  "creatorCancels": "0x9819C243702dD06E8D793987F0F46f793996c71c (TESTNET_CREATOR, listed creator of 81 and 45)"
+ },
+ "contracts": {
+  "demo-v2 holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+  "demo-v2 evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+  "main-v3 holding": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+  "v1 holding (job 131)": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+  "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D"
+ },
+ "method": "Each call was simulated from its sender before sending; one transaction at a time, receipt awaited, listing read back after each. Worker penalties were not waived.",
+ "steps": [
+  {
+   "job": "59",
+   "label": "missed-delivery reject",
+   "contract": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+   "fn": "rejectAfterDeliveryDeadline",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x998a4c0924738f1c94d4b3e63eb0085b85b4d71a8ec4381a07b3c8fc855416c1",
+   "status": "success",
+   "block": "68617594",
+   "gasUsed": "612852",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+     "to": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "amount": "1000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "approver": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790692876,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": false,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "0",
+    "workerBond": "0",
+    "manifestHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139",
+    "policyHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "59",
+   "label": "holding settle",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x69be5269975e7cf9990eabbbd5db2ed191536925c62d788857b7cba21f125011",
+   "status": "success",
+   "block": "68617600",
+   "gasUsed": "158535",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9d04b0021b75e9d0fc9173ee2bc3ee3ac317b4b1",
+     "amount": "1000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "approver": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790692876,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "0",
+    "workerBond": "0",
+    "manifestHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139",
+    "policyHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "58",
+   "label": "missed-delivery reject",
+   "contract": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+   "fn": "rejectAfterDeliveryDeadline",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x68c57af0e3d45a0b1a2f49c8fa1038eae4f91ffef755e56ec68d1d2212a13015",
+   "status": "success",
+   "block": "68617606",
+   "gasUsed": "620965",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+     "to": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "amount": "1000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "approver": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790692843,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": false,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "0",
+    "workerBond": "0",
+    "manifestHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3",
+    "policyHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "58",
+   "label": "holding settle",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x646fef8b5425812331e07a05219c41cc9a326a0464d76ba04430bb61154ed18a",
+   "status": "success",
+   "block": "68617613",
+   "gasUsed": "167807",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9d04b0021b75e9d0fc9173ee2bc3ee3ac317b4b1",
+     "amount": "1000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "approver": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+    "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790692843,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "0",
+    "workerBond": "0",
+    "manifestHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3",
+    "policyHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "48",
+   "label": "missed-delivery reject",
+   "contract": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+   "fn": "rejectAfterDeliveryDeadline",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0xcf7c3ad8ec1123c1b8cca8ddac8e14efd5792f7691c08697a35331150d91d349",
+   "status": "success",
+   "block": "68617620",
+   "gasUsed": "681518",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+     "to": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "amount": "1000000"
+    },
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x000000000000000000000000000000000000dead",
+     "amount": "1000000000000000000"
+    },
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000000000000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "worker": "0x3E75092B9484b66a29DF10d19e0e61507349a1F6",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790616565,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": false,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "1000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0x991009aed0307d873e7a3c5b0d303c560203ad0cb0ba6ef9a8c9c4806164e714",
+    "policyHash": "0x991009aed0307d873e7a3c5b0d303c560203ad0cb0ba6ef9a8c9c4806164e714"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "48",
+   "label": "holding settle",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x6cee23a10263dc5b1109a8d8d3a8fb011da064c54fd79b8480f68f7f3e19a631",
+   "status": "success",
+   "block": "68617627",
+   "gasUsed": "158535",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "worker": "0x3E75092B9484b66a29DF10d19e0e61507349a1F6",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790616565,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "1000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0x991009aed0307d873e7a3c5b0d303c560203ad0cb0ba6ef9a8c9c4806164e714",
+    "policyHash": "0x991009aed0307d873e7a3c5b0d303c560203ad0cb0ba6ef9a8c9c4806164e714"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "44",
+   "label": "missed-delivery reject",
+   "contract": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+   "fn": "rejectAfterDeliveryDeadline",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x61c8a6ce63fe8f91ba90ca9a7fe260d7046e9c4862a7d0eb0c3bdf8c935f97cc",
+   "status": "success",
+   "block": "68617634",
+   "gasUsed": "664276",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+     "to": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "amount": "1000000"
+    },
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x000000000000000000000000000000000000dead",
+     "amount": "1000000000000000000"
+    },
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000000000000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790616407,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": false,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "1000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0x66f4087da29671a90b4679c19e5c9169699016e766479717fc7f8453e228309d",
+    "policyHash": "0x66f4087da29671a90b4679c19e5c9169699016e766479717fc7f8453e228309d"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "44",
+   "label": "holding settle",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x48942f80f61ec6455dce187cbfa67edc503240659a4612a06762cbf820361e7f",
+   "status": "success",
+   "block": "68617641",
+   "gasUsed": "158535",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "worker": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790616407,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "1000000",
+    "creatorBond": "1000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0x66f4087da29671a90b4679c19e5c9169699016e766479717fc7f8453e228309d",
+    "policyHash": "0x66f4087da29671a90b4679c19e5c9169699016e766479717fc7f8453e228309d"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "40",
+   "label": "missed-delivery reject",
+   "contract": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
+   "fn": "rejectAfterDeliveryDeadline",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0xc326571657c7b2591d83c7aa534cc542012835869704d21d8a790f87a7499259",
+   "status": "success",
+   "block": "68617648",
+   "gasUsed": "664276",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8bffd7ccb6435b95f7c50ec451a024127b73be9d",
+     "to": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "amount": "5000000"
+    },
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x000000000000000000000000000000000000dead",
+     "amount": "1000000000000000000"
+    },
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x5884fcc45df1aeb31b25171fb9cb04ceecbcb3e0",
+     "amount": "2000000000000000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+    "approver": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+    "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790617701,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": false,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "5000000",
+    "creatorBond": "2000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0xaa2cfb53d73e3d39674b74d98863fde5cf224a7918d89288b81a1cb4267ed7a1",
+    "policyHash": "0xaa2cfb53d73e3d39674b74d98863fde5cf224a7918d89288b81a1cb4267ed7a1"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "40",
+   "label": "holding settle",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x704c01f9284ee44510082624c24bee800082394649118ac3afeb6960619d6563",
+   "status": "success",
+   "block": "68617655",
+   "gasUsed": "158535",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x5884fcc45df1aeb31b25171fb9cb04ceecbcb3e0",
+     "amount": "5000000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+    "approver": "0x5884FCC45DF1AEb31B25171FB9cb04cEeCBcb3E0",
+    "worker": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790617701,
+    "selectionDeadline": 0,
+    "funded": true,
+    "workerBondPosted": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": true,
+    "reward": "5000000",
+    "creatorBond": "2000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0xaa2cfb53d73e3d39674b74d98863fde5cf224a7918d89288b81a1cb4267ed7a1",
+    "policyHash": "0xaa2cfb53d73e3d39674b74d98863fde5cf224a7918d89288b81a1cb4267ed7a1"
+   },
+   "workerPenaltyDueAfter": true
+  },
+  {
+   "job": "81",
+   "label": "creator cancel (main-v3)",
+   "contract": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+   "fn": "cancel",
+   "from": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+   "tx": "0x6f95f347bc6dd5081d5340099c662f8e5d283b3b74e5fe134a3904a130ad63f2",
+   "status": "success",
+   "block": "68617662",
+   "gasUsed": "101694",
+   "transfers": [],
+   "listingAfter": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "worker": "0x0000000000000000000000000000000000000000",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1791039422,
+    "selectionDeadline": 0,
+    "funded": false,
+    "workerBondPosted": false,
+    "rewardSettled": false,
+    "creatorBondSettled": false,
+    "workerBondSettled": false,
+    "creatorBondBurned": false,
+    "workerBondBurned": false,
+    "reward": "1000000",
+    "creatorBond": "0",
+    "workerBond": "0",
+    "manifestHash": "0x3760012d7401c73d2d366ab9eb9dd476fb4885421bffe31d7e2bc1dd4b79cb1f",
+    "policyHash": "0xd9b92f0e98b41502f982f0ef9e441515caa6887c65e6ecc81fc28db1a4f3d9c2"
+   }
+  },
+  {
+   "job": "45",
+   "label": "creator cancel (demo-v2)",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "cancel",
+   "from": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+   "tx": "0xf25df398784ed01ebe767561a229419bc6c8a17bc7ca26af558f97854b082b2d",
+   "status": "success",
+   "block": "68617669",
+   "gasUsed": "101231",
+   "transfers": [],
+   "listingAfter": {
+    "creator": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "approver": "0x9819C243702dD06E8D793987F0F46f793996c71c",
+    "worker": "0x0000000000000000000000000000000000000000",
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "mode": 0,
+    "deliveryDeadline": 1790616454,
+    "selectionDeadline": 0,
+    "funded": false,
+    "workerBondPosted": false,
+    "rewardSettled": false,
+    "creatorBondSettled": false,
+    "workerBondSettled": false,
+    "creatorBondBurned": false,
+    "workerBondBurned": false,
+    "reward": "1000000",
+    "creatorBond": "1000000000000000000",
+    "workerBond": "1000000000000000000",
+    "manifestHash": "0x85038505e5755e887b078eb13479b9269644f39d816b3fb22030ef46e3738269",
+    "policyHash": "0x85038505e5755e887b078eb13479b9269644f39d816b3fb22030ef46e3738269"
+   },
+   "workerPenaltyDueAfter": false
+  },
+  {
+   "job": "131",
+   "label": "v1 holding settle",
+   "contract": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x181549b5a3014a1cd2ddabaffece0a725d5c2660939ef0e52dbd3573c62b002e",
+   "status": "success",
+   "block": "68617676",
+   "gasUsed": "465524",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0xa3c73f08de9edb25d9b79623bbe6c824f1ddc667",
+     "to": "0x1006582a6d0c40e19eabd1847c652d48b88bd5bf",
+     "amount": "900000"
+    }
+   ],
+   "listingAfter": {
+    "creator": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+    "outcome": 1,
+    "funded": true,
+    "rewardSettled": true,
+    "creatorBondSettled": true,
+    "workerBondSettled": true,
+    "creatorBondBurned": false,
+    "workerBondBurned": false,
+    "workerBondReserved": true,
+    "approver": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+    "deliveryDeadline": 1791253928,
+    "expiredAt": 1791261548,
+    "arbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+    "reviewWindow": 3600,
+    "disputeWindow": 120,
+    "feeBps": 3000,
+    "worker": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+    "arbitrationWindow": 300,
+    "token": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
+    "reward": "3000000",
+    "fee": "900000",
+    "bonus": "0",
+    "creatorBond": "0",
+    "workerBond": "0",
+    "manifestHash": "0xbef6f0c8eef2edc36e65fb6edd082548be6f443c71d3e81bc59d5be45c3101cb",
+    "policyHash": "0xbef6f0c8eef2edc36e65fb6edd082548be6f443c71d3e81bc59d5be45c3101cb"
+   }
+  },
+  {
+   "job": "81",
+   "label": "holding settle after creator cancel",
+   "contract": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0xfd53b904cc0c88aaa6fd339ed16c92c7d60b07096aa57fc617490eb21f0712e5",
+   "status": "success",
+   "block": "68617910",
+   "transfers": [
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0xdfb84873e07a7c0a42a63bf7b25a00bd09754bd1",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000"
+    }
+   ]
+  },
+  {
+   "job": "45",
+   "label": "holding settle after creator cancel",
+   "contract": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
+   "fn": "settle",
+   "from": "0xD7e3b7B7229196B8b65F97fc5544231dd4a7E571",
+   "tx": "0x0690ada5f18d04b8660f4928c245733c5682828fa3a5aa3cec69b5765392d17c",
+   "status": "success",
+   "block": "68617917",
+   "transfers": [
+    {
+     "token": "0x8a7df3f323c3065e7fbf531596f62d50d933085a",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000000000000000"
+    },
+    {
+     "token": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+     "from": "0x8aea320f3bd5e65e97e423308596ba7d6301a9b2",
+     "to": "0x9819c243702dd06e8d793987f0f46f793996c71c",
+     "amount": "1000000"
+    }
+   ]
+  }
+ ],
+ "outcome": {
+  "59": "missed delivery rejected; 1 mUSD refunded to creator 0x9D04\u2026b4B1; no bonds",
+  "58": "missed delivery rejected; 1 mUSD refunded to creator 0x9D04\u2026b4B1; no bonds",
+  "48": "missed delivery rejected; worker bond 1 FACTORY v1 burned to 0x\u2026dEaD; creator bond 1 FACTORY v1 and 1 mUSD returned to 0x9819\u2026c71c",
+  "44": "missed delivery rejected; worker bond 1 FACTORY v1 burned; creator bond 1 FACTORY v1 and 1 mUSD returned to 0x9819\u2026c71c",
+  "40": "missed delivery rejected; worker bond 1 FACTORY v1 burned; creator bond 2 FACTORY v1 and 5 mUSD returned to 0x5884\u2026b3E0",
+  "81": "creator cancel then settle; 1 mUSD returned to 0x9819\u2026c71c",
+  "45": "creator cancel then settle; 1 mUSD and creator bond 1 FACTORY v1 returned to 0x9819\u2026c71c (worker bond was never posted)",
+  "131": "v1 holding settle; rewardSettled true; 0.9 mUSD fee paid to 0x1006\u2026d5bf. The crew journal's saved collect intent was left untouched; if it is ever broadcast it will revert harmlessly."
+ },
+ "holdingBalancesAfter": {
+  "demo-v2:mUSD": "0",
+  "demo-v2:FACTORYv1": "0",
+  "main-v3:mUSD": "0",
+  "main-v3:FACTORYv1": "0",
+  "v1:mUSD": "900000",
+  "v1:FACTORYv1": "0"
+ },
+ "residual": "The v1 holding 0xA3C7\u2026c667 still holds 900000 mUSD units after job 131 settled. owed() is 0 for the fee recipient, job 131 creator and worker and Studio, and every v1 job in the retained index is terminal, so it is not an obligation of the eight reconciled jobs. Origin unexplained; left for the Sidequest coordinator.",
+ "notDone": "No key revocation, provider change, deletion, journal edit or old worker restart."
+}

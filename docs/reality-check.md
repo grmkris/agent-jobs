@@ -1385,3 +1385,24 @@ the original terms hashes, and three retained local journals contain no
 delegation-shaped grant record. This is scoped authority evidence, not a global
 grant or Durable Object inventory, economic settlement, provider retirement or
 deletion clearance. [Sanitized receipt](evidence/sidequest-dev/2026-10-06-legacy-budget-authority.json).
+
+**6 October 2026, 06:44–06:50 UTC legacy jobs reconciled on chain:** at Kris's
+direction, V11 executed the read-only plan of 05:34 UTC on the old testnet
+contracts. All 15 transactions succeeded. Each was simulated first and its listing
+was read back after.
+- **Missed delivery, jobs 59, 58, 48, 44 and 40.** Each got
+  `rejectAfterDeliveryDeadline` and then `settle`, sent from `0xD7e3…E571`.
+  - The rewards went back to their creators: 1 mUSD each, and 5 mUSD for job 40.
+  - The posted worker bonds (1 FACTORY v1 each on 48, 44 and 40) were burned as
+    their penalties required.
+  - The creator bonds were returned.
+- **Creator cancels, jobs 81 and 45.** The creator `0x9819…c71c` cancelled each,
+  and a follow-up `settle` returned 1 mUSD each, plus the 1 FACTORY v1 creator
+  bond on job 45.
+- **Job 131.** The v1 holding `settle` marked the reward settled and paid the
+  0.9 mUSD fee to `0x1006…d5bf`. The crew's saved collect intent was left untouched.
+
+The demo-v2 and main-v3 holdings are now empty. The v1 holding still holds
+0.9 mUSD that no known wallet is owed; its origin is open. No key, provider,
+journal or worker was touched.
+[Executed receipt](evidence/sidequest-dev/2026-10-06-legacy-reconciliation-executed.json).
