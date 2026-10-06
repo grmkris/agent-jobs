@@ -74,7 +74,7 @@ describe('legacy wire snapshots and rollback', () => {
     expect(actual.capabilities).toHaveProperty('events', {})
     const { events: _events, extensions: _extensions, ...capabilities } = actual.capabilities as Record<string, unknown>
     expect(JSON.stringify({ ...actual, capabilities })).toBe(JSON.stringify(initialize))
-    expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: (result(await route('tools/list', {}, { modernLane })).tools as Record<string, unknown>[]).map(({ title: _title, annotations: _annotations, outputSchema: _outputSchema, securitySchemes: _securitySchemes, ...tool }) => tool) } })).toBe(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [
+    expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: (result(await route('tools/list', {}, { modernLane })).tools as Record<string, unknown>[]).filter(tool => !['show_hiring_dashboard', 'show_task'].includes(String(tool.name))).map(({ title: _title, annotations: _annotations, outputSchema: _outputSchema, securitySchemes: _securitySchemes, ...tool }) => tool) } })).toBe(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [
       { name: 'get_task', description: 'Read task', inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] } },
       { name: 'get_instructions', description: 'Read the full connector, worker or publisher role instructions.', inputSchema: { type: 'object', properties: { role: { type: 'string', enum: ['connector', 'worker', 'publisher'] } } } },
     ] } }))

@@ -6,6 +6,7 @@ import { ROLE_GUIDES, connectorInstructions } from './mcp-instructions.ts'
 import type { McpEvents } from './mcp-events.ts'
 import { EventRpcError } from './webhooks.ts'
 import { SKILL_MANIFESTS } from './generated/skills.ts'
+import { hiringTools, hiringResource, renderHiring } from './mcp-hiring.ts'
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
 export const MODERN_LANE = true
@@ -24,6 +25,7 @@ export interface McpTool {
   readonly outputSchema?: Record<string, unknown>
   readonly securitySchemes?: readonly Record<string, unknown>[]
   readonly annotations?: Record<string, boolean>
+  readonly _meta?: Record<string, unknown>
 }
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): McpReply {
@@ -37,7 +39,7 @@ const envelope = (result: Record<string, unknown>) => objectOutput({ ok: { type:
 const hostedOutput = envelope(objectOutput({ status: { type: 'string', enum: ['confirmed', 'rejected', 'approval', 'pending', 'reverted', 'dropped'] }, operationId: stringOutput, approveUrl: stringOutput, result: { type: 'object', additionalProperties: true } }))
 const PUBLISHER_OUTPUT_SCHEMAS: Readonly<Record<string, Record<string, unknown>>> = {
   whoami: { ...objectOutput({ id: stringOutput, name: stringOutput, ok: { type: 'boolean' }, result: objectOutput({ address: { type: ['string', 'null'] } }) }), required: ['id', 'name'] },
-  protocol_info: envelope(objectOutput({ network: stringOutput, chainId: { type: 'number' }, paused: { type: ['boolean', 'null'] }, contracts: { type: 'object' }, rewardTokens: listOutput })),
+  protocol_info: envelope(objectOutput({ network: stringOutput, chainId: { type: 'number' }, paused: { type: ['boolean', 'null'] }, contracts: { type: 'object' }, rewardTokens: { type: 'array', items: stringOutput } })),
   agent_status: envelope(objectOutput({ state: stringOutput, allowances: listOutput })),
   list_tasks: envelope({ type: 'array', items: objectOutput({ taskId: stringOutput, quotesCount: { type: 'number' }, chain: { type: 'object' }, funding: { type: 'object' }, operationStatus: { type: ['string', 'null'] }, nextAction: { type: ['object', 'null'] } }) }), get_task: envelope(objectOutput({ taskId: stringOutput, terms: { type: 'object' }, chain: { type: 'object' }, funding: { type: 'object' }, operationStatus: { type: ['string', 'null'] }, nextAction: { type: ['object', 'null'] }, deliverables: listOutput, onchainSubmission: { type: ['object', 'null'] } })),
   list_quote_requests: envelope({ anyOf: [listOutput, objectOutput({ requests: listOutput, nextCursor: stringOutput })] }), list_quotes: envelope(objectOutput({ requestId: stringOutput, requestHash: stringOutput, creator: stringOutput, picked: { type: ['string', 'null'] }, quotes: listOutput })), list_applications: envelope(listOutput),
@@ -77,7 +79,8 @@ export async function mcpRoute(input: {
   readonly call: (tool: string, args: Record<string, unknown>, agentId: string) => Promise<unknown>
   readonly origin: string
 }): Promise<McpReply> {
-  const { method, pathname, body, grant, tools, call, origin } = input
+  const { method, pathname, body, grant, call, origin } = input
+  const tools = { ...input.tools, ...hiringTools }
   if (grant === undefined) return json({ ok: false, code: 'unauthenticated', message: 'A resource-scoped OAuth bearer token is required' }, 401, { 'www-authenticate': `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource${pathname}"` })
   if (method === 'GET') return json({ ok: false, code: 'method-not-allowed', message: 'SSE is not offered' }, 405)
   if (method === 'DELETE') return { status: 204, headers: { 'cache-control': 'no-store' } }
@@ -109,11 +112,12 @@ export async function mcpRoute(input: {
         const schema = tool.inputSchema ?? { type: 'object', properties: {} }
         const write = requiredToolScope(name) !== 'sidequest:read'
         const existingRequired = Array.isArray((schema as { required?: unknown }).required) ? (schema as unknown as { required: string[] }).required : []
-        return { name, description: tool.description, inputSchema: { ...schema, properties: { ...(schema.properties as Record<string, unknown>), ...(write ? { operationKey: { type: 'string', description: 'Persist this stable unique action key before calling. Reuse it with identical arguments after any lost response.' } } : {}) }, ...(write ? { required: [...existingRequired, 'operationKey'] } : {}) }, ...toolWireMetadata(name, tool), ...(name === 'whoami' ? { _meta: { 'openai/profile': true } } : {}) }
+        const wireTool = tool as McpTool
+        return { name, description: wireTool.description, inputSchema: { ...schema, properties: { ...(schema.properties as Record<string, unknown>), ...(write ? { operationKey: { type: 'string', description: 'Persist this stable unique action key before calling. Reuse it with identical arguments after any lost response.' } } : {}) }, ...(write ? { required: [...existingRequired, 'operationKey'] } : {}) }, ...toolWireMetadata(name, wireTool), ...(wireTool._meta === undefined ? {} : { _meta: wireTool._meta }), ...(name === 'whoami' ? { _meta: { 'openai/profile': true } } : {}) }
       }) })
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
-  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...SKILL_MANIFESTS.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' }))] })
+  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...SKILL_MANIFESTS.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' })), { uri: hiringResource.uri, name: 'Hiring desk', mimeType: hiringResource.mimeType }] })
   if (methodName === 'skills/list') {
     const after = params.cursor === undefined ? 0 : typeof params.cursor === 'string' && /^skills:[0-9]+$/.test(params.cursor) ? Number(params.cursor.slice(7)) : -1
     if (!Number.isSafeInteger(after) || after < 0 || after > SKILL_MANIFESTS.length) return rpcError(-32602, 'Invalid skills cursor')
@@ -139,6 +143,7 @@ export async function mcpRoute(input: {
     if (text !== undefined) return respond({ messages: [{ role: 'user', content: { type: 'text', text } }] })
   }
   if (methodName === 'resources/read') {
+    if (params.uri === hiringResource.uri) return respond({ contents: [hiringResource] })
     const skill = SKILL_MANIFESTS.find(entry => entry.uri === params.uri)
     if (skill !== undefined) return respond({ contents: [{ uri: skill.uri, mimeType: 'text/markdown', text: skill.raw }] })
     const role = String(params.uri).replace(/^sidequest:\/\/skills\//, '') as keyof typeof ROLE_GUIDES
@@ -157,7 +162,7 @@ export async function mcpRoute(input: {
     const agentId = typeof args.managedAgentId === 'string' ? args.managedAgentId : grant.agentIds.length === 1 ? grant.agentIds[0]! : ''
     if (!grant.agentIds.includes(agentId)) return respond({ content: [{ type: 'text', text: 'forbidden: select one granted agent' }], isError: true, _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: 'Select one agent granted by this connection' } } })
     try {
-      const output = await call(name, args, agentId)
+      const output = Object.hasOwn(hiringTools, name) ? await renderHiring(name, args, agentId, call) : await call(name, args, agentId)
       const structuredContent = name === 'whoami'
         ? { ...(typeof output === 'object' && output !== null ? output as Record<string, unknown> : { value: output }), id: await profileId(agentId, grant.address), name: agentId || 'Sidequest agent' }
         : typeof output === 'object' && output !== null ? output : { value: output }
