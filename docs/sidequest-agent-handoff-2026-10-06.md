@@ -9,7 +9,7 @@
 | Published source | `origin/main` at `55c9282`; later V1.1, S3/S4 UI and `28a16ea` guard fix remain local |
 | Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
 | V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
-| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; S5/P1b still pending |
+| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; S5 `c94b3cc..cdaa4a4` passed and remains isolated pending Explore landing |
 | Profile | `%20` holds five C8–C12 commits at `2cc69b6`; six scoped suites and exact branch full gate passed; waits for Explore base-ready |
 | Privy | Dev origin and Sidequest name/color/logo saved; credential rotation, isolated authority and real auth/MCP remain pending |
 | Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations that block provider deletion |
@@ -548,6 +548,15 @@ release SIGNOFF is claimed. The supervisor will manually check coordination.
 Profile's owner posted the `2cc69b6` full `heavy pnpm check` exit 0 at 06:06 UTC.
 Explore posted P1b scoped gates passing and retains its S5-first landing order.
 Do not bypass its explicit base-ready signal or submit any occupied composer.
+
+FINALIZE-UI has since completed S5 in the detached worktree at `cdaa4a4`.
+The corrected local record is in `status/triage.md`: the S5 root check,
+`sidequest:test` 7/7, 18 Explore browser suites, Publish, and 38 light plus
+38 dark captures at 390/1440 passed; a final label correction was recaptured.
+These are local fixture/browser gates only. Explore must review and land the
+range on Sidequest main, rebase its four P1b commits, rerun the integrated
+checks, and issue explicit base-ready. No UI source was cherry-picked or
+deployed by this supervisor.
 
 ## Privy branding readback — recorded 06 October 2026, 06:13 UTC
 
