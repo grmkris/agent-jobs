@@ -15,7 +15,7 @@ import { usePrivyBatch } from './Privy.tsx'
 import { useAuth } from './Wallet.tsx'
 import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, type WalletStep, guardedSnapshot, reconcileSend, retryAction, walletRefused, walletStepRequest, withWalletStepLock } from './txOperation.ts'
 import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
-import { emptyJournal, readTxJournal, readTxJournalDurable, txJournalKey, writeTxJournal, writeTxJournalDurable, type OpRecord } from './txJournal.ts'
+import { JOURNAL_CORRUPT, emptyJournal, readTxJournal, readTxJournalDurable, txJournalKey, writeTxJournal, writeTxJournalDurable, type OpRecord } from './txJournal.ts'
 
 type Status = TxStatus
 
@@ -36,7 +36,6 @@ const SPONSORED = {
 }
 
 const UNCERTAIN = {
-  legacy: 'The wallet outcome is unknown. Reconcile its transaction hash before continuing.',
   checking: 'Your wallet returned an error without a transaction hash. Checking the chain for this step…',
   pending:
     'Your account has a transaction waiting to be mined. Check again in a moment, or paste its hash from your wallet activity; do not send this step again yet.',
@@ -153,7 +152,7 @@ export function TxSteps({
           const failure = record.effectFailures?.findLast(entry => entry.index === i)
           return failure === undefined ? { at: 'idle' } : { at: 'failed', hash: failure.hash, error: failure.error, noEffect: true }
         }
-        return record.snapshot != null ? { at: 'uncertain', checking: true, error: UNCERTAIN.checking } : { at: 'uncertain', error: UNCERTAIN.legacy }
+        return { at: 'uncertain', checking: true, error: UNCERTAIN.checking }
       }
       return record.recorded[i] === true && receiptGuard === undefined ? { at: 'recorded', hash: h } : { at: 'sent', hash: h }
     }),
@@ -410,7 +409,7 @@ export function TxSteps({
     const snapshot = r.snapshot
     const from = r.from
     if (snapshot == null || from == null) {
-      set(i, { at: 'uncertain', error: UNCERTAIN.legacy })
+      set(i, { at: 'uncertain', error: JOURNAL_CORRUPT })
       return
     }
     checking.current = true

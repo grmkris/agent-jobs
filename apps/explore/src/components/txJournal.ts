@@ -30,6 +30,8 @@ export function txJournalKey(taskId: string, txs: WalletStep[]): string {
   for (const char of txs.map(tx => native ? `${tx.chainId}:${tx.to}:${tx.data}:${tx.value}` : `${tx.to}:${tx.data}`).join('|')) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193)
   return `hireling.op${native ? '-value' : ''}:${taskId}:${(hash >>> 0).toString(36)}`
 }
+export const JOURNAL_CORRUPT = 'Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.'
+
 export function readTxJournal(storage: JournalStorage, key: string, requireExisting = false): OpRecord | null {
   let raw: string | null
   try { raw = storage.getItem(key) } catch { throw new Error('Transaction journal is unreadable. Wallet outcome is unknown; reconcile before continuing.') }
@@ -38,11 +40,11 @@ export function readTxJournal(storage: JournalStorage, key: string, requireExist
     return null
   }
   let value: OpRecord
-  try { value = JSON.parse(raw) as OpRecord } catch { throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.') }
+  try { value = JSON.parse(raw) as OpRecord } catch { throw new Error(JOURNAL_CORRUPT) }
   if (value?.effectFailures !== undefined && (!Array.isArray(value.effectFailures) || !value.effectFailures.every(failure => failure !== null && typeof failure === 'object' && Number.isSafeInteger(failure.index) && failure.index >= 0 && typeof failure.hash === 'string' && /^0x[0-9a-f]{64}$/i.test(failure.hash) && typeof failure.error === 'string')))
-    throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.')
-  if (!value || typeof value.batch !== 'boolean' || !Array.isArray(value.hashes) || !value.hashes.every(hash => hash === null || typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) || !Array.isArray(value.recorded) || !value.recorded.every(recorded => recorded === null || typeof recorded === 'boolean') || value.reverted !== undefined && (!Array.isArray(value.reverted) || !value.reverted.every(hash => typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash))) || value.pending !== null && (!Number.isSafeInteger(value.pending) || value.pending < 0) || value.snapshot != null && (!Number.isSafeInteger(value.snapshot.nonce) || !/^\d+$/.test(value.snapshot.block)) || value.from != null && !/^0x[0-9a-f]{40}$/i.test(value.from) || value.attempts != null && (!Array.isArray(value.attempts) || !value.attempts.every(nonce => nonce === null || Number.isSafeInteger(nonce) && nonce >= 0)))
-    throw new Error('Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.')
+    throw new Error(JOURNAL_CORRUPT)
+  if (!value || typeof value.batch !== 'boolean' || !Array.isArray(value.hashes) || !value.hashes.every(hash => hash === null || typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) || !Array.isArray(value.recorded) || !value.recorded.every(recorded => recorded === null || typeof recorded === 'boolean') || value.reverted !== undefined && (!Array.isArray(value.reverted) || !value.reverted.every(hash => typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash))) || value.pending !== null && (!Number.isSafeInteger(value.pending) || value.pending < 0 || value.snapshot == null || value.from == null) || value.snapshot != null && (!Number.isSafeInteger(value.snapshot.nonce) || !/^\d+$/.test(value.snapshot.block)) || value.from != null && !/^0x[0-9a-f]{40}$/i.test(value.from) || value.attempts != null && (!Array.isArray(value.attempts) || !value.attempts.every(nonce => nonce === null || Number.isSafeInteger(nonce) && nonce >= 0)))
+    throw new Error(JOURNAL_CORRUPT)
   return value
 }
 export function writeTxJournal(storage: JournalStorage, key: string, record: OpRecord | null): void {
@@ -61,10 +63,10 @@ const journalCheckpointKey = (key: string) => `hireling.tx-journal:${key}`
 /** Read the inner send journal from the committed cross-renderer store before trusting localStorage. */
 export async function readTxJournalDurable(storage: JournalStorage, key: string, requireExisting = false, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint): Promise<OpRecord | null> {
   const durable = await checkpoint.read(journalCheckpointKey(key))
+  // Every durable journal is checkpointed before its local copy, so a local one alone has an unknown outcome.
   if (durable === undefined) {
-    const local = readTxJournal(storage, key, requireExisting)
-    if (local !== null) await checkpoint.write(journalCheckpointKey(key), JSON.stringify(local))
-    return local
+    if (readTxJournal(storage, key, requireExisting) !== null) throw new Error('This saved transaction has no durable record. Wallet outcome is unknown; reconcile before continuing.')
+    return null
   }
   return readTxJournal({ getItem: () => durable, setItem: () => {}, removeItem: () => {} }, key, requireExisting)
 }
@@ -76,12 +78,8 @@ export async function writeTxJournalDurable(storage: JournalStorage, key: string
   writeTxJournal(storage, key, record)
 }
 
-export async function initializeTxJournalDurable(storage: JournalStorage, taskId: string, txs: WalletStep[]): Promise<void> {
-  const key = txJournalKey(taskId, txs)
-  if (await readTxJournalDurable(storage, key) === null) await writeTxJournalDurable(storage, key, emptyJournal())
-}
 /** Persist the inner journal before an outer approval record can advertise executable transactions. */
-export function initializeTxJournal(storage: JournalStorage, taskId: string, txs: WalletStep[]): void {
+export async function initializeTxJournalDurable(storage: JournalStorage, taskId: string, txs: WalletStep[], checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint): Promise<void> {
   const key = txJournalKey(taskId, txs)
-  if (readTxJournal(storage, key) === null) writeTxJournal(storage, key, emptyJournal())
+  if (await readTxJournalDurable(storage, key, false, checkpoint) === null) await writeTxJournalDurable(storage, key, emptyJournal(), checkpoint)
 }

@@ -17,6 +17,12 @@ one-off approval after the operator signature is verified. It therefore cannot m
 wallet sufficient for every v1 action. Lost answers reconcile through a persisted action key and `sponsor_operation`.
 The older execution-budget delegation below still has separate authority and expiry.
 
+Explore keeps each in-flight wallet step and position action in two browser stores: an IndexedDB checkpoint, written
+first, and its localStorage copy. Since 7 Oct 2026 a localStorage record without its checkpoint is not migrated or
+trusted. Explore shows its outcome as unknown, and the owner reconciles it by hand from the wallet's activity before
+discarding it. That case covers only operations started on a browser from before the checkpoints (early October
+2026). A pending step without its nonce snapshot and sender reads as a corrupt journal for the same reason.
+
 ## Managed-agent model (spec v2, 5 Oct 2026)
 
 The API creates a separate user-owned Privy wallet for each agent and attaches a

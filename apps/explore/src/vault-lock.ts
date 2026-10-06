@@ -11,7 +11,7 @@ export interface VaultIntent {
 
 type IntentStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 export interface VaultIntentCheckpoint {
-  /** undefined means a legacy browser has no checkpoint; null is a committed clear. */
+  /** undefined means nothing was ever checkpointed under the key; null is a committed clear. */
   read(key: string): Promise<string | null | undefined>;
   write(key: string, value: string | null): Promise<void>;
 }
@@ -121,7 +121,11 @@ export async function readVaultIntentDurable(storage: Pick<Storage, "getItem">, 
   if (preparing !== null) throw new InterruptedVaultPreparation(preparing);
   const raw = storage.getItem(key);
   const local = readVaultIntent(storage, key);
-  if (durable === undefined) return local; // Preserve pre-checkpoint recovery intents.
+  // Every intent is checkpointed before it is shown, so a local one without its checkpoint has an unknown outcome.
+  if (durable === undefined) {
+    if (local !== null) throw new Error("This saved position action has no durable record, so its outcome is unknown. Check your wallet's activity, then discard it.");
+    return null;
+  }
   if (raw !== null && raw !== durable)
     throw new Error("This position action changed in another tab. Reload to reconcile the saved action.");
   return readVaultIntent({ getItem: () => durable }, key);

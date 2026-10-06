@@ -101,12 +101,14 @@ describe("vault intent lock", () => {
     expect(await discardVaultPreparation(secondTab, "k", intent.id, checkpoint)).toBe(false);
   });
 
-  it("preserves legacy intents without creating a checkpoint in a reader", async () => {
+  it("fails closed on a local intent without its checkpoint, and lets the owner discard it", async () => {
     const checkpoint = checkpointStore();
-    const legacy = storageCache();
-    legacy.setItem("k", JSON.stringify(intent));
-    expect(await readVaultIntentDurable(legacy, "k", checkpoint)).toEqual(intent);
+    const local = storageCache();
+    local.setItem("k", JSON.stringify(intent));
+    await expect(readVaultIntentDurable(local, "k", checkpoint)).rejects.toThrow(/no durable record.*unknown/);
     expect(await checkpoint.read("k")).toBeUndefined();
+    expect(await clearOwnedIntentDurable(local, "k", intent.id, checkpoint)).toBe(true);
+    expect(await readVaultIntentDurable(local, "k", checkpoint)).toBeNull();
   });
 
   it("a committed clear cannot resurrect a stale legacy-looking pointer", async () => {
