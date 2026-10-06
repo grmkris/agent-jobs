@@ -4,6 +4,8 @@ import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { privyOperator } from './privy-operator.ts'
+import { fromD1 } from '@agent-jobs/indexer'
+import { decisionFeedEvents, recordAgentEvents } from './feed-agent.ts'
 import type { AgentRouteRequest } from './routes/agents.ts'
 
 function text(body: Record<string, unknown>, key: string): string {
@@ -67,8 +69,10 @@ export async function agentManagement(input: {
     const approval = action === 'approval-decide' ? await lifecycle.decideApproval(id, operator, body.approved === true, body.signature === undefined ? undefined : hex(body, 'signature', 130),
       { ...(body.hash === undefined ? {} : { hash: hex(body, 'hash', 64) }), ...(body.standing === undefined ? {} : { standing: body.standing === true }) }) : lifecycle.recoverApproval(id, operator)
     const agent = agents.owned(approval.agent_id, operator)
-    if (approval.status !== 'approved') return { approval }
     const operation = agents.operation(approval.operation_id)
+    if (action === 'approval-decide') await recordAgentEvents(bindings.Database === undefined ? undefined : fromD1(bindings.Database as never), context.deployment.network,
+      operator, decisionFeedEvents(context.deployment.network, agent, approval, operation, now()), now())
+    if (approval.status !== 'approved') return { approval }
     return input.execute(agent.id, operation.tool, JSON.parse(operation.intent_json) as Record<string, unknown>, operation.action_key, approval.id, operation.board_id)
   }
   if (action === 'execute') {

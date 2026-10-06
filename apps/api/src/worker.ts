@@ -23,7 +23,8 @@ import DirectoryObject, { directoryObjectName } from './directory-object.ts'
 import { directoryTools, migrateDirectory, runDirectoryTool } from './directory.ts'
 import { hostedCallFailure } from './hosted-admission.ts'
 import { enforceHostedRate } from './admission-rate.ts'
-import { enqueuePublicRequest, enqueueWalletNotification, handleTelegramWebhook, migrateTelegram, telegramPublicChannel } from './telegram.ts'
+import { handleTelegramWebhook, migrateTelegram } from './telegram.ts'
+import { feedTools } from './feed.ts'
 import { telegramTools } from './tools-telegram.ts'
 import type { OAuthReply, OAuthGrant } from './oauth.ts'
 import { mcpRoute } from './mcp.ts'
@@ -267,6 +268,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
                   const drip = await dripState(sql, tenant.id, session.address)
                   return { reply: { ok: true, result: { address: session.address, boardId: tenant.id, origin: session.origin, dripped: drip?.status ?? null } } }
                 }
+                // A read of the caller's own feed in D1; hosted board admission governs board tools, not this.
+                if (tool === 'inbox') return { reply: { ok: true, result: await feedTools.inbox.run({ sql, network, now: now() }, session?.address, args) } }
                 const denied = hostedCallFailure(admission, network, tenant.id, tool, args, session?.address)
                 if (denied !== undefined) return { reply: { ok: false, code: 'forbidden', message: denied } }
                 if (Object.hasOwn(directoryTools, tool)) return { reply: { ok: true, result: await directoryCall(tool, args, mcpSession, session?.address) } }
@@ -295,19 +298,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
               }
               yield* Effect.promise(() => recordOffer(sql, { boardId: tenant.id, termsHash: r.termsHash, taskId: r.taskId, now: now() }))
             }
-            if (reply.ok && tool === 'submit_selection') {
-              const selection = reply.result as { worker?: string }
-              if (typeof selection.worker === 'string') yield* Effect.promise(() => enqueueWalletNotification(sql, network, selection.worker!, {
-                id: `telegram:selected:${tenant.id}:${String(args.taskId)}:${String(args.nonce)}`,
-                text: `You were selected for Hireling task ${String(args.taskId)}. Activate the agreement to accept the job.`, now: now(),
-              }))
-            }
-            if (reply.ok && tool === 'request_quotes') {
-              const r = reply.result as { requestId?: string }
-              if (typeof r.requestId === 'string') yield* Effect.promise(() => enqueuePublicRequest(sql, telegramPublicChannel(network), {
-                boardId: tenant.id, taskId: r.requestId!, kind: 'quotes', network, now: now(), ...(typeof args.title === 'string' ? { title: args.title } : {}),
-              }))
-            }
+            // Selection and new-request notices are sent by the Board DO (feed-board.ts), so managed calls get them too.
             return reply
           })
 
@@ -330,9 +321,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
           const resource = `${url.origin}${url.pathname}`
           const grant = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })) as OAuthGrant | null
           const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin,
-            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools }).filter(([name]) => grant !== null && permittedTool(grant, name) && networkTool(network, name))),
+            ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools, ...feedTools }).filter(([name]) => grant !== null && permittedTool(grant, name) && networkTool(network, name))),
             call: async (tool, args, agentId) => {
-              if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))
+              if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami', 'inbox'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))
               const result = JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).agentExecute({ env, tool, args: tenantArgs(tenant, tool, args), agentId, resource, ...(ip === undefined ? {} : { ip }), ...(bearer === undefined ? {} : { bearer }) }))) as BoardReply
               return result
             },

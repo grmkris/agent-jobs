@@ -12,6 +12,7 @@ import { runtimeSecret } from '../../api/src/prod-config.ts'
 import { queueTelegramNotifications } from '../../api/src/telegram-notifications.ts'
 import { drainTelegramOutbox, migrateTelegram, telegramTransport } from '../../api/src/telegram.ts'
 import { reportRelayWatchFailure, watchRelay } from '../../api/src/relay-watch.ts'
+import { feedFromChain, pruneFeed, reportFeedFailure } from '../../api/src/feed.ts'
 import { recordIndexerRun, type IndexerRunOutcome } from './run-record.ts'
 
 const secret = (name: string) =>
@@ -73,11 +74,16 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
             runner: `cron:${crypto.randomUUID()}`,
             maxPages: 5,
           })
+          const caughtUp = result.nextBlock !== null && result.nextBlock > await head.finalizedBlock()
+          // The inbox feed (V1.1 WS4) follows finalized transitions whether or not Telegram is configured.
+          const fedAt = Math.floor(Date.now() / 1000)
+          await feedFromChain(sql, network, fedAt, { caughtUp }).catch(reportFeedFailure)
+          if (fedAt % 3600 < 60) await pruneFeed(sql, fedAt).catch(reportFeedFailure)
           if (telegramToken !== '') {
             const now = Math.floor(Date.now() / 1000)
             const deployment = sdk.deployment(network)
             const client = sdk.context(network, 'main', rpcUrl).publicClient
-            const notifications = await queueTelegramNotifications(sql, network, now, { caughtUp: result.nextBlock !== null && result.nextBlock > await head.finalizedBlock(), legacyReviewWindow: async (job) => {
+            const notifications = await queueTelegramNotifications(sql, network, now, { caughtUp, legacyReviewWindow: async (job) => {
               const pair = Object.entries({ ...deployment.stacks, ...deployment.legacyStacks }).find(([name]) => name === job.stack)?.[1]
               if (pair === undefined || pair.kind !== 'legacy') return null
               return Number(await client.readContract({ address: pair.evaluator, abi: sdk.jobsEvaluatorAbi, functionName: 'reviewWindow' }))

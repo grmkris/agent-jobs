@@ -12,6 +12,7 @@ import { fromD1 } from '@agent-jobs/indexer'
 import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
 import { tenantAgentRequest } from './agent-requests.ts'
 import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
+import { agentFeedEvents, recordAgentEvents } from './feed-agent.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -96,7 +97,13 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
     verifyToolSigning: input => tenant.verifyAgentSigning({ ...prepare(input.tool, input.args), typedData: input.typedData }),
   })
   try {
-    return toJson({ ok: true, result: await executor.execute({ agentId: agent.id, boardId: req.env.boardId, tool: req.tool, args, operationKey: typeof operationKey === 'string' ? operationKey : crypto.randomUUID() }) })
+    const key = typeof operationKey === 'string' ? operationKey : crypto.randomUUID()
+    const result = await executor.execute({ agentId: agent.id, boardId: req.env.boardId, tool: req.tool, args, operationKey: key })
+    // Inbox rows for the agent and its operator, plus the operator's signing link; never fails the action.
+    const now = Math.floor(Date.now() / 1000)
+    await recordAgentEvents(bindings.Database === undefined ? undefined : fromD1(bindings.Database as never), req.env.network, agent.operator,
+      agentFeedEvents({ network: req.env.network, agent, tool: req.tool, operationKey: key, result, now }), now)
+    return toJson({ ok: true, result })
   } catch (error) {
     // A floor refusal sent nothing; alert the owners now instead of waiting for the indexer's next balance check.
     if ((error as { reason?: unknown }).reason === 'floor' && bindings.Database !== undefined) {

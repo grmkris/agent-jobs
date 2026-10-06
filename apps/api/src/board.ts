@@ -16,6 +16,7 @@ import { permittedTool } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
 import { runAgent, type AgentExecuteRequest } from './agent-runtime.ts'
 import { agentManagement } from './agent-management.ts'
+import { recordBoardEvent } from './feed-board.ts'
 import { operatorRequest, type AgentManagementRequest } from './agent-requests.ts'
 
 /** What the Worker passes on every call: the tool, its arguments, the caller's credentials and the runtime env. */
@@ -300,6 +301,10 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               if (denied !== undefined) return toJson({ ok: false, code: 'forbidden', message: denied })
               const ctx: ToolContext = { network: req.env.network, mcpSession: req.mcpSession }
               const toolResult = await tool.run(board, caller, req.args, ctx)
+              // Inbox feed and Telegram notices for website, REST and managed calls alike; never fails the tool.
+              await recordBoardEvent(fromDurableObjectSql(state.storage.sql.raw), fromD1(bindings.Database as never), {
+                tool: req.tool, args: req.args, result: toolResult, network, boardId: req.env.boardId, now: Math.floor(Date.now() / 1000),
+              })
               return toJson({ ok: true, result: toolResult } satisfies BoardReply)
             } catch (e) {
               // The one safe boundary for tenant replies: board refusals keep their code and fields, a decoded revert
