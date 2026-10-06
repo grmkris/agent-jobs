@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
+import { encodeFunctionData, parseAbi } from 'viem';
 import { readFileSync } from 'node:fs';
 
 // Mocked Chromium only: the real SDK reads encoded responses from a test-only RPC transport.
@@ -10,7 +11,9 @@ const output = process.argv[2] ?? '/tmp/sidequest-delegation-evidence';
 const port = Number(process.env.STAKE_FIXTURE_PORT ?? 5194);
 const base = `http://127.0.0.1:${port}`;
 const owner = '0x1111111111111111111111111111111111111111';
-const delegator = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url))).delegation.delegator;
+const testnetConfig = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url)));
+const delegator = testnetConfig.delegation.delegator;
+const testnetFaucet = testnetConfig.deployment.testnetFaucet;
 const agentWallet = '0x2222222222222222222222222222222222222222';
 const other = '0x3333333333333333333333333333333333333333';
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
@@ -84,6 +87,10 @@ async function fixture(viewport, options = {}) {
     }
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.endsWith('/api/task_index')) return reply({ ok: true, result: [] });
+    if (url.pathname.endsWith('/api/testnet_faucet')) {
+      const faucet = await page.evaluate(() => { const s = window.__stake; s.faucetRequests = (s.faucetRequests ?? 0) + 1; return s.faucetReply; });
+      return reply(faucet ?? { ok: true, result: { status: 'self', transaction: { to: testnetFaucet, chainId: 10143, data: encodeFunctionData({ abi: parseAbi(['function drip(address)']), functionName: 'drip', args: [owner] }) } } });
+    }
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     return route.continue();
   });

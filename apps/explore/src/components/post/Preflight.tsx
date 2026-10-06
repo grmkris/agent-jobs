@@ -58,7 +58,7 @@ export function Preflight({
 
   const note = isMainnet
     ? 'Read live from your wallet.'
-    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; SIDE is transferred by the ecosystem/coordinator, and mUSD/mEUR each have an on-chain faucet().'
+    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; SIDE, mUSD and mEUR from Get test tokens on your Account page.'
   if (!on) {
     return (
       <Section

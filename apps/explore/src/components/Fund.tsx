@@ -1,6 +1,7 @@
 import { Button } from './ui/button.tsx'
 import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
-import { Details, Address, CopyButton, Section, textLinkClass } from './kit.tsx'
+import { Details, Address, CopyButton, Section, shortAddress, textLinkClass } from './kit.tsx'
+import { TestnetFaucet } from './TestnetFaucet.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
@@ -89,8 +90,7 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
           <a className="underline" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
             faucet.monad.xyz
           </a>
-          ; SIDE v2 is transferred to your copied wallet address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain{' '}
-          <code>faucet()</code>.
+          ; SIDE, mUSD and mEUR from Get test tokens on your Sidequest Account page.
         </p>
       )}
     </div>
@@ -130,17 +130,19 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
           </>
         ) : (
           <>
-            Testnet: MON from{' '}
+            Testnet: SIDE, mUSD and mEUR come from Get test tokens, MON from{' '}
             <a className={textLinkClass} href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
               faucet.monad.xyz
             </a>
-            ; SIDE v2 is transferred to this address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain faucet(). Test tokens
-            have no value.
+            . Test tokens have no value.
           </>
         )
       }
     >
-      <CopyButton value={address} label="Copy address" />
+      <div className="flex items-center gap-1">
+        <span className="font-mono text-ui">{shortAddress(address)}</span>
+        <CopyButton value={address} label="Copy address" />
+      </div>
       <Details summary="Technical details">
         <p className="break-all font-mono text-ui">{address}</p>
         <Address value={address} />
@@ -156,6 +158,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
           </Item>
         ))}
       </ItemGroup>
+      <TestnetFaucet address={address} />
     </Section>
   )
 }

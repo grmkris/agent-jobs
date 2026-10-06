@@ -1,6 +1,6 @@
 // Browser-only RPC double. The real SDK reads, conversions and ABI decoding run against this transport.
 import * as sdk from '@sidequest/sdk';
-import { createPublicClient, custom, erc20Abi, decodeFunctionData, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
+import { createPublicClient, custom, erc20Abi, decodeFunctionData, toFunctionSelector, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
 import { chainLatency } from './wagmi.mjs';
 import { chain, deployment } from '../src/wallet.ts';
 
@@ -40,12 +40,16 @@ export function answer({ functionName, address, args = [] }, historical = false)
     case 'paused': return false;
     case 'getAgentWallet': return window.__agents.find(agent => agent.agentId === String(args[0]))?.wallet ?? zero;
     case 'ownerOf': return window.__wallet.address;
+    case 'nextDripAt': return s.faucetNext ?? 0n;
+    case 'stakeAmount': return 1000n * 10n ** 18n;
+    case 'paymentAmount': return 1000n * 10n ** 6n;
     case 'tokenURI': return 'data:application/json,' + encodeURIComponent(JSON.stringify({ name: window.__agents.find(agent => agent.agentId === String(args[0]))?.profile.name }));
     default: throw new Error(`Fixture has no read for ${functionName}`);
   }
 }
 const hash = '0x' + 'ab'.repeat(32);
-const abis = [sdk.stakeVaultAbi, sdk.factoryV2Abi, sdk.feeScheduleAbi, sdk.identityAbi];
+const dripSelector = toFunctionSelector('function drip(address)');
+const abis = [sdk.stakeVaultAbi, sdk.factoryV2Abi, sdk.feeScheduleAbi, sdk.identityAbi, sdk.testnetFaucetAbi];
 function decode(data) {
   for (const abi of abis) {
     try { return { ...decodeFunctionData({ abi, data }), abi }; } catch { /* next ABI */ }
@@ -93,6 +97,13 @@ export function apply({ data }, logs = []) {
     if (args[0] !== sdk.BATCH_DEFAULT_MODE) throw new Error('Fixture refuses non-atomic execution');
     const [calls] = decodeAbiParameters([{ type: 'tuple[]', components: [{ name: 'target', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'callData', type: 'bytes' }] }], args[1]);
     for (const call of calls) apply({ data: call.callData }, logs);
+    return;
+  }
+  if (data.startsWith(dripSelector)) {
+    const { args } = decodeFunctionData({ abi: sdk.testnetFaucetAbi, data });
+    s.calls.push({ functionName: 'drip', args: [args[0]] });
+    s.wallet += 1000n * 10n ** 18n;
+    s.faucetNext = BigInt(Math.floor(Date.now() / 1000) + 86400);
     return;
   }
   let decoded;
