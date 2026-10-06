@@ -12,8 +12,8 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest signed-off dev release is `f117ac9`, deployed on 6 October 2026
-at 07:45:52 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-f117ac9-live.json)
+The latest signed-off dev release is `eeaac3e`, deployed on 6 October 2026
+at 08:12:06 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-eeaac3e-live.json)
 records the exact source/tree, Worker versions and authority binding. Public health, release,
 directory, agent setup and OAuth discovery checks pass. Anonymous writes and
 MCP requests require authentication. Twenty browser page/theme/viewport checks
@@ -27,8 +27,10 @@ The separate Sidequest routine policy now pins the fresh contracts and preserves
 the legacy policy and its recovery authority. Its dev binding is guarded by a
 private journal and a four-field dev overlay. See
 [the cutover handoff](sidequest-agent-handoff-2026-10-06.md) for dated readbacks.
-The indexer cron has produced progressing checkpoints with no jobs in this fresh
-deployment.
+The indexer retains its minute cron and progressing checkpoints; one completed
+testnet hire is now indexed. V11 verified chain events entering the feed and a
+paid request to the public `/x402/demo` endpoint. Its local test-wallet signature
+does not establish acceptance of the hosted managed signer.
 
 ## Release
 
@@ -92,9 +94,9 @@ acknowledged the rename after resuming. The verified local
 track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
 deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
 the new repository. The reviewed reset, V1.1 fixes, S3–S5/P1b, profile C8–C12
-and VV2-032 recovery fix are published and deployed through `f117ac9`. Later
-profile C13/C14 and Explore W4 work remains with its owners for the next
-reviewed integration.
+and VV2-032 recovery fix are published and deployed through `eeaac3e`, including
+profile C13/C14, Explore W4 and the canonical x402 routing fix. Further
+authenticated MCP, inbox, webhook and managed-signing proofs remain V11's lane.
 Physical checkout/worktree/tmux paths stay stable while their owners integrate.
 
 The read-only policy planner is

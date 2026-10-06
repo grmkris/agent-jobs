@@ -5,12 +5,12 @@
 | Item | Verified state / owner |
 | --- | --- |
 | Repository | `grmkris/sidequest`; physical checkout/worktrees keep their existing paths |
-| Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `f117ac9` at 07:45:52 UTC |
-| Published source | `origin/main` contains signed-off release `f117ac9`; dated evidence/docs follow it |
+| Live dev | `https://dev.sidequest.exchange`, Monad testnet 10143, deployed source `eeaac3e` at 08:12:06 UTC |
+| Published source | `origin/main` contains signed-off release `eeaac3e`; documentation-only evidence commits follow the deployed source |
 | Next dev cut | Sidequest coordinator, after the next integrated candidate's review and gates |
-| V1.1 | `%13` fixes are deployed; VV2-032 resolved in `f117ac9`; live authenticated/feed/x402 proofs handed back to V11 |
-| UI | Explore `%14` landed S3/S4/S5/P1b through `be73a6d` and explicitly posted BASE READY; 18 suites and 78 light/dark screenshots pass locally |
-| Profile | C8–C12 landed through `f68175f`; 18 suites/full gate pass on the identical code tree; C13 remains isolated under `%20` |
+| V1.1 | `%13` fixes deployed; VV2-032 remains resolved; canonical paid x402 proof passed, authenticated proofs remain V11's lane |
+| UI | S3/S4/S5/P1b and final W4 through `eeaac3e` deployed; final W4 source/gates reviewed; 20 fresh live browser checks pass |
+| Profile | C8–C14 deployed; C13/C14 `d9138f3`, `7868866`, `af5edad` source reviewed; author 18 suites/full gate pass |
 | Privy | Branding/origin saved; fresh routine `q82i8vfysvn523j6mx69wljn` and separate policy `ocog6r948i9p93x6ucd4f3db` bound to dev and read back; real auth/MCP remain unverified |
 | Legacy retirement | V11 `3a11081` reconciled eight jobs with 15 successful receipts; residual 0.9 mUSD and wider Board grant/pending inventory still block deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
@@ -664,3 +664,40 @@ owners' isolated branches, outside this release; they can now rebase/land under
 their normal review/gate process. Original worktrees, dated receipts, legacy
 resources and journals remain retained. Residual legacy 0.9 mUSD and wider
 Board authority inventory still block old-provider deletion.
+
+
+## Final integrated dev release — 6 October 2026, 08:12–08:16 UTC
+
+Deployed source `eeaac3eaadaa2348541bfca616779256baaa6585`, tree
+`7bebed057038743b2e8cded27dd3e497086c54b9`, completed at **08:12:06.019 UTC**
+with guarded apply exit 0; `origin/main` was read back at that exact SHA.
+The reviewer issued `SIGNOFF RELEASE` for the same head with no open
+High/Medium findings. Node 24.21.0 full check, migration generation check,
+whitespace and fresh dev ownership/Privy preflight passed.
+
+This cut includes V11's `57bf354` canonical x402 route, profile C13/C14
+`d9138f3` / `7868866` / `af5edad`, and final Explore W4
+`102ce6c` / `6c1660b` / `eeaac3e`, over the earlier signed-off release.
+The final W4 gates passed 222 units, owner-session 4/4, onboarding 5/5,
+OAuth setup 2/2, typecheck and lint; profile recorded 18 local browser suites
+and full gate on its equivalent code tree. VV2-032 recovery remains intact.
+No planned profile or W4 commit remains held outside this deployment.
+
+The [final dated receipt](evidence/sidequest-dev/2026-10-06-eeaac3e-live.json)
+records 13 public/provider checks, three active Worker versions at 100%,
+20 fresh mobile/desktop light/dark browser pages, visible Privy controls,
+and minute-cron checkpoints `68634922` → `68635711`. The public x402 URL
+returns its proper 402 challenge. V11 then paid it with a local test wallet:
+0.01 testnet USDC to the Safe, transaction
+`0x24fb05a0198d6b0514552c8d08c9916cda3d4e7a5e0b3b45f743b58fb00b516e`.
+One real testnet hire and its seven feed rows were separately verified by V11
+on the prior release. Neither establishes human consent or hosted signing.
+
+V11 `%13` owns the remaining real Privy/OAuth, authenticated MCP/inbox/events,
+webhook, permission/approval and hosted `x402_pay` proofs. Profile `%20` and
+Explore `%14` have completed their source tracks. The durable shared triage
+DEPLOYED/RELEASED lines identify this SHA; terminal notice acceptance is only
+transport evidence. Old jobs remain reconciled as recorded, but residual
+0.9 mUSD and wider Board authority inventory still prevent provider retirement.
+Keep every owner worktree, pending proof, original journal and dated receipt.
+Evidence documentation commits after `eeaac3e` do not change the deployed source.

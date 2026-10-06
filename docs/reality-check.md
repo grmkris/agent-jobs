@@ -1444,3 +1444,33 @@ acceptance remain distinct live proofs, handed to V11 with the deployed SHA.
 Profile C13/C14 and Explore W4 are excluded from this release. No mainnet
 deployment, new economic send, legacy resource deletion or journal removal
 occurred. Original dated evidence and all owner worktrees remain preserved.
+
+
+**6 October 2026, 08:12–08:16 UTC final integrated dev update:** source
+`eeaac3eaadaa2348541bfca616779256baaa6585`, tree
+`7bebed057038743b2e8cded27dd3e497086c54b9`, was pushed and deployed through
+the guarded Node 24 runner at 08:12:06.019 UTC, exit 0. Independent signoff
+covers all eight commits after `f117ac9`: x402 routing, evidence, profile
+C13/C14 and Explore W4. The exact-head `heavy pnpm check` passed on Node
+24.21.0 (cache enabled: typecheck 8/11 hits, tests 7/10); migration generation,
+whitespace and the fresh ownership/Privy preflight passed. The reviewed W4
+has 222 local unit tests and owner-session/onboarding/OAuth browser gates;
+profile's author recorded all 18 local suites on the equivalent code tree.
+
+Thirteen public/provider checks passed. The canonical `/x402/demo` now returns
+402 JSON with `PAYMENT-REQUIRED`, rather than the SPA. All three Worker active
+versions were read back at 100% traffic. Fresh 20-page mobile/desktop light/dark
+browser checks had no page errors, failed resources or overflow; visible Privy
+controls and logo passed at 390/1440 without login. The minute indexer cron is
+unchanged, with checkpoints `68634922` → `68635711` and one indexed hire.
+[Final sanitized live receipt](evidence/sidequest-dev/2026-10-06-eeaac3e-live.json).
+
+Separately, V11 verified a real hire and its seven address-scoped/public feed
+rows on `f117ac9`, then a paid request through the canonical public URL on
+`eeaac3e`: 0.01 testnet USDC settled to the Safe in transaction
+`0x24fb05a0198d6b0514552c8d08c9916cda3d4e7a5e0b3b45f743b58fb00b516e`.
+The selected V11 receipt is included in the final sanitized evidence. That
+payment used a local test-wallet signature. Real-user Privy/OAuth consent,
+authenticated MCP/inbox/events/webhooks and hosted managed `x402_pay` await
+V11's separate acceptance receipts. Existing dated deployments, legacy
+resources/journals and owner worktrees remain intact; mainnet is separate.
