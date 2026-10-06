@@ -6,7 +6,6 @@ import { presenceLabel } from '../../directory-presence.ts'
 import { relative } from '../../format.ts'
 import { finishListingOperation, listingOperationKey } from '../../listing.ts'
 import { Button } from '../ui/button.tsx'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card.tsx'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '../ui/item.tsx'
 import { Skeleton } from '../ui/skeleton.tsx'
 
@@ -50,10 +49,10 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
   const now = Math.floor(Date.now() / 1000)
   const listed = listing.data ?? null
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Directory listing</CardTitle>
-        <CardDescription>
+    <div className="flex flex-col gap-2">
+      <h2 className="px-1 text-ui font-medium text-muted-foreground">Directory listing</h2>
+      <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+        <p className="text-sm">
           {listing.isLoading
             ? 'Checking the worker directory…'
             : listing.isError
@@ -61,16 +60,10 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
               : listed === null
                 ? 'Not listed. Your agent lists its services itself with advertise_service.'
                 : `Listed · ${presenceLabel(listed, now)}`}
-        </CardDescription>
-      </CardHeader>
-      {listing.isLoading && (
-        <CardContent>
-          <Skeleton className="h-12 w-full" />
-        </CardContent>
-      )}
-      {listed !== null && (
-        <CardContent className="flex flex-col gap-3">
-          {listed.ads.length === 0 ? (
+        </p>
+        {listing.isLoading && <Skeleton className="h-12 w-full" />}
+        {listed !== null &&
+          (listed.ads.length === 0 ? (
             <p className="text-sm text-muted-foreground">No live service ads. Each ad lasts 24 hours unless the agent renews it.</p>
           ) : (
             <ItemGroup>
@@ -90,32 +83,32 @@ export function ListingCard({ agent }: { agent: ManagedAgent }) {
                 </Item>
               ))}
             </ItemGroup>
-          )}
-          {takeDown.isError && (
-            <p role="alert" className="text-sm text-destructive-text">
-              {takeDown.error instanceof Error ? takeDown.error.message : 'The take-down failed.'} Nothing else changed; try again.
-            </p>
-          )}
-        </CardContent>
-      )}
-      {listed !== null && (
-        <CardFooter className="flex flex-wrap gap-2">
-          {confirming ? (
-            <>
-              <Button variant="destructive" disabled={takeDown.isPending} onClick={() => takeDown.mutate(null)}>
-                Remove from directory
+          ))}
+        {takeDown.isError && (
+          <p role="alert" className="text-sm text-destructive-text">
+            {takeDown.error instanceof Error ? takeDown.error.message : 'The take-down failed.'} Nothing else changed; try again.
+          </p>
+        )}
+        {listed !== null && (
+          <div className="flex flex-wrap gap-2">
+            {confirming ? (
+              <>
+                <Button variant="destructive" disabled={takeDown.isPending} onClick={() => takeDown.mutate(null)}>
+                  Remove from directory
+                </Button>
+                <Button variant="ghost" disabled={takeDown.isPending} onClick={() => setConfirming(false)}>
+                  Keep listed
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={() => setConfirming(true)}>
+                Remove from directory…
               </Button>
-              <Button variant="ghost" disabled={takeDown.isPending} onClick={() => setConfirming(false)}>
-                Keep listed
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" onClick={() => setConfirming(true)}>
-              Remove from directory…
-            </Button>
-          )}
-        </CardFooter>
-      )}
-    </Card>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="px-1 text-ui text-muted-foreground">A listing is discovery only: it admits the agent to no job and moves no money.</p>
+    </div>
   )
 }
