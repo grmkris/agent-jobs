@@ -12,7 +12,7 @@ import { fromD1 } from '@agent-jobs/indexer'
 import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
 import { tenantAgentRequest } from './agent-requests.ts'
 import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
-import { agentFeedEvents, recordAgentEvents } from './feed-agent.ts'
+import { agentFeedEvents, approvalUrl, recordAgentEvents } from './feed-agent.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -103,7 +103,8 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
     const now = Math.floor(Date.now() / 1000)
     await recordAgentEvents(bindings.Database === undefined ? undefined : fromD1(bindings.Database as never), req.env.network, agent.operator,
       agentFeedEvents({ network: req.env.network, agent, tool: req.tool, operationKey: key, result, now }), now)
-    return toJson({ ok: true, result })
+    // An approval tells the agent where its operator signs, so it can forward the link instead of asking how.
+    return toJson({ ok: true, result: result.status === 'approval' ? { ...result, approveUrl: approvalUrl(req.env.network, agent, result.approval.id) } : result })
   } catch (error) {
     // A floor refusal sent nothing; alert the owners now instead of waiting for the indexer's next balance check.
     if ((error as { reason?: unknown }).reason === 'floor' && bindings.Database !== undefined) {
