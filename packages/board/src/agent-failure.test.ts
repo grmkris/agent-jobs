@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentFailure, agentFailureReply, errorDiagnostics, errorSite, failureFromReply } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
 
+function verifyOneOffAllowance(): never { throw new Error('secret https://rpc.example/KEY Bearer abc') }
+
 describe('agentFailureReply', () => {
   it('keeps an agent failure code, reason, retry and wait', () => {
     expect(agentFailureReply(new AgentFailure('conflict', 'This operationKey already names a different action', 'operation-key-reused', 'new-key'), 'fallback'))
@@ -52,7 +54,6 @@ describe('agentFailureReply', () => {
   })
 
   it('logs where an internal failure was thrown as function names only', () => {
-    function verifyOneOffAllowance(): never { throw new Error('secret https://rpc.example/KEY Bearer abc') }
     let thrown: unknown
     try { verifyOneOffAllowance() } catch (error) { thrown = error }
     const site = errorSite(thrown)
