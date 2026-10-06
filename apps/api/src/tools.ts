@@ -280,9 +280,9 @@ export const tools: Record<string, Tool> = {
   },
 
   list_quote_requests: {
-    description: 'Anyone: open quote requests (the work, accepted tokens, bonds, deadlines). No sign-in needed.',
-    inputSchema: { type: 'object', properties: {} },
-    run: (board, caller) => board.listQuoteRequests(caller),
+    description: 'Anyone: open quote requests (the work, accepted tokens, bonds, deadlines). A connected publisher may set mine=true to page its own picked and expired requests, including taskId.',
+    inputSchema: { type: 'object', properties: { mine: { type: 'boolean', description: 'Connected publisher only: include your picked and expired requests.' }, cursor: { type: 'string', description: 'Cursor from a prior mine=true page.' } } },
+    run: (board, caller, a) => board.listQuoteRequests(caller, { ...(a.mine === true ? { mine: true } : {}), ...(typeof a.cursor === 'string' ? { cursor: a.cursor } : {}) }),
   },
 
   submit_quote: {

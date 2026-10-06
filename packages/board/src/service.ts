@@ -42,6 +42,7 @@ import { type GitHubApp, checkRuns, installationToken, repoSlug } from './github
 import type { ModelEndpoint } from './model.ts'
 import { screenOffer } from './screening.ts'
 import { creatorSelectionProjection } from './selection.ts'
+import { publisherFunding, publisherNextAction } from './publisher-view.ts'
 import { assertAgentEnvelope, assertExactAgentTypedData } from './agent-signing-scope.ts'
 import { typedDataJson } from './typed-data.ts'
 import { BoardError } from './board-error.ts'
@@ -139,6 +140,7 @@ export interface TaskPreparation {
   manifestUrl: string; manifest: string; transactions: TxRequest[]; applicationId?: string; next: string
 }
 interface QuotePreparation { requestId: string; requestHash: Hex; status: string; next: string }
+interface QuoteRequestRead { requestId: string; requestHash: string; taskId: string | null; status: string; [key: string]: unknown }
 
 /** An EIP-712 message for the caller's wallet: `cast wallet sign --data '<json>'`, or `eth_signTypedData_v4`. */
 export interface SignRequest {
@@ -1508,11 +1510,29 @@ export class Board {
     return row
   }
 
-  /** Open requests anyone can read (the work, accepted tokens, bonds, deadlines); quotes themselves stay private. */
-  listQuoteRequests(_caller: Caller) {
-    return this.#sql
-      .all<QuoteRequestRow>('SELECT * FROM quote_requests WHERE task_id IS NULL AND quote_deadline > ? ORDER BY created_at DESC LIMIT 50', this.#now())
-      .map((r) => ({ requestId: r.id, requestHash: r.request_hash, status: 'Accepting quotes — reward not escrowed', ...(JSON.parse(r.request_json) as object) }))
+  /** Public discovery stays unchanged; a connected creator may page every request it created, including picked/expired rows. */
+  listQuoteRequests(caller: Caller): QuoteRequestRead[]
+  listQuoteRequests(caller: Caller, input: { mine: true; cursor?: string }): { requests: QuoteRequestRead[]; nextCursor?: string }
+  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string }): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string }
+  listQuoteRequests(caller: Caller, input: { mine?: boolean; cursor?: string } = {}): QuoteRequestRead[] | { requests: QuoteRequestRead[]; nextCursor?: string } {
+    if (input.mine !== true) {
+      if (input.cursor !== undefined) throw new BoardError('invalid', 'cursor requires mine=true')
+      return this.#sql
+        .all<QuoteRequestRow>('SELECT * FROM quote_requests WHERE task_id IS NULL AND quote_deadline > ? ORDER BY created_at DESC LIMIT 50', this.#now())
+        .map((r) => ({ requestId: r.id, requestHash: r.request_hash, taskId: r.task_id, status: 'Accepting quotes — reward not escrowed', ...(JSON.parse(r.request_json) as object) }))
+    }
+    const me = this.#requireCaller(caller)
+    const cursor = input.cursor === undefined ? undefined : (() => {
+      const match = /^qr:(\d+):(.+)$/.exec(input.cursor!)
+      if (match === null) throw new BoardError('invalid', 'cursor must be a value returned by list_quote_requests')
+      return { createdAt: Number(match[1]), id: match[2]! }
+    })()
+    const rows = this.#sql.all<QuoteRequestRow>(`SELECT * FROM quote_requests WHERE creator = ?${cursor === undefined ? '' : ' AND (created_at < ? OR (created_at = ? AND id < ?))'} ORDER BY created_at DESC, id DESC LIMIT 51`, me,
+      ...(cursor === undefined ? [] : [cursor.createdAt, cursor.createdAt, cursor.id]))
+    const page = rows.slice(0, 50)
+    const requests = page.map(r => ({ requestId: r.id, requestHash: r.request_hash, taskId: r.task_id, status: r.task_id !== null ? 'Picked — hire linked' : this.#now() >= r.quote_deadline ? 'Expired — reward not escrowed' : 'Accepting quotes — reward not escrowed', ...(JSON.parse(r.request_json) as object) }))
+    const last = page.at(-1)
+    return { requests, ...(rows.length > page.length && last !== undefined ? { nextCursor: `qr:${last.created_at}:${last.id}` } : {}) }
   }
 
   /** A bidder's quote: one accepted token and an exact amount. A later quote from the same bidder replaces it. */
@@ -2674,16 +2694,39 @@ export class Board {
     const me = caller.address
     const creatorSelection = me === undefined || !this.#actsForCreator(task, me)
       ? undefined
-      : await creatorSelectionProjection(
+      : await this.#selectionView(task, summary.chain, summary.deliveryDeadline)
+    const mine =
+      me === undefined
+        ? undefined
+        : {
+            application: this.#sql.all<ApplicationRow>('SELECT * FROM applications WHERE task_id = ? AND worker = ?', task.id, me)[0] ?? null,
+            selected: this.#sql.all<SelectionRow>('SELECT * FROM selections WHERE task_id = ? AND worker = ? AND signature IS NOT NULL', task.id, me).length > 0,
+          }
+    const operations = this.#sql.all<OperationRow>('SELECT kind, status, tx_hash, updated_at FROM operations WHERE task_id = ? ORDER BY created_at', task.id)
+    /** Candidate-level records the worker declared; the on-chain `JobSubmitted` deliverable is the one that counts. */
+    const deliverables = this.#sql
+      .all<{ worker: string; deliverable_hash: string; repo: string; branch: string; sha: string; kind: string | null; descriptor_json: string | null; check_json: string | null }>(
+        'SELECT worker, deliverable_hash, repo, branch, sha, kind, descriptor_json, check_json FROM deliverables WHERE task_id = ? ORDER BY created_at',
+        task.id,
+      )
+      .map(deliverableView)
+    const onchain = this.#sql.all<{ deliverable_hash: string; tx_hash: string }>('SELECT deliverable_hash, tx_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0] ?? null
+    const signed = creatorSelection?.find(selection => selection.state === 'signed')
+    const nextAction = signed === undefined ? summary.nextAction : { actor: 'worker', action: 'activate', deadline: signed.activateBy }
+    return { ...summary, nextAction, terms: JSON.parse(task.terms_json) as unknown, mine, ...(creatorSelection === undefined ? {} : { selection: creatorSelection }), deliverables, onchainSubmission: onchain, evidence: this.#evidence(task), operations }
+  }
+
+  async #selectionView(task: TaskRow, view: ChainView, deliveryDeadline: number) {
+    return await creatorSelectionProjection(
           this.#sql.all<SelectionRow & { application_worker: string | null; application_agent_id: string | null }>(
             `SELECT s.*, a.worker AS application_worker, a.agent_id AS application_agent_id
              FROM selections AS s LEFT JOIN applications AS a ON a.id = s.application_id AND a.task_id = s.task_id
              WHERE s.task_id = ? ORDER BY s.created_at DESC`,
             task.id,
           ),
-          summary.chain,
+          view,
           this.#now(),
-          summary.deliveryDeadline,
+          deliveryDeadline,
           async (selection) => {
             const ctx = this.#taskCtx(task)
             const [used, wallet, valid] = await Promise.all([
@@ -2708,28 +2751,15 @@ export class Board {
             return !used && eq(wallet, selection.worker) && valid
           },
         )
-    const mine =
-      me === undefined
-        ? undefined
-        : {
-            application: this.#sql.all<ApplicationRow>('SELECT * FROM applications WHERE task_id = ? AND worker = ?', task.id, me)[0] ?? null,
-            selected: this.#sql.all<SelectionRow>('SELECT * FROM selections WHERE task_id = ? AND worker = ? AND signature IS NOT NULL', task.id, me).length > 0,
-          }
-    const operations = this.#sql.all<OperationRow>('SELECT kind, status, tx_hash, updated_at FROM operations WHERE task_id = ? ORDER BY created_at', task.id)
-    /** Candidate-level records the worker declared; the on-chain `JobSubmitted` deliverable is the one that counts. */
-    const deliverables = this.#sql
-      .all<{ worker: string; deliverable_hash: string; repo: string; branch: string; sha: string; kind: string | null; descriptor_json: string | null; check_json: string | null }>(
-        'SELECT worker, deliverable_hash, repo, branch, sha, kind, descriptor_json, check_json FROM deliverables WHERE task_id = ? ORDER BY created_at',
-        task.id,
-      )
-      .map(deliverableView)
-    const onchain = this.#sql.all<{ deliverable_hash: string; tx_hash: string }>('SELECT deliverable_hash, tx_hash FROM onchain_submissions WHERE task_id = ?', task.id)[0] ?? null
-    return { ...summary, terms: JSON.parse(task.terms_json) as unknown, mine, ...(creatorSelection === undefined ? {} : { selection: creatorSelection }), deliverables, onchainSubmission: onchain, evidence: this.#evidence(task), operations }
   }
 
   async #summary(task: TaskRow, caller: Caller) {
     const terms = parseTerms(task.terms_json)
     const view = await this.#chainView(task)
+    const operation = this.#sql.all<{ status: string }>('SELECT status FROM operations WHERE task_id = ? ORDER BY updated_at DESC LIMIT 1', task.id)[0]?.status ?? null
+    const quoteCount = this.#sql.all<{ count: number }>('SELECT count(*) AS count FROM quotes q JOIN quote_requests r ON r.id=q.request_id WHERE r.task_id = ?', task.id)[0]?.count ?? 0
+    const signedSelection = view.status === 'open' ? (await this.#selectionView(task, view, terms.deliveryDeadline)).find(selection => selection.state === 'signed') : undefined
+    const nextAction = signedSelection === undefined ? publisherNextAction(view, this.#now()) : { actor: 'worker', action: 'activate', deadline: signedSelection.activateBy }
     return {
       taskId: task.id,
       title: terms.title,
@@ -2772,6 +2802,10 @@ export class Board {
       jobId: task.job_id,
       screening: task.screening_json === null ? { verdict: 'unscreened', reasons: [] } : (JSON.parse(task.screening_json) as unknown),
       chain: { ...view, paused: await this.#paused(this.#taskCtx(task)) },
+      quotesCount: quoteCount,
+      nextAction,
+      funding: publisherFunding(view),
+      operationStatus: operation,
       you: caller.address === undefined
         ? null
         : (() => {

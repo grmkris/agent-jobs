@@ -41,7 +41,7 @@ function fixture() {
   apply('picked', alice.toUpperCase().replace('0X', '0x') as `0x${string}`, 'picked quote q1')
   apply('applied', alice, 'I can do this')
   apply('applied', bob, 'direct hire invitation')
-  return { board, read }
+  return { board, read, sql }
 }
 
 const ids = (tasks: readonly { taskId: string }[]) => tasks.map(task => task.taskId)
@@ -72,4 +72,32 @@ it('reads no chain state for tasks a role filter excludes', async () => {
   await board.listTasks({ address: alice }, { role: 'creator' })
   // One task listed: its publish recovery and pause reads only.
   expect(read.mock.calls.length).toBeLessThanOrEqual(2)
+})
+
+it('owned requests include picked and expired history and page identical timestamps without leaks', () => {
+  const { board, sql } = fixture()
+  for (let i = 0; i < 53; i++) {
+    const id = `r${String(i).padStart(3, '0')}`
+    sql.run('INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, i === 52 ? bob : alice, 'main', '{"title":"Request"}', id, i === 0 ? 999 : 1100, i === 1 ? 'alice-own' : null, 100)
+  }
+  const first = board.listQuoteRequests({ address: alice }, { mine: true })
+  expect(first.requests).toHaveLength(50)
+  expect(first.nextCursor).toBeDefined()
+  const second = board.listQuoteRequests({ address: alice }, { mine: true, cursor: first.nextCursor! })
+  expect(second.requests).toEqual(expect.arrayContaining([
+    expect.objectContaining({ requestId: 'r001', taskId: 'alice-own', status: 'Picked — hire linked' }),
+    expect.objectContaining({ requestId: 'r000', status: 'Expired — reward not escrowed' }),
+  ]))
+  expect([...first.requests, ...second.requests].map(r => r.requestId)).toHaveLength(52)
+  expect(new Set([...first.requests, ...second.requests].map(r => r.requestId)).size).toBe(52)
+  expect(board.listQuoteRequests({}).some(r => r.requestId === 'r001' || r.requestId === 'r000')).toBe(false)
+  expect(() => board.listQuoteRequests({}, { mine: true })).toThrow(/Sign in/)
+  expect(() => board.listQuoteRequests({ address: alice }, { mine: true, cursor: 'bad' })).toThrow(/cursor/)
+})
+
+it('creator dashboard keeps chain status, funding, operation and next actor separate', async () => {
+  const { board } = fixture()
+  const list = await board.listTasks({ address: alice }, { role: 'creator' })
+  expect(list[0]).toMatchObject({ taskId: 'alice-own', quotesCount: 0, chain: { status: 'awaiting-publish' }, funding: { state: 'not-escrowed', source: 'chain' }, operationStatus: null, nextAction: { actor: 'creator', action: 'publish', deadline: 2000 } })
+  expect(await board.getTask({ address: alice }, { taskId: 'alice-own' })).toMatchObject({ nextAction: { actor: 'creator', action: 'publish', deadline: 2000 } })
 })
