@@ -109,16 +109,19 @@ export function parseCursor(cursor: unknown): number | undefined {
  * One page of an address's feed, oldest first after `cursor`. Without a cursor it starts seven days back. A cursor older
  * than retention returns `gap: true` with the oldest retained rows, so a poller knows it may have missed events.
  */
-export async function readInbox(sql: AsyncSql, input: { network: Network; address: string; cursor?: unknown; kinds?: unknown; includePublic?: unknown; limit?: unknown; now: number }) {
+export async function readInbox(sql: AsyncSql, input: { network: Network; address: string; cursor?: unknown; kinds?: unknown; includePublic?: unknown; scope?: 'own' | 'public'; taskId?: string; kindPrefixes?: readonly string[]; maxAgeMs?: number; limit?: unknown; now: number }) {
   await migrateFeed(sql)
   const chainId = telegramChainId(input.network)
   const after = parseCursor(input.cursor)
   const limit = typeof input.limit === 'number' && Number.isSafeInteger(input.limit) ? Math.min(Math.max(input.limit, 1), 100) : 50
   const kinds = Array.isArray(input.kinds) ? input.kinds.filter((kind): kind is string => typeof kind === 'string' && /^[a-z]+\.[a-z_]+$/.test(kind)).slice(0, 20) : []
-  const addresses = [input.address.toLowerCase(), ...(input.includePublic === false ? [] : [PUBLIC_ADDRESS])]
-  const where = [`chain_id = ?`, `address IN (${addresses.map(() => '?').join(',')})`, ...(kinds.length > 0 ? [`kind IN (${kinds.map(() => '?').join(',')})`] : [])]
-  const params: (string | number)[] = [chainId, ...addresses, ...kinds]
-  if (after !== undefined) { where.push('seq > ?'); params.push(after) } else { where.push('occurred_at >= ?'); params.push(input.now - DEFAULT_LOOKBACK_SECONDS) }
+  const addresses = input.scope === 'public' ? [PUBLIC_ADDRESS] : [input.address.toLowerCase(), ...(input.scope === 'own' || input.includePublic === false ? [] : [PUBLIC_ADDRESS])]
+  const prefixes = input.kindPrefixes ?? []
+  const selectors = [...(kinds.length > 0 ? [`kind IN (${kinds.map(() => '?').join(',')})`] : []), ...prefixes.map(() => 'substr(kind, 1, length(?)) = ?')]
+  const where = [`chain_id = ?`, `address IN (${addresses.map(() => '?').join(',')})`, ...(selectors.length > 0 ? [`(${selectors.join(' OR ')})`] : [])]
+  const params: (string | number)[] = [chainId, ...addresses, ...kinds, ...prefixes.flatMap(prefix => [prefix, prefix])]
+  if (input.taskId !== undefined) { where.push('task_id = ?'); params.push(input.taskId) }
+  if (after !== undefined) { where.push('seq > ?'); params.push(after) } else { where.push('occurred_at >= ?'); params.push(input.now - (input.maxAgeMs === undefined ? DEFAULT_LOOKBACK_SECONDS : Math.min(input.maxAgeMs / 1000, FEED_RETENTION_SECONDS))) }
   const rows = await sql.all<{ seq: number; id: string; address: string; kind: string; board_id: string | null; task_id: string | null; job_id: string | null; data_json: string; occurred_at: number }>(
     `SELECT seq, id, address, kind, board_id, task_id, job_id, data_json, occurred_at FROM feed_events WHERE ${where.join(' AND ')} ORDER BY seq LIMIT ?`, ...params, limit + 1)
   const page = rows.slice(0, limit)

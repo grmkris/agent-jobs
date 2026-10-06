@@ -3,8 +3,12 @@ import type { OAuthGrant } from './oauth.ts'
 import { OAUTH_SCOPES } from './oauth-validation.ts'
 import { permittedTool, requiredToolScope } from './mcp-policy.ts'
 import { ROLE_GUIDES, connectorInstructions } from './mcp-instructions.ts'
+import type { McpEvents } from './mcp-events.ts'
+import { EventRpcError } from './webhooks.ts'
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
+export const MODERN_LANE = true
+const MODERN_VERSION = '2026-07-28'
 
 export interface McpReply {
   readonly status: number
@@ -25,6 +29,10 @@ export async function mcpRoute(input: {
   readonly method: string
   readonly pathname: string
   readonly body: Record<string, unknown>
+  readonly headers: Record<string, string | undefined>
+  readonly events?: McpEvents
+  /** Testable rollback switch; production uses MODERN_LANE. */
+  readonly modernLane?: boolean
   readonly grant?: OAuthGrant
   readonly tools: Record<string, McpTool>
   readonly call: (tool: string, args: Record<string, unknown>, agentId: string) => Promise<unknown>
@@ -37,10 +45,22 @@ export async function mcpRoute(input: {
   if (method !== 'POST') return json({ ok: false, code: 'method-not-allowed' }, 405)
   const methodName = typeof body.method === 'string' ? body.method : ''
   const id = body.id
-  const respond = (result: unknown) => json({ jsonrpc: '2.0', id: id ?? null, result })
+  const params = typeof body.params === 'object' && body.params !== null ? body.params as Record<string, unknown> : {}
+  const meta = typeof params._meta === 'object' && params._meta !== null ? params._meta as Record<string, unknown> : {}
+  const version = meta['io.modelcontextprotocol/protocolVersion']
+  const modern = MODERN_LANE && (input.modernLane ?? true) && (methodName === 'server/discover' || typeof version === 'string')
+  const rpcError = (code: number, message: string, status = 200, data?: unknown) => json({ jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } }, status)
+  if (modern) {
+    const name = methodName === 'resources/read' ? params.uri : params.name
+    const expected = { 'mcp-protocol-version': version, 'mcp-method': methodName, ...(['tools/call', 'prompts/get', 'resources/read'].includes(methodName) ? { 'mcp-name': name } : {}) }
+    if (Object.entries(expected).some(([header, value]) => input.headers[header] !== undefined && input.headers[header] !== value)) return rpcError(-32020, 'MCP header does not match the request body', 400)
+    if (typeof version === 'string' && version !== MODERN_VERSION) return rpcError(-32022, 'Unsupported protocol version', 400, { supportedVersions: [MODERN_VERSION] })
+  }
+  const respond = (result: Record<string, unknown>) => json({ jsonrpc: '2.0', id: id ?? null, result: modern ? { ...result, resultType: 'complete', ...(methodName.endsWith('/list') ? { ttlMs: 0, cacheScope: 'private' } : {}) } : result })
   if (id === undefined && methodName !== 'notifications/initialized') return { status: 202, headers: { 'cache-control': 'no-store' } }
+  if (modern && methodName === 'server/discover') return respond({ resultType: 'complete', supportedVersions: [MODERN_VERSION], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {}, events: {} }, instructions: connectorInstructions(origin), ttlMs: 0, cacheScope: 'private', _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } } })
   if (methodName === 'initialize') {
-    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {} }, serverInfo: { name: 'sidequest', version: '2.0.0' }, instructions: connectorInstructions(origin) })
+    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {}, events: {} }, serverInfo: { name: 'sidequest', version: '2.0.0' }, instructions: connectorInstructions(origin) })
   }
   if (methodName === 'ping') return respond({})
   if (methodName === 'tools/list') {
@@ -54,7 +74,13 @@ export async function mcpRoute(input: {
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
   if (methodName === 'resources/list') return respond({ resources: Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })) })
-  const params = typeof body.params === 'object' && body.params !== null ? body.params as Record<string, unknown> : {}
+  if (methodName.startsWith('events/') && input.events !== undefined) {
+    try { return respond(await input.events.handle(methodName, params, grant)) }
+    catch (error) {
+      if (error instanceof EventRpcError) return rpcError(error.code, error.message)
+      return rpcError(-32603, 'Events are unavailable')
+    }
+  }
   if (methodName === 'prompts/get') {
     const prompts: Record<string, string> = { find_work: 'Read get_instructions(role=worker), list available jobs and quotes, and propose suitable work. Check the frozen terms, bond and arbitrator before activation.', hire: 'Read get_instructions(role=publisher), write public acceptance criteria and request quotes. Inspect quotes and select a worker within the allowance.', check_status: 'Read the task and its chain status. Report which actor must act next and any deadline. Reconcile pending operations before retries.' }
     const text = prompts[String(params.name)]

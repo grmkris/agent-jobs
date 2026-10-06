@@ -29,6 +29,7 @@ import { feedTools } from './feed.ts'
 import { telegramTools } from './tools-telegram.ts'
 import type { OAuthReply, OAuthGrant } from './oauth.ts'
 import { mcpRoute } from './mcp.ts'
+import { McpEvents } from './mcp-events.ts'
 import { tools } from './tools.ts'
 import { jsonResponse } from './json.ts'
 import { networkTool, permittedTool } from './mcp-policy.ts'
@@ -323,7 +324,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           const runMcp = Effect.runPromiseWith(yield* Effect.context<RuntimeContext>())
           const resource = `${url.origin}${url.pathname}`
           const grant = JSON.parse(yield* boards.getByName(SPONSOR_OBJECT_NAME).oauthResolve({ resource, activity: true, ...(bearer === undefined ? {} : { bearer }) })) as OAuthGrant | null
-          const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin,
+          const reply = yield* Effect.promise(() => mcpRoute({ method: request.method, pathname: url.pathname, body: oauthBody, origin: url.origin, headers: request.headers, events: new McpEvents(sql, network),
             ...(grant === null ? {} : { grant }), tools: Object.fromEntries(Object.entries({ ...tools, ...tenantTools, ...directoryTools, ...agentTools, ...feedTools }).filter(([name]) => grant !== null && permittedTool(grant, name) && networkTool(network, name))),
             call: async (tool, args, agentId) => {
               if (['list_boards', 'get_board', 'list_directory', 'get_directory_agent', 'whoami', 'inbox'].includes(tool)) return runMcp(call(tool, args, undefined, grant!.address))

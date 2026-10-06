@@ -14,6 +14,7 @@ import { queueTelegramNotifications } from '../../api/src/telegram-notifications
 import { drainTelegramOutbox, migrateTelegram, telegramTransport } from '../../api/src/telegram.ts'
 import { reportRelayWatchFailure, watchRelay } from '../../api/src/relay-watch.ts'
 import { feedFromChain, pruneFeed, reportFeedFailure } from '../../api/src/feed.ts'
+import { deliverWebhooks, reportWebhookFailure } from '../../api/src/webhooks.ts'
 import { recordIndexerRun, type IndexerRunOutcome } from './run-record.ts'
 
 const secret = (name: string) =>
@@ -84,6 +85,8 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
           // 100 events is about 300 D1 statements, so a catch-up run leaves room for the Telegram queue below.
           await feedFromChain(sql, network, fedAt, { caughtUp, limit: 100 }).catch(reportFeedFailure)
           if (fedAt % 3600 < 60) await pruneFeed(sql, fedAt).catch(reportFeedFailure)
+          // Webhooks send what the feed holds; board and approval events arrive whether or not the chain index is caught up.
+          await deliverWebhooks(sql, network, fedAt).catch(reportWebhookFailure)
           if (telegramToken !== '') {
             const now = Math.floor(Date.now() / 1000)
             const deployment = sdk.deployment(network)

@@ -6,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { privyOperator } from './privy-operator.ts'
 import { fromD1 } from '@sidequest/indexer'
 import { decisionFeedEvents, recordAgentEvents } from './feed-agent.ts'
+import { terminateSubscriptions } from './webhooks.ts'
 import type { AgentRouteRequest } from './routes/agents.ts'
 
 function text(body: Record<string, unknown>, key: string): string {
@@ -56,8 +57,13 @@ export async function agentManagement(input: {
     return lifecycle.prepareAllowance(id, operator, { key: text(body, 'key'), token, amount: BigInt(amount) })
   }
   if (action === 'allowance-confirm') return lifecycle.confirmAllowance(id, operator, text(body, 'key'), hex(body, 'hash', 64), hex(body, 'signature', 130))
-  if (action === 'stop-access') return lifecycle.stopAccess(id, operator)
-  if (action === 'revoke') return lifecycle.revoke(id, operator)
+  if (action === 'stop-access' || action === 'revoke') {
+    // The agent's event webhooks end first: its feed must not keep reaching a callback once access stops, and a
+    // failed stop afterwards only costs the agent a re-subscribe (V1.1 WS5).
+    const address = agents.owned(id, operator).address
+    if (address !== null && bindings.Database !== undefined) await terminateSubscriptions(fromD1(bindings.Database as never), address)
+    return action === 'stop-access' ? lifecycle.stopAccess(id, operator) : lifecycle.revoke(id, operator)
+  }
   if (action === 'approval-prepare') {
     // A permission approval may be adjusted before signing: a shorter expiry or a lower amount, never wider.
     const expiry = body.expiry === undefined ? undefined : Number(body.expiry)
