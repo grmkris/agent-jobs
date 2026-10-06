@@ -44,7 +44,10 @@ describe('public screening failures', () => {
       expect(result).toMatchObject({ verdict: 'unscreened', model: 'test-model', at: 123, promptVersion: SCREENING_PROMPT_VERSION })
       expect(log).toHaveBeenCalledTimes(1)
       const diagnostics = JSON.parse(log.mock.calls[0]![0])
-      expect(diagnostics).toEqual({ event: 'screening-failed', errorId: expect.any(String), name: 'SyntaxError' })
+      const { at, ...facts } = diagnostics as { at?: unknown }
+      expect(facts).toEqual({ event: 'screening-failed', errorId: expect.any(String), name: 'SyntaxError' })
+      // Where it was thrown, as function names only.
+      if (at !== undefined) for (const frame of at as string[]) expect(frame).toMatch(/^[\w$#.<>]+$/)
       expect(diagnostics.errorId).toMatch(/^[0-9a-f]{12}$/)
       expect(result.reasons).toEqual([`screening unavailable (error ${diagnostics.errorId})`])
       expect(JSON.stringify([result, log.mock.calls])).not.toMatch(/SECRETKEY|Bearer|Authorization|apiKey|short|sk-1|ab12|x-api-key/)

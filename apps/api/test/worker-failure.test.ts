@@ -18,8 +18,10 @@ describe('API worker failures', () => {
       expect(reply).toMatchObject({ ok: false, code: 'error', reason: 'internal', retry: 'same-key', errorId: expect.stringMatching(/^[0-9a-f]{12}$/) })
       expect(reply.message).toBe(`The request could not be completed (error ${reply.errorId}); retry the same operationKey`)
       expect(log).toHaveBeenCalledTimes(1)
-      const diagnostics = JSON.parse(log.mock.calls[0]![0])
+      const { at, ...diagnostics } = JSON.parse(log.mock.calls[0]![0]) as { at?: unknown }
       expect(diagnostics).toEqual({ event: 'agent-failure', errorId: reply.errorId, name: ['Error', 'TypeError', 'string'][index], ...(index === 1 ? { code: 'rate-limited', status: 429 } : {}) })
+      // Where it was thrown, as function names only.
+      if (at !== undefined) for (const frame of at as string[]) expect(frame).toMatch(/^[\w$#.<>]+$/)
       expect(JSON.stringify([reply, log.mock.calls])).not.toMatch(/Authorization|Bearer|SECRETKEY|apiKey|short|sk-1|ab12|x-api-key|upstream|refused/)
     } finally { log.mockRestore() }
   })
