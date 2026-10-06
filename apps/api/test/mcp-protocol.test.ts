@@ -23,7 +23,7 @@ const result = (value: Awaited<ReturnType<typeof mcpRoute>>) => (value.body as {
 describe('2026-07-28 MCP lane', () => {
   it('discovers without initialize, with serverInfo only in _meta', async () => {
     expect(MODERN_LANE).toBe(true)
-    expect(result(await route('server/discover', { _meta: meta }))).toEqual({ resultType: 'complete', supportedVersions: ['2026-07-28'], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {}, events: {} }, instructions: connectorInstructions(origin), ttlMs: 0, cacheScope: 'private', _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } } })
+    expect(result(await route('server/discover', { _meta: meta }))).toEqual({ resultType: 'complete', supportedVersions: ['2026-07-28'], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {}, events: {}, extensions: { 'io.modelcontextprotocol/skills': {} } }, instructions: connectorInstructions(origin), ttlMs: 0, cacheScope: 'private', _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } } })
     expect(result(await route('server/discover'))).not.toHaveProperty('serverInfo')
   })
   it.each(['tools/list', 'prompts/list', 'resources/list', 'events/list'])('decorates modern %s', async method => {
@@ -72,7 +72,7 @@ describe('legacy wire snapshots and rollback', () => {
     const reply = await route('initialize', { protocolVersion: '2025-03-26' }, { modernLane })
     const actual = result(reply)
     expect(actual.capabilities).toHaveProperty('events', {})
-    const { events: _events, ...capabilities } = actual.capabilities as Record<string, unknown>
+    const { events: _events, extensions: _extensions, ...capabilities } = actual.capabilities as Record<string, unknown>
     expect(JSON.stringify({ ...actual, capabilities })).toBe(JSON.stringify(initialize))
     expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: (result(await route('tools/list', {}, { modernLane })).tools as Record<string, unknown>[]).map(({ title: _title, annotations: _annotations, outputSchema: _outputSchema, securitySchemes: _securitySchemes, ...tool }) => tool) } })).toBe(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [
       { name: 'get_task', description: 'Read task', inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] } },
@@ -130,4 +130,26 @@ describe('hosted tool metadata', () => {
     const failed = result(await route('tools/call', { name: 'get_task' }, { call: async () => ({ ok: false, code: 'forbidden', message: 'Grant revoked' }) }))
     expect(failed).toHaveProperty('_meta.mcp/www_authenticate')
   })
+})
+
+
+it('serves authenticated static skills with pagination and matching resource bytes', async () => {
+  const first = result(await route('skills/list'))
+  expect(first.skills).toHaveLength(2)
+  expect(first.nextCursor).toBe('skills:2')
+  const last = result(await route('skills/list', { cursor: first.nextCursor }))
+  expect(last.skills).toHaveLength(1)
+  expect(last).not.toHaveProperty('nextCursor')
+  for (const entry of [...first.skills as { uri: string }[], ...last.skills as { uri: string }[]]) {
+    expect(result(await route('skills/get', { uri: entry.uri }))).toEqual({ skill: entry })
+    const read = result(await route('resources/read', { uri: entry.uri })).contents as { uri: string; text: string }[]
+    expect(read).toHaveLength(1)
+    expect(read[0]!.uri).toBe(entry.uri)
+    expect(read[0]!.text).toMatch(/^---\nname:/)
+  }
+  expect((await route('skills/list', { cursor: 'broken' })).body).toMatchObject({ error: { code: -32602 } })
+  for (const method of ['skills/list', 'skills/get', 'resources/read']) {
+    const unauth = await mcpRoute({ method: 'POST', pathname: '/mcp', origin, headers: {}, body: { id: 1, method, params: { uri: 'skill://sidequest/sidequest-publisher/SKILL.md' } }, tools: registry, call: async () => ({}) })
+    expect(unauth.status).toBe(401)
+  }
 })

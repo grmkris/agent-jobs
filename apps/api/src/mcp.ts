@@ -5,6 +5,7 @@ import { permittedTool, requiredToolScope, toolAnnotations } from './mcp-policy.
 import { ROLE_GUIDES, connectorInstructions } from './mcp-instructions.ts'
 import type { McpEvents } from './mcp-events.ts'
 import { EventRpcError } from './webhooks.ts'
+import { SKILL_MANIFESTS } from './generated/skills.ts'
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
 export const MODERN_LANE = true
@@ -96,9 +97,10 @@ export async function mcpRoute(input: {
   }
   const respond = (result: Record<string, unknown>) => json({ jsonrpc: '2.0', id: id ?? null, result: modern ? { ...result, resultType: 'complete', ...(methodName.endsWith('/list') ? { ttlMs: 0, cacheScope: 'private' } : {}) } : result })
   if (id === undefined && methodName !== 'notifications/initialized') return { status: 202, headers: { 'cache-control': 'no-store' } }
-  if (modern && methodName === 'server/discover') return respond({ resultType: 'complete', supportedVersions: [MODERN_VERSION], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {}, events: {} }, instructions: connectorInstructions(origin), ttlMs: 0, cacheScope: 'private', _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } } })
+  const capabilities = { tools: { listChanged: false }, prompts: {}, resources: {}, events: {}, extensions: { 'io.modelcontextprotocol/skills': {} } }
+  if (modern && methodName === 'server/discover') return respond({ resultType: 'complete', supportedVersions: [MODERN_VERSION], capabilities, instructions: connectorInstructions(origin), ttlMs: 0, cacheScope: 'private', _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'sidequest', version: '2.0.0' } } })
   if (methodName === 'initialize') {
-    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {}, events: {} }, serverInfo: { name: 'sidequest', version: '2.0.0' }, instructions: connectorInstructions(origin) })
+    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities, serverInfo: { name: 'sidequest', version: '2.0.0' }, instructions: connectorInstructions(origin) })
   }
   if (methodName === 'ping') return respond({})
   if (methodName === 'tools/list') {
@@ -111,7 +113,19 @@ export async function mcpRoute(input: {
       }) })
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
-  if (methodName === 'resources/list') return respond({ resources: Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })) })
+  if (methodName === 'resources/list') return respond({ resources: [...Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })), ...SKILL_MANIFESTS.map(skill => ({ uri: skill.uri, name: skill.frontmatter.name, mimeType: 'text/markdown' }))] })
+  if (methodName === 'skills/list') {
+    const after = params.cursor === undefined ? 0 : typeof params.cursor === 'string' && /^skills:[0-9]+$/.test(params.cursor) ? Number(params.cursor.slice(7)) : -1
+    if (!Number.isSafeInteger(after) || after < 0 || after > SKILL_MANIFESTS.length) return rpcError(-32602, 'Invalid skills cursor')
+    const page = SKILL_MANIFESTS.slice(after, after + 2).map(({ raw: _raw, ...entry }) => entry)
+    return respond({ skills: page, ...(after + page.length < SKILL_MANIFESTS.length ? { nextCursor: `skills:${after + page.length}` } : {}) })
+  }
+  if (methodName === 'skills/get') {
+    const skill = SKILL_MANIFESTS.find(entry => entry.uri === params.uri)
+    if (skill === undefined) return rpcError(-32602, 'Unknown skill URI')
+    const { raw: _raw, ...entry } = skill
+    return respond({ skill: entry })
+  }
   if (methodName.startsWith('events/') && input.events !== undefined) {
     try { return respond(await input.events.handle(methodName, params, grant)) }
     catch (error) {
@@ -125,6 +139,8 @@ export async function mcpRoute(input: {
     if (text !== undefined) return respond({ messages: [{ role: 'user', content: { type: 'text', text } }] })
   }
   if (methodName === 'resources/read') {
+    const skill = SKILL_MANIFESTS.find(entry => entry.uri === params.uri)
+    if (skill !== undefined) return respond({ contents: [{ uri: skill.uri, mimeType: 'text/markdown', text: skill.raw }] })
     const role = String(params.uri).replace(/^sidequest:\/\/skills\//, '') as keyof typeof ROLE_GUIDES
     if (Object.hasOwn(ROLE_GUIDES, role)) return respond({ contents: [{ uri: params.uri, mimeType: 'text/markdown', text: ROLE_GUIDES[role] }] })
   }

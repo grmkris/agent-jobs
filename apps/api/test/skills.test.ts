@@ -1,8 +1,11 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, test } from 'vitest'
 import { ROLE_GUIDES, connectorInstructions } from '../src/mcp-instructions.ts'
+import { SKILL_MANIFESTS } from '../src/generated/skills.ts'
+import { createHash } from 'node:crypto'
+import { parse } from 'yaml'
 import { requiredToolScope } from '../src/mcp-policy.ts'
 import { tools } from '../src/tools.ts'
 import { tenantTools } from '../src/tools-tenant.ts'
@@ -44,4 +47,15 @@ describe('skills are the single source for hosted MCP guidance', () => {
     const hidden = [...named].filter(name => registry.has(name) && !NOT_DIRECT_MCP.has(name) && requiredToolScope(name) === undefined)
     expect({ unknown, hidden }).toEqual({ unknown: [], hidden: [] })
   })
+})
+
+
+test('SEP-2640 manifests preserve raw bytes, frontmatter and digest', () => {
+  expect(SKILL_MANIFESTS).toHaveLength(3)
+  for (const skill of SKILL_MANIFESTS) {
+    expect(skill.uri).toMatch(/^skill:\/\/sidequest\/[a-z0-9-]+\/SKILL\.md$/)
+    expect(skill.raw).toContain(`name: ${skill.frontmatter.name}`)
+    expect(parse(/^---\n([\s\S]*?)\n---\n/.exec(skill.raw)![1]!)).toEqual(skill.frontmatter)
+    expect(skill.resources).toEqual([{ uri: skill.uri, digest: `sha256:${createHash('sha256').update(skill.raw, 'utf8').digest('hex')}`, size: Buffer.byteLength(skill.raw) }])
+  }
 })

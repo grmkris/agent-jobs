@@ -46,7 +46,7 @@ importers:
         version: 24.13.6
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.79(@effect/platform-node@4.0.0-rc.117(bufferutil@4.1.0)(effect@4.0.0-rc.117)(redis@6.2.1)(utf-8-validate@5.0.10))(@types/node@24.13.6)(@types/react@19.3.0)(bufferutil@4.1.0)(effect@4.0.0-rc.117)(typescript@7.0.2)(utf-8-validate@5.0.10)(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1(@types/node@24.13.6)(@vitest/browser-preview@5.0.1)(@vitest/ui@5.0.1(vitest@5.0.1))(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1)))(ws@8.21.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+        version: 2.0.0-beta.79(@effect/platform-node@4.0.0-rc.117(bufferutil@4.1.0)(effect@4.0.0-rc.117)(redis@6.2.1)(utf-8-validate@5.0.10))(@types/node@24.13.6)(@types/react@19.3.0)(bufferutil@4.1.0)(effect@4.0.0-rc.117)(typescript@7.0.2)(utf-8-validate@5.0.10)(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.117
@@ -65,6 +65,9 @@ importers:
       vitest:
         specifier: 5.0.1
         version: 5.0.1(@types/node@24.13.6)(@vitest/browser-preview@5.0.1)(@vitest/ui@5.0.1(vitest@5.0.1))(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
 
   apps/api:
     dependencies:
@@ -127,12 +130,6 @@ importers:
 
   apps/explore:
     dependencies:
-      '@sidequest/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@sidequest/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       '@base-ui/react':
         specifier: 1.8.0
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -145,6 +142,12 @@ importers:
       '@privy-io/react-auth':
         specifier: 3.45.0
         version: 3.45.0(@solana-program/system@0.10.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)))(@solana-program/token@0.9.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)))(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10))(@solana/sysvars@5.5.1(typescript@7.0.2))(@stripe/stripe-js@1.54.2)(@tanstack/query-core@5.104.0)(@tanstack/react-query@5.104.0(react@19.3.0))(@types/react@19.3.0)(aws4fetch@1.0.20)(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(use-sync-external-store@1.4.0(react@19.3.0))(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@sidequest/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@sidequest/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@tanstack/react-query':
         specifier: 5.104.0
         version: 5.104.0(react@19.3.0)
@@ -9804,6 +9807,57 @@ snapshots:
       '@effect/platform-node': 4.0.0-rc.117(bufferutil@4.1.0)(effect@4.0.0-rc.117)(redis@6.2.1)(utf-8-validate@5.0.10)
       vite: 8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1)
       ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - '@types/node'
+      - '@types/react'
+      - bufferutil
+      - proxy-agent
+      - react-devtools-core
+      - typescript
+      - utf-8-validate
+      - vitest
+
+  alchemy@2.0.0-beta.79(@effect/platform-node@4.0.0-rc.117(bufferutil@4.1.0)(effect@4.0.0-rc.117)(redis@6.2.1)(utf-8-validate@5.0.10))(@types/node@24.13.6)(@types/react@19.3.0)(bufferutil@4.1.0)(effect@4.0.0-rc.117)(typescript@7.0.2)(utf-8-validate@5.0.10)(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)):
+    dependencies:
+      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.79(@distilled.cloud/cloudflare@1.0.0-rc.12(effect@4.0.0-rc.117))(@effect/platform-node@4.0.0-rc.117(bufferutil@4.1.0)(effect@4.0.0-rc.117)(redis@6.2.1)(utf-8-validate@5.0.10))(@types/node@24.13.6)(effect@4.0.0-rc.117)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@alchemy.run/floci': 2.0.0-beta.79(effect@4.0.0-rc.117)
+      '@alchemy.run/node-utils': 2.0.0-beta.79
+      '@alchemy.run/sigil': 0.0.0-alpha.11(@types/react@19.3.0)
+      '@aws-sdk/credential-providers': 3.1141.0
+      '@distilled.cloud/aws': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/axiom': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/cloudflare': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/core': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/fly-io': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/hetzner': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/neon': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/planetscale': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/prisma': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/railway': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@distilled.cloud/stripe': 1.0.0-rc.12(effect@4.0.0-rc.117)
+      '@effect/sql-d1': 4.0.0-rc.117(effect@4.0.0-rc.117)
+      '@effect/sql-sqlite-do': 4.0.0-rc.117(effect@4.0.0-rc.117)
+      '@effect/vitest': 4.0.0-rc.117(effect@4.0.0-rc.117)(vitest@5.0.1)
+      '@libsql/client': 0.17.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@octokit/rest': 22.0.1
+      '@octokit/webhooks': 14.2.0
+      '@prisma/dev': 0.20.0(typescript@7.0.2)
+      '@types/aws-lambda': 8.10.163
+      aws4fetch: 1.0.20
+      capnweb: 0.12.0
+      effect: 4.0.0-rc.117
+      fflate: 0.8.3
+      libsodium-wrappers: 0.8.4
+      pathe: 2.0.3
+      picomatch: 4.0.7
+      rolldown: 1.2.5
+      tinyglobby: 0.2.17
+      undici: 7.30.0
+      yaml: 2.9.1
+    optionalDependencies:
+      '@effect/platform-node': 4.0.0-rc.117(bufferutil@4.1.0)(effect@4.0.0-rc.117)(redis@6.2.1)(utf-8-validate@5.0.10)
+      vite: 8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1)
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@types/node'
       - '@types/react'
