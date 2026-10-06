@@ -114,7 +114,7 @@ export function Approval({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xl font-semibold">
           {request.token === undefined
-            ? `${amount(request.amount, deployment.factory)} FACTORY position value`
+            ? `${amount(request.amount, deployment.factory)} position value`
             : amount(request.amount, request.token)}
         </p>
         <Badge tone={approval.status === "pending" ? "warning" : "neutral"}>

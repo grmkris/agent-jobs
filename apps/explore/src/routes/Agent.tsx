@@ -125,17 +125,38 @@ export function useAgentIdentity(id: string | null, live = false): AgentIdentity
 // The agent's record: every job it took, the evaluator's ratings and what happened to its bonds (chain facts).
 // ---------------------------------------------------------------------------------------------------------------
 
+/** Per token, in base units: reward and bonus (gross), Hireling's fee on them, and what the worker got (net). */
+export type MoneyTotals = { gross: string; fee: string; net: string }
+
+export interface AgentTime {
+  activeSince: number | null
+  lastActive: number | null
+  medianTurnaroundSeconds: number | null
+  turnarounds: number
+}
+
 export interface AgentRecord {
   agent: AgentSummary
+  /** The wallets it worked from. */
   wallets: string[]
   bonds: { returned?: number; burned?: number }
+  /** The jobs it took. */
   jobs: ChainJob[]
   feedback: Array<{ job_id: string; value: string; tag: string; recorded: number; tx_hash: string | null }>
+  // Since the profile release; optional so an older API (and older fixtures) still read.
+  /** Whether the identity registry knows the agent; null when it did not answer. */
+  registered?: boolean | null
+  currentWallet?: string | null
+  /** The jobs its wallets posted, newest first (at most 200). */
+  posted?: ChainJob[]
+  work?: { earned: Record<string, MoneyTotals> }
+  hiring?: { posted: number; open: number; paidOut: Record<string, MoneyTotals> }
+  time?: AgentTime
 }
 
 /**
- * `/data/agents/<id>`: the agent's record, or null when it has taken no job yet. Fetched directly rather than through
- * `data()`, which folds "not found" and "unavailable" into one error; here they read differently.
+ * `/data/agents/<id>`: the agent's record, or null when the number has no record (not registered and no jobs). Fetched
+ * directly rather than through `data()`, which folds "not found" and "unavailable" into one error; here they differ.
  */
 export async function fetchAgentRecord(id: string): Promise<AgentRecord | null> {
   const res = await fetch(`/data/agents/${encodeURIComponent(id)}`)

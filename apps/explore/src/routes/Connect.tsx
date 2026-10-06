@@ -551,7 +551,7 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
         title: 'Track record unavailable right now',
         detail: 'The board did not answer; this retries.',
       })
-    else if (record.data === null || record.data === undefined)
+    else if (record.data === null || record.data === undefined || record.data.agent.jobs === 0)
       rows.push({
         key: 'record',
         state: 'none',

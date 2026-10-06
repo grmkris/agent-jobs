@@ -26,8 +26,13 @@ export interface AgentApproval {
   agent_id: string;
   operation_id: string;
   kind: "hire-over-limit" | "unstake";
+  /** pending, approved, rejected or executed. */
   status: string;
   request_json: string;
+  /** Unix seconds; the operator's answer, when there is one, and when it was given. */
+  created_at?: number;
+  decision_json?: string | null;
+  decided_at?: number | null;
 }
 
 export const agentPath = (id: string, action = "") =>
