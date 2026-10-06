@@ -234,7 +234,8 @@ const TERMINAL = new Set(['completed', 'cancelled', 'expired', 'closed', 'settle
 
 /**
  * Whether a member has anything to do, read without starting a model: new inbox events past its saved cursor, held
- * work that is not finished, or a directory listing due for renewal (20 h). Idle members cost no model tokens.
+ * work that is not finished, its own jobs past a deadline, or a directory listing due for renewal (20 h). Idle members
+ * cost no model tokens.
  */
 async function wakeReason(id: string): Promise<string | null> {
   const state = join(home(id), 'agent', 'state')
@@ -251,6 +252,13 @@ async function wakeReason(id: string): Promise<string | null> {
   const held = await mcpCall<Array<{ chain?: { status?: string }; you?: string[] }>>(token, 'list_tasks', { role: 'worker', limit: 20 })
   const open = (Array.isArray(held) ? held : []).filter((t) => t.you?.includes('worker') === true && !TERMINAL.has(String(t.chain?.status ?? '')))
   if (open.length > 0) return `${open.length} held task(s)`
+  // A deadline passing writes nothing on chain, so no event wakes a creator to close a no-show or an undisputed
+  // rejection: look for its own jobs whose window has run out.
+  const now = Date.now() / 1000
+  const created = await mcpCall<Array<{ chain?: { status?: string; deliveryDeadline?: number; disputeEndsAt?: number | null } }>>(token, 'list_tasks', { role: 'creator', limit: 20 })
+  const due = (Array.isArray(created) ? created : []).filter(({ chain: c }) =>
+    (c?.status === 'active' && (c.deliveryDeadline ?? Infinity) < now) || (c?.status === 'rejected-pending' && (c.disputeEndsAt ?? Infinity) < now))
+  if (due.length > 0) return `${due.length} own job(s) past a deadline`
   return null
 }
 
