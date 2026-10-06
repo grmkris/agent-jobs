@@ -89,11 +89,16 @@ function defaultLog(errorId: string, error: unknown): void {
  * Static facts about an error for Worker logs: its class name, our short code and an HTTP status. Never its message,
  * cause or response body, which can carry RPC URLs, bearer tokens or provider credentials of any shape.
  */
-export function errorDiagnostics(error: unknown): { name: string; code?: string; status?: number } {
-  const e = (typeof error === 'object' && error !== null ? error : {}) as { name?: unknown; code?: unknown; status?: unknown }
+export function errorDiagnostics(error: unknown): { name: string; code?: string; status?: number; at?: string[] } {
+  const e = (typeof error === 'object' && error !== null ? error : {}) as { name?: unknown; code?: unknown; status?: unknown; stack?: unknown }
+  // Where it was thrown: the names of the innermost stack frames' functions only (no message, file path or argument),
+  // so an internal failure can be found without logging what it said.
+  const at = typeof e.stack === 'string'
+    ? [...e.stack.matchAll(/^\s*at (?:async )?([A-Za-z_$#][\w$#.<>]{0,79}) \(/gm)].map(match => match[1]!).slice(0, 5) : []
   return {
     name: typeof e.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(e.name) ? e.name : typeof error,
     ...(typeof e.code === 'string' && /^[a-z][a-z-]{0,31}$/.test(e.code) ? { code: e.code } : {}),
     ...(typeof e.status === 'number' && Number.isSafeInteger(e.status) ? { status: e.status } : {}),
+    ...(at.length > 0 ? { at } : {}),
   }
 }
