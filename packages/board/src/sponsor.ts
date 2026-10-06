@@ -184,7 +184,7 @@ export class SponsorDesk {
     const nested = new Map<Hex, { row: GrantRow; spec: sdk.GrantSpec; grant: Delegation; calls: number }>()
     const publishes = checkHireFunding(ctx, owner, wallet, parsed.map(item => ({ spec: item.spec, checked: item.checked })), hash => {
       const row = store.get(hash)
-      if (row === undefined || row.status !== 'live' || row.expires_at <= this.#d.now() || !eq(row.owner, owner)) throw this.#d.fail('conflict', 'nested allowance is not live for this operator')
+      if (row === undefined || row.status !== 'live' || row.expires_at <= this.#d.now() || !eq(row.owner, owner)) throw this.#d.fail('conflict', 'nested grant is not live for this operator')
       const result = { row, spec: store.spec(hash), grant: store.signed(hash), calls: 1 }
       const previous = nested.get(hash)
       if (previous === undefined) nested.set(hash, result)
@@ -231,7 +231,7 @@ export class SponsorDesk {
       }
       for (const [hash, item] of counted) {
         if (await isDisabled(ctx, hash)) throw this.#d.fail('conflict', 'a named grant is disabled')
-        if (item.spec.kind !== 'allowance' && item.baseline + item.calls > sdk.grantCallLimit(item.spec)) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
+        if (sdk.grantHasCallLimit(item.spec) && item.baseline + item.calls > sdk.grantCallLimit(item.spec)) throw this.#refuse('cap', 'the sponsorship call limit is exhausted')
       }
       const row = parsed[0]!.row
       const baseline = counted.get(row.delegation_hash)!.baseline

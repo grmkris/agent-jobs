@@ -17,13 +17,17 @@ export interface GrantRow {
   expires_at: number
 }
 
+const sortedKeys = (value: object) => Object.fromEntries(Object.entries(value).toSorted(([a], [b]) => a.localeCompare(b)))
+
 export function grantSpecJson(spec: sdk.GrantSpec): string {
-  const ordered = Object.fromEntries(Object.entries(spec).toSorted(([a], [b]) => a.localeCompare(b)))
+  // A permission nests its terms; sort them too, so one template always has one JSON.
+  const ordered = sortedKeys(spec.kind === 'permission' ? { ...spec, terms: sortedKeys(spec.terms) } : spec)
   return JSON.stringify(ordered, (_, value) => typeof value === 'bigint' ? value.toString() : value)
 }
 
 export function parseGrantSpec(json: string): sdk.GrantSpec {
   const raw = JSON.parse(json) as sdk.GrantSpec & { salt: string; amount?: string; shares?: string }
+  if (raw.kind === 'permission') return sdk.parsePermissionSpec(json)
   return { ...raw, salt: BigInt(raw.salt), ...(raw.amount === undefined ? {} : { amount: BigInt(raw.amount) }), ...(raw.shares === undefined ? {} : { shares: BigInt(raw.shares) }) } as sdk.GrantSpec
 }
 

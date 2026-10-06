@@ -20,6 +20,8 @@ export interface CheckedGrantCall {
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call: GrantCall): CheckedGrantCall {
+  // A permission delegates to its agent, never to the relay; it is only ever redeemed nested (checkPermissionRedemption).
+  if (spec.kind === 'permission') throw new Error('Call is outside the grant target and method policy')
   if (!isAddress(call.to) || !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(call.data) || call.data.length > 32770) throw new Error('Malformed grant call')
   if ((call.value ?? '0') !== '0' || call.chainId !== undefined && call.chainId !== ctx.deployment.chainId) throw new Error('Grant calls must have zero value and use this chain')
   const target = sdk.grantTargets(ctx, spec).find(candidate => same(candidate.address, call.to))
@@ -47,10 +49,28 @@ export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call:
   return { execution: { target: getAddress(call.to), value: 0n, callData: call.data.toLowerCase() as Hex }, method: decoded.functionName, args, floor }
 }
 
-/** The only hosted nested redemption is a matched allowance/approve/publish triple. */
+/**
+ * A permission redeemed by its agent (ADR-0015): exactly the stored, signed operator → agent delegation, one execution
+ * inside its terms. The caller has already required the redemption to be the batch's only call.
+ */
+export function checkPermissionRedemption(ctx: sdk.GrantContext, operator: Address, agent: Address,
+  nested: { readonly grant: sdk.Delegation; readonly execution: sdk.Execution }, stored: { readonly spec: sdk.GrantSpec; readonly grant: sdk.Delegation }): void {
+  const spec = stored.spec
+  if (spec.kind !== 'permission' || !same(spec.delegator, operator) || !same(spec.agent, agent)
+    || !same(nested.grant.delegator, operator) || !same(nested.grant.delegate, agent)) throw new Error('Nested permission does not match the stored operator grant')
+  if (sdk.delegationHash(nested.grant) !== sdk.delegationHash(stored.grant)) throw new Error('Nested permission does not match the stored operator grant')
+  if (nested.grant.signature.toLowerCase() !== stored.grant.signature.toLowerCase()) throw new Error('Nested permission signature does not match the stored operator grant')
+  sdk.assertGrant(ctx, spec, nested.grant)
+  sdk.checkPermissionExecution(spec, nested.execution)
+}
+
+/**
+ * The hosted nested redemptions: a matched allowance/approve/publish triple, or one permission redemption sent alone.
+ * `grantFor` resolves a nested delegation to the stored grant for this operator, or throws.
+ */
 export function checkHireFunding(ctx: sdk.GrantContext, operator: Address, agent: Address,
   calls: readonly { readonly spec: sdk.GrantSpec; readonly checked: CheckedGrantCall }[],
-  allowanceFor: (hash: Hex) => { readonly spec: sdk.GrantSpec; readonly grant: sdk.Delegation }): number {
+  grantFor: (hash: Hex) => { readonly spec: sdk.GrantSpec; readonly grant: sdk.Delegation }): number {
   let publishes = 0
   for (let index = 0; index < calls.length; index++) {
     const current = calls[index]!
@@ -62,13 +82,18 @@ export function checkHireFunding(ctx: sdk.GrantContext, operator: Address, agent
       publishes++
     }
     if (current.checked.method !== 'redeemDelegations') continue
-    const approval = calls[index + 1], publish = calls[index + 2]
-    if (current.spec.kind !== 'agent-work' || approval === undefined || !['agent-approve', 'agent-approve-once'].includes(approval.spec.kind) || publish?.spec.kind !== 'agent-work'
-      || approval.checked.method !== 'approve' || publish.checked.method !== 'publish') throw new Error('Nested allowance requires work, approval and publish entries')
     const inner = decodeGrantBatch(current.checked.execution.callData)
     if (inner.length !== 1) throw new Error('Allowance redemption must contain one transfer')
     const nested = inner[0]!
-    const stored = allowanceFor(sdk.delegationHash(nested.grant))
+    const stored = grantFor(sdk.delegationHash(nested.grant))
+    if (stored.spec.kind === 'permission') {
+      if (calls.length !== 1 || current.spec.kind !== 'agent-work') throw new Error('A permission redemption is sent on its own')
+      checkPermissionRedemption(ctx, operator, agent, nested, stored)
+      continue
+    }
+    const approval = calls[index + 1], publish = calls[index + 2]
+    if (current.spec.kind !== 'agent-work' || approval === undefined || !['agent-approve', 'agent-approve-once'].includes(approval.spec.kind) || publish?.spec.kind !== 'agent-work'
+      || approval.checked.method !== 'approve' || publish.checked.method !== 'publish') throw new Error('Nested allowance requires work, approval and publish entries')
     if (!['allowance', 'allowance-once'].includes(stored.spec.kind) || !same(nested.grant.delegator, operator) || !same(nested.grant.delegate, agent)
       || !same(sdk.delegationHash(nested.grant), sdk.delegationHash(stored.grant))) throw new Error('Nested allowance does not match the stored operator grant')
     if (nested.grant.signature.toLowerCase() !== stored.grant.signature.toLowerCase()) throw new Error('Nested allowance signature does not match the stored operator grant')
