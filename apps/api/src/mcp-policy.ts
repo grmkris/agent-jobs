@@ -4,12 +4,56 @@ import type { OAuthGrant } from './oauth.ts'
 const READ_TOOLS = new Set([
   'get_instructions', 'whoami', 'protocol_info', 'list_tasks', 'get_task', 'task_index', 'list_quote_requests',
   'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'list_delegations', 'fee_quote', 'mining_proof', 'list_boards',
-  'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status', 'get_supported_permissions', 'get_permissions', 'inbox',
+  'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status', 'get_supported_permissions', 'get_permissions', 'inbox', 'check_operation',
 ])
 const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work', 'x402_pay'])
 const WORK_TOOLS = new Set(['apply', 'submit_quote', 'prepare_activation', 'submit_work', 'dispute', 'add_statement', 'advertise_service', 'withdraw_service'])
-const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings', 'check_operation',
+const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings',
   'request_permissions', 'use_permission', 'revoke_permission'])
+
+/** Hand-reviewed effects from tools.ts, runAgent and AgentExecutor (not inferred from scope).
+ * Tool                       read   destructive  idempotent  effect
+ * Reads below                true   false        true        chain/board lookup
+ * create_task/pick_quote      false  true         true        escrow + signed selection continuation
+ * request_quotes              false  false        true        public board record, no escrow
+ * select_worker               false  true         true        signs binding Selection
+ * approve_work/reject_work    false  true         true        payout / opens penalty dispute
+ * cancel_task                 false  true         true        cancellation + refund settlement
+ * settlement_actions          false  true         true        executor sends permissionless settlement
+ * apply/submit_quote/statement false  false        true        board records
+ * activation/submit/dispute   false  true         true        transaction / bonded liability
+ * advertise/withdraw service  false  false/true   true        signed listing / revocation
+ * permission request/use/stop false  true         true/true/false authority / execution / local stop
+ * unstake/cancel/withdraw     false  true         true        vault transaction
+ * sweep/x402                  false  true         true        transfer / signed payment
+ * All effects are bounded to Sidequest, hence openWorldHint=false.
+ */
+const REVIEW: Readonly<Record<string, readonly [boolean, boolean, boolean]>> = {
+  get_instructions: [true, false, true], whoami: [true, false, true], protocol_info: [true, false, true],
+  list_tasks: [true, false, true], get_task: [true, false, true], task_index: [true, false, true],
+  list_quote_requests: [true, false, true], list_quotes: [true, false, true], get_budget: [true, false, true],
+  list_applications: [true, false, true], get_stake: [true, false, true], list_delegations: [true, false, true],
+  fee_quote: [true, false, true], mining_proof: [true, false, true], list_boards: [true, false, true],
+  get_board: [true, false, true], list_directory: [true, false, true], get_directory_agent: [true, false, true],
+  list_approvals: [true, false, true], agent_status: [true, false, true], get_supported_permissions: [true, false, true],
+  get_permissions: [true, false, true], inbox: [true, false, true], check_operation: [true, false, true],
+  create_task: [false, true, true], request_quotes: [false, false, true], pick_quote: [false, true, true],
+  select_worker: [false, true, true], cancel_task: [false, true, true], approve_work: [false, true, true],
+  reject_work: [false, true, true], x402_pay: [false, true, true], apply: [false, false, true],
+  submit_quote: [false, false, true], prepare_activation: [false, true, true], submit_work: [false, true, true],
+  dispute: [false, true, true], add_statement: [false, false, true], advertise_service: [false, false, true],
+  withdraw_service: [false, true, true], settlement_actions: [false, true, true], request_unstake: [false, true, true],
+  cancel_unstake: [false, true, true], withdraw_stake: [false, true, true], sweep_earnings: [false, true, true],
+  request_permissions: [false, true, true], use_permission: [false, true, true], revoke_permission: [false, true, false],
+}
+
+export function toolAnnotations(name: string) {
+  const review = REVIEW[name]
+  if (review === undefined) throw new Error(`Missing MCP effect review for ${name}`)
+  const [readOnlyHint, destructiveHint, idempotentHint] = review
+  return { readOnlyHint, destructiveHint, idempotentHint, openWorldHint: false }
+}
+
 /** Permissions on demand (ADR-0015) stay testnet-only until their mainnet promotion. */
 export const PERMISSION_TOOLS = new Set(['get_supported_permissions', 'get_permissions', 'request_permissions', 'use_permission', 'revoke_permission'])
 /** A hosted agent's own directory listing (WS8) stays testnet-only until its signer rules reach mainnet. */

@@ -3,6 +3,13 @@ import { fromNodeSqlite } from '@sidequest/indexer'
 import { describe, expect, it, vi } from 'vitest'
 import { mcpRoute, MODERN_LANE } from '../src/mcp.ts'
 import { McpEvents } from '../src/mcp-events.ts'
+import { tools as boardTools } from '../src/tools.ts'
+import { agentTools } from '../src/tools-agents.ts'
+import { directoryTools } from '../src/directory.ts'
+import { tenantTools } from '../src/tools-tenant.ts'
+import { feedTools } from '../src/feed.ts'
+const registry = { ...boardTools, ...agentTools, ...directoryTools, ...tenantTools, ...feedTools }
+import { requiredToolScope, toolAnnotations } from '../src/mcp-policy.ts'
 import { connectorInstructions } from '../src/mcp-instructions.ts'
 import type { OAuthGrant } from '../src/oauth.ts'
 
@@ -24,7 +31,7 @@ describe('2026-07-28 MCP lane', () => {
     expect(result(await route(method, { _meta: meta }, { events }))).toMatchObject({ resultType: 'complete', ttlMs: 0, cacheScope: 'private' })
   })
   it('keeps tools/call content shape and decorates only its result', async () => {
-    expect(result(await route('tools/call', { _meta: meta, name: 'get_task', arguments: { taskId: 't1' } }))).toEqual({ resultType: 'complete', content: [{ type: 'text', text: '{"ok":true,"result":{"taskId":"t1"}}' }] })
+    expect(result(await route('tools/call', { _meta: meta, name: 'get_task', arguments: { taskId: 't1' } }))).toEqual({ resultType: 'complete', content: [{ type: 'text', text: '{"ok":true,"result":{"taskId":"t1"}}' }], structuredContent: { ok: true, result: { taskId: 't1' } } })
   })
   it.each([
     ['tools/list', {}, { 'mcp-method': 'tools/call' }],
@@ -67,11 +74,11 @@ describe('legacy wire snapshots and rollback', () => {
     expect(actual.capabilities).toHaveProperty('events', {})
     const { events: _events, ...capabilities } = actual.capabilities as Record<string, unknown>
     expect(JSON.stringify({ ...actual, capabilities })).toBe(JSON.stringify(initialize))
-    expect(JSON.stringify((await route('tools/list', {}, { modernLane })).body)).toBe(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [
+    expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: (result(await route('tools/list', {}, { modernLane })).tools as Record<string, unknown>[]).map(({ title: _title, annotations: _annotations, outputSchema: _outputSchema, securitySchemes: _securitySchemes, ...tool }) => tool) } })).toBe(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [
       { name: 'get_task', description: 'Read task', inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] } },
       { name: 'get_instructions', description: 'Read the full connector, worker or publisher role instructions.', inputSchema: { type: 'object', properties: { role: { type: 'string', enum: ['connector', 'worker', 'publisher'] } } } },
     ] } }))
-    expect(JSON.stringify((await route('tools/call', { name: 'get_task', arguments: { taskId: 't1' } }, { modernLane })).body)).toBe('{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\\"ok\\":true,\\"result\\":{\\"taskId\\":\\"t1\\"}}"}]}}')
+    expect(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { content: result(await route('tools/call', { name: 'get_task', arguments: { taskId: 't1' } }, { modernLane })).content } })).toBe('{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\\"ok\\":true,\\"result\\":{\\"taskId\\":\\"t1\\"}}"}]}}')
   })
   it('disables all modern handling while retaining legacy events', async () => {
     const events = new McpEvents(fromNodeSqlite(new DatabaseSync(':memory:')), 'monad-testnet')
@@ -81,5 +88,46 @@ describe('legacy wire snapshots and rollback', () => {
     expect(result(reply)).not.toHaveProperty('resultType')
     expect(result(reply)).not.toHaveProperty('ttlMs')
     expect(result(reply).events).toHaveLength(4)
+  })
+})
+
+
+describe('hosted tool metadata', () => {
+  const fullGrant = { ...grant, scopes: ['sidequest:read', 'sidequest:hire', 'sidequest:work'] }
+  it.each([{}, { _meta: meta }])('annotates every visible tool on both lanes', async params => {
+    const listed = result(await route('tools/list', params, { grant: fullGrant, tools: registry })).tools as Record<string, unknown>[]
+    expect(listed.length).toBeGreaterThan(30)
+    for (const tool of listed) {
+      expect(tool.title).toEqual(expect.any(String))
+      expect(tool.annotations).toEqual({ readOnlyHint: expect.any(Boolean), destructiveHint: expect.any(Boolean), idempotentHint: expect.any(Boolean), openWorldHint: false })
+      expect(tool.outputSchema).toMatchObject({ type: 'object' })
+      expect(tool.securitySchemes).toEqual(expect.arrayContaining([{ type: 'oauth2', scopes: expect.any(Array) }]))
+    }
+    expect(listed.find(tool => tool.name === 'check_operation')?.inputSchema).not.toHaveProperty('properties.operationKey')
+    expect(listed.find(tool => tool.name === 'whoami')).toHaveProperty('_meta.openai/profile', true)
+    expect(requiredToolScope('check_operation')).toBe('sidequest:read')
+    expect(requiredToolScope('add_statement')).toBe('sidequest:work')
+    expect(toolAnnotations('settlement_actions')).toMatchObject({ readOnlyHint: false, destructiveHint: true })
+    expect(toolAnnotations('request_quotes')).toMatchObject({ destructiveHint: false })
+  })
+  it.each(['get_task', 'create_task'])('keeps complete text and structured output for %s', async name => {
+    const output = { ok: true, result: { status: name === 'create_task' ? 'approval' : 'open', taskId: 't1', approveUrl: 'https://sidequest.test/approve' } }
+    const reply = result(await route('tools/call', { name, arguments: { operationKey: 'one' } }, { grant: fullGrant, tools: registry, call: async () => output }))
+    expect(reply.structuredContent).toMatchObject(JSON.parse((reply.content as { text: string }[])[0]!.text))
+  })
+  it('keeps profile identity stable across client grants and carries it in text', async () => {
+    const one = result(await route('tools/call', { name: 'whoami' }, { tools: registry }))
+    const two = result(await route('tools/call', { name: 'whoami' }, { tools: registry, grant: { ...grant, clientId: 'different' } }))
+    expect(one.structuredContent).toEqual(two.structuredContent)
+    expect(one.structuredContent).toMatchObject({ id: expect.stringMatching(/^sq_[a-f0-9]{64}$/), name: expect.any(String) })
+    expect(JSON.parse((one.content as { text: string }[])[0]!.text)).toEqual(one.structuredContent)
+  })
+  it('adds a linking challenge only to grant/auth failures', async () => {
+    const call = vi.fn()
+    const denied = result(await route('tools/call', { name: 'create_task' }, { tools: registry, call }))
+    expect(denied).toMatchObject({ isError: true, _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: expect.any(String) } } })
+    expect(call).not.toHaveBeenCalled()
+    const failed = result(await route('tools/call', { name: 'get_task' }, { call: async () => ({ ok: false, code: 'forbidden', message: 'Grant revoked' }) }))
+    expect(failed).toHaveProperty('_meta.mcp/www_authenticate')
   })
 })

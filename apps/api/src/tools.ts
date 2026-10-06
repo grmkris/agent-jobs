@@ -7,9 +7,10 @@
  */
 import { type Board, type BudgetInput, type Caller, type DeliverableSpec, type NamedSponsorEntry, TASK_ROLES, TASK_STATUSES, type TaskRole, type TaskStatus } from '@sidequest/board'
 import * as sdk from '@sidequest/sdk'
+import type { McpTool } from './mcp.ts'
 import { deadlineArgs, deadlineSchema, echoDeadlines, isRelative, manifestDeadlines } from './deadlines.ts'
 
-export interface Tool {
+export interface Tool extends McpTool {
   readonly description: string
   readonly inputSchema: {
     type: 'object'
@@ -175,7 +176,7 @@ export const tools: Record<string, Tool> = {
 
   create_task: {
     description:
-      'Publisher: freeze a hire offer with per-job windows and an optional direct invitation. Returns approvals and publish for your wallet; the reward is escrowed only when publish confirms. Contests are legacy only.',
+      'Publisher: the hosted executor freezes a hire, redeems the authorized allowance and publishes atomically. The reward is escrowed only when the chain confirms; invited hires continue to select_worker. Contests are legacy only. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -328,7 +329,7 @@ export const tools: Record<string, Tool> = {
 
   pick_quote: {
     description:
-      'Publisher: pick one quote (no automatic lowest bid). Freezes the ordinary escrow-backed offer at the quoted token and amount, carrying the request and quote hashes, and records the bidder’s application. Then send the transactions, report_transaction, select_worker({taskId, applicationId}), submit_selection.',
+      'Publisher: the hosted executor freezes and funds the ordinary hire at the chosen quote asset and amount, records the bidder application and continues to signed worker selection. A confirmed publish with an incomplete selection is a continuation to reconcile. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -538,7 +539,7 @@ export const tools: Record<string, Tool> = {
 
   select_worker: {
     description:
-      'Creator: pick one applicant. Returns the Selection to sign; nothing is on-chain until the worker activates.',
+      'Creator: the hosted executor signs and records the frozen Selection for one applicant. The worker must still activate before delivery liability begins. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: {
       type: 'object',
       properties: { ...taskId, applicationId: str('From list_applications.'), activateBy: deadlineSchema('Optional; when the selection lapses.') },
@@ -572,20 +573,20 @@ export const tools: Record<string, Tool> = {
   },
 
   cancel_task: {
-    description: 'Creator: cancel an open hire nobody has activated; returns cancel and settle (reward and your bond come back). Contests cannot be cancelled.',
+    description: 'Creator: the hosted executor cancels and settles an open hire nobody has activated, returning the reward and releasing the creator bond. Contests cannot be cancelled. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.cancelTask(caller, { taskId: s(a, 'taskId') }),
   },
 
   approve_work: {
-    description: 'Approver: accept the submitted work (pays the reward, returns both bonds). Refused during a dispute.',
+    description: 'Approver: the hosted executor accepts submitted work on-chain, paying earned reward and releasing bonds when settlement allows. Refused during a dispute. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.approveWork(caller, { taskId: s(a, 'taskId') }),
   },
 
   reject_work: {
     description:
-      'Approver: reject within the review window, naming a violation (None, Quality, Falsified) and a reason. Quality/Falsified burn the worker bond only if undisputed or upheld.',
+      'Approver: the hosted executor records rejection on-chain within review, naming a violation (None, Quality, Falsified) and a reason. Quality/Falsified burn only if undisputed or upheld after the dispute window. The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -822,7 +823,7 @@ export const tools: Record<string, Tool> = {
 
   settlement_actions: {
     description:
-      'Anyone: the permissionless timeout or settlement transactions the chain allows now (silence, undisputed rejection, arbitration timeout, missed delivery, settle).',
+      'The hosted executor sends the permissionless timeout and ordered deferred retry/settlement calls the chain allows now (silence, undisputed rejection, arbitration timeout, missed delivery). The hosted result is confirmed|rejected|approval|pending|reverted|dropped; approval carries approveUrl for the operator. Reuse the same operationKey and identical arguments after an uncertain response.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.settlementActions(caller, { taskId: s(a, 'taskId') }),
   },

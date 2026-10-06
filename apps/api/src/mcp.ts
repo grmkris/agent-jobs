@@ -1,7 +1,7 @@
 import { agentFailureReply } from '@sidequest/board'
 import type { OAuthGrant } from './oauth.ts'
 import { OAUTH_SCOPES } from './oauth-validation.ts'
-import { permittedTool, requiredToolScope } from './mcp-policy.ts'
+import { permittedTool, requiredToolScope, toolAnnotations } from './mcp-policy.ts'
 import { ROLE_GUIDES, connectorInstructions } from './mcp-instructions.ts'
 import type { McpEvents } from './mcp-events.ts'
 import { EventRpcError } from './webhooks.ts'
@@ -19,10 +19,48 @@ export interface McpReply {
 export interface McpTool {
   readonly description?: string
   readonly inputSchema?: Record<string, unknown>
+  readonly title?: string
+  readonly outputSchema?: Record<string, unknown>
+  readonly securitySchemes?: readonly Record<string, unknown>[]
+  readonly annotations?: Record<string, boolean>
 }
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): McpReply {
   return { status, body, headers: { 'cache-control': 'no-store', ...headers } }
+}
+
+const objectOutput = (properties: Record<string, unknown>) => ({ type: 'object', properties, additionalProperties: true })
+const stringOutput = { type: 'string' }
+const listOutput = { type: 'array', items: { type: 'object', additionalProperties: true } }
+const envelope = (result: Record<string, unknown>) => objectOutput({ ok: { type: 'boolean' }, result, code: stringOutput, message: stringOutput, reason: stringOutput, retry: { type: 'string', enum: ['same-key', 'new-key', 'after-operator', 'none'] } })
+const hostedOutput = envelope(objectOutput({ status: { type: 'string', enum: ['confirmed', 'rejected', 'approval', 'pending', 'reverted', 'dropped'] }, operationId: stringOutput, approveUrl: stringOutput, result: { type: 'object', additionalProperties: true } }))
+const PUBLISHER_OUTPUT_SCHEMAS: Readonly<Record<string, Record<string, unknown>>> = {
+  whoami: { ...objectOutput({ id: stringOutput, name: stringOutput, ok: { type: 'boolean' }, result: objectOutput({ address: { type: ['string', 'null'] } }) }), required: ['id', 'name'] },
+  protocol_info: envelope(objectOutput({ network: stringOutput, chainId: { type: 'number' }, paused: { type: ['boolean', 'null'] }, contracts: { type: 'object' }, rewardTokens: listOutput })),
+  agent_status: envelope(objectOutput({ state: stringOutput, allowances: listOutput })),
+  list_tasks: envelope(listOutput), get_task: envelope(objectOutput({ taskId: stringOutput, terms: { type: 'object' }, chain: { type: 'object' }, next: { type: 'array' } })),
+  list_quote_requests: envelope(listOutput), list_quotes: envelope(listOutput), list_applications: envelope(listOutput),
+  get_directory_agent: envelope(objectOutput({ agent: { type: 'object' } })), get_stake: envelope({ type: 'object', additionalProperties: true }),
+  inbox: envelope(objectOutput({ events: listOutput, cursor: { type: ['string', 'null'] }, hasMore: { type: 'boolean' }, gap: { type: 'boolean' } })),
+  list_approvals: envelope(objectOutput({ approvals: listOutput })), check_operation: envelope(objectOutput({ id: stringOutput, stage: stringOutput, status: stringOutput })),
+  create_task: hostedOutput, request_quotes: hostedOutput, pick_quote: hostedOutput, select_worker: hostedOutput,
+  approve_work: hostedOutput, reject_work: hostedOutput, cancel_task: hostedOutput, settlement_actions: hostedOutput,
+}
+
+function toolWireMetadata(name: string, tool: McpTool) {
+  const scope = requiredToolScope(name)
+  const schemes = scope === 'write' ? [{ type: 'oauth2', scopes: ['sidequest:hire'] }, { type: 'oauth2', scopes: ['sidequest:work'] }] : [{ type: 'oauth2', scopes: scope === undefined ? [] : [scope] }]
+  return {
+    title: tool.title ?? name.replaceAll('_', ' '),
+    annotations: tool.annotations ?? toolAnnotations(name),
+    outputSchema: tool.outputSchema ?? PUBLISHER_OUTPUT_SCHEMAS[name] ?? { type: 'object', additionalProperties: true },
+    securitySchemes: tool.securitySchemes ?? schemes,
+  }
+}
+
+async function profileId(agentId: string, address: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`sidequest:profile:${agentId || address.toLowerCase()}`))
+  return `sq_${Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
 export async function mcpRoute(input: {
@@ -69,7 +107,7 @@ export async function mcpRoute(input: {
         const schema = tool.inputSchema ?? { type: 'object', properties: {} }
         const write = requiredToolScope(name) !== 'sidequest:read'
         const existingRequired = Array.isArray((schema as { required?: unknown }).required) ? (schema as unknown as { required: string[] }).required : []
-        return { name, description: tool.description, inputSchema: { ...schema, properties: { ...(schema.properties as Record<string, unknown>), ...(write ? { operationKey: { type: 'string', description: 'Persist this stable unique action key before calling. Reuse it with identical arguments after any lost response.' } } : {}) }, ...(write ? { required: [...existingRequired, 'operationKey'] } : {}) } }
+        return { name, description: tool.description, inputSchema: { ...schema, properties: { ...(schema.properties as Record<string, unknown>), ...(write ? { operationKey: { type: 'string', description: 'Persist this stable unique action key before calling. Reuse it with identical arguments after any lost response.' } } : {}) }, ...(write ? { required: [...existingRequired, 'operationKey'] } : {}) }, ...toolWireMetadata(name, tool), ...(name === 'whoami' ? { _meta: { 'openai/profile': true } } : {}) }
       }) })
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
@@ -94,20 +132,26 @@ export async function mcpRoute(input: {
     const name = typeof params.name === 'string' ? params.name : ''
     const tool = tools[name]
     const args = typeof params.arguments === 'object' && params.arguments !== null ? params.arguments as Record<string, unknown> : {}
-    if (!permittedTool(grant, name)) return respond({ content: [{ type: 'text', text: 'forbidden: this connection does not grant this tool' }], isError: true })
+    if (!permittedTool(grant, name)) return respond({ content: [{ type: 'text', text: 'forbidden: this connection does not grant this tool' }], isError: true, _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: 'This connection does not grant the requested tool' } } })
     if (name === 'get_instructions') {
       const role = typeof args.role === 'string' ? args.role : 'connector'
-      return respond(Object.hasOwn(ROLE_GUIDES, role) ? { content: [{ type: 'text', text: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] }] } : { content: [{ type: 'text', text: 'invalid role' }], isError: true })
+      return respond(Object.hasOwn(ROLE_GUIDES, role) ? { content: [{ type: 'text', text: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] }], structuredContent: { instructions: ROLE_GUIDES[role as keyof typeof ROLE_GUIDES] } } : { content: [{ type: 'text', text: 'invalid role' }], isError: true })
     }
     if (tool === undefined) return respond({ content: [{ type: 'text', text: `not-found: no tool ${name}` }], isError: true })
     const agentId = typeof args.managedAgentId === 'string' ? args.managedAgentId : grant.agentIds.length === 1 ? grant.agentIds[0]! : ''
-    if (!grant.agentIds.includes(agentId)) return respond({ content: [{ type: 'text', text: 'forbidden: select one granted agent' }], isError: true })
+    if (!grant.agentIds.includes(agentId)) return respond({ content: [{ type: 'text', text: 'forbidden: select one granted agent' }], isError: true, _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: 'Select one agent granted by this connection' } } })
     try {
       const output = await call(name, args, agentId)
+      const structuredContent = name === 'whoami'
+        ? { ...(typeof output === 'object' && output !== null ? output as Record<string, unknown> : { value: output }), id: await profileId(agentId, grant.address), name: agentId || 'Sidequest agent' }
+        : typeof output === 'object' && output !== null ? output : { value: output }
       const failed = typeof output === 'object' && output !== null && (output as { ok?: boolean }).ok === false
-      return respond({ content: [{ type: 'text', text: JSON.stringify(output) }], ...(failed ? { isError: true } : {}) })
+      return respond({ content: [{ type: 'text', text: JSON.stringify(name === 'whoami' ? structuredContent : output) }], structuredContent, ...(name === 'whoami' ? { _meta: { 'openai/profile': true } } : {}), ...(failed ? { isError: true, ...(['forbidden', 'unauthenticated'].includes(String((output as { code?: string }).code)) ? { _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: String((output as { message?: string }).message ?? 'Access is not granted') } } } : {}) } : {}) })
     }
-    catch (error) { return respond({ content: [{ type: 'text', text: JSON.stringify(agentFailureReply(error, 'The tool failed')) }], isError: true }) }
+    catch (error) {
+      const failure = agentFailureReply(error, 'The tool failed')
+      return respond({ content: [{ type: 'text', text: JSON.stringify(failure) }], structuredContent: failure, isError: true, ...(['forbidden', 'unauthenticated'].includes(failure.code) ? { _meta: { 'mcp/www_authenticate': { error: 'insufficient_scope', error_description: failure.message } } } : {}) })
+    }
   }
   return json({ jsonrpc: '2.0', id: id ?? null, error: { code: -32601, message: `method not found: ${methodName}` } }, 200)
 }
