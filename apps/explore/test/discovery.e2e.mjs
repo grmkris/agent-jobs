@@ -24,12 +24,13 @@ const publishers = [
 ];
 const results = [];
 const reply = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-async function setup(viewport) {
-  const f = await fixture(viewport);
-  const state = { agents: publishers, failAgents: false, delay: 0, creator: owner, picked: null, writes: [] };
+async function setup(viewport, options = {}) {
+  const f = await fixture(viewport, options);
+  const state = { agents: publishers, agentReads: 0, failAgents: false, delay: 0, creator: owner, picked: null, writes: [] };
   await f.context.route('**/data/jobs*', route => reply(route, { ok: true, jobs: chain, index: { next_block: 100, updated_at: now } }));
   await f.context.route('**/api/task_index', route => reply(route, { ok: true, result: tasks }));
   await f.context.route('**/api/agents', async route => {
+    state.agentReads += 1;
     if (state.delay) await new Promise(resolve => setTimeout(resolve, state.delay));
     return reply(route, state.failAgents ? { ok: false, message: 'Publishers unavailable' } : { ok: true, result: { agents: state.agents } }, state.failAgents ? 503 : 200);
   });
@@ -113,6 +114,25 @@ try {
     await sheet.getByRole('button', { name: 'Close', exact: true }).click();
     results.push({ device, passed: true, checks: ['tag OR with search/phase AND', 'URL reload', 'untagged visible without tags', 'owned publisher choice', 'clipboard failure', 'revoked cached publisher denied', 'hosted requester exact publisher', 'exact browser requester keeps picker', 'tenant MCP context', 'no sends'] });
     await context.close();
+
+    // Signed-out visitors need setup/sign-in; opening a handoff must never force the disabled private query.
+    const anonymous = await setup(viewport, { connected: false });
+    await anonymous.page.goto(`${base}/jobs`);
+    await anonymous.page.getByText('Fix coding tests', { exact: true }).waitFor();
+    assert.equal(anonymous.state.agentReads, 0);
+    await anonymous.page.getByRole('button', { name: 'Create with agent', exact: true }).click();
+    const anonymousSheet = anonymous.page.getByRole('dialog', { name: 'Create with your agent' });
+    await anonymousSheet.waitFor();
+    await anonymous.page.waitForTimeout(250);
+    assert.equal(anonymous.state.agentReads, 0, 'opening the anonymous sheet makes no private agent request');
+    await anonymousSheet.getByRole('button', { name: 'Sign in to choose a publisher', exact: true }).waitFor();
+    await anonymousSheet.getByRole('link', { name: 'Set up an agent', exact: true }).waitFor();
+    assert.equal(await anonymousSheet.getByRole('textbox', { name: 'Agent instruction' }).count(), 0);
+    assert.equal(await anonymousSheet.getByRole('button', { name: 'Retry publishers', exact: true }).count(), 0);
+    await anonymousSheet.getByRole('button', { name: 'Close', exact: true }).click();
+    assert.equal(anonymous.state.agentReads, 0);
+    results.push({ device, signedIn: false, passed: true, checks: ['no private agents call on open', 'sign-in and setup visible', 'no publisher prompt', 'no retry-only error'] });
+    await anonymous.context.close();
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only', results, errors }, null, 2));
