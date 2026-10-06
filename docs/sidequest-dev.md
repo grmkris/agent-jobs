@@ -21,8 +21,9 @@ The Privy display name, evergreen color and Sidequest icon were saved and read
 back through the narrow branding form. Authenticated MCP enumeration and real
 human login remain unverified. Anonymous 390px/1440px browser checks visually
 confirmed the deployed icon in the live sign-in modal with no provider errors.
-The routine signer still pins archived contracts; a separate Sidequest
-policy must preserve the legacy policy and its recovery authority. See
+The separate Sidequest routine policy now pins the fresh contracts and preserves
+the legacy policy and its recovery authority. Its dev binding is guarded by a
+private journal and a four-field dev overlay. See
 [the cutover handoff](sidequest-agent-handoff-2026-10-06.md) for dated readbacks.
 The indexer cron has produced progressing checkpoints with no jobs in this fresh
 deployment.
@@ -41,7 +42,9 @@ SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs
 
 The runner checks `main`, committed release source, Cloudflare account/zone
 ownership, fresh names (or exact owned state for a later update), RPC chain,
-signer addresses and completed Safe ownership. It deploys a committed export;
+signer addresses, completed Safe ownership, and fresh Privy authority readback.
+It reads `.sidequest/privy-dev.env` only after validating the frozen authority
+journal and confirming the original credential was replaced. It deploys a committed export;
 four explicitly known neighbour files can remain dirty without entering the
 release. No worktree files are moved. `.alchemy/state/Sidequest/dev` is the sole
 dev backend, independent of the historical staging stack. The generated directory
@@ -96,3 +99,14 @@ separate-policy payload; it never updates legacy recovery authority. App and
 routine-signer credentials exposed during a search are treated as compromised.
 Credential rotation, isolated Sidequest authority and provider readback precede
 managed signing acceptance; the old recovery journals/resources remain retained.
+
+The isolated cutover is `packages/sdk/scripts/privy/sidequest-cutover.ts`:
+`prepare` verifies retained authority and freezes a fresh local routine key;
+after the app secret is replaced, `SIDEQUEST_PRIVY_APPLY=1 ... apply` creates one
+fresh one-key routine quorum and the exact separate 11-rule policy. Creation
+intents are saved before requests; a lost response requires reconciliation and
+never triggers another creation request. `verify` performs provider GETs and
+checks the ignored dev overlay. It preserves the existing policy-admin quorum
+and every legacy signer/policy entry in `.env.local`. The dev runner alone merges
+the verified overlay into the deployment environment; historical staging and
+production remain outside this cutover.

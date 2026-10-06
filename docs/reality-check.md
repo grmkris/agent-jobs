@@ -1376,6 +1376,14 @@ provider errors. Screenshots were visually inspected. This proves provider
 branding delivery, not a completed login, consent, authenticated MCP or signing.
 [Sanitized browser receipt](evidence/sidequest-dev/2026-10-06-privy-brand-signin.json).
 
+**6 October 2026, 06:59 UTC isolated Privy authority:** using the replacement
+app secret supplied through the authenticated dashboard, the Sidequest cutover
+created and verified fresh dev-only routine quorum `q82i8vfysvn523j6mx69wljn`
+and separate 11-rule policy `ocog6r948i9p93x6ucd4f3db`. The archived policy,
+legacy routine quorum and policy-admin quorum were read back unchanged. The
+fresh IDs are not live until the guarded dev runner binds them in the next
+release; no staging or production authority changed. [Sanitized receipt](evidence/sidequest-dev/2026-10-06-privy-authority-cutover.json).
+
 **6 October 2026, 06:37 UTC legacy budget authority:** a bounded live
 read-only audit reconciled the two known execution-budget delegation hashes for
 legacy jobs 58 and 59. The exact job-58 advance is disabled and expired with

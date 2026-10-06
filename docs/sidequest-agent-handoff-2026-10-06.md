@@ -9,10 +9,10 @@
 | Published source | `origin/main` at `55c9282`; later V1.1, S3/S4 UI and `28a16ea` guard fix remain local |
 | Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
 | V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
-| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; isolated S5/P1b stack is `feeceff`, with 18 integrated local suites reported passing and screenshots running |
-| Profile | `%20` holds five C8–C12 commits at `edbde86` on `profile-final`, built on Explore's `feeceff`; all 18 suites and full gate are running; still waits for explicit base-ready |
-| Privy | Dev origin and Sidequest name/color/logo saved; credential rotation, isolated authority and real auth/MCP remain pending |
-| Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations; two known budget grants cannot redeem, but wider Board grant/pending inventory remains unknown |
+| UI | Explore `%14` landed S3/S4/S5/P1b through `be73a6d` and explicitly posted BASE READY; 18 suites and 78 light/dark screenshots pass locally |
+| Profile | C8–C12 landed through `f68175f`; 18 suites/full gate pass on the identical code tree; C13 remains isolated under `%20` |
+| Privy | Branding/origin saved; fresh routine `q82i8vfysvn523j6mx69wljn` and separate policy `ocog6r948i9p93x6ucd4f3db` created and verified; dev binding awaits release; real auth/MCP remain unverified |
+| Legacy retirement | V11 `3a11081` reconciled eight jobs with 15 successful receipts; residual 0.9 mUSD and wider Board grant/pending inventory still block deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
 
 The dated entries below preserve the actual observations and earlier handoffs.
@@ -608,3 +608,26 @@ was refused as `notDispatched` because the pane had no safe coordinator prompt;
 it is not counted as delivered and was not retried. The original unknown and
 not-dispatched notice receipts remain unchanged. The local handoff and shared
 triage log remain the authoritative coordination path.
+
+## Privy isolated authority — recorded 06 October 2026, 06:59 UTC
+
+Kris supplied and authorized a replacement app secret through the authenticated
+Privy dashboard. It was written only to ignored `.env.local`; the secret and
+private keys are absent from this handoff. The guarded cutover created and read
+back a fresh one-key Sidequest routine quorum `q82i8vfysvn523j6mx69wljn` and a
+separate 11-rule policy `ocog6r948i9p93x6ucd4f3db`. The policy fingerprint is
+`13b18bef9e50893253fd6748c6cb4db2f70ed81ae6dda2c478e50e74caba7612`.
+
+The legacy policy `s06i5eramn0plwdunkvxf8aj`, legacy routine quorum
+`qetyy57hy4cc69q8xjonwlc3`, and policy-admin quorum
+`q4bhp78wp2ialt6ffv2pv3mg` were read back unchanged. A private journal freezes
+the admin public key, legacy policy fingerprint, routine public key and
+replacement-secret fingerprint; creation intent is persisted before each
+provider POST and ambiguous responses hold without replay. The dev overlay is
+ignored and contains only the fresh app ID, routine ID, policy ID and routine
+key. It has not been deployed yet. See the
+[`sanitized authority receipt`](evidence/sidequest-dev/2026-10-06-privy-authority-cutover.json).
+
+The release runner now verifies that journal and provider readback before
+binding the overlay to `sidequest-api-dev`; it does not alter staging or
+production. Real user login and authenticated MCP remain unverified.

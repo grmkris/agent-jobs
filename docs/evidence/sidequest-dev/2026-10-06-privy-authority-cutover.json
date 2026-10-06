@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-06T06:59:32.765Z",
+  "tier": "live-verified-provider-readback",
+  "scope": "Sidequest Monad testnet dev authority only",
+  "appId": "cmui9skoc01zr0dl03tyahirs",
+  "chainId": 10143,
+  "adminQuorum": {
+    "id": "q4bhp78wp2ialt6ffv2pv3mg",
+    "threshold": 1,
+    "publicKeyCount": 1,
+    "preserved": true
+  },
+  "legacyAuthority": {
+    "policyId": "s06i5eramn0plwdunkvxf8aj",
+    "policySha256": "583e2367d975b6276eadad9245f94c9fd8eaac18e9a08570c178c0e0706d3dbd",
+    "routineQuorumId": "qetyy57hy4cc69q8xjonwlc3",
+    "preserved": true
+  },
+  "sidequestAuthority": {
+    "routineQuorumId": "q82i8vfysvn523j6mx69wljn",
+    "policyId": "ocog6r948i9p93x6ucd4f3db",
+    "policyRuleCount": 11,
+    "desiredPolicySha256": "13b18bef9e50893253fd6748c6cb4db2f70ed81ae6dda2c478e50e74caba7612",
+    "readbackVerified": true,
+    "devOnlyOverlay": true
+  },
+  "deploymentBinding": {
+    "worker": "sidequest-api-dev",
+    "stage": "dev",
+    "origin": "https://dev.sidequest.exchange",
+    "applied": false,
+    "nextStep": "The guarded Sidequest dev runner reads the verified ignored overlay and binds these IDs only during the explicit dev release."
+  },
+  "actionsNotPerformed": [
+    "mainnet deployment",
+    "legacy policy mutation",
+    "legacy signer or policy-admin replacement",
+    "old resource deletion",
+    "wallet signing or economic transaction outside the separately recorded V11 reconciliation"
+  ],
+  "redactions": [
+    "Privy app secret",
+    "routine private key",
+    "policy-admin private key",
+    "signed authorization payloads"
+  ]
+}

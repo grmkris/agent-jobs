@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { parseEnv } from 'node:util'
 import { createPublicClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { loadDevAuthority } from './dev-authority.mjs'
 
 const repo = fileURLToPath(new URL('../..', import.meta.url))
 const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim()
@@ -103,13 +104,17 @@ async function main() {
   const lines = args => git(...args).split('\n').filter(Boolean)
   assertCheckout({ branch: git('branch', '--show-current'), staged: lines(['diff', '--cached', '--name-only']), dirty: lines(['diff', '--name-only']), unknown: lines(['ls-files', '--others', '--exclude-standard']) })
   const localEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
+  const devAuthority = loadDevAuthority(repo, localEnv)
+  // Separate provider GET verification from cached build tasks and keep all output private.
+  const verify = spawnSync('pnpm', ['exec', 'bun', 'packages/sdk/scripts/privy/sidequest-cutover.ts', 'verify'], { cwd: repo, env: { ...process.env, ...localEnv }, stdio: 'pipe' })
+  if (verify.status !== 0) throw new Error('sidequest-dev-authority-provider-readback-failed')
   for (const source of [process.env, localEnv]) {
     if (Object.keys(source).some(name => name.startsWith('DISTILLED_DEBUG'))) throw new Error('provider-debug-env-refused')
     if (source.ALCHEMY_REMOTE_STATE === '1' || source.ALCHEMY_STATE_MODE === 'remote') throw new Error('remote-state-refused')
   }
   const infra = JSON.parse(readFileSync(resolve(repo, 'infra/dev.json'), 'utf8'))
   const config = JSON.parse(readFileSync(resolve(repo, 'contracts/config/monad-testnet.json'), 'utf8'))
-  const env = { ...process.env, ...localEnv, SIDEQUEST_STAGE: 'dev', SIDEQUEST_NETWORK: 'monad-testnet', SIDEQUEST_DEV_RELEASE: '1', SIDEQUEST_APPLY_MIGRATIONS: '1', ALCHEMY_REMOTE_STATE: '0', ALCHEMY_STATE_MODE: 'local', CLOUDFLARE_ACCOUNT_ID: infra.cloudflare.accountId }
+  const env = { ...process.env, ...localEnv, ...devAuthority, SIDEQUEST_STAGE: 'dev', SIDEQUEST_NETWORK: 'monad-testnet', SIDEQUEST_DEV_RELEASE: '1', SIDEQUEST_APPLY_MIGRATIONS: '1', ALCHEMY_REMOTE_STATE: '0', ALCHEMY_STATE_MODE: 'local', CLOUDFLARE_ACCOUNT_ID: infra.cloudflare.accountId }
   if (env.SIDEQUEST_WITHOUT_EXPLORE === '1') throw new Error('complete-stack-required')
   for (const key of ['CLOUDFLARE_API_TOKEN', 'MONAD_TESTNET_RPC_URL', 'SIDEQUEST_DEV_RELAY_PRIVATE_KEY', 'SIDEQUEST_DEV_ATTESTER_PRIVATE_KEY', 'HYPERSYNC_API_TOKEN']) if (!env[key]) throw new Error('required-dev-credential-missing')
   if (config.chainId !== 10143 || config.sidequest.reuseCore !== false || !config.deployment.sidequest || config.deployment.legacy && Object.keys(config.deployment.legacy).length) throw new Error('fresh-sidequest-deployment-required')
