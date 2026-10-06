@@ -9,13 +9,13 @@ import { Fragment, useState } from 'react'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { SignInToPublish } from '../components/post/SignInToPublish.tsx'
 import { useToast } from '../components/Sheet.tsx'
+import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 
 import { useAuth } from '../components/Wallet.tsx'
 import { type CollectAction, type CollectKind, readMiningClaim, useCollectActions } from '../collect.ts'
-import { amount, formatNumber } from '../format.ts'
 import { sidequest } from '../sidequest.ts'
-import { chain } from '../wallet.ts'
+import { chain, deployment } from '../wallet.ts'
 
 const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) => string; done: string }> = {
   settle: { icon: Scale, title: (a) => `Settle job #${a.jobId ?? '?'}`, done: 'Settled' },
@@ -100,14 +100,14 @@ export function CollectPage() {
                     {mining?.ok === true ? (
                       <span className="block font-medium">
                         Mining reward, epoch {String(mining.epoch)} ·{' '}
-                        <span className="tabular-nums font-semibold">{formatNumber(mining.amount, 18)} SIDE</span>, backed when collected
+                        <TokenAmount value={mining.amount} token={deployment.factory} className="font-semibold" />, backed when collected
                       </span>
                     ) : (
                       <>
                         <span className="block font-medium">{k?.title(a) ?? a.kind}</span>
 
                         {a.amount != null && a.token != null && (
-                          <span className="tabular-nums block font-semibold">{amount(a.amount, a.token)}</span>
+                          <TokenAmount value={a.amount} token={a.token} className="block w-fit font-semibold" />
                         )}
 
                         <span className="block text-ui leading-snug text-muted-foreground">{a.description}</span>

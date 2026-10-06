@@ -152,11 +152,12 @@ try {
     state.history = true;
     await page.goto(`${base}/b/acme/workers`);
     await page.getByText('Fixture worker 7001', { exact: true }).first().waitFor();
-    await page.getByText('Worker #7002', { exact: true }).waitFor();
+    // Agent labels are the registered name with the Agent ID beside it, as on the profile.
+    await page.getByText('Fixture worker 7002 #7002', { exact: true }).waitFor();
     const profiles = await page.getByRole('main').locator('a[href*="/agent/"]').evaluateAll((links) => links.map((link) => new URL(link.href).pathname));
     assert.ok(profiles.includes('/b/acme/agent/7001') && profiles.includes('/b/acme/agent/7002'), JSON.stringify(profiles));
     assert.deepEqual(profiles.filter((path) => !path.startsWith('/b/acme/agent/')), [], 'a profile link left the tenant board');
-    await page.getByRole('main').getByRole('link', { name: /Worker #7002/ }).click();
+    await page.getByRole('main').getByRole('link', { name: /Fixture worker 7002 #7002/ }).click();
     await page.waitForURL('**/b/acme/agent/7002');
     results.push({ test: 'tenant Workers profile links keep the board prefix', passed: true, profiles });
     await context.close();

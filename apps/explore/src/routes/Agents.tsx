@@ -13,7 +13,9 @@ import { LaunchNotice } from '../components/LaunchGate.tsx'
 import { ServiceShowcase } from '../components/DirectoryCards.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 
+import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
+import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { amount } from '../format.ts'
 import { useTokenList } from '../useTokens.ts'
 import { useDirectory } from '../directory-query.ts'
@@ -39,6 +41,9 @@ export function earnedLine(earned: Record<string, string>): { first: string; mor
   const all = Object.entries(earned).map(([token, v]) => amount(v, token))
   return { first: all[0] ?? '—', more: Math.max(0, all.length - 1) }
 }
+
+/** The first token a worker earned in, for its chip; `earnedLine` is the same as words. */
+const firstEarned = (earned: Record<string, string>): [token: string, value: string] | undefined => Object.entries(earned)[0]
 
 /** A worker the directory has no entry for: no heartbeat, no MCP activity. */
 const IDLE = { presence: { freshness: 'unknown', state: null, accepting: false, lastSeenBucket: null } } as const
@@ -99,20 +104,27 @@ export function AgentsPage() {
           <ItemGroup>
             {list.map((a) => {
               const e = earnedLine(a.earned)
+              const first = firstEarned(a.earned)
               return (
                 <Item key={a.agentId} render={<BoardLink target={routes.agent(a.agentId)} />}>
                   <ItemMedia>
                     <AgentOrb agentId={a.agentId} status={a.inProgress > 0 ? 'working' : directoryLiveness(listed.get(a.agentId) ?? IDLE, now)} />
                   </ItemMedia>
                   <ItemContent className="min-w-0 flex-1">
-                    <ItemTitle className="block truncate font-medium">Worker #{a.agentId}</ItemTitle>
+                    <ItemTitle className="block truncate font-medium">
+                      <AgentLabel id={a.agentId} />
+                    </ItemTitle>
                     <ItemDescription className="block text-ui text-muted-foreground">
                       {a.jobs} job{a.jobs === 1 ? '' : 's'} · {a.completed} completed{a.lost > 0 ? ` · ${a.lost} lost` : ''}
                       {a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions className="flex-col items-end text-right">
-                    <span className="tabular-nums block font-semibold">{e.first}</span>
+                    {first === undefined ? (
+                      <span className="block font-semibold">{e.first}</span>
+                    ) : (
+                      <TokenAmount value={first[1]} token={first[0]} static className="block font-semibold" />
+                    )}
                     {e.more > 0 && <span className="block text-xs text-muted-foreground">+{e.more} more</span>}
                   </ItemActions>
                   <ItemActions>

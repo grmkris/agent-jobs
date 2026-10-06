@@ -11,8 +11,8 @@ import type { AgentApproval } from '../../agent-api.ts'
 import { reviewAgentGrant, type PreparedGrant } from '../../agent-grant.ts'
 import { AgentGrantReview } from '../AgentGrantReview.tsx'
 import { PermissionApproval } from './PermissionApproval.tsx'
+import { TokenAmount } from '../token/TokenAmount.tsx'
 
-import { amount } from '../../format.ts'
 import { useTokenList } from '../../useTokens.ts'
 import { typedDataArgs } from '../../typed-data.ts'
 import { deployment } from '../../wallet.ts'
@@ -107,9 +107,13 @@ function OperationApproval({
     <Section title={`${agent.name} · ${approval.kind === 'unstake' ? 'Leave agent-owned position' : 'Hire approval'}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xl font-semibold">
-          {request.token === undefined
-            ? `${amount(request.amount, deployment.factory)} position value`
-            : amount(request.amount, request.token)}
+          {request.token === undefined ? (
+            <>
+              <TokenAmount value={request.amount} token={deployment.factory} /> position value
+            </>
+          ) : (
+            <TokenAmount value={request.amount} token={request.token} />
+          )}
         </p>
         <Badge variant={approval.status === 'pending' ? 'warning' : 'neutral'}>{approval.status}</Badge>
       </div>

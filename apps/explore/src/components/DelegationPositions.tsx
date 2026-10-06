@@ -10,6 +10,8 @@ import type { BackedPosition } from '../delegation-query.ts'
 import { formatNumber } from '../format.ts'
 import { percent } from '../stake.ts'
 import { Countdown, useNow } from './Time.tsx'
+import { TokenAmount } from './token/TokenAmount.tsx'
+import { deployment } from '../wallet.ts'
 
 export const factoryValue = (value: bigint) => `${formatNumber(value, 18)} SIDE`
 
@@ -66,7 +68,9 @@ export function DelegationPositions({
                       {agent.profile.name || `Agent ID ${agent.agentId}`}
                     </BoardLink>
                   )}
-                  <p className="mt-1 tabular-nums text-lg font-semibold">{factoryValue(position.value)}</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    <TokenAmount value={position.value} token={deployment.factory} />
+                  </p>
                   <p className="text-sm text-muted-foreground">{percent(position.shareBps)} of total backing</p>
                 </div>
                 <Badge variant={bonded ? 'warning' : ready ? 'success' : 'neutral'}>

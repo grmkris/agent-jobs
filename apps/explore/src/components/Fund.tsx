@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
 import { formatNumber, tokenInfo } from '../format.ts'
+import { TokenIcon } from './token/TokenIcon.tsx'
 import { chain, deployment, isMainnet } from '../wallet.ts'
 
 /**
@@ -73,8 +74,11 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
           const info = t === deployment.factory ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
           return (
             <li key={t} className="flex justify-between">
-              <span>{info.symbol}</span>
-              <span>{v === undefined ? '…' : formatUnits(v, info.decimals)}</span>
+              <span>
+                <TokenIcon token={t} className="mr-1.5" />
+                {info.symbol}
+              </span>
+              <span className="tabular-nums">{v === undefined ? '…' : formatUnits(v, info.decimals)}</span>
             </li>
           )
         })}
