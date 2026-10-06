@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-10-06T14:34:56.368608+00:00",
+  "sourceCommit": "4dc03be4d759533623a4fdc7e33b976bc7337df7",
+  "sourceTree": "ae4ce48497be02446b7ba3032f02d55d038046d8",
+  "deployedAt": "2026-10-06T14:33:59.904Z",
+  "origin": "https://dev.sidequest.exchange",
+  "chainId": 10143,
+  "evidenceTier": "live-dev-guarded-runner-receipt",
+  "runner": {
+    "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
+    "planPassed": true,
+    "exitCode": 0,
+    "operation": "update",
+    "status": "deployed"
+  },
+  "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
+  "newMigration": false,
+  "gates": {
+    "heavy pnpm check": "passed",
+    "heavy pnpm sidequest:test": "9 passed",
+    "heavy pnpm db:generate --check": "passed"
+  },
+  "publicReadback": "pending WP7 step 6",
+  "authenticatedCalls": "not-verified",
+  "hostAcceptance": "not-verified",
+  "noAuthentication": true,
+  "noTransactions": true,
+  "noHostConnection": true
+}

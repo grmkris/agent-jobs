@@ -12,7 +12,12 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest signed-off dev application release is `e90b9f5`, deployed on 6 October 2026
+The latest guarded dev application release is `4dc03be`, deployed on 6 October 2026
+at 14:33:59 UTC. The [host-parity live receipt](evidence/sidequest-dev/2026-10-06-4dc03be-live.json)
+records its source/tree, green gates and successful guarded update. Host acceptance and
+authenticated MCP calls remain unverified.
+
+The previous signed-off dev application release was `e90b9f5`, deployed on 6 October 2026
 at 11:51:14 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json)
 records the exact source/tree, Worker versions, authority binding, anonymous browser smoke and
 public readback. It includes the video-review application and the anonymous publisher-handoff fix. Public health, release,
