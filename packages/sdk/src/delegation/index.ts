@@ -208,9 +208,14 @@ export function redeemCalldata(signed: Delegation, execution: Execution): Hex {
   return redeemCallsCalldata(signed, [execution])
 }
 
+/** ERC-7710 `permissionContext`: the ABI-encoded chain (here one root delegation) a redeemer passes to the manager. */
+export function permissionContext(signed: Delegation): Hex {
+  return encodeAbiParameters(permissionContextAbi, [[{ ...signed, caveats: [...signed.caveats] }]])
+}
+
 /** Atomic ordered calls through the manager. Each execution consumes one LimitedCalls count. */
 export function redeemCallsCalldata(signed: Delegation, executions: readonly Execution[]): Hex {
-  const context = encodeAbiParameters(permissionContextAbi, [[{ ...signed, caveats: [...signed.caveats] }]])
+  const context = permissionContext(signed)
   return encodeFunctionData({
     abi: delegationManagerAbi,
     functionName: 'redeemDelegations',

@@ -6,8 +6,9 @@ import {
 import { coreAbi, hirelingEvaluatorAbi, hirelingHoldingAbi, identityAbi, stakeVaultAbi } from '../abi/index.ts'
 import type { Deployment, Stack } from '../deployment.ts'
 import { type Caveat, type Delegation, ROOT_AUTHORITY, delegationHash, delegationManagerAbi } from './index.ts'
+import { type PermissionTerms, buildPermission } from './permissions.ts'
 
-export type GrantKind = 'operator' | 'registration' | 'agent-work' | 'agent-approve' | 'agent-approve-once' | 'agent-sweep' | 'allowance' | 'allowance-once' | 'unstake'
+export type GrantKind = 'operator' | 'registration' | 'agent-work' | 'agent-approve' | 'agent-approve-once' | 'agent-sweep' | 'allowance' | 'allowance-once' | 'unstake' | 'permission'
 
 export interface GrantContext {
   readonly deployment: Deployment
@@ -31,6 +32,8 @@ export type GrantSpec = GrantBase & (
   | { readonly kind: 'agent-sweep'; readonly operator: Address }
   | { readonly kind: 'allowance'; readonly agent: Address; readonly token: Address; readonly amount: bigint }
   | { readonly kind: 'allowance-once'; readonly agent: Address; readonly token: Address; readonly amount: bigint }
+  /** Permissions on demand (ADR-0015): an operator → agent delegation built by buildPermission. */
+  | { readonly kind: 'permission'; readonly agent: Address; readonly expiry: number; readonly terms: PermissionTerms }
 )
 
 export interface GrantTarget {
@@ -94,6 +97,10 @@ export function grantTargets(ctx: GrantContext, spec: GrantSpec): readonly Grant
     case 'unstake':
       if (d.hireling === null) throw new Error('Unstaking requires a Hireling v1 deployment')
       return [{ address: d.hireling.vault, abi: stakeVaultAbi, methods: ['requestUndelegate'] }]
+    case 'permission':
+      // An exact call names its target only; checkPermissionExecution, not a method list, decides what it may do.
+      return spec.terms.type === 'hireling:contract-call' ? [{ address: spec.terms.target, abi: [], methods: [] }]
+        : [{ address: spec.terms.token, abi: erc20Abi, methods: ['transfer'] }]
   }
 }
 
@@ -106,16 +113,24 @@ export function periodTransferTerms(token: Address, amount: bigint, duration: nu
 }
 
 export function grantExpiry(spec: GrantSpec): number {
+  if (spec.kind === 'permission') return spec.expiry
   const validity = spec.kind === 'allowance' ? ALLOWANCE_VALIDITY
     : spec.kind === 'registration' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' || spec.kind === 'unstake' ? ONE_OFF_VALIDITY : GRANT_VALIDITY
   return spec.start + validity
 }
 
 export function grantCallLimit(spec: GrantSpec): number {
+  if (spec.kind === 'permission') return spec.terms.type === 'hireling:contract-call' ? 1 : GRANT_CALLS
   return spec.kind === 'registration' ? 2 : spec.kind === 'unstake' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? 1 : GRANT_CALLS
 }
 
+/** Whether the delegation carries a LimitedCalls caveat (token permissions are bounded by amount, not by calls). */
+export function grantHasCallLimit(spec: GrantSpec): boolean {
+  return spec.kind !== 'allowance' && (spec.kind !== 'permission' || spec.terms.type === 'hireling:contract-call')
+}
+
 export function buildGrant(ctx: GrantContext, spec: GrantSpec): Delegation {
+  if (spec.kind === 'permission') return buildPermission(ctx.deployment, spec)
   if (!isAddress(spec.delegator) || !Number.isSafeInteger(spec.start) || spec.start <= 0 || spec.salt < 0n) throw new Error('Invalid grant identity')
   const { deployment: d, stack } = ctx
   const e = d.delegation.enforcers
@@ -168,6 +183,26 @@ export function assertGrant(ctx: GrantContext, spec: GrantSpec, grant: Delegatio
 
 export function describeGrant(ctx: GrantContext, spec: GrantSpec, grant: Delegation) {
   assertGrant(ctx, spec, grant)
+  if (spec.kind === 'permission') {
+    const t = spec.terms
+    const call = t.type === 'hireling:contract-call'
+    return {
+      kind: spec.kind,
+      chainId: ctx.deployment.chainId,
+      delegator: grant.delegator,
+      delegate: grant.delegate,
+      targets: call ? [{ address: t.target, methods: [t.callData.slice(0, 10)] }] : [{ address: t.token, methods: ['transfer'] }],
+      validAfter: spec.start,
+      expiresAt: spec.expiry,
+      calls: call ? 1 : null,
+      nativeValue: call ? t.value.toString() : '0',
+      recipient: call ? null : t.recipient,
+      token: call ? null : t.token,
+      amount: call ? null : (t.type === 'erc20-token-periodic' ? t.periodAmount : t.amount).toString(),
+      shares: null,
+      periodSeconds: t.type === 'erc20-token-periodic' ? t.periodDuration : null,
+    }
+  }
   return {
     kind: spec.kind,
     chainId: ctx.deployment.chainId,
