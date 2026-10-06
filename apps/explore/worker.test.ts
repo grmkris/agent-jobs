@@ -39,6 +39,13 @@ describe('explore worker routing', () => {
     }
   })
 
+  it('sends the x402 proof resource to the API, so its 402 challenge reaches the client', async () => {
+    expect(isApiPath('/x402/demo')).toBe(true)
+    const e = env()
+    await get('/x402/demo', e)
+    expect(e.api).toEqual(['/x402/demo'])
+  })
+
   it("serves a board's pages from the app", () => {
     for (const p of ['/b/monad-pet', '/b/monad-pet/', '/b/monad-pet/job/54', '/b/monad-pet/publish', '/b/monad-pet/quotes/3', '/b/monad-pet/agent/1942']) {
       expect(isApiPath(p), p).toBe(false)
