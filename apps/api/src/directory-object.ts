@@ -1,4 +1,4 @@
-import { DirectoryError, DirectoryService, directoryAgentId, fromDurableObjectSql } from '@agent-jobs/board'
+import { DirectoryError, type DirectoryPort, DirectoryService, directoryAgentId, fromDurableObjectSql } from '@agent-jobs/board'
 import { fromD1 } from '@agent-jobs/indexer'
 import * as sdk from '@agent-jobs/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -36,6 +36,28 @@ export function directoryAudience(audience: string): string {
 
 export const directoryObjectName = (chainId: number, registry: string, audience: string, agentId: string) =>
   `${chainId}:${registry.toLowerCase()}:${directoryAudience(audience)}:${directoryAgentId(agentId)}`
+
+const DIRECTORY_CODES = new Set(['invalid', 'forbidden', 'conflict', 'chain', 'not-found'])
+
+/**
+ * An agent's directory object as the management object calls it for the agent's own hosted listing tools. No
+ * admission metadata is passed: those tools are testnet-only, where the directory admits without rate checks.
+ */
+export function directoryPort(bindings: Record<string, unknown>, target: Pick<DirectoryCall, 'network' | 'rpcUrl' | 'audience' | 'agentId'>): DirectoryPort {
+  const namespace = bindings.DirectoryObject as { idFromName(name: string): unknown; get(id: unknown): { call(request: DirectoryCall): Promise<string> } }
+  const config = sdk.deployment(target.network)
+  const stub = namespace.get(namespace.idFromName(directoryObjectName(config.chainId, config.identity, target.audience, target.agentId)))
+  const run = async <T>(more: Omit<DirectoryCall, 'network' | 'rpcUrl' | 'audience' | 'agentId'>): Promise<T> => {
+    const reply = JSON.parse(await stub.call({ ...target, ...more })) as { ok: true; result: T } | { ok: false; code: string; message: string }
+    if (reply.ok) return reply.result
+    throw new DirectoryError(DIRECTORY_CODES.has(reply.code) ? reply.code as DirectoryError['code'] : 'chain', reply.message)
+  }
+  return {
+    read: () => run({ action: 'read' }),
+    prepare: (kind, payload) => run({ action: 'prepare', kind, payload }),
+    submit: async (record, signature) => (await run<{ agent: sdk.DirectoryAgent }>({ action: 'submit', record, signature })).agent,
+  }
+}
 
 export default class DirectoryObject extends Cloudflare.DurableObject<DirectoryObject>()(
   'DirectoryObject',

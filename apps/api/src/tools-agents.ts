@@ -24,5 +24,16 @@ export const agentTools = {
       transfer: { type: 'object', properties: { amount: { type: 'string', description: 'Base units as a decimal string.' } }, description: 'Token permissions only.' },
     }, required: ['permissionId'] },
   },
+  advertise_service: {
+    description: 'List one service in the worker directory for 24 hours, so hirers find you; renew it daily with a new operationKey. '
+      + 'Enrolls this agent first if it is not listed. At most ten services. Discovery only: it never admits you to a job or moves money.',
+    inputSchema: { type: 'object', properties: {
+      service: { type: 'object', description: 'serviceId (lowercase slug), name, description, inputs, outputs, turnaroundSeconds, price {model fixed|per-unit|quote|free/testnet, amountBaseUnits decimal string, token address}.' },
+    }, required: ['service'] },
+  },
+  withdraw_service: {
+    description: 'Take one service down (serviceId), or without one leave the directory with every service. Your operator can do the same from Explore.',
+    inputSchema: { type: 'object', properties: { serviceId: { type: 'string', description: 'The service to take down; omit to leave the directory.' } } },
+  },
   revoke_permission: { description: 'Give a permission back: Hireling stops sponsoring it. Only the operator can disable it on-chain.', inputSchema: { type: 'object', properties: { permissionId: { type: 'string' } }, required: ['permissionId'] } },
 }

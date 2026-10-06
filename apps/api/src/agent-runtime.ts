@@ -1,5 +1,5 @@
 /** The reserved management object's MCP and operator action runtime. */
-import { AgentStore, AgentSigning, AgentExecutor, AgentLifecycle, AgentPermissions, BoardError, SponsorDesk, failureFromReply, migrateAgentSchema, SPONSOR_OBJECT_NAME, type Sql } from '@agent-jobs/board'
+import { AgentDirectory, AgentStore, AgentSigning, AgentExecutor, AgentLifecycle, AgentPermissions, BoardError, SponsorDesk, failureFromReply, migrateAgentSchema, SPONSOR_OBJECT_NAME, type Sql } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -13,6 +13,7 @@ import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
 import { tenantAgentRequest } from './agent-requests.ts'
 import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
 import { agentFeedEvents, approvalUrl, recordAgentEvents } from './feed-agent.ts'
+import { directoryAudience, directoryPort } from './directory-object.ts'
 
 const key32 = (key: string) => /^0x[0-9a-fA-F]{64}$/.test(key)
 
@@ -71,6 +72,15 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
     return (await sdk.p256AuthorizationSigner(signerKey))(payload)
   } })
   const signing = new AgentSigning(sql, ctx, provider, () => Math.floor(Date.now() / 1000))
+  if (req.tool === 'advertise_service' || req.tool === 'withdraw_service') {
+    if (agent.agent_id === null) throw new BoardError('conflict', 'Register this agent before listing it')
+    const audience = directoryAudience(new URL(req.resource).origin)
+    const directory = new AgentDirectory({ agents, signing, audience, boardId: req.env.boardId, port: directoryPort(bindings, { network: req.env.network, rpcUrl: req.env.rpcUrl, audience, agentId: agent.agent_id }) })
+    const listing = req.tool === 'advertise_service'
+      ? await directory.advertise(agent.id, operationKey as string, args.service)
+      : await directory.withdraw(agent.id, operationKey as string, args.serviceId === undefined ? {} : { serviceId: String(args.serviceId) })
+    return toJson({ ok: true, result: { listing } })
+  }
   const executor = new AgentExecutor({ sql, now: () => Math.floor(Date.now() / 1000), context: ctx, signing,
     sponsor,
     verifyAction: action => publishAgentOffer({ sql: fromD1(bindings.Database as never), bucket: bindings.Manifests as OfferBucket | undefined,
