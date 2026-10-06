@@ -18,7 +18,9 @@ const KIND: Record<Deliverable['kind'], string> = {
   onchain: 'On-chain result',
 }
 
+/** Only web links open: a deliverable names its own URL, so any other scheme (javascript:, data:) shows as text. */
 function Link({ href, children }: { href: string; children: React.ReactNode }) {
+  if (!/^https?:\/\//i.test(href)) return <span className="[overflow-wrap:anywhere]">{children}</span>
   return (
     <a
       href={href}
