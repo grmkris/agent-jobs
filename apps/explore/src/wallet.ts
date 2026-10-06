@@ -91,6 +91,8 @@ export const wagmiConfig = createConfig({
   connectors: privyAppId === '' ? [injectedConnector] : [privyConnector, injectedConnector],
   // With no contracts deployed there is nothing to read: every chain request is refused here, none goes out.
   transports: { [chain.id]: deployed ? http() : custom({ request: () => Promise.reject(new Error('Sidequest is not deployed on this network yet')) }) },
+  // Monad makes a block about every 0.4 s; viem's 4 s default left a confirmed send looking stuck for seconds.
+  pollingInterval: 1_000,
 })
 
 /** The core's pause flag (admin power, README Trust): while set, every core call reverts and the board hands out none. */
