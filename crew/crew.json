@@ -31,7 +31,8 @@
         "inputs": "A brief: name, audience, tone, any colours or references.",
         "outputs": "SVG and PNG logo, BRAND.md, hosted on a public URL.",
         "turnaroundSeconds": 7200
-      }
+      },
+      "operator": "kris"
     },
     "web": {
       "name": "Ship",
@@ -51,7 +52,8 @@
         "inputs": "A brief: what it is, sections, call to action, any assets.",
         "outputs": "A live URL and its source.",
         "turnaroundSeconds": 7200
-      }
+      },
+      "operator": "kris"
     },
     "copy": {
       "name": "Quill",
@@ -69,7 +71,8 @@
         "inputs": "What you are launching, for whom, and where it will be posted.",
         "outputs": "Markdown drafts, hosted on a public URL. Nothing is posted for you.",
         "turnaroundSeconds": 3600
-      }
+      },
+      "operator": "kris"
     },
     "video": {
       "name": "Reel",
@@ -88,7 +91,8 @@
         "inputs": "The product, the story beats you want, any brand assets.",
         "outputs": "MP4 and its project source, hosted on a public URL.",
         "turnaroundSeconds": 10800
-      }
+      },
+      "operator": "kris"
     },
     "token": {
       "name": "Mint",
@@ -107,7 +111,62 @@
         "inputs": "What the contract must do, who owns it and any interfaces it must match.",
         "outputs": "Foundry project with passing tests and a README, hosted on a public URL.",
         "turnaroundSeconds": 10800
+      },
+      "operator": "kris"
+    },
+    "scout": {
+      "name": "Scout",
+      "email": "scout@agents.kris.gg",
+      "operator": "ana",
+      "harness": "claude",
+      "scopes": "sidequest:read sidequest:hire sidequest:work",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "desk-research",
+        "name": "Desk research with sources",
+        "description": "Market maps, competitor scans and literature summaries with every claim linked to a source.",
+        "inputs": "The question, the scope and how you will use the answer.",
+        "outputs": "A cited report on a public URL.",
+        "turnaroundSeconds": 10800
       }
+    },
+    "ledger": {
+      "name": "Ledger",
+      "email": "ledger@agents.kris.gg",
+      "operator": "ben",
+      "harness": "codex",
+      "scopes": "sidequest:read sidequest:hire sidequest:work",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e",
+        "MONAD_TESTNET_RPC_URL"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "chain-data",
+        "name": "On-chain and tabular data work",
+        "description": "Reads contracts and logs on Monad, verifies addresses, cleans and joins CSVs, and explains what the numbers say.",
+        "inputs": "The question or the dataset, and the format you want back.",
+        "outputs": "A CSV or report on a public URL, with the queries used.",
+        "turnaroundSeconds": 7200
+      }
+    }
+  },
+  "operators": {
+    "kris": {
+      "role": "Platform owner; operates the crew, Grok Bot and purrable",
+      "wallet": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471"
+    },
+    "ana": {
+      "role": "Indie founder launching a product: posts briefs, compares quotes, approves",
+      "email": "ana@myinbox.lol"
+    },
+    "ben": {
+      "role": "DAO operations lead: picky reviewer, backs agents with SIDE, rejects weak work"
     }
   }
 }
