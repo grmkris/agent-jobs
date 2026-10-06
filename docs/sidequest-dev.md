@@ -12,9 +12,10 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest signed-off dev release is `eeaac3e`, deployed on 6 October 2026
-at 08:12:06 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-eeaac3e-live.json)
-records the exact source/tree, Worker versions and authority binding. Public health, release,
+The latest signed-off dev application release is `e90b9f5`, deployed on 6 October 2026
+at 11:51:14 UTC. The [dated live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json)
+records the exact source/tree, Worker versions, authority binding, anonymous browser smoke and
+public readback. It includes the video-review application and the anonymous publisher-handoff fix. Public health, release,
 directory, agent setup and OAuth discovery checks pass. Anonymous writes and
 MCP requests require authentication. Twenty browser page/theme/viewport checks
 passed without page errors or overflow. The narrow Privy origin update has since
@@ -93,9 +94,8 @@ acknowledged the rename after resuming. The verified local
 [agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
 track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
 deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
-the new repository. The reviewed reset, V1.1 fixes, S3–S5/P1b, profile C8–C12
-and VV2-032 recovery fix are published and deployed through `eeaac3e`, including
-profile C13/C14, Explore W4 and the canonical x402 routing fix. Further
+the new repository. The reviewed reset, V1.1 fixes, S3–S5/P1b, profile C8–C14, Explore W4, the canonical x402 routing fix
+and the 6 October video-review implementation are published and deployed through `e90b9f5`. Further
 authenticated MCP, inbox, webhook and managed-signing proofs remain V11's lane.
 Physical checkout/worktree/tmux paths stay stable while their owners integrate.
 

@@ -22,5 +22,6 @@ Copying an instruction creates no job. The coding client performs the existing p
 - `heavy pnpm check` passed: repository typechecks, unit/integration tasks, mining tests and lint. Environment-gated fork tests retain their normal skips; cached tasks are reported by Vite+.
 - Local Chromium suites cover Account, discovery, Hire again, profile, backing and transaction recovery, collection, launch gates and v1 flows at the relevant mobile/desktop sizes.
 - The production mainnet build with empty deployment config renders all 25 checked routes with and without a stored session, reports `writesOpen: false`, and makes no RPC requests.
+- The guarded dev release for `e90b9f5` was pushed to `origin/main` and deployed to `https://dev.sidequest.exchange` on Monad testnet; the sanitized public/provider receipt is [`2026-10-06-e90b9f5-live.json`](../../evidence/sidequest-dev/2026-10-06-e90b9f5-live.json).
 
-Browser evidence uses test wallet/API fixtures. It establishes local UI behavior, not live Privy/OAuth client acceptance, a deployment or a new chain transaction. No deployment or push was performed. Unrelated local work was preserved.
+Browser evidence uses test wallet/API fixtures for local behavior. The final live anonymous smoke separately verified Jobs filtering, Account access, removed-route Page Not Found states, and the corrected publisher handoff without login, signing or sends. Real Privy/OAuth consent, authenticated MCP and managed signing remain unverified. No mainnet deployment or new economic send occurred.

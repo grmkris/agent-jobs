@@ -1,0 +1,814 @@
+{
+  "observedAt": "2026-10-06T11:51:46.172Z",
+  "sourceCommit": "e90b9f55d716cae36165f02904791dbabb6a3781",
+  "sourceTree": "7d9fc81493c64aefe579bf7f60fbad2349d481d0",
+  "deployedAt": "2026-10-06T11:51:14.827Z",
+  "origin": "https://dev.sidequest.exchange",
+  "chainId": 10143,
+  "evidenceTier": "live-dev-public-readback",
+  "health": {
+    "ok": true,
+    "runtime": "Cloudflare-Workers",
+    "network": "monad-testnet",
+    "board": "public"
+  },
+  "release": {
+    "network": "monad-testnet",
+    "mainnetLive": false,
+    "writesOpen": true
+  },
+  "jobs": {
+    "count": 1,
+    "checkpoint": {
+      "next_block": 68678129,
+      "updated_at": 1791287497
+    }
+  },
+  "directory": {
+    "count": 0
+  },
+  "oauth": {
+    "issuer": "https://dev.sidequest.exchange",
+    "resource": "https://dev.sidequest.exchange/mcp",
+    "scopes": [
+      "sidequest:read",
+      "sidequest:hire",
+      "sidequest:work"
+    ]
+  },
+  "publicChecks": [
+    {
+      "path": "/health",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/release.json",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/data/jobs",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/data/directory",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/.well-known/oauth-authorization-server",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/start.md",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "path": "/mcp",
+      "status": 401,
+      "method": "GET"
+    },
+    {
+      "path": "/x402/demo",
+      "status": 402,
+      "method": "GET"
+    },
+    {
+      "path": "/api/create_task",
+      "method": "POST",
+      "status": 401,
+      "anonymous": true,
+      "noSessionOrAuthorization": true
+    }
+  ],
+  "assets": [
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "sha256": "8cbd247c10542adb965a25eb38d4a9ffc0282b6e7e1fc00f5990c98a03b36216",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/icons/icon-512.png",
+      "status": 200,
+      "sha256": "80598df77483a51794972c63b94331d2a6fcd221094295e6291010ec5172ef6e",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/release.json",
+      "status": 200,
+      "sha256": "15ca2d8b31b6028b0945dcff26b1ed5b360fd98c89194d1947e17281a7588a92",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "status": 200,
+      "sha256": "822ffa67bbbcdce99f6340065f27136332be0cb592bed19b78d93ad7f4ce154e",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/start.md",
+      "status": 200,
+      "sha256": "9de3b2f32ac71ef43cc8b316f732beb008ca79601676501f8c0d045ba39de5a1",
+      "matchesExpectedDeployedBytes": true,
+      "sourceTransform": "request-origin-template-rendering"
+    },
+    {
+      "path": "/assets/index-CZwTB0Gv.js",
+      "status": 200,
+      "sha256": "99292bdcdc1ecb8a203e6e61a9697fd73098c0b7128a7126df932076afc97150",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/rolldown-runtime-C_s2cVnS.js",
+      "status": 200,
+      "sha256": "5ad20d115dde331d723fdd7ddcbe48abe8e074b3f8fae1f40f70b7894cf87ad3",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/react-CA_A-1K6.js",
+      "status": 200,
+      "sha256": "93ee5c0d70bfa078d245cdfce0eff4df138c9dfb1c39d31e9a71d0cbdb54eef4",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/preload-helper-CdX2Ptux.js",
+      "status": 200,
+      "sha256": "352bebc6605ee86e3baf163b9c4120b2c0e9a901e0c28ddb3296b7918bd4b145",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/utils-De7E53Fk.js",
+      "status": 200,
+      "sha256": "6a357355c6ce095d695ee399955d28610a2db4dd51e440f76b7c387e55db3a60",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/hmac-D_yamlhz.js",
+      "status": 200,
+      "sha256": "59efc29585422d2b91905286fe739343bd9680aecb99577227aa1c49f6efabf0",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/sha256-BZT3xHYX.js",
+      "status": 200,
+      "sha256": "69c32a9cbf87f7d4685b5c98424120c0f0bd2262108234ced8134529ed1be28e",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/sha3-D7MpjpcL.js",
+      "status": 200,
+      "sha256": "e0d117df66c2ec6264a60fefc5da49a9fa5a7cf3e7ff86df0f4c5231ce2df318",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/ccip-CdeR0085.js",
+      "status": 200,
+      "sha256": "1657cc23b5db2b626579c4146ca67a0ffb964d68e059855aef0b26e380c40657",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/utils-oVEYY1QK.js",
+      "status": 200,
+      "sha256": "42b83c51431ad851b092c24f19361273cd5f528b3e25461857e9e4bb48e20988",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/secp256k1-DZXeCH9F.js",
+      "status": 200,
+      "sha256": "11617bd199ec0325a7699a8c2065354ce9effc016af8d793fc6a426a54f7347f",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/_esm-C6y7OCKU.js",
+      "status": 200,
+      "sha256": "522e2c1304dc7daddf2061c13d0bcdc0671538d5f5736a56661eae25776a0b02",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/prepareAuthorization-BmS25NUm.js",
+      "status": 200,
+      "sha256": "55028cd6c1836188deccb511004ead7323ef2dce1be0b1fb90cf796fb470968d",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/esm-DJNUAQDg.js",
+      "status": 200,
+      "sha256": "59e1e6f18b0e88d02c2986d974120ffa6798366d8947594a13fbf1a8dcfa2edd",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/isAddress-C6_gPDNS.js",
+      "status": 200,
+      "sha256": "e26b2151a1b2aacd5f64ecfd87bf0d942ea74a8b61debccffc1df28c87df6a47",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/localBatchGatewayRequest-CzX5YfeW.js",
+      "status": 200,
+      "sha256": "1d2e1371042be7f8d5bc510d6096e1745af038d51d7d0ceb006a63b6d259dc72",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/tempoModerato-fLfDu60h.js",
+      "status": 200,
+      "sha256": "78e64de0c8144fbffd692403297d78fabfe61cc9e676fb18553e045e5ee3f546",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/eventemitter3-BB9OE-nf.js",
+      "status": 200,
+      "sha256": "d79c28326cdb0b169136be13be94de78e97af45b86ddcd4448a232d2bb98efa7",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/react-dom-DGctscHX.js",
+      "status": 200,
+      "sha256": "ae6260c29123dc7653f4970f0715f6ea34513e7f4a28e02f6899cd6669a158c7",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/esm-l2W4dAq3.js",
+      "status": 200,
+      "sha256": "09532fc00de8176211118376efaef0f44ca08414108394c1c05230e446b2a3ef",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/privy-context-CHgh9ALO-Dy0BdDyy.js",
+      "status": 200,
+      "sha256": "3245eba494149df2964c70ef6d4c164897837dab848c200b22a36e0834a3a0c2",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/esm-BuqWL4n8.js",
+      "status": 200,
+      "sha256": "cd30c87e9bd9bcb3f0727c4ae26f250bdc22b1a829c9d1031c2bfa235c3d2502",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/react-D3TXZ-15.js",
+      "status": 200,
+      "sha256": "47534cd79efb5319cd15f48a0843d80b9a14a837d0cee64436fc948da4fc3633",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/dist-Dl07uGq1.js",
+      "status": 200,
+      "sha256": "f3ff89dc8ad5ae4fe71d15e4684787c33a47abfd3806096e7533837bc2897c53",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/ofetch.CWycOUEr-CHp-crOQ.js",
+      "status": 200,
+      "sha256": "d75947962f0e780ea6d1b01b6c3a7200ea207512155374d6a6143ffe14ff0b5c",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/errors-BQ3N-RVt-BLqjTPNR.js",
+      "status": 200,
+      "sha256": "a8a56f76f1b18c7c8dbb53fbc60a3e77693f71e160184176b94fd3a4aab8819d",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/storage-DWGw0C_e-BL_K2Tri.js",
+      "status": 200,
+      "sha256": "54a17f13d371eb6013150b9780934ebfda0c1b5dfd440d2928283ddc2c2c0b33",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/wallet-connect-Ca-N52lE-Ot8wqr3O.js",
+      "status": 200,
+      "sha256": "f58a75f60d7f41057afbfa6935bcdc1a7659aae0b45be511ff4afbda73a7c2ed",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/lib-C1u5IQrF.js",
+      "status": 200,
+      "sha256": "165e097b965a6d4e3ad04604e340f37a24acda6c62d2722ef6aa997049de8248",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/index-DjJmUJpR-Dv2yOgWJ.js",
+      "status": 200,
+      "sha256": "193c8da7a3c2e501cf1c760d998542268edfcee557d9821acfbd4fbc7433e974",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/dist-Cm7pNAtL.js",
+      "status": 200,
+      "sha256": "dbd0c8c3be3e359463c5743298c833066c283c1f976dec7c34d77d96faec9b0c",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/clsx.m-COYlpEKN.js",
+      "status": 200,
+      "sha256": "8783d42aa85255708cc2274da2b92cbf52e3e340b92886fe07fec4b7c93d1735",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/index.es-CRyLqHkP.js",
+      "status": 200,
+      "sha256": "c07cc976daa6ed39a86fab166e44a8eb58a476c65618c9a95b3098feea14980b",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/pkce-9IlxxmsH-CUwE8IXA.js",
+      "status": 200,
+      "sha256": "fe931189a0bbba93682a0d1e3f37729afc09a5cc92780139656d059f359c3963",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/PrivyPluginContext-DA-yS5vO-Coi_R-Am.js",
+      "status": 200,
+      "sha256": "d6d3322595ea295fb003f20454fe84d29d4d8008fbd1f7a15064f8de229b1b26",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/toViemAccount-BEZt_I8V-C0YEYfyC.js",
+      "status": 200,
+      "sha256": "07a8606ff9c06feb0afcd72755869c630bc9fcdd617c33a704adf918610136dc",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/id-UqEwL2BI-DBaJPjJB.js",
+      "status": 200,
+      "sha256": "2ff03c93878f12bddaa42c4aba88e5b439f63f98b3e46233020cbb3ff30daf03",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/Loader-UAZqxsnw-DAeAUpFw.js",
+      "status": 200,
+      "sha256": "15cf86262ac5c3414e5a07c8fa6899c05e0b685c98f50be56a69682e25460533",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/modal-context-C9-YL9cl-Be4GtKOi.js",
+      "status": 200,
+      "sha256": "bbd8c91cd5a7fa43f3bf6bf963febcd015566beb40613306666d06986dfb3227",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/get-entropy-details-for-user-CWaM1Zij-CRqdd9C6.js",
+      "status": 200,
+      "sha256": "110f6386895c7e968c004dc67854f260e7a8b2c2adc4dd928199340a5c01f6f5",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/use-unlink-wallet-CzhLmtfX-DgG5B2NP.js",
+      "status": 200,
+      "sha256": "7dae641176d51fee887dfd4ef7580e23d4cd6b044767e609da82be944dadf42f",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/useActiveWallet-DCQDqX3Q-CseHduIR.js",
+      "status": 200,
+      "sha256": "a8d5ad3abe04c6f9621dfe69a10ec3971c5cbb0aed26a453bc538a1d776f34e3",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/esm-C3DslVJx.js",
+      "status": 200,
+      "sha256": "c67124bfee51bdab7f04d9a0826643ea6a601806475304ab5cc9b796128904b4",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/use-sign-with-user-signer-OxgKiUdW-CgSOfHQl.js",
+      "status": 200,
+      "sha256": "cb564be36fa6eb4d92c99df997c1275a50c2a6d2f49983eb4497e35ea051052c",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/esm-CG_aiq74.js",
+      "status": 200,
+      "sha256": "324065be5fd4e762a375376f1c2829b128742287884277ce47d7c4bf43011d46",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/useWallets-Bdalx8ys-BdHduJ0z.js",
+      "status": 200,
+      "sha256": "5c01ecbe8b4ed42a738097e72f4356888f599049a54c19a5a68c72273e856bd4",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/src-Dl_UrLLt.js",
+      "status": 200,
+      "sha256": "c3b243b18d8cd82e95bc03d12759be3b82ffb22c6bfeae3ee8fdc41a782d83e5",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/use-deposit-address-BdO356-0-DGtm1Men.js",
+      "status": 200,
+      "sha256": "b55fb621679e2143594610256bfcc11dd6f26f91c922403cb9048a431762ac74",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/index-BStyLWM--HpnGlXg1.js",
+      "status": 200,
+      "sha256": "646d82922d829bd31f196614ddf9f32b9f064ae14a17d3fb1e1d311bbc3945d7",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/parseSignature-CV60Pln2.js",
+      "status": 200,
+      "sha256": "8d5731295b73b26d665fa83ccac020999839a6caa543b34cb4a8050a17766f53",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/floating-ui.react-dom-Cqs0QTNN.js",
+      "status": 200,
+      "sha256": "54d55208a83d3b04af3e8a8072a4258b500887d28035f4bbc524f62f34a88b82",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/useCompositeListItem-JsflE79Y.js",
+      "status": 200,
+      "sha256": "79150cb8a9b3575d9e2efa875d9a1abc6b490b6cfad5c6d620eeb55524a2281f",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    },
+    {
+      "path": "/assets/index-CZVN7cYk.css",
+      "status": 200,
+      "sha256": "33391f5a5d85cf4ce0ce398e24f7354baa0296d03d336e88ba7d14b90822b1a0",
+      "matchesExpectedDeployedBytes": true,
+      "matchesCommittedExport": true
+    }
+  ],
+  "noAuthentication": true,
+  "noWalletSigning": true,
+  "noPaidRequest": true,
+  "cron": {
+    "cron": "* * * * *",
+    "observations": [
+      {
+        "observedAt": "2026-10-06T11:51:46.172Z",
+        "next_block": 68678129,
+        "updated_at": 1791287497
+      },
+      {
+        "observedAt": "2026-10-06T11:53:16.695Z",
+        "next_block": 68678327,
+        "updated_at": 1791287557
+      }
+    ],
+    "progressed": true,
+    "jobs": 1
+  },
+  "workers": [
+    {
+      "id": "Api",
+      "name": "sidequest-api-dev",
+      "latestVersion": "c20ba197-c4bc-4003-a22b-c277104466a3",
+      "latestVersionCreatedOn": "2026-10-06T11:41:01.117126Z",
+      "activeDeploymentId": "cf9690e2-613f-4e6e-916f-3956850166bb",
+      "latestVersionAt100Percent": true,
+      "bindings": [
+        {
+          "name": "AI_GATEWAY_API_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text",
+          "value": "Sidequest"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text",
+          "value": "dev"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "ATTESTER_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Board",
+          "type": "durable_object_namespace",
+          "namespaceId": "01561475a8e74bdd944df7c2b4fcefec",
+          "className": "Board"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "DEPLOY_STAGE",
+          "type": "plain_text",
+          "value": "dev"
+        },
+        {
+          "name": "DIRECTORY_DATABASE",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "DirectoryObject",
+          "type": "durable_object_namespace",
+          "namespaceId": "c12bf8b2911140ae9ba4079493f6a354",
+          "className": "DirectoryObject"
+        },
+        {
+          "name": "GITHUB_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_INSTALLATION_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "GITHUB_APP_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "Manifests",
+          "type": "r2_bucket",
+          "bucket": "sidequest-dev-manifests"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text",
+          "value": "monad-testnet"
+        },
+        {
+          "name": "PRIVY_APP_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_APP_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "PRIVY_POLICY_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "PRIVY_SIGNER_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "PROD_ADMISSION_DRAIN",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_ACTIONS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_BOARDS",
+          "type": "plain_text"
+        },
+        {
+          "name": "PROD_APPROVED_WALLETS",
+          "type": "plain_text"
+        },
+        {
+          "name": "RELAY_PRIVATE_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "SCREENING_BASE_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "SCREENING_MODEL",
+          "type": "plain_text"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "TELEGRAM_WEBHOOK_SECRET",
+          "type": "secret_text"
+        }
+      ],
+      "schedules": [],
+      "authoritativeStateMatches": true,
+      "apiStateAuthorityMatches": true
+    },
+    {
+      "id": "Indexer",
+      "name": "sidequest-indexer-dev",
+      "latestVersion": "6167d4fd-d50f-4f79-8e2c-e079cd0ffcab",
+      "latestVersionCreatedOn": "2026-10-06T11:41:00.811375Z",
+      "activeDeploymentId": "2ca087d8-b8ef-48a9-9a75-3a87493433d7",
+      "latestVersionAt100Percent": true,
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text",
+          "value": "Sidequest"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text",
+          "value": "dev"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "Database",
+          "type": "d1",
+          "id": "b49a7705-4b8a-455d-a8f4-81d0e82a67c2"
+        },
+        {
+          "name": "HYPERSYNC_API_TOKEN",
+          "type": "secret_text"
+        },
+        {
+          "name": "HYPERSYNC_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "MONAD_RPC_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "NETWORK",
+          "type": "plain_text",
+          "value": "monad-testnet"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "type": "secret_text"
+        }
+      ],
+      "schedules": [
+        {
+          "cron": "* * * * *"
+        }
+      ],
+      "authoritativeStateMatches": true,
+      "apiStateAuthorityMatches": true
+    },
+    {
+      "id": "Explore",
+      "name": "sidequest-explore-dev",
+      "latestVersion": "2ee58dc0-8c48-4d79-92e1-40e502fe9a64",
+      "latestVersionCreatedOn": "2026-10-06T11:51:09.630207Z",
+      "activeDeploymentId": "60195b54-482e-4d22-925f-393e436f1814",
+      "latestVersionAt100Percent": true,
+      "bindings": [
+        {
+          "name": "ALCHEMY_CLOUDFLARE_ACCOUNT_ID",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_PHASE",
+          "type": "plain_text"
+        },
+        {
+          "name": "ALCHEMY_STACK_NAME",
+          "type": "plain_text",
+          "value": "Sidequest"
+        },
+        {
+          "name": "ALCHEMY_STAGE",
+          "type": "plain_text",
+          "value": "dev"
+        },
+        {
+          "name": "ALCHEMY_WORKER_NAME",
+          "type": "plain_text"
+        },
+        {
+          "name": "API",
+          "type": "service",
+          "service": "sidequest-api-dev",
+          "environment": "production"
+        },
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        }
+      ],
+      "schedules": [],
+      "authoritativeStateMatches": true,
+      "apiStateAuthorityMatches": true
+    }
+  ],
+  "browser": {
+    "observedAt": "2026-10-06T11:52:23.011Z",
+    "sourceCommit": "e90b9f55d716cae36165f02904791dbabb6a3781",
+    "records": 4,
+    "viewports": [
+      390,
+      1440
+    ],
+    "colorSchemes": [
+      "light",
+      "dark"
+    ],
+    "pageErrors": [],
+    "anonymousCreation": {
+      "publisherReadsOnOpenClose": 0,
+      "signInSetupVisible": true,
+      "promptVisible": false,
+      "retryErrorVisible": false,
+      "auth": false,
+      "signing": false,
+      "sends": false
+    },
+    "evidenceTier": "live-dev-public-anonymous-browser"
+  },
+  "limits": [
+    "Monad testnet dev only; apex/mainnet not deployed",
+    "Anonymous browser checks do not prove human login, consent, authenticated MCP or managed signing",
+    "No new economic send occurred during this release"
+  ]
+}

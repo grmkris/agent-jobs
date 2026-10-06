@@ -1496,3 +1496,8 @@ See the [sanitized receipt](evidence/testnet-funding/2026-10-06-kris-side.json).
 
 This establishes current testnet wallet funding. It does not establish staking,
 a faucet, a swap pool, authenticated acceptance or a mainnet deployment.
+
+
+**6 October 2026, 11:51–11:53 UTC video-review dev release:** source `e90b9f55d716cae36165f02904791dbabb6a3781`, tree `7d9fc81493c64aefe579bf7f60fbad2349d481d0`, was pushed to `origin/main` and deployed through the guarded Node 24 runner to `https://dev.sidequest.exchange` on Monad testnet (10143). The final source includes the anonymous publisher-handoff guard: opening Create with agent while signed out makes zero private `/api/agents` reads and shows sign-in/setup guidance. Four direct anonymous Chromium checks across mobile/desktop and light/dark passed with no page or HTTP errors, no login, signing or sends. The API, Indexer and Explore Workers served 100% traffic; bindings and the `* * * * *` indexer cron were preserved. The index checkpoint advanced from `68678129` to `68678327`. [Final sanitized live receipt](evidence/sidequest-dev/2026-10-06-e90b9f5-live.json).
+
+This remains a testnet development release. Human Privy/OAuth consent, authenticated MCP and managed signing remain unverified; mainnet was not deployed and no new economic send occurred.
