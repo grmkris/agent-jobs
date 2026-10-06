@@ -1,7 +1,7 @@
 /** Cryptographic fixture signers, real SQLite and real delegation/Hireling contracts on a Monad fork. */
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { type Hex, type LocalAccount, decodeFunctionData, erc20Abi, parseEther } from 'viem'
+import { type Hex, type LocalAccount, decodeFunctionData, encodeFunctionData, erc20Abi, parseEther } from 'viem'
 import * as sdk from '@agent-jobs/sdk'
 import { startHirelingFork, forkEnabled, forkSetupTimeout } from '../../sdk/test/hireling-fixture.ts'
 import { Board, BoardError } from './service.ts'
@@ -14,6 +14,7 @@ import { SponsorDesk } from './sponsor.ts'
 import { mapAgentCalls } from './agent-call-mapper.ts'
 import { ensureAgentGrants } from './agent-grant-renewal.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
+import { AgentPermissions } from './agent-permissions.ts'
 
 const suite = forkEnabled ? describe : describe.skip
 const fixtureWallet = (fixture: Awaited<ReturnType<typeof startHirelingFork>>, id: string) => id === 'creator-agent-wallet' ? fixture.contributor : fixture.worker
@@ -55,10 +56,16 @@ suite('agent executor through real contracts', () => {
         return { reported: true }
       }
       case 'report_operation': return board.reportOperation(request.caller, a as never)
+      // The management object prepares permission tools itself (agent-runtime); the fixture agent is creator-agent.
+      case 'request_permissions': return { request: permissionDesk().parse(agents.get('creator-agent'), a.permission as sdk.PermissionRequest, a.standing === true) }
+      case 'use_permission': return permissionDesk().use(agents.get('creator-agent'), String(a.permissionId), a.transfer === undefined ? {} : { transfer: a.transfer as { amount?: unknown } })
       default: throw new Error('Unexpected fixture tool')
     }
   }
 
+  const permissionDesk = () => new AgentPermissions({ sql: fromNodeSqlite(db), context: ctx, now: () => now })
+  const usePermission = (key: string, permissionId: Hex, transfer?: { amount: string }) =>
+    boot().execute({ agentId: 'creator-agent', boardId: 'public', operationKey: key, tool: 'use_permission', args: { permissionId, ...(transfer === undefined ? {} : { transfer }) } })
   const boot = () => new AgentExecutor({ sql: fromNodeSqlite(db), now: () => now, context: ctx, sponsor: bootSponsor(), signing,
     prepareTool: tool, verifyToolSigning: request => board.verifyAgentSigning(request.caller, request) })
 
@@ -300,4 +307,39 @@ suite('agent executor through real contracts', () => {
     expect(db.prepare('SELECT count(*) AS count FROM agent_sign_requests').get()).toEqual(signatures)
     expect(await ctx.publicClient.getTransactionCount({ address: relay })).toBe(nonce + 1)
   }, 180_000)
+
+  it('grants and redeems operator permissions through the real relay and enforcers: a periodic transfer and one exact call', async () => {
+    now = Number((await ctx.publicClient.getBlock()).timestamp)
+    const operator = fixture.creator.account.address
+    const recipient = fixture.admin.account.address
+    const lifecycle = new AgentLifecycle({ sql: fromNodeSqlite(db), context: ctx, now: () => now, sponsor: bootSponsor() })
+    const balance = () => ctx.publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [recipient] })
+    const grant = async (key: string, permission: sdk.PermissionRequest) => {
+      const input = { agentId: 'creator-agent', boardId: 'public', operationKey: key, tool: 'request_permissions', args: { permission } }
+      const asked = await boot().execute(input)
+      if (asked.status !== 'approval') throw new Error('Expected an operator decision')
+      const prepared = lifecycle.prepareApproval(asked.operationId, operator) as { hash: Hex; typedData: string }
+      await lifecycle.decideApproval(asked.operationId, operator, true, await sdk.signTypedDataJson(fixture.creator, prepared.typedData), { hash: prepared.hash })
+      const granted = await boot().execute(input)
+      expect(granted).toMatchObject({ status: 'confirmed', result: { permissionId: prepared.hash, granted: 'operator' } })
+      return prepared.hash
+    }
+    const expiry = [{ type: 'expiry', data: { timestamp: now + 7 * 86_400 } }]
+    const periodic = await grant('perm-periodic', { chainId: ctx.deployment.chainId, from: operator, to: fixture.contributor.account.address, rules: expiry,
+      permission: { type: 'erc20-token-periodic', data: { tokenAddress: token, periodAmount: '3000000', periodDuration: 86_400, recipient } } })
+    const before = await balance()
+    expect(await usePermission('perm-use-1', periodic, { amount: '2000000' })).toMatchObject({ status: 'confirmed' })
+    expect(await balance()).toBe(before + 2_000_000n)
+    // The period enforcer, not the board, refuses the next 2 tokens: only 1 remains this period.
+    await expect(usePermission('perm-use-2', periodic, { amount: '2000000' })).rejects.toMatchObject({ reason: 'simulation' })
+    expect(await usePermission('perm-use-3', periodic, { amount: '1000000' })).toMatchObject({ status: 'confirmed' })
+    expect(await balance()).toBe(before + 3_000_000n)
+    const exact = await grant('perm-exact', { chainId: ctx.deployment.chainId, to: fixture.contributor.account.address, rules: [{ type: 'expiry', data: { timestamp: now + 3600 } }],
+      permission: { type: 'hireling:contract-call', data: { target: token, calldata: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient, 500_000n] }) } } })
+    expect(await usePermission('perm-exact-1', exact)).toMatchObject({ status: 'confirmed' })
+    expect(await balance()).toBe(before + 3_500_000n)
+    // LimitedCalls(1): a second redemption is refused before any send.
+    await expect(usePermission('perm-exact-2', exact)).rejects.toMatchObject({ reason: 'cap' })
+    expect(await sdk.callsMade(ctx, exact)).toBe(1n)
+  }, 240_000)
 })
