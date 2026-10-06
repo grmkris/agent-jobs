@@ -10,7 +10,7 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { Bot, BriefcaseBusiness, CircleUserRound, type LucideIcon, Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { currentBoardId } from '../api.ts'
-import { agentHome, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
+import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 import { isMainnet, usePaused } from '../wallet.ts'
 import { AccountMenu, Count } from './AccountMenu.tsx'
 import { type LinkTarget, BoardLink, boardRoutes } from './BoardLink.tsx'
@@ -18,7 +18,8 @@ import { LaunchBanner } from './LaunchGate.tsx'
 import { NetworkSwitch } from './NetworkSwitch.tsx'
 
 import { useCollectActions } from '../collect.ts'
-import { AccountControl, Monogram, useAuth, useAutoSignIn } from './Wallet.tsx'
+import { AccountControl, useAuth, useAutoSignIn } from './Wallet.tsx'
+import { AgentOrb } from './agent/AgentOrb.tsx'
 
 interface Place {
   label: string
@@ -140,7 +141,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 return (
                   <li key={agent.id}>
                     <BoardLink target={agentHome(agent)} aria-current={on ? 'page' : undefined} className={sideClass(on, true)}>
-                      <Monogram seed={agent.agent_id ?? agent.id} />
+                      <AgentOrb agentId={agent.agent_id ?? agent.id} size="sm" status={managedLiveness(agent, Date.now() / 1000)} />
                       <span className="min-w-0 flex-1 truncate">{agent.name}</span>
                       {n > 0 && <Count n={n} kind="waiting" />}
                     </BoardLink>

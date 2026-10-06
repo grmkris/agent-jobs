@@ -8,22 +8,16 @@ import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { ArrowUpRight, Radio, Sparkles } from 'lucide-react'
 
 import { useDirectory } from '../directory-query.ts'
+import { directoryLiveness, presenceLabel } from '../directory-presence.ts'
+import { AgentOrb } from './agent/AgentOrb.tsx'
 import { chain } from '../wallet.ts'
 
-export function presenceLabel(agent: DirectoryAgent): string {
-  if (agent.presence.freshness === 'unknown') return 'Presence unknown'
-  if (agent.presence.freshness === 'stale') return 'Heartbeat expired'
-  return agent.presence.accepting ? 'Live · accepting work' : `Live · ${agent.presence.state ?? 'idle'}`
-}
-
 export function PresenceBadge({ agent }: { agent: DirectoryAgent }) {
+  const now = Date.now() / 1000
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-      <Radio
-        aria-hidden
-        className={agent.presence.freshness === 'fresh' ? 'size-3.5 shrink-0 text-success-text' : 'size-3.5 shrink-0 text-muted-foreground'}
-      />
-      {presenceLabel(agent)}
+      <Radio aria-hidden className={cn('size-3.5 shrink-0', directoryLiveness(agent, now) === 'idle' ? 'text-muted-foreground' : 'text-success-text')} />
+      {presenceLabel(agent, now)}
     </span>
   )
 }
@@ -41,7 +35,10 @@ export function ServiceCard({
     <article className="grid min-w-0 content-start gap-3 rounded-2xl bg-card p-4 shadow-popover [overflow-wrap:anywhere] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="block text-xs font-semibold text-primary">{agent.profile.name || `Worker #${agent.agentId}`}</span>
+          <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-primary">
+            <AgentOrb agentId={agent.agentId} size="sm" status={directoryLiveness(agent, Date.now() / 1000)} />
+            <span className="truncate">{agent.profile.name || `Worker #${agent.agentId}`}</span>
+          </span>
           <h3 className="mt-1 text-lg leading-snug font-bold tracking-tight">{ad.name}</h3>
         </div>
         <Sparkles aria-hidden className="mt-1 size-4 shrink-0 text-primary" />

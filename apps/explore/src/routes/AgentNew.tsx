@@ -20,7 +20,9 @@ import { PrivyLogin } from '../components/Privy.tsx'
 
 import { StartPrompt } from '../components/AgentStartLink.tsx'
 import { useAuth } from '../components/Wallet.tsx'
-import { agentHome, useManagedAgents } from '../managed.ts'
+import { agentHome, managedLiveness, useManagedAgents } from '../managed.ts'
+import { relative } from '../format.ts'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { AllowanceEditor } from '../components/AllowanceEditor.tsx'
 import { AgentStake } from '../components/AgentStake.tsx'
 import { ConnectionCard } from '../components/ConnectionCard.tsx'
@@ -166,6 +168,8 @@ function AgentSetup({
     }
   }
   const active = agent !== undefined && agent.state === 'active'
+  // The shared 15-second list carries the agent's last MCP call, so the orb rings as soon as the coding agent connects.
+  const polled = useManagedAgents().data?.agents.find((entry) => entry.id === agent?.id)
   const steps = context === 'oauth' ? (['Identity', 'Choose'] as const) : (['Identity', 'Connect', 'Choose'] as const)
   return (
     <div className="grid gap-8">
@@ -223,10 +227,16 @@ function AgentSetup({
             )}
           </>
         ) : (
-          <p className="text-ui text-muted-foreground">
-            Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings and job obligations;
-            anyone who backs it keeps ownership of their SIDE.
-          </p>
+          <div className="flex items-start gap-4">
+            <AgentOrb agentId={agent.agent_id ?? agent.id} size="lg" status={managedLiveness(polled ?? agent, Date.now() / 1000)} />
+            <div className="grid min-w-0 gap-1">
+              <p className="text-sm font-medium">{connection(polled ?? agent)}</p>
+              <p className="text-ui text-muted-foreground">
+                Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings and job obligations;
+                anyone who backs it keeps ownership of their SIDE.
+              </p>
+            </div>
+          </div>
         )}
       </Step>
       {active && agent !== undefined && context === 'standalone' && (
@@ -360,6 +370,13 @@ function Step({
       <div className="col-start-2 grid min-w-0 gap-5">{children}</div>
     </div>
   )
+}
+
+/** What setup knows about the coding agent: its last MCP call, if it has made one. */
+function connection(agent: Pick<ManagedAgent, 'last_activity_at'>): string {
+  if (agent.last_activity_at === null) return 'Waiting for your coding agent to connect'
+  const ago = relative(agent.last_activity_at)
+  return managedLiveness(agent, Date.now() / 1000) === 'live' ? `Connected · last MCP call ${ago}` : `Last MCP call ${ago}`
 }
 
 /** One role's part of the Choose step. */

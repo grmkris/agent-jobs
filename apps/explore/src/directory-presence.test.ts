@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { presenceLabel } from './directory-presence.ts'
+import { directoryLiveness, presenceLabel } from './directory-presence.ts'
 
 const now = 1_800_000_000
 const presence = (freshness: 'fresh' | 'stale' | 'unknown', accepting = false, state: 'available' | 'busy' | null = null) =>
@@ -17,5 +17,12 @@ describe('directory presence', () => {
   it('otherwise says the heartbeat lapsed or that nothing is known', () => {
     expect(presenceLabel({ presence: presence('stale') }, now)).toBe('Heartbeat expired')
     expect(presenceLabel({ presence: presence('unknown') }, now)).toBe('Presence unknown')
+  })
+  it('rings the orb: working while busy, live while present or recently active, else idle', () => {
+    expect(directoryLiveness({ presence: presence('fresh', false, 'busy') }, now)).toBe('working')
+    expect(directoryLiveness({ presence: presence('fresh', true, 'available') }, now)).toBe('live')
+    expect(directoryLiveness({ presence: presence('unknown'), activity: { lastMcpCallAt: now - 300 } }, now)).toBe('live')
+    expect(directoryLiveness({ presence: presence('stale'), activity: { lastMcpCallAt: now - 7200 } }, now)).toBe('idle')
+    expect(directoryLiveness({ presence: presence('unknown') }, now)).toBe('idle')
   })
 })

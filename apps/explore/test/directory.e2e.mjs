@@ -19,7 +19,8 @@ const { chainId } = config;
 const borrowed = config.deployment.core === undefined;
 const now = Math.floor(Date.now() / 1000);
 const ad = { serviceId: 'review-code', name: 'Independent code review', description: 'Test fixture only, not a live worker.', inputs: 'A repository and acceptance criteria', outputs: 'A ranked, evidence-backed review', turnaroundSeconds: 3600, price: { model: 'quote', amountBaseUnits: '0', token: owner }, adHash: `0x${'00'.repeat(32)}`, expiresAt: now + 86400 };
-const agent = (id, fresh = true) => ({ agentId: id, chainId, identityRegistry: registry, wallet: owner, profile: { name: `Fixture worker ${id}`, description: 'Mocked test identity', services: ['Code review'] }, profileSource: 'operator-supplied', agentURI: '', enrolled: true, ownership: 'verified', presence: { freshness: fresh ? 'fresh' : 'stale', state: 'available', accepting: fresh, lastSeenBucket: now - now % 60 }, ads: [ad], observedAt: now, projectionAt: now, revision: 1 });
+// presence: 'fresh' (a live heartbeat), 'stale' (it lapsed) or 'mcp' (a hosted agent: no heartbeat, a recent MCP call).
+const agent = (id, presence = 'fresh') => ({ agentId: id, chainId, identityRegistry: registry, wallet: owner, profile: { name: `Fixture worker ${id}`, description: 'Mocked test identity', services: ['Code review'] }, profileSource: 'operator-supplied', agentURI: '', enrolled: true, ownership: 'verified', presence: presence === 'mcp' ? { freshness: 'unknown', state: null, accepting: false, lastSeenBucket: null } : { freshness: presence, state: 'available', accepting: presence === 'fresh', lastSeenBucket: now - now % 60 }, ...(presence === 'mcp' ? { activity: { lastMcpCallAt: now - 300 } } : {}), ads: [ad], observedAt: now, projectionAt: now, revision: 1 });
 const results = [];
 const errors = [];
 const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5191, strictPort: true }, plugins: [{ name: 'directory-wallet-fixtures', enforce: 'pre', resolveId(source) {
@@ -49,7 +50,7 @@ async function fixture(viewport) {
       if (state.failDirectory) return reply({ ok: false, message: 'Directory unavailable' }, 503);
       const after = url.searchParams.get('after');
       state.pageAfter.push(after);
-      return reply({ ok: true, agents: after === null ? [agent('7001'), agent('7002', false)] : [agent('7003')], nextCursor: after === null ? '7002' : null, observedAt: now, chainId, identityRegistry: registry, scope: 'opted-in Sidequest directory' });
+      return reply({ ok: true, agents: after === null ? [agent('7001'), agent('7002', 'stale')] : [agent('7003', 'mcp')], nextCursor: after === null ? '7002' : null, observedAt: now, chainId, identityRegistry: registry, scope: 'opted-in Sidequest directory' });
     }
     if (url.pathname.startsWith('/data/directory/')) return reply({ ok: true, agent: agent(url.pathname.split('/').at(-1)) });
     if (url.pathname.startsWith('/data/agents/')) return reply({ ok: false, code: 'not-found', message: 'fixture has no job history' }, 404);
@@ -120,6 +121,8 @@ try {
     await screenshot(page, `${device}-directory-zero-jobs`);
     await page.getByRole('button', { name: /more workers/i }).click();
     await page.getByText('Fixture worker 7003', { exact: true }).first().waitFor();
+    // A hosted agent sends no heartbeat; the directory shows its last MCP call instead (WS8 W3).
+    await page.getByText(/Active via MCP · \d+ min ago/).first().waitFor();
     assert.ok(state.pageAfter.includes('7002'));
     await page.goto(`${base}/agent/7001`);
     await page.getByText('Independent code review', { exact: true }).waitFor();

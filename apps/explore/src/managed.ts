@@ -5,6 +5,7 @@
  */
 import { type UseQueryResult, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import { type AgentLiveness, agentStatus } from './agent-orb.ts'
 import { agentEndpoint, type ManagedAgent } from './api.ts'
 import type { AgentApproval } from './agent-api.ts'
 import { type LinkTarget, boardRoutes } from './components/BoardLink.tsx'
@@ -75,3 +76,7 @@ export const useOwnedAgent = (agentId: string) => ownerOf(useManagedAgents(), ag
 /** Where a managed agent lives: its page on this board once it has an Agent ID, its resumed setup until then. */
 export const agentHome = (agent: Pick<ManagedAgent, 'id' | 'agent_id'>, routes = boardRoutes()): LinkTarget =>
   agent.agent_id === null ? { to: '/agents/new', search: { resume: agent.id } } : routes.agent(String(agent.agent_id))
+
+/** A managed agent's orb: live within ten minutes of its last MCP call, otherwise idle. */
+export const managedLiveness = (agent: Pick<ManagedAgent, 'last_activity_at'>, now: number): AgentLiveness =>
+  agentStatus({ working: false, lastMcpCallAt: agent.last_activity_at, now })

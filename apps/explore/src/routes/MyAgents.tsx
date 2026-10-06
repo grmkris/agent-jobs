@@ -9,8 +9,9 @@ import type { ManagedAgent } from '../api.ts'
 import { BoardLink } from '../components/BoardLink.tsx'
 import { buttonVariants } from '../components/ui/button.tsx'
 
-import { Monogram, useAuth } from '../components/Wallet.tsx'
-import { agentHome, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
+import { useAuth } from '../components/Wallet.tsx'
+import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManagedApprovals } from '../managed.ts'
 
 /**
  * The operator's agents: each one's state and what waits on the operator. An agent opens on its own page, where its
@@ -85,7 +86,7 @@ function AgentRow({ agent, waiting }: { agent: ManagedAgent; waiting: number }) 
   return (
     <Item render={<BoardLink target={agentHome(agent)} />}>
       <ItemMedia>
-        <Monogram seed={agent.agent_id ?? agent.id} label={initials(agent.name)} size="md" />
+        <AgentOrb agentId={agent.agent_id ?? agent.id} status={managedLiveness(agent, Date.now() / 1000)} />
       </ItemMedia>
       <ItemContent className="grid min-w-0 flex-1">
         <ItemTitle className="truncate font-medium">{agent.name}</ItemTitle>
@@ -100,12 +101,3 @@ function AgentRow({ agent, waiting }: { agent: ManagedAgent; waiting: number }) 
     </Item>
   )
 }
-
-/** Up to two initials for a name's monogram: "My worker" → "MW". */
-export const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter((word) => word !== '')
-    .slice(0, 2)
-    .map((word) => [...word][0]?.toUpperCase() ?? '')
-    .join('')

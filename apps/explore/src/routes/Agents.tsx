@@ -5,18 +5,19 @@ import { Item, ItemGroup, ItemMedia, ItemTitle, ItemDescription, ItemContent, It
 import { LoadingRows, Section } from '../components/kit.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, PlugZap, Radio } from 'lucide-react'
+import { ChevronRight, PlugZap } from 'lucide-react'
 import { data, type DirectoryPage } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectoryOnboarding } from '../components/DirectoryOnboarding.tsx'
 import { LaunchNotice } from '../components/LaunchGate.tsx'
-import { ServiceShowcase, presenceLabel } from '../components/DirectoryCards.tsx'
+import { ServiceShowcase } from '../components/DirectoryCards.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
 
-import { Monogram } from '../components/Wallet.tsx'
+import { AgentOrb } from '../components/agent/AgentOrb.tsx'
 import { amount } from '../format.ts'
 import { useTokenList } from '../useTokens.ts'
 import { useDirectory } from '../directory-query.ts'
+import { directoryLiveness, presenceLabel } from '../directory-presence.ts'
 import { writesOpen } from '../wallet.ts'
 
 export interface AgentSummary {
@@ -39,6 +40,9 @@ export function earnedLine(earned: Record<string, string>): { first: string; mor
   return { first: all[0] ?? '—', more: Math.max(0, all.length - 1) }
 }
 
+/** A worker the directory has no entry for: no heartbeat, no MCP activity. */
+const IDLE = { presence: { freshness: 'unknown', state: null, accepting: false, lastSeenBucket: null } } as const
+
 /** Every agent that has taken a job here, from chain facts: jobs, paid, lost, earnings. */
 export function AgentsPage() {
   const routes = boardRoutes()
@@ -46,6 +50,8 @@ export function AgentsPage() {
   const directory = useDirectory()
   const list = agents.data?.agents ?? []
   const enrolled = directory.data?.agents ?? []
+  const listed = new Map(enrolled.map((agent) => [agent.agentId, agent]))
+  const now = Date.now() / 1000
   useTokenList(list.flatMap((agent) => Object.keys(agent.earned)))
   return (
     <>
@@ -96,7 +102,7 @@ export function AgentsPage() {
               return (
                 <Item key={a.agentId} render={<BoardLink target={routes.agent(a.agentId)} />}>
                   <ItemMedia>
-                    <Monogram seed={`agent-${a.agentId}`} label={a.agentId.slice(-2)} size="md" />
+                    <AgentOrb agentId={a.agentId} status={a.inProgress > 0 ? 'working' : directoryLiveness(listed.get(a.agentId) ?? IDLE, now)} />
                   </ItemMedia>
                   <ItemContent className="min-w-0 flex-1">
                     <ItemTitle className="block truncate font-medium">Worker #{a.agentId}</ItemTitle>
@@ -154,12 +160,13 @@ export function AgentsPage() {
 }
 
 function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
-  const presence = presenceLabel(agent)
+  const now = Date.now() / 1000
+  const presence = presenceLabel(agent, now)
   const ad = agent.ads[0]
   return (
     <Item render={<BoardLink target={boardRoutes().agent(agent.agentId)} />}>
       <ItemMedia>
-        <Monogram seed={`agent-${agent.agentId}`} label={agent.agentId.slice(-2)} size="md" />
+        <AgentOrb agentId={agent.agentId} status={directoryLiveness(agent, now)} />
       </ItemMedia>
       <ItemContent className="min-w-0 flex-1">
         <ItemTitle className="block truncate font-medium">{agent.profile.name || `Worker #${agent.agentId}`}</ItemTitle>
@@ -167,10 +174,6 @@ function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
           {presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}
         </ItemDescription>
       </ItemContent>
-      <span className="grid shrink-0 place-items-center text-primary">
-        <Radio aria-hidden className="size-4" />
-        <span className="sr-only">{presence}</span>
-      </span>
       <ItemActions>
         <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
       </ItemActions>
