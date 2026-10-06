@@ -35,6 +35,8 @@ export interface RunResult {
   readonly protocolEvents: number
   readonly jobs: number
   readonly nextBlock: number | null
+  /** Every block finalized when this run began is indexed, so work that must not run on a stalled index may follow it. */
+  readonly caughtUp: boolean
   readonly rewound: boolean
   /** Block times looked up for events indexed before block times were stored. */
   readonly backfilled: number
@@ -116,7 +118,7 @@ async function rewindTo(sql: AsyncSql, cfg: IndexerConfig, block: number, now: n
 export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunResult> {
   const now = (cfg.now ?? (() => Math.floor(Date.now() / 1000)))()
   const chainId = cfg.contracts.chainId
-  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, protocolEvents: 0, jobs: 0, nextBlock: null, rewound: false, backfilled: 0 }
+  if (!(await takeLease(sql, cfg, now))) return { lease: false, pages: 0, events: 0, protocolEvents: 0, jobs: 0, nextBlock: null, caughtUp: false, rewound: false, backfilled: 0 }
   const addresses = [...cfg.contracts.roles.keys()]
   let [cp] = await sql.all<{ next_block: number; block_hash: string | null }>('SELECT next_block, block_hash FROM checkpoint WHERE chain_id = ?', chainId)
   let rewound = false
@@ -162,7 +164,7 @@ export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunRes
     next = upTo
   }
   const backfilled = await backfillBlockTimes(sql, cfg)
-  return { lease: true, pages, events, protocolEvents, jobs: jobs.size, nextBlock: next, rewound, backfilled }
+  return { lease: true, pages, events, protocolEvents, jobs: jobs.size, nextBlock: next, caughtUp: next > finalized, rewound, backfilled }
 }
 
 /** Looks up the times of a few event blocks that have none (indexed before block times were stored), newest first. */

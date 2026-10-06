@@ -53,8 +53,8 @@ describe('public indexer run records', () => {
 
   it('preserves numeric run summaries and skipped/lease outcomes', async () => {
     const sql = fromNodeSqlite(new DatabaseSync(':memory:'))
-    const summary = { lease: true, pages: 5, events: 12, protocolEvents: 3, jobs: 2, nextBlock: 456, rewound: false, backfilled: 8 }
-    const results = [summary, { ...summary, lease: false, pages: 0, nextBlock: null }, { skipped: 'HYPERSYNC_API_TOKEN or MONAD_RPC_URL unset' }]
+    const summary = { lease: true, pages: 5, events: 12, protocolEvents: 3, jobs: 2, nextBlock: 456, caughtUp: true, rewound: false, backfilled: 8 }
+    const results = [summary, { ...summary, lease: false, pages: 0, nextBlock: null, caughtUp: false }, { skipped: 'HYPERSYNC_API_TOKEN or MONAD_RPC_URL unset' }]
     for (const result of results) {
       await recordIndexerRun(sql, { ok: true, result }, 456)
       expect(await sql.all('SELECT at, ok, detail FROM indexer_runs')).toEqual([{ at: 456, ok: 1, detail: JSON.stringify(result) }])

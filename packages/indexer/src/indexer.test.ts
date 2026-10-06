@@ -23,6 +23,7 @@ import {
   listAgents,
   migrate,
   networkStats,
+  releaseLease,
   resetIndex,
   runOnce,
 } from './index.ts'
@@ -148,6 +149,24 @@ describe('indexer on the real testnet logs', () => {
     // After the lease expires the other runner takes over and reaches the same state.
     await runToEnd(sql, config({ runner: 'b', now: () => 5_000 }))
     expect(await snapshot(sql)).toEqual(live)
+  })
+
+  it('reports caught up only once every block finalized when the run began is indexed', async () => {
+    const sql = await freshDb()
+    const partial = await runOnce(sql, config({ maxPages: 1, source: pagedSource(1000) }))
+    expect(partial).toMatchObject({ lease: true, caughtUp: false })
+    expect(await runOnce(sql, config({ runner: 'b' }))).toMatchObject({ lease: false, caughtUp: false })
+    expect(await runToEnd(sql, config())).toMatchObject({ lease: true, caughtUp: true })
+  })
+
+  it('a released lease lets the next runner start at once', async () => {
+    const sql = await freshDb()
+    const first = config({ maxPages: 1, source: pagedSource(1000) })
+    await runOnce(sql, first)
+    await releaseLease(sql, config({ runner: 'b' }))
+    expect((await runOnce(sql, config({ runner: 'b', maxPages: 1, source: pagedSource(1000) }))).lease).toBe(false)
+    await releaseLease(sql, first)
+    expect((await runOnce(sql, config({ runner: 'b', maxPages: 1, source: pagedSource(1000) }))).lease).toBe(true)
   })
 
   it('a divergent last block rewinds and re-indexes to the same state', async () => {

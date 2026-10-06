@@ -1,4 +1,4 @@
-import { contractsOf, fromD1, hyperSync, migrate, rpcHead, runOnce } from '@sidequest/indexer'
+import { contractsOf, fromD1, hyperSync, migrate, releaseLease, rpcHead, runOnce } from '@sidequest/indexer'
 import * as sdk from '@sidequest/sdk'
 import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -66,22 +66,23 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
       return yield* Effect.promise(async () => {
         await migrate(sql)
         let allowSilence = false
+        const indexer = {
+          contracts: contractsOf(network),
+          deployBlock: Number(sdk.deployment(network).deployBlock),
+          source: hyperSync(hyper, token),
+          head: rpcHead(rpcUrl),
+          runner: `cron:${crypto.randomUUID()}`,
+          maxPages: 5,
+        }
         try {
-          const head = rpcHead(rpcUrl)
-          const result = await runOnce(sql, {
-            contracts: contractsOf(network),
-            deployBlock: Number(sdk.deployment(network).deployBlock),
-            source: hyperSync(hyper, token),
-            head,
-            runner: `cron:${crypto.randomUUID()}`,
-            maxPages: 5,
-          })
-          // A failed head lookup only marks the run as not caught up; the committed indexing result stands (VV2-025).
-          const finalized = await head.finalizedBlock().catch((error: unknown) => { reportFeedFailure(error); return null })
-          const caughtUp = result.nextBlock !== null && finalized !== null && result.nextBlock > finalized
+          const result = await runOnce(sql, indexer)
+          // Judged against the head this run indexed to. A second head lookup here raced a chain that finalizes
+          // several blocks a second, so it almost never passed and the feed and notifications stood still.
+          const caughtUp = result.caughtUp
           // The inbox feed (V1.1 WS4) follows finalized transitions whether or not Telegram is configured.
           const fedAt = Math.floor(Date.now() / 1000)
-          await feedFromChain(sql, network, fedAt, { caughtUp }).catch(reportFeedFailure)
+          // 100 events is about 300 D1 statements, so a catch-up run leaves room for the Telegram queue below.
+          await feedFromChain(sql, network, fedAt, { caughtUp, limit: 100 }).catch(reportFeedFailure)
           if (fedAt % 3600 < 60) await pruneFeed(sql, fedAt).catch(reportFeedFailure)
           if (telegramToken !== '') {
             const now = Math.floor(Date.now() / 1000)
@@ -99,6 +100,9 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
           }
           return result
         } finally {
+          // The next minute's run indexes at once instead of being refused while this lease runs out. A failed
+          // release only means waiting for expiry, as before.
+          await releaseLease(sql, indexer).catch(() => undefined)
           if (telegramToken !== '') await drainTelegramOutbox(sql, telegramTransport(telegramToken), Math.floor(Date.now() / 1000), 20, allowSilence)
         }
       })
