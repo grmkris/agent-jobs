@@ -236,6 +236,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const directoryCall = (tool: string, args: Record<string, unknown>, mcpSession?: string, caller?: string) => runDirectoryTool({
           sql, network, rpcUrl, audience: url.origin,
           call: async (id, req) => JSON.parse(await yieldlessDirectoryCall(id, { ...req, admission: { boardId: tenant.id, bearer, mcpSession, caller, ip } })),
+          activity: async (agentIds) => JSON.parse(await Effect.runPromise(boards.getByName(SPONSOR_OBJECT_NAME).managedActivity({ agentIds }))),
         }, tool, args)
         const yieldlessDirectoryCall = async (id: string, req: import('./directory-object.ts').DirectoryCall) =>
           Effect.runPromise(directory.getByName(directoryObjectName(chainId, deployment.identity, url.origin, id)).call(req))

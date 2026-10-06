@@ -109,3 +109,27 @@ it('preserves rate-limit retry metadata from the directory owner for REST and MC
     call: async () => ({ ok: false, code: 'rate-limited', message: 'wallet write limit reached', retryAfter: 42 }),
   }, 'prepare_directory_enrollment', { agentId: '1', payload: {} })).rejects.toMatchObject({ code: 'rate-limited', retryAfter: 42 })
 })
+
+it('shows a hosted agent active via MCP to five minutes, only while its hosted wallet is still the agent wallet', async () => {
+  const context = fixture()
+  await migrateDirectory(context.sql)
+  const hosted = '0x1111111111111111111111111111111111111111'
+  for (const id of ['1', '2', '3']) await projectDirectory(context.sql, { ...context.agent(id), wallet: hosted }, 'https://testnet.example')
+  const asked: string[][] = []
+  const deps = {
+    sql: context.sql, network: 'monad-testnet' as const, rpcUrl: '', audience: 'https://testnet.example',
+    call: async (id: string) => ({ ok: true as const, result: { ...context.agent(id), wallet: hosted } }),
+    activity: async (ids: string[]) => {
+      asked.push(ids)
+      // Agent 2's hosted wallet was replaced on chain; agent 3 is self-run.
+      return [{ agent_id: '1', address: hosted.toUpperCase().replace('0X', '0x'), last_activity_at: 1_800_000_599 }, { agent_id: '2', address: '0x2222222222222222222222222222222222222222', last_activity_at: 1_800_000_000 }]
+    },
+  }
+  const list = await runDirectoryTool(deps, 'list_directory', {}) as { agents: DirectoryAgent[] }
+  expect(asked).toEqual([['1', '2', '3']])
+  expect(list.agents.map((agent) => agent.activity)).toEqual([{ lastMcpCallAt: 1_800_000_300 }, undefined, undefined])
+  expect(await runDirectoryTool(deps, 'get_directory_agent', { agentId: '1' })).toMatchObject({ agent: { activity: { lastMcpCallAt: 1_800_000_300 } } })
+  // A management object that cannot answer adds nothing and fails nothing.
+  const quiet = await runDirectoryTool({ ...deps, activity: async () => { throw new Error('management object unavailable') } }, 'list_directory', {}) as { agents: DirectoryAgent[] }
+  expect(quiet.agents.every((agent) => agent.activity === undefined)).toBe(true)
+})

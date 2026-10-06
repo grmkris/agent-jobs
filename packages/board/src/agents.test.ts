@@ -35,4 +35,25 @@ describe('agent operation journal', () => {
     expect(() => store.saveOperation(operation.id, 'confirmed', { result: { txHash: '0xchanged' } })).toThrow('result cannot change')
     db.close()
   })
+
+  it('reads last activity only for active registered agents of this registry, bounded to 100 IDs', () => {
+    const db = new DatabaseSync(':memory:')
+    const sql = fromNodeSqlite(db)
+    let now = 1_800_000_000
+    const store = new AgentStore(sql, () => now)
+    const registry = '0x2222222222222222222222222222222222222222'
+    for (const [id, agentId, state] of [['a', '7', 'active'], ['b', '8', 'revoked'], ['c', '9', 'active']] as const) {
+      store.create({ id, operator: '0x1111111111111111111111111111111111111111', privyUserId: `did:privy:${id}`, name: id, registry, chainId: 10143 })
+      store.bindRegistry(id, agentId)
+      sql.run('UPDATE agents SET state=?, address=? WHERE id=?', state, `0x${id.repeat(40)}`, id)
+    }
+    now += 60
+    store.touch('a')
+    store.touch('b')
+    expect(store.lastActivity(10143, registry, ['7', '8', '9', 'x'])).toEqual([{ agent_id: '7', address: `0x${'a'.repeat(40)}`, last_activity_at: 1_800_000_060 }])
+    expect(store.lastActivity(10143, '0x3333333333333333333333333333333333333333', ['7'])).toEqual([])
+    expect(store.lastActivity(1, registry, ['7'])).toEqual([])
+    expect(store.lastActivity(10143, registry, [...Array.from({ length: 100 }, (_, i) => String(i + 100)), '7'])).toEqual([])
+    db.close()
+  })
 })

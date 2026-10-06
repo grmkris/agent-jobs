@@ -208,6 +208,16 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
           if (grant !== undefined && req.activity === true) new AgentStore(sql, () => Math.floor(Date.now() / 1000)).touch(grant.agentIds[0]!)
           return toJson(grant ?? null)
         }))),
+        /** Directory presence: when hosted agents last used their connection. No operator, grant or approval data. */
+        managedActivity: (req: { agentIds: string[] }) => Effect.sync(() => {
+          const bindings = runtimeEnv as Record<string, unknown>
+          const namespace = bindings.Board as { idFromName(name: string): { toString(): string } }
+          if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== state.id.toString()) throw new Error('management object identity mismatch')
+          const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
+          migrateAgentSchema(sql)
+          const config = sdk.deployment(bindings.NETWORK as sdk.Network)
+          return toJson(new AgentStore(sql, () => Math.floor(Date.now() / 1000)).lastActivity(config.chainId, config.identity, req.agentIds))
+        }),
         /** Private management storage remains in the existing reserved object. */
         management: (req: { kind: 'migrate' | 'retire' }) => Effect.sync(() => {
           const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName(name: string): { toString(): string } } | undefined

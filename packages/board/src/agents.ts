@@ -138,6 +138,14 @@ export class AgentStore {
     this.sql.run('UPDATE agents SET last_activity_at=? WHERE id=?', this.now(), id)
   }
 
+  /** When each active, registered agent last used its connection, with the wallet it acts from. At most 100 IDs. */
+  lastActivity(chainId: number, registry: Address, agentIds: readonly string[]): Array<{ agent_id: string; address: Address; last_activity_at: number }> {
+    const ids = agentIds.filter((id) => /^[1-9][0-9]*$/.test(id)).slice(0, 100)
+    if (ids.length === 0) return []
+    return this.sql.all(`SELECT agent_id, address, last_activity_at FROM agents WHERE chain_id=? AND registry=? AND state='active'
+      AND address IS NOT NULL AND last_activity_at IS NOT NULL AND agent_id IN (${ids.map(() => '?').join(',')})`, chainId, registry.toLowerCase(), ...ids)
+  }
+
   begin(id: string, key: string, boardId: string, tool: string, args: Record<string, unknown>): AgentOperationRow {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new AgentFailure('invalid', 'Every agent action requires a stable operationKey (1-128 letters, digits, _ or -)', 'operation-key', 'new-key')
     if (this.get(id).state === 'revoked') throw new AgentFailure('forbidden', 'Agent access is revoked', 'agent-revoked', 'none')

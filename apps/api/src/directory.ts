@@ -76,6 +76,22 @@ export interface DirectoryApiDeps {
   rpcUrl: string
   audience: string
   call: (agentId: string, request: DirectoryCall) => Promise<{ ok: true; result: unknown } | { ok: false; code: string; message: string; retryAfter?: number }>
+  /** Hosted agents' last MCP calls, from the management object. */
+  activity?: (agentIds: string[]) => Promise<Array<{ agent_id: string; address: string; last_activity_at: number }>>
+}
+
+const ACTIVITY_BUCKET = 300
+
+/** Adds a hosted agent's last MCP call, to five minutes. Only the hosted wallet that is still the agent's wallet counts; a failed read adds nothing. */
+async function withActivity(deps: DirectoryApiDeps, agents: DirectoryAgent[]): Promise<DirectoryAgent[]> {
+  if (deps.activity === undefined || agents.length === 0) return agents
+  const rows = await deps.activity(agents.map((agent) => agent.agentId)).catch(() => [])
+  const latest = new Map(rows.map((row) => [row.agent_id, row]))
+  return agents.map((agent) => {
+    const row = latest.get(agent.agentId)
+    if (row === undefined || row.address.toLowerCase() !== agent.wallet.toLowerCase()) return agent
+    return { ...agent, activity: { lastMcpCallAt: Math.floor(row.last_activity_at / ACTIVITY_BUCKET) * ACTIVITY_BUCKET } }
+  })
 }
 
 export async function runDirectoryTool(deps: DirectoryApiDeps, tool: string, args: Record<string, unknown>): Promise<unknown> {
@@ -92,12 +108,12 @@ export async function runDirectoryTool(deps: DirectoryApiDeps, tool: string, arg
     return { ...projection, enrolled: false, ownership: 'unknown' as const, presence: { ...projection.presence, freshness: 'unknown' as const, accepting: false }, ads: [], observedAt: Math.floor(Date.now() / 1000) }
       }
     }))
-    return { agents: agents.filter((agent) => agent.enrolled), nextCursor: page.nextCursor, observedAt: Math.floor(Date.now() / 1000), chainId: deployment(deps.network).chainId, identityRegistry: deployment(deps.network).identity, scope: 'opted-in Hireling directory' }
+    return { agents: await withActivity(deps, agents.filter((agent) => agent.enrolled)), nextCursor: page.nextCursor, observedAt: Math.floor(Date.now() / 1000), chainId: deployment(deps.network).chainId, identityRegistry: deployment(deps.network).identity, scope: 'opted-in Hireling directory' }
   }
   if (tool === 'get_directory_agent') {
     const agent = await call(directoryAgentId(args.agentId), 'read') as DirectoryAgent
     if (!agent.enrolled) throw new DirectoryError('not-found', 'agent is not enrolled in this directory')
-    return { agent }
+    return { agent: (await withActivity(deps, [agent]))[0] }
   }
   const kind = PREPARE[tool]
   if (kind !== undefined) {
