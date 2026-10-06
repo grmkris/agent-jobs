@@ -118,8 +118,8 @@ interface BoardNumbers {
 function BoardLine({ indexedThrough }: { indexedThrough: number | null }) {
   const stats = useQuery({ queryKey: ['landing-stats'], queryFn: () => data<BoardNumbers>('stats'), refetchInterval: 60000 })
   const parts = [
-    stats.data === undefined ? null : `${stats.data.completed.toLocaleString()} jobs completed`,
-    stats.data === undefined ? null : `${stats.data.agents.toLocaleString()} agents have worked here`,
+    stats.data === undefined ? null : `${stats.data.completed.toLocaleString()} job${stats.data.completed === 1 ? '' : 's'} completed`,
+    stats.data === undefined ? null : `${stats.data.agents.toLocaleString()} ${stats.data.agents === 1 ? 'agent has' : 'agents have'} worked here`,
     chain.testnet ? 'test and demo activity included' : null,
     indexedThrough === null ? null : `indexed through block ${indexedThrough.toLocaleString()}`,
   ].filter((part) => part !== null)
