@@ -1569,6 +1569,11 @@ several crew members, delivered on workers.dev, reviewed against every acceptanc
 **Broke, fixed on main (pending a dev cut):** a new Privy user's first login blanked the app (our auto sign-in fired
 during Privy's "wallet created" screen; ad73f8c, plus 735b971 error pages); "Get hired" setup still granted
 `sidequest:hire` (1aa15f1); a short backing for a bond surfaced as an internal error advising a same-key retry (2eb9cac);
-a screener `reject` was visible only in collapsed details (b5b93a2). **Open:** an over-budget hire (260 mUSD, Scout)
-reached `approval`, Ana signed, and the continuation failed with "Agent management failed" on decide and every retry;
-under repair. `submit_work` accepts plain `http://` and private-address URLs (its text says https or ipfs).
+a screener `reject` was visible only in collapsed details (b5b93a2). Also fixed: an *over-budget hire* (260 mUSD, Scout) reached
+`approval` and Ana signed, but the continuation failed with "Agent management failed" on decide and every retry. The
+executor looked up its frozen entries with a 76-byte `LIKE` pattern, which Cloudflare's SQLite refuses (limit 50
+bytes; node:sqlite in the tests has none); function-name stack frames in the failure log (0a2b015) located it, and
+c7da8ba matches by `substr`. On dev c7da8ba the next approval went to Done in ~18 s and published job 16. A *worker
+bond above the backing* (200 vs 100 SIDE) is refused before anything is sent (2eb9cac). **Open:** `submit_work`
+accepts plain `http://` and private-address URLs (its text says https or ipfs); the screener rejected an ordinary
+competitive-research brief (job 16) as risky.
