@@ -2,6 +2,7 @@ import { Button } from './ui/button.tsx'
 import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
 import { Details, Address, CopyButton, Section, shortAddress, textLinkClass } from './kit.tsx'
 import { TestnetFaucet } from './TestnetFaucet.tsx'
+import { BuyButtons } from './Buy.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
@@ -159,6 +160,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
         ))}
       </ItemGroup>
       <TestnetFaucet address={address} />
+      <BuyButtons address={address} />
     </Section>
   )
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { output, owner, base, errors, server, browser, fixture } from './stake-fixture.mjs';
 
-// The testnet "Get test tokens" button on Account: a wallet with MON sends the claim itself; the board's relay sends
+// The testnet "Get test tokens" button and Buy on Account: a wallet with MON sends the claim itself; the board's relay sends
 // it for one without; the cooldown and the board's refusals come back as plain messages.
 const status = (page, message) => page.getByRole('status').filter({ hasText: message }).waitFor();
 try {
@@ -32,6 +32,24 @@ try {
     await page.evaluate(() => { window.__stake.faucetReply = { ok: true, result: { status: 'unavailable', reason: 'the faucet relay is low on MON; get MON from faucet.monad.xyz and claim from your wallet' } }; });
     await page.getByRole('button', { name: 'Get test tokens', exact: true }).click();
     await status(page, 'the faucet relay is low on MON');
+
+    // Buy SIDE with mUSD on the SIDE/mUSD market: live quote, 1% slippage floor, exact approval, then the swap.
+    await page.getByRole('button', { name: 'Buy SIDE', exact: true }).click();
+    await page.getByText('1 SIDE ≈ 0.000100 mUSD · up to 1% slippage', { exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'mUSD to pay', exact: true }).fill('30');
+    await page.getByText('That is more mUSD than your wallet holds.', { exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'mUSD to pay', exact: true }).fill('10');
+    await page.getByText('You get about 99,700 SIDE (at least 98,703 SIDE).', { exact: true }).waitFor();
+    await page.screenshot({ path: `${output}/${name}-buy-side.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Review swap', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm step 2 of 2', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
+    await status(page, 'Bought SIDE');
+    const [approval, swap] = await page.evaluate(() => [window.__stake.approvalCalls.at(-1), window.__stake.calls.at(-1)]);
+    assert.equal(approval.amount, '10000000');
+    assert.deepEqual(swap, { functionName: 'swapExactIn', args: ['true', '10000000', String(99_700n * 10n ** 18n * 99n / 100n)] });
+    assert.equal(await page.evaluate(() => String(window.__stake.reward)), '15000000');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: horizontal overflow`);
     await context.close();
   }

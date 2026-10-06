@@ -1,6 +1,6 @@
 // Browser-only RPC double. The real SDK reads, conversions and ABI decoding run against this transport.
 import * as sdk from '@sidequest/sdk';
-import { createPublicClient, custom, erc20Abi, decodeFunctionData, toFunctionSelector, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
+import { createPublicClient, custom, erc20Abi, decodeFunctionData, toFunctionSelector, parseAbi, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
 import { chainLatency } from './wagmi.mjs';
 import { chain, deployment } from '../src/wallet.ts';
 
@@ -41,6 +41,10 @@ export function answer({ functionName, address, args = [] }, historical = false)
     case 'getAgentWallet': return window.__agents.find(agent => agent.agentId === String(args[0]))?.wallet ?? zero;
     case 'ownerOf': return window.__wallet.address;
     case 'nextDripAt': return s.faucetNext ?? 0n;
+    // The SIDE/mUSD market at $0.0001 per SIDE (10,000 SIDE per mUSD), less the 0.3% pool fee.
+    case 'getSlot0': return [7922816251426433759354395033600000000n, 0, 0, 3000];
+    case 'quoteExactIn': return args[1] ? [args[2], args[2] * 10n ** 16n * 997n / 1000n] : [args[2], args[2] / 10n ** 16n * 997n / 1000n];
+    case 'allowance': return s.marketAllowance ?? 0n;
     case 'stakeAmount': return 1000n * 10n ** 18n;
     case 'paymentAmount': return 1000n * 10n ** 6n;
     case 'tokenURI': return 'data:application/json,' + encodeURIComponent(JSON.stringify({ name: window.__agents.find(agent => agent.agentId === String(args[0]))?.profile.name }));
@@ -49,7 +53,9 @@ export function answer({ functionName, address, args = [] }, historical = false)
 }
 const hash = '0x' + 'ab'.repeat(32);
 const dripSelector = toFunctionSelector('function drip(address)');
-const abis = [sdk.stakeVaultAbi, sdk.factoryV2Abi, sdk.feeScheduleAbi, sdk.identityAbi, sdk.testnetFaucetAbi];
+const swapSelector = toFunctionSelector(sdk.v4SwapHelperAbi.find(item => item.type === 'function' && item.name === 'swapExactIn'));
+const stateViewAbi = parseAbi(['function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)']);
+const abis = [sdk.stakeVaultAbi, sdk.factoryV2Abi, sdk.feeScheduleAbi, sdk.identityAbi, sdk.testnetFaucetAbi, sdk.v4SwapHelperAbi, stateViewAbi, erc20Abi];
 function decode(data) {
   for (const abi of abis) {
     try { return { ...decodeFunctionData({ abi, data }), abi }; } catch { /* next ABI */ }
@@ -97,6 +103,16 @@ export function apply({ data }, logs = []) {
     if (args[0] !== sdk.BATCH_DEFAULT_MODE) throw new Error('Fixture refuses non-atomic execution');
     const [calls] = decodeAbiParameters([{ type: 'tuple[]', components: [{ name: 'target', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'callData', type: 'bytes' }] }], args[1]);
     for (const call of calls) apply({ data: call.callData }, logs);
+    return;
+  }
+  if (data.startsWith(swapSelector)) {
+    const { args } = decodeFunctionData({ abi: sdk.v4SwapHelperAbi, data });
+    const [, zeroForOne, amountIn, minOut] = args;
+    const out = answer({ functionName: 'quoteExactIn', args: [null, zeroForOne, amountIn] })[1];
+    if (out < minOut) throw new Error('TooLittleReceived');
+    // mUSD sorts first on testnet: zero-for-one spends mUSD for SIDE.
+    if (zeroForOne) { s.reward = (s.reward ?? 25_000_000n) - amountIn; s.wallet += out; } else { s.wallet -= amountIn; s.reward = (s.reward ?? 25_000_000n) + out; }
+    s.calls.push({ functionName: 'swapExactIn', args: [String(zeroForOne), String(amountIn), String(minOut)] });
     return;
   }
   if (data.startsWith(dripSelector)) {
