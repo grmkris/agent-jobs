@@ -25,6 +25,7 @@ const server = await createServer({ envDir: false, server: { host: '127.0.0.1', 
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
+  if (id.endsWith('/src/main.tsx')) return source.replace('const queryClient = new QueryClient()', 'const queryClient = new QueryClient(); window.__stakingQueryClient = queryClient');
   if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
 } }] });
 await server.listen();

@@ -1,6 +1,6 @@
 import * as sdk from "@agent-jobs/sdk";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type Address, encodeFunctionData, erc20Abi, formatUnits, parseSignature } from "viem";
 import { useSignTypedData } from "wagmi";
 import type { ManagedAgent } from "../api.ts";
@@ -12,16 +12,19 @@ import { friendlyError } from "../txErrors.ts";
 import { vaultOperationGuards } from "../vault-proof.ts";
 import { Button, ErrorText, Input, Section } from "./ui.tsx";
 import { TxSteps } from "./TxSteps.tsx";
-import { initializeTxJournal } from "./txJournal.ts";
+import { initializeTxJournalDurable } from "./txJournal.ts";
 import { useOperatorBalances } from "../operator-balances.ts";
 import { useBacking } from "../delegation-query.ts";
 import { factoryValue } from "./DelegationPositions.tsx";
 import { OperatorBalances } from "./OperatorBalances.tsx";
+import { VaultPreparationRecovery } from "./VaultPreparationRecovery.tsx";
 import {
+  InterruptedVaultPreparation,
   type VaultIntent,
   clearOwnedIntentDurable,
   readVaultIntent,
   readVaultIntentDurable,
+  withVaultPermitPreparation,
   writeVaultIntent,
   vaultIntentKey,
   withVaultIntentLock,
@@ -50,6 +53,20 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
   const [intent, setIntent] = useState(initial.intent);
   const [error, setError] = useState<string | null>(initial.error);
   const [busy, setBusy] = useState(false);
+  const [interrupted, setInterrupted] = useState<InterruptedVaultPreparation | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void withVaultIntentLock(navigator.locks, key, async () => {
+      const saved = await readVaultIntentDurable(localStorage, key);
+      if (active) setIntent(saved);
+    }).catch((failure) => {
+      if (!active) return;
+      if (failure instanceof InterruptedVaultPreparation) setInterrupted(failure);
+      setError(friendlyError(failure));
+    });
+    return () => { active = false; };
+  }, [key]);
 
   async function prepare() {
     setError(null);
@@ -90,32 +107,39 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegate", args: [target, units] }),
         };
         const delegatedTo = await sdk.delegationOf(ctx.publicClient, operator as Address);
-        let txs: VaultIntent["txs"];
+        const save = async (txs: VaultIntent["txs"]) => {
+          const next: VaultIntent = {
+            id: crypto.randomUUID(),
+            kind: "delegate",
+            account: target,
+            txs,
+          };
+          await initializeTxJournalDurable(localStorage, `delegation:${next.id}`, next.txs);
+          await writeVaultIntent(localStorage, key, next);
+          setIntent(next);
+        };
         if (delegatedTo?.toLowerCase() === deployment.delegation.delegator.toLowerCase()) {
-          txs = [{ chainId: chain.id, description: `Delegate ${amount} FACTORY to ${agent.name}`, to: operator as Address, value: "0", data: sdk.batchCalldata([approval, delegation]) }];
+          await save([{ chainId: chain.id, description: `Delegate ${amount} FACTORY to ${agent.name}`, to: operator as Address, value: "0", data: sdk.batchCalldata([approval, delegation]) }]);
         } else {
           const permit = await sdk.delegatePermit(ctx, operator as Address, units, BigInt(Math.floor(Date.now() / 1000) + 3600));
-          const signature = await signTypedDataAsync(permit);
-          const { r, s, v, yParity } = parseSignature(signature);
-          txs = [{
-            chainId: chain.id,
-            description: `Delegate ${amount} FACTORY to ${agent.name}`,
-            to: vault,
-            value: "0",
-            data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegateWithPermit", args: [target, units, permit.message.deadline, Number(v ?? BigInt(yParity + 27)), r, s] }),
-          }];
+          await withVaultPermitPreparation(
+            key,
+            () => signTypedDataAsync(permit),
+            async (signature) => {
+              const { r, s, v, yParity } = parseSignature(signature);
+              await save([{
+                chainId: chain.id,
+                description: `Delegate ${amount} FACTORY to ${agent.name}`,
+                to: vault,
+                value: "0",
+                data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegateWithPermit", args: [target, units, permit.message.deadline, Number(v ?? BigInt(yParity + 27)), r, s] }),
+              }]);
+            },
+          );
         }
-        const next: VaultIntent = {
-          id: crypto.randomUUID(),
-          kind: "delegate",
-          account: agent.address as Address,
-          txs,
-        };
-        initializeTxJournal(localStorage, `delegation:${next.id}`, next.txs);
-        await writeVaultIntent(localStorage, key, next);
-        setIntent(next);
       });
     } catch (failure) {
+      if (failure instanceof InterruptedVaultPreparation) setInterrupted(failure);
       setError(friendlyError(failure));
     } finally {
       setBusy(false);
@@ -188,6 +212,8 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
         />
       )}
       {error !== null && <ErrorText>{error}</ErrorText>}
+      <VaultPreparationRecovery preparation={interrupted} intentKey={key}
+        onCleared={() => { setInterrupted(null); setError(null); }} onError={setError} />
     </Section>
   );
 }

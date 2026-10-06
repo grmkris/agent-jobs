@@ -31,6 +31,7 @@ function delegationAmounts(txs: readonly WalletStep[], vault: Address, owner: Ad
 export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getItem">, key: string, intent: VaultIntent, owner: Address, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint) {
   const vault = ctx.deployment.hireling!.vault;
   return {
+    durableJournal: true,
     sendGuard: async (): Promise<string | null> => {
       if (intent.kind === "delegate") {
         if (delegationAmounts(intent.txs, vault, owner, intent.account).length === 0) throw invalid();

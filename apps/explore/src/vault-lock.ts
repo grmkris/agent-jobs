@@ -55,6 +55,41 @@ function intentDbWrite(key: string, value: string | null): Promise<void> {
 
 export const browserVaultIntentCheckpoint: VaultIntentCheckpoint = { read: intentDbRead, write: intentDbWrite };
 
+export class InterruptedVaultPreparation extends Error {
+  constructor(readonly id: string, options?: ErrorOptions) {
+    super("A permit preparation is unfinished. Discard it before preparing another position action.", options);
+  }
+}
+
+function preparationId(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const value = JSON.parse(raw) as { preparing?: unknown; id?: unknown } | null;
+  return value?.preparing === true && typeof value.id === "string" ? value.id : null;
+}
+
+/** Caller holds the vault lock. Reserve durably before opening the permit prompt. */
+export async function withVaultPermitPreparation<T>(key: string, sign: () => Promise<T>, save: (signature: T) => Promise<void>, checkpoint = browserVaultIntentCheckpoint): Promise<void> {
+  const id = crypto.randomUUID();
+  await checkpoint.write(key, JSON.stringify({ preparing: true, id }));
+  let signature: T;
+  try {
+    signature = await sign();
+  } catch (failure) {
+    try { await checkpoint.write(key, null); }
+    catch (saveFailure) { throw new InterruptedVaultPreparation(id, { cause: saveFailure }); }
+    throw failure;
+  }
+  try { await save(signature); }
+  catch (failure) { throw new InterruptedVaultPreparation(id, { cause: failure }); }
+}
+
+/** Caller holds the vault lock. A reservation has never exposed a sendable local pointer. */
+export async function discardVaultPreparation(storage: Pick<Storage, "getItem">, key: string, id: string, checkpoint = browserVaultIntentCheckpoint): Promise<boolean> {
+  if (preparationId(await checkpoint.read(key)) !== id || storage.getItem(key) !== null) return false;
+  await checkpoint.write(key, null);
+  return true;
+}
+
 /** Both delegation screens share one recovery pointer per vault and delegator. */
 export const vaultIntentKey = (chainId: number, vault: string, delegator: string) =>
   `hireling.delegation-op:${chainId}:${vault.toLowerCase()}:${delegator.toLowerCase()}`;
@@ -82,6 +117,8 @@ export function readVaultIntent(
 /** Read the cross-renderer checkpoint before relying on a localStorage reread. */
 export async function readVaultIntentDurable(storage: Pick<Storage, "getItem">, key: string, checkpoint = browserVaultIntentCheckpoint): Promise<VaultIntent | null> {
   const durable = await checkpoint.read(key);
+  const preparing = preparationId(durable);
+  if (preparing !== null) throw new InterruptedVaultPreparation(preparing);
   const raw = storage.getItem(key);
   const local = readVaultIntent(storage, key);
   if (durable === undefined) return local; // Preserve pre-checkpoint recovery intents.
@@ -90,12 +127,12 @@ export async function readVaultIntentDurable(storage: Pick<Storage, "getItem">, 
   return readVaultIntent({ getItem: () => durable }, key);
 }
 
-/** Write localStorage for existing recovery plus an IDB commit visible to queued tabs. */
+/** Commit the cross-renderer pointer before exposing it to the local recovery UI. */
 export async function writeVaultIntent(storage: IntentStorage, key: string, intent: VaultIntent, checkpoint = browserVaultIntentCheckpoint): Promise<void> {
   const json = JSON.stringify(intent);
+  await checkpoint.write(key, json);
   storage.setItem(key, json);
   if (storage.getItem(key) !== json) throw new Error("The operation could not be saved. Nothing may be sent.");
-  await checkpoint.write(key, json);
 }
 
 /** Serialize all backed accounts too: they share the delegator's recovery pointer. */

@@ -1,5 +1,6 @@
 import type { Hex } from 'viem'
 import type { SendSnapshot, WalletStep } from './txOperation.ts'
+import { type VaultIntentCheckpoint, browserVaultIntentCheckpoint } from '../vault-lock.ts'
 
 export interface OpRecord {
   batch: boolean
@@ -53,6 +54,31 @@ export function writeTxJournal(storage: JournalStorage, key: string, record: OpR
       if (storage.getItem(key) !== bytes) throw new Error('write not durable')
     }
   } catch { throw new Error('Transaction journal could not be saved. No new wallet prompt is allowed; reconcile any existing broadcast.') }
+}
+
+const journalCheckpointKey = (key: string) => `hireling.tx-journal:${key}`
+
+/** Read the inner send journal from the committed cross-renderer store before trusting localStorage. */
+export async function readTxJournalDurable(storage: JournalStorage, key: string, requireExisting = false, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint): Promise<OpRecord | null> {
+  const durable = await checkpoint.read(journalCheckpointKey(key))
+  if (durable === undefined) {
+    const local = readTxJournal(storage, key, requireExisting)
+    if (local !== null) await checkpoint.write(journalCheckpointKey(key), JSON.stringify(local))
+    return local
+  }
+  return readTxJournal({ getItem: () => durable, setItem: () => {}, removeItem: () => {} }, key, requireExisting)
+}
+
+/** Commit the inner journal before exposing its localStorage copy. */
+export async function writeTxJournalDurable(storage: JournalStorage, key: string, record: OpRecord | null, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint): Promise<void> {
+  const bytes = record === null ? null : JSON.stringify(record)
+  await checkpoint.write(journalCheckpointKey(key), bytes)
+  writeTxJournal(storage, key, record)
+}
+
+export async function initializeTxJournalDurable(storage: JournalStorage, taskId: string, txs: WalletStep[]): Promise<void> {
+  const key = txJournalKey(taskId, txs)
+  if (await readTxJournalDurable(storage, key) === null) await writeTxJournalDurable(storage, key, emptyJournal())
 }
 /** Persist the inner journal before an outer approval record can advertise executable transactions. */
 export function initializeTxJournal(storage: JournalStorage, taskId: string, txs: WalletStep[]): void {

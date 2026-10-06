@@ -17,9 +17,9 @@ import { useToast } from "../components/Sheet.tsx";
 import { TxSteps } from "../components/TxSteps.tsx";
 import {
   emptyJournal,
-  readTxJournal,
+  readTxJournalDurable,
   txJournalKey,
-  writeTxJournal,
+  writeTxJournalDurable,
 } from "../components/txJournal.ts";
 import { withWalletStepLock } from "../components/txOperation.ts";
 import {
@@ -40,14 +40,17 @@ import { friendlyError } from "../txErrors.ts";
 import { vaultOperationGuards } from "../vault-proof.ts";
 import { chain } from "../wallet.ts";
 import {
+  InterruptedVaultPreparation,
   type VaultIntent as Operation,
   clearOwnedIntentDurable,
   readVaultIntent,
   readVaultIntentDurable,
+  withVaultPermitPreparation,
   writeVaultIntent,
   vaultIntentKey,
   withVaultIntentLock,
 } from "../vault-lock.ts";
+import { VaultPreparationRecovery } from "../components/VaultPreparationRecovery.tsx";
 
 export function StakePage() {
   const auth = useAuth();
@@ -112,6 +115,7 @@ function Stake({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [interrupted, setInterrupted] = useState<InterruptedVaultPreparation | null>(null);
   const key = vaultIntentKey(chain.id, contracts.vault, owner);
   const [initial] = useState(() => {
     try {
@@ -126,6 +130,21 @@ function Stake({
   });
   const [operation, setOperation] = useState<Operation | null>(initial.operation);
   const [safeToDismiss, setSafeToDismiss] = useState(initial.operation === null);
+  useEffect(() => {
+    let active = true;
+    void withVaultIntentLock(navigator.locks, key, async () => {
+      const saved = await readVaultIntentDurable(localStorage, key);
+      if (active) {
+        setOperation(saved);
+        setSafeToDismiss(saved === null);
+      }
+    }).catch((failure) => {
+      if (!active) return;
+      if (failure instanceof InterruptedVaultPreparation) setInterrupted(failure);
+      setError(friendlyError(failure));
+    });
+    return () => { active = false; };
+  }, [key]);
   const { signTypedDataAsync } = useSignTypedData();
   useEffect(() => {
     setError(null);
@@ -151,6 +170,11 @@ function Stake({
     initial.error !== null;
   const disabled = unavailable || busy || operation !== null || reads.data?.open !== true;
 
+  function reportFailure(failure: unknown) {
+    if (failure instanceof InterruptedVaultPreparation) setInterrupted(failure);
+    setError(friendlyError(failure));
+  }
+
   async function savePrepared(
     kind: Operation["kind"],
     target: Address,
@@ -163,7 +187,7 @@ function Stake({
       account: target,
       txs: [{ description, chainId: chain.id, to: contracts.vault, value: "0", data }],
     };
-    writeTxJournal(localStorage, txJournalKey(`delegation:${next.id}`, next.txs), emptyJournal());
+    await writeTxJournalDurable(localStorage, txJournalKey(`delegation:${next.id}`, next.txs), emptyJournal());
     await writeVaultIntent(localStorage, key, next);
     setOperation(next);
     setSafeToDismiss(false);
@@ -237,28 +261,33 @@ function Stake({
           amount,
           BigInt(Math.floor(Date.now() / 1000) + 3600),
         );
-        const signature = await signTypedDataAsync(permit);
-        const { r, s, v, yParity } = parseSignature(signature);
-        await savePrepared(
-          "delegate",
-          account,
-          `Delegate ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
-          encodeFunctionData({
-            abi: sdk.stakeVaultAbi,
-            functionName: "delegateWithPermit",
-            args: [
+        await withVaultPermitPreparation(
+          key,
+          () => signTypedDataAsync(permit),
+          async (signature) => {
+            const { r, s, v, yParity } = parseSignature(signature);
+            await savePrepared(
+              "delegate",
               account,
-              amount,
-              permit.message.deadline,
-              Number(v ?? BigInt(yParity + 27)),
-              r,
-              s,
-            ],
-          }),
+              `Delegate ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
+              encodeFunctionData({
+                abi: sdk.stakeVaultAbi,
+                functionName: "delegateWithPermit",
+                args: [
+                  account,
+                  amount,
+                  permit.message.deadline,
+                  Number(v ?? BigInt(yParity + 27)),
+                  r,
+                  s,
+                ],
+              }),
+            );
+          },
         );
       });
     } catch (failure) {
-      setError(friendlyError(failure));
+      reportFailure(failure);
     } finally {
       setBusy(false);
     }
@@ -277,7 +306,7 @@ function Stake({
             args: [target],
           })
         : encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "withdraw", args: [target] }),
-    ).catch((failure) => setError(friendlyError(failure)));
+    ).catch(reportFailure);
   }
 
   return (
@@ -292,6 +321,8 @@ function Stake({
         {DELEGATION_RISK}
       </p>
       {initial.error !== null && <ErrorText>{initial.error}</ErrorText>}
+      <VaultPreparationRecovery preparation={interrupted} intentKey={key}
+        onCleared={() => { setInterrupted(null); setError(null); }} onError={setError} />
       {(reads.isError || selected.isError) && (
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
           <p>
@@ -389,7 +420,7 @@ function Stake({
               onClick={() => {
                 const journalKey = txJournalKey(`delegation:${operation.id}`, operation.txs);
                 void withWalletStepLock(navigator.locks, journalKey, async () => {
-                  const journal = readTxJournal(localStorage, journalKey, true)!;
+                  const journal = (await readTxJournalDurable(localStorage, journalKey, true))!;
                   if (
                     journal.pending !== null ||
                     journal.hashes.some((hash) => hash !== null) ||
@@ -454,7 +485,7 @@ function Stake({
               functionName: "setHoldingDenied",
               args: [holding, denied],
             }),
-          ).catch((failure) => setError(friendlyError(failure)));
+          ).catch(reportFailure);
         }}
       />
     </>

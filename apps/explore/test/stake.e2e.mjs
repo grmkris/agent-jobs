@@ -15,11 +15,12 @@ async function confirm(page, message) {
   await page.getByRole('status').filter({ hasText: message }).waitFor();
 }
 async function refresh(page) {
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
-    document.dispatchEvent(new Event('visibilitychange'));
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
-    document.dispatchEvent(new Event('visibilitychange'));
+  // Out-of-band fixture mutations need a completed fresh read, not a focus event racing an older read.
+  await page.evaluate(async () => {
+    await Promise.all([
+      window.__stakingQueryClient.invalidateQueries({ queryKey: ['delegations'] }),
+      window.__stakingQueryClient.invalidateQueries({ queryKey: ['indexed-backing'] }),
+    ]);
   });
 }
 try {
@@ -322,6 +323,137 @@ try {
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await context.close();
     results.push({ checks: ['two origin-sharing tabs serialize preparation and permit signing', 'committed checkpoint reread under Web Lock despite forced stale null localStorage', 'one original pointer and journal', 'stale Not now compare-delete', 'stale prepared send blocked'], passed: true });
+  }
+  for (const surface of ['stake', 'setup']) {
+    const { context, page } = await fixture({ width: 1440, height: 900 });
+    const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
+    await context.addInitScript(() => {
+      const put = IDBObjectStore.prototype.put;
+      window.__rejectVaultWrite = 'all';
+      IDBObjectStore.prototype.put = function (value, key) {
+        if (this.transaction.db.name === 'hireling-vault-intents' &&
+          (window.__rejectVaultWrite === 'all' || window.__rejectVaultWrite === 'prepared' &&
+            typeof value === 'string' && Array.isArray(JSON.parse(value).txs))) {
+          this.transaction.abort();
+          return undefined;
+        }
+        return put.call(this, value, key);
+      };
+    });
+    const second = await context.newPage();
+    second.setDefaultTimeout(20000);
+    second.on('pageerror', error => errors.push(error.message));
+    await page.goto(`${base}/${surface === 'stake' ? `stake?account=${agentWallet}` : 'agents/new'}`);
+    if (surface === 'setup') await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
+    const firstAmount = surface === 'stake' ? amount(page) : page.getByRole('textbox', { name: 'FACTORY to delegate to agent' });
+    const review = () => page.getByRole('button', { name: surface === 'stake' ? 'Delegate 1 FACTORY' : 'Review delegation', exact: true });
+    await firstAmount.fill('1');
+    await second.goto(`${base}/stake?account=${agentWallet}`);
+    await amount(second).fill('1');
+    await review().click();
+    await text(page, 'vault intent write aborted');
+    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await text(second, 'vault intent write aborted');
+    assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'failed reservation cannot open the first permit prompt');
+    assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'undefined checkpoint and stale null cannot open the second permit prompt when its reservation fails');
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null, 'failed durable writes never expose a local recovery pointer');
+    await page.evaluate(() => { window.__rejectVaultWrite = 'prepared'; });
+    await second.evaluate(key => {
+      window.__rejectVaultWrite = false;
+      const getItem = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (item) {
+        return this === localStorage && item === key ? null : getItem.call(this, item);
+      };
+    }, pointerKey);
+    await review().click();
+    await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 1);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null, 'rejected final pointer write stays unexposed after signing');
+    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
+    assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'durable reservation blocks the stale renderer before a second signature');
+    await second.reload();
+    await amount(second).fill('1');
+    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
+    assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'interrupted reservation survives reload');
+    await page.evaluate(() => { window.__rejectVaultWrite = false; });
+    await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).click();
+    await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor({ state: 'detached' });
+    await review().click();
+    await page.getByText('Delegate 1 FACTORY to My worker', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 2, 'explicit discard permits one fresh preparation');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
+    await context.close();
+    results.push({ surface, checks: ['two renderer reservation-write rejection: zero permit prompts', 'final write rejection retains durable reservation', 'stale null renderer and reload cannot sign', 'exact locked discard allows retry', 'no pointer exposed without durable commit'], passed: true });
+  }
+  {
+    const { context, page } = await fixture({ width: 1440, height: 900 }, { delegated: true });
+    await page.goto(`${base}/agents/new`);
+    await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
+    await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
+    await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
+    await text(page, 'Delegate 1 FACTORY to My worker');
+    const journal = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find(item => item.startsWith('hireling.op:delegation:'));
+      return { key, raw: localStorage.getItem(key) };
+    });
+    const second = await context.newPage();
+    second.setDefaultTimeout(20000);
+    second.on('pageerror', error => errors.push(error.message));
+    await second.goto(`${base}/stake?account=${agentWallet}`);
+    await second.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
+    await second.evaluate(({ key, raw }) => {
+      const getItem = Storage.prototype.getItem;
+      const setItem = Storage.prototype.setItem;
+      let cached = raw;
+      Storage.prototype.getItem = function (item) {
+        return this === localStorage && item === key ? cached : getItem.call(this, item);
+      };
+      Storage.prototype.setItem = function (item, value) {
+        setItem.call(this, item, value);
+        if (this === localStorage && item === key) cached = value;
+      };
+    }, journal);
+    let releaseReceipt;
+    const receiptGate = new Promise(resolve => { releaseReceipt = resolve; });
+    await context.route('**/__test/receipt?*', async route => {
+      await receiptGate;
+      await route.fallback();
+    });
+    await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm fixture', exact: true }).waitFor();
+    const pending = await second.evaluate(async key => {
+      const { readTxJournalDurable } = await import('/src/components/txJournal.ts');
+      return readTxJournalDurable(localStorage, key, true);
+    }, journal.key);
+    assert.equal(pending.pending, 0, 'pending journal committed before the first wallet prompt');
+    assert.equal(pending.snapshot.nonce, 0);
+    await second.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
+    await second.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock => lock.name.startsWith('hireling.wallet-step:hireling.op:')));
+    await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
+    await second.waitForFunction(async key => {
+      const { readTxJournalDurable } = await import('/src/components/txJournal.ts');
+      return (await readTxJournalDurable(localStorage, key, true)).hashes[0] != null;
+    }, journal.key);
+    const sends = await page.evaluate(() => window.__wallet.sends);
+    await second.evaluate(sent => { window.__wallet.sends = sent; }, sends);
+    assert.equal(await second.evaluate(key => JSON.parse(localStorage.getItem(key)).hashes.length, journal.key), 0, 'second renderer retains the empty journal after the first hash commits');
+    assert.equal(await second.getByRole('button', { name: 'Confirm fixture', exact: true }).count(), 0);
+    releaseReceipt();
+    await second.getByRole('status').filter({ hasText: 'Delegated. You own the position.' }).waitFor();
+    assert.equal(await second.getByRole('button', { name: 'Confirm fixture', exact: true }).count(), 0, 'same-intent stale empty journal reconciles the first hash without another wallet prompt');
+    assert.equal(await second.evaluate(() => window.__wallet.sends.length), 1, 'advanced chain nonce cannot cause a duplicate batch');
+    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
+    const canonical = await second.evaluate(async key => {
+      const { readTxJournalDurable } = await import('/src/components/txJournal.ts');
+      return readTxJournalDurable(localStorage, key, true);
+    }, journal.key);
+    assert.equal(canonical.recorded[0], true);
+    assert.equal(canonical.pending, null);
+    assert.equal(canonical.hashes.length, 1);
+    await context.close();
+    results.push({ checks: ['same saved 7702 intent in setup and /stake', 'forced valid empty second-renderer send journal', 'pending committed before prompt', 'hash committed before lock transfer', 'nonce advances but one batch only', 'second tab reconciles and records the original hash'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live vault, signing or sends', results, errors }, null, 2));

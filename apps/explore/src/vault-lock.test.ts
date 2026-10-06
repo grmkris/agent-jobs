@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type VaultIntent, type VaultIntentCheckpoint, clearOwnedIntent, clearOwnedIntentDurable, readVaultIntentDurable, withVaultIntentLock, writeVaultIntent } from "./vault-lock.ts";
+import { InterruptedVaultPreparation, type VaultIntent, type VaultIntentCheckpoint, clearOwnedIntent, clearOwnedIntentDurable, discardVaultPreparation, readVaultIntentDurable, withVaultIntentLock, withVaultPermitPreparation, writeVaultIntent } from "./vault-lock.ts";
 
 const intent: VaultIntent = {
   id: "first", kind: "delegate", account: "0x1111111111111111111111111111111111111111",
@@ -82,11 +82,23 @@ describe("vault intent lock", () => {
     } };
     const prepared = withVaultIntentLock(locks, "k", () => writeVaultIntent(firstTab, "k", intent, checkpoint));
     await writeStarted;
-    expect(firstTab.getItem("k")).toBe(JSON.stringify(intent));
+    expect(firstTab.getItem("k")).toBeNull();
     expect(released).toEqual([]);
     commit();
     await prepared;
+    expect(firstTab.getItem("k")).toBe(JSON.stringify(intent));
     expect(released).toEqual(["released"]);
+  });
+
+  it("recovers the committed intent in another renderer when the local copy rejects", async () => {
+    const checkpoint = checkpointStore();
+    const firstTab = storageCache();
+    const localFailure = new Error("local storage rejected");
+    await expect(writeVaultIntent({ ...firstTab, setItem: () => { throw localFailure; } }, "k", intent, checkpoint)).rejects.toBe(localFailure);
+    expect(firstTab.getItem("k")).toBeNull();
+    const secondTab = storageCache();
+    expect(await readVaultIntentDurable(secondTab, "k", checkpoint)).toEqual(intent);
+    expect(await discardVaultPreparation(secondTab, "k", intent.id, checkpoint)).toBe(false);
   });
 
   it("preserves legacy intents without creating a checkpoint in a reader", async () => {
@@ -129,8 +141,83 @@ describe("vault intent lock", () => {
     const current = storageCache();
     await expect(readVaultIntentDurable(current, "k", checkpoint)).rejects.toBe(unavailable);
     await expect(writeVaultIntent(current, "k", intent, checkpoint)).rejects.toBe(unavailable);
-    expect(current.getItem("k")).toBe(JSON.stringify(intent)); // Retain the existing recovery intent.
+    expect(current.getItem("k")).toBeNull(); // Never expose a pointer without its durable checkpoint.
+    current.setItem("k", JSON.stringify(intent));
     await expect(clearOwnedIntentDurable(current, "k", intent.id, checkpoint)).rejects.toBe(unavailable);
     expect(current.getItem("k")).toBe(JSON.stringify(intent));
+  });
+
+  it("two renderer caches expose no pointer or permit when reservation writes reject", async () => {
+    const checkpoint: VaultIntentCheckpoint = {
+      read: async () => undefined,
+      write: async () => { throw new Error("checkpoint write rejected"); },
+    };
+    const tabs = [storageCache(), storageCache()];
+    const signatures = [0, 0];
+    for (const [index, tab] of tabs.entries()) {
+      expect(await readVaultIntentDurable(tab, "k", checkpoint)).toBeNull();
+      await expect(withVaultPermitPreparation("k", async () => { signatures[index] = signatures[index]! + 1; return "permit"; },
+        async () => writeVaultIntent(tab, "k", intent, checkpoint), checkpoint)).rejects.toThrow("checkpoint write rejected");
+      expect(tab.getItem("k")).toBeNull();
+    }
+    expect(signatures).toEqual([0, 0]);
+    await expect(writeVaultIntent(tabs[0]!, "k", intent, checkpoint)).rejects.toThrow("checkpoint write rejected");
+    expect(tabs[0]!.getItem("k")).toBeNull();
+  });
+
+  it("a failed final write leaves a durable reservation that stops the stale second renderer before signing", async () => {
+    const committed = checkpointStore();
+    const checkpoint: VaultIntentCheckpoint = {
+      read: committed.read,
+      write: async (key, value) => {
+        if (value !== null && Array.isArray((JSON.parse(value) as VaultIntent).txs)) throw new Error("final write rejected");
+        await committed.write(key, value);
+      },
+    };
+    const firstTab = storageCache();
+    const staleTab = storageCache();
+    let firstSignatures = 0;
+    let secondSignatures = 0;
+    await expect(withVaultPermitPreparation("k", async () => { firstSignatures++; return "permit"; },
+      async () => writeVaultIntent(firstTab, "k", intent, checkpoint), checkpoint)).rejects.toBeInstanceOf(InterruptedVaultPreparation);
+    expect(firstTab.getItem("k")).toBeNull();
+    expect(staleTab.getItem("k")).toBeNull();
+    await expect((async () => {
+      if (await readVaultIntentDurable(staleTab, "k", checkpoint) !== null) return;
+      await withVaultPermitPreparation("k", async () => { secondSignatures++; return "permit"; },
+        async () => writeVaultIntent(staleTab, "k", intent, checkpoint), checkpoint);
+    })()).rejects.toBeInstanceOf(InterruptedVaultPreparation);
+    expect(firstSignatures).toBe(1);
+    expect(secondSignatures).toBe(0);
+    const reservation = JSON.parse((await committed.read("k"))!) as { id: string };
+    expect(await discardVaultPreparation(staleTab, "k", "wrong-id", committed)).toBe(false);
+    expect(await discardVaultPreparation(staleTab, "k", reservation.id, committed)).toBe(true);
+    expect(await readVaultIntentDurable(staleTab, "k", committed)).toBeNull();
+  });
+
+  it("discard cannot clear a prepared action or a local recovery pointer", async () => {
+    const checkpoint = checkpointStore();
+    const tab = storageCache();
+    await writeVaultIntent(tab, "k", intent, checkpoint);
+    expect(await discardVaultPreparation(tab, "k", intent.id, checkpoint)).toBe(false);
+    await checkpoint.write("k", JSON.stringify({ preparing: true, id: "reservation" }));
+    expect(await discardVaultPreparation(tab, "k", "reservation", checkpoint)).toBe(false);
+    expect(tab.getItem("k")).toBe(JSON.stringify(intent));
+  });
+
+  it("releases a refused permit prompt but retains the reservation if that clear fails", async () => {
+    const checkpoint = checkpointStore();
+    const refusal = new Error("permit refused");
+    await expect(withVaultPermitPreparation("k", async () => { throw refusal; }, async () => {}, checkpoint)).rejects.toBe(refusal);
+    expect(await checkpoint.read("k")).toBeNull();
+    const failingClear: VaultIntentCheckpoint = {
+      read: checkpoint.read,
+      write: async (key, value) => {
+        if (value === null) throw new Error("clear rejected");
+        await checkpoint.write(key, value);
+      },
+    };
+    await expect(withVaultPermitPreparation("k", async () => { throw refusal; }, async () => {}, failingClear)).rejects.toBeInstanceOf(InterruptedVaultPreparation);
+    await expect(readVaultIntentDurable(storageCache(), "k", checkpoint)).rejects.toBeInstanceOf(InterruptedVaultPreparation);
   });
 });

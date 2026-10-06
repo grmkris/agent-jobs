@@ -15,7 +15,7 @@ import { usePrivyBatch } from './Privy.tsx'
 import { useAuth } from './Wallet.tsx'
 import { type ChainReads, type Reconciled, type SendSnapshot, type TxStatus, type WalletStep, guardedSnapshot, reconcileSend, retryAction, walletRefused, walletStepRequest, withWalletStepLock } from './txOperation.ts'
 import { Button, ErrorText, Group, Input, ListRow, TxLink, cn } from './ui.tsx'
-import { emptyJournal, readTxJournal, txJournalKey, writeTxJournal, type OpRecord } from './txJournal.ts'
+import { emptyJournal, readTxJournal, readTxJournalDurable, txJournalKey, writeTxJournal, writeTxJournalDurable, type OpRecord } from './txJournal.ts'
 
 type Status = TxStatus
 
@@ -89,6 +89,7 @@ export function TxSteps({
   requireJournal = false,
   verifyReceipt = false,
   receiptGuard,
+  durableJournal = false,
 }: {
   taskId: string
   txs: WalletStep[]
@@ -107,6 +108,8 @@ export function TxSteps({
   sendGuard?: (() => string | null | Promise<string | null>) | undefined
   requireJournal?: boolean
   verifyReceipt?: boolean
+  /** Use committed cross-renderer journal checkpoints under the existing step lock. */
+  durableJournal?: boolean
   /** A successful receipt must prove the requested effect. A returned error proves no effect and permits retry; unreadable or conflicting proof must throw. */
   receiptGuard?: ((receipt: Pick<TransactionReceipt, 'logs'>, steps: readonly WalletStep[]) => string | null) | undefined
 }) {
@@ -123,9 +126,17 @@ export function TxSteps({
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
   const key = txJournalKey(taskId, txs)
+  const loadDurable = async (required = false) => durableJournal
+    ? readTxJournalDurable(localStorage, key, required)
+    : load(key, required)
+  const persistDurable = async (r: OpRecord | null) => {
+    if (durableJournal) await writeTxJournalDurable(localStorage, key, r)
+    else save(key, r)
+    setRecord(r ?? emptyJournal())
+  }
   const [initial] = useState(() => {
     try {
-      return { record: load(key, requireJournal) ?? { ...emptyJournal(), batch: batch !== null && txs.length > 1 }, error: null }
+      return { record: load(key, requireJournal && !durableJournal) ?? { ...emptyJournal(), batch: batch !== null && txs.length > 1 }, error: null }
     } catch (failure) {
       return { record: emptyJournal(), error: friendlyError(failure) }
     }
@@ -157,9 +168,8 @@ export function TxSteps({
   const done = useRef(false)
   const receiptProofs = useRef(new Set<Hex>())
 
-  const commit = (r: OpRecord) => {
-    save(key, r)
-    setRecord(r)
+  const commit = async (r: OpRecord) => {
+    await persistDurable(r)
   }
   const syncRecord = (r: OpRecord) => {
     setRecord(r)
@@ -203,11 +213,11 @@ export function TxSteps({
       if (receiptGuard !== undefined && receipt.transactionHash.toLowerCase() !== hash.toLowerCase())
         throw new Error('The effect receipt names a different transaction. Reconcile before continuing.')
       if (receipt.status !== 'success') {
-        const latest = load(key, requireJournal) ?? r
+        const latest = await loadDurable(requireJournal) ?? r
         const reverted = [...(latest.reverted ?? [])]
         if (!reverted.some(previous => previous.toLowerCase() === hash.toLowerCase())) reverted.push(hash)
         const hashes = [...latest.hashes]; hashes[i] = null
-        commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot ?? null, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
+        await commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot ?? null, hashes, reverted, recorded: Object.assign([...latest.recorded], { [i]: false }) })
         set(i, {
           at: 'failed',
           hash,
@@ -216,20 +226,20 @@ export function TxSteps({
         })
         return
       }
-      const latest = load(key, requireJournal) ?? r
+      const latest = await loadDurable(requireJournal) ?? r
       const effectError = receiptGuard?.(receipt, r.batch ? txs : [txs[i]!])
       if (effectError) {
         const effectFailures = [...(latest.effectFailures ?? [])]
         if (!effectFailures.some(failure => failure.hash === hash)) effectFailures.push({ index: i, hash, error: effectError })
         const hashes = [...latest.hashes]; hashes[i] = null
-        commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot ?? null, hashes, effectFailures, recorded: Object.assign([...latest.recorded], { [i]: false }) })
+        await commit({ ...latest, pending: latest.pending === i ? null : latest.pending, snapshot: latest.pending === i ? null : latest.snapshot ?? null, hashes, effectFailures, recorded: Object.assign([...latest.recorded], { [i]: false }) })
         set(i, { at: 'failed', hash, noEffect: true, error: effectError })
         return
       }
       receiptProofs.current.add(hash)
       if (latest.pending === i) {
         const hashes = [...latest.hashes]; hashes[i] = hash
-        commit({ ...latest, pending: null, snapshot: null, hashes })
+        await commit({ ...latest, pending: null, snapshot: null, hashes })
       }
     } catch (e) {
       set(i, r.pending === i ? { at: 'uncertain', error: friendlyError(e) } : { at: 'failed', hash, error: friendlyError(e) })
@@ -239,7 +249,7 @@ export function TxSteps({
   }
 
   /** Steps that will not go through the relay after all: from the wallet, as one batch where it can, with why. */
-  const toWallet = (text: string | null, hash?: Hex) => {
+  const toWallet = async (text: string | null, hash?: Hex) => {
     const next: OpRecord = {
       batch: batch !== null && txs.length > 1,
       hashes: [],
@@ -247,7 +257,7 @@ export function TxSteps({
       pending: null,
     }
     setSponsorOff(true)
-    commit(next)
+    await commit(next)
     setStatus((next.batch ? [txs[0] as TxRequest] : txs).map((): Status => ({ at: 'idle' })))
     setNotice(text === null ? null : hash === undefined ? { text } : { text, hash })
   }
@@ -266,7 +276,7 @@ export function TxSteps({
         timeout: 60_000,
       })
       if (receipt.status !== 'success') {
-        toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
+        await toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
         return
       }
       const effectError = receiptGuard?.(receipt, txs)
@@ -284,11 +294,11 @@ export function TxSteps({
     // Reverted or dropped: nothing happened, and a retry with this key would only answer the same. The steps go to
     // the wallet with a record that has no key, so a later sponsored attempt is a new operation with a new key.
     if (op.status === 'reverted') {
-      toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', op.txHash)
+      await toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', op.txHash)
       return
     }
     if (op.status === 'dropped') {
-      toWallet(
+      await toWallet(
         'Hireling’s relay transaction was replaced before it was mined, so nothing happened. You can send these from your wallet; you pay the gas.',
         op.txHash,
       )
@@ -299,7 +309,7 @@ export function TxSteps({
       sponsor: { key: r.sponsor?.key ?? '', operationId: op.operationId },
       hashes: [op.txHash],
     }
-    commit(known)
+    await commit(known)
     set(0, { at: 'sent', hash: op.txHash })
     await settleSponsored(op.txHash, known)
   }
@@ -329,7 +339,7 @@ export function TxSteps({
     let ambiguous = r.sponsor != null
     if (r.sponsor == null) {
       r = { ...r, sponsor: { key: sponsorKey(), operationId: null } }
-      commit(r)
+      await commit(r)
     }
     const callerKey = r.sponsor?.key ?? ''
     for (const wait of [0, ...RECHECK_MS]) {
@@ -354,8 +364,8 @@ export function TxSteps({
           return
         }
         const cleared = { ...r, sponsor: null }
-        commit(cleared)
-        if (failure.kind === 'wallet') toWallet(`${failure.why[0]?.toUpperCase()}${failure.why.slice(1)}, so these go from your wallet; you pay the gas.`)
+        await commit(cleared)
+        if (failure.kind === 'wallet') await toWallet(`${failure.why[0]?.toUpperCase()}${failure.why.slice(1)}, so these go from your wallet; you pay the gas.`)
         else set(0, { at: 'failed', error: failure.message })
         return
       }
@@ -374,12 +384,12 @@ export function TxSteps({
       if (reportToBoard) await boardApi(boardId).tool('report_transaction', { taskId, txHash: hash })
       // Receipt reconciliation can finish in a stale tab after another tab has sent a later step. Merge with the
       // authoritative journal so that this tab cannot erase that step's hash or pending state.
-      const latest = load(key, requireJournal) ?? r
+      const latest = await loadDurable(requireJournal) ?? r
       const existing = latest.hashes[i]
       if (existing !== null && existing !== undefined && existing.toLowerCase() !== hash.toLowerCase())
         throw new Error('The saved transaction journal changed while this receipt was being reconciled. Reconcile before continuing.')
       const next = { ...latest, hashes: Object.assign([...latest.hashes], { [i]: hash }), recorded: Object.assign([...latest.recorded], { [i]: true }) }
-      commit(next)
+      await commit(next)
       set(i, { at: 'recorded', hash })
     } catch (e) {
       set(i, {
@@ -425,11 +435,11 @@ export function TxSteps({
         snapshot: null,
         hashes: Object.assign([...r.hashes], { [i]: outcome.hash }),
       }
-      commit(known)
+      await commit(known)
       set(i, { at: 'sent', hash: outcome.hash })
       await settle(i, outcome.hash, known)
     } else if (outcome.at === 'not-sent') {
-      commit({ ...r, pending: null, snapshot: null })
+      await commit({ ...r, pending: null, snapshot: null })
       set(i, {
         at: 'failed',
         error: 'Your wallet returned an error and nothing left your account, so nothing was sent. You can send it again.',
@@ -446,7 +456,7 @@ export function TxSteps({
   const reconcileSaved = async (i: number) => {
     try {
       await withWalletStepLock(navigator.locks, key, async () => {
-        const latest = load(key, requireJournal) ?? record
+        const latest = await loadDurable(requireJournal) ?? record
         syncRecord(latest)
         const hash = latest.hashes[i]
         if (hash != null && (latest.recorded[i] !== true || receiptGuard !== undefined && !receiptProofs.current.has(hash))) await settle(i, hash, latest)
@@ -486,9 +496,9 @@ export function TxSteps({
     if (!allDone || done.current || journalError !== null) return
     done.current = true
     void withWalletStepLock(navigator.locks, key, async () => {
-      const latest = load(key, requireJournal) ?? record
+      const latest = await loadDurable(requireJournal) ?? record
       if (latest.recorded.length !== steps || !latest.recorded.every(entry => entry === true)) return
-      if (!retainRecord) save(key, null)
+      if (!retainRecord) await persistDurable(null)
       onDone(latest.hashes.flatMap(hash => hash === null ? [] : [hash]))
     }).catch(journalFailure)
   }, [allDone])
@@ -496,7 +506,7 @@ export function TxSteps({
   const runLocked = async (i: number) => {
     if (!writesOpen || journalError !== null) return
     // Another tab may have broadcast while this mounted instance still showed idle.
-    const authoritative = load(key, requireJournal) ?? record
+    const authoritative = await loadDurable(requireJournal) ?? record
     syncRecord(authoritative)
     // A relay retry asks about the same saved operation before following its hash. Its nonce may have been
     // consumed by a replacement, in which case receipt-only polling would never discover the safe fallback.
@@ -554,7 +564,7 @@ export function TxSteps({
       return
     }
     const withPending = { ...authoritative, pending: i, snapshot, attempts: Object.assign([...(authoritative.attempts ?? [])], { [i]: snapshot.nonce }), from }
-    try { commit(withPending) } catch (failure) {
+    try { await persistDurable(withPending) } catch (failure) {
       sending.current = false
       setJournalError(friendlyError(failure))
       set(i, { at: 'uncertain', error: friendlyError(failure) })
@@ -576,7 +586,7 @@ export function TxSteps({
     } catch (e) {
       sending.current = false
       if (walletRefused(e)) {
-        commit({ ...withPending, pending: null, snapshot: null })
+        await commit({ ...withPending, pending: null, snapshot: null })
         set(i, { at: 'failed', error: friendlyError(e) })
       } else {
         await reconcile(i, withPending)
@@ -589,7 +599,12 @@ export function TxSteps({
       snapshot: null,
       hashes: Object.assign([...authoritative.hashes], { [i]: hash }),
     }
-    commit(sent)
+    try { await persistDurable(sent) } catch (failure) {
+      sending.current = false
+      setJournalError(friendlyError(failure))
+      set(i, { at: 'uncertain', error: friendlyError(failure) })
+      return
+    }
     set(i, { at: 'sent', hash })
     await settle(i, hash, sent)
     sending.current = false
@@ -685,7 +700,7 @@ export function TxSteps({
                 disabled={!/^0x[0-9a-fA-F]{64}$/.test(pendingHash)}
                 onClick={() => {
                   void withWalletStepLock(navigator.locks, key, async () => {
-                    const latest = load(key, requireJournal) ?? record
+                    const latest = await loadDurable(requireJournal) ?? record
                     syncRecord(latest)
                     const index = latest.pending
                     if (index === null) return
@@ -775,7 +790,7 @@ export function TxSteps({
         </Button>
       )}
       {record.sponsored === true && (!started || (current?.at === 'failed' && record.sponsor == null)) && (
-        <Button variant="plain" size="sm" onClick={() => toWallet(null)} className="justify-self-center">
+        <Button variant="plain" size="sm" onClick={() => { void withWalletStepLock(navigator.locks, key, () => toWallet(null)).catch(journalFailure) }} className="justify-self-center">
           Pay the gas yourself instead
         </Button>
       )}
