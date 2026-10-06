@@ -230,7 +230,7 @@ export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, no
         throw new TermsError('invalid-budget', 'A call budget names exactly one function in human-readable ABI form.')
       }
     }
-    if (b.expiresAt <= now || b.expiresAt > offer.deliveryDeadline) {
+    if (!Number.isSafeInteger(b.expiresAt) || b.expiresAt <= now || b.expiresAt > offer.deliveryDeadline) {
       throw new TermsError('invalid-budget', 'An execution budget expires in the future and no later than the delivery deadline.')
     }
   }

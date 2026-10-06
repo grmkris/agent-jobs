@@ -803,6 +803,8 @@ export class Board {
   /** A requested budget as terms: the cap in the token's (or the native) units, the expiry defaulting to the deadline. */
   async #executionBudget(ctx: sdk.Ctx, b: BudgetInput, deliveryDeadline: number): Promise<ExecutionBudget> {
     const expiresAt = b.expiresAt ?? deliveryDeadline
+    // validateOffer bounds it by now and the delivery deadline; a non-integer would compare as NaN and pass.
+    if (!Number.isSafeInteger(expiresAt)) throw new BoardError('invalid', 'executionBudget.expiresAt must be unix seconds')
     if (b.kind === 'call') {
       if (b.target === undefined || !isAddress(b.target)) throw new BoardError('invalid', 'a call budget needs the contract address (`target`)')
       if (b.function === undefined) throw new BoardError('invalid', 'a call budget needs the allowed `function`, e.g. "function create((string,string) params) payable"')
@@ -1436,7 +1438,7 @@ export class Board {
   ) {
     const creator = this.#requireCaller(caller)
     const saved = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
-    if (saved !== undefined) return saved
+    if (saved !== undefined) return this.#withRequestDeadlines(saved)
     const stack = input.stack ?? 'main'
     const ctx = this.#ctx(stack)
     if (input.tokens.length === 0) throw new BoardError('invalid', 'name at least one accepted token')
@@ -1477,13 +1479,19 @@ export class Board {
     const id = randomId(8)
     return this.#persist(() => {
       const prior = this.#idempotent<QuotePreparation>(creator, 'request_quotes', input.idempotencyKey)
-      if (prior !== undefined) return prior
+      if (prior !== undefined) return this.#withRequestDeadlines(prior)
       this.#sql.run(
         'INSERT INTO quote_requests (id, creator, stack, request_json, request_hash, quote_deadline, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)',
         id, creator, stack, requestJson, requestHash, input.quoteDeadline, now,
       )
-      return this.#remember(creator, 'request_quotes', input.idempotencyKey, { requestId: id, requestHash, status: 'Accepting quotes — reward not escrowed', next: 'Wait for quotes; list_quotes, then pick_quote.' })
+      return this.#withRequestDeadlines(this.#remember(creator, 'request_quotes', input.idempotencyKey, { requestId: id, requestHash, status: 'Accepting quotes — reward not escrowed', next: 'Wait for quotes; list_quotes, then pick_quote.' }))
     })
+  }
+
+  /** The deadlines the stored request froze, so a retry reports what was agreed, not what its arguments resolve to now. */
+  #withRequestDeadlines(prepared: QuotePreparation): QuotePreparation & { deliveryDeadline: number; quoteDeadline: number } {
+    const request = JSON.parse(this.#quoteRequest(prepared.requestId).request_json) as { deliveryDeadline: number; quoteDeadline: number }
+    return { ...prepared, deliveryDeadline: request.deliveryDeadline, quoteDeadline: request.quoteDeadline }
   }
 
   #quoteRequest(requestId: string): QuoteRequestRow {

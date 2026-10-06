@@ -7,7 +7,7 @@
  */
 import { type Board, type BudgetInput, type Caller, type DeliverableSpec, type NamedSponsorEntry, TASK_ROLES, TASK_STATUSES, type TaskRole, type TaskStatus } from '@agent-jobs/board'
 import * as sdk from '@agent-jobs/sdk'
-import { deadlineArgs, deadlineSchema } from './deadlines.ts'
+import { deadlineArgs, deadlineSchema, echoDeadlines, isRelative, manifestDeadlines } from './deadlines.ts'
 
 export interface Tool {
   readonly description: string
@@ -43,6 +43,14 @@ const budgetSchema = (tokenHelp: string) => ({
   },
   required: ['kind', 'cap'],
 })
+
+/** An execution-budget argument with its expiry resolved like any deadline; `relative` when it was a duration or date. */
+function budgetArg(a: Record<string, unknown>): { budget: BudgetInput | undefined; relative: boolean } {
+  const budget = a.executionBudget as BudgetInput | undefined
+  if (budget === undefined || budget.expiresAt === undefined) return { budget, relative: false }
+  const { values } = deadlineArgs(budget as unknown as Record<string, unknown>, ['expiresAt'])
+  return { budget: { ...budget, expiresAt: values.expiresAt! }, relative: isRelative(budget.expiresAt) }
+}
 
 /** What the offer accepts as a deliverable (ADR-0006). Omitted: git only. */
 const deliverableSpecSchema = {
@@ -193,9 +201,8 @@ export const tools: Record<string, Tool> = {
     },
     run: async (board, caller, a) => {
       const d = deadlineArgs(a, ['deliveryDeadline', 'selectionDeadline'])
-      const budget = a.executionBudget as BudgetInput | undefined
-      const budgetExpiry = budget?.expiresAt === undefined ? undefined : deadlineArgs(budget as unknown as Record<string, unknown>, ['expiresAt']).values.expiresAt
-      return d.echo(await board.createTask(caller, {
+      const { budget, relative } = budgetArg(a)
+      return echoDeadlines(await board.createTask(caller, {
         title: s(a, 'title'),
         brief: s(a, 'brief'),
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
@@ -212,12 +219,10 @@ export const tools: Record<string, Tool> = {
         ...(a.invite === undefined ? {} : { invite: a.invite as { agentId: string } }),
         ...(a.stack === undefined ? {} : { stack: s(a, 'stack') as sdk.StackName }),
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
-        ...(budget === undefined
-          ? {}
-          : { executionBudget: budgetExpiry === undefined ? budget : { ...budget, expiresAt: budgetExpiry } }),
+        ...(budget === undefined ? {} : { executionBudget: budget }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
         ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
-      }))
+      }), d.relative || relative, manifestDeadlines)
     },
   },
 
@@ -247,7 +252,7 @@ export const tools: Record<string, Tool> = {
     },
     run: async (board, caller, a) => {
       const d = deadlineArgs(a, ['deliveryDeadline', 'quoteDeadline'])
-      return d.echo(await board.requestQuotes(caller, {
+      return echoDeadlines(await board.requestQuotes(caller, {
         title: s(a, 'title'),
         brief: s(a, 'brief'),
         acceptanceCriteria: (a.acceptanceCriteria as string[] | undefined) ?? [],
@@ -263,7 +268,7 @@ export const tools: Record<string, Tool> = {
         ...(a.requiredChecks === undefined ? {} : { requiredChecks: a.requiredChecks as string[] }),
         ...(a.deliverable === undefined ? {} : { deliverable: a.deliverable as DeliverableSpec }),
         ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
-      }))
+      }), d.relative, saved => ({ deliveryDeadline: saved.deliveryDeadline, quoteDeadline: saved.quoteDeadline }))
     },
   },
 
@@ -328,15 +333,15 @@ export const tools: Record<string, Tool> = {
       },
       required: ['requestId', 'quoteId'],
     },
-    run: (board, caller, a) =>
-      board.pickQuote(caller, {
+    run: async (board, caller, a) => {
+      const { budget, relative } = budgetArg(a)
+      return echoDeadlines(await board.pickQuote(caller, {
         requestId: s(a, 'requestId'),
         quoteId: s(a, 'quoteId'),
-        ...(a.executionBudget === undefined
-          ? {}
-          : { executionBudget: a.executionBudget as BudgetInput }),
+        ...(budget === undefined ? {} : { executionBudget: budget }),
         ...(a.idempotencyKey === undefined ? {} : { idempotencyKey: s(a, 'idempotencyKey') }),
-      }),
+      }), relative, manifestDeadlines)
+    },
   },
 
   get_budget: {
@@ -535,11 +540,11 @@ export const tools: Record<string, Tool> = {
     },
     run: async (board, caller, a) => {
       const d = deadlineArgs(a, ['activateBy'])
-      return d.echo(await board.selectWorker(caller, {
+      return echoDeadlines(await board.selectWorker(caller, {
         taskId: s(a, 'taskId'),
         applicationId: s(a, 'applicationId'),
         ...(d.values.activateBy === undefined ? {} : { activateBy: d.values.activateBy }),
-      }))
+      }), d.relative, signed => ({ activateBy: Number((JSON.parse(signed.sign.typedData) as { message: { activateBy: number | string } }).message.activateBy) }))
     },
   },
 

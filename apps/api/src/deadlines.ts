@@ -37,8 +37,8 @@ export const deadlineSchema = (description: string) => ({
 })
 
 /**
- * Resolves the deadline fields present in tool arguments against one clock reading. When any was given as a duration
- * or a date, `echo` adds the absolute times to the result, so the caller sees what it agreed to.
+ * Resolves the deadline fields present in tool arguments against one clock reading. `relative` says whether any was a
+ * duration or a date; only then does a tool echo absolute times, and it echoes the ones the board saved.
  */
 export function deadlineArgs(args: Record<string, unknown>, fields: readonly string[], now = Math.floor(Date.now() / 1000)) {
   const values: Record<string, number> = {}
@@ -47,10 +47,30 @@ export function deadlineArgs(args: Record<string, unknown>, fields: readonly str
     const value = args[field]
     if (value === undefined) continue
     values[field] = resolveDeadline(value, field, now)
-    relative ||= typeof value === 'string' && !/^\d+$/.test(value.trim())
+    relative ||= isRelative(value)
   }
+  return { values, relative }
+}
+
+export const isRelative = (value: unknown): boolean => typeof value === 'string' && !/^\d+$/.test(value.trim())
+
+/**
+ * Adds `deadlines` read from what the board saved (a frozen manifest or stored request), never from this call's own
+ * resolution: an idempotent retry returns the original preparation, and the echo has to match it.
+ */
+export function echoDeadlines<T>(result: T, relative: boolean, saved: (result: T) => Record<string, number | undefined>): T {
+  if (!relative || typeof result !== 'object' || result === null) return result
+  const deadlines = Object.fromEntries(Object.entries(saved(result)).filter(([, value]) => typeof value === 'number'))
+  return { ...result, deadlines }
+}
+
+/** The deadlines inside a prepared offer's canonical manifest. */
+export function manifestDeadlines(result: { manifest?: unknown }): Record<string, number | undefined> {
+  if (typeof result.manifest !== 'string') return {}
+  const terms = JSON.parse(result.manifest) as { deliveryDeadline?: number; selectionDeadline?: number | null; executionBudget?: { expiresAt?: number } }
   return {
-    values,
-    echo: <T>(result: T): T => relative && typeof result === 'object' && result !== null ? { ...result, deadlines: values } : result,
+    deliveryDeadline: terms.deliveryDeadline,
+    selectionDeadline: terms.selectionDeadline ?? undefined,
+    budgetExpiresAt: terms.executionBudget?.expiresAt,
   }
 }

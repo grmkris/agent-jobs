@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deadlineArgs, resolveDeadline } from '../src/deadlines.ts'
+import { deadlineArgs, echoDeadlines, manifestDeadlines, resolveDeadline } from '../src/deadlines.ts'
 
 const now = 1_791_000_000
 
@@ -29,12 +29,16 @@ describe('resolveDeadline', () => {
   })
 })
 
-describe('deadlineArgs', () => {
-  it('echoes the absolute times only when a field was relative or a date', () => {
+describe('deadlineArgs and echoDeadlines', () => {
+  it('resolves present fields and marks durations and dates as relative', () => {
     const relative = deadlineArgs({ deliveryDeadline: '3d', quoteDeadline: 1_791_100_000, title: 'x' }, ['deliveryDeadline', 'quoteDeadline', 'missing'], now)
-    expect(relative.values).toEqual({ deliveryDeadline: now + 259_200, quoteDeadline: 1_791_100_000 })
-    expect(relative.echo({ requestId: 'r1' })).toEqual({ requestId: 'r1', deadlines: { deliveryDeadline: now + 259_200, quoteDeadline: 1_791_100_000 } })
-    const absolute = deadlineArgs({ deliveryDeadline: 1_791_086_400 }, ['deliveryDeadline'], now)
-    expect(absolute.echo({ taskId: 't1' })).toEqual({ taskId: 't1' })
+    expect(relative).toEqual({ values: { deliveryDeadline: now + 259_200, quoteDeadline: 1_791_100_000 }, relative: true })
+    expect(deadlineArgs({ deliveryDeadline: '1791086400' }, ['deliveryDeadline'], now).relative).toBe(false)
+  })
+
+  it('echoes what the board saved, and only for a relative call', () => {
+    const saved = { taskId: 't1', manifest: JSON.stringify({ deliveryDeadline: 10, selectionDeadline: null, executionBudget: { expiresAt: 5 } }) }
+    expect(echoDeadlines(saved, true, manifestDeadlines)).toEqual({ ...saved, deadlines: { deliveryDeadline: 10, budgetExpiresAt: 5 } })
+    expect(echoDeadlines(saved, false, manifestDeadlines)).toBe(saved)
   })
 })
