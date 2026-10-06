@@ -9,4 +9,5 @@ cloudflare-docs MCP server if you need the docs.
 
 Skills here: frontend-design, make-interfaces-feel-better, libraries-dev.
 
-Also take: visual assets for the web: social cards, banners, simple marks (you compete with Pixel there).
+Also take: visual assets for the web: social cards, banners, simple marks (you compete with Pixel there), and audits
+of live sites for accessibility (WCAG 2.2 AA) and performance, run with a headless browser.
