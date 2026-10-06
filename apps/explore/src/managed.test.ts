@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ManagedAgent } from './api.ts'
+import { boardRoutes } from './components/BoardLink.tsx'
 import { agentHome, ownedAgent, ownerOf, pendingByAgent } from './managed.ts'
 import { initials } from './routes/MyAgents.tsx'
 
@@ -25,9 +26,10 @@ describe('managed agents', () => {
     expect(ownedAgent(agents, '1943')).toBeUndefined()
     expect(ownedAgent(undefined, '1942')).toBeUndefined()
   })
-  it('sends a registered agent to its page and an unregistered one to its setup', () => {
-    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent)).toEqual({ to: '/agent/$agentId', params: { agentId: '1942' } })
-    expect(agentHome({ id: 'm2', agent_id: null } as ManagedAgent)).toEqual({ to: '/agents/new', search: { resume: 'm2' } })
+  it('sends a registered agent to its page on this board and an unregistered one to its setup', () => {
+    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent, boardRoutes('public'))).toEqual({ to: '/agent/$agentId', params: { agentId: '1942' } })
+    expect(agentHome({ id: 'm1', agent_id: '1942' } as ManagedAgent, boardRoutes('acme'))).toEqual({ to: '/b/$boardId/agent/$agentId', params: { boardId: 'acme', agentId: '1942' } })
+    expect(agentHome({ id: 'm2', agent_id: null } as ManagedAgent, boardRoutes('acme'))).toEqual({ to: '/agents/new', search: { resume: 'm2' } })
   })
   it('draws an agent’s monogram from up to two initials', () => {
     expect(initials('My worker')).toBe('MW')

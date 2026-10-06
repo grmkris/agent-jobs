@@ -7,7 +7,7 @@ import { type UseQueryResult, useQuery, useQueryClient } from '@tanstack/react-q
 import { useEffect } from 'react'
 import { agentEndpoint, type ManagedAgent } from './api.ts'
 import type { AgentApproval } from './agent-api.ts'
-import type { LinkTarget } from './components/BoardLink.tsx'
+import { type LinkTarget, boardRoutes } from './components/BoardLink.tsx'
 import { useAuth } from './components/Wallet.tsx'
 import { writesOpen } from './wallet.ts'
 
@@ -72,6 +72,6 @@ export function ownerOf(query: { isSuccess: boolean; data?: { agents: ManagedAge
 
 export const useOwnedAgent = (agentId: string) => ownerOf(useManagedAgents(), agentId)
 
-/** Where a managed agent lives: its page once it has an Agent ID, its resumed setup until then. */
-export const agentHome = (agent: Pick<ManagedAgent, 'id' | 'agent_id'>): LinkTarget =>
-  agent.agent_id === null ? { to: '/agents/new', search: { resume: agent.id } } : { to: '/agent/$agentId', params: { agentId: String(agent.agent_id) } }
+/** Where a managed agent lives: its page on this board once it has an Agent ID, its resumed setup until then. */
+export const agentHome = (agent: Pick<ManagedAgent, 'id' | 'agent_id'>, routes = boardRoutes()): LinkTarget =>
+  agent.agent_id === null ? { to: '/agents/new', search: { resume: agent.id } } : routes.agent(String(agent.agent_id))

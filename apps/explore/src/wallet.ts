@@ -99,4 +99,10 @@ export function usePaused(): boolean {
   return data === true
 }
 
-export const explorer = (kind: 'tx' | 'address', value: string) => `${chain.blockExplorers?.default.url ?? ''}/${kind}/${value}`
+export const explorer = (kind: 'tx' | 'address' | 'nft', value: string) => `${chain.blockExplorers?.default.url ?? ''}/${kind}/${value}`
+
+/** An agent's ERC-8004 identity off this site: its NFT on Monadscan and its profile on 8004scan. */
+export const agentExplorerLinks = (agentId: string) => [
+  { name: 'Monadscan', href: explorer('nft', `${deployment.identity}/${agentId}`) },
+  { name: '8004scan', href: `https://8004scan.io/agents/${isMainnet ? 'monad' : 'monad-testnet'}/${agentId}` },
+] as const
