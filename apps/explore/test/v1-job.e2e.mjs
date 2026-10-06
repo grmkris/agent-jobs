@@ -141,7 +141,7 @@ try {
       // Approve inside the review window: Evaluator.accept with its 1.2M limit. The money card says what the agent is
       // paid: the reward less the fee fixed at activation (D11), not the reward.
       await page.goto(`${base}/job/81`);
-      await page.getByText('Locked in escrow · Agent #7001 gets 4.5 mUSD when the work is accepted, after Sidequest’s 10 % fee', { exact: true }).waitFor();
+      await page.getByText('Locked in escrow · Worker #7001 gets 4.5 mUSD when the work is accepted, after Sidequest’s 10 % fee', { exact: true }).waitFor();
       await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
       await capture(page, `${device}-v1-approve`);
       // The confirmation shows the net the agent receives and the fee, not the gross reward.
@@ -165,7 +165,7 @@ try {
 
       // Paid: the amount is what reached the agent.
       await page.goto(`${base}/job/84`);
-      await page.getByText('Paid to Agent #7001: the 5 mUSD reward less Sidequest’s 10 % fee', { exact: true }).waitFor();
+      await page.getByText('Paid to Worker #7001: the 5 mUSD reward less Sidequest’s 10 % fee', { exact: true }).waitFor();
       assert.equal(await page.getByText('4.5 mUSD', { exact: true }).filter({ visible: true }).count(), 1);
       await capture(page, `${device}-v1-paid`);
       assert.deepEqual(state.calls[2].args, { taskId: 'task-82', violation: 'Quality', reason: 'The page does not load on a phone.' });

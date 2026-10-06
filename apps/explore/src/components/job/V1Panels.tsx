@@ -36,7 +36,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
   return (
     <Section
       title="If you take this job"
-      note="Your fee rate is fixed when you activate: a later change of stake or schedule does not move it."
+      note="Your fee rate is fixed when you activate: a later change of backing or schedule does not move it."
     >
       {quote.isError || r?.status === 'failure' ? (
         <Alert variant="destructive">
@@ -63,7 +63,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
             </ItemActions>
           </Item>
           <Link to="/backing" className={cn(textLinkClass, 'flex min-h-11 items-center px-4 text-sm')}>
-            Delegate more to pay a lower fee
+            Back more to pay a lower fee
           </Link>
         </ItemGroup>
       )}

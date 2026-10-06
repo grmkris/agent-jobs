@@ -75,7 +75,7 @@ const MODES: ReadonlyArray<{ value: Mode; title: string; body: string }> = [
   {
     value: 'hire',
     title: 'Direct hire',
-    body: 'Name the agent you want, or let agents apply and pick one. The reward is locked in escrow when you publish; the agent starts once it activates and posts its bond, and is paid when you accept the work.',
+    body: 'Name the agent you want, or let agents apply and pick one. The reward is locked in escrow when you publish; the agent starts once it activates and posts its deposit at risk, and is paid when you accept the work.',
   },
   {
     value: 'quotes',
@@ -235,13 +235,13 @@ function HiringAgain({ prefill, invite }: { prefill: Record<string, string>; inv
     <div role="note" className="flex items-start gap-3 rounded-2xl bg-primary/10 px-4 py-3.5">
       <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
       <p className="min-w-0 leading-relaxed">
-        <span className="block font-semibold">Hiring Agent #{agentId} again</span>
+        <span className="block font-semibold">Hiring Agent ID {agentId} again</span>
         <span className="block text-sm text-muted-foreground">
           The same token, reward and terms as{' '}
           <BoardLink target={boardRoutes().job(again)} className={textLinkClass}>
             job #{again}
           </BoardLink>
-          . Agent #{agentId} is invited: you can select it as soon as the job is published. It starts when it activates.
+          . Agent ID {agentId} is invited: you can select it as soon as the job is published. It starts when it activates.
         </span>
       </p>
     </div>
@@ -657,7 +657,7 @@ function PostFlow({
                   >
                     <ItemGroup>
                       <LineRow
-                        label="Token"
+                        label="Paid in"
                         stack={tokenOptions.length > 2}
                         note={
                           !other && tokenInfo(f.token).unverified === true
@@ -667,7 +667,7 @@ function PostFlow({
                       >
                         {tokenOptions.length <= 4 ? (
                           <Segmented
-                            label="Reward token"
+                            label="Paid in"
                             value={other ? OTHER : f.token}
                             options={tokenOptions}
                             onChange={pickToken}
@@ -675,7 +675,7 @@ function PostFlow({
                           />
                         ) : (
                           <Select
-                            aria-label="Reward token"
+                            aria-label="Paid in"
                             value={other ? OTHER : f.token}
                             onChange={(e) => pickToken(e.target.value)}
                             className="w-auto"
@@ -763,7 +763,7 @@ function PostFlow({
                       </Item>
                     )}
                     <KV label="How agents compete">{MODE_TITLE[f.mode]}</KV>
-                    {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent #{f.invite} · invited</KV>}
+                    {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent ID {f.invite} · invited</KV>}
                     {quotes ? (
                       <>
                         <KV label="Accepted tokens">{f.quoteTokens.map((a) => tokenInfo(a).symbol).join(', ')}</KV>
@@ -798,10 +798,10 @@ function PostFlow({
                           )}
                         </KV>
 
-                        <KV label="Bonds">{`${f.creatorBond} SIDE reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
+                        <KV label="Deposits at risk">{`${f.creatorBond} SIDE reserved from your backing · at least ${f.workerBond} from the agent's`}</KV>
                       </>
                     ) : (
-                      <KV label="Bonds">{`${f.creatorBond} SIDE from you · ${f.workerBond} from the agent`}</KV>
+                      <KV label="Deposits at risk">{`${f.creatorBond} SIDE from you · ${f.workerBond} from the agent`}</KV>
                     )}
                     {f.mode === 'hire' && f.budgetOn && (
                       <KV label="Running-cost budget">
@@ -933,7 +933,7 @@ function PostFlow({
         publishedAs === null && (
           <Section
             title="Publish"
-            note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay."
+            note="Your wallet sends the reward approval and the publish transaction in order; your deposit at risk is reserved from your backing. Only the wallet confirmation is an overlay."
           >
             {onChain.isError && (
               <Alert variant="destructive">
@@ -1129,18 +1129,18 @@ function HireTerms({
         </ItemGroup>
         {customArbiter && (
           <p role="alert" className="mx-1 mt-2 rounded-xl bg-warning/14 px-4 py-3 text-sm leading-snug text-warning-text">
-            A custom arbitrator rules on disputes instead of Sidequest's arbiter: their ruling decides who is paid and can burn a bond.
+            A custom arbitrator rules on disputes instead of Sidequest's arbiter: their ruling decides who is paid and can burn a deposit at risk.
             Choose someone you and the agent both trust. It cannot be you.
           </p>
         )}
       </Section>
 
       <Section
-        title="Bonds"
-        note="Bonds are reserved from stake, not sent: yours when you publish, the agent's when it activates. A reserved bond is returned unless a ruling, or a missed deadline, burns it."
+        title="Deposits at risk"
+        note="Deposits at risk are reserved from backing, not sent: yours when you publish, the agent's when it activates. A reserved deposit at risk is returned unless a ruling, or a missed deadline, burns it."
       >
         <ItemGroup>
-          <LineRow label="Your bond" note="Reserved from your stake when you publish." htmlFor="post-creator-bond">
+          <LineRow label="Your deposit at risk" note="Reserved from your backing when you publish." htmlFor="post-creator-bond">
             <Input
               id="post-creator-bond"
               value={f.creatorBond}
@@ -1151,8 +1151,8 @@ function HireTerms({
             <span className="w-16 shrink-0 text-muted-foreground">SIDE</span>
           </LineRow>
           <LineRow
-            label="Agent's bond, at least"
-            note="The agent must have this much stake free to activate the job."
+            label="Agent's deposit at risk, at least"
+            note="The agent must have this much backing free to activate the job."
             htmlFor="post-worker-bond"
           >
             <Input
@@ -1217,13 +1217,13 @@ function HoursPicker({
 /** What a hire sets in its own terms (windows, arbitrator, bonds) a request for quotes sets here, with the rest. */
 function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void }) {
   const hire = f.mode === 'hire'
-  const summary: ReactNode = hire ? `Delivery${f.budgetOn ? ', budget' : ''}` : 'Bonds, delivery'
+  const summary: ReactNode = hire ? `Delivery${f.budgetOn ? ', budget' : ''}` : 'Deposits at risk, delivery'
   return (
-    <Section note={hire ? undefined : 'Bonds are in SIDE. Both are held by the contracts, never by Sidequest.'}>
+    <Section note={hire ? undefined : 'Deposits at risk are in SIDE. Both are held by the contracts, never by Sidequest.'}>
       <Disclosure title="Advanced" summary={summary}>
         {!hire && (
           <>
-            <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
+            <LineRow label="Your deposit at risk" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
               <Input
                 id="post-creator-bond"
                 value={f.creatorBond}
@@ -1235,7 +1235,7 @@ function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void
             </LineRow>
 
             <LineRow
-              label="Agent's bond"
+              label="Agent's deposit at risk"
               note="Burned if the agent misses the deadline or cheats; returned otherwise."
               htmlFor="post-worker-bond"
             >
@@ -1377,7 +1377,7 @@ function BudgetRows({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => vo
             </>
           ) : (
             <>
-              <FieldRow label="Token" htmlFor="post-budget-token" hint="Any ERC-20 you hold; the reward tokens are suggested.">
+              <FieldRow label="Token" htmlFor="post-budget-token" hint="Any ERC-20 you hold; the payment tokens are suggested.">
                 <Input
                   id="post-budget-token"
                   value={f.budgetToken}

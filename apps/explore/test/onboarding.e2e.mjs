@@ -148,6 +148,8 @@ try {
       await page.waitForURL('**/telegram');
       await page.getByRole('button', { name: 'Link Telegram' }).click();
       const sheet = page.getByRole('dialog', { name: 'Sign to link Telegram?' });
+      assert.equal(await sheet.getByText(`Code: ${NONCE}`, { exact: false }).isVisible(), false);
+      await sheet.locator('summary').filter({ hasText: 'Technical details' }).click();
       await sheet.getByText(`Code: ${NONCE}`, { exact: false }).waitFor();
       await capture(page, `${device}-telegram-sign`);
       // An embedded wallet's in-page prompt must stay pressable while the sheet waits for it.
@@ -225,11 +227,13 @@ try {
       await page.waitForURL('**/sponsorship');
       await page.getByRole('button', { name: 'Turn on' }).click();
       const sheet = page.getByRole('dialog', { name: 'Let Sidequest pay your gas?' });
+      assert.equal(await sheet.getByText('Call Holding', { exact: true }).isVisible(), false);
+      await sheet.locator('summary').filter({ hasText: 'Technical details' }).click();
       await sheet.getByText('Call Holding', { exact: true }).waitFor();
       await sheet.getByText('Call Stake vault', { exact: true }).waitFor();
       await sheet.getByText(grantTerms.methodNames, { exact: true }).waitFor();
       await sheet.getByText('50 calls', { exact: true }).waitFor();
-      await sheet.getByText('First your wallet points at the delegation contract. The relay sends that for you.', { exact: true }).waitFor();
+      await sheet.getByText('First your wallet enables sponsored transactions. Sidequest relays that setup for you.', { exact: true }).waitFor();
       await capture(page, `${device}-sponsor-sign`);
       await sheet.getByRole('button', { name: 'Sign the permission' }).click();
       await page.getByRole('status').filter({ hasText: 'Sidequest now pays your gas' }).waitFor();

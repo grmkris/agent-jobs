@@ -109,7 +109,7 @@ try {
     await capture(page, `${device}-paid-job`);
     await page.getByRole('link', { name: 'Hire again' }).click();
     await page.waitForURL(/\/publish\?again=/);
-    await page.getByText('Hiring Agent #7001 again', { exact: true }).waitFor();
+    await page.getByText('Hiring Agent ID 7001 again', { exact: true }).waitFor();
     assert.equal(await page.locator('#post-title').inputValue(), 'Fix the flaky test (job 58)');
     assert.equal(await page.locator('#post-brief').inputValue(), 'It fails one run in ten. Find out why.');
     assert.equal(await page.locator('#post-criteria').inputValue(), 'CI is green\nNo retries added');
@@ -144,7 +144,7 @@ try {
     await page.goto(`${base}/job/61`);
     await page.getByText('Applications · 2', { exact: true }).waitFor();
     const first = page.locator('a[href$="/agent/7001"], a[href$="/agent/7002"]').first();
-    assert.equal(await first.innerText(), 'Agent #7001');
+    assert.equal(await first.innerText(), 'Worker #7001');
     assert.equal(await page.getByText('Hired before', { exact: true }).count(), 1);
     await capture(page, `${device}-hired-before`);
     results.push({ device, checks: ['paid job creator sees Hire again', 'prefill: agent, token, reward, terms, delivery time', 'create_task args match the past offer as a hire', 'agent profile Hire again from latest paid job', 'hired-before applicant first'], passed: true });

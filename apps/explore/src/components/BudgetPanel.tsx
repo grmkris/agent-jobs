@@ -83,7 +83,7 @@ export function BudgetPanel({
     })
     if (prep.upgrade !== null) {
       if (upgrade === null)
-        throw new Error('Grant from the Privy email/Google wallet that published the task: it points at the DeleGator first.')
+        throw new Error('Grant from the email or Google wallet that published the task so it can enable limited spending permissions.')
       const hash = await upgrade()
       if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
     }
@@ -102,7 +102,7 @@ export function BudgetPanel({
   return (
     <Section
       title="Running-cost budget"
-      note="Money the agent may spend on the job, apart from the reward: from the creator’s wallet, not escrowed, capped and expiring. The chain enforces the cap through a delegation from the creator’s account."
+      note="Money the agent may spend on the job, apart from the reward: from the creator’s wallet, not escrowed, capped and expiring. The chain enforces the cap through a limited spending permission from the creator’s wallet."
     >
       <ItemGroup>
         <Item>
@@ -214,7 +214,7 @@ export function BudgetPanel({
             mon.data.value < BigInt(eb.cap) + RESERVE && (
               <p className="px-4 text-sm text-warning-text">
                 Your wallet holds {formatEther(mon.data.value)} MON. The call may send up to {formatEther(BigInt(eb.cap))} MON, and Monad
-                keeps 10 MON in a delegated account: hold at least {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
+                requires a 10 MON wallet reserve: hold at least {formatEther(BigInt(eb.cap) + RESERVE)} MON when the agent calls.
               </p>
             )}
         </div>
@@ -246,7 +246,7 @@ export function BudgetPanel({
         }}
       >
         <p className="text-sm text-muted-foreground">
-          Expires <When at={eb.expiresAt} />. The first grant from this wallet also points it at the delegation contract, which the board’s
+          Expires <When at={eb.expiresAt} />. The first grant from this wallet also enables limited spending permissions, which the board’s
           relay sends for you.
         </p>
       </ConfirmSheet>

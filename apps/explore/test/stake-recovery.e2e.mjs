@@ -7,9 +7,9 @@ const pointerKey = `sidequest.delegation-op:10143:${contracts.vault}:${owner}`;
 async function prepare(page) {
   await page.goto(`${base}/agents/new`);
   await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-  await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).fill('100');
-  await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
-  await page.getByText('Delegate 100 SIDE to My worker', { exact: true }).waitFor();
+  await page.getByRole('textbox', { name: 'SIDE to back this agent' }).fill('100');
+  await page.getByRole('button', { name: 'Review backing', exact: true }).click();
+  await page.getByText('Back with 100 SIDE to My worker', { exact: true }).waitFor();
 }
 try {
   for (const surface of ['setup', 'stake']) {
@@ -19,11 +19,11 @@ try {
     if (surface === 'stake') await page.goto(`${base}/backing?account=${agentWallet}`);
     await page.evaluate(() => { window.__stake.code = {}; });
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
-    await page.getByText(/Your wallet's batch delegation changed/).waitFor();
+    await page.getByText(/Your wallet's batch permission changed/).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Confirm fixture', exact: true }).count(), 0, 'revoked code blocks the resumed wallet prompt');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), before, 'blocked intent is retained');
-    assert.equal(await page.getByRole('status').filter({ hasText: 'Delegated. You own the position.' }).count(), 0);
+    assert.equal(await page.getByRole('status').filter({ hasText: 'Backed. You own the position.' }).count(), 0);
     await context.close();
     results.push({ surface, check: 'revoked code before send keeps intent and reports no delegation', passed: true });
   }
@@ -36,8 +36,8 @@ try {
     // Revoke after the guard, while the wallet prompt is open: the chain accepts a successful no-op self-call.
     await page.evaluate(() => { window.__stake.code = {}; });
     await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
-    await page.getByText(/Not delegated: the receipt has no exact Delegated event/).waitFor();
-    assert.equal(await page.getByRole('status').filter({ hasText: 'Delegated. You own the position.' }).count(), 0);
+    await page.getByText(/Not backed: the receipt has no exact Delegated event/).waitFor();
+    assert.equal(await page.getByRole('status').filter({ hasText: 'Backed. You own the position.' }).count(), 0);
     const saved = await page.evaluate(key => ({ intent: localStorage.getItem(key), journals: Object.entries(localStorage).filter(([k]) => k.startsWith('sidequest.op:delegation:')).map(([, bytes]) => JSON.parse(bytes)) }), pointerKey);
     assert.ok(saved.intent);
     assert.equal(saved.journals[0].hashes[0], null);
@@ -56,12 +56,12 @@ try {
     }
     // A different surface/reload must retain the failure and offer a retry rather than clear the intent.
     await page.goto(`${base}/backing?account=${agentWallet}`);
-    await page.getByText(/Not delegated: the receipt has no exact Delegated event/).waitFor();
+    await page.getByText(/Not backed: the receipt has no exact Delegated event/).waitFor();
     assert.ok(await page.evaluate(key => localStorage.getItem(key), pointerKey), 'old recorded flags cannot clear an unproved delegation');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
-    await page.getByRole('status').filter({ hasText: 'Delegated. You own the position.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Backed. You own the position.' }).waitFor();
     assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null);
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 2, 'retry sends once after proven no effect');
     await context.close();

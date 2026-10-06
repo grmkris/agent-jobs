@@ -68,7 +68,7 @@ export async function readDelegations(contracts: SidequestContracts, delegator: 
     snapshot.token.toLowerCase() !== contracts.factory.toLowerCase()
   ) {
     throw new Error(
-      "The delegation index describes a different deployment. Refresh after the release.",
+      "The backing index describes a different deployment. Refresh after the release.",
     );
   }
   const blockNumber = BigInt(snapshot.blockNumber);

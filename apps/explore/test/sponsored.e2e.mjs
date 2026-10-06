@@ -23,9 +23,9 @@ const contracts = { factory: '0xf000000000000000000000000000000000000001', vault
 const grantTerms = sponsorshipGrantTerms(contracts);
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const ACTIONS = [
-  { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
+  { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the deposits at risk.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
   { kind: 'claimTopUpRefund', jobId: '71', token: d.rewardTokens[0], amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [tx('Claim your top-up back', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'claimTopUpRefund', args: [71n, me] }))] },
-  { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked SIDE', contracts.vault, encodeFunctionData({ abi: vaultAbi, functionName: 'withdraw', args: [me] }))] },
+  { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your backing cooldown has ended.', transactions: [tx('Withdraw unstaked SIDE', contracts.vault, encodeFunctionData({ abi: vaultAbi, functionName: 'withdraw', args: [me] }))] },
   { kind: 'miningClaim', epoch: '0', token: d.factory, amount: (1234n * 10n ** 18n).toString(), description: 'Your share of epoch 0.', transactions: [tx('Claim epoch 0', contracts.distributor, encodeFunctionData({ abi: epochDistributorAbi, functionName: 'claim', args: [0n, me, 1234n * 10n ** 18n, []] }))] },
 ];
 
@@ -185,7 +185,7 @@ try {
     const before = state.submits.length;
     await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
-    await page.getByRole('status').filter({ hasText: 'Claimed into your stake' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Claimed into your backing' }).waitFor();
     assert.equal(state.submits.length, before);
     assert.equal(await sends(page), 3);
     await page.getByText('Nothing to collect', { exact: true }).waitFor();

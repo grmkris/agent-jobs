@@ -64,8 +64,8 @@ export function Preflight({
         title="Ready to publish"
         note={
           token === undefined
-            ? 'Sign in, and this checks your wallet has the gas and the bond.'
-            : 'Sign in, and this checks your wallet has the gas, the reward and the bond.'
+            ? 'Sign in, and this checks your wallet has the gas and the deposit at risk.'
+            : 'Sign in, and this checks your wallet has the gas, the reward and the deposit at risk.'
         }
       >
         <ItemGroup>
@@ -140,11 +140,11 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
       <ItemContent className="min-w-0 flex-1">
         <span className="block">
           {prefix}
-          {need > 0n ? `Your bond · ${formatNumber(need, 18)} SIDE from backing` : 'No bond from you'}
+          {need > 0n ? `Your deposit at risk · ${formatNumber(need, 18)} SIDE from backing` : 'No deposit at risk from you'}
         </span>
         {free !== undefined && free < need && (
           <span className="block text-ui text-warning-text">
-            Delegate {formatNumber(need - free, 18)} SIDE more.{' '}
+            Back with {formatNumber(need - free, 18)} more SIDE.{' '}
             <Link to="/backing" className={cn(textLinkClass, 'font-semibold')}>
               Back an agent
             </Link>

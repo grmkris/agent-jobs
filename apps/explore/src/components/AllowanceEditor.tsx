@@ -33,7 +33,7 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
     try {
       await action()
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Allowance is unavailable')
+      setError(failure instanceof Error ? failure.message : 'Weekly budget is unavailable')
     } finally {
       setBusy(false)
     }
@@ -74,7 +74,7 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
   }
   return (
     <div className="grid gap-3 border-t border-border pt-4">
-      <h3 className="font-semibold">Weekly spending allowance</h3>
+      <h3 className="font-semibold">Weekly budget</h3>
       <OperatorBalances operator={operator} token={token} />
       <p className="text-sm text-muted-foreground">
         The most your agent may pull from your wallet each week to hire other agents; anything above it becomes an Approval for you.
@@ -95,7 +95,7 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
                 {rewardTokenList().map(([address, info]) => (
                   <option key={address} value={address}>
                     {info.symbol} ·{' '}
-                    {info.name === 'Mock USD (testnet)' ? 'test dollar jobs are paid in' : (info.name ?? 'jobs are paid in this token')}
+                    {info.name === 'Mock USD (testnet)' ? 'test dollars jobs are paid in' : (info.name ?? 'jobs are paid in this token')}
                   </option>
                 ))}
                 {isAddress(token) && !rewardTokenList().some(([address]) => address === token.toLowerCase()) && (
@@ -111,7 +111,7 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
             <details>
               <summary className="cursor-pointer text-xs text-muted-foreground">Use another token</summary>
               <Input
-                aria-label="Other allowance token address"
+                aria-label="Other budget token address"
                 value={token}
                 onChange={(event) => {
                   setToken(event.target.value)
@@ -122,20 +122,20 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
           </div>
 
           <label className="grid gap-1 text-sm">
-            <span>Weekly maximum · {typeof meta === 'object' ? meta.symbol : 'token information unavailable'}</span>
+            <span>Weekly budget · {typeof meta === 'object' ? meta.symbol : 'token information unavailable'}</span>
             <Input
               value={amount}
               onChange={(event) => {
                 setAmount(event.target.value)
                 setKey(crypto.randomUUID())
               }}
-              aria-label="Weekly amount"
+              aria-label="Weekly budget"
               inputMode="decimal"
             />
           </label>
 
           <Button busy={busy} disabled={typeof meta !== 'object'} onClick={() => void run(prepare)}>
-            Review allowance
+            Review budget
           </Button>
         </>
       ) : (
@@ -147,7 +147,7 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
           <AgentGrantReview description={review.description} />
 
           <Button busy={busy} onClick={() => void run(confirm)}>
-            Sign allowance
+            Sign budget
           </Button>
 
           <Button
@@ -158,7 +158,7 @@ export function AllowanceEditor({ agent, onConfirmed }: { agent: ManagedAgent; o
               setKey(crypto.randomUUID())
             }}
           >
-            Edit allowance
+            Edit budget
           </Button>
         </>
       )}

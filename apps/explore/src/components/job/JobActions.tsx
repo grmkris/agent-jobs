@@ -122,7 +122,7 @@ export function JobActions({
   const [reason, setReason] = useState('')
   const [statement, setStatement] = useState('')
 
-  const agent = job.agentId !== null ? `Agent #${job.agentId}` : 'the agent'
+  const agent = job.agentId !== null ? `Worker #${job.agentId}` : 'the agent'
   const reward = amount(job.reward, job.token)
   const charge = job.charge ?? null
   const paid = charge === null ? reward : amount(charge.net, job.token)
@@ -140,7 +140,7 @@ export function JobActions({
     const messages: Record<string, string> = {
       approve: `Paid ${paid} to ${agent}`,
       reject: 'Rejected. The dispute window is open.',
-      cancel: 'Cancelled. The reward and your bond are back.',
+      cancel: 'Cancelled. The reward and your deposit at risk are back.',
       settle: 'Settled on-chain',
       dispute: 'Disputed. The arbitrator decides next.',
     }
@@ -178,7 +178,7 @@ export function JobActions({
         )
         void qc.invalidateQueries({ queryKey: ['get_task', job.boardId, job.taskId] })
         setPending(null)
-        toast(`Selected Agent #${pending.agentId}. The job starts when it activates.`)
+        toast(`Selected Worker #${pending.agentId}. The job starts when it activates.`)
         return
       }
       const args: Record<string, unknown> = { taskId: job.taskId }
@@ -288,13 +288,13 @@ export function JobActions({
           )}
           {job.creatorBond !== null && job.creatorBond !== '0' && (
             <Item>
-              <ItemContent className="flex-1">Your bond comes back</ItemContent>
+              <ItemContent className="flex-1">Your deposit at risk comes back</ItemContent>
               <ItemContent className="text-muted-foreground">{bond(job.creatorBond)}</ItemContent>
             </Item>
           )}
           {job.workerBond !== null && job.workerBond !== '0' && (
             <Item>
-              <ItemContent className="flex-1">Its bond comes back</ItemContent>
+              <ItemContent className="flex-1">Its deposit at risk comes back</ItemContent>
               <ItemContent className="text-muted-foreground">{bond(job.workerBond)}</ItemContent>
             </Item>
           )}
@@ -331,13 +331,13 @@ export function JobActions({
           <Segmented label="Why" value={violation} onChange={setViolation} options={VIOLATIONS} />
           <p className="text-sm leading-snug text-muted-foreground">
             {violation === 'None'
-              ? 'The reward comes back to you and both bonds are returned. Nobody is penalised.'
-              : `If the rejection stands, ${agent}'s ${bond(job.workerBond)} bond is burned. Use this only when the work breaks the accepted-when list${violation === 'Falsified' ? ' by faking its evidence' : ''}.`}
+              ? 'The reward comes back to you and both deposits at risk are returned. Nobody is penalised.'
+              : `If the rejection stands, ${agent}'s ${bond(job.workerBond)} deposit at risk is burned. Use this only when the work breaks the accepted-when list${violation === 'Falsified' ? ' by faking its evidence' : ''}.`}
           </p>
         </div>
         <Field>
           <FieldLabel className="flex-col items-stretch">
-            <span>{'What is wrong · the agent and an arbitrator read this'}</span>
+            <span>What is wrong · the agent and an arbitrator read this</span>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="At least 10 characters" />
           </FieldLabel>
         </Field>
@@ -352,7 +352,7 @@ export function JobActions({
         open={pending?.kind === 'cancel'}
         onClose={close}
         title="Cancel this job?"
-        description="Nobody has started it. The reward and your bond come back to you, and the offer closes."
+        description="Nobody has started it. The reward and your deposit at risk come back to you, and the offer closes."
         confirm="Cancel the job"
         cancelLabel="Keep it open"
         tone="destructive"
@@ -386,14 +386,14 @@ export function JobActions({
         open={pending?.kind === 'dispute'}
         onClose={close}
         title="Dispute the rejection?"
-        description="An arbitrator reads the job, the work, the rejection and both statements, then rules. A rejection upheld for a named fault burns your bond."
+        description="An arbitrator reads the job, the work, the rejection and both statements, then rules. A rejection upheld for a named fault burns your deposit at risk."
         confirm="Dispute"
         busy={busy}
         onConfirm={() => void go()}
       >
         <Field>
           <FieldLabel className="flex-col items-stretch">
-            <span>{'Your case for the arbitrator (optional)'}</span>
+            <span>Your case for the arbitrator (optional)</span>
             <Textarea value={statement} onChange={(e) => setStatement(e.target.value)} />
           </FieldLabel>
         </Field>
@@ -407,8 +407,8 @@ export function JobActions({
       <ConfirmSheet
         open={pending?.kind === 'select'}
         onClose={close}
-        title={pending?.kind === 'select' ? `Select Agent #${pending.agentId}?` : 'Select'}
-        description="You sign a selection; no transaction and no money moves now. The job starts when the agent activates it and posts its bond. If it does not, you can select someone else."
+        title={pending?.kind === 'select' ? `Select Agent ID ${pending.agentId}?` : 'Select'}
+        description="You sign a selection; no transaction and no money moves now. The job starts when the agent activates it and posts its deposit at risk. If it does not, you can select someone else."
         confirm="Sign the selection"
         busy={busy}
         onConfirm={() => void go()}
@@ -446,13 +446,13 @@ export function JobActions({
 function SettleText({ phase }: { phase: Phase }): ReactNode {
   switch (phase.timeout) {
     case 'completeAfterSilence':
-      return 'The review window closed without a decision, so the work is accepted. This pays the agent and returns both bonds. Anyone may send it; you pay a little gas.'
+      return 'The review window closed without a decision, so the work is accepted. This pays the agent and returns both deposits at risk. Anyone may send it; you pay a little gas.'
     case 'rejectAfterDeliveryDeadline':
-      return "Nothing was delivered in time. This refunds the creator and burns the agent's bond if it posted one. Anyone may send it; you pay a little gas."
+      return "Nothing was delivered in time. This refunds the creator and burns the agent's deposit at risk if it posted one. Anyone may send it; you pay a little gas."
     case 'rejectAfterWindow':
       return 'No dispute was filed in time, so the rejection becomes final and the creator is refunded. Anyone may send it.'
     case 'refundAfterArbitrationTimeout':
-      return 'The arbitrator did not rule in time. This refunds the creator and returns both bonds. Anyone may send it.'
+      return 'The arbitrator did not rule in time. This refunds the creator and returns both deposits at risk. Anyone may send it.'
     default:
       return 'This releases what the last step left in escrow to whoever it belongs to. Anyone may send it.'
   }
@@ -532,7 +532,7 @@ function Applications({
       {apps.isLoading ? null : list.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'No applications yet'}</EmptyTitle>
+            <EmptyTitle>No applications yet</EmptyTitle>
             <EmptyDescription>Agents that apply show up here with their record.</EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -546,7 +546,7 @@ function Applications({
               <ItemContent className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <BoardLink target={boardRoutes().agent(a.agent_id)} className="font-medium">
-                    Agent #{a.agent_id}
+                    Worker #{a.agent_id}
                   </BoardLink>
                   {hiredBefore.has(a.agent_id) && <Badge variant="info">Hired before</Badge>}
                 </span>

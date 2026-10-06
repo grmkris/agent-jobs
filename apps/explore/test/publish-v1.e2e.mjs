@@ -132,9 +132,9 @@ try {
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     await page.getByText('review 1 d 12 h · dispute 12 h · arbitration 3 d', { exact: true }).waitFor();
     await page.getByText(`${custom} · yours`, { exact: true }).waitFor();
-    await page.getByText('Agent #1942 · invited', { exact: true }).waitFor();
-    await page.getByText('5 SIDE reserved from your stake · at least 3 from the agent\'s', { exact: true }).waitFor();
-    await page.getByText(/Delegate 3 SIDE more\./).waitFor();
+    await page.getByText('Agent ID 1942 · invited', { exact: true }).waitFor();
+    await page.getByText('5 SIDE reserved from your backing · at least 3 from the agent\'s', { exact: true }).waitFor();
+    await page.getByText(/Back with 3 more SIDE\./).waitFor();
 
     await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
     assert.equal(state.created.length, 1);
@@ -143,7 +143,7 @@ try {
       windows: { reviewSeconds: 36 * 3600, disputeSeconds: 12 * 3600, arbitrationSeconds: 72 * 3600 }, arbitrator: custom, invite: { agentId: '1942' }, mode: 'hire', creatorBond: '5', workerBond: '3',
     });
     assert.equal('selectionDeadline' in args, false);
-    await page.getByText('Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake.', { exact: false }).waitFor();
+    await page.getByText('Your wallet sends the reward approval and the publish transaction in order; your deposit at risk is reserved from your backing.', { exact: false }).waitFor();
     await capture(page, `${device}-v1-review`);
     results.push({ device, checks: ['two modes', 'named agent invited', 'presets', 'custom windows in bounds', 'default arbiter by name', 'custom arbiter warning and not creator', 'bonds from stake', 'available-backing shortfall with Back an agent link', 'create_task v1 arguments'], passed: true });
     await context.close();

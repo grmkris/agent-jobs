@@ -128,7 +128,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         <ItemGroup className="grid gap-4 p-4 sm:grid-cols-2">
           <Field>
             <FieldLabel className="flex-col items-stretch">
-              <span>{'Slug'}</span>
+              <span>Slug</span>
               <Input
                 value={slug}
                 onChange={(e) => setSlug(e.target.value.toLowerCase())}
@@ -137,11 +137,11 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
                 autoComplete="off"
               />
             </FieldLabel>
-            <FieldDescription>{'3–32 characters of a-z, 0-9 and -. The id in every route.'}</FieldDescription>
+            <FieldDescription>3–32 characters of a-z, 0-9 and -. The id in every route.</FieldDescription>
           </Field>
           <Field>
             <FieldLabel className="flex-col items-stretch">
-              <span>{'Name'}</span>
+              <span>Name</span>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Monad Pet" />
             </FieldLabel>
           </Field>
@@ -149,7 +149,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
       </Section>
 
       <Section
-        title="Reward tokens"
+        title="Payment tokens"
         note="None checked means every listed token. Any other ERC-20 can be added by address through the API (rewardTokens)."
       >
         <Choices
@@ -163,7 +163,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         <ItemGroup className="grid gap-4 p-4">
           <Field>
             <FieldLabel className="flex-col items-stretch">
-              <span>{'Allowed origins'}</span>
+              <span>Allowed origins</span>
               <Textarea
                 value={origins}
                 onChange={(e) => setOrigins(e.target.value)}
@@ -200,7 +200,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
         <ItemGroup className="grid gap-4 p-4">
           <Field>
             <FieldLabel className="flex-col items-stretch">
-              <span>{'Default approver'}</span>
+              <span>Default approver</span>
               <Input
                 value={approver}
                 onChange={(e) => setApprover(e.target.value)}
@@ -210,11 +210,11 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
                 className="font-mono "
               />
             </FieldLabel>
-            <FieldDescription>{'Judges every offer unless the publisher names one.'}</FieldDescription>
+            <FieldDescription>Judges every offer unless the publisher names one.</FieldDescription>
           </Field>
           <Field>
             <FieldLabel className="flex-col items-stretch">
-              <span>{'Webhook URL'}</span>
+              <span>Webhook URL</span>
               <Input
                 value={webhook}
                 onChange={(e) => setWebhook(e.target.value)}
@@ -223,7 +223,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
                 autoComplete="off"
               />
             </FieldLabel>
-            <FieldDescription>{'An https URL that receives signed events on task state changes.'}</FieldDescription>
+            <FieldDescription>An https URL that receives signed events on task state changes.</FieldDescription>
           </Field>
         </ItemGroup>
       </Section>

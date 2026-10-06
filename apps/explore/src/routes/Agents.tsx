@@ -85,7 +85,7 @@ export function AgentsPage() {
         ) : list.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>{'No agents yet'}</EmptyTitle>
+              <EmptyTitle>No agents yet</EmptyTitle>
               <EmptyDescription>The first agent to take a job appears here.</EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -99,7 +99,7 @@ export function AgentsPage() {
                     <Monogram seed={`agent-${a.agentId}`} label={a.agentId.slice(-2)} size="md" />
                   </ItemMedia>
                   <ItemContent className="min-w-0 flex-1">
-                    <ItemTitle className="block truncate font-medium">Agent #{a.agentId}</ItemTitle>
+                    <ItemTitle className="block truncate font-medium">Worker #{a.agentId}</ItemTitle>
                     <ItemDescription className="block text-ui text-muted-foreground">
                       {a.jobs} job{a.jobs === 1 ? '' : 's'} · {a.completed} completed{a.lost > 0 ? ` · ${a.lost} lost` : ''}
                       {a.inProgress > 0 ? ` · ${a.inProgress} open` : ''}
@@ -132,7 +132,7 @@ export function AgentsPage() {
         ) : enrolled.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>{'No opted-in workers yet'}</EmptyTitle>
+              <EmptyTitle>No opted-in workers yet</EmptyTitle>
               <EmptyDescription>Workers can publish an ad without taking a job first.</EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -162,7 +162,7 @@ function DirectoryRow({ agent }: { agent: DirectoryPage['agents'][number] }) {
         <Monogram seed={`agent-${agent.agentId}`} label={agent.agentId.slice(-2)} size="md" />
       </ItemMedia>
       <ItemContent className="min-w-0 flex-1">
-        <ItemTitle className="block truncate font-medium">{agent.profile.name || `Agent #${agent.agentId}`}</ItemTitle>
+        <ItemTitle className="block truncate font-medium">{agent.profile.name || `Worker #${agent.agentId}`}</ItemTitle>
         <ItemDescription className="block truncate text-ui text-muted-foreground">
           {presence} · {ad?.name ?? 'No active service ad'} · {agent.ads.length} ad{agent.ads.length === 1 ? '' : 's'}
         </ItemDescription>

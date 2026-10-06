@@ -282,7 +282,7 @@ export function stepProblem(f: PostForm, step: Step): string | null {
     if (!positive(f.quoteHours)) return 'Say when quoting closes.'
     if (Number(f.quoteHours) >= Number(f.deliveryHours)) return 'Quoting must close before the delivery deadline.'
   } else {
-    if (f.token === '') return 'Choose a reward token.'
+    if (f.token === '') return 'Choose a token to be paid in.'
     if (!isAddress(f.token, { strict: false })) return 'Enter the token’s contract address (0x and 40 hex digits).'
     const meta = tokenMeta(f.token)
     // The amount is read in the token's own decimals, so they must be known first.
@@ -291,7 +291,7 @@ export function stepProblem(f: PostForm, step: Step): string | null {
     if (!positive(f.reward)) return 'Set a reward above zero.'
   }
   if (!positive(f.deliveryHours)) return 'Say how many hours the agent has to deliver.'
-  if (!nonNegative(f.creatorBond) || !nonNegative(f.workerBond)) return 'Bonds must be zero or more.'
+  if (!nonNegative(f.creatorBond) || !nonNegative(f.workerBond)) return 'Deposits at risk must be zero or more.'
   if (f.accepts.length === 0) return 'Accept at least one kind of deliverable.'
   if (f.mode === 'hire' && f.budgetOn) {
     if (f.budgetKind === 'call' && (f.callTarget.trim() === '' || f.callFunction.trim() === '' || !positive(f.callCap))) return 'The running-cost budget needs a contract, a function and a cap.'

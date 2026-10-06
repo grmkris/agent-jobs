@@ -5,7 +5,7 @@ import { Field, FieldLabel, FieldDescription } from './ui/field.tsx'
 import { Input } from './ui/input.tsx'
 import { Textarea } from './ui/textarea.tsx'
 import { Alert, AlertDescription } from './ui/alert.tsx'
-import { CopyButton, Section, Select, textLinkClass } from './kit.tsx'
+import { Details, CopyButton, Section, Select, textLinkClass } from './kit.tsx'
 import { type DirectoryEnvelope, type DirectoryProfile, type ServiceAdvertisement, directoryTypedData } from '@sidequest/sdk'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -148,7 +148,7 @@ export function DirectoryOnboarding() {
           ? 'Enrollment confirmed. Old grants, heartbeat, and ads were revoked; sign the new ad next.'
           : snapshot.step === 1
             ? 'Service ad confirmed. You can optionally send one manual heartbeat now.'
-            : 'Heartbeat confirmed for up to 60 seconds. The worker must use a scoped delegate to refresh unattended; no payment key is stored here.',
+            : 'Heartbeat confirmed for up to 60 seconds. The worker needs a limited permission to refresh automatically; no payment key is stored here.',
       )
       await queryClient.invalidateQueries({ queryKey: ['data-directory'] })
       await queryClient.invalidateQueries({ queryKey: ['directory-agent', snapshot.draft.agentId] })
@@ -190,7 +190,7 @@ export function DirectoryOnboarding() {
         >
           <div className="grid gap-3 rounded-2xl bg-card p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="neutral">Agent #{publication.draft.agentId}</Badge>
+              <Badge variant="neutral">Agent ID {publication.draft.agentId}</Badge>
               <Badge variant="neutral">{chain.name}</Badge>
               <span className="text-sm font-medium">{publication.draft.profile.name}</span>
             </div>
@@ -248,14 +248,18 @@ export function DirectoryOnboarding() {
           ))}
         </div>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          {chain.name} · registry <span className="break-all font-mono text-xs">{deployment.identity}</span>. Enrollment is public and
-          advisory; jobs still require their own signed terms, funding, and admission checks.
+          {chain.name}. Your directory listing is public. Jobs still require their own signed terms, funding, and admission checks.
         </p>
+        <Details summary="Technical details">
+          <p className="break-all text-sm">
+            Identity registry: <span className="font-mono text-xs">{deployment.identity}</span>
+          </p>
+        </Details>
         {stage === 0 && (
           <>
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Import a confirmed ERC-8004 agent ID'}</span>
+                <span>Import a confirmed ERC-8004 agent ID</span>
                 <Input
                   value={draft.agentId}
                   inputMode="numeric"
@@ -278,14 +282,14 @@ export function DirectoryOnboarding() {
           <>
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Directory display name'}</span>
+                <span>Directory display name</span>
                 <Input maxLength={80} value={draft.profile.name} onChange={(event) => setProfile({ name: event.target.value })} />
               </FieldLabel>
             </Field>
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'About this worker'}</span>
+                <span>About this worker</span>
                 <Textarea
                   maxLength={1200}
                   value={draft.profile.description}
@@ -299,7 +303,7 @@ export function DirectoryOnboarding() {
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Services'}</span>
+                <span>Services</span>
                 <Input
                   maxLength={640}
                   value={servicesText}
@@ -315,7 +319,7 @@ export function DirectoryOnboarding() {
                   }}
                 />
               </FieldLabel>
-              <FieldDescription>{'Up to eight short labels, separated by commas.'}</FieldDescription>
+              <FieldDescription>Up to eight short labels, separated by commas.</FieldDescription>
             </Field>
 
             <Button variant="secondary" busy={busy} disabled={!validProfile} onClick={() => void prepareIdentity()}>
@@ -339,7 +343,7 @@ export function DirectoryOnboarding() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Field>
                 <FieldLabel className="flex-col items-stretch">
-                  <span>{'Stable service ID'}</span>
+                  <span>Stable service ID</span>
                   <Input
                     maxLength={64}
                     placeholder="web-research"
@@ -350,7 +354,7 @@ export function DirectoryOnboarding() {
               </Field>
               <Field>
                 <FieldLabel className="flex-col items-stretch">
-                  <span>{'Service name'}</span>
+                  <span>Service name</span>
                   <Input maxLength={100} value={draft.ad.name} onChange={(event) => setAd({ name: event.target.value })} />
                 </FieldLabel>
               </Field>
@@ -358,21 +362,21 @@ export function DirectoryOnboarding() {
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'What you offer'}</span>
+                <span>What you offer</span>
                 <Textarea maxLength={2000} value={draft.ad.description} onChange={(event) => setAd({ description: event.target.value })} />
               </FieldLabel>
             </Field>
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Inputs required'}</span>
+                <span>Inputs required</span>
                 <Textarea maxLength={2000} value={draft.ad.inputs} onChange={(event) => setAd({ inputs: event.target.value })} />
               </FieldLabel>
             </Field>
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Outputs delivered'}</span>
+                <span>Outputs delivered</span>
                 <Textarea maxLength={2000} value={draft.ad.outputs} onChange={(event) => setAd({ outputs: event.target.value })} />
               </FieldLabel>
             </Field>
@@ -380,7 +384,7 @@ export function DirectoryOnboarding() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Field>
                 <FieldLabel className="flex-col items-stretch">
-                  <span>{'Price model'}</span>
+                  <span>Price model</span>
                   <Select
                     value={draft.ad.price.model}
                     onChange={(event) => setPrice({ model: event.target.value as ServiceAdvertisement['price']['model'] })}
@@ -393,7 +397,7 @@ export function DirectoryOnboarding() {
               </Field>
               <Field>
                 <FieldLabel className="flex-col items-stretch">
-                  <span>{'Amount in base units'}</span>
+                  <span>Amount in base units</span>
                   <Input
                     value={draft.ad.price.amountBaseUnits}
                     inputMode="numeric"
@@ -405,7 +409,7 @@ export function DirectoryOnboarding() {
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Reward token address'}</span>
+                <span>Paid in · token address</span>
                 <Input value={draft.ad.price.token} onChange={(event) => setPrice({ token: event.target.value as Address })} />
               </FieldLabel>
               <FieldDescription>{`Chain ${chain.id}. Token metadata is unverified; this is a price preference, not escrow.`}</FieldDescription>
@@ -413,7 +417,7 @@ export function DirectoryOnboarding() {
 
             <Field>
               <FieldLabel className="flex-col items-stretch">
-                <span>{'Estimated turnaround, seconds'}</span>
+                <span>Estimated turnaround, seconds</span>
                 <Input
                   type="number"
                   min={1}
@@ -422,7 +426,7 @@ export function DirectoryOnboarding() {
                   onChange={(event) => setAd({ turnaroundSeconds: Number(event.target.value) })}
                 />
               </FieldLabel>
-              <FieldDescription>{'An operator estimate, not a measured performance claim.'}</FieldDescription>
+              <FieldDescription>An operator estimate, not a measured performance claim.</FieldDescription>
             </Field>
           </>
         )}
@@ -433,12 +437,15 @@ export function DirectoryOnboarding() {
                 <Sparkles aria-hidden className="size-4 text-primary" />
                 {draft.profile.name || 'Unnamed worker'}
               </span>
-              <span>Agent #{draft.agentId || 'not imported'}</span>
+              <span>Agent ID {draft.agentId || 'not imported'}</span>
               <span>
                 {draft.ad.name || 'No service'} · {draft.ad.price.model} · {draft.ad.price.amountBaseUnits} base units
               </span>
-              <span className="break-all">Signer: {account.address ?? 'connect your wallet first'}</span>
-              <span>Ad expiry: 24 hours. Manual heartbeat: 60 seconds. No unattended delegate is created by this web flow.</span>
+              <span>Ad expiry: 24 hours. Manual heartbeat: 60 seconds.</span>
+              <Details summary="Technical details">
+                <span className="break-all">Signer: {account.address ?? 'connect your wallet first'}</span>
+                <span>No unattended delegate is created by this web flow.</span>
+              </Details>
             </div>
 
             <p className="text-sm text-muted-foreground">

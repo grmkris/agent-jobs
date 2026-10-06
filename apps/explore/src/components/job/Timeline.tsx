@@ -59,7 +59,7 @@ export interface TimelineJob {
 }
 
 export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
-  const agent = job.agentId !== null ? `Agent #${job.agentId}` : 'The agent'
+  const agent = job.agentId !== null ? `Worker #${job.agentId}` : 'The agent'
   const steps: Step[] = []
   for (const e of events) {
     const a = e.args
@@ -72,8 +72,8 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
       case 'Activated':
         steps.push({
           mark: 'done',
-          title: `Agent #${String(a.agentId)} started`,
-          sub: String(a.workerBond ?? '0') !== '0' ? `Reserved its ${bond(String(a.workerBond))} bond from stake` : undefined,
+          title: `Worker #${String(a.agentId)} started`,
+          sub: String(a.workerBond ?? '0') !== '0' ? `Reserved its ${bond(String(a.workerBond))} deposit from backing` : undefined,
           at,
           tx,
         })
@@ -108,8 +108,8 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
           sub:
             a.slashLoser === true
               ? a.forWorker === true
-                ? "Bad-faith rejection: the creator's bond is burned"
-                : "The agent's bond is burned"
+                ? "Bad-faith rejection: the creator's deposit at risk is burned"
+                : "The agent's deposit at risk is burned"
               : undefined,
           at,
           tx,
@@ -146,10 +146,10 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} top-up refunded to its contributor`, at, tx })
         break
       case 'BondReleased':
-        steps.push({ mark: 'done', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} bond released`, at, tx })
+        steps.push({ mark: 'done', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} deposit at risk released`, at, tx })
         break
       case 'BondSlashed':
-        steps.push({ mark: 'fail', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} bond slashed`, at, tx })
+        steps.push({ mark: 'fail', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} deposit at risk slashed`, at, tx })
         break
       case 'PayoutDeferred':
         steps.push({

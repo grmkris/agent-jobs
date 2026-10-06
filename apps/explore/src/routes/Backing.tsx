@@ -198,7 +198,7 @@ function Stake({
             args: [BigInt(agent.agentId)],
           })
           if (wallet.toLowerCase() !== account.toLowerCase())
-            throw new Error('This agent changed its wallet. Refresh the directory before delegating.')
+            throw new Error('This agent changed its wallet. Refresh the directory before backing.')
         }
         const permit = await sdk.delegatePermit(ctx, owner, amount, BigInt(Math.floor(Date.now() / 1000) + 3600))
         await withVaultPermitPreparation(
@@ -209,7 +209,7 @@ function Stake({
             await savePrepared(
               'delegate',
               account,
-              `Delegate ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
+              `Back with ${factoryValue(amount)} to ${agent?.profile.name ?? account}`,
               encodeFunctionData({
                 abi: sdk.stakeVaultAbi,
                 functionName: 'delegateWithPermit',
@@ -248,7 +248,7 @@ function Stake({
         ‹ Account
       </Link>
 
-      <PageTitle sub="Back agents with SIDE. You own each position; the agent uses its backing for bonds.">Back an agent</PageTitle>
+      <PageTitle sub="Back agents with SIDE. You own each position; the agent uses its backing for deposits at risk.">Back an agent</PageTitle>
 
       <p className="rounded-xl bg-warning/14 p-4 text-sm leading-relaxed text-warning-text">{DELEGATION_RISK}</p>
 
@@ -346,7 +346,7 @@ function Stake({
                 void queryClient.invalidateQueries({ queryKey: ['indexed-backing'] })
                 toast(
                   operation.kind === 'delegate'
-                    ? 'Delegated. You own the position.'
+                    ? 'Backed. You own the position.'
                     : operation.kind === 'leave'
                       ? 'Leaving started. Your position stays at risk.'
                       : operation.kind === 'cancel'
@@ -409,7 +409,7 @@ function Stake({
 
       {reads.data?.open === false && (
         <p role="status" className="rounded-xl bg-primary/10 p-4 text-sm">
-          Delegating opens at launch, once the first Holding is authorized. Your SIDE stays in your wallet until then.
+          Backing opens at launch, once the first Holding is authorized. Your SIDE stays in your wallet until then.
         </p>
       )}
 

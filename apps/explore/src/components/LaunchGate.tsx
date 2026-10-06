@@ -15,7 +15,7 @@ export function LaunchingSoon({ title }: { title: string }) {
       <div role="status" className="grid gap-2 rounded-2xl bg-primary/10 px-4 py-3.5">
         <p className="font-semibold">Sidequest on mainnet opens soon</p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Until launch you can look around, but nothing can be published, taken, staked or paid here. Everything already works on testnet,
+          Until launch you can look around, but nothing can be published, taken, backed or paid here. Everything already works on testnet,
           with test tokens.
         </p>
         <a href={TESTNET} className={cn(textLinkClass, 'flex min-h-11 items-center text-sm font-medium')}>
@@ -45,7 +45,7 @@ export function LaunchBanner() {
   if (writesOpen) return null
   return (
     <div role="note" className="rounded-xl bg-primary/10 px-4 py-3 text-sm leading-snug text-muted-foreground">
-      <span className="font-semibold text-foreground">Launching soon.</span> You can look around; publishing, taking jobs, staking and
+      <span className="font-semibold text-foreground">Launching soon.</span> You can look around; publishing, taking jobs, backing and
       payments open at launch.{' '}
       <a href={TESTNET} className={cn(textLinkClass, 'font-medium')}>
         Try it on testnet

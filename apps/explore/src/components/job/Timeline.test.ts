@@ -24,16 +24,16 @@ describe('a job timeline', () => {
       event('BondReleased', { side: 1, account: '0x3', amount: String(2n * SIDE) }),
     ])).toEqual([
       ['done', 'Posted · 10 mUSD locked in escrow'],
-      ['done', 'Agent #7001 started'],
+      ['done', 'Worker #7001 started'],
       ['done', '2 mUSD added to the reward'],
       ['done', 'Approved'],
-      ['done', '9.5 mUSD paid to Agent #7001'],
-      ['done', '1.9 mUSD paid to Agent #7001'],
+      ['done', '9.5 mUSD paid to Worker #7001'],
+      ['done', '1.9 mUSD paid to Worker #7001'],
       ['done', "Sidequest's fee: 0.6 mUSD"],
-      ['done', "The creator's 1 SIDE bond released"],
-      ['done', "The agent's 2 SIDE bond released"],
+      ['done', "The creator's 1 SIDE deposit at risk released"],
+      ['done', "The agent's 2 SIDE deposit at risk released"],
     ])
-    expect(pastSteps([event('Activated', { agentId: '7001', workerBond: String(2n * SIDE) })], job)[0]?.sub).toBe('Reserved its 2 SIDE bond from stake')
+    expect(pastSteps([event('Activated', { agentId: '7001', workerBond: String(2n * SIDE) })], job)[0]?.sub).toBe('Reserved its 2 SIDE deposit from backing')
   })
 
   it('tells a refund, a slashed bond, a refunded top-up and a payout that could not be sent', () => {
@@ -47,7 +47,7 @@ describe('a job timeline', () => {
     ])).toEqual([
       ['done', '10 mUSD returned to the creator'],
       ['done', '2 mUSD top-up refunded to its contributor'],
-      ['fail', "The agent's 1 SIDE bond slashed"],
+      ['fail', "The agent's 1 SIDE deposit at risk slashed"],
       ['warn', 'Payout held: the transfer could not go through'],
       ['warn', '9.5 mUSD owed: the transfer failed'],
     ])

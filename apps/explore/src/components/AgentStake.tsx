@@ -49,7 +49,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
     } catch {
       return {
         intent: null,
-        error: 'The saved delegation is unreadable. Restore its journal before preparing another action.',
+        error: 'The saved backing is unreadable. Restore its journal before preparing another action.',
       }
     }
   })
@@ -103,7 +103,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
         ])
         if (units > balance) throw new Error('That is more SIDE than your wallet holds')
         if (wallet.toLowerCase() !== agent.address.toLowerCase())
-          throw new Error('This agent changed its wallet. Refresh before delegating.')
+          throw new Error('This agent changed its wallet. Refresh before backing.')
         const target = agent.address as Address
         const approval = {
           chainId: chain.id,
@@ -114,7 +114,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
         }
         const delegation = {
           chainId: chain.id,
-          description: `Delegate ${amount} SIDE to ${agent.name}`,
+          description: `Back with ${amount} SIDE to ${agent.name}`,
           to: vault,
           value: '0',
           data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [target, units] }),
@@ -135,7 +135,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           await save([
             {
               chainId: chain.id,
-              description: `Delegate ${amount} SIDE to ${agent.name}`,
+              description: `Back with ${amount} SIDE to ${agent.name}`,
               to: operator as Address,
               value: '0',
               data: sdk.batchCalldata([approval, delegation]),
@@ -151,7 +151,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
               await save([
                 {
                   chainId: chain.id,
-                  description: `Delegate ${amount} SIDE to ${agent.name}`,
+                  description: `Back with ${amount} SIDE to ${agent.name}`,
                   to: vault,
                   value: '0',
                   data: encodeFunctionData({
@@ -175,8 +175,8 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
 
   return (
     <Section
-      title="Delegate backing to this agent"
-      note="Your operator wallet delegates in one transaction and owns the position. The agent uses the backing for bonds and its fee tier. A slash reduces every backing position by the same share."
+      title="Back this agent"
+      note="Your operator wallet backs this agent in one transaction and owns the position. The agent uses the backing for deposits at risk and its fee tier. A slash reduces every backing position by the same share."
     >
       <OperatorBalances operator={operator as Address} />
       {backing.isError || backing.data === undefined ? (
@@ -192,7 +192,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             <dd>{factoryValue(backing.data.backing.active)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Reserved for bonds</dt>
+            <dt className="text-muted-foreground">Reserved for deposits at risk</dt>
             <dd>{factoryValue(backing.data.backing.reserved)}</dd>
           </div>
         </dl>
@@ -203,7 +203,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             placeholder="SIDE amount"
-            aria-label="SIDE to delegate to agent"
+            aria-label="SIDE to back this agent"
             inputMode="decimal"
           />
           <Button
@@ -214,7 +214,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             Max
           </Button>
           <Button disabled={initial.error !== null} busy={busy} onClick={() => void prepare()}>
-            Review delegation
+            Review backing
           </Button>
         </div>
       ) : intent.account.toLowerCase() !== agent.address?.toLowerCase() || intent.kind !== 'delegate' ? (
@@ -241,7 +241,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
               setIntent(null)
               setAmount('')
             }).catch(() => {
-              setError('The confirmed delegation could not be cleared from storage. Restore storage to reconcile it.')
+              setError('The confirmed backing could not be cleared from storage. Restore storage to reconcile it.')
             })
           }}
         />

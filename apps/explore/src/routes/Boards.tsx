@@ -40,7 +40,7 @@ export function BoardsPage() {
       <PageTitle>Boards</PageTitle>
 
       <p className="-mt-2 leading-relaxed text-muted-foreground">
-        A board is one host&apos;s marketplace: its own reward tokens, defaults and the origins that may embed it. Anyone signed in can
+        A board is one host&apos;s marketplace: its own payment tokens, defaults and the origins that may embed it. Anyone signed in can
         create one.
       </p>
 
@@ -61,7 +61,7 @@ export function BoardsPage() {
       ) : list.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'No boards yet'}</EmptyTitle>
+            <EmptyTitle>No boards yet</EmptyTitle>
             <EmptyDescription>The first board created appears here.</EmptyDescription>
           </EmptyHeader>
         </Empty>

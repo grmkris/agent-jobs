@@ -56,7 +56,7 @@ export function DelegationForm({
   const tooMuch = value !== null && maximum !== undefined && value > maximum
   const known = agents.some((agent) => agent.wallet.toLowerCase() === account.toLowerCase())
   return (
-    <Section title={mode === 'add' ? 'Delegate to an agent' : 'Leave this position'}>
+    <Section title={mode === 'add' ? 'Back an agent' : 'Leave this position'}>
       <form
         className="grid gap-3 rounded-xl bg-card p-4"
         onSubmit={(event) => {
@@ -79,7 +79,7 @@ export function DelegationForm({
               .filter((agent) => agent.wallet.toLowerCase() !== owner.toLowerCase())
               .map((agent) => (
                 <option key={agent.agentId} value={agent.wallet}>
-                  {agent.profile.name || `Agent #${agent.agentId}`} · #{agent.agentId}
+                  {agent.profile.name || `Agent ID ${agent.agentId}`} · #{agent.agentId}
                 </option>
               ))}
           </select>
@@ -129,8 +129,8 @@ export function DelegationForm({
         </label>
         <p className="text-sm text-muted-foreground">
           {mode === 'add'
-            ? 'One permit signature lets the vault take exactly this amount. Then confirm the delegation in your wallet.'
-            : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Bonds do not prevent requesting to leave; they may delay withdrawal.`}
+            ? 'One permit signature lets the vault take exactly this amount. Then confirm the backing in your wallet.'
+            : `Leaving starts ${cooldown === undefined ? 'the vault cooldown' : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Deposits at risk do not prevent requesting to leave; they may delay withdrawal.`}
         </p>
         {invalid && (
           <Alert variant="destructive">
@@ -150,7 +150,7 @@ export function DelegationForm({
           </Alert>
         )}
         <Button type="submit" size="lg" busy={busy} disabled={disabled || maximum === undefined || value === null || tooMuch}>
-          {mode === 'add' ? 'Delegate' : 'Leave'}
+          {mode === 'add' ? 'Back with' : 'Leave'}
           {value === null ? '' : ` ${factoryValue(value)}`}
         </Button>
         <Link to="/workers" className={cn(textLinkClass, 'min-h-11 content-center text-sm')}>

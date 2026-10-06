@@ -14,7 +14,7 @@ import { Countdown, useNow } from './Time.tsx'
 export const factoryValue = (value: bigint) => `${formatNumber(value, 18)} SIDE`
 
 export const DELEGATION_RISK =
-  'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.'
+  'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs secured against its backing, withdrawal waits until they settle.'
 
 export function DelegationPositions({
   positions,
@@ -40,7 +40,7 @@ export function DelegationPositions({
       {positions.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'No positions yet'}</EmptyTitle>
+            <EmptyTitle>No positions yet</EmptyTitle>
             <EmptyDescription>Choose an agent below to back it with SIDE.</EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -63,7 +63,7 @@ export function DelegationPositions({
                     <AddressText value={position.account} />
                   ) : (
                     <Link to="/agent/$agentId" params={{ agentId: agent.agentId }} className={cn(textLinkClass, 'block font-semibold')}>
-                      {agent.profile.name || `Agent #${agent.agentId}`}
+                      {agent.profile.name || `Agent ID ${agent.agentId}`}
                     </Link>
                   )}
                   <p className="mt-1 tabular-nums text-lg font-semibold">{factoryValue(position.value)}</p>
@@ -75,7 +75,7 @@ export function DelegationPositions({
                     : leaving
                       ? 'Leaving'
                       : bonded
-                        ? 'Waiting for bonds to clear'
+                        ? 'Waiting for deposits at risk to clear'
                         : ready
                           ? 'Ready to withdraw'
                           : position.shares > 0n
@@ -92,7 +92,7 @@ export function DelegationPositions({
                       · <Countdown to={position.unlockAt} /> remaining
                     </>
                   ) : bonded ? (
-                    ' · live bonds still need this backing'
+                    ' · live deposits at risk still need this backing'
                   ) : (
                     ' · withdraw to your wallet'
                   )}

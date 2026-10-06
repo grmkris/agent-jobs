@@ -33,15 +33,15 @@ export async function ensureAllowance(runtime: Runtime): Promise<void> {
     return;
   await runtime.browser.page.goto(`${ORIGIN}/agent/${runtime.agent.agent_id}?tab=manage`);
   const card = runtime.browser.page.locator("article").filter({ hasText: runtime.agent.name });
-  await card.locator("summary").filter({ hasText: "Change or renew the allowance" }).click();
+  await card.locator("summary").filter({ hasText: "Change or renew the weekly budget" }).click();
   await card.getByRole("combobox", { name: "Token jobs are paid in", exact: true }).selectOption(token.toLowerCase());
-  await card.getByRole("textbox", { name: "Weekly amount", exact: true }).fill("25");
-  await card.getByRole("button", { name: "Review allowance", exact: true }).click();
+  await card.getByRole("textbox", { name: "Weekly budget", exact: true }).fill("25");
+  await card.getByRole("button", { name: "Review budget", exact: true }).click();
   const response = runtime.browser.page.waitForResponse(
     (reply) =>
       new URL(reply.url()).pathname === `/api/agents/${runtime.agent.id}/allowance-confirm`,
   );
-  await card.getByRole("button", { name: "Sign allowance", exact: true }).click();
+  await card.getByRole("button", { name: "Sign budget", exact: true }).click();
   if (!(await response).ok()) throw new Error("P8_INITIAL_ALLOWANCE_REFUSED");
   const after = await runtime.browser.api<{ allowances: Array<{ token: Address; limit: string }> }>(
     `/api/agents/${runtime.agent.id}`,

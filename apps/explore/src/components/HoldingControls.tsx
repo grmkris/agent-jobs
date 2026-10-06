@@ -72,7 +72,7 @@ export function HoldingControls({
       {proposal && (
         <Section
           title="A new Holding is proposed"
-          note="This veto controls your own wallet's backing. An external delegator cannot change an agent's Holding permissions."
+          note="This veto controls your own wallet's backing. An external backer cannot change an agent's Holding permissions."
         >
           <ItemGroup className="grid gap-3 p-4">
             <Item>
@@ -114,7 +114,7 @@ export function HoldingControls({
       {denied === true && (
         <Section title="You refused the Holding in use">
           <ItemGroup className="grid gap-3 p-4">
-            <p className="text-sm text-muted-foreground">It cannot reserve this wallet's backing for new job bonds.</p>
+            <p className="text-sm text-muted-foreground">It cannot reserve this wallet's backing for new job deposits at risk.</p>
             <Button variant="secondary" disabled={disabled || reads.isError} onClick={() => onVeto(contracts.holding, false)}>
               Allow it again
             </Button>

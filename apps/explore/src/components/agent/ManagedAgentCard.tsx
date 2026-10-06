@@ -1,7 +1,7 @@
 import { Badge } from '../ui/badge.tsx'
 import { Button } from '../ui/button.tsx'
 import { Alert, AlertDescription } from '../ui/alert.tsx'
-import { Section } from '../kit.tsx'
+import { Details, Section } from '../kit.tsx'
 import { useSigners } from '@privy-io/react-auth'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -78,12 +78,14 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
         <div>
           <h2 className="text-2xl font-semibold">{agent.name}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            {agent.agent_id === null ? 'Registration incomplete' : `ERC-8004 #${agent.agent_id}`} ·{' '}
-            {agent.address ?? 'Wallet creation pending'}
+            {agent.agent_id === null ? 'Registration incomplete' : `Agent ID ${agent.agent_id}`}
           </p>
         </div>
         <Badge variant={agent.state === 'active' ? 'success' : 'neutral'}>{agent.state}</Badge>
       </header>
+      <Details summary="Technical details">
+        <p className="break-all font-mono text-xs">{agent.address ?? 'Wallet creation pending'}</p>
+      </Details>
       <p className="text-sm text-muted-foreground">
         <strong className="font-medium text-foreground">Last activity:</strong> {last}. This is server-observed activity, not a health
         signal.
@@ -94,10 +96,10 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
           <Section title="Spending limit">
             {status.error !== null ? (
               <Alert variant="destructive">
-                <AlertDescription>Allowance usage is unavailable; no remaining budget is assumed.</AlertDescription>
+                <AlertDescription>Weekly budget usage is unavailable; no remaining budget is assumed.</AlertDescription>
               </Alert>
             ) : status.data?.allowances.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No live periodic allowance. Hires go to Approvals.</p>
+              <p className="text-sm text-muted-foreground">No live weekly budget. Hires go to Approvals.</p>
             ) : (
               status.data?.allowances.map((row) => (
                 <div key={row.hash} className="grid gap-1 border-l-2 border-primary pl-4">
@@ -112,7 +114,7 @@ export function ManagedAgentCard({ agent }: { agent: ManagedAgent }) {
               ))
             )}
             <details className="rounded-xl border border-border p-3">
-              <summary className="min-h-8 cursor-pointer font-medium">Change or renew the allowance</summary>
+              <summary className="min-h-8 cursor-pointer font-medium">Change or renew the weekly budget</summary>
               <div className="mt-3">
                 <AllowanceEditor agent={agent} onConfirmed={() => void refresh()} />
               </div>

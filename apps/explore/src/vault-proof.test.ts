@@ -43,7 +43,7 @@ describe("shared vault action proofs", () => {
     const f = fixture();
     expect(await f.guards.sendGuard()).toBeNull();
     f.revoke();
-    expect(await f.guards.sendGuard()).toMatch(/batch delegation changed/);
+    expect(await f.guards.sendGuard()).toMatch(/batch permission changed/);
     const stale = fixture();
     stale.supersede();
     expect(await stale.guards.sendGuard()).toMatch(/changed in another tab/);
@@ -63,18 +63,18 @@ describe("shared vault action proofs", () => {
   });
   it("a successful no-op or an event from a different contract proves no requested delegation", () => {
     const f = fixture();
-    expect(f.guards.receiptGuard({ logs: [] }, f.intent.txs)).toMatch(/Not delegated/);
-    expect(f.guards.receiptGuard({ logs: [delegated({ address: other })] }, f.intent.txs)).toMatch(/Not delegated/);
+    expect(f.guards.receiptGuard({ logs: [] }, f.intent.txs)).toMatch(/Not backed/);
+    expect(f.guards.receiptGuard({ logs: [delegated({ address: other })] }, f.intent.txs)).toMatch(/Not backed/);
   });
   for (const changes of [{ account: other }, { delegator: other }, { payer: other }, { assets: units - 1n }, { shares: 0n }] as const) {
     it(`conflicting delegation proof cannot confirm or authorize a resend: ${Object.keys(changes)[0]}`, () => {
       const f = fixture();
-      expect(() => f.guards.receiptGuard({ logs: [delegated(changes)] }, f.intent.txs)).toThrow(/different delegation/);
+      expect(() => f.guards.receiptGuard({ logs: [delegated(changes)] }, f.intent.txs)).toThrow(/different backing action/);
     });
   }
   it("duplicate, malformed or removed events require reconciliation rather than another send", () => {
     const f = fixture();
-    expect(() => f.guards.receiptGuard({ logs: [delegated(), delegated()] }, f.intent.txs)).toThrow(/different delegation/);
+    expect(() => f.guards.receiptGuard({ logs: [delegated(), delegated()] }, f.intent.txs)).toThrow(/different backing action/);
     expect(() => f.guards.receiptGuard({ logs: [{ ...delegated(), data: "0x" }] }, f.intent.txs)).toThrow();
     expect(() => f.guards.receiptGuard({ logs: [{ ...delegated(), removed: true }] }, f.intent.txs)).toThrow(/removed/);
   });
@@ -83,7 +83,7 @@ describe("shared vault action proofs", () => {
     f.revoke();
     expect(await f.guards.sendGuard()).toBeNull();
     expect(f.guards.receiptGuard({ logs: [] }, [approval])).toBeNull();
-    expect(f.guards.receiptGuard({ logs: [] }, [delegate])).toMatch(/Not delegated/);
+    expect(f.guards.receiptGuard({ logs: [] }, [delegate])).toMatch(/Not backed/);
     expect(f.guards.receiptGuard({ logs: [delegated()] }, [delegate])).toBeNull();
   });
 });

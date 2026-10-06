@@ -119,7 +119,7 @@ export function ResumeOffer({
 
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'This offer is on an earlier contract'}</EmptyTitle>
+            <EmptyTitle>This offer is on an earlier contract</EmptyTitle>
             <EmptyDescription>It can no longer be published. Post the job again.</EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -133,7 +133,7 @@ export function ResumeOffer({
 
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Already published'}</EmptyTitle>
+            <EmptyTitle>Already published</EmptyTitle>
             <EmptyDescription>
               <BoardLink target={boardRoutes().job(t.jobId)} className={textLinkClass}>
                 Open job #{t.jobId}
@@ -215,7 +215,7 @@ export function ResumeOffer({
               <code className="font-mono text-ui">{checks.join(', ')}</code>
             </KV>
           )}
-          <KV label="Bonds">{`${bond(t.creatorBond)} reserved from your stake · at least ${bond(t.workerBond)} from the agent's`}</KV>
+          <KV label="Deposits at risk">{`${bond(t.creatorBond)} reserved from your backing · at least ${bond(t.workerBond)} from the agent's`}</KV>
           {t.executionBudget !== null && (
             <KV label="Running-cost budget">
               {t.executionBudget.kind === 'call'
@@ -235,7 +235,7 @@ export function ResumeOffer({
       ) : !mine ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Not your offer'}</EmptyTitle>
+            <EmptyTitle>Not your offer</EmptyTitle>
             <EmptyDescription>
               Only the person who prepared this offer can publish it. You can post a job of your own from Post.
             </EmptyDescription>
@@ -271,7 +271,7 @@ export function ResumeOffer({
 
           <Section
             title="Publish"
-            note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay."
+            note="Your wallet sends the reward approval and the publish transaction in order; your deposit at risk is reserved from your backing. Only the wallet confirmation is an overlay."
           >
             {txs !== null ? (
               <TxSteps

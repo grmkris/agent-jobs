@@ -2,7 +2,7 @@ import { Badge } from '../components/ui/badge.tsx'
 import { Button } from '../components/ui/button.tsx'
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemActions } from '../components/ui/item.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { Address, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
+import { Details, Address, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Fuel } from 'lucide-react'
 import { useState } from 'react'
@@ -90,9 +90,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
     try {
       if (p.upgrade !== null) {
         if (upgrade === null)
-          throw new Error(
-            'Turn this on from your Sidequest email or Google wallet: it points that wallet at the delegation contract first.',
-          )
+          throw new Error('Turn this on from your Sidequest email or Google wallet so it can enable sponsored transactions.')
         const hash = await upgrade()
         if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       }
@@ -250,7 +248,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
         {prep !== null && <Policy policy={prep.policy} />}
         {prep !== null && prep.prep.upgrade !== null && (
           <p className="text-sm text-muted-foreground">
-            First your wallet points at the delegation contract. The relay sends that for you.
+            First your wallet enables sponsored transactions. Sidequest relays that setup for you.
           </p>
         )}
       </ConfirmSheet>
@@ -272,24 +270,11 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
 /** The permission's limits, read from its caveats. */
 function Policy({ policy }: { policy: SponsorPolicy }) {
   return (
-    <Section title="What the relay may do">
+    <Section
+      title="What the relay may do"
+      note="Only Sidequest job actions and permission revocation. This permission cannot spend tokens or MON from your wallet."
+    >
       <ItemGroup>
-        <Item>
-          <ItemContent className="flex-1">Relay</ItemContent>
-          <Address value={deployment.relay} />
-        </Item>
-        {policy.targets.map((t) => (
-          <Item key={t.address}>
-            <ItemContent className="flex-1">Call {t.name}</ItemContent>
-            <Address value={t.address} />
-          </Item>
-        ))}
-        <Item>
-          <span className="shrink-0">Only</span>
-          <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui break-words text-muted-foreground">
-            {policy.methods.map((x) => x.name).join(', ')}
-          </ItemActions>
-        </Item>
         <Item>
           <ItemContent className="flex-1">At most</ItemContent>
           <ItemContent className="tabular-nums text-muted-foreground">{policy.calls.toString()} calls</ItemContent>
@@ -301,6 +286,29 @@ function Policy({ policy }: { policy: SponsorPolicy }) {
           </ItemContent>
         </Item>
       </ItemGroup>
+      <Details summary="Technical details">
+        <p className="text-sm text-muted-foreground">
+          A zero-value ERC-7710 delegation limits the relay to these contracts and methods. The wallet uses EIP-7702 for the initial setup.
+        </p>
+        <ItemGroup>
+          <Item>
+            <ItemContent className="flex-1">Relay</ItemContent>
+            <Address value={deployment.relay} />
+          </Item>
+          {policy.targets.map((t) => (
+            <Item key={t.address}>
+              <ItemContent className="flex-1">Call {t.name}</ItemContent>
+              <Address value={t.address} />
+            </Item>
+          ))}
+          <Item>
+            <span className="shrink-0">Only</span>
+            <ItemActions className="min-w-0 flex-1 flex-col items-end text-right font-mono text-ui break-words text-muted-foreground">
+              {policy.methods.map((x) => x.name).join(', ')}
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </Details>
     </Section>
   )
 }

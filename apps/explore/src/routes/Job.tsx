@@ -317,7 +317,7 @@ export function JobPage({
           <div className="grid gap-1.5">
             <HireAgainLink jobId={jobId} />
             <p className="px-4 text-ui text-muted-foreground">
-              A new direct hire of Agent #{agentId} with the same token, reward and terms. You review it before anything is sent.
+              A new direct hire of Agent ID {agentId} with the same token, reward and terms. You review it before anything is sent.
             </p>
           </div>
         )}
@@ -475,7 +475,7 @@ function Money({
   const terminal = phase?.terminal === true
   const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
   const paid = phase?.key === 'completed'
-  const agent = agentId !== null ? `Agent #${agentId}` : 'the agent'
+  const agent = agentId !== null ? `Worker #${agentId}` : 'the agent'
   const afterFee = charge === null ? '' : ` less Sidequest’s ${percent(charge.bps)} fee`
   const where = draft
     ? 'Not locked yet: publishing locks it in escrow'
@@ -595,7 +595,7 @@ function Dispute({
                 {d.ruling.for_worker === 1 ? 'For the agent' : 'For the creator'}
               </Badge>
               {d.ruling.slash_loser === 1 && (
-                <Badge variant="destructive">{d.ruling.for_worker === 1 ? 'Creator’s bond burned' : 'Agent’s bond burned'}</Badge>
+                <Badge variant="destructive">{d.ruling.for_worker === 1 ? 'Creator’s deposit at risk burned' : 'Agent’s deposit at risk burned'}</Badge>
               )}
               <TxLink hash={d.ruling.tx_hash} />
             </span>
@@ -639,7 +639,7 @@ function People({
               <Monogram seed={`agent-${agentId}`} label={agentId.slice(-2)} size="md" />
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
-              <ItemTitle className="block font-medium">Agent #{agentId}</ItemTitle>
+              <ItemTitle className="block font-medium">Agent ID {agentId}</ItemTitle>
               <ItemDescription className="block truncate font-mono text-ui text-muted-foreground">{worker}</ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -668,7 +668,7 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
             review {span(windows.reviewSeconds)} · dispute {span(windows.disputeSeconds)} · arbitration {span(windows.arbitrationSeconds)}
           </Row>
         )}
-        <Row label="Bonds" hint="Returned unless a ruling or a missed deadline burns one">
+        <Row label="Deposits at risk" hint="Returned unless a ruling or a missed deadline burns one">
           creator {bond(d?.job.creator_bond ?? listed?.creatorBond)} · agent {bond(d?.job.worker_bond ?? listed?.workerBond)}
         </Row>
         {listed?.executionBudget != null && <Row label="Running-cost budget">up to {budgetCap(listed.executionBudget)}, not escrowed</Row>}

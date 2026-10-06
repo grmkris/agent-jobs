@@ -123,7 +123,7 @@ function rowNote(phase: Phase | null, now: number, agentId: string | null | unde
     case 'hire-lapsed':
       return 'The creator can cancel for a refund'
     case 'completed':
-      return agentId != null ? `Agent #${agentId} paid` : 'Paid'
+      return agentId != null ? `Worker #${agentId} paid` : 'Paid'
     case 'draft':
       return 'Only you can see this'
     default:
@@ -243,7 +243,7 @@ export function JobsPage() {
       {chainUnavailable ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Chain jobs are unavailable'}</EmptyTitle>
+            <EmptyTitle>Chain jobs are unavailable</EmptyTitle>
             <EmptyDescription>
               The board list is available, but chain status and counts are not. Retry when the chain index is reachable.
               <Button size="default" variant="secondary" onClick={() => void refetch()}>
@@ -255,7 +255,7 @@ export function JobsPage() {
       ) : error !== null && items.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Jobs are unavailable'}</EmptyTitle>
+            <EmptyTitle>Jobs are unavailable</EmptyTitle>
             <EmptyDescription>
               <Alert variant="destructive">
                 <AlertDescription>{(error as Error).message}</AlertDescription>

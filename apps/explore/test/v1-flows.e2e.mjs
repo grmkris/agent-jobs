@@ -164,7 +164,7 @@ try {
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
       await page.locator('#post-reward').fill('5');
       await page.getByRole('button', { name: 'Review', exact: true }).click();
-      await page.getByText('Agent #7001 · invited', { exact: true }).waitFor();
+      await page.getByText('Agent ID 7001 · invited', { exact: true }).waitFor();
       assert.deepEqual(state.created.map((a) => ({ mode: a.mode, invite: a.invite, reward: a.reward })), [{ mode: 'hire', invite: { agentId: '7001' }, reward: '5' }]);
       state.publishing = { taskId: 'task-99', jobId: '99' };
       await steps(page, 2);
@@ -180,7 +180,7 @@ try {
       state.jobs[99].status = 'completed';
       await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
       await page.getByRole('button', { name: 'Confirm fixture' }).click();
-      await page.getByRole('status').filter({ hasText: 'Paid 5 mUSD to Agent #7001' }).waitFor();
+      await page.getByRole('status').filter({ hasText: 'Paid 5 mUSD to Worker #7001' }).waitFor();
       assert.deepEqual((await sends(page)).at(-1), { to: contracts.evaluator, gas: '1200000' });
       await capture(page, `${device}-direct-hire-paid`);
       results.push({ device, flow: 'direct hire, publish to payment', checks: ['named agent', 'create_task invite', 'approve + publish', 'lands on the job page', 'agent delivers', 'approve via Evaluator.accept 1.2M gas', 'paid toast'], note: 'activation is the agent’s own transaction over MCP; the creator’s sponsored actions are in v1-job.e2e', passed: true });
@@ -207,7 +207,7 @@ try {
       await capture(page, `${device}-quotes`);
       const pick = viewport.width === 390 ? page.getByRole('button', { name: 'Pick', exact: true }).first() : page.getByRole('button', { name: 'Pick this quote', exact: true }).first();
       await pick.click();
-      await page.getByRole('dialog', { name: "Pick Agent #7001's quote?" }).getByRole('button', { name: 'Pick this quote', exact: true }).click();
+      await page.getByRole('dialog', { name: "Pick Agent ID 7001's quote?" }).getByRole('button', { name: 'Pick this quote', exact: true }).click();
       assert.deepEqual(state.picked, [{ requestId: 'rq-1', quoteId: 'q-1' }]);
       state.publishing = { taskId: 'task-97', jobId: '97' };
       await steps(page, 2);
@@ -223,12 +223,12 @@ try {
       const { context, page } = await fixture(viewport, agentWallet);
       await page.goto(`${base}/job/95`);
       await page.getByText('For the agent', { exact: true }).waitFor();
-      await page.getByText('Creator’s bond burned', { exact: true }).waitFor();
+      await page.getByText('Creator’s deposit at risk burned', { exact: true }).waitFor();
       await page.getByText('Does not load on a phone.', { exact: true }).waitFor();
       await capture(page, `${device}-ruling-slash`);
       await page.goto(`${base}/job/96`);
       await page.getByText('For the agent', { exact: true }).waitFor();
-      assert.equal(await page.getByText('Creator’s bond burned', { exact: true }).count(), 0);
+      assert.equal(await page.getByText('Creator’s deposit at risk burned', { exact: true }).count(), 0);
       results.push({ device, flow: 'ruling for the worker', checks: ['for the agent', 'creator’s bond burned when slashed', 'no burn badge without slash', 'reason and statement to a party'], passed: true });
       await context.close();
     }

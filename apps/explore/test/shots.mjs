@@ -86,13 +86,20 @@ function routes(p) {
     if (url.origin !== base) return route.abort('blockedbyclient');
     if (url.pathname === '/__test/token') return reply(route, { symbol: 'mUSD', decimals: 6 });
     if (url.pathname === '/__test/receipt') return reply(route, { status: 'success' });
+    if (p.wagmi === 'stake-wagmi.mjs' && (url.pathname === '/data/delegations' || url.pathname.startsWith('/data/backing/'))) {
+      const snapshot = await route.request().frame().evaluate(({ selectedAccount, ownerWallet }) => window.__stakingSnapshot(selectedAccount, ownerWallet), {
+        selectedAccount: url.pathname.startsWith('/data/backing/') ? url.pathname.split('/').at(-1) : undefined,
+        ownerWallet: url.searchParams.get('wallet') ?? undefined,
+      });
+      return reply(route, { ok: true, ...snapshot });
+    }
     if (url.pathname === '/data/jobs') return reply(route, { ok: true, jobs: Object.entries(jobs).map(([id, s]) => chainJob(id, s)), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined && jobs[detail] !== undefined) return reply(route, { ok: true, job: chainJob(detail, jobs[detail]), board: { boardId: 'public', taskId: `task-${detail}` }, submission: null, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null, ...p.detail?.(detail) });
     const agent = /^\/data\/(agents|directory)\/(\d+)$/.exec(url.pathname);
     if (agent !== null) {
       const summary = AGENTS.find((a) => a.agentId === agent[2]);
-      if (agent[1] === 'directory') return reply(route, { ok: true, agent: DIRECTORY.find((a) => a.agentId === agent[2]) ?? listing(agent[2], `Agent #${agent[2]}`, '', 'Code review', 3600) });
+      if (agent[1] === 'directory') return reply(route, { ok: true, agent: DIRECTORY.find((a) => a.agentId === agent[2]) ?? listing(agent[2], `Agent ID ${agent[2]}`, '', 'Code review', 3600) });
       return summary === undefined ? reply(route, { ok: false, code: 'not-found', message: 'No jobs yet' }, 404) : reply(route, { ok: true, agent: summary, wallets: [agentWallet], bonds: { returned: summary.completed }, jobs: [], feedback: [] });
     }
     if (data[url.pathname] !== undefined) return reply(route, data[url.pathname]());
@@ -163,14 +170,26 @@ const lifecycle = (name, status, timeline, ruled = null) => ({
 const PAGES = [
   {
     name: 'backing', wagmi: 'stake-wagmi.mjs', path: '/backing',
-    init: () => { window.__stake = { wallet: 18_400n * 10n ** 18n, staked: 25_000n * 10n ** 18n, reserved: 1500n * 10n ** 18n, unstaking: 2000n * 10n ** 18n, unlockAt: Math.floor(Date.now() / 1000) + 3 * 86400, nonce: 0n, calls: [], open: true, denied: {}, proposal: { holding: '0x000000000000000000000000000000000000dEaD', eta: Math.floor(Date.now() / 1000) + 5 * 86400 } }; },
+    init: () => {
+      const backingUnit = 10n ** 18n;
+      const owner = '0x1111111111111111111111111111111111111111';
+      const worker = '0x6666666666666666666666666666666666666666';
+      const other = '0x3333333333333333333333333333333333333333';
+      window.__agents = [{ agentId: '1942', wallet: worker, profile: { name: 'Claude Code worker' } }];
+      window.__stake = { wallet: 18_400n * backingUnit, nonce: 0n, calls: [], cooldown: 600, open: true, code: {}, receipts: {}, denied: {}, pools: {
+        [owner]: { assets: 25_000n * backingUnit, reserved: 1500n * backingUnit, shares: 25_000n * backingUnit, queuedShares: 2000n * backingUnit, generation: 0n,
+          positions: { [owner]: { shares: 25_000n * backingUnit, queuedShares: 2000n * backingUnit, unlockAt: Math.floor(Date.now() / 1000) + 300, generation: 0n } } },
+        [worker]: { assets: 10_000n * backingUnit, reserved: 3000n * backingUnit, shares: 10_000n * backingUnit, queuedShares: 0n, generation: 0n,
+          positions: { [owner]: { shares: 6000n * backingUnit, queuedShares: 0n, unlockAt: 0, generation: 0n }, [other]: { shares: 4000n * backingUnit, queuedShares: 0n, unlockAt: 0, generation: 0n } } },
+      } };
+    },
   },
   {
     name: 'collect', wagmi: 'wagmi.mjs', path: '/collect',
     api: { collect_actions: () => [
-      { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [{ description: 'Settle job #72', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
+      { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the deposits at risk.', transactions: [{ description: 'Settle job #72', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
       { kind: 'claimTopUpRefund', jobId: '71', token, amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
-      { kind: 'miningClaim', epoch: '0', token: config.deployment.factory, amount: (1234n * K).toString(), description: 'Claim work mining into your SIDE stake.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.distributor, data: miningClaim, value: '0', gas: '500000' }] },
+      { kind: 'miningClaim', epoch: '0', token: config.deployment.factory, amount: (1234n * K).toString(), description: 'Claim work mining into your SIDE backing.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.distributor, data: miningClaim, value: '0', gas: '500000' }] },
     ] },
   },
   {
@@ -218,7 +237,9 @@ const PAGES = [
     api: { sponsor_status: () => ({ status: 'none', typedData: null, callsUsed: 0 }), sponsor_prepare: () => ({ sign: { typedData: delegation }, upgrade: { delegator: config.delegation.delegator } }) },
     prepare: async (page) => {
       await page.getByRole('button', { name: 'Turn on' }).click();
-      await page.getByRole('dialog', { name: 'Let Sidequest pay your gas?' }).getByText('Call Holding', { exact: true }).waitFor();
+      const sheet = page.getByRole('dialog', { name: 'Let Sidequest pay your gas?' });
+      await sheet.getByText('At most', { exact: true }).waitFor();
+      assert.equal(await sheet.getByText('Call Holding', { exact: true }).isVisible(), false);
     },
   },
   { name: 'job-quote', wagmi: 'v1-wagmi.mjs', path: '/job/70', v1: true, account: '0x5555555555555555555555555555555555555555', jobs: { 70: 'open' } },
@@ -262,6 +283,7 @@ process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
 const fixtures = (p) => ({ name: 'shots-fixtures', enforce: 'pre', resolveId(source) {
   if (source === 'wagmi') return `${directory}${p.wagmi}`;
   if (source === 'wagmi/actions') return `${directory}${p.wagmi === 'admin-wagmi.mjs' ? 'admin-wagmi-actions.mjs' : 'wagmi-actions.mjs'}`;
+  if (source.endsWith('/stake-context.ts') && p.wagmi === 'stake-wagmi.mjs') return `${directory}stake-chain.mjs`;
   if (source.endsWith('/Privy.tsx')) return `${directory}${p.privy ?? 'privy.mjs'}`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 } });

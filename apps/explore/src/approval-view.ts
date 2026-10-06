@@ -61,7 +61,7 @@ export function approvalLine(approval: AgentApproval, factory: string): Approval
       if (t.type === 'erc20-token-periodic')
         return { ...base, adjusted, title: 'Recurring transfer', amount: { value: t.periodAmount.toString(), token: t.token }, detail: `every ${span(t.periodDuration)} to ${short(t.recipient)} · ${until}` }
       if (t.type === 'erc20-token-allowance')
-        return { ...base, adjusted, title: 'Transfer allowance', amount: { value: t.amount.toString(), token: t.token }, detail: `to ${short(t.recipient)} · ${until}` }
+        return { ...base, adjusted, title: 'Transfer limit', amount: { value: t.amount.toString(), token: t.token }, detail: `to ${short(t.recipient)} · ${until}` }
       return { ...base, adjusted, title: 'Contract call', amount: null, detail: `${t.callData.slice(0, 10)} on ${short(t.target)} · ${until}` }
     } catch {
       return { ...base, title: 'Permission', amount: null, detail: 'The request could not be read' }

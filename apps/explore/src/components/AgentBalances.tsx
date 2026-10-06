@@ -150,7 +150,7 @@ export function AgentBalances({
                   <Countdown to={position.unlockAt} /> remaining.
                 </>
               ) : bonded ? (
-                'Waiting for bonds to clear.'
+                'Waiting for deposits at risk to clear.'
               ) : (
                 'Ready to withdraw.'
               )}{' '}

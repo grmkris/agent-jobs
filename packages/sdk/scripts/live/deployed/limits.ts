@@ -246,7 +246,7 @@ export async function limits(runtime: Runtime): Promise<Proof> {
   const section = runtime.browser.page
     .locator("section")
     .filter({ hasText: text(pending.operation_id) });
-  await section.getByRole("button", { name: "Review exact allowance", exact: true }).click();
+  await section.getByRole("button", { name: "Review exact budget", exact: true }).click();
   await chain.reserve("a04/operator-approval", 1_500_000n);
   const reply = runtime.browser.page.waitForResponse(
     (response) => new URL(response.url()).pathname === `/api/approvals/${approvalId}/decide`,

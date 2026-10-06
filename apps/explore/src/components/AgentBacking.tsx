@@ -18,7 +18,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
   return (
     <Section
       title="Backing"
-      note="The fee tier counts active backing, including reserved bonds. Leaving positions stop counting immediately and remain exposed to slashes."
+      note="The fee tier counts active backing, including reserved deposits at risk. Leaving positions stop counting immediately and remain exposed to slashes."
     >
       {read.isPending ? (
         <LoadingRows rows={3} />
@@ -42,7 +42,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
               <span className="tabular-nums">{factoryValue(snapshot.backing.reserved)}</span>
             </Item>
             <Item>
-              <ItemContent className="flex-1">Available for new bonds</ItemContent>
+              <ItemContent className="flex-1">Available for new deposits at risk</ItemContent>
               <span className="tabular-nums">{factoryValue(snapshot.backing.available)}</span>
             </Item>
             <Item>
@@ -50,7 +50,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
               <span className="tabular-nums">{factoryValue(snapshot.backing.queued)}</span>
             </Item>
             <Item>
-              <ItemContent className="flex-1">Delegators</ItemContent>
+              <ItemContent className="flex-1">Backers</ItemContent>
               <span className="tabular-nums">{snapshot.delegatorCount}</span>
             </Item>
             <Item>
@@ -68,7 +68,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
           </ItemGroup>
 
           {snapshot.topDelegators.length > 0 && (
-            <Section title="Top delegators" className="mt-3">
+            <Section title="Top backers" className="mt-3">
               <ItemGroup>
                 {snapshot.topDelegators.map((position) => (
                   <Item key={position.delegator}>
@@ -95,7 +95,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
                   {snapshot.position.unlockAt > now ? (
                     <Countdown to={snapshot.position.unlockAt} />
                   ) : snapshot.backing.assets - snapshot.position.queued < snapshot.backing.reserved ? (
-                    'Waiting for bonds to clear'
+                    'Waiting for deposits at risk to clear'
                   ) : (
                     'Ready to withdraw'
                   )}
@@ -114,7 +114,7 @@ export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Addr
               'mt-2 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary/14 px-4 font-semibold',
             )}
           >
-            Delegate
+            Back
           </Link>
         </>
       )}

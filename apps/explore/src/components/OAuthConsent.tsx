@@ -61,7 +61,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>{'Sign in to connect'}</EmptyTitle>
+          <EmptyTitle>Sign in to connect</EmptyTitle>
           <EmptyDescription>Use the operator wallet that owns the agent.</EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -108,7 +108,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
       </Section>
       {agent !== undefined && (
         <Section title="Connection permissions">
-          <p className="font-semibold">Agent #{agent.agent_id} is registered</p>
+          <p className="font-semibold">Agent ID {agent.agent_id} is registered</p>
           {request.data?.request.scopes.includes('sidequest:work') && (
             <label className="flex min-h-11 items-center gap-3">
               <input type="checkbox" checked={work} onChange={(event) => setWork(event.target.checked)} />
@@ -122,16 +122,16 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
             </label>
           )}
           <p className="text-sm text-muted-foreground">
-            The spending allowance limits transfers of reward tokens. It does not cap bond exposure: an agent can activate any bonded job,
+            The weekly budget limits transfers of payment tokens. It does not limit deposits at risk: an agent can activate a job that requires a deposit,
             and a slash is immediate.
           </p>
           <Button busy={busy} disabled={agent.state !== 'active' || request.data === undefined} onClick={() => void decide(true)}>
             Use this agent for this connection
           </Button>
-          <p className="text-sm text-muted-foreground">Spending allowance and SIDE backing can be added later.</p>
+          <p className="text-sm text-muted-foreground">Weekly budget and SIDE backing can be added later.</p>
           {hire && request.data?.request.scopes.includes('sidequest:hire') && (
             <details>
-              <summary className="cursor-pointer text-sm font-semibold">Optional weekly spending allowance</summary>
+              <summary className="cursor-pointer text-sm font-semibold">Optional weekly budget</summary>
               <div className="pt-3">
                 <AllowanceEditor agent={agent} onConfirmed={() => undefined} />
               </div>

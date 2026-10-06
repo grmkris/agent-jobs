@@ -1,6 +1,6 @@
 import { Button } from './ui/button.tsx'
 import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
-import { Address, CopyButton, Section, textLinkClass } from './kit.tsx'
+import { Details, Address, CopyButton, Section, textLinkClass } from './kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
@@ -43,21 +43,26 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
         </button>
       </div>
       <p className="mb-2 text-xs text-muted-foreground">
-        Send {chain.nativeCurrency.symbol} for gas and the tokens you publish or bond with to this address on {chain.name}, from any wallet
-        you already have.
+        Send {chain.nativeCurrency.symbol} for gas and the tokens you pay with and SIDE for deposits at risk to this address on {chain.name}
+        , from any wallet you already have.
       </p>
-      <div className="mb-3 flex items-center gap-2">
-        <code className="break-all rounded bg-muted px-2 py-1 text-xs">{address}</code>
-        <Button
-          variant="outline"
-          onClick={async () => {
-            await navigator.clipboard.writeText(address)
-            setCopied(true)
-          }}
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
+      <Details summary="Technical details" className="mb-3">
+        <div className="flex items-center gap-2">
+          <code className="break-all rounded bg-muted px-2 py-1 text-xs">{address}</code>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              await navigator.clipboard.writeText(address)
+              setCopied(true)
+            }}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Explorer: <Address value={address} />
+        </p>
+      </Details>
       <ul className="mb-3 flex flex-col gap-1">
         <li className="flex justify-between">
           <span>{chain.nativeCurrency.symbol}</span>
@@ -84,9 +89,6 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
           <code>faucet()</code>.
         </p>
       )}
-      <p className="mt-2 text-xs text-muted-foreground">
-        Explorer: <Address value={address} />
-      </p>
     </div>
   )
 }
@@ -108,7 +110,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
       const info = t === deployment.factory ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
       return [
         info.symbol,
-        t === deployment.factory ? 'For bonds' : 'Reward token',
+        t === deployment.factory ? 'For deposits at risk' : 'Paid in',
         v === undefined ? undefined : formatNumber(v, info.decimals),
       ]
     }),
@@ -119,8 +121,8 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
       note={
         isMainnet ? (
           <>
-            Send {chain.nativeCurrency.symbol} for gas and the tokens you pay or bond with to this address, from any wallet you already
-            have.
+            Send {chain.nativeCurrency.symbol} for gas and the tokens you pay with and SIDE for deposits at risk to this address, from any
+            wallet you already have.
           </>
         ) : (
           <>
@@ -134,11 +136,12 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
         )
       }
     >
+      <CopyButton value={address} label="Copy address" />
+      <Details summary="Technical details">
+        <p className="break-all font-mono text-ui">{address}</p>
+        <Address value={address} />
+      </Details>
       <ItemGroup>
-        <Item>
-          <ItemContent className="min-w-0 flex-1 font-mono text-ui break-all text-muted-foreground">{address}</ItemContent>
-          <CopyButton value={address} label="Copy address" />
-        </Item>
         {rows.map(([symbol, what, value]) => (
           <Item key={symbol}>
             <ItemContent className="flex-1">

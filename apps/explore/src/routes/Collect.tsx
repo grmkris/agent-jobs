@@ -22,8 +22,8 @@ const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) =>
   claimTopUpRefund: { icon: RotateCcw, title: (a) => `Your top-up back from job #${a.jobId ?? '?'}`, done: 'Top-up refunded' },
   withdraw: { icon: Coins, title: () => 'A payment held for you', done: 'Withdrawn to your wallet' },
   claimRefund: { icon: ReceiptText, title: (a) => `Refund from job #${a.jobId ?? '?'}`, done: 'Refunded' },
-  stakeWithdraw: { icon: Hourglass, title: () => 'Unstaked SIDE', done: 'Withdrawn to your wallet' },
-  miningClaim: { icon: Gem, title: (a) => `Mining reward${a.epoch == null ? '' : `, epoch ${a.epoch}`}`, done: 'Claimed into your stake' },
+  stakeWithdraw: { icon: Hourglass, title: () => 'SIDE ready to withdraw', done: 'Withdrawn to your wallet' },
+  miningClaim: { icon: Gem, title: (a) => `Mining reward${a.epoch == null ? '' : `, epoch ${a.epoch}`}`, done: 'Claimed into your backing' },
 }
 
 const keyOf = (a: CollectAction) =>
@@ -44,7 +44,7 @@ export function CollectPage() {
   if (auth.address === undefined || !auth.signedIn) {
     return (
       <>
-        <PageTitle sub="Payments, refunds and stake you can claim.">Collect</PageTitle>
+        <PageTitle sub="Payments, refunds and backing you can claim.">Collect</PageTitle>
 
         <section className="grid gap-4 rounded-2xl bg-card p-5 shadow-popover">
           <h2 className="text-xl leading-tight font-bold tracking-tight">Sign in to see what you can collect</h2>
@@ -57,7 +57,7 @@ export function CollectPage() {
   const list = actions.data ?? []
   return (
     <>
-      <PageTitle sub="Payments, refunds and stake you can claim, one tap each.">Collect</PageTitle>
+      <PageTitle sub="Payments, refunds and backing you can claim, one tap each.">Collect</PageTitle>
 
       {actions.isLoading ? (
         <LoadingRows rows={3} />
@@ -71,9 +71,9 @@ export function CollectPage() {
       ) : list.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Nothing to collect'}</EmptyTitle>
+            <EmptyTitle>Nothing to collect</EmptyTitle>
             <EmptyDescription>
-              Settlements, refunds, unstaked SIDE and mining rewards show up here when they are yours to claim.
+              Settlements, refunds, backing ready to withdraw and mining rewards show up here when they are yours to claim.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -100,7 +100,7 @@ export function CollectPage() {
                     {mining?.ok === true ? (
                       <span className="block font-medium">
                         Mining reward, epoch {String(mining.epoch)} ·{' '}
-                        <span className="tabular-nums font-semibold">{formatNumber(mining.amount, 18)} SIDE</span>, staked when collected
+                        <span className="tabular-nums font-semibold">{formatNumber(mining.amount, 18)} SIDE</span>, backed when collected
                       </span>
                     ) : (
                       <>
@@ -159,7 +159,7 @@ export function CollectPage() {
 
       {list.length > 0 && (
         <p className="px-4 text-ui leading-snug text-muted-foreground">
-          The contracts decide who is paid: settling a job pays out as its outcome says and releases both bonds. What is yours comes to your
+          The contracts decide who is paid: settling a job pays out as its outcome says and releases both deposits at risk. What is yours comes to your
           wallet.
         </p>
       )}

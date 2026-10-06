@@ -268,7 +268,7 @@ function AgentSetup({
             <Part title="Hire · weekly budget" note="What it may spend each week without asking you. Bigger spends wait for your approval.">
               {context === 'oauth' ? (
                 <details>
-                  <summary className="cursor-pointer text-sm font-medium">Optional weekly spending allowance</summary>
+                  <summary className="cursor-pointer text-sm font-medium">Optional weekly budget</summary>
                   <div className="pt-3">
                     <AllowanceEditor agent={agent} onConfirmed={() => setFundingReady(true)} />
                   </div>

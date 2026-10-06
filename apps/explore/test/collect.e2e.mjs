@@ -20,14 +20,14 @@ const holdingAbi = parseAbi(['function settle(uint256 jobId)', 'function claimTo
 const claimAbi = parseAbi(['function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']);
 /** Epoch 0's mining claim for `account`, as the board's collect_actions builds it (B8b): EpochDistributor.claim, 500k gas. */
 const miningClaim = (account) => ({
-  kind: 'miningClaim', epoch: '0', token: factory, amount: (1234n * 10n ** 18n).toString(), description: 'Claim work mining into your SIDE stake.',
-  transactions: [{ ...tx('Claim work mining into your SIDE stake', contracts.distributor, encodeFunctionData({ abi: claimAbi, functionName: 'claim', args: [0n, account, 1234n * 10n ** 18n, [`0x${'aa'.repeat(32)}`]] })), gas: '500000' }],
+  kind: 'miningClaim', epoch: '0', token: factory, amount: (1234n * 10n ** 18n).toString(), description: 'Claim work mining into your SIDE backing.',
+  transactions: [{ ...tx('Claim work mining into your SIDE backing', contracts.distributor, encodeFunctionData({ abi: claimAbi, functionName: 'claim', args: [0n, account, 1234n * 10n ** 18n, [`0x${'aa'.repeat(32)}`]] })), gas: '500000' }],
 });
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
 const ACTIONS = [
-  { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
+  { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the deposits at risk.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
   { kind: 'claimTopUpRefund', jobId: '71', token: usd, amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [tx('Claim your top-up back', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'claimTopUpRefund', args: [71n, me] }))] },
-  { kind: 'stakeWithdraw', token: factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked SIDE', contracts.vault, '0x3ccfd60b')] },
+  { kind: 'stakeWithdraw', token: factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your backing cooldown has ended.', transactions: [tx('Withdraw unstaked SIDE', contracts.vault, '0x3ccfd60b')] },
 ];
 const results = [];
 const errors = [];
@@ -159,7 +159,7 @@ try {
   {
     const { context, page, state } = await fixture({ width: 390, height: 844 }, { actions: [miningClaim(me), { ...miningClaim('0x2222222222222222222222222222222222222222'), epoch: '1', transactions: miningClaim('0x2222222222222222222222222222222222222222').transactions.map((t) => ({ ...t, data: encodeFunctionData({ abi: claimAbi, functionName: 'claim', args: [1n, '0x2222222222222222222222222222222222222222', 1234n * 10n ** 18n, []] }) })) }] });
     await page.goto(`${base}/collect`);
-    await page.getByText('Mining reward, epoch 0 · 1,234 SIDE, staked when collected', { exact: true }).waitFor();
+    await page.getByText('Mining reward, epoch 0 · 1,234 SIDE, backed when collected', { exact: true }).waitFor();
     await page.getByText('Mining reward, epoch 1', { exact: true }).waitFor();
     await page.getByRole('alert').filter({ hasText: 'Not offered: It would stake the reward for another wallet.' }).waitFor();
     // Rows in the board's order: epoch 0 (this wallet's) first, then the refused one.
@@ -169,12 +169,12 @@ try {
     state.collecting = 'miningClaim';
     await collect.first().click();
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
-    await page.getByRole('status').filter({ hasText: 'Claimed into your stake' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Claimed into your backing' }).waitFor();
     assert.deepEqual(await lastSend(page), { to: contracts.distributor, gas: '500000' });
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
     await page.getByText('Nothing to collect', { exact: true }).waitFor();
     await context.close();
-    results.push({ checks: ['mining claim row: "Mining reward, epoch 0 · 1,234 SIDE, staked when collected"', 'claim read back from calldata: distributor, epoch, amount, this wallet', 'claim naming another wallet shown, not offered', 'one tap: wallet sends EpochDistributor.claim with 500k gas'], passed: true });
+    results.push({ checks: ['mining claim row: "Mining reward, epoch 0 · 1,234 SIDE, backed when collected"', 'claim read back from calldata: distributor, epoch, amount, this wallet', 'claim naming another wallet shown, not offered', 'one tap: wallet sends EpochDistributor.claim with 500k gas'], passed: true });
   }
 
   {

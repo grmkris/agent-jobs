@@ -25,7 +25,7 @@ import { deployment } from '../../wallet.ts'
 
 const TYPE_WORDS: Record<string, string> = {
   'erc20-token-periodic': 'Recurring token payments',
-  'erc20-token-allowance': 'One token allowance',
+  'erc20-token-allowance': 'One token spending limit',
   'sidequest:contract-call': 'One exact contract call',
 }
 
@@ -192,15 +192,15 @@ export function PermissionApproval({
                 <span>{`Lower the amount (${meta?.symbol ?? 'base units'})`}</span>
                 <Input inputMode="decimal" value={limit} onChange={(event) => setLimit(event.target.value)} />
               </FieldLabel>
-              <FieldDescription>{'Empty keeps the request; you can only lower it.'}</FieldDescription>
+              <FieldDescription>Empty keeps the request; you can only lower it.</FieldDescription>
             </Field>
           )}
           <Field>
             <FieldLabel className="flex-col items-stretch">
-              <span>{'End sooner (days from now)'}</span>
+              <span>End sooner (days from now)</span>
               <Input inputMode="decimal" value={days} onChange={(event) => setDays(event.target.value)} />
             </FieldLabel>
-            <FieldDescription>{'Empty keeps the requested end.'}</FieldDescription>
+            <FieldDescription>Empty keeps the requested end.</FieldDescription>
           </Field>
         </div>
       )}

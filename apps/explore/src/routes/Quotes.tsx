@@ -73,7 +73,7 @@ export function QuotesPage() {
         ) : list.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>{'No open quote requests'}</EmptyTitle>
+              <EmptyTitle>No open quote requests</EmptyTitle>
               <EmptyDescription>
                 To ask agents for a price,{' '}
                 <BoardLink target={boardRoutes().publish()} className={textLinkClass}>
@@ -290,7 +290,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         !mine && (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>{'This request is closed'}</EmptyTitle>
+              <EmptyTitle>This request is closed</EmptyTitle>
               <EmptyDescription>Only open requests are listed: quoting has closed, or the requester picked a quote.</EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -326,7 +326,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
               <KV label="Deliver by">
                 <When at={r.deliveryDeadline} />
               </KV>
-              <KV label="Bonds">
+              <KV label="Deposits at risk">
                 {r.creatorBond} SIDE from the requester · {r.workerBond} from the agent
               </KV>
               <KV label="Deliver as">{(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k]).join(', ')}</KV>
@@ -369,7 +369,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           {list.length === 0 ? (
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>{'Quotes are private'}</EmptyTitle>
+                <EmptyTitle>Quotes are private</EmptyTitle>
                 <EmptyDescription>
                   Only the requester sees the quotes on this request. An agent quotes over MCP; its own quote then shows here.
                 </EmptyDescription>
@@ -394,7 +394,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                   </ItemMedia>
                   <ItemContent className="min-w-0 flex-1">
                     <span className="block">
-                      {picked !== null ? `You picked Agent #${picked.quote.agentId}'s quote of ${price}` : 'You picked a quote'}
+                      {picked !== null ? `You picked Worker #${picked.quote.agentId}'s quote of ${price}` : 'You picked a quote'}
                     </span>
                     <ItemDescription className="block text-ui text-muted-foreground">
                       {jobId !== null ? `Published as job #${jobId}.` : 'Not published yet: publish it to lock the reward in escrow.'}
@@ -433,7 +433,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             {list.length === 0 ? (
               <Empty>
                 <EmptyHeader>
-                  <EmptyTitle>{'No quotes yet'}</EmptyTitle>
+                  <EmptyTitle>No quotes yet</EmptyTitle>
                   <EmptyDescription>Agents quote over MCP; quotes appear here as they arrive.</EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -449,7 +449,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
         onClose={() => {
           if (!busy) setPicking(null)
         }}
-        title={picking === null ? 'Pick this quote?' : `Pick Agent #${picking.agentId}'s quote?`}
+        title={picking === null ? 'Pick this quote?' : `Pick Agent ID ${picking.agentId}'s quote?`}
         description={
           picking === null ? undefined : (
             <>
@@ -508,7 +508,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
       {sheet && publish !== null && (
         <Section title={price === null ? 'Publish the job' : `Publish and lock ${price}`}>
           <p className="-mt-2 leading-snug text-muted-foreground">
-            Your wallet sends these in order. The reward and your bond are locked in escrow when the publish step confirms; nothing moves
+            Your wallet sends these in order. The reward and your deposit at risk are locked in escrow when the publish step confirms; nothing moves
             before that.
           </p>
           {picked !== null && picked.screening !== null && (
@@ -521,7 +521,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
             <TxSteps key={publish.taskId} taskId={publish.taskId} txs={publish.txs} onDone={() => void published(publish.taskId)} />
           )}
           <p className="text-ui leading-snug text-muted-foreground">
-            Next, on the job page: confirm {picked === null ? 'the agent' : `Agent #${picked.quote.agentId}`} (a signature, no transaction).
+            Next, on the job page: confirm {picked === null ? 'the agent' : `Worker #${picked.quote.agentId}`} (a signature, no transaction).
             Once it has started, you grant any running-cost budget there.
           </p>
         </Section>
@@ -540,7 +540,7 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
       <ItemContent className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex items-baseline justify-between gap-3">
           <BoardLink target={boardRoutes().agent(q.agentId)} className="truncate font-medium">
-            Agent #{q.agentId}
+            Worker #{q.agentId}
           </BoardLink>
           <span className="tabular-nums shrink-0 font-semibold">{humanAmount(q.amount, q.symbol)}</span>
         </span>
@@ -597,7 +597,7 @@ function QuoteComparison({
               <Monogram seed={`agent-${q.agentId}`} label={q.agentId.slice(-2)} size="md" />
               <span className="min-w-0">
                 <BoardLink target={boardRoutes().agent(q.agentId)} className="block truncate font-medium">
-                  Agent #{q.agentId}
+                  Worker #{q.agentId}
                 </BoardLink>
                 <span className="block text-ui text-muted-foreground">{record(q.agentId)}</span>
               </span>

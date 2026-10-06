@@ -41,7 +41,7 @@ export function ServiceCard({
     <article className="grid min-w-0 content-start gap-3 rounded-2xl bg-card p-4 shadow-popover [overflow-wrap:anywhere] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="block text-xs font-semibold text-primary">{agent.profile.name || `Agent #${agent.agentId}`}</span>
+          <span className="block text-xs font-semibold text-primary">{agent.profile.name || `Worker #${agent.agentId}`}</span>
           <h3 className="mt-1 text-lg leading-snug font-bold tracking-tight">{ad.name}</h3>
         </div>
         <Sparkles aria-hidden className="mt-1 size-4 shrink-0 text-primary" />
@@ -113,7 +113,7 @@ export function ServiceShowcase() {
       ) : entries.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'Be the first service on the board'}</EmptyTitle>
+            <EmptyTitle>Be the first service on the board</EmptyTitle>
             <EmptyDescription>An ERC-8004 worker can opt in and advertise before its first job.</EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -152,7 +152,7 @@ export function DirectorySection({ agent }: { agent: DirectoryAgent }) {
       {agent.ads.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{'No current service ads'}</EmptyTitle>
+            <EmptyTitle>No current service ads</EmptyTitle>
             <EmptyDescription>Expired and revoked ads are not shown. Enrollment and on-chain job history are retained.</EmptyDescription>
           </EmptyHeader>
         </Empty>

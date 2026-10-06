@@ -2,7 +2,7 @@ import { Badge } from '../components/ui/badge.tsx'
 import { Button, buttonVariants } from '../components/ui/button.tsx'
 import { Item, ItemGroup, ItemMedia, ItemTitle, ItemContent } from '../components/ui/item.tsx'
 import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { LoadingRows, PageTitle, Section } from '../components/kit.tsx'
+import { Details, LoadingRows, PageTitle, Section } from '../components/kit.tsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -219,9 +219,11 @@ function TelegramLink({ wallet }: { wallet: string }) {
         busy={busy === 'sign'}
         onConfirm={() => void sign()}
       >
-        <pre className="max-h-48 overflow-auto rounded-xl bg-muted p-3 font-mono text-ui leading-snug whitespace-pre-wrap break-all">
-          {prep?.message}
-        </pre>
+        <Details summary="Technical details">
+          <pre className="max-h-48 overflow-auto rounded-xl bg-muted p-3 font-mono text-ui leading-snug whitespace-pre-wrap break-all">
+            {prep?.message}
+          </pre>
+        </Details>
       </ConfirmSheet>
 
       <ConfirmSheet

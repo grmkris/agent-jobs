@@ -5,7 +5,7 @@
  */
 
 export const LAUNCH_MESSAGE =
-  "Sidequest on mainnet opens soon. Until launch you can look around, but nothing can be published, taken, staked or paid.";
+  "Sidequest on mainnet opens soon. Until launch you can look around, but nothing can be published, taken, backed or paid.";
 
 /** Board tools that only read (the board's `readOnlyHostedTools`, plus Collect's list): the only ones allowed while writes are closed. */
 export const READ_TOOLS: ReadonlySet<string> = new Set([

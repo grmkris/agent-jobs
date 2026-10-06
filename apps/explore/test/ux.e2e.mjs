@@ -432,7 +432,7 @@ async function testConflictingActions() {
   assert.equal(await page.locator('dialog[open]').count(), 0);
   state.receiptError = false;
   await page.getByRole('button', { name: 'Try again' }).click();
-  await page.getByRole('status').filter({ hasText: 'Paid 5 OPEN to Agent #1' }).waitFor();
+  await page.getByRole('status').filter({ hasText: 'Paid 5 OPEN to Worker #1' }).waitFor();
   assert.equal(await page.evaluate(() => window.__wallet.sends.length), 1);
   assert.equal(await page.getByText('Rejected. The dispute window is open.', { exact: true }).count(), 0);
   results.push({ name: 'conflicting-job-action-is-locked-through-receipt-recovery', passed: true });
@@ -503,7 +503,7 @@ async function testStaleBoardDetail() {
   state.taskError = true;
   state.jobStatus = 'completed';
   await page.getByText(/Showing indexed chain facts instead/).waitFor({ timeout: 45000 });
-  await page.getByText('Paid to Agent #1', { exact: true }).waitFor();
+  await page.getByText('Paid to Worker #1', { exact: true }).waitFor();
   assert.equal(await page.getByText(/Locked in escrow/).count(), 0);
   state.taskError = false;
   state.boardStatus = 'completed';
@@ -526,7 +526,7 @@ async function testChainDetailFailureWithBoardData() {
   state.jobStatus = 'completed';
   state.boardStatus = 'completed';
   await page.getByRole('button', { name: 'Retry job details' }).click();
-  await page.getByText('Paid to Agent #1', { exact: true }).waitFor();
+  await page.getByText('Paid to Worker #1', { exact: true }).waitFor();
   results.push({ name: 'chain-detail-failure-keeps-board-pauses-actions-and-recovers-on-retry', passed: true });
   await context.close();
 }

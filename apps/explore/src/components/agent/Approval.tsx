@@ -1,7 +1,7 @@
 import { Badge } from '../ui/badge.tsx'
 import { Button } from '../ui/button.tsx'
 import { Alert, AlertDescription } from '../ui/alert.tsx'
-import { Section } from '../kit.tsx'
+import { Details, Section } from '../kit.tsx'
 import * as sdk from '@sidequest/sdk'
 import { useState } from 'react'
 import { type Address, decodeFunctionData } from 'viem'
@@ -94,7 +94,7 @@ function OperationApproval({
     }
     let signature: string | undefined
     if (approved && approval.kind === 'hire-over-limit') {
-      if (review === null) throw new Error('Review the exact one-off allowance first')
+      if (review === null) throw new Error('Review the exact one-off budget first')
       signature = await signTypedDataAsync(typedDataArgs(review.typedData))
     }
     await agentEndpoint(`/api/approvals/${approval.id}/decide`, 'POST', {
@@ -116,14 +116,16 @@ function OperationApproval({
       <p className="text-sm leading-relaxed text-muted-foreground">
         {approval.kind === 'unstake'
           ? 'Approval permits this exact share count once. The vault values those shares at execution time; the cooldown comes from the active network and a slash can change the asset value while they leave.'
-          : 'Your wallet signs one exact token and amount allowance. After verification, the agent signs a one-call approval pinned to Holding and this operation; allowance pull, token approval and publish execute atomically.'}
+          : 'Approve this exact hire budget. The agent can use only this token and amount for this hire; approval and publication happen together.'}
       </p>
       {approval.kind === 'unstake' && (
         <p className="break-all text-xs text-muted-foreground">
-          Agent-owned shares: {request.shares}. Operator-funded positions are managed from Stake &amp; delegate.
+          Agent-owned shares: {request.shares}. Manage your own backing from Back an agent.
         </p>
       )}
-      <p className="break-all font-mono text-micro text-muted-foreground">Operation {approval.operation_id}</p>
+      <Details summary="Technical details">
+        <p className="break-all font-mono text-micro text-muted-foreground">Operation {approval.operation_id}</p>
+      </Details>
       {review !== null && <AgentGrantReview description={review.description} />}
       {approval.status === 'pending' && (
         <div className="flex flex-wrap gap-2">
@@ -133,7 +135,7 @@ function OperationApproval({
           >
             {approval.kind === 'hire-over-limit'
               ? review === null
-                ? 'Review exact allowance'
+                ? 'Review exact budget'
                 : 'Sign and approve hire'
               : 'Approve exact shares'}
           </Button>

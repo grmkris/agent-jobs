@@ -9,7 +9,7 @@ const executionsAbi = [{ type: "tuple[]", components: [
 ] }] as const;
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const delegatedTopic = encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: "Delegated" })[0]!;
-const invalid = () => new Error("The saved delegation does not match this vault and account. Reconcile it before continuing.");
+const invalid = () => new Error("The saved backing does not match this vault and account. Reconcile it before continuing.");
 
 function delegationAmounts(txs: readonly WalletStep[], vault: Address, owner: Address, account: Address): bigint[] {
   return txs.flatMap(tx => {
@@ -37,7 +37,7 @@ export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getIt
         if (delegationAmounts(intent.txs, vault, owner, intent.account).length === 0) throw invalid();
         if (intent.txs.some(tx => same(tx.to, owner)) &&
             !same((await sdk.delegationOf(ctx.publicClient, owner)) ?? "", ctx.deployment.delegation.delegator))
-          return "Your wallet's batch delegation changed. Reconcile the saved action before continuing.";
+          return "Your wallet's batch permission changed. Reconcile the saved action before continuing.";
       }
       return (await readVaultIntentDurable(storage, key, checkpoint))?.id === intent.id ? null
         : "This position action changed in another tab. Reload to reconcile the saved action.";
@@ -47,20 +47,20 @@ export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getIt
       if (delegationAmounts(intent.txs, vault, owner, intent.account).length === 0) throw invalid();
       const amounts = delegationAmounts(steps, vault, owner, intent.account);
       if (amounts.length === 0) return null; // A retained legacy approval step has no delegation effect yet.
-      if (!Array.isArray(receipt.logs)) throw new Error("The delegation receipt is unreadable. Reconcile it before retrying.");
+      if (!Array.isArray(receipt.logs)) throw new Error("The backing receipt is unreadable. Reconcile it before retrying.");
       const events = receipt.logs.flatMap(log => {
         if (!same(log.address, vault) || log.topics[0] === undefined || !same(log.topics[0], delegatedTopic)) return [];
         const decoded = decodeEventLog({ abi: sdk.stakeVaultAbi, data: log.data, topics: log.topics, strict: true });
         if (decoded.eventName !== "Delegated") return [];
-        if (log.removed) throw new Error("The delegation receipt was removed from the chain. Reconcile it before retrying.");
+        if (log.removed) throw new Error("The backing receipt was removed from the chain. Reconcile it before retrying.");
         return [decoded.args];
       });
       if (events.length === 0)
-        return "Not delegated: the receipt has no exact Delegated event. Your saved action is kept; you can try again.";
+        return "Not backed: the receipt has no exact Delegated event. Your saved action is kept; you can try again.";
       if (events.length !== amounts.length || amounts.some(assets => events.filter(event =>
         same(event.account, intent.account) && same(event.delegator, owner) && same(event.payer, owner) && event.assets === assets && event.shares > 0n,
       ).length !== 1))
-        throw new Error("The receipt contains a different delegation. Reconcile it before retrying.");
+        throw new Error("The receipt contains a different backing action. Reconcile it before retrying.");
       return null;
     },
   };
