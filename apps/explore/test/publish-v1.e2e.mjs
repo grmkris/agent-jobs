@@ -27,7 +27,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -36,7 +36,7 @@ mkdirSync(output, { recursive: true });
 const now = Math.floor(Date.now() / 1000);
 const worker = '0x5555555555555555555555555555555555555555';
 const agentWallet = '0x6666666666666666666666666666666666666666';
-const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
 const v1Jobs = { 70: 'open', 71: 'active', 72: 'submitted' };
 const silence = encodeFunctionData({ abi: parseAbi(['function completeAfterSilence(uint256 jobId)']), functionName: 'completeAfterSilence', args: [72n] });
 
@@ -56,7 +56,7 @@ async function fixture(viewport, account = creator, options = {}) {
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/__test/token') return reply({ symbol: 'mUSD', decimals: 6 });
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    const chainJob = (id) => ({ job_id: id, status: v1Jobs[id], mode: 'hire', stack: 'main', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: v1Jobs[id] === 'open' ? null : agentWallet, agent_id: v1Jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: null, rejection_reason_hash: null });
+    const chainJob = (id) => ({ job_id: id, status: v1Jobs[id], mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: v1Jobs[id] === 'open' ? null : agentWallet, agent_id: v1Jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: null, rejection_reason_hash: null });
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(v1Jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });

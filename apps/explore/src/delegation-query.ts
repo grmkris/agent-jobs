@@ -5,6 +5,7 @@ import type { Address } from "viem";
 import { data } from "./api.ts";
 import { type HirelingContracts, hireling } from "./hireling.ts";
 import { stakeContext } from "./stake-context.ts";
+import { deployed } from "./wallet.ts";
 
 export type Backing = Awaited<ReturnType<typeof sdk.getBacking>>;
 export type Position = Awaited<ReturnType<typeof sdk.getPosition>>;
@@ -109,8 +110,8 @@ export async function readDelegations(contracts: HirelingContracts, delegator: A
 
 export function useIndexedBacking(account: Address, wallet?: Address) {
   return useQuery({
-    queryKey: ["indexed-backing", hireling?.vault, account.toLowerCase(), wallet?.toLowerCase()],
-    enabled: hireling !== null,
+    queryKey: ["indexed-backing", hireling.vault, account.toLowerCase(), wallet?.toLowerCase()],
+    enabled: deployed,
     queryFn: async () => {
       const snapshot = await data<
         WireBacking & {
@@ -123,8 +124,8 @@ export function useIndexedBacking(account: Address, wallet?: Address) {
         }
       >(`backing/${account}${wallet === undefined ? "" : `?wallet=${encodeURIComponent(wallet)}`}`);
       if (
-        snapshot.vault.toLowerCase() !== hireling!.vault.toLowerCase() ||
-        snapshot.token.toLowerCase() !== hireling!.factory.toLowerCase()
+        snapshot.vault.toLowerCase() !== hireling.vault.toLowerCase() ||
+        snapshot.token.toLowerCase() !== hireling.factory.toLowerCase()
       ) {
         throw new Error("The backing index describes a different deployment.");
       }
@@ -151,8 +152,8 @@ export function useDelegations(contracts: HirelingContracts, delegator: Address)
 
 export function useBacking(account: Address | undefined, delegator?: Address) {
   return useQuery({
-    queryKey: ["backing", hireling?.vault, account?.toLowerCase(), delegator?.toLowerCase()],
-    enabled: hireling !== null && account !== undefined,
+    queryKey: ["backing", hireling.vault, account?.toLowerCase(), delegator?.toLowerCase()],
+    enabled: deployed && account !== undefined,
     queryFn: async () => {
       if (account === undefined) throw new Error("Choose a backing wallet");
       const ctx = stakeContext();

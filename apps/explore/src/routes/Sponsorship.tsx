@@ -10,10 +10,9 @@ import { ConfirmSheet, useToast } from '../components/Sheet.tsx'
 import { When } from '../components/Time.tsx'
 import { TxSteps } from '../components/TxSteps.tsx'
 import { walletRefused } from '../components/txOperation.ts'
-import { Address, Badge, Button, EmptyState, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
+import { Address, Badge, Button, ErrorText, Group, ListRow, LoadingRows, PageTitle, Section } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
-import { hireling } from '../hireling.ts'
-import { type SponsorPolicy, type SponsorPrep, readDelegation, sponsorApi, sponsorRules, useSponsorStatus } from '../sponsor.ts'
+import { type SponsorPolicy, type SponsorPrep, type SponsorRules, readDelegation, sponsorApi, sponsorRules, useSponsorStatus } from '../sponsor.ts'
 import { friendlyError } from '../txErrors.ts'
 import { typedDataArgs } from '../typed-data.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
@@ -28,14 +27,6 @@ const ENDED = { expired: 'Your last permission expired.', used: 'Your last permi
  */
 export function SponsorshipPage() {
   const auth = useAuth()
-  if (hireling === null) {
-    return (
-      <>
-        <PageTitle sub={SUB}>Gas sponsorship</PageTitle>
-        <EmptyState title={`Not on ${chain.name} yet`}>It opens with Hireling v1 on this network.</EmptyState>
-      </>
-    )
-  }
   if (auth.address === undefined || !auth.signedIn) {
     return (
       <>
@@ -47,11 +38,10 @@ export function SponsorshipPage() {
       </>
     )
   }
-  const rules = sponsorRules()
-  return rules === null ? null : <Sponsorship wallet={auth.address} rules={rules} />
+  return <Sponsorship wallet={auth.address} rules={sponsorRules()} />
 }
 
-function Sponsorship({ wallet, rules }: { wallet: string; rules: NonNullable<ReturnType<typeof sponsorRules>> }) {
+function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules }) {
   const qc = useQueryClient()
   const toast = useToast()
   const status = useSponsorStatus(wallet, true)

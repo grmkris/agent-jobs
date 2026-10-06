@@ -67,7 +67,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -86,7 +86,6 @@ async function fixture(viewport, options = {}) {
     window.__wallet = { address: account, connected: true, signatures: [], sends: [] };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-    if (contracts === null) return;
     const owned = [contracts.vault, contracts.holding, contracts.evaluator, contracts.miningReserve, contracts.distributor].map((a) => a.toLowerCase());
     window.__admin = {
       safe: contracts.safe, owners, threshold: 1n,
@@ -99,7 +98,7 @@ async function fixture(viewport, options = {}) {
       decimals, signWith: 'owner', nonce: BigInt(nonce),
     };
   }, {
-    account: options.account ?? owner, contracts: options.contracts === undefined ? c : options.contracts, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
+    account: options.account ?? owner, contracts: c, owners: options.owners ?? [owner, '0x2222222222222222222222222222222222222222'],
     previousOwner: deployer, bytecode: options.noMultiSend === true ? {} : { [multiSendCallOnly]: '0x6080604052' }, draft: options.draft ?? null,
     funded: (options.funded ?? 0n).toString(), nonce: (options.nonce ?? 7n).toString(), decimals: tokenDecimals, safeIsAdmin: options.safeIsAdmin ?? true, clocks: options.clocks, unreadableClocks: options.unreadableClocks,
   });
@@ -518,15 +517,7 @@ try {
     await page.getByText("Only the Safe's owners see this", { exact: true }).waitFor();
     assert.equal(await page.getByText('Ownership', { exact: true }).count(), 0);
     await context.close();
-    const unset = await fixture({ width: 390, height: 844 }, { contracts: { ...c, safe: null } });
-    await unset.page.goto(`${base}/admin`);
-    await unset.page.getByText('The Safe is not recorded for this network', { exact: true }).waitFor();
-    await unset.context.close();
-    const none = await fixture({ width: 390, height: 844 }, { contracts: null });
-    await none.page.goto(`${base}/admin`);
-    await none.page.getByText(/Hireling v1 is not on .* yet/).waitFor();
-    await none.context.close();
-    results.push({ checks: ['non-owner: no Admin link, page refuses', 'Safe not configured', 'v1 not deployed'], passed: true });
+    results.push({ checks: ['non-owner: no Admin link, page refuses'], passed: true });
   }
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const { context, page } = await fixture(viewport, { clocks: { fee: 300, holding: 900, grace: 1800 } });

@@ -12,7 +12,7 @@ const token = '0x2222222222222222222222222222222222222222';
 const now = Math.floor(Date.now() / 1000);
 const applications = [1, 2].map((index) => ({ id: `app-${index}`, worker: `0x${String(index + 2).repeat(40)}`, agent_id: String(7000 + index), note: 'Mocked test applicant' }));
 const selection = (application, state = 'signed') => ({ applicationId: application.id, agentId: application.agent_id, activateBy: state === 'expired' ? now - 1 : now + 3600, state });
-const offer = { taskId: 'selection-fixture', jobId: '61', title: 'Selection refresh fixture', creator, approver: creator, mode: 'hire', stack: 'main', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: `0x${'11'.repeat(32)}`, requiredChecks: [], executionBudget: null, screening: { verdict: 'clean', reasons: [] }, terms: { brief: 'Browser regression only; no live Job 61 interaction.', acceptanceCriteria: [], windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } } };
+const offer = { taskId: 'selection-fixture', jobId: '61', title: 'Selection refresh fixture', creator, approver: creator, mode: 'hire', stack: 'main', kind: 'hireling-v1', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: `0x${'11'.repeat(32)}`, requiredChecks: [], executionBudget: null, screening: { verdict: 'clean', reasons: [] }, terms: { brief: 'Browser regression only; no live Job 61 interaction.', acceptanceCriteria: [], windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } } };
 const results = [];
 const errors = [];
 const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5192, strictPort: true }, plugins: [{ name: 'selection-wallet-fixtures', enforce: 'pre', resolveId(source) {
@@ -39,7 +39,7 @@ async function fixture(viewport, pool = false) {
     if (url.origin !== base) return route.abort('blockedbyclient');
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/__test/token') return reply({ symbol: 'TEST', decimals: 6 });
-    if (url.pathname === '/data/jobs/61') return reply({ ok: true, job: { status: state.chainStatus, mode: 'hire', worker: null, agent_id: null, creator, approver: creator, token, reward: '5000000', creator_bond: '0', worker_bond: '0', delivery_deadline: now + 86400, selection_deadline: null }, board: { boardId: 'public', taskId: offer.taskId }, rewards: [], bonds: [], evidence: [], feedback: null, ruling: null, timeline: [] });
+    if (url.pathname === '/data/jobs/61') return reply({ ok: true, job: { status: state.chainStatus, kind: 'hireling-v1', mode: 'hire', worker: null, agent_id: null, creator, approver: creator, token, reward: '5000000', creator_bond: '0', worker_bond: '0', delivery_deadline: now + 86400, selection_deadline: null }, board: { boardId: 'public', taskId: offer.taskId }, rewards: [], bonds: [], evidence: [], feedback: null, ruling: null, timeline: [] });
     if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 0, completed: 0, agents: 0, activity: { demo: 0, unclassified: 0, independent: null }, accounting: {} });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [], boards: [] });
     if (url.pathname.includes('/api/')) {

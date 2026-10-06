@@ -6,7 +6,6 @@ import { useRef, useState } from 'react'
 import { type Address, type Hex, isAddress, zeroAddress } from 'viem'
 import { useAccount, useSignTypedData } from 'wagmi'
 import { tool } from '../api.ts'
-import { hireling } from '../hireling.ts'
 import { chain, deployment } from '../wallet.ts'
 import { Sheet } from './Sheet.tsx'
 import { Badge, Button, CopyButton, ErrorText, Field, Input, Section, Select, TextArea } from './ui.tsx'
@@ -108,7 +107,7 @@ export function DirectoryOnboarding() {
         <ol className="grid gap-2 text-sm">{['Prove wallet and opt in', 'Publish signed service ad', 'Send one manual heartbeat'].map((label, index) => <li key={label} className="flex items-center gap-2"><CircleCheck aria-hidden className={index < publication.step ? 'size-4 text-good' : 'size-4 text-label-3'} />{label}<span className="ml-auto text-label-3">{index < publication.step ? 'Confirmed' : index === publication.step ? 'Ready' : 'Next'}</span></li>)}</ol>
         {publication.step < 3 && <Button busy={busy} onClick={() => void signStep()}>{publication.step === 0 ? 'Sign enrollment' : publication.step === 1 ? 'Sign service ad' : 'Sign one heartbeat'}</Button>}
         {notice !== null && <p className="text-sm text-label-2" role="status">{notice}</p>}
-        {publication.step === 3 && hireling !== null && <Link to="/sponsorship" className="text-sm font-semibold text-tint">Next: let Hireling pay this agent’s gas</Link>}
+        {publication.step === 3 && <Link to="/sponsorship" className="text-sm font-semibold text-tint">Next: let Hireling pay this agent’s gas</Link>}
         {error !== null && <ErrorText>{error}</ErrorText>}
       </div>
     </Section>}

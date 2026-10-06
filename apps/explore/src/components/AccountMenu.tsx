@@ -1,6 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronsUpDown, CircleUserRound, HandCoins, Landmark, LogOut, Send, ShieldCheck, Zap } from 'lucide-react'
-import { hireling } from '../hireling.ts'
 import { useSafeOwner } from '../routes/Admin.tsx'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu.tsx'
 import { cn } from './ui.tsx'
@@ -60,12 +59,10 @@ export function AccountMenu({ collect }: { collect: number }) {
             <Landmark />
             Stake &amp; delegate
           </DropdownMenuItem>
-          {hireling !== null && (
-            <DropdownMenuItem onClick={() => go('/sponsorship')}>
-              <Zap />
-              Gas sponsorship
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onClick={() => go('/sponsorship')}>
+            <Zap />
+            Gas sponsorship
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => go('/telegram')}>
             <Send />
             Telegram

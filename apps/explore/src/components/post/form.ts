@@ -6,19 +6,11 @@
 import { formatUnits, isAddress, parseUnits } from 'viem'
 import { DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, type TxRequest } from '../../api.ts'
 import { formatNumber, tokenInfo, tokenMeta } from '../../format.ts'
-import { hireling } from '../../hireling.ts'
 import { deployment } from '../../wallet.ts'
 import { duration } from '../../duration.ts'
 
-/**
- * A Hireling v1 board (ADR-0011): v1 is deployed on this network, so offers carry the v1 terms (a named worker, and
- * later per-offer windows and the arbitrator). Before that the board takes only the legacy arguments.
- */
-export const V1 = hireling !== null
-
-/** `contest` survives only in drafts and offers frozen before v1; v1 publishing offers a direct hire or quotes. */
-export type Mode = 'hire' | 'contest' | 'quotes'
-export type StackName = 'main' | 'demo' | 'fast'
+/** A direct hire, or a request for quotes (ADR-0011: Hireling v1 publishes no contests). */
+export type Mode = 'hire' | 'quotes'
 export type Step = 1 | 2 | 3 | 4
 export type WindowPreset = 'fast' | 'standard' | 'long' | 'custom'
 
@@ -49,19 +41,17 @@ export interface PostForm {
   quoteTokens: string[]
   quoteHours: string
   deliveryHours: string
-  selectionHours: string
   creatorBond: string
   workerBond: string
   check: string
   accepts: DeliverableKind[]
   target: string
-  stack: StackName
-  /** v1: the offer's windows, a preset or custom hours. */
+  /** The offer's windows, a preset or custom hours. */
   windowPreset: WindowPreset
   reviewHours: string
   disputeHours: string
   arbitrationHours: string
-  /** v1: a custom arbitrator's address; empty for Hireling's arbiter (the Holding's default). */
+  /** A custom arbitrator's address; empty for Hireling's arbiter (the Holding's default). */
   arbitrator: string
   budgetOn: boolean
   budgetKind: 'advance' | 'call'
@@ -98,7 +88,6 @@ export function prefillToken(prefill: Record<string, string>, tokens: TokenList)
   return tokens.find(([, t]) => t.symbol.toLowerCase() === want)?.[0]
 }
 
-const STACKS: readonly StackName[] = ['main', 'demo', 'fast']
 const KINDS = new Set<string>(DELIVERABLE_KINDS.map((k) => k.kind))
 
 /**
@@ -110,7 +99,6 @@ export function initialForm(prefill: Record<string, string>, tokens: TokenList, 
   const accepts = prefill.accepts?.split(',').filter((k): k is DeliverableKind => KINDS.has(k)) ?? []
   const budget = prefill.budget === 'advance' || prefill.budget === 'call' ? prefill.budget : null
   return {
-    // v1 publishes no contests: a prefill asking for one gets a direct hire.
     mode: prefill.mode === 'quotes' ? 'quotes' : 'hire',
     invite: /^\d+$/.test(prefill.agentId ?? '') ? (prefill.agentId as string) : '',
     title: prefill.title ?? '',
@@ -121,13 +109,11 @@ export function initialForm(prefill: Record<string, string>, tokens: TokenList, 
     quoteTokens: tokens.map(([a]) => a),
     quoteHours: '6',
     deliveryHours: prefill.deliveryHours ?? '48',
-    selectionHours: '24',
     creatorBond: prefill.creatorBond ?? (mainnet ? '0' : '2'),
     workerBond: prefill.workerBond ?? (mainnet ? '0' : '1'),
     check: prefill.check ?? 'test',
     accepts: accepts.length > 0 ? accepts : ['git'],
     target: prefill.target ?? '',
-    stack: STACKS.find((x) => x === prefill.stack) ?? 'main',
     windowPreset: 'standard',
     reviewHours: '24',
     disputeHours: '24',
@@ -145,7 +131,7 @@ export function initialForm(prefill: Record<string, string>, tokens: TokenList, 
 
 /**
  * Hire again: a paid job's offer as a prefill for a new hire with the same agent, token, reward and terms (brief,
- * criteria, deliverable forms, check, bonds, review speed, running-cost budget, and as long to deliver). Amounts come
+ * criteria, deliverable forms, check, bonds, running-cost budget, and as long to deliver). Amounts come
  * back in the units people type; `decimals` are the reward token's (and an advance budget's, `budgetDecimals`).
  */
 export function hireAgainPrefill(job: { jobId: string; agentId: string; worker: string; task: TaskIndexEntry; decimals: number; budgetDecimals?: number }): Record<string, string> {
@@ -167,8 +153,6 @@ export function hireAgainPrefill(job: { jobId: string; agentId: string; worker: 
     accepts: (t.deliverable?.accepts ?? ['git']).join(','),
     target: t.deliverable?.target ?? '',
     check: t.requiredChecks[0] ?? '',
-    // Retired pairs (main-v2…) were the same review speed under an older contract.
-    stack: t.stack.replace(/-v\d+$/, ''),
     ...(eb === null
       ? {}
       : eb.kind === 'advance'
@@ -187,11 +171,10 @@ const checksArg = (f: PostForm) => (f.check.trim() === '' || !f.accepts.includes
 const hoursFrom = (now: number, hours: string) => now + Math.round(Number(hours) * 3600)
 
 /**
- * `create_task`'s arguments for a hire (or a legacy contest), frozen at `now` (unix seconds). A v1 board also takes
- * the direct hire's named agent (`invite`, decision D3), so it can be selected at once.
+ * `create_task`'s arguments for a direct hire, frozen at `now` (unix seconds): with the named agent (`invite`,
+ * decision D3) so it can be selected at once, the offer's windows and, when not Hireling's arbiter, the arbitrator.
  */
-export function createTaskArgs(f: PostForm, now: number, v1: boolean = V1) {
-  const mode = f.mode === 'contest' ? 'contest' : 'hire'
+export function createTaskArgs(f: PostForm, now: number) {
   return {
     title: f.title,
     brief: f.brief,
@@ -199,13 +182,12 @@ export function createTaskArgs(f: PostForm, now: number, v1: boolean = V1) {
     token: f.token,
     reward: f.reward,
     creatorBond: f.creatorBond,
-    workerBond: mode === 'contest' ? '0' : f.workerBond,
+    workerBond: f.workerBond,
     deliveryDeadline: hoursFrom(now, f.deliveryHours),
-    mode,
-    ...(mode === 'contest' ? { selectionDeadline: hoursFrom(now, f.selectionHours) } : {}),
+    mode: 'hire' as const,
     ...checksArg(f),
     ...deliverableArg(f),
-    ...(mode === 'hire' && f.budgetOn
+    ...(f.budgetOn
       ? {
           executionBudget:
             f.budgetKind === 'call'
@@ -213,9 +195,9 @@ export function createTaskArgs(f: PostForm, now: number, v1: boolean = V1) {
               : { kind: 'advance', token: f.budgetToken.trim(), cap: f.budgetCap },
         }
       : {}),
-    ...(v1 && mode === 'hire' && f.invite.trim() !== '' ? { invite: { agentId: f.invite.trim() } } : {}),
-    ...(v1 ? { windows: windowsOf(f), ...(f.arbitrator.trim() === '' ? {} : { arbitrator: f.arbitrator.trim() }) } : {}),
-    stack: f.stack,
+    ...(f.invite.trim() !== '' ? { invite: { agentId: f.invite.trim() } } : {}),
+    windows: windowsOf(f),
+    ...(f.arbitrator.trim() === '' ? {} : { arbitrator: f.arbitrator.trim() }),
   }
 }
 
@@ -233,10 +215,10 @@ export function windowsOf(f: Pick<PostForm, 'windowPreset' | 'reviewHours' | 'di
 }
 
 /**
- * Why a v1 offer's windows or arbitrator would be refused at publish, in words; null when they are fine. `bounds` are
+ * Why a hire's windows or arbitrator would be refused at publish, in words; null when they are fine. `bounds` are
  * the Holding's (null while they are read); `me` is the creator, who approves its own offers.
  */
-export function v1TermsProblem(f: PostForm, bounds: WindowBounds | null, me: string | undefined): string | null {
+export function hireTermsProblem(f: PostForm, bounds: WindowBounds | null, me: string | undefined): string | null {
   if (bounds === null) return 'Reading the window limits from the chain…'
   const w = windowsOf(windowForm(f, bounds))
   const checks: Array<[string, number, readonly [number, number]]> = [
@@ -268,7 +250,6 @@ export function requestQuotesArgs(f: PostForm, now: number) {
     quoteDeadline: hoursFrom(now, f.quoteHours),
     ...checksArg(f),
     ...deliverableArg(f),
-    stack: f.stack,
   }
 }
 
@@ -297,14 +278,11 @@ export function stepProblem(f: PostForm, step: Step): string | null {
     const meta = tokenMeta(f.token)
     // The amount is read in the token's own decimals, so they must be known first.
     if (meta === undefined) return 'Waiting for the token’s symbol and decimals from the chain.'
-    if (meta.unverified === true && deployment.stacks[f.stack]?.openTokens !== true) return 'This review speed takes only listed tokens for now: choose another under Advanced.'
+    if (meta.unverified === true && !deployment.stacks.main.openTokens) return 'This network takes only listed tokens for now.'
     if (!positive(f.reward)) return 'Set a reward above zero.'
   }
   if (!positive(f.deliveryHours)) return 'Say how many hours the agent has to deliver.'
-  if (f.mode === 'contest' && (!positive(f.selectionHours) || Number(f.selectionHours) >= Number(f.deliveryHours))) {
-    return 'The award must come before the delivery deadline.'
-  }
-  if (!nonNegative(f.creatorBond) || (f.mode !== 'contest' && !nonNegative(f.workerBond))) return 'Bonds must be zero or more.'
+  if (!nonNegative(f.creatorBond) || !nonNegative(f.workerBond)) return 'Bonds must be zero or more.'
   if (f.accepts.length === 0) return 'Accept at least one kind of deliverable.'
   if (f.mode === 'hire' && f.budgetOn) {
     if (f.budgetKind === 'call' && (f.callTarget.trim() === '' || f.callFunction.trim() === '' || !positive(f.callCap))) return 'The running-cost budget needs a contract, a function and a cap.'
@@ -359,19 +337,7 @@ export interface Frozen {
   fp: string
   at: number
   deliveryDeadline: number
-  selectionDeadline: number | null
   created: Created
-}
-
-/** Older preset drafts kept placeholder hours. Their fingerprint already records the exact prepared windows. */
-export function frozenForm(frozen: Pick<Frozen, 'form' | 'fp'>): PostForm {
-  try {
-    const windows = JSON.parse(frozen.fp).windows as { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number } | undefined
-    if (windows === undefined || ![windows.reviewSeconds, windows.disputeSeconds, windows.arbitrationSeconds].every((s) => Number.isSafeInteger(s) && s > 0)) return frozen.form
-    return { ...frozen.form, reviewHours: String(windows.reviewSeconds / 3600), disputeHours: String(windows.disputeSeconds / 3600), arbitrationHours: String(windows.arbitrationSeconds / 3600) }
-  } catch {
-    return frozen.form
-  }
 }
 
 export interface Draft {
@@ -388,16 +354,19 @@ export const prefillKey = (prefill: Record<string, string>) =>
 
 export const draftKey = (boardId: string, address: string | undefined) => `hireling.post-draft:${boardId}:${address?.toLowerCase() ?? 'signed-out'}`
 
-/** The stored draft, completed with today's defaults for any field it predates; null when there is none. */
+/**
+ * The stored draft, completed with today's defaults for any field it predates and without fields it no longer has;
+ * null when there is none or it is not a hire or a request for quotes.
+ */
 export function loadDraft(key: string, defaults: PostForm): Draft | null {
   try {
     const raw = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<Draft> | null
     if (raw === null || raw.v !== 1 || typeof raw.form !== 'object' || raw.form === null) return null
+    if (raw.form.mode !== 'hire' && raw.form.mode !== 'quotes') return null
     const step = raw.step === 2 || raw.step === 3 || raw.step === 4 ? raw.step : 1
     const frozen = raw.frozen !== null && typeof raw.frozen === 'object' && typeof raw.frozen.owner === 'string' && typeof raw.frozen.form === 'object' && raw.frozen.form !== null ? raw.frozen as Frozen : null
-    const form = { ...defaults, ...raw.form }
-    // A contest draft from before v1 that was never frozen continues as a direct hire.
-    if (frozen === null && form.mode === 'contest') form.mode = 'hire'
+    const saved = raw.form as Partial<Record<keyof PostForm, unknown>>
+    const form = Object.fromEntries((Object.keys(defaults) as Array<keyof PostForm>).map((k) => [k, saved[k] ?? defaults[k]])) as unknown as PostForm
     return { v: 1, step, form, prefill: typeof raw.prefill === 'string' ? raw.prefill : '{}', frozen }
   } catch {
     return null

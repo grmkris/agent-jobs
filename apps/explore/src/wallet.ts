@@ -24,28 +24,36 @@ export const chain: Chain = isMainnet
   ? monad
   : { ...monadTestnet, blockExplorers: { default: { name: 'Monadscan', url: 'https://testnet.monadscan.com' } } }
 
+/** A deployment with Hireling v1: its contracts and the v1 `main` pair. The only kind of network Explore serves. */
+export type V1Deployment = sdk.Deployment & { readonly hireling: sdk.HirelingDeployment; readonly stacks: { readonly main: sdk.Stack } }
+
+const isV1 = (d: sdk.Deployment): d is V1Deployment => d.hireling !== null && d.stacks.main?.kind === 'hireling-v1'
+
 /** The network's contracts, or null before launch day promotes them (mainnet's `deployment` block is empty until then). */
-function loadDeployment(): sdk.Deployment | null {
+function loadDeployment(): V1Deployment | null {
   try {
-    return sdk.deployment(network)
+    const d = sdk.deployment(network)
+    return isV1(d) ? d : null
   } catch (error) {
     if (error instanceof sdk.NotDeployedError) return null
     throw error
   }
 }
 const loaded = loadDeployment()
-/** Whether this network has its contracts (U-MAINNET-EMPTY): false only on mainnet before launch day promotes them. */
+/** Whether this network has Hireling v1 (U-MAINNET-EMPTY): false only on mainnet before launch day promotes it. */
 export const deployed = loaded !== null
 /**
- * The network's deployment. Before launch day it is a placeholder with no contracts, so module-level reads of it
- * stay harmless; `deployed` is false, writes stay closed and the chain transport below sends nothing.
+ * The network's deployment. Before launch day it is a placeholder of zero addresses, so module-level reads of it stay
+ * harmless; `deployed` is false, writes stay closed and the chain transport below sends nothing.
  */
-export const deployment: sdk.Deployment = loaded ?? undeployed()
-function undeployed(): sdk.Deployment {
+export const deployment: V1Deployment = loaded ?? undeployed()
+function undeployed(): V1Deployment {
   const none = zeroAddress
   const enforcers = { erc20PeriodTransfer: none, erc20TransferAmount: none, allowedCalldata: none, valueLte: none, allowedTargets: none, allowedMethods: none, limitedCalls: none, timestamp: none }
+  const hireling = { block: 0n, safe: none, factory: none, vault: none, feeSchedule: none, distributor: none, miningReserve: none, teamVesting: none, t0: 0 }
   return {
-    network, chainId: chain.id, core: none, factory: none, hireling: null, rewardTokens: [], stacks: {}, legacyStacks: {}, identity: none,
+    network, chainId: chain.id, core: none, factory: none, hireling, rewardTokens: [],
+    stacks: { main: { kind: 'hireling-v1', factory: none, holding: none, evaluator: none, openTokens: false } }, legacyStacks: {}, identity: none,
     reputation: none, delegation: { manager: none, delegator: none, enforcers }, admin: none, poolFactory: null, arbitrator: none, attester: none,
     relay: none, x402: null, deployBlock: 0n,
   }

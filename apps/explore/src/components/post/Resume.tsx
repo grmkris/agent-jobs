@@ -21,15 +21,13 @@ type Auth = ReturnType<typeof useSignedIn>
 interface SavedOffer {
   taskId: string
   title: string
-  mode: 'hire' | 'contest'
-  stack: string
+  kind: 'legacy' | 'hireling-v1'
   token: string
   reward: string
   creatorBond: string
   workerBond: string
   creator: string
   deliveryDeadline: number
-  selectionDeadline: number | null
   manifestUrl: string
   deliverable?: DeliverableSpec | null
   executionBudget: { kind: 'advance' | 'call'; amount: string; symbol: string; function?: string } | null
@@ -81,6 +79,14 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
       </>
     )
   }
+  if (t.kind !== 'hireling-v1') {
+    return (
+      <>
+        {header}
+        <EmptyState title="This offer is on an earlier contract">It can no longer be published. Post the job again.</EmptyState>
+      </>
+    )
+  }
   if (t.jobId !== null) {
     return (
       <>
@@ -94,8 +100,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
     )
   }
 
-  const contest = t.mode === 'contest'
-  const lapsed = t.deliveryDeadline <= now || (contest && t.selectionDeadline !== null && t.selectionDeadline <= now)
+  const lapsed = t.deliveryDeadline <= now
   const reward = amount(t.reward, t.token)
   const criteria = t.terms.acceptanceCriteria ?? []
   const checks = t.terms.evidencePolicy?.checks ?? []
@@ -149,25 +154,20 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
               </span>
             </ListRow>
           )}
-          <KV label="How agents compete">{contest ? 'Contest' : 'Direct hire'}</KV>
-          <KV label={contest ? 'Prize' : 'Reward'}>
+          <KV label="How agents compete">Direct hire</KV>
+          <KV label="Reward">
             <span className="tabular font-semibold text-label">{reward}</span>
           </KV>
           <KV label="Deliver by">
             <When at={t.deliveryDeadline} />
           </KV>
-          {contest && (
-            <KV label="Award by">
-              <When at={t.selectionDeadline} />
-            </KV>
-          )}
           <KV label="Deliver as">{accepts.map((k) => KIND_LABEL[k]).join(', ')}</KV>
           {checks.length > 0 && (
             <KV label="Required GitHub check">
               <code className="font-mono text-ui">{checks.join(', ')}</code>
             </KV>
           )}
-          <KV label="Bonds">{contest ? `${bond(t.creatorBond)} from you` : `${bond(t.creatorBond)} from you · ${bond(t.workerBond)} from the agent`}</KV>
+          <KV label="Bonds">{`${bond(t.creatorBond)} reserved from your stake · at least ${bond(t.workerBond)} from the agent's`}</KV>
           {t.executionBudget !== null && (
             <KV label="Running-cost budget">{t.executionBudget.kind === 'call' ? `Up to ${t.executionBudget.amount} ${t.executionBudget.symbol} for one contract call` : `Up to ${t.executionBudget.amount} ${t.executionBudget.symbol}`}</KV>
           )}
@@ -184,7 +184,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
         <EmptyState title="Not your offer">Only the person who prepared this offer can publish it. You can post a job of your own from Post.</EmptyState>
       ) : (
         <>
-          <Preflight address={auth.address} stack={t.stack} token={t.token} reward={BigInt(t.reward)} bond={BigInt(t.creatorBond)} />
+          <Preflight address={auth.address} token={t.token} reward={BigInt(t.reward)} bond={BigInt(t.creatorBond)} />
           <div className="flex items-center gap-3.5 rounded-xl bg-surface p-4">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-tint/14 text-tint">
               <Lock aria-hidden className="size-5" />
@@ -198,11 +198,11 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
           </div>
           {lapsed && (
             <p className="rounded-xl bg-warn-bg px-4 py-3 text-sm text-warn">
-              Its {t.deliveryDeadline <= now ? 'delivery deadline' : 'award deadline'} has passed, so it can no longer be published. Post the job again with new dates.
+              Its delivery deadline has passed, so it can no longer be published. Post the job again with new dates.
             </p>
           )}
           {error !== null && <ErrorText>{error}</ErrorText>}
-          <Section title="Publish" note={`Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`}>
+          <Section title="Publish" note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay.">
             {txs !== null ? <TxSteps key={taskId} taskId={taskId} txs={txs} owner={t.creator} canSend={!lapsed && mine} onDone={(hashes) => void published(hashes)} /> : <Button size="lg" busy={busy} disabled={lapsed} onClick={() => void prepare()}>Prepare wallet steps</Button>}
           </Section>
         </>

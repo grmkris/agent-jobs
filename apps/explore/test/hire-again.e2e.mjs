@@ -19,13 +19,13 @@ const token = config.deployment.rewardTokens[1].toLowerCase();
 const now = Math.floor(Date.now() / 1000);
 const created = now - 5 * 86400;
 const offer = (jobId, extra = {}) => ({
-  taskId: `task-${jobId}`, jobId, stack: 'main-v2', title: `Fix the flaky test (job ${jobId})`, brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'],
+  taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `Fix the flaky test (job ${jobId})`, brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'],
   mode: 'hire', token, reward: '12500000', creatorBond: '2000000000000000000', workerBond: '1500000000000000000', creator, approver: creator,
   deliveryDeadline: created + 72 * 3600, selectionDeadline: null, requiredChecks: ['ci'], quoted: false, executionBudget: null,
   deliverable: { accepts: ['git', 'url'], target: 'https://example.test' }, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`,
   screening: { verdict: 'clean', reasons: [] }, createdAt: created, status: 'completed', ...extra,
 });
-const chainJob = (jobId, status, agentId) => ({ job_id: jobId, status, mode: 'hire', board_id: 'public', stack: 'main-v2', token, reward: '12500000', creator, approver: creator, worker: agentId === null ? null : worker, agent_id: agentId, delivery_deadline: created + 72 * 3600, creator_bond: '2000000000000000000', worker_bond: '1500000000000000000', violation: null, rejection_reason_hash: null });
+const chainJob = (jobId, status, agentId) => ({ job_id: jobId, status, mode: 'hire', board_id: 'public', stack: 'main', kind: 'hireling-v1', token, reward: '12500000', creator, approver: creator, worker: agentId === null ? null : worker, agent_id: agentId, delivery_deadline: created + 72 * 3600, creator_bond: '2000000000000000000', worker_bond: '1500000000000000000', violation: null, rejection_reason_hash: null });
 const jobs = [chainJob('61', 'open', null), chainJob('58', 'completed', '7001'), chainJob('57', 'completed', '7001')];
 const tasks = [offer('61', { status: 'open', title: 'A new job for the same agent', deliveryDeadline: now + 86400 }), offer('58'), offer('57')];
 const applications = [{ id: 'app-2', worker: `0x${'4'.repeat(40)}`, agent_id: '7002', note: 'Mocked applicant' }, { id: 'app-1', worker, agent_id: '7001', note: 'Mocked applicant' }];
@@ -125,7 +125,7 @@ try {
     const args = state.created[0];
     assert.deepEqual({ ...args, deliveryDeadline: undefined }, {
       title: 'Fix the flaky test (job 58)', brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'], token, reward: '12.5',
-      creatorBond: '2', workerBond: '1.5', deliveryDeadline: undefined, mode: 'hire', requiredChecks: ['ci'], deliverable: { accepts: ['git', 'url'], target: 'https://example.test' }, stack: 'main',
+      creatorBond: '2', workerBond: '1.5', deliveryDeadline: undefined, mode: 'hire', requiredChecks: ['ci'], deliverable: { accepts: ['git', 'url'], target: 'https://example.test' },
       invite: { agentId: '7001' }, windows: { reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 },
     });
     assert.ok(Math.abs(args.deliveryDeadline - (Math.floor(Date.now() / 1000) + 72 * 3600)) < 120, `72 hours to deliver, as before: ${args.deliveryDeadline}`);

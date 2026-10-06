@@ -41,8 +41,8 @@ export interface SponsorRules {
   targets: Record<string, { name: string; abi: Abi }>
 }
 
-export function sponsorRules(): SponsorRules | null {
-  return hireling === null ? null : sponsorRulesFor(hireling, deployment)
+export function sponsorRules(): SponsorRules {
+  return sponsorRulesFor(hireling, deployment)
 }
 
 /** The rules for a given deployment: the same mapping the board's SponsorDesk builds its delegation from. */
@@ -121,7 +121,7 @@ export function readDelegation(typedData: string, wallet: string, rules: Sponsor
 export function useLiveSponsorship(wallet: string | undefined, signedIn: boolean): { live: { policy: SponsorPolicy; callsUsed: number } | null; settled: boolean } {
   const rules = sponsorRules()
   const status = useSponsorStatus(wallet, signedIn)
-  if (rules === null || wallet === undefined || !signedIn) return { live: null, settled: true }
+  if (wallet === undefined || !signedIn) return { live: null, settled: true }
   if (status.isLoading) return { live: null, settled: false }
   const s = status.data
   if (s?.status !== 'live' || s.typedData === null) return { live: null, settled: true }
@@ -133,7 +133,7 @@ export function useSponsorStatus(wallet: string | undefined, signedIn: boolean) 
   return useQuery({
     queryKey: ['sponsor_status', wallet?.toLowerCase()],
     queryFn: () => tool<SponsorStatus>('sponsor_status', { wallet }),
-    enabled: wallet !== undefined && signedIn && hireling !== null,
+    enabled: wallet !== undefined && signedIn,
     staleTime: 30_000,
     retry: false,
   })

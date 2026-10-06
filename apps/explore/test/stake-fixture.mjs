@@ -26,7 +26,7 @@ const server = await createServer({ envDir: false, server: { host: '127.0.0.1', 
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
   if (id.endsWith('/src/main.tsx')) return source.replace('const queryClient = new QueryClient()', 'const queryClient = new QueryClient(); window.__stakingQueryClient = queryClient');
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -36,7 +36,7 @@ async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
   await context.addInitScript(({ owner: fixtureOwner, delegator: fixtureDelegator, agentWallet: fixtureAgentWallet, other: fixtureOther, contracts: fixtureContracts, agent: fixtureAgent, options: fixtureOptions }) => {
     const E = 10n ** 18n;
-    window.__hireling = fixtureOptions.deployed === false ? null : fixtureContracts;
+    window.__hireling = fixtureContracts;
     window.__agents = [fixtureAgent];
     window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: JSON.parse(localStorage.getItem('fixture-wallet-sends') ?? '[]') };
     window.__balances = { native: 5n * 10n ** 17n };

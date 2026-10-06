@@ -26,7 +26,7 @@ export function CopyRow({ label, value, hint }: { label: string; value: string; 
   )
 }
 
-/** Every hosted board (ADR-0008): the public one and the tenants, each with its stacks, tokens and origins. */
+/** Every hosted board (ADR-0008): the public one and the tenants, each with its tokens and origins. */
 export function BoardsPage() {
   const boards = useQuery({ queryKey: ['boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), refetchInterval: 60_000 })
   const list = boards.data?.boards ?? []
@@ -34,7 +34,7 @@ export function BoardsPage() {
     <>
       <PageTitle>Boards</PageTitle>
       <p className="-mt-2 leading-relaxed text-label-2">
-        A board is one host&apos;s marketplace: its own stacks, reward tokens, defaults and the origins that may embed it. Anyone signed in can create one.
+        A board is one host&apos;s marketplace: its own reward tokens, defaults and the origins that may embed it. Anyone signed in can create one.
       </p>
       <Link to="/boards/new" className="press inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-xl bg-tint px-4 text-sm font-semibold text-on-tint sm:min-h-10">
         <Plus aria-hidden className="size-4" strokeWidth={2.6} />
@@ -91,9 +91,6 @@ function BoardHead({ board: b }: { board: BoardInfo }) {
           <span className="ml-2 font-mono text-ui text-label-3">{b.public ? 'public board' : `/b/${b.id}`}</span>
         </span>
         <span className="flex flex-wrap gap-1.5">
-          {b.stacks.map((s) => (
-            <Badge key={s}>{s}</Badge>
-          ))}
           {b.tokens.map((t) => (
             <Badge key={t.address} tone="info">
               {t.symbol}

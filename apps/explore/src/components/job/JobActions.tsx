@@ -7,7 +7,7 @@ import type { JobAction, Phase } from '@agent-jobs/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { useAccount, useSignTypedData } from 'wagmi'
-import { type Deliverable, type DeliverableCheck, type TxRequest, boardApi } from '../../api.ts'
+import { type TxRequest, boardApi } from '../../api.ts'
 import { amount, bond, span } from '../../format.ts'
 import { percent } from '../../stake.ts'
 import { friendlyError } from '../../txErrors.ts'
@@ -20,15 +20,13 @@ import { ConfirmSheet, useToast } from '../Sheet.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 import { Badge, Button, EmptyState, ErrorText, Field, Group, ListRow, Section, Segmented, TextArea, cn } from '../ui.tsx'
 import { Monogram, type useSignedIn } from '../Wallet.tsx'
-import { DeliverableLine } from './Deliverables.tsx'
-import { PAID } from './HireAgain.tsx'
+import { paidJob } from './HireAgain.tsx'
 
-export type JobEvent = 'awarded' | 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
+export type JobEvent = 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
 
 export interface ActionJob {
   taskId: string
   boardId: string
-  mode: 'hire' | 'contest'
   reward: string | null
   token: string | null
   creatorBond: string | null
@@ -36,7 +34,7 @@ export interface ActionJob {
   agentId: string | null
   /** The offer's windows, from the board's terms. */
   disputeSeconds: number | null
-  /** A v1 job's fee, fixed at activation (D11); null before it and for legacy jobs. The agent is paid `net`. */
+  /** The job's fee, fixed at activation (D11); null before it. The agent is paid `net`. */
   charge?: { bps: number; fee: string; net: string } | null
   selection?: {
     state: 'signed' | 'expired' | 'invalid' | 'unavailable'
@@ -48,18 +46,16 @@ export interface ActionJob {
 
 type Pending =
   | { kind: 'approve' | 'reject' | 'cancel' | 'settle' | 'dispute' }
-  | { kind: 'award'; candidateId: string; agentId: string }
   | { kind: 'select'; applicationId: string; agentId: string }
 
-const TOOL: Record<string, string> = { approve: 'approve_work', reject: 'reject_work', cancel: 'cancel_task', settle: 'settlement_actions', dispute: 'dispute', award: 'award' }
-const EVENT: Record<string, JobEvent> = { approve: 'approved', reject: 'rejected', cancel: 'cancelled', settle: 'settled', dispute: 'disputed', award: 'awarded' }
+const TOOL: Record<string, string> = { approve: 'approve_work', reject: 'reject_work', cancel: 'cancel_task', settle: 'settlement_actions', dispute: 'dispute' }
+const EVENT: Record<string, JobEvent> = { approve: 'approved', reject: 'rejected', cancel: 'cancelled', settle: 'settled', dispute: 'disputed' }
 
 const SETTLE_LABEL: Record<string, string> = {
   completeAfterSilence: 'Release the payment',
   rejectAfterDeliveryDeadline: 'Close it and refund the creator',
   rejectAfterWindow: 'Finalize the rejection',
   refundAfterArbitrationTimeout: 'Refund the creator',
-  expireContest: 'Close the contest',
 }
 
 const VIOLATIONS = [
@@ -109,7 +105,6 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
       cancel: 'Cancelled. The reward and your bond are back.',
       settle: 'Settled on-chain',
       dispute: 'Disputed. The arbitrator decides next.',
-      award: 'Awarded and paid',
     }
     toast(messages[kind] ?? 'Done')
     const event = EVENT[kind]
@@ -139,7 +134,6 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
       }
       const args: Record<string, unknown> = { taskId: job.taskId }
       if (pending.kind === 'reject') Object.assign(args, { violation, reason })
-      if (pending.kind === 'award') args.candidateId = pending.candidateId
       if (pending.kind === 'dispute' && statement.trim() !== '') args.statement = statement
       const r = await api.tool<{ transactions: TxRequest[] }>(TOOL[pending.kind] as string, args)
       const kind = pending.kind
@@ -161,7 +155,6 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
   return (
     <>
       {txs === null && sourceAvailable && signedIn && phase.actions.includes('select') && <Applications job={job} signedIn={signedIn} onSelect={(applicationId, agentId) => setPending({ kind: 'select', applicationId, agentId })} />}
-      {txs === null && sourceAvailable && phase.actions.includes('award') && <Entries job={job} onAward={(candidateId, agentId) => setPending({ kind: 'award', candidateId, agentId })} />}
 
       {(bar.length > 0 || canDispute) && (
         <div className="material sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-20 flex flex-wrap gap-2.5 rounded-2xl p-2.5 shadow-float lg:bottom-4">
@@ -281,18 +274,6 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
       </ConfirmSheet>
 
       <ConfirmSheet
-        open={pending?.kind === 'award'}
-        onClose={close}
-        title={pending?.kind === 'award' ? `Award Agent #${pending.agentId}'s entry?` : 'Award'}
-        description={`One transaction pays ${reward} to this entry and closes the contest. The other entries are not paid.`}
-        confirm="Award and pay"
-        busy={busy}
-        onConfirm={() => void go()}
-      >
-        {error !== null && <ErrorText>{error}</ErrorText>}
-      </ConfirmSheet>
-
-      <ConfirmSheet
         open={pending?.kind === 'select'}
         onClose={close}
         title={pending?.kind === 'select' ? `Select Agent #${pending.agentId}?` : 'Select'}
@@ -320,8 +301,6 @@ function SettleText({ phase }: { phase: Phase }): ReactNode {
       return 'No dispute was filed in time, so the rejection becomes final and the creator is refunded. Anyone may send it.'
     case 'refundAfterArbitrationTimeout':
       return 'The arbitrator did not rule in time. This refunds the creator and returns both bonds. Anyone may send it.'
-    case 'expireContest':
-      return 'No entry was awarded by the deadline. This returns the prize and bond to the creator. Anyone may send it.'
     default:
       return 'This releases what the last step left in escrow to whoever it belongs to. Anyone may send it.'
   }
@@ -349,7 +328,7 @@ function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: b
   })
   // Agents this creator has paid before (on-chain), listed first: the one a Hire again asked for is among them.
   const { items } = useJobs()
-  const hiredBefore = new Set(items.flatMap(({ chain }) => (chain !== undefined && PAID.has(chain.status) && chain.agent_id !== null && address !== undefined && chain.creator?.toLowerCase() === address.toLowerCase() ? [chain.agent_id] : [])))
+  const hiredBefore = new Set(items.flatMap(({ chain }) => (chain !== undefined && paidJob(chain) && chain.agent_id !== null && address !== undefined && chain.creator?.toLowerCase() === address.toLowerCase() ? [chain.agent_id] : [])))
   const list = (apps.data ?? []).toSorted((a, b) => Number(hiredBefore.has(b.agent_id)) - Number(hiredBefore.has(a.agent_id)))
   return (
     <Section title={`Applications${list.length > 0 ? ` · ${list.length}` : ''}`} note={selected.size > 0 ? 'Selection is signed, not an activation. Other unexpired selections remain usable until one worker activates.' : 'Agents apply over MCP. Select one: you sign, no transaction; it starts when the agent activates.'}>
@@ -376,38 +355,6 @@ function Applications({ job, signedIn, onSelect }: { job: ActionJob; signedIn: b
                 {a.note !== '' && <span className="block text-sm text-label-2">“{a.note}”</span>}
               </span>
               {selected.has(a.id) ? <Badge tone="success">Selected</Badge> : <Button size="sm" variant="tinted" onClick={() => onSelect(a.id, a.agent_id)}>Select</Button>}
-            </ListRow>
-          ))}
-        </Group>
-      )}
-    </Section>
-  )
-}
-
-function Entries({ job, onAward }: { job: ActionJob; onAward: (candidateId: string, agentId: string) => void }) {
-  const entries = useQuery({
-    queryKey: ['candidates', job.boardId, job.taskId],
-    queryFn: () =>
-      boardApi(job.boardId).tool<Array<{ candidateId: string; worker: string; agentId: string; repo: string; branch: string; sha: string; descriptor?: Deliverable; check?: DeliverableCheck | null }>>('list_candidates', { taskId: job.taskId }),
-    refetchInterval: 15_000,
-  })
-  const list = entries.data ?? []
-  return (
-    <Section title={`Entries${list.length > 0 ? ` · ${list.length}` : ''}`} note="Award the entry you want at any time; one transaction pays it and closes the contest.">
-      {entries.isLoading ? null : list.length === 0 ? (
-        <EmptyState title="No complete entries yet">Agents enter finished work over MCP; entries appear here.</EmptyState>
-      ) : (
-        <Group>
-          {list.map((c) => (
-            <ListRow key={c.candidateId} inset>
-              <Monogram seed={`agent-${c.agentId}`} label={c.agentId.slice(-2)} size="md" />
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">Agent #{c.agentId}</span>
-                <DeliverableLine d={c.descriptor ?? { kind: 'git', url: c.repo, ref: c.branch, sha: c.sha }} check={c.check ?? null} />
-              </span>
-              <Button size="sm" onClick={() => onAward(c.candidateId, c.agentId)}>
-                Award
-              </Button>
             </ListRow>
           ))}
         </Group>

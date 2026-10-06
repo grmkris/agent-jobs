@@ -3,11 +3,11 @@ import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import * as sdk from '@agent-jobs/sdk'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { type Address, isAddress, zeroAddress } from 'viem'
+import { type Address, isAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
-import { type BoardInfo, DELIVERABLE_KINDS, type DeliverableKind, type TaskIndexEntry, boardApi, currentBoardId, data, tool } from '../api.ts'
+import { type BoardInfo, DELIVERABLE_KINDS, type DeliverableKind, currentBoardId, data, taskIndex, tool } from '../api.ts'
 import { BoardLink, boardRoutes, useBoardNavigate } from '../components/BoardLink.tsx'
-import { PAID } from '../components/job/HireAgain.tsx'
+import { paidJob } from '../components/job/HireAgain.tsx'
 import { Preflight } from '../components/post/Preflight.tsx'
 import { ResumeOffer } from '../components/post/Resume.tsx'
 import { ScreeningCard } from '../components/post/Screening.tsx'
@@ -18,7 +18,6 @@ import {
   type Frozen,
   type Mode,
   type PostForm,
-  type StackName,
   type Step,
   type WindowBounds,
   type WindowPreset,
@@ -26,10 +25,9 @@ import {
   createTaskArgs,
   criteriaList,
   draftKey,
-  V1,
   fingerprint,
-  frozenForm,
   hireAgainPrefill,
+  hireTermsProblem,
   hoursText,
   initialForm,
   loadDraft,
@@ -40,7 +38,6 @@ import {
   saveDraft,
   stepProblem,
   toBase,
-  v1TermsProblem,
   windowForm,
   windowsOf,
 } from '../components/post/form.ts'
@@ -77,14 +74,11 @@ const MODES: ReadonlyArray<{ value: Mode; title: string; body: string }> = [
     body: 'Agents bid a price. Nothing is locked until you pick a quote; then the job is published at that price and the reward is locked.',
   },
 ]
-// `contest` names an offer frozen before v1, still shown while it is published.
-const MODE_TITLE: Record<Mode, string> = { hire: 'Direct hire', quotes: 'Request quotes', contest: 'Contest' }
+const MODE_TITLE: Record<Mode, string> = { hire: 'Direct hire', quotes: 'Request quotes' }
 
 /** The token control's "Other" choice: any ERC-20, typed as an address (the public board only). */
 const OTHER = 'other'
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
-
-const STACK_LABEL: Record<StackName, string> = { main: 'Standard', demo: 'Demo', fast: 'Fast' }
 
 const DELIVERY: ReadonlyArray<readonly [string, string]> = [
   ['24', '1 day'],
@@ -102,7 +96,7 @@ const STEP_TITLE: Record<Step, string> = { 1: 'What needs doing', 2: 'How agents
 
 /**
  * Post a job: what needs doing, how agents compete, the reward and deadlines, then a review with the advisory
- * screening and a live wallet check before anything is signed. A hire or contest is frozen by the board
+ * screening and a live wallet check before anything is signed. A hire is frozen by the board
  * (`create_task`) on the way to the review and published from inline wallet steps; the reward is escrowed only
  * when the publish transaction confirms. Asking for quotes (`request_quotes`) locks nothing until a quote is picked.
  * The form is kept as a draft per board and address until it is published. `?resume=<taskId>` reopens an offer that
@@ -130,14 +124,14 @@ export function PublishPage({ auth, prefill = {}, onPublished }: { auth: Auth; p
 function HireAgain({ jobId, auth, onPublished }: { jobId: string; auth: Auth; onPublished?: ((p: Published) => void) | undefined }) {
   const detail = useQuery({ queryKey: ['job', jobId], queryFn: () => data<{ job: { status: string; agent_id: string | null; worker: string | null }; board: { boardId: string } | null }>(`jobs/${jobId}`) })
   const boardId = detail.data?.board?.boardId ?? 'public'
-  const index = useQuery({ queryKey: ['task_index', boardId], queryFn: () => boardApi(boardId).tool<TaskIndexEntry[]>('task_index'), enabled: detail.data !== undefined })
+  const index = useQuery({ queryKey: ['task_index', boardId], queryFn: () => taskIndex(boardId), enabled: detail.data !== undefined })
   const task = index.data?.find((t) => t.jobId === jobId)
   const reward = useToken(task?.token)
   const budgetToken = task?.executionBudget?.kind === 'advance' ? task.executionBudget.token : null
   const budget = useToken(budgetToken)
   const job = detail.data?.job
   const failed = detail.isError || index.isError
-  const eligible = job !== undefined && PAID.has(job.status) && job.agent_id !== null && job.worker !== null && task !== undefined
+  const eligible = job !== undefined && paidJob(job) && job.agent_id !== null && job.worker !== null && task !== undefined
   if (failed || (detail.data !== undefined && index.data !== undefined && !eligible) || reward === 'none') {
     return (
       <>
@@ -187,10 +181,7 @@ function HiringAgain({ prefill }: { prefill: Record<string, string> }) {
           <BoardLink target={boardRoutes().job(again)} className="text-tint">
             job #{again}
           </BoardLink>
-          .{' '}
-          {V1
-            ? `Agent #${agentId} is invited: you can select it as soon as the job is published. It starts when it activates.`
-            : `Once it is published, Agent #${agentId} applies and you select it, marked as hired before. It starts when it activates.`}
+          . Agent #{agentId} is invited: you can select it as soon as the job is published. It starts when it activates.
         </span>
       </p>
     </div>
@@ -203,8 +194,8 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const now = useNow()
   const boardId = currentBoardId()
 
-  // A tenant board allows only its own tokens and stacks (the board refuses others). The public board lists the known
-  // tokens and takes any other ERC-20 by address (ADR-0010), with every deployed stack.
+  // A tenant board allows only its own tokens (the board refuses others). The public board lists the known tokens and
+  // takes any other ERC-20 by address (ADR-0010).
   const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
   const isPublic = boardId === 'public'
   const board = isPublic ? undefined : boards.data?.boards.find((b) => b.id === boardId)
@@ -212,8 +203,6 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const known = isPublic ? all.filter(([, t]) => t.unverified !== true) : all
   const restricted = board === undefined ? known : known.filter(([a]) => board.rewardTokens.some((t) => t.toLowerCase() === a))
   const tokens = restricted.length > 0 ? restricted : known
-  const deployed = Object.keys(deployment.stacks) as StackName[]
-  const stacks = board === undefined ? deployed : deployed.filter((s) => board.stacks.includes(s))
 
   const pk = prefillKey(prefill)
   const key = draftKey(boardId, auth.address)
@@ -232,16 +221,16 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   const lastPrefill = useRef(pk)
   const tokenTouched = useRef(false)
 
-  const v1 = useV1Terms()
+  const terms = useHireTerms()
   // A prepared offer keeps its signed windows even if the deployment's bounds are unavailable on reload.
-  const f = runningOffer === null ? windowForm(draft.form, v1.bounds) : frozenForm(runningOffer.frozen)
+  const f = runningOffer === null ? windowForm(draft.form, terms.bounds) : runningOffer.frozen.form
   const step = draft.step
   /** A field the person changed. */
   const set = (patch: Partial<PostForm>) => {
     dirty.current = true
     setDraft((d) => ({ ...d, form: { ...d.form, ...patch } }))
   }
-  /** A correction the page makes itself (a token or stack the board does not offer): not a reason to save. */
+  /** A correction the page makes itself (a token the board does not offer): not a reason to save. */
   const fix = (patch: Partial<PostForm>) => setDraft((d) => ({ ...d, form: { ...d.form, ...patch } }))
   const go = (s: Step) => {
     dirty.current = true
@@ -318,10 +307,6 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     }
     if (Object.keys(patch).length > 0) fix(patch)
   }, [tokenIds, f.token, board !== undefined, other])
-  useEffect(() => {
-    if (runningOffer !== null || draft.frozen !== null) return
-    if (stacks.length > 0 && !stacks.includes(f.stack)) fix({ stack: board !== undefined && stacks.includes(board.defaultStack as StackName) ? (board.defaultStack as StackName) : (stacks[0] as StackName) })
-  }, [stacks.join(), f.stack])
 
   // The frozen offer, while the form still describes it; an edit afterwards means freezing again.
   const fp = fingerprint(f)
@@ -338,14 +323,14 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   })
   const publishedAs = onChain.data?.jobId ?? null
   // Deadlines count from the moment the offer was frozen: one prepared too long ago is prepared again.
-  const expired = matching !== null && (matching.deliveryDeadline <= now + 60 || (matching.selectionDeadline !== null && matching.selectionDeadline <= now + 60))
+  const expired = matching !== null && matching.deliveryDeadline <= now + 60
   const frozen = matching !== null && !expired && publishedAs === null ? matching : null
   const [freezing, setFreezing] = useState(false)
   const [freezeError, setFreezeError] = useState<string | null>(null)
   const freeze = async () => {
     const owner = auth.address
     if (owner === undefined || runningOffer !== null) return
-    if (V1 && v1TermsProblem(f, v1.bounds, owner) !== null) return
+    if (hireTermsProblem(f, terms.bounds, owner) !== null) return
     const form = structuredClone(f)
     const at = Math.floor(Date.now() / 1000)
     const args = createTaskArgs(form, at)
@@ -355,8 +340,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
       const created = await tool<Created>('create_task', args)
       dirty.current = true
       loadedKey.current = draftKey(boardId, owner)
-      const selection = (args as { selectionDeadline?: number }).selectionDeadline ?? null
-      const prepared = { owner, form, fp: fingerprint(form), at, deliveryDeadline: args.deliveryDeadline, selectionDeadline: selection, created }
+      const prepared = { owner, form, fp: fingerprint(form), at, deliveryDeadline: args.deliveryDeadline, created }
       setDraft((d) => ({ ...d, frozen: prepared }))
       setRunningOffer({ frozen: prepared, owner, reward: rewardText(form) })
     } catch (e) {
@@ -409,13 +393,11 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
     else await navigate(jobId !== null ? boardRoutes().job(jobId) : boardRoutes().jobs())
   }
 
-  const problem = stepProblem(f, step) ?? (V1 && step === 3 && f.mode === 'hire' ? v1TermsProblem(f, v1.bounds, auth.address) : null)
+  const problem = stepProblem(f, step) ?? (step === 3 && f.mode === 'hire' ? hireTermsProblem(f, terms.bounds, auth.address) : null)
   const status = saved && dirty.current ? 'Draft saved' : ''
-  const contest = f.mode === 'contest'
   const quotes = f.mode === 'quotes'
   const hours = (h: string) => now + Math.round(Number(h) * 3600)
   const deliverBy = frozen?.deliveryDeadline ?? hours(f.deliveryHours)
-  const awardBy = frozen?.selectionDeadline ?? hours(f.selectionHours)
   const symbol = tokenInfo(f.token).symbol
   const tokenOptions = [...tokens.map(([a, t]) => [a, t.symbol] as const), ...(isPublic ? [[OTHER, 'Other'] as const] : [])]
   const pickToken = (token: string) => {
@@ -474,7 +456,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
         <div className="grid gap-2">
           <Progress step={step} of={4} />
           <p className="px-1 text-ui text-label-2">
-            Step {step} of 4 · {step === 3 && quotes ? 'Quotes and deadline' : step === 3 && contest ? 'Prize and deadlines' : STEP_TITLE[step]}
+            Step {step} of 4 · {step === 3 && quotes ? 'Quotes and deadline' : STEP_TITLE[step]}
           </p>
         </div>
 
@@ -501,13 +483,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                 <Choices label="How agents compete" value={f.mode} onChange={(mode) => set({ mode })} options={MODES} />
               </Section>
               {f.mode === 'hire' && (
-                <Section
-                  note={
-                    V1
-                      ? 'A named agent is invited: you can select it as soon as the job is published. Leave it empty and agents apply.'
-                      : 'Leave it empty and agents apply; you pick one. A named agent applies like any other, and you select it.'
-                  }
-                >
+                <Section note="A named agent is invited: you can select it as soon as the job is published. Leave it empty and agents apply.">
                   <Group>
                     <FieldRow label="Agent to hire · optional" htmlFor="post-invite">
                       <Input id="post-invite" value={f.invite} onChange={(e) => set({ invite: e.target.value.trim() })} inputMode="numeric" placeholder="Agent number, like 1942" autoComplete="off" />
@@ -545,10 +521,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   </Group>
                 </Section>
               ) : (
-                <Section
-                  title={contest ? 'Prize and deadlines' : 'Reward and deadline'}
-                  note={contest ? 'The prize is locked in escrow when you publish and paid to the entry you award.' : 'The reward is locked in escrow when you publish and paid only when the work is accepted.'}
-                >
+                <Section title="Reward and deadline" note="The reward is locked in escrow when you publish and paid only when the work is accepted.">
                   <Group>
                     <LineRow label="Token" stack={tokenOptions.length > 2} note={!other && tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}: check the address` : undefined}>
                       {tokenOptions.length <= 4 ? (
@@ -576,28 +549,18 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                         />
                       </FieldRow>
                     )}
-                    <LineRow label={contest ? 'Prize' : 'Amount'} htmlFor="post-reward">
+                    <LineRow label="Amount" htmlFor="post-reward">
                       <Input id="post-reward" value={f.reward} onChange={(e) => set({ reward: e.target.value })} inputMode="decimal" autoComplete="off" className="tabular w-28 text-right" />
                       <span className="w-12 shrink-0 text-label-2">{symbol}</span>
                     </LineRow>
                     <LineRow label="Deliver within" note={<>Due <When at={hours(f.deliveryHours)} show="time" /></>} stack>
                       <HoursPicker id="post-delivery-hours" value={f.deliveryHours} presets={DELIVERY} onChange={(deliveryHours) => set({ deliveryHours })} />
                     </LineRow>
-                    {contest && (
-                      <LineRow
-                        label="Award within"
-                        htmlFor="post-selection-hours"
-                        note={<>You pick the winning entry by <When at={hours(f.selectionHours)} show="time" />, before the delivery deadline. If you award none, the prize and your bond come back.</>}
-                      >
-                        <Input id="post-selection-hours" value={f.selectionHours} onChange={(e) => set({ selectionHours: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-                        <span className="w-12 shrink-0 text-label-2">hours</span>
-                      </LineRow>
-                    )}
                   </Group>
                 </Section>
               )}
-              {V1 && f.mode === 'hire' && <V1Terms f={f} set={set} bounds={v1.bounds} defaultArbitrator={v1.defaultArbitrator} />}
-              <Advanced f={f} set={set} stacks={stacks} />
+              {f.mode === 'hire' && <HireTerms f={f} set={set} bounds={terms.bounds} defaultArbitrator={terms.defaultArbitrator} />}
+              <Advanced f={f} set={set} />
             </>
           )}
 
@@ -624,7 +587,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                     </ListRow>
                   )}
                   <KV label="How agents compete">{MODE_TITLE[f.mode]}</KV>
-                  {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent #{f.invite}{V1 ? ' · invited' : ' · applies, then you select it'}</KV>}
+                  {f.mode === 'hire' && f.invite !== '' && <KV label="Agent">Agent #{f.invite} · invited</KV>}
                   {quotes ? (
                     <>
                       <KV label="Accepted tokens">{f.quoteTokens.map((a) => tokenInfo(a).symbol).join(', ')}</KV>
@@ -633,37 +596,31 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                       </KV>
                     </>
                   ) : (
-                    <KV label={contest ? 'Prize' : 'Reward'} note={tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}` : undefined}>
+                    <KV label="Reward" note={tokenInfo(f.token).unverified === true ? `Unverified token ${short(f.token)}` : undefined}>
                       <span className="tabular font-semibold text-label">{reward}</span>
                     </KV>
                   )}
                   <KV label="Deliver by">
                     <When at={deliverBy} />
                   </KV>
-                  {contest && (
-                    <KV label="Award by">
-                      <When at={awardBy} />
-                    </KV>
-                  )}
                   <KV label="Deliver as">{kinds}</KV>
                   {f.accepts.includes('git') && f.check.trim() !== '' && (
                     <KV label="Required GitHub check">
                       <code className="font-mono text-ui">{f.check.trim()}</code>
                     </KV>
                   )}
-                  {V1 && f.mode === 'hire' ? (
+                  {f.mode === 'hire' ? (
                     <>
                       <KV label="Windows">{windowsText(f)}</KV>
                       <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Hireling's arbiter" : <span className="font-mono text-ui [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
                       <KV label="Bonds">{`${f.creatorBond} FACTORY reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
                     </>
                   ) : (
-                    <KV label="Bonds">{contest ? `${f.creatorBond} FACTORY from you` : `${f.creatorBond} FACTORY from you · ${f.workerBond} from the agent`}</KV>
+                    <KV label="Bonds">{`${f.creatorBond} FACTORY from you · ${f.workerBond} from the agent`}</KV>
                   )}
                   {f.mode === 'hire' && f.budgetOn && (
                     <KV label="Running-cost budget">{f.budgetKind === 'call' ? `Up to ${f.callCap} MON for one contract call` : `Up to ${f.budgetCap} ${tokenInfo(f.budgetToken).symbol}`}</KV>
                   )}
-                  {f.stack !== 'main' && <KV label="Review speed">{STACK_LABEL[f.stack]}</KV>}
                 </Group>
               </Section>
 
@@ -707,12 +664,10 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 
               <Preflight
                 address={auth.signedIn ? auth.address : undefined}
-                stack={f.stack}
                 token={quotes ? undefined : f.token}
                 reward={quotes ? undefined : toBase(f.reward, f.token)}
                 bond={toBase(f.creatorBond, deployment.factory)}
                 later={quotes}
-                vault={V1 ? hireling?.vault : undefined}
               />
 
               {!quotes && (
@@ -775,11 +730,7 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
       {(step === 4 || runningOffer !== null) && matching !== null && (auth.signedIn || runningOffer !== null || matching.owner !== undefined) && publishedAs === null && (
         <Section
           title="Publish"
-          note={
-            V1 && !contest
-              ? 'Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay.'
-              : `Your wallet sends the ${contest ? 'prize' : 'reward'} approval, FACTORY bond approval and publish transaction in order. Only the wallet confirmation is an overlay.`
-          }
+          note="Your wallet sends the reward approval and the publish transaction in order; your bond is reserved from your stake. Only the wallet confirmation is an overlay."
         >
           {onChain.isError && <ErrorText>The saved offer could not be checked. Retry before publishing. <Button variant="plain" onClick={() => void onChain.refetch()}>Retry</Button></ErrorText>}
           {expired && <ErrorText>This offer has expired. Prepare a new offer before confirming any new steps.</ErrorText>}
@@ -810,13 +761,12 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
 }
 
 /** The Holding's window bounds and its default arbitrator (Hireling's arbiter), read once from the chain. */
-function useV1Terms(): { bounds: WindowBounds | null; defaultArbitrator: Address | null } {
-  const holding = hireling?.holding ?? zeroAddress
+function useHireTerms(): { bounds: WindowBounds | null; defaultArbitrator: Address | null } {
   const reads = useReadContracts({
     contracts: (['MIN_REVIEW_WINDOW', 'MAX_REVIEW_WINDOW', 'MIN_DISPUTE_WINDOW', 'MAX_DISPUTE_WINDOW', 'MIN_ARBITRATION_WINDOW', 'MAX_ARBITRATION_WINDOW', 'defaultArbitrator'] as const).map(
-      (functionName) => ({ address: holding, abi: sdk.hirelingHoldingAbi, functionName, chainId: chain.id }) as const,
+      (functionName) => ({ address: hireling.holding, abi: sdk.hirelingHoldingAbi, functionName, chainId: chain.id }) as const,
     ),
-    query: { enabled: hireling !== null, staleTime: 300_000 },
+    query: { staleTime: 300_000 },
   })
   const r = reads.data
   if (r === undefined || r.some((x) => x.status !== 'success')) return { bounds: null, defaultArbitrator: null }
@@ -834,10 +784,10 @@ const windowsText = (f: PostForm) => {
 }
 
 /**
- * Hireling v1's terms for a hire (ADR-0011): how long the approver has to review, the agent to dispute and the
- * arbitrator to rule; who arbitrates (Hireling's arbiter by default, by name); and the bonds, reserved from stake.
+ * A hire's terms (ADR-0011): how long the approver has to review, the agent to dispute and the arbitrator to rule;
+ * who arbitrates (Hireling's arbiter by default, by name); and the bonds, reserved from stake.
  */
-function V1Terms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; bounds: WindowBounds | null; defaultArbitrator: Address | null }) {
+function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; bounds: WindowBounds | null; defaultArbitrator: Address | null }) {
   const [customArbiter, setCustomArbiter] = useState(f.arbitrator !== '')
   return (
     <>
@@ -940,32 +890,24 @@ function HoursPicker({ id, value, presets, onChange }: { id: string; value: stri
   )
 }
 
-function Advanced({ f, set, stacks }: { f: PostForm; set: (p: Partial<PostForm>) => void; stacks: StackName[] }) {
+/** What a hire sets in its own terms (windows, arbitrator, bonds) a request for quotes sets here, with the rest. */
+function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void }) {
   const hire = f.mode === 'hire'
-  const summary: ReactNode = V1 && hire ? `Delivery${f.budgetOn ? ', budget' : ''}` : `${f.stack === 'main' ? '' : `${STACK_LABEL[f.stack]} · `}Bonds, delivery${hire && f.budgetOn ? ', budget' : ''}`
+  const summary: ReactNode = hire ? `Delivery${f.budgetOn ? ', budget' : ''}` : 'Bonds, delivery'
   return (
-    <Section note={V1 && hire ? undefined : 'Bonds are in FACTORY. Both are held by the contracts, never by Hireling.'}>
+    <Section note={hire ? undefined : 'Bonds are in FACTORY. Both are held by the contracts, never by Hireling.'}>
       <Disclosure title="Advanced" summary={summary}>
-        {!V1 && stacks.length > 1 && (
-          <LineRow label="Review speed" note="Review and dispute windows are fixed by this deployment's evaluator." stack>
-            <Segmented label="Review speed" value={f.stack} options={stacks.map((s) => [s, STACK_LABEL[s]] as const)} onChange={(stack) => set({ stack })} className="sm:min-w-[19rem]" />
-          </LineRow>
-        )}
-        {!(V1 && hire) && (
-          <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
-            <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
-          </LineRow>
-        )}
-        {V1 && hire ? null : f.mode === 'contest' ? (
-          <KV label="Agent's bond" note="Contest entrants post no bond: they risk only their work.">
-            None
-          </KV>
-        ) : (
-          <LineRow label="Agent's bond" note="Burned if the agent misses the deadline or cheats; returned otherwise." htmlFor="post-worker-bond">
-            <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
-          </LineRow>
+        {!hire && (
+          <>
+            <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
+              <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+              <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+            </LineRow>
+            <LineRow label="Agent's bond" note="Burned if the agent misses the deadline or cheats; returned otherwise." htmlFor="post-worker-bond">
+              <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
+              <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+            </LineRow>
+          </>
         )}
         <LineRow label="Deliver as" note="Agents host the work themselves (a fork on any git host, IPFS, a server, the chain); Hireling records where it is and checks it once." stack>
           <span className="flex flex-wrap gap-2 sm:max-w-[19rem] sm:justify-end">

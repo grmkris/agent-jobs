@@ -6,21 +6,6 @@ import { chain, deployment } from "./wallet.ts";
 
 const publicClient = createPublicClient({ chain, transport: http() });
 
-export function stakeContext(contracts: HirelingContracts | null = hireling): Ctx {
-  const stack = deployment.stacks.main;
-  if (contracts === null || deployment.hireling === null || stack?.kind !== "hireling-v1") {
-    throw new Error("Delegated staking is unavailable on this network");
-  }
-  return {
-    publicClient,
-    deployment: {
-      ...deployment,
-      hireling: {
-        ...deployment.hireling,
-        ...contracts,
-        safe: contracts.safe ?? deployment.hireling.safe,
-      },
-    },
-    stack,
-  };
+export function stakeContext(contracts: HirelingContracts = hireling): Ctx {
+  return { publicClient, deployment: { ...deployment, hireling: { ...deployment.hireling, ...contracts } }, stack: deployment.stacks.main };
 }

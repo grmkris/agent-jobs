@@ -8,7 +8,7 @@ import { Check, ChevronRight, Loader2, Minus, TriangleAlert } from 'lucide-react
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { isAddress } from 'viem'
 import { useBalance, useReadContract, useReadContracts } from 'wagmi'
-import { type BoardInfo, type ChainJob, boardApi, data } from '../api.ts'
+import { type BoardInfo, chainJobs, data } from '../api.ts'
 import { Address, CopyButton, Field, Group, Input, ListRow, PageTitle, Section, Segmented, Select, cn, rowClass, shortAddress } from '../components/ui.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber } from '../format.ts'
@@ -391,13 +391,13 @@ function Checklist({ id, wallet, onChecked }: { id: string; wallet: string; onCh
   // …and the job's bond: the largest one any open hire asks for.
   const jobs = useQuery({
     queryKey: ['chain-jobs', 'public'],
-    queryFn: () => boardApi('public').jobs<{ jobs: ChainJob[] }>(),
+    queryFn: () => chainJobs('public'),
     refetchInterval: 60_000,
   })
   const largestBond = useMemo(
     () =>
       (jobs.data?.jobs ?? [])
-        .filter((j) => j.status === 'open' && j.mode !== 'contest')
+        .filter((j) => j.status === 'open')
         .reduce((m, j) => (BigInt(j.worker_bond ?? '0') > m ? BigInt(j.worker_bond ?? '0') : m), 0n),
     [jobs.data],
   )

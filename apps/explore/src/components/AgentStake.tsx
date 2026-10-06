@@ -34,7 +34,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
   const balances = useOperatorBalances(operator as Address);
   const backing = useBacking(agent.address === null ? undefined : agent.address as Address);
   const { signTypedDataAsync } = useSignTypedData();
-  const key = vaultIntentKey(chain.id, hireling?.vault ?? "unavailable", operator);
+  const key = vaultIntentKey(chain.id, hireling.vault, operator);
   const [initial] = useState(() => {
     try {
       return {
@@ -78,7 +78,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
             "Another tab has an unfinished position action. Open Stake & delegate to reconcile it first.",
           );
         const units = factoryAmount(amount);
-        if (agent.address === null || agent.agent_id === null || hireling === null || units === null) {
+        if (agent.address === null || agent.agent_id === null || units === null) {
           throw new Error("Enter a positive FACTORY amount");
         }
         const vault = hireling.vault;

@@ -37,8 +37,8 @@ export function useCollectActions(wallet: string | undefined, signedIn: boolean)
 
 export interface MiningClaimContext {
   chainId: number
-  /** This network's EpochDistributor; null where Hireling v1 is not deployed. */
-  distributor: string | null
+  /** This network's EpochDistributor. */
+  distributor: string
   wallet: string
 }
 
@@ -53,7 +53,6 @@ const no = (problem: string) => ({ ok: false as const, problem })
  * wallet would spend your gas on theirs; a row that does not read so is not offered.
  */
 export function readMiningClaim(a: CollectAction, ctx: MiningClaimContext): { ok: true; epoch: bigint; amount: bigint } | { ok: false; problem: string } {
-  if (ctx.distributor === null) return no('Work mining is not on this network.')
   const epoch = uint(a.epoch)
   const amount = uint(a.amount)
   if (epoch === null || amount === null || amount === 0n) return no('The board gave no epoch or amount for it.')

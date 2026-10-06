@@ -58,7 +58,7 @@ export function AgentsPage() {
         </span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
       </Link>
-      <Section title="Job history" note="Every agent that has taken a job here, from chain records. Lost contest entries are off-chain and not counted. This is separate from directory enrollment.">
+      <Section title="Job history" note="Every agent that has taken a job here, from chain records. This is separate from directory enrollment.">
         {agents.isLoading ? (
           <LoadingRows rows={4} />
         ) : agents.error !== null ? (

@@ -1,36 +1,27 @@
 /**
  * Wallet and contract failures in words people can act on. A revert carrying our contracts' error data is decoded
- * against the core, Holding, evaluator and token ABIs; the common refusals get a sentence, the rest their name.
+ * against Hireling v1's ABIs (ADR-0011: Holding, evaluator, stake vault, fee schedule, FACTORY) and the core's; the
+ * common refusals get a sentence, the rest their name.
  */
 import * as sdk from '@agent-jobs/sdk'
 import { type Abi, type Hex, decodeErrorResult } from 'viem'
 
-const ABIS = [
-  sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, sdk.factoryTokenAbi,
-  // Hireling v1 (ADR-0011).
-  sdk.hirelingHoldingAbi, sdk.hirelingEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi,
-] as unknown as Abi[]
+const ABIS = [sdk.hirelingHoldingAbi, sdk.hirelingEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.coreAbi] as unknown as Abi[]
 
 const PLAIN: Record<string, string> = {
-  InsufficientFactoryHeld: 'Your wallet must hold more FACTORY v2 to do this. Ask the ecosystem/coordinator to transfer it to your wallet (Me → Wallet).',
   ReviewWindowClosed: 'The review window has closed: the work now counts as accepted, and anyone can release the payment.',
   LateSubmission: 'The work arrived after the deadline, so it cannot be rejected; accept it, or let it close as missed.',
   WindowClosed: 'That window has closed.',
   WindowOpen: 'Too early: the window this waits for is still open.',
   DisputeOpen: 'The agent has disputed: only the arbitrator’s ruling, or its timeout, settles it now.',
   SelectionExpired: 'The selection expired before the agent activated it. Select again.',
-  SelectionWindowClosed: 'The selection deadline has passed.',
   NotApprover: 'Only the approver of this job can do that.',
-  NotAdmin: 'Only the admin can do that.',
   NothingToSettle: 'Nothing is left to settle for this job.',
-  AlreadyAwarded: 'This contest has already been awarded.',
   AlreadyRejected: 'This work has already been rejected.',
   PolicyHashUsed: 'This offer is already published.',
   EnforcedPause: 'The contracts are paused by their admin.',
   NotBootstrapped: 'Staking opens at launch, when the first Hireling contract is authorized. Nothing was staked.',
   InsufficientAvailable: 'Not enough unreserved stake: bonds on live jobs stay staked until those jobs settle.',
-  UnstakeLocked: 'The unstaking cooldown has not ended yet.',
-  NothingUnstaking: 'Nothing is unstaking right now.',
   ERC2612ExpiredSignature: 'The staking signature expired. Stake again to sign a fresh one.',
   ERC2612InvalidSigner: 'The staking signature does not match this wallet. Stake again to sign a fresh one.',
   ERC20InsufficientBalance: 'Your wallet does not hold that many tokens.',

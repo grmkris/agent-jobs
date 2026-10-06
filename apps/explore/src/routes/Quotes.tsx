@@ -25,7 +25,6 @@ type Request = QuoteRequest & { requiredChecks?: string[]; deliverable?: Deliver
 
 const symbolOf = (address: string) => TOKENS[address.toLowerCase()]?.symbol ?? shortAddress(address)
 const KIND_LABEL: Record<DeliverableKind, string> = { git: 'Git commit', patch: 'Patch', artifact: 'File', url: 'Live URL', onchain: 'On-chain' }
-const STACK_LABEL: Record<string, string> = { main: 'Standard', demo: 'Demo', fast: 'Fast' }
 
 const useRequests = () => {
   const boardId = currentBoardId()
@@ -291,7 +290,6 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                   <code className="font-mono text-ui">{r.requiredChecks?.join(', ')}</code>
                 </KV>
               )}
-              {r.stack !== 'main' && <KV label="Review speed">{STACK_LABEL[r.stack] ?? r.stack}</KV>}
               <KV label="Requester">
                 <Address value={r.creator} you={r.creator.toLowerCase() === me} />
               </KV>

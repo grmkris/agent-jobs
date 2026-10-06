@@ -9,11 +9,10 @@ import { startGuide } from './start-guide-plugin.ts'
 import { NotDeployedError, deployment } from '../../packages/sdk/src/deployment.ts'
 
 const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'
-/** Whether the network's config has its contracts: false on mainnet until launch day promotes them (as `wallet.ts` reads it). */
+/** Whether the network's config has Hireling v1: false on mainnet until launch day promotes it (as `wallet.ts` reads it). */
 const deployed = (() => {
   try {
-    deployment(network as 'monad-testnet' | 'monad-mainnet')
-    return true
+    return deployment(network as 'monad-testnet' | 'monad-mainnet').hireling !== null
   } catch (error) {
     if (error instanceof NotDeployedError) return false
     throw error

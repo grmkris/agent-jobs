@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { Address } from "viem";
 import { useIndexedBacking } from "../delegation-query.ts";
 import { percent } from "../stake.ts";
-import { hireling } from "../hireling.ts";
+import { deployed } from "../wallet.ts";
 import { DELEGATION_RISK, factoryValue } from "./DelegationPositions.tsx";
 import { Countdown, useNow } from "./Time.tsx";
 import { Address as AddressText, Group, ListRow, LoadingRows, ErrorText, Section } from "./ui.tsx";
@@ -10,7 +10,7 @@ import { Address as AddressText, Group, ListRow, LoadingRows, ErrorText, Section
 export function AgentBacking({ wallet, viewer }: { wallet: Address; viewer: Address | undefined }) {
   const read = useIndexedBacking(wallet, viewer);
   const now = useNow();
-  if (hireling === null) return null;
+  if (!deployed) return null;
   const snapshot = read.data;
   return (
     <Section

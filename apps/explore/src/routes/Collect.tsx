@@ -67,7 +67,7 @@ export function CollectPage() {
             const Icon = k?.icon ?? Coins
             const key = keyOf(a)
             // A mining claim is read back from its calldata (B8b): offered only as the distributor's claim for this wallet.
-            const mining = a.kind === 'miningClaim' ? readMiningClaim(a, { chainId: chain.id, distributor: hireling?.distributor ?? null, wallet }) : null
+            const mining = a.kind === 'miningClaim' ? readMiningClaim(a, { chainId: chain.id, distributor: hireling.distributor, wallet }) : null
             const refused = mining !== null && !mining.ok ? mining.problem : null
             return (
               // Siblings in the Group, so its hairlines fall between the rows.

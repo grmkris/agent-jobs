@@ -50,7 +50,7 @@ assert.equal(arbitrator.toLowerCase(), config.hireling.defaultArbitrator.toLower
 const jobs = await (await fetch(`${origin}/data/jobs`, { signal: AbortSignal.timeout(20_000) })).json();
 assert.equal(jobs.ok, true);
 const v1Job = jobs.jobs.find((j) => j.kind === 'hireling-v1' && j.published_block >= h.block);
-const legacyJob = jobs.jobs.find((j) => j.stack !== 'main' && j.published_block < h.block);
+const legacyJob = jobs.jobs.find((j) => j.kind !== 'hireling-v1');
 
 process.env.PRIVY_APP_ID = 'g1-readonly-wallet-bridge';
 process.env.AGENT_JOBS_NETWORK = 'monad-testnet';
@@ -146,9 +146,9 @@ try {
     results.push({ page: `/job/${jobId}`, width, passed: true, state: v1Job === undefined ? 'no G1 job indexed; truthful unavailable page' : 'live v1 job indexed' });
     if (legacyJob !== undefined) {
       await page.goto(`${base}/job/${legacyJob.job_id}`);
-      await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 60_000 });
+      await page.getByText(`Job #${legacyJob.job_id} is on an earlier contract`, { exact: true }).waitFor({ timeout: 60_000 });
       await capture('legacy-job');
-      results.push({ page: `/job/${legacyJob.job_id}`, width, passed: true, state: 'live legacy indexer record' });
+      results.push({ page: `/job/${legacyJob.job_id}`, width, passed: true, state: 'pre-v1 job refused' });
     }
     assert.deepEqual(await page.evaluate(() => window.__readonlyMethods.filter((method) => !['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_requestPermissions'].includes(method))), []);
     await context.close();

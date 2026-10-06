@@ -12,7 +12,7 @@ const token = '0x2222222222222222222222222222222222222222';
 const arbitrator = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.hireling.defaultArbitrator;
 const transactions = ['Approve reward token', 'Approve FACTORY bond', 'Publish job'].map((description, index) => ({ description, chainId: 10143, to: token, data: `0x0${index}`, value: '0' }));
 const now = Math.floor(Date.now() / 1000);
-const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job', creator, approver: creator, mode: 'hire', stack: 'main', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: '0xabcdef', manifestUrl: '/offers/fixture.json', terms: { brief: `Long URL https://example.test/${'long-segment'.repeat(60)}`, acceptanceCriteria: [`Long criterion ${'unbroken'.repeat(60)}`], evidencePolicy: { checks: [] }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } }, deliverable: { accepts: ['url'] }, screening: { verdict: 'ok', reasons: [] }, executionBudget: null, requiredChecks: [], brief: `https://example.test/${'segment'.repeat(100)}`, acceptanceCriteria: ['Readable on a phone'], status: 'completed' };
+const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job', creator, approver: creator, mode: 'hire', stack: 'main', kind: 'hireling-v1', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: '0xabcdef', manifestUrl: '/offers/fixture.json', terms: { brief: `Long URL https://example.test/${'long-segment'.repeat(60)}`, acceptanceCriteria: [`Long criterion ${'unbroken'.repeat(60)}`], evidencePolicy: { checks: [] }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } }, deliverable: { accepts: ['url'] }, screening: { verdict: 'ok', reasons: [] }, executionBudget: null, requiredChecks: [], brief: `https://example.test/${'segment'.repeat(100)}`, acceptanceCriteria: ['Readable on a phone'], status: 'completed' };
 // A Privy app id whatever the runner's shell holds, so sign-in buttons render the same everywhere; Privy itself is a
 // test double (privy.mjs, privy-react-auth.mjs) and nothing reaches Privy.
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
@@ -76,12 +76,12 @@ async function fixture(viewport, options = {}) {
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     if (url.pathname === '/data/jobs') return state.chainError
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
-      : reply({ ok: true, jobs: [{ job_id: '60', status: 'completed', mode: 'hire', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0' }], index: { next_block: 100, updated_at: now } });
+      : reply({ ok: true, jobs: [{ job_id: '60', status: 'completed', kind: 'hireling-v1', mode: 'hire', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0' }], index: { next_block: 100, updated_at: now } });
     if (url.pathname === '/data/boards') return reply({ ok: true, boards: [] });
     if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 1, completed: 1, agents: 1, activity: { demo: 1, unclassified: 0, independent: null }, accounting: { [token]: { gross: '5000000', fee: '0', net: '5000000', paid: '5000000' } } });
     if (url.pathname.startsWith('/data/jobs/')) return (state.chainError || state.detailError)
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
-      : reply({ ok: true, job: { job_id: '60', status: state.jobStatus, mode: 'hire', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', violation: null }, rewards: [{ amount: '5000000', to_worker: 1 }], evidence: [], timeline: [], ruling: null, board: null });
+      : reply({ ok: true, job: { job_id: '60', status: state.jobStatus, kind: 'hireling-v1', mode: 'hire', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', violation: null }, rewards: [{ amount: '5000000', to_worker: 1 }], evidence: [], timeline: [], ruling: null, board: null });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [] });
     return route.continue();
   });

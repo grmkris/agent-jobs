@@ -18,7 +18,7 @@ import { useNow } from '../components/Time.tsx'
 import { Address, Badge, Button, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
-import { hireling, isV1Stack } from '../hireling.ts'
+import { hireling } from '../hireling.ts'
 import { percent } from '../stake.ts'
 import { useToken } from '../useTokens.ts'
 import { writesOpen } from '../wallet.ts'
@@ -29,6 +29,7 @@ export type { JobEvent }
 interface Detail {
   job: {
     status: string
+    kind: 'legacy' | 'hireling-v1' | null
     mode: string | null
     stack: string | null
     worker: string | null
@@ -45,7 +46,7 @@ interface Detail {
     delivery_deadline: number | null
     selection_deadline: number | null
     published_tx: string | null
-    /** v1 jobs, from activation (quoteActivation's terms): the fee rate, the fee and what the agent is paid. */
+    /** From activation (quoteActivation's terms): the fee rate, the fee and what the agent is paid. */
     fee_bps?: number | null
     fee?: string | null
     net?: string | null
@@ -94,7 +95,6 @@ interface BoardTask {
 
 type Auth = ReturnType<typeof useSignedIn>
 
-const STACK: Record<string, string> = { main: 'Standard', demo: 'Demo', fast: 'Fast' }
 const VERDICT: Record<string, string> = { clean: 'Looks fine', caution: 'Flagged for a closer look', reject: 'Flagged as risky', unscreened: 'Not screened' }
 const VIOLATION: Record<string, string> = { None: 'no fault named', Quality: 'not good enough', Falsified: 'faked evidence' }
 /** A viewer who is no party to any job: the permissionless steps are exactly what it may send. */
@@ -112,7 +112,6 @@ function outcomeOf(d: Detail | undefined) {
     if (r.startsWith('0x6172626974726174696f6e')) return 'arbitration-timeout' as const // "arbitration…"
     return 'rejection-final' as const
   }
-  if (tl.some((e) => e.name === 'Awarded')) return 'awarded' as const
   if (tl.some((e) => e.name === 'Accepted')) return 'accepted' as const
   return null
 }
@@ -135,7 +134,6 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
     refetchInterval: 15_000,
   })
   const t = board.data
-  const mode: 'hire' | 'contest' = (t?.mode ?? d?.job.mode ?? listed?.mode) === 'contest' ? 'contest' : 'hire'
   const roles = auth.signedIn ? t?.you ?? [] : []
 
   let input: LifecycleInput | null = null
@@ -167,10 +165,19 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   useToken(token)
   const agentId = d?.job.agent_id ?? null
   const otherBoard = d?.board != null && d.board.boardId !== currentBoardId() && d.board.boardId !== 'public'
-  // A Hireling v1 job (ADR-0011): its fee quote and top-ups come from the v1 Holding.
-  const v1 = /^\d+$/.test(jobId) && isV1Stack(d?.job.stack ?? listed?.stack ?? t?.stack) ? hireling : null
 
   if (chain.isLoading && listed === undefined) return <JobSkeleton />
+  if (d !== undefined && d.job.kind !== 'hireling-v1') {
+    return (
+      <>
+        <Back />
+        <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
+          <p className="font-semibold">Job #{jobId} is on an earlier contract</p>
+          <p className="text-sm text-label-2">Hireling shows jobs on its v1 contracts only.</p>
+        </div>
+      </>
+    )
+  }
   if (chain.data === undefined && listed === undefined && !chain.isLoading) {
     return (
       <>
@@ -199,7 +206,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         <div className="flex flex-wrap items-center gap-2 text-sm text-label-2">
           {waitingForActivation ? <><Badge tone="success">Selected</Badge><span>On-chain: Open</span></> : <PhaseBadge phase={phase} />}
           {title !== `Job #${jobId}` && <span>Job #{jobId}</span>}
-          <span>· {mode === 'contest' ? 'Contest' : listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
+          <span>· {listed?.quoted === true ? 'Hire from quotes' : 'Hire'}</span>
           {otherBoard && <Badge tone="info">{d?.board?.boardId}</Badge>}
           {roles.map((r) => (
             <Badge key={r} tone="info">
@@ -209,7 +216,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         </div>
       </header>
 
-      {reward !== null && <Money phase={phase} reward={reward} token={token} mode={mode} agentId={agentId} charge={chargeOf(d)} />}
+      {reward !== null && <Money phase={phase} reward={reward} token={token} agentId={agentId} charge={chargeOf(d)} />}
 
       {waitingForActivation ? <div role="status" className="grid gap-1 rounded-xl bg-surface px-4 py-3.5"><p className="font-semibold">Selected — waiting for worker activation</p><p className="text-sm text-label-2">Your signed selection is saved. The worker must activate before its cutoff; the job remains Open on-chain until then.</p></div> : phase !== null && <NextStep phase={phase} />}
 
@@ -226,7 +233,6 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           job={{
             taskId,
             boardId,
-            mode,
             reward,
             token,
             creatorBond: d?.job.creator_bond ?? listed?.creatorBond ?? null,
@@ -245,11 +251,11 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
         />
       )}
 
-      {writesOpen && v1 !== null && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
-        <FeeQuote jobId={jobId} holding={v1.holding} viewer={auth.address as Account} token={token} />
+      {writesOpen && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
+        <FeeQuote jobId={jobId} holding={hireling.holding} viewer={auth.address as Account} token={token} />
       )}
-      {writesOpen && v1 !== null && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
-        <TopUp jobId={jobId} holding={v1.holding} token={token as Account} viewer={auth.address as Account} />
+      {writesOpen && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
+        <TopUp jobId={jobId} holding={hireling.holding} token={token as Account} viewer={auth.address as Account} />
       )}
 
       {d !== undefined && (d.timeline?.length ?? 0) > 0 && (
@@ -257,7 +263,7 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
           <Timeline
             events={d.timeline ?? []}
             phase={phase}
-            job={{ token, reward, workerBond: d.job.worker_bond, agentId, deliveryDeadline: d.job.delivery_deadline, creator: d.job.creator }}
+            job={{ token, reward, agentId, deliveryDeadline: d.job.delivery_deadline, creator: d.job.creator }}
           />
         </Section>
       )}
@@ -287,7 +293,6 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
                 </ul>
               </div>
             )}
-            {mode === 'contest' && <p className="text-ui text-warn">Only the winning entry is paid, and the contest may close early when it is awarded.</p>}
           </div>
         </Section>
       )}
@@ -322,16 +327,16 @@ function JobSkeleton() {
   )
 }
 
-/** A v1 job's fee, fixed at activation; null before it, and for legacy jobs, which have none. */
+/** The job's fee, fixed at activation; null before it. */
 type Charge = { bps: number; fee: string; net: string } | null
 const chargeOf = (d: Detail | undefined): Charge =>
   d?.job.fee_bps == null || d.job.fee == null || d.job.net == null ? null : { bps: d.job.fee_bps, fee: d.job.fee, net: d.job.net }
 
 /**
- * Where the reward is: locked in escrow, paid, or back with the creator. On a v1 job the agent is paid the reward less
- * Hireling's fee (D11), so once the fee is fixed the paid amount is that net, never the reward.
+ * Where the reward is: locked in escrow, paid, or back with the creator. The agent is paid the reward less Hireling's
+ * fee (D11), so once the fee is fixed the paid amount is that net, never the reward.
  */
-function Money({ phase, reward, token, mode, agentId, charge }: { phase: Phase | null; reward: string; token: string | null; mode: 'hire' | 'contest'; agentId: string | null; charge: Charge }) {
+function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null; reward: string; token: string | null; agentId: string | null; charge: Charge }) {
   const terminal = phase?.terminal === true
   const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
   const paid = phase?.key === 'completed'
@@ -345,11 +350,9 @@ function Money({ phase, reward, token, mode, agentId, charge }: { phase: Phase |
         ? 'Back with the creator'
         : phase === null
           ? 'Chain payment status unavailable'
-          : mode === 'contest'
-            ? 'Locked in escrow · paid to the winning entry'
-            : charge === null
-              ? `Locked in escrow · paid to ${agent} when the work is accepted`
-              : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Hireling’s ${percent(charge.bps)} fee`
+          : charge === null
+            ? `Locked in escrow · paid to ${agent} when the work is accepted`
+            : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Hireling’s ${percent(charge.bps)} fee`
   return (
     <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
       <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2')}>
@@ -455,7 +458,6 @@ function People({ d, listed, agentId, viewer }: { d: Detail | undefined; listed:
 }
 
 function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEntry | undefined; t: BoardTask | undefined }) {
-  const stack = d?.job.stack ?? listed?.stack ?? t?.stack ?? null
   const screening = listed?.screening ?? t?.screening
   const termsHash = listed?.termsHash ?? t?.termsHash
   const windows = t?.terms.windows
@@ -466,7 +468,6 @@ function Details({ d, listed, t }: { d: Detail | undefined; listed: TaskIndexEnt
         <ChevronRight aria-hidden className="size-4 text-label-3 transition-transform group-open:rotate-90" />
       </summary>
       <div className="border-t-[0.5px] border-sep px-4 py-2">
-        {stack !== null && <Row label="Review speed">{STACK[stack.replace(/-v1$/, '')] ?? stack}</Row>}
         {windows !== undefined && (
           <Row label="Windows">
             review {span(windows.reviewSeconds)} · dispute {span(windows.disputeSeconds)} · arbitration {span(windows.arbitrationSeconds)}

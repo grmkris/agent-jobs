@@ -31,7 +31,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -62,11 +62,11 @@ async function fixture(viewport, account = creator) {
     // offer has no job, as on the chain.
     publishing: null, receipts: 0,
   };
-  const offer = (jobId) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status: state.jobs[jobId].status });
+  const offer = (jobId) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status: state.jobs[jobId].status });
   const chainJob = (id) => {
     const j = state.jobs[id];
     const started = j.status !== 'open';
-    return { job_id: id, status: j.status, mode: 'hire', stack: 'main', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: started ? agentWallet : null, agent_id: started ? '7001' : null, delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: j.violation ?? null, rejection_reason_hash: j.violation === undefined ? null : `0x${'ee'.repeat(32)}` };
+    return { job_id: id, status: j.status, mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: started ? agentWallet : null, agent_id: started ? '7001' : null, delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: j.violation ?? null, rejection_reason_hash: j.violation === undefined ? null : `0x${'ee'.repeat(32)}` };
   };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -109,7 +109,7 @@ async function fixture(viewport, account = creator) {
       case 'request_quotes': {
         state.requested.push(body());
         const a = body();
-        state.request = { requestId: 'rq-1', requestHash: `0x${'1'.repeat(64)}`, status: 'open', creator, title: a.title, brief: a.brief, acceptanceCriteria: a.acceptanceCriteria, tokens: a.tokens, creatorBond: a.creatorBond, workerBond: a.workerBond, deliveryDeadline: a.deliveryDeadline, quoteDeadline: a.quoteDeadline, stack: a.stack };
+        state.request = { requestId: 'rq-1', requestHash: `0x${'1'.repeat(64)}`, status: 'open', creator, title: a.title, brief: a.brief, acceptanceCriteria: a.acceptanceCriteria, tokens: a.tokens, creatorBond: a.creatorBond, workerBond: a.workerBond, deliveryDeadline: a.deliveryDeadline, quoteDeadline: a.quoteDeadline, stack: 'main' };
         return reply({ ok: true, result: { requestId: 'rq-1' } });
       }
       case 'list_quote_requests': return reply({ ok: true, result: state.request === null ? [] : [state.request] });
@@ -200,7 +200,7 @@ try {
       await page.getByRole('button', { name: 'Ask for quotes', exact: true }).click();
       await page.waitForURL('**/quotes/rq-1');
       assert.equal(state.requested.length, 1);
-      assert.equal(state.requested[0].stack, 'main');
+      assert.equal('stack' in state.requested[0], false, 'the board publishes quotes on its v1 pair');
       assert.equal(state.created.length, 0);
       assert.equal((await sends(page)).length, 0);
       await page.getByText('Lowest', { exact: true }).filter({ visible: true }).first().waitFor();

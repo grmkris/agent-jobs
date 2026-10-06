@@ -6,7 +6,6 @@ import { InstallHint } from '../components/InstallHint.tsx'
 import { PrivyLogin } from '../components/Privy.tsx'
 import { Badge, Button, Group, PageTitle, Section, rowClass } from '../components/ui.tsx'
 import { useAuth, useSignOut } from '../components/Wallet.tsx'
-import { hireling } from '../hireling.ts'
 import { useSponsorStatus } from '../sponsor.ts'
 import { useTelegramStatus } from '../telegram.ts'
 import { useSafeOwner } from './Admin.tsx'
@@ -59,16 +58,14 @@ export function MePage() {
             </span>
             <ChevronRight aria-hidden className="size-4 text-label-3" />
           </Link>
-          {hireling !== null && (
-            <Link to="/sponsorship" className={rowClass({ interactive: true })}>
-              <span className="flex-1">
-                Gas sponsorship
-                <span className="block text-xs text-label-3">Hireling pays the gas for your Hireling transactions</span>
-              </span>
-              {sponsor.data?.status === 'live' && <Badge tone="success">On</Badge>}
-              <ChevronRight aria-hidden className="size-4 text-label-3" />
-            </Link>
-          )}
+          <Link to="/sponsorship" className={rowClass({ interactive: true })}>
+            <span className="flex-1">
+              Gas sponsorship
+              <span className="block text-xs text-label-3">Hireling pays the gas for your Hireling transactions</span>
+            </span>
+            {sponsor.data?.status === 'live' && <Badge tone="success">On</Badge>}
+            <ChevronRight aria-hidden className="size-4 text-label-3" />
+          </Link>
           <Link to="/telegram" className={rowClass({ interactive: true })}>
             <span className="flex-1">
               Telegram

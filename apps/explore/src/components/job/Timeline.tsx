@@ -30,6 +30,10 @@ interface Step {
 }
 
 const VIOLATION = ['for no named fault', 'as not good enough', 'for faked evidence']
+/** Holding's `Side`: whose bond. */
+const SIDE = ["The creator's", "The agent's"]
+/** Holding's `Outcome` of a settled reward. */
+const PAID = 1
 const TIMEOUT: Record<string, [string, Mark]> = {
   'review-window': ['Accepted: the review window closed without a decision', 'done'],
   'delivery-deadline': ['Closed: nothing was delivered in time', 'fail'],
@@ -48,13 +52,12 @@ const reason = (v: unknown) => {
 export interface TimelineJob {
   token: string | null
   reward: string | null
-  workerBond: string | null
   agentId: string | null
   deliveryDeadline: number | null
   creator: string | null
 }
 
-function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
+export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
   const agent = job.agentId !== null ? `Agent #${job.agentId}` : 'The agent'
   const steps: Step[] = []
   for (const e of events) {
@@ -66,10 +69,10 @@ function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'done', title: `Posted · ${amount(String(a.reward ?? job.reward ?? '0'), job.token)} locked in escrow`, at, tx })
         break
       case 'Activated':
-        steps.push({ mark: 'done', title: `Agent #${String(a.agentId)} started`, sub: job.workerBond !== null && job.workerBond !== '0' ? `Posted its ${bond(job.workerBond)} bond` : undefined, at, tx })
+        steps.push({ mark: 'done', title: `Agent #${String(a.agentId)} started`, sub: String(a.workerBond ?? '0') !== '0' ? `Reserved its ${bond(String(a.workerBond))} bond from stake` : undefined, at, tx })
         break
-      case 'Awarded':
-        steps.push({ mark: 'done', title: `Agent #${String(a.agentId)}'s entry won`, at, tx })
+      case 'ToppedUp':
+        steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} added to the reward`, at, tx })
         break
       case 'JobSubmitted': {
         const late = job.deliveryDeadline !== null && at !== null && at > job.deliveryDeadline
@@ -95,8 +98,7 @@ function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         })
         break
       case 'Accepted':
-        // An award completes through the same call; its own step says so.
-        if (!steps.some((s) => s.title.endsWith('entry won'))) steps.push({ mark: 'done', title: 'Approved', at, tx })
+        steps.push({ mark: 'done', title: 'Approved', at, tx })
         break
       case 'TimedOut': {
         const [title, mark] = TIMEOUT[reason(a.reason)] ?? [`Timed out (${reason(a.reason)})`, 'warn']
@@ -107,16 +109,30 @@ function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} paid to ${agent}`, at, tx })
         break
       case 'RewardSettled':
-        steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} returned to the creator`, at, tx })
+        // A completed job's agent was paid by the core already (PaymentReleased); a paid settlement adds the top-ups.
+        if (String(a.amount) === '0') break
+        steps.push({ mark: 'done', title: Number(a.outcome) === PAID ? `${amount(String(a.amount), job.token)} paid to ${agent}` : `${amount(String(a.amount), job.token)} returned to the creator`, at, tx })
         break
-      case 'BondBurned':
-        steps.push({ mark: 'fail', title: `${Number(a.side) === 0 ? "The creator's" : "The agent's"} ${bond(String(a.amount))} bond burned`, at, tx })
+      case 'FeeCharged':
+        steps.push({ mark: 'done', title: `Hireling's fee: ${amount(String(a.amount), job.token)}`, at, tx })
+        break
+      case 'TopUpRefunded':
+        steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} top-up refunded to its contributor`, at, tx })
+        break
+      case 'BondReleased':
+        steps.push({ mark: 'done', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} bond released`, at, tx })
+        break
+      case 'BondSlashed':
+        steps.push({ mark: 'fail', title: `${SIDE[Number(a.side)] ?? 'A'} ${bond(String(a.amount))} bond slashed`, at, tx })
+        break
+      case 'PayoutDeferred':
+        steps.push({ mark: 'warn', title: 'Payout held: the transfer could not go through', sub: a.refundedToHolding === true ? 'The reward is back in escrow; anyone can retry the payout.' : 'Anyone can retry the payout.', at, tx })
+        break
+      case 'PayoutOwed':
+        steps.push({ mark: 'warn', title: `${amount(String(a.amount), job.token)} owed: the transfer failed`, sub: 'The recipient withdraws it from the contract.', at, tx })
         break
       case 'Cancelled':
         steps.push({ mark: 'fail', title: 'Cancelled before anyone started', at, tx })
-        break
-      case 'ContestExpired':
-        steps.push({ mark: 'fail', title: 'Closed without a winner', at, tx })
         break
       case 'JobExpired':
         steps.push({ mark: 'fail', title: 'Expired and refunded', at, tx })
@@ -141,8 +157,6 @@ function nextSteps(phase: Phase | null): Step[] {
       return [now('Publish: the reward is locked in escrow'), { mark: 'next', title: 'An agent starts' }, { mark: 'next', title: 'Delivered and reviewed' }, { mark: 'next', title: 'Paid' }]
     case 'hire-open':
       return [now('Taking applications'), { mark: 'next', title: 'An agent starts' }, { mark: 'next', title: 'Delivered and reviewed' }, { mark: 'next', title: 'Paid' }]
-    case 'contest-open':
-      return [now('Taking entries'), { mark: 'next', title: 'The best entry is paid' }]
     case 'active':
       return [now('Working on it'), { mark: 'next', title: 'Delivered and reviewed' }, { mark: 'next', title: 'Paid' }]
     case 'in-review':

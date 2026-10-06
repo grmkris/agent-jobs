@@ -1,51 +1,44 @@
 import * as sdk from '@agent-jobs/sdk'
 import { Link } from '@tanstack/react-router'
-import { zeroAddress } from 'viem'
+import { erc20Abi, zeroAddress } from 'viem'
 import { useBalance, useReadContract } from 'wagmi'
 import { amount, formatNumber, tokenInfo } from '../../format.ts'
+import { hireling } from '../../hireling.ts'
 import { useToken } from '../../useTokens.ts'
-import { chain, deployment, isMainnet } from '../../wallet.ts'
+import { chain, isMainnet } from '../../wallet.ts'
 import { Group, ListRow, Section } from '../ui.tsx'
 import { Mark } from './parts.tsx'
 
 type Hex = `0x${string}`
 
 /**
- * "Ready to publish", read live from the wallet: MON for gas, the reward (a hire or contest escrows it at publish),
- * and FACTORY for the creator bond, which Holding also requires the creator to hold (`minHoldToPublish`) before it
- * takes the bond. A quote request locks nothing yet, so its bond is what picking a quote will need. Advisory: a
- * shortfall is shown, not enforced, since the transaction says the same if it happens. On Hireling v1 (`vault`) a bond is
- * a reservation of stake, so the check is the stake still free in the vault, with the way to stake more.
+ * "Ready to publish", read live from the wallet: MON for gas, the reward (a hire escrows it at publish), and the
+ * creator bond, a reservation of stake: the check is the stake still free in the vault, with the way to stake more.
+ * A quote request locks nothing yet, so its bond is what picking a quote will need. Advisory: a shortfall is shown,
+ * not enforced, since the transaction says the same if it happens.
  */
 export function Preflight({
   address,
-  stack,
   token,
   reward,
   bond,
   later = false,
-  vault,
 }: {
   address: Hex | undefined
-  stack: string
   token?: string | undefined
   reward?: bigint | null | undefined
   bond: bigint | null
   later?: boolean
-  vault?: Hex | undefined
 }) {
   const on = address !== undefined
   const metadata = useToken(token)
   const who = address ?? zeroAddress
-  const holding = deployment.stacks[stack as sdk.StackName]?.holding
   const q = { refetchInterval: 15_000 }
   const mon = useBalance({ address: who, chainId: chain.id, query: { ...q, enabled: on } })
-  const factory = useReadContract({ address: deployment.factory, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [who], chainId: chain.id, query: { ...q, enabled: on } })
-  const hold = useReadContract({ address: holding ?? zeroAddress, abi: sdk.jobHoldingAbi, functionName: 'minHoldToPublish', chainId: chain.id, query: { enabled: holding !== undefined && vault === undefined, staleTime: 300_000 } })
-  const free = useReadContract({ address: vault ?? zeroAddress, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [who], chainId: chain.id, query: { ...q, enabled: on && vault !== undefined } })
+  const free = useReadContract({ address: hireling.vault, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [who], chainId: chain.id, query: { ...q, enabled: on } })
   const held = useReadContract({
     address: (token ?? zeroAddress) as Hex,
-    abi: sdk.factoryTokenAbi,
+    abi: erc20Abi,
     functionName: 'balanceOf',
     args: [who],
     chainId: chain.id,
@@ -69,10 +62,6 @@ export function Preflight({
   }
 
   const monValue = mon.data?.value
-  const minHold = (hold.data as bigint | undefined) ?? 0n
-  const factoryHeld = factory.data as bigint | undefined
-  const bondNeed = bond ?? 0n
-  const factoryNeed = bondNeed > minHold ? bondNeed : minHold
   const tokenHeld = held.data as bigint | undefined
   const sym = tokenInfo(token).symbol
   const prefix = later ? 'When you pick a quote · ' : ''
@@ -100,28 +89,13 @@ export function Preflight({
             <span className="tabular text-right text-label-2">{tokenHeld === undefined || typeof metadata === 'string' ? 'Token amount unavailable' : `You hold ${formatNumber(tokenHeld, metadata.decimals)} ${metadata.symbol}`}</span>
           </ListRow>
         )}
-        {vault !== undefined ? (
-          <StakeRow prefix={prefix} need={bondNeed} free={free.data as bigint | undefined} unavailable={free.isError} />
-        ) : (
-        <ListRow inset>
-          <Mark tone={factoryHeld === undefined || hold.isLoading ? 'wait' : factoryHeld >= factoryNeed ? 'ok' : 'warn'} />
-          <span className="min-w-0 flex-1">
-            <span className="block">
-              {prefix}
-              {bondNeed > 0n ? `Your bond · ${formatNumber(bondNeed, 18)} FACTORY` : 'FACTORY to publish'}
-            </span>
-            {minHold > 0n && <span className="block text-ui text-label-3">Publishing also needs {formatNumber(minHold, 18)} FACTORY held in your wallet.</span>}
-            {factoryHeld !== undefined && factoryHeld < factoryNeed && <span className="block text-ui text-warn">You need {formatNumber(factoryNeed - factoryHeld, 18)} FACTORY more.</span>}
-          </span>
-          <span className="tabular text-right text-label-2">{factoryHeld === undefined ? '…' : `You hold ${formatNumber(factoryHeld, 18)}`}</span>
-        </ListRow>
-        )}
+        <StakeRow prefix={prefix} need={bond ?? 0n} free={free.data} unavailable={free.isError} />
       </Group>
     </Section>
   )
 }
 
-/** v1: the bond is reserved from stake, so what counts is the stake still free (not reserved, not unstaking). */
+/** The bond is reserved from stake, so what counts is the stake still free (not reserved, not unstaking). */
 function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: bigint; free: bigint | undefined; unavailable: boolean }) {
   return (
     <ListRow inset>

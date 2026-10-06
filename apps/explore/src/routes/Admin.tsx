@@ -19,7 +19,7 @@ import { type PriceDraft, priceListFile, priceListOf, priceTypedData } from '../
 import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execSigned, execTransaction, safeAbi, safeTxTypedData, walletSignature } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
 import { friendlyError } from '../txErrors.ts'
-import { chain, deployment, wagmiConfig } from '../wallet.ts'
+import { chain, deployed, deployment, wagmiConfig } from '../wallet.ts'
 import { duration } from '../duration.ts'
 
 const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
@@ -27,17 +27,16 @@ const same = (a: string | undefined, b: string | undefined) => a !== undefined &
 const result = <T,>(data: ReadonlyArray<{ status: string; result?: unknown }> | undefined, i: number): T | undefined => (data?.[i]?.status === 'success' ? (data[i]?.result as T) : undefined)
 
 /**
- * Whether `address` owns the Safe that owns Hireling v1: null while unknown (not deployed, not configured, loading or
- * unreadable), so a caller shows nothing rather than guessing.
+ * Whether `address` owns the Safe that owns Hireling v1: null while unknown (not deployed, loading or unreadable), so
+ * a caller shows nothing rather than guessing.
  */
 export function useSafeOwner(address: string | undefined): boolean | null {
-  const safe = hireling?.safe ?? null
   const owners = useReadContracts({
-    contracts: [{ address: safe ?? zeroAddress, abi: safeAbi, functionName: 'getOwners', chainId: chain.id }],
-    query: { enabled: safe !== null && address !== undefined, staleTime: 60_000 },
+    contracts: [{ address: hireling.safe, abi: safeAbi, functionName: 'getOwners', chainId: chain.id }],
+    query: { enabled: deployed && address !== undefined, staleTime: 60_000 },
   })
   const list = result<readonly Address[]>(owners.data, 0)
-  if (safe === null || address === undefined || list === undefined) return null
+  if (address === undefined || list === undefined) return null
   return list.some((o) => same(o, address))
 }
 
@@ -121,23 +120,6 @@ type Fund = (epoch: bigint, amount: bigint, expectTotalFunded: bigint) => Promis
  */
 export function AdminPage() {
   const auth = useAuth()
-  const c = hireling
-  if (c === null) {
-    return (
-      <>
-        <PageTitle>Admin</PageTitle>
-        <EmptyState title={`Hireling v1 is not on ${chain.name} yet`}>The admin console opens once its contracts are deployed on this network.</EmptyState>
-      </>
-    )
-  }
-  if (c.safe === null) {
-    return (
-      <>
-        <PageTitle>Admin</PageTitle>
-        <EmptyState title="The Safe is not recorded for this network">The deployment config does not name the Safe that owns Hireling v1, so nobody can act as it here.</EmptyState>
-      </>
-    )
-  }
   if (auth.address === undefined) {
     return (
       <>
@@ -151,7 +133,7 @@ export function AdminPage() {
       </>
     )
   }
-  return <Gate c={c} safe={c.safe} me={auth.address as Address} />
+  return <Gate c={hireling} safe={hireling.safe} me={auth.address as Address} />
 }
 
 function Gate({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Address }) {

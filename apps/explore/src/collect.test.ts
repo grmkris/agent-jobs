@@ -15,17 +15,17 @@ const row = (patch: Partial<CollectAction> = {}, data: `0x${string}` = claim(0n,
   description: 'Claim work mining into your FACTORY stake.', transactions: [{ description: 'Claim', chainId: 10143, to, data, value: '0', gas: '500000' }], ...patch,
 })
 
+const problem = (r: CollectAction, c = ctx) => {
+  const read = readMiningClaim(r, c)
+  return read.ok ? null : read.problem
+}
+
 describe('a mining claim row', () => {
   it('reads back as the distributor’s claim for this wallet, epoch and amount', () => {
     expect(readMiningClaim(row(), ctx)).toEqual({ ok: true, epoch: 0n, amount: 1234n * W })
   })
 
   it('is refused when its calldata says something else than the row', () => {
-    const problem = (r: CollectAction, c = ctx) => {
-      const read = readMiningClaim(r, c)
-      return read.ok ? null : read.problem
-    }
-    expect(problem(row(), { ...ctx, distributor: null })).toMatch(/not on this network/)
     expect(problem(row({ epoch: null }))).toMatch(/no epoch or amount/)
     expect(problem(row({ amount: '0' }))).toMatch(/no epoch or amount/)
     expect(problem(row({ transactions: [] }))).toMatch(/not one claim/)

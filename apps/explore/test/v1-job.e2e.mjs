@@ -25,7 +25,7 @@ const jobs = { 80: 'open', 81: 'submitted', 82: 'submitted', 83: 'rejected-pendi
 // From activation on, the indexer has the job's fee (quoteActivation's terms at 10 %): 0.5 of the 5 mUSD.
 const feeOf = (id) => (jobs[id] === 'open' ? { fee_bps: null, fee: null, net: null } : { fee_bps: 1000, fee: '500000', net: '4500000' });
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
-const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
 // A live sponsorship delegation from the creator to the relay (D15: Holding.cancel and Evaluator.accept are in it).
 const uint = (x) => encodeAbiParameters([{ type: 'uint256' }], [x]);
 const enforcers = config.delegation.enforcers;
@@ -54,7 +54,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -78,7 +78,7 @@ async function fixture(viewport, account, sponsored = false, clocks = {}) {
     const body = () => route.request().postDataJSON();
     if (url.pathname === '/__test/token') return reply({ symbol: 'mUSD', decimals: 6 });
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    const chainJob = (id) => ({ job_id: id, status: jobs[id], mode: 'hire', stack: 'main', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: jobs[id] === 'open' ? null : agentWallet, agent_id: jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: jobs[id] === 'rejected-pending' ? 'Quality' : null, rejection_reason_hash: null, ...feeOf(id) });
+    const chainJob = (id) => ({ job_id: id, status: jobs[id], mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: jobs[id] === 'open' ? null : agentWallet, agent_id: jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: jobs[id] === 'rejected-pending' ? 'Quality' : null, rejection_reason_hash: null, ...feeOf(id) });
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });

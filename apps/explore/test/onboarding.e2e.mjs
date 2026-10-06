@@ -50,7 +50,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}onboarding-privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts \| null =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts | null = (window as { __hireling?: HirelingContracts | null }).__hireling ?? null$1');
+  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -63,7 +63,7 @@ async function fixture(viewport, options = {}) {
     window.__wallet = { address: account, connected: true, signatures: [], messages: [], sends: [], upgrades: 0 };
     localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
     localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: me, hireling: options.v1 === false ? null : contracts });
+  }, { account: me, hireling: contracts });
   const state = {
     telegram: { linked: false, username: null, linkedAt: null },
     telegramDown: options.telegramDown ?? false,
@@ -274,14 +274,7 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Turn on' }).count(), 0);
     await capture(page, 'sponsor-unavailable');
     await context.close();
-    const legacy = await fixture({ width: 390, height: 844 }, { v1: false });
-    await legacy.page.goto(`${base}/sponsorship`);
-    await legacy.page.getByText(/^Not on .* yet$/).waitFor();
-    await legacy.page.goto(`${base}/me`);
-    await legacy.page.getByRole('link', { name: /Telegram/ }).waitFor();
-    assert.equal(await legacy.page.getByRole('link', { name: /Gas sponsorship/ }).count(), 0);
-    await legacy.context.close();
-    results.push({ checks: ['telegram unavailable is not unlinked', 'sponsorship unavailable is not off', 'no v1: sponsorship says not yet, Me hides it'], passed: true });
+    results.push({ checks: ['telegram unavailable is not unlinked', 'sponsorship unavailable is not off'], passed: true });
   }
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no live board, bot, signing or sends', results, errors }, null, 2));

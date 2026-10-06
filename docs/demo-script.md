@@ -79,10 +79,7 @@ MODE=publish APPLICANT=$CAMPAIGN_CLAUDE_ADDRESS bun packages/sdk/scripts/dispatc
 packages/sdk/scripts/harness/worker-prompt.sh /tmp/p.txt $CAMPAIGN_CLAUDE_AGENT_ID aj-bounty-roman "quote on request <id> …"
 packages/sdk/scripts/harness/run-agent.sh claude demo-claude CAMPAIGN_CLAUDE_PRIVATE_KEY /tmp/p.txt
 MODE=decide TASK_ID=<task> DECISION=accept bun packages/sdk/scripts/dispatch-demo.ts
-# 2 Contest from the browser (headless for the rehearsal; for the video, click the same steps by hand)
-SCENARIOS=contest AWARD_WORKER=$CAMPAIGN_CODEX_ADDRESS bun apps/explore/e2e/click-through.ts
-TASK_ID=<contest task> ENTRY_REPO=… ENTRY_BRANCH=… ENTRY_SHA=… bun packages/sdk/scripts/board-mm-contest.ts
-# 3 Dispute: a hire, a bad-faith rejection, the worker disputes, a Claude Code arbitrator rules
+# 2 Dispute: a hire, a bad-faith rejection, the worker disputes, a Claude Code arbitrator rules
 STACK=demo REVIEW=manual APPLICANT=$CAMPAIGN_GROK_ADDRESS bun packages/sdk/scripts/board-hire.ts
 TASK_ID=<task> DECISION=reject VIOLATION=Quality REASON=… bun packages/sdk/scripts/board-review.ts
 packages/sdk/scripts/harness/arbitrator-prompt.sh /tmp/a.txt claude-code:demo <task>

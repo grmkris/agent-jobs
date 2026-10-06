@@ -91,7 +91,7 @@ function OperationApproval({
     if (approved && approval.kind === "unstake") {
       if (
         request.call === undefined ||
-        request.call.to.toLowerCase() !== deployment.hireling?.vault.toLowerCase()
+        request.call.to.toLowerCase() !== deployment.hireling.vault.toLowerCase()
       )
         throw new Error("The leaving target is not the vault");
       const decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data: request.call.data });

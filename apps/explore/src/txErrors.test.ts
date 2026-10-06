@@ -11,13 +11,13 @@ describe('friendly transaction errors', () => {
     expect(friendlyError(new Error('insufficient funds for gas * price + value'))).toMatch(/MON for gas/)
   })
   it("decodes our contracts' errors from a viem cause chain", () => {
-    const data = encodeErrorResult({ abi: sdk.jobHoldingAbi, errorName: 'InsufficientFactoryHeld', args: [0n, 10n ** 18n] })
+    const data = encodeErrorResult({ abi: sdk.hirelingHoldingAbi, errorName: 'SelectionExpired' })
     const e = Object.assign(new Error('Execution reverted'), { cause: { cause: { data } } })
-    expect(contractErrorName(e)).toBe('InsufficientFactoryHeld')
-    expect(friendlyError(e)).toMatch(/hold more FACTORY/)
+    expect(contractErrorName(e)).toBe('SelectionExpired')
+    expect(friendlyError(e)).toMatch(/selection expired/)
   })
   it('names an error it has no sentence for', () => {
-    const data = encodeErrorResult({ abi: sdk.jobsEvaluatorAbi, errorName: 'NotProvider' })
+    const data = encodeErrorResult({ abi: sdk.hirelingEvaluatorAbi, errorName: 'NotProvider' })
     expect(friendlyError(Object.assign(new Error('x'), { data }))).toBe('The contract refused it (NotProvider).')
   })
   it('decodes the v1 stake vault: closed before launch, reserved stake', () => {

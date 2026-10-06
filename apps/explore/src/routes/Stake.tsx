@@ -24,7 +24,6 @@ import {
 import { withWalletStepLock } from "../components/txOperation.ts";
 import {
   Button,
-  EmptyState,
   ErrorText,
   LoadingRows,
   PageTitle,
@@ -57,16 +56,6 @@ export function StakePage() {
   const search = useSearch({ strict: false }) as { account?: string };
   const initialAccount =
     search.account !== undefined && isAddress(search.account) ? search.account : undefined;
-  if (hireling === null) {
-    return (
-      <>
-        <PageTitle>Stake &amp; delegate</PageTitle>
-        <EmptyState title={`Backing is not on ${chain.name} yet`}>
-          It opens when the delegated stake vault is deployed on this network.
-        </EmptyState>
-      </>
-    );
-  }
   if (auth.address === undefined) {
     return (
       <>

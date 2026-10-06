@@ -1,9 +1,9 @@
 import type { Phase } from '@agent-jobs/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon, Trophy } from 'lucide-react'
+import { BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, tool } from '../api.ts'
+import { type ChainJob, type TaskIndexEntry, chainJobs, currentBoardId, taskIndex } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
 import { JobsHeader } from '../components/JobsHeader.tsx'
@@ -24,13 +24,13 @@ export interface JobListItem {
 const dataOf = (results: { data?: TaskIndexEntry[] | undefined; error: Error | null; refetch: () => Promise<unknown> }[]) => results.map((result) => ({ data: result.data, error: result.error, refetch: result.refetch }))
 
 export function useJobs() {
-  const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => tool<TaskIndexEntry[]>('task_index'), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
+  const tasks = useQuery({ queryKey: ['task_index', currentBoardId()], queryFn: () => taskIndex(), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
   const boardId = currentBoardId()
-  const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>(), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
+  const chain = useQuery({ queryKey: ['chain-jobs', boardId], queryFn: () => chainJobs(boardId), refetchInterval: 10_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true })
   // The public list also shows jobs published on other boards; their titles and board state come from those boards.
   const others = useMemo(() => [...new Set((chain.data?.jobs ?? []).flatMap((c) => (c.board_id != null && c.board_id !== boardId ? [c.board_id] : [])))].toSorted(), [chain.data, boardId])
   const otherData = useQueries({
-    queries: others.map((id) => ({ queryKey: ['task_index', id], queryFn: () => boardApi(id).tool<TaskIndexEntry[]>('task_index'), refetchInterval: 60_000 })),
+    queries: others.map((id) => ({ queryKey: ['task_index', id], queryFn: () => taskIndex(id), refetchInterval: 60_000 })),
     combine: dataOf,
   })
   const items = useMemo(() => {
@@ -70,7 +70,7 @@ type View = 'all' | 'open' | 'progress' | 'done' | 'mine'
 function viewOf(phase: Phase | null): Exclude<View, 'all' | 'mine'> | null {
   if (phase === null) return null
   if (phase.terminal) return 'done'
-  if (['draft', 'draft-stale', 'hire-open', 'contest-open'].includes(phase.key)) return 'open'
+  if (['draft', 'draft-stale', 'hire-open'].includes(phase.key)) return 'open'
   return 'progress'
 }
 
@@ -83,8 +83,6 @@ function rowNote(phase: Phase | null, now: number, agentId: string | null | unde
       return d !== null ? `Due ${relative(d, now)}` : 'Under way'
     case 'hire-open':
       return d !== null ? `Taking applications · due ${relative(d, now)}` : 'Taking applications'
-    case 'contest-open':
-      return d !== null ? `Entries close ${relative(d, now)}` : 'Taking entries'
     case 'in-review':
       return d !== null ? `Pays itself ${relative(d, now)} if no answer` : 'Waiting for the approver'
     case 'rejected-pending':
@@ -94,7 +92,6 @@ function rowNote(phase: Phase | null, now: number, agentId: string | null | unde
     case 'overdue':
     case 'rejection-final':
     case 'arbitration-lapsed':
-    case 'contest-unawarded':
       return 'Anyone can close it'
     case 'accepted-by-silence':
       return 'Anyone can release the payment'
@@ -229,7 +226,6 @@ export function JobsPage() {
 
 export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase | null; note: string }) {
   const routes = boardRoutes()
-  const mode = item.chain?.mode ?? item.task?.mode
   const agentId = item.chain?.agent_id
   const reward = item.chain?.reward ?? item.task?.reward
   const token = item.chain?.token ?? item.task?.token
@@ -242,7 +238,7 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
       : other !== null
         ? { to: '/b/$boardId/job/$jobId', params: { boardId: other, jobId: item.jobId } }
         : routes.job(item.jobId)
-  const Icon = mode === 'contest' ? Trophy : item.task?.quoted === true ? TagIcon : BriefcaseBusiness
+  const Icon = item.task?.quoted === true ? TagIcon : BriefcaseBusiness
   return (
     <Link
       to={target.to as '/'}

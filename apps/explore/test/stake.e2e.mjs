@@ -137,10 +137,9 @@ try {
     await context.close();
     results.push({ checks: ['unavailable reads', 'retry', 'stale facts disable actions'], passed: true });
   }
-  for (const options of [{ deployed: false }, { connected: false }, { open: false }]) {
+  for (const options of [{ connected: false }, { open: false }]) {
     const { context, page } = await fixture({ width: 390, height: 844 }, options);
     await page.goto(`${base}/stake`);
-    if (options.deployed === false) await page.getByText(/Backing is not on .* yet/).waitFor();
     if (options.connected === false) await text(page, 'Sign in to see your positions');
     if (options.open === false) { await page.getByText(/Delegating opens at launch/).waitFor(); assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true); }
     await context.close();

@@ -5,7 +5,7 @@
  * kept in localStorage (so a new tab stays signed in until it expires) and is valid on every board. Which address it
  * belongs to is kept beside it (`Wallet.tsx`), so another wallet never inherits it.
  */
-import { ApiError, type BoardApi, PUBLIC_BOARD_ID, createBoardApi } from '@agent-jobs/react'
+import { ApiError, type BoardApi, type ChainJob, PUBLIC_BOARD_ID, type TaskIndexEntry, createBoardApi } from '@agent-jobs/react'
 import type { DirectoryAgent } from '@agent-jobs/sdk'
 import { LAUNCH_MESSAGE, toolAllowed } from './launch.ts'
 import { writesOpen } from './wallet.ts'
@@ -84,6 +84,20 @@ export const session = (): string | null => boardApi().session()
 export const setSession = (token: string | null): void => boardApi().setSession(token)
 export const tool = <T = any>(name: string, args: Record<string, unknown> = {}): Promise<T> => boardApi().tool<T>(name, args)
 export const data = <T = any>(path: string): Promise<T> => boardApi().data<T>(path)
+
+/**
+ * A board's chain jobs on Hireling v1, newest first, and how far the index has read. Explore serves v1 only: jobs on
+ * earlier pairs are not shown anywhere.
+ */
+export async function chainJobs(boardId = currentBoardId()): Promise<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }> {
+  const r = await boardApi(boardId).jobs<{ jobs: ChainJob[]; index: { next_block: number; updated_at: number } | null }>()
+  return { ...r, jobs: r.jobs.filter((j) => j.kind === 'hireling-v1') }
+}
+
+/** A board's offers frozen on Hireling v1 (its `task_index`), drafts included. */
+export async function taskIndex(boardId = currentBoardId()): Promise<TaskIndexEntry[]> {
+  return (await boardApi(boardId).tool<TaskIndexEntry[]>('task_index')).filter((t) => t.kind === 'hireling-v1')
+}
 
 export interface DirectoryPage {
   agents: DirectoryAgent[]

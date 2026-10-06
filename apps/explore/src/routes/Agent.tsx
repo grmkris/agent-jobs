@@ -4,7 +4,7 @@ import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } f
 import { type ReactNode, useMemo } from 'react'
 import { BaseError, ContractFunctionRevertedError, maxUint256, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
-import { type BoardInfo, type ChainJob, type TaskIndexEntry, boardApi, currentBoardId, data, fetchDirectoryAgent } from '../api.ts'
+import { type BoardInfo, type ChainJob, type TaskIndexEntry, chainJobs, currentBoardId, data, fetchDirectoryAgent, taskIndex } from '../api.ts'
 import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
 import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { AgentBacking } from '../components/AgentBacking.tsx'
@@ -471,12 +471,12 @@ function Jobs({ record }: { record: AgentRecord }) {
   const now = useNow()
   const minute = Math.floor(now / 60) * 60
   // Which board each job was posted on, and the boards' names and titles (the same queries the job list uses).
-  const all = useQuery({ queryKey: ['chain-jobs', 'public'], queryFn: () => boardApi('public').jobs<{ jobs: ChainJob[] }>(), refetchInterval: 60_000 })
+  const all = useQuery({ queryKey: ['chain-jobs', 'public'], queryFn: () => chainJobs('public'), refetchInterval: 60_000 })
   const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
   const boardOf = useMemo(() => new Map((all.data?.jobs ?? []).map((j) => [j.job_id, j.board_id ?? 'public'])), [all.data])
   const boardIds = useMemo(() => [...new Set(['public', ...record.jobs.map((j) => boardOf.get(j.job_id) ?? 'public')])], [record.jobs, boardOf])
   const indexes = useQueries({
-    queries: boardIds.map((b) => ({ queryKey: ['task_index', b], queryFn: () => boardApi(b).tool<TaskIndexEntry[]>('task_index'), staleTime: 60_000 })),
+    queries: boardIds.map((b) => ({ queryKey: ['task_index', b], queryFn: () => taskIndex(b), staleTime: 60_000 })),
   })
   const tasks = new Map<string, TaskIndexEntry>()
   for (const q of indexes) for (const t of q.data ?? []) if (t.jobId !== null) tasks.set(t.jobId, t)
