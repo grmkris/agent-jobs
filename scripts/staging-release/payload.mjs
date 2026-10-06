@@ -177,7 +177,7 @@ export async function artifactOf(bundle) {
  * (`payload.test.mjs` scans Explore's build sources so a new read cannot go unlisted), NODE_ENV (Vite's mode), and
  * any VITE_* variable. Unset and empty commit differently.
  */
-export const viteBuildEnv = ['AGENT_JOBS_NETWORK', 'HIRELING_PROD_PRIVY_APP_ID', 'NODE_ENV', 'PRIVY_APP_ID']
+export const viteBuildEnv = ['SIDEQUEST_NETWORK', 'SIDEQUEST_PROD_PRIVY_APP_ID', 'NODE_ENV', 'PRIVY_APP_ID']
 
 /** The pin of a Vite Worker, built only during upload: its build environment and Vite's `.env*` files, as keyed
  *  commitments; its sources are pinned by the tree. */

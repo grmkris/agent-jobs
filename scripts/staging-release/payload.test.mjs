@@ -122,12 +122,12 @@ test('the commitment key is created once, private, and a symlink or readable key
 
 // ---- review B12-003: Explore's Vite build environment ----
 
-const exploreEnv = { AGENT_JOBS_NETWORK: 'monad-testnet', NODE_ENV: 'production', PRIVY_APP_ID: 'privy-test-marker', VITE_FLAG: 'on' }
+const exploreEnv = { SIDEQUEST_NETWORK: 'monad-testnet', NODE_ENV: 'production', PRIVY_APP_ID: 'privy-test-marker', VITE_FLAG: 'on' }
 const pin = (env, files = {}) => canonicalChange(viteArtifact(key, 'Explore', env, files))
 
 test('B12-003: every build-time env input of Explore and its Vite env files are pinned, keyed, never printed', () => {
   const base = pin(exploreEnv)
-  for (const [name, value] of [['AGENT_JOBS_NETWORK', 'monad-mainnet'], ['PRIVY_APP_ID', 'other'], ['HIRELING_PROD_PRIVY_APP_ID', 'prod-app'], ['NODE_ENV', 'development'], ['VITE_FLAG', 'off'], ['VITE_NEW', 'x']]) {
+  for (const [name, value] of [['SIDEQUEST_NETWORK', 'monad-mainnet'], ['PRIVY_APP_ID', 'other'], ['SIDEQUEST_PROD_PRIVY_APP_ID', 'prod-app'], ['NODE_ENV', 'development'], ['VITE_FLAG', 'off'], ['VITE_NEW', 'x']]) {
     assert.notEqual(pin({ ...exploreEnv, [name]: value }), base, name)
   }
   assert.notEqual(pin({ ...exploreEnv, PRIVY_APP_ID: '' }), pin({ ...exploreEnv, PRIVY_APP_ID: undefined }), 'unset and empty differ')
@@ -157,7 +157,7 @@ test('B12-003: no Explore build source reads an environment variable that the Vi
     assert.ok(!/process\.env\s*\[\s*[^'"\s]/.test(text), `dynamic process.env access in ${path.pathname}`)
     assert.ok(!/import\.meta\.env\.(?!VITE_|MODE\b|DEV\b|PROD\b|SSR\b|BASE_URL\b)/.test(text), `non-VITE import.meta.env read in ${path.pathname}`)
   }
-  assert.ok(reads.has('PRIVY_APP_ID') && reads.has('HIRELING_PROD_PRIVY_APP_ID') && reads.has('AGENT_JOBS_NETWORK'), 'the scan sees the known reads')
+  assert.ok(reads.has('PRIVY_APP_ID') && reads.has('SIDEQUEST_PROD_PRIVY_APP_ID') && reads.has('SIDEQUEST_NETWORK'), 'the scan sees the known reads')
   for (const name of reads) assert.ok(viteBuildEnv.includes(name) || name.startsWith('VITE_'), `${name} is read by the Explore build but not pinned`)
 })
 
@@ -215,7 +215,9 @@ test('B12-SEC-004: an Explore env file or build variable changed after the plan 
     await refused('a new .env.local')
     rmSync(join(dir, '.env.local'))
     await refused('a new VITE_* variable', { ...exploreEnv, VITE_NEW: 'x' })
-    await refused('PRIVY_APP_ID unset at plan, empty at upload', { ...exploreEnv, HIRELING_PROD_PRIVY_APP_ID: '' })
+    await refused('network changed after the plan', { ...exploreEnv, SIDEQUEST_NETWORK: 'monad-mainnet' })
+    await refused('production Privy app ID changed after the plan', { ...exploreEnv, SIDEQUEST_PROD_PRIVY_APP_ID: 'prod-app' })
+    await refused('production Privy app ID unset at plan, empty at upload', { ...exploreEnv, SIDEQUEST_PROD_PRIVY_APP_ID: '' })
     assert.equal((await applyExplore(dir, exploreEnv, planned)).error, undefined, 'back to the planned inputs')
 
     rmSync(join(dir, '.env.production'))

@@ -21,7 +21,7 @@ test('package boundary points staging directly at the local guard with no lifecy
   }
   const actual = JSON.parse(readFileSync(join(repository, 'package.json'), 'utf8'))
   assert.equal(validatePackageBoundary(actual), true)
-  assert.equal(actual.scripts['deploy:prod'], 'AGENT_JOBS_NETWORK=monad-mainnet AGENT_JOBS_STAGE=prod ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage prod --yes')
+  assert.equal(actual.scripts['deploy:prod'], 'SIDEQUEST_NETWORK=monad-mainnet SIDEQUEST_STAGE=prod ALCHEMY_REMOTE_STATE=1 alchemy deploy --stage prod --yes')
 })
 
 test('valid synthetic evidence, malformed inputs and flags all retain root release HOLD', () => {
