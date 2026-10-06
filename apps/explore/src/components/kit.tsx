@@ -137,7 +137,7 @@ export function Amount({
   return <span className={cn('tabular-nums font-medium whitespace-nowrap', className)}>{formatAmount(value, token)}</span>
 }
 
-/** A link in running text: the primary is near-black, so the underline is what says "link". */
+/** A link in running text: it keeps the text colour, so the underline is what says "link". */
 export const textLinkClass =
   'text-foreground underline decoration-foreground/30 underline-offset-4 transition-colors duration-(--dur-fast) hover:decoration-foreground'
 

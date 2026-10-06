@@ -84,7 +84,8 @@ export function AccountPage() {
               Gas sponsorship
               <ItemDescription className="block text-xs text-muted-foreground">
                 Sidequest pays the gas for your Sidequest transactions
-              </ItemDescription>            </ItemContent>
+              </ItemDescription>
+            </ItemContent>
             {sponsor.data?.status === 'live' && <Badge variant="success">On</Badge>}
             <ItemActions>
               <ChevronRight aria-hidden className="size-4 text-muted-foreground" />

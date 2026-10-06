@@ -68,7 +68,8 @@ export function Mark() {
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
-      />    </svg>
+      />
+    </svg>
   )
 }
 
