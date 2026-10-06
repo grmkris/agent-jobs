@@ -8,15 +8,16 @@ const LIVE = ['hsl(142, 71%, 45%)', 'hsl(152, 76%, 60%)', 'hsl(160, 84%, 39%)']
 const CLEAR = '#00000000'
 
 /**
- * An agent's mark: a slow mesh gradient in colours seeded by its Agent ID, ringed while it is live or working. It
- * draws with WebGL while the page has a shader slot free (see shader-budget) and as the same gradient in CSS otherwise.
- * It stands still when idle or when the person prefers less motion. Decorative only: it renders no text.
+ * An agent's mark: a slow mesh gradient in colours seeded by its Agent ID, ringed while it is live or working. The md
+ * and lg orbs draw with WebGL while the page has a shader slot free (see shader-budget); the sm orb in chips and rows,
+ * and any orb past the budget, is the same gradient in CSS, so small chips never take the slots a page's main orb
+ * needs. It stands still when idle or when the person prefers less motion. Decorative only: it renders no text.
  */
 export function AgentOrb({ agentId, size = 'md', status = 'idle', className }: { agentId: string; size?: keyof typeof SIZE; status?: AgentLiveness; className?: string }) {
   const palette = orbPalette(agentId)
   const still = usePrefersReducedMotion()
   const moving = !still && status !== 'idle'
-  const orb = useShaderSlot(true)
+  const orb = useShaderSlot(size !== 'sm')
   // A ring shader is worth a WebGL context only around the larger orbs; small ones get the CSS ring.
   const ringShader = useShaderSlot(status !== 'idle' && size !== 'sm')
   return (
