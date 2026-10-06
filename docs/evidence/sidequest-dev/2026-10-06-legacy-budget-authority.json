@@ -1,0 +1,221 @@
+{
+  "createdAt": "2026-10-06T06:37:47.837709+00:00",
+  "tier": "live-verified-read-only-Monad-testnet",
+  "scope": "Historical jobs58/59 budget authority only; bounded public logs and current manager/enforcer readback plus three retained local journals.",
+  "sources": {
+    "legacyConfig": "contracts/config/archive/pre-sidequest-monad-testnet.json",
+    "legacyConfigSha256": "f2d73d9c81c8b01340ccdae6959527f63b0a3b12e877781a6709c3f28da00e97",
+    "historicalFlow": "docs/reality-check.md section 29 Sep execution budgets as delegations; transaction prefixes matched to complete chain hashes",
+    "previousJobReadback": "docs/evidence/sidequest-dev/2026-10-06-legacy-chain-reconciliation.json"
+  },
+  "chain": {
+    "startedAt": "2026-10-06T06:33:14.678Z",
+    "rpc": "https://testnet-rpc.monad.xyz",
+    "chainId": 10143,
+    "manager": "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3",
+    "windows": [
+      {
+        "fromBlock": "66696100",
+        "toBlock": "66696199",
+        "requestedBlockCount": 100,
+        "matchingEvents": 2,
+        "success": true
+      },
+      {
+        "fromBlock": "66696200",
+        "toBlock": "66696299",
+        "requestedBlockCount": 100,
+        "matchingEvents": 1,
+        "success": true
+      },
+      {
+        "fromBlock": "66696300",
+        "toBlock": "66696399",
+        "requestedBlockCount": 100,
+        "matchingEvents": 0,
+        "success": true
+      }
+    ],
+    "grants": [
+      {
+        "hash": "0x7b9be8b6b679871bb5893283354fa70386729225c2321d988ee9168b063d146d",
+        "kind": "advance",
+        "delegator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+        "delegate": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+        "salt": "82973274536581340086051344839123172307365252081368610871733193824584243083715",
+        "expiry": "1790692843",
+        "token": "0xdeef53f34fa71c46e7bb6e34d42d4cf36987c44e",
+        "cap": "2000000",
+        "callLimit": null,
+        "allowedTargets": null,
+        "allowedMethods": null,
+        "events": [
+          {
+            "transactionHash": "0x28974013465cc61cedfbbd72ed68edbd16d754147d78fc48d83c8c125a7cd5f8",
+            "blockNumber": "66696162",
+            "logIndex": 91
+          },
+          {
+            "transactionHash": "0x05d6864243dc7ad6e2bd7ac2d46ebec1fc757a81286f7f43db36251b3182e030",
+            "blockNumber": "66696173",
+            "logIndex": 70
+          }
+        ],
+        "currentBlock": "68615618",
+        "currentTimestamp": "1791268396",
+        "disabled": true,
+        "expired": true,
+        "spent": "1500000",
+        "jobId": "58",
+        "termsHash": "0xb771358a89a27432f4404be2dd4edcacdaa4ecd2a79865359e03171ad23ff9c3",
+        "saltMatchesOriginalTermsHash": true,
+        "currentRedeemabilityAssessment": "Cannot redeem: disabled and timestamp expired.",
+        "counterScope": "Current enforcer read for this exact delegation hash; no inference about other grants."
+      },
+      {
+        "hash": "0xa34bb18a8a6b4651f01d158a7d8b2b3fe35a3aa8c52bd2b7fd74b2bba0f425eb",
+        "kind": "call",
+        "delegator": "0x9D04B0021B75e9D0Fc9173eE2bC3ee3aC317B4b1",
+        "delegate": "0xEABa1Aa479a9f019869f03bD71AacbaD453661BB",
+        "salt": "74703745074781723977088559086073514536967933364683899225513945257371658342713",
+        "expiry": "1790692876",
+        "token": null,
+        "cap": null,
+        "callLimit": "1",
+        "allowedTargets": "0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f",
+        "allowedMethods": "0xde5f72fd",
+        "events": [
+          {
+            "transactionHash": "0x87522ba2b361200eb9c167a29d9c2cfaec8273e217e73f2d7c4073fef869bba5",
+            "blockNumber": "66696256",
+            "logIndex": 13
+          }
+        ],
+        "currentBlock": "68615618",
+        "currentTimestamp": "1791268396",
+        "disabled": false,
+        "expired": true,
+        "callsMade": "1",
+        "jobId": "59",
+        "termsHash": "0xa528d2431b8f4ca1a09fc9096fdeb0bc605bfe7aab44489d4ebd4a6db807d139",
+        "saltMatchesOriginalTermsHash": true,
+        "currentRedeemabilityAssessment": "Cannot redeem: timestamp expired and one-call limit already consumed. Not disabled on chain.",
+        "counterScope": "Current enforcer read for this exact delegation hash; no inference about other grants."
+      }
+    ],
+    "finishedAt": "2026-10-06T06:33:19.233Z",
+    "endBlock": "68615624"
+  },
+  "historicalRevocationReceipt": {
+    "observedAt": "2026-10-06T06:36:31.515Z",
+    "windows": [
+      {
+        "fromBlock": "66696100",
+        "toBlock": "66696199",
+        "requestedBlockCount": 100,
+        "matchingKnownRevokeEvents": 1
+      },
+      {
+        "fromBlock": "66696200",
+        "toBlock": "66696299",
+        "requestedBlockCount": 100,
+        "matchingKnownRevokeEvents": 0
+      }
+    ],
+    "revocation": [
+      {
+        "transactionHash": "0xad496ad6b44030cfa2b6c275cbe9e68f0eac235c942a8d88c8aa77f6c4bfac03",
+        "blockNumber": "66696196",
+        "status": "success",
+        "from": "0x9d04b0021b75e9d0fc9173ee2bc3ee3ac317b4b1",
+        "to": "0xdb9b1e94b5b69df7e401ddbede43491141047db3",
+        "functionName": "disableDelegation",
+        "delegationHash": "0x7b9be8b6b679871bb5893283354fa70386729225c2321d988ee9168b063d146d",
+        "recordedPrefix": "0xad496ad6"
+      }
+    ],
+    "finishedAt": "2026-10-06T06:36:33.185Z"
+  },
+  "readbackBlockLimit": "Current disabled state and counters use latest RPC reads from time anchor block68615618(timestamp1791268396) through68615624. This is a short observation interval, not an atomic pinned-block snapshot.",
+  "localJournalInventory": [
+    {
+      "path": "/home/kristjan/code/agent-jobs/.crew/demand/journal.json",
+      "sha256": "f52c95324d2487461e971ecb167a1cd0b54d13ecb25f7b1e27a387b80a18f0bc",
+      "savedDelegationShapes": [],
+      "recordedSendCount": 10,
+      "scan": "Objects and serialized JSON strings; signed transaction bytes, signatures and secret fields excluded."
+    },
+    {
+      "path": "/home/kristjan/code/agent-jobs.wt/harness/.crew/canvas/journal.json",
+      "sha256": "6c9b638b0f34438f1924a3490ef14d0209bd59f6611cc7788095d6d022cd6ec1",
+      "savedDelegationShapes": [],
+      "recordedSendCount": 18,
+      "scan": "Objects and serialized JSON strings; signed transaction bytes, signatures and secret fields excluded."
+    },
+    {
+      "path": "/home/kristjan/code/agent-jobs.wt/harness/.crew/studio/journal.json",
+      "sha256": "8ebd53715e72e61ad1c6b784f3071cda208fa55217bc9a5961d77d284185ccb6",
+      "savedDelegationShapes": [],
+      "recordedSendCount": 12,
+      "scan": "Objects and serialized JSON strings; signed transaction bytes, signatures and secret fields excluded."
+    }
+  ],
+  "durableObjectInventory": {
+    "status": "not-performed-no-safe-row-export-found",
+    "namespace": "eab5801c233a4d1f952a457050958175",
+    "objects": [
+      "public",
+      "__hosted_sponsor_v1__",
+      "__hireling_fleet_v1__"
+    ],
+    "sourceEvidence": [
+      "docs/evidence/agent-first-v2/inventory.json",
+      "apps/api/src/board.ts",
+      "packages/board/src/budget.ts",
+      "packages/board/src/sponsor.ts"
+    ],
+    "assessment": "No supported management row-query or existing sanitized export was found. D1 contains event/index tables, not Board grant/pending-send records. Public sponsor_status is owner scoped; get_budget may persist ended status, and sponsor_operation reconciles operation state. Strict read-only scope therefore did not call those endpoints or initialize any object.",
+    "remainingFieldsUnknown": [
+      "All unpublished or unredeemed budget grants",
+      "Operator/managed-agent grants in retained original Board storage",
+      "Original relay/sponsor pending operations not represented in the three local journals"
+    ],
+    "safeNextAction": "Original Board authority owner can supply an existing read-only sanitized export of grant IDs/hashes,status/expiry and pending operation IDs/hash/nonce/status; verify exact hashes and counters on the archived manager/enforcers. No signatures, payloads or secret values are needed."
+  },
+  "addedAuthoritativeInformation": [
+    "Job58 exact advance delegation hash is currently disabled and expired, with1500000 atomic mEUR spent outof2000000; successful creator disable receipt matches that hash.",
+    "Job59 exact faucet delegation hash is currently expired and callsMade=1 against callLimit=1; disabledDelegations=false must not be described as revoked.",
+    "Both delegation salts match each original job terms hash, and known redemption transaction prefixes resolve to exact full chain hashes.",
+    "No delegation-shaped grant record was found in the three retained local journals, including serialized JSON strings; their SHA256 fingerprints remain unchanged."
+  ],
+  "retirementAssessment": "The two known jobs58/59 budget delegations cannot redeem under current observed constraints, so their grant authority uncertainty is narrowed. Both underlying hire jobs still require their original economic settlement described in the previous receipt. This is not clearance to retire old provider Workers, Board storage, artifacts or keys.",
+  "limits": [
+    "Only the historical budget run windows66696100..66696399 were scanned; each RPC request contains100blocks.",
+    "Logs discover grants that were redeemed, not every off-chain signed grant.",
+    "Current manager/enforcer readback establishes only these two exact hashes.",
+    "Existing old pair owed limitations and job131 pending economic intent remain unchanged.",
+    "No read-only production Board row export was available; global authority/pending-operation inventory remains unknown."
+  ],
+  "actionsNotPerformed": [
+    "signing",
+    "funding",
+    "broadcast",
+    "revocation",
+    "disable",
+    "runner restart",
+    "deploy",
+    "resource deletion",
+    "provider/storage mutation",
+    "journal or receipt rewrite",
+    "job131 saved-byte reuse or regeneration"
+  ],
+  "redactions": [
+    "Event payloads",
+    "Delegation signatures",
+    "Signed transaction bytes",
+    "Privy credentials",
+    "Routine signing keys",
+    "Session tokens",
+    "Provider secret values"
+  ]
+}

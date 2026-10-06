@@ -1375,3 +1375,13 @@ visible sign-in modal. The PNG loaded at its expected width with no page or
 provider errors. Screenshots were visually inspected. This proves provider
 branding delivery, not a completed login, consent, authenticated MCP or signing.
 [Sanitized browser receipt](evidence/sidequest-dev/2026-10-06-privy-brand-signin.json).
+
+**6 October 2026, 06:37 UTC legacy budget authority:** a bounded live
+read-only audit reconciled the two known execution-budget delegation hashes for
+legacy jobs 58 and 59. The exact job-58 advance is disabled and expired with
+1.5/2 mEUR spent and a matching historical disable receipt; the exact job-59
+faucet is expired with its one call consumed but is not disabled. Salts match
+the original terms hashes, and three retained local journals contain no
+delegation-shaped grant record. This is scoped authority evidence, not a global
+grant or Durable Object inventory, economic settlement, provider retirement or
+deletion clearance. [Sanitized receipt](evidence/sidequest-dev/2026-10-06-legacy-budget-authority.json).

@@ -9,10 +9,10 @@
 | Published source | `origin/main` at `55c9282`; later V1.1, S3/S4 UI and `28a16ea` guard fix remain local |
 | Next dev cut | Sidequest coordinator, after reviewed source, candidate gates and provider approval/readback |
 | V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
-| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; S5 `c94b3cc..cdaa4a4` passed and remains isolated pending Explore landing |
-| Profile | `%20` holds five C8–C12 commits at `2cc69b6`; six scoped suites and exact branch full gate passed; waits for Explore base-ready |
+| UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; isolated S5/P1b stack is `feeceff`, with 18 integrated local suites reported passing and screenshots running |
+| Profile | `%20` holds five C8–C12 commits at `edbde86` on `profile-final`, built on Explore's `feeceff`; all 18 suites and full gate are running; still waits for explicit base-ready |
 | Privy | Dev origin and Sidequest name/color/logo saved; credential rotation, isolated authority and real auth/MCP remain pending |
-| Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations that block provider deletion |
+| Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations; two known budget grants cannot redeem, but wider Board grant/pending inventory remains unknown |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
 
 The dated entries below preserve the actual observations and earlier handoffs.
@@ -581,3 +581,30 @@ The follow-up anonymous browser receipt
 shows the deployed icon in the visible Privy sign-in modal at 390px and 1440px,
 with no page or provider errors. It intentionally stops before identity,
 wallet or signature submission.
+
+## Legacy budget authority readback — recorded 06 October 2026, 06:37 UTC
+
+The bounded read-only audit in
+[`2026-10-06-legacy-budget-authority.json`](evidence/sidequest-dev/2026-10-06-legacy-budget-authority.json)
+reconciles the two known execution-budget delegations for legacy jobs 58 and
+59. Job 58's exact advance hash is disabled and expired, with 1.5 of 2 mEUR
+spent; its successful historical `disableDelegation` receipt matches the hash.
+Job 59's exact faucet hash is expired with its one-call limit consumed, but it
+is not disabled on chain. Both salts match the original terms hashes, and the
+three retained local journals contain no delegation-shaped grant record in
+objects or serialized JSON strings; their SHA-256 fingerprints are unchanged.
+
+This narrows the authority uncertainty for those two hashes only. A supported
+read-only export for Board Durable Object grant rows and relay pending
+operations was unavailable, so unpublished grants, operator grants and other
+pending operations remain unknown. Jobs 81, 45, 59, 58, 48, 44 and 40 still
+carry the obligations in the chain reconciliation, and job 131's saved Collect
+intent remains untouched. Do not delete old Workers, D1/R2, Durable Objects,
+keys, artifacts or journals, and do not rebroadcast the saved intent from this
+receipt.
+
+The reviewer notification `op_01m47z15qsfew9ctwxqbdwazzp` attempted at 06:39 UTC used a fresh operation but
+was refused as `notDispatched` because the pane had no safe coordinator prompt;
+it is not counted as delivered and was not retried. The original unknown and
+not-dispatched notice receipts remain unchanged. The local handoff and shared
+triage log remain the authoritative coordination path.
