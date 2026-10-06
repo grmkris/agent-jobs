@@ -5,8 +5,9 @@ import { resolve } from 'node:path'
 import { parseEnv } from 'node:util'
 const fields = ['PRIVY_APP_ID', 'PRIVY_SIGNER_ID', 'PRIVY_POLICY_ID', 'PRIVY_SIGNER_KEY']
 const hash = value => createHash('sha256').update(value).digest('hex')
+const refuse = () => { throw new Error('sidequest-dev-authority-missing-or-drifted') }
+const publicKey = privateKey => createPublicKey(createPrivateKey({ key: Buffer.from(privateKey.replace(/^wallet-auth:/, ''), 'base64'), format: 'der', type: 'pkcs8' })).export({ format: 'der', type: 'spki' }).toString('base64')
 export function validateDevAuthority(state, overlay, localEnv) {
-  const refuse = () => { throw new Error('sidequest-dev-authority-missing-or-drifted') }
   if (Object.keys(overlay).length !== fields.length || fields.some(field => !overlay[field]) || Object.keys(overlay).some(field => !fields.includes(field))) refuse()
   if (state.version !== 2 || !state.verifiedAt || state.appId !== 'cmui9skoc01zr0dl03tyahirs' || state.appId !== localEnv.PRIVY_APP_ID || overlay.PRIVY_APP_ID !== state.appId ||
       typeof state.adminPublicKey !== 'string' || !state.adminPublicKey ||
@@ -16,7 +17,6 @@ export function validateDevAuthority(state, overlay, localEnv) {
       !localEnv.PRIVY_APP_SECRET || hash(localEnv.PRIVY_APP_SECRET) === state.originalAppSecretSha256 ||
       !/^[a-f0-9]{64}$/.test(state.originalAppSecretSha256 ?? '') || !/^[a-f0-9]{64}$/.test(state.legacyPolicySha256 ?? '') || !/^[a-f0-9]{64}$/.test(state.desiredPolicySha256 ?? '')) refuse()
   try {
-    const publicKey = privateKey => createPublicKey(createPrivateKey({ key: Buffer.from(privateKey.replace(/^wallet-auth:/, ''), 'base64'), format: 'der', type: 'pkcs8' })).export({ format: 'der', type: 'spki' }).toString('base64')
     if (publicKey(overlay.PRIVY_SIGNER_KEY) !== state.routinePublicKey || publicKey(localEnv.PRIVY_SIGNER_KEY) !== state.legacySignerPublicKey || state.routinePublicKey === state.legacySignerPublicKey) refuse()
   } catch { refuse() }
   return { ...overlay }
