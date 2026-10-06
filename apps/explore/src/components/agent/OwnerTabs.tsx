@@ -4,7 +4,7 @@ import type { Address } from 'viem'
 import type { ManagedAgent } from '../../api.ts'
 import { agentStatus } from '../../agent-api.ts'
 import { needsYou } from '../../agent-stats.ts'
-import { splitApprovals } from '../../approval-view.ts'
+import { splitApprovals, unfinishedApproval } from '../../approval-view.ts'
 import { useManagedApprovals } from '../../managed.ts'
 import { type OwnerTab, approvalAnchor, focusedApproval, ownerSearch, ownerTab } from '../../owner-route.ts'
 import type { RecordJob } from '../../routes/Agent.tsx'
@@ -37,10 +37,12 @@ export function OwnerTabs({ managed, overview, posted, taken }: { managed: Manag
   const approvals = useManagedApprovals()
   const mine = (approvals.data?.approvals ?? []).filter((a) => a.agent_id === managed.id)
   const pending = mine.filter((a) => a.status === 'pending').length
+  const unfinished = mine.filter(unfinishedApproval).length
   const status = useQuery({ queryKey: ['managed-agent-status', managed.id, auth.address], queryFn: () => agentStatus(managed.id), refetchInterval: 20000, enabled: managed.state !== 'pending' })
   const now = useNow()
   const items = needsYou({
     pendingApprovals: pending,
+    unfinishedApprovals: unfinished,
     taken: taken ?? [],
     posted: posted ?? [],
     allowances: status.data?.allowances ?? [],
@@ -74,10 +76,10 @@ export function OwnerTabs({ managed, overview, posted, taken }: { managed: Manag
           </TabsTrigger>
           <TabsTrigger value="approvals" className={triggerClass}>
             Approvals
-            {pending > 0 && (
+            {pending + unfinished > 0 && (
               <span className="tabular-nums rounded-full bg-warning/15 px-1.5 text-micro font-semibold text-warning-text">
-                {pending}
-                <span className="sr-only"> waiting</span>
+                {pending + unfinished}
+                <span className="sr-only"> need you</span>
               </span>
             )}
           </TabsTrigger>
@@ -101,7 +103,8 @@ export function OwnerTabs({ managed, overview, posted, taken }: { managed: Manag
 }
 
 /**
- * This agent's decisions: the waiting ones as full cards, oldest first, then the decided ones as one-line rows. The one
+ * This agent's decisions: approved operations that did not finish and the waiting ones as full cards, oldest first,
+ * then the decided ones as one-line rows. The one
  * a link points at is scrolled into view once the list has loaded, ringed if it waits and unfolded if it is past.
  */
 function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: readonly RecordJob[] | undefined; focus: string | null }) {
@@ -109,7 +112,7 @@ function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: 
   const queryClient = useQueryClient()
   const approvals = useManagedApprovals()
   const mine = (approvals.data?.approvals ?? []).filter((a) => a.agent_id === managed.id)
-  const { waiting, past } = splitApprovals(mine)
+  const { waiting, recovering, past } = splitApprovals(mine)
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['managed-approvals', auth.address] })
   const shown = useRef(false)
   const loaded = approvals.data !== undefined
@@ -121,9 +124,26 @@ function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: 
   }, [focus, loaded])
   if (approvals.error !== null) return <p className="text-ui text-destructive-text">Approval records are unavailable. No decision has been submitted.</p>
   if (approvals.isLoading) return <p className="text-muted-foreground">Reading this agent’s decisions…</p>
+  const card = (approval: (typeof mine)[number]) => (
+    <div
+      key={approval.id}
+      id={approvalAnchor(approval.id)}
+      data-focus={approval.id === focus || undefined}
+      className="scroll-mt-24 rounded-xl data-focus:-m-3 data-focus:bg-card data-focus:p-3 data-focus:shadow-sm data-focus:ring-2 data-focus:ring-ring/50"
+    >
+      <Approval approval={approval} agent={managed} operator={auth.address as Address} refresh={refresh} />
+    </div>
+  )
   return (
     <>
-      {waiting.length === 0 ? (
+      {recovering.length > 0 && (
+        // Approved, but the operation did not finish: each card continues the same operation (VV2-032).
+        <div className="grid gap-7">
+          <h2 className="px-1 text-ui font-medium text-muted-foreground">Approved, not finished · {recovering.length}</h2>
+          {recovering.map(card)}
+        </div>
+      )}
+      {waiting.length === 0 && recovering.length > 0 ? null : waiting.length === 0 ? (
         <Empty className="border border-dashed py-8">
           <EmptyHeader>
             <EmptyTitle>Nothing waiting for you</EmptyTitle>
@@ -134,16 +154,7 @@ function Approvals({ managed, posted, focus }: { managed: ManagedAgent; posted: 
         // Not a <section>: the harness finds each waiting card as the one section holding its operation id.
         <div className="grid gap-7">
           <h2 className="px-1 text-ui font-medium text-muted-foreground">Waiting · {waiting.length}</h2>
-          {waiting.map((approval) => (
-            <div
-              key={approval.id}
-              id={approvalAnchor(approval.id)}
-              data-focus={approval.id === focus || undefined}
-              className="scroll-mt-24 rounded-xl data-focus:-m-3 data-focus:bg-card data-focus:p-3 data-focus:shadow-sm data-focus:ring-2 data-focus:ring-ring/50"
-            >
-              <Approval approval={approval} agent={managed} operator={auth.address as Address} refresh={refresh} />
-            </div>
-          ))}
+          {waiting.map(card)}
         </div>
       )}
       <PastApprovals approvals={past} factory={deployment.factory} posted={posted} focus={focus} />

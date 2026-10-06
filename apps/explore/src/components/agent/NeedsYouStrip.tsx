@@ -41,6 +41,12 @@ export function NeedsYouStrip({ items, onTab }: { items: NeedsYouItem[]; onTab: 
                 {item.count === 1 ? 'One decision is' : `${item.count} decisions are`} waiting for you
               </Row>
             )
+          case 'unfinished':
+            return (
+              <Row key="unfinished" onClick={() => onTab('approvals')}>
+                {item.count === 1 ? 'One approved operation' : `${item.count} approved operations`} did not finish; continue {item.count === 1 ? 'it' : 'them'}
+              </Row>
+            )
           case 'overdue':
             return (
               <Row key="overdue" job={item.jobIds[0]}>

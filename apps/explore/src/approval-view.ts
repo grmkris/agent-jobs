@@ -79,12 +79,23 @@ export function approvalLine(approval: AgentApproval, factory: string): Approval
   }
 }
 
-/** Waiting ones first, oldest first (they queue); then the decided ones, newest answer first. */
-export function splitApprovals<T extends AgentApproval>(approvals: readonly T[]): { waiting: T[]; past: T[] } {
+/**
+ * An approved hire or unstake whose operation has not finished: the approval is saved before the operation runs, so a
+ * failed run leaves it here until the operator continues it. An approved permission is already granted, so it is history.
+ */
+export const unfinishedApproval = (approval: Pick<AgentApproval, 'status' | 'kind'>) => approval.status === 'approved' && approval.kind !== 'permission'
+
+/**
+ * Waiting decisions, oldest first (they queue); approved operations that did not finish, oldest first (each needs the
+ * operator to continue it); then the rest, newest answer first (VV2-032).
+ */
+export function splitApprovals<T extends AgentApproval>(approvals: readonly T[]): { waiting: T[]; recovering: T[]; past: T[] } {
   const when = (a: T) => a.decided_at ?? a.created_at ?? 0
+  const oldest = (a: T, b: T) => (a.created_at ?? 0) - (b.created_at ?? 0)
   return {
-    waiting: approvals.filter((a) => a.status === 'pending').toSorted((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0)),
-    past: approvals.filter((a) => a.status !== 'pending').toSorted((a, b) => when(b) - when(a)),
+    waiting: approvals.filter((a) => a.status === 'pending').toSorted(oldest),
+    recovering: approvals.filter(unfinishedApproval).toSorted(oldest),
+    past: approvals.filter((a) => a.status !== 'pending' && !unfinishedApproval(a)).toSorted((a, b) => when(b) - when(a)),
   }
 }
 

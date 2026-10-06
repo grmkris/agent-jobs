@@ -185,6 +185,36 @@ try {
     await context.close();
   }
   {
+    // VV2-032: a provider failure after approval leaves the original operation recoverable across reloads.
+    const { context, page } = await profile({ width: 1440, height: 900 });
+    const hire = approval('ap-recover', { status: 'approved' });
+    const unstake = approval('ap-leave', { kind: 'unstake', status: 'approved', request_json: JSON.stringify({ amount: '100000000000000000000', shares: '100000000000000000000' }) });
+    let current = [hire, unstake];
+    const retries = [];
+    await context.route('**/api/approvals', (route) => reply(route, { ok: true, result: { approvals: current } }));
+    await context.route('**/api/approvals/ap-recover/retry', (route) => {
+      retries.push({ method: route.request().method(), path: new URL(route.request().url()).pathname });
+      if (retries.length === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, message: 'Provider response lost; reconcile the original operation' }) });
+      current = [{ ...hire, status: 'executed' }, unstake];
+      return reply(route, { ok: true, result: { approval: current[0] } });
+    });
+    await page.goto(`${base}/agent/1942?tab=approvals&approval=ap-recover`);
+    const retry = () => page.locator('#approval-ap-recover').getByRole('button', { name: 'Reconcile and continue approved operation', exact: true });
+    await retry().waitFor();
+    await page.locator('#approval-ap-leave').getByRole('button', { name: 'Reconcile and continue approved operation', exact: true }).waitFor();
+    await retry().click();
+    await page.getByRole('alert').getByText('Provider response lost; reconcile the original operation', { exact: true }).waitFor();
+    await page.reload();
+    await retry().waitFor();
+    await retry().click();
+    await retry().waitFor({ state: 'detached' });
+    await page.locator('#approval-ap-recover').getByText('Done', { exact: true }).waitFor();
+    assert.deepEqual(retries, Array.from({ length: 2 }, () => ({ method: 'POST', path: '/api/approvals/ap-recover/retry' })));
+    await page.locator('#approval-ap-leave').getByRole('button', { name: 'Reconcile and continue approved operation', exact: true }).waitFor();
+    results.push({ test: 'approved unfinished hires and unstakes stay actionable; a lost retry response and reload retain the exact original operation; executed goes to history', passed: true });
+    await context.close();
+  }
+  {
     // Phone, light and dark: the page reads top to bottom for both, and the tabs scroll away with it.
     for (const mine of [false, true]) {
       const { context, page } = await profile({ width: 390, height: 844 }, { mine });

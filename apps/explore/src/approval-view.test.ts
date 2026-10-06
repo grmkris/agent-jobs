@@ -53,4 +53,20 @@ describe('approval lines', () => {
     expect(waiting.map((a) => a.id)).toEqual(['old-wait', 'new-wait'])
     expect(past.map((a) => a.id)).toEqual(['done-late', 'done-early'])
   })
+
+  it('keeps approved unfinished hires and unstakes actionable after a reload, apart from terminal history', () => {
+    const list = [
+      approval({ id: 'hire-retry', status: 'approved', created_at: 2, decided_at: 4 }),
+      approval({ id: 'unstake-retry', kind: 'unstake', status: 'approved', created_at: 1, decided_at: 3 }),
+      approval({ id: 'permission', kind: 'permission', status: 'approved', created_at: 1, decided_at: 2 }),
+      approval({ id: 'done', status: 'executed', created_at: 1, decided_at: 6 }),
+      approval({ id: 'denied', status: 'rejected', created_at: 1, decided_at: 5 }),
+      approval({ id: 'waiting', created_at: 7 }),
+    ]
+    expect(splitApprovals(list)).toMatchObject({
+      waiting: [list[5]],
+      recovering: [list[1], list[0]],
+      past: [list[3], list[4], list[2]],
+    })
+  })
 })

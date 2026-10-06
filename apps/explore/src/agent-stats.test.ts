@@ -67,6 +67,8 @@ describe('agent profile numbers', () => {
       { kind: 'revocation' },
     ])
     expect(needsYou({ ...calm, revoked: true, onchainDisabled: true })).toEqual([])
+    // VV2-032: an approved operation that did not finish needs the owner too, right after waiting decisions.
+    expect(needsYou({ ...calm, pendingApprovals: 1, unfinishedApprovals: 2, revoked: true })).toEqual([{ kind: 'approvals', count: 1 }, { kind: 'unfinished', count: 2 }, { kind: 'revocation' }])
   })
 
   it('says since when as a day, with the year only when it is not this one', () => {

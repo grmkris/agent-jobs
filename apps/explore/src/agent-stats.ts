@@ -60,6 +60,7 @@ export const isNew = (record: { agent: { jobs: number }; hiring?: { posted: numb
 
 export type NeedsYouItem =
   | { kind: 'approvals'; count: number }
+  | { kind: 'unfinished'; count: number }
   | { kind: 'overdue'; jobIds: string[] }
   | { kind: 'review'; jobIds: string[] }
   | { kind: 'budget'; token: string; left: string; limit: string }
@@ -69,12 +70,15 @@ export type NeedsYouItem =
 export const LOW_BUDGET = 0.2
 
 /**
- * What the owner of an agent should act on, most urgent first: decisions waiting, jobs it took that are past their
+ * What the owner of an agent should act on, most urgent first: decisions waiting, approved operations that did not
+ * finish, jobs it took that are past their
  * delivery deadline with nothing delivered, jobs it posted whose submitted work waits on review, a weekly budget nearly
  * spent, a revocation not yet confirmed on-chain. Empty when nothing needs the owner.
  */
 export function needsYou(input: {
   pendingApprovals: number
+  /** Approved hires or unstakes whose operation did not finish (VV2-032). */
+  unfinishedApprovals?: number
   taken: ReadonlyArray<{ job_id: string; status: string; delivery_deadline: number | null }>
   posted: ReadonlyArray<{ job_id: string; status: string }>
   allowances: ReadonlyArray<{ token: string; left: string; limit: string }>
@@ -84,6 +88,7 @@ export function needsYou(input: {
 }): NeedsYouItem[] {
   const items: NeedsYouItem[] = []
   if (input.pendingApprovals > 0) items.push({ kind: 'approvals', count: input.pendingApprovals })
+  if ((input.unfinishedApprovals ?? 0) > 0) items.push({ kind: 'unfinished', count: input.unfinishedApprovals! })
   const overdue = input.taken.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < input.now).map((j) => j.job_id)
   if (overdue.length > 0) items.push({ kind: 'overdue', jobIds: overdue })
   const review = input.posted.filter((j) => j.status === 'submitted').map((j) => j.job_id)
