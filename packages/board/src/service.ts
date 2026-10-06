@@ -2758,7 +2758,9 @@ export class Board {
     const view = await this.#chainView(task)
     const operation = this.#sql.all<{ status: string }>('SELECT status FROM operations WHERE task_id = ? ORDER BY updated_at DESC LIMIT 1', task.id)[0]?.status ?? null
     const quoteCount = this.#sql.all<{ count: number }>('SELECT count(*) AS count FROM quotes q JOIN quote_requests r ON r.id=q.request_id WHERE r.task_id = ?', task.id)[0]?.count ?? 0
-    const signedSelection = view.status === 'open' ? (await this.#selectionView(task, view, terms.deliveryDeadline)).find(selection => selection.state === 'signed') : undefined
+    const signedSelection = view.status === 'open' && caller.address !== undefined && this.#actsForCreator(task, caller.address)
+      ? (await this.#selectionView(task, view, terms.deliveryDeadline)).find(selection => selection.state === 'signed')
+      : undefined
     const nextAction = signedSelection === undefined ? publisherNextAction(view, this.#now()) : { actor: 'worker', action: 'activate', deadline: signedSelection.activateBy }
     return {
       taskId: task.id,

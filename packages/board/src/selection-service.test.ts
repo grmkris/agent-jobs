@@ -61,6 +61,7 @@ describe('get_task creator selection authorization and persistence', () => {
     expect(refreshed.selection).toEqual(first.selection)
     expect(refreshed.selection).toEqual([{ state: 'signed', applicationId: 'app-1', agentId: '7001', activateBy: 1_100 }])
     expect(refreshed.chain).toMatchObject({ status: 'open', provider: null })
+    expect(refreshed.nextAction).toEqual({ actor: 'worker', action: 'activate', deadline: 1_100 })
     expect(context.read).toHaveBeenCalledWith(expect.objectContaining({ functionName: 'selectionNonceUsed', args: [creator, 1n] }))
     expect(context.verify).toHaveBeenCalledWith(expect.objectContaining({ address: creator, primaryType: 'Selection', message: expect.objectContaining({ jobId: 61n }) }))
   })
@@ -70,7 +71,9 @@ describe('get_task creator selection authorization and persistence', () => {
     const task = await context.get(address)
     expect(task).not.toHaveProperty('selection')
     expect(task).not.toHaveProperty('selectionObservedAt')
+    await context.boot().listTasks(address === undefined ? {} : { address }, {})
     expect(context.verify).not.toHaveBeenCalled()
+    expect(context.read.mock.calls.some(([call]) => call.functionName === 'selectionNonceUsed')).toBe(false)
   })
 
   it('allows only the recorded pool curator in addition to its creator', async () => {
