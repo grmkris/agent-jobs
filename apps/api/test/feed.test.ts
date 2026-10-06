@@ -34,7 +34,7 @@ describe('feed from finalized chain events', () => {
     const sql = await setup()
     for (const [block, name] of [[1, 'Published'], [2, 'Activated'], [3, 'JobSubmitted'], [4, 'Rejected']] as const) await event(sql, block, name)
     await event(sql, 5, 'PayoutOwed', { to: worker })
-    expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toEqual({ processed: 5, stale: false })
+    expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toEqual({ processed: 5, stale: false, waiting: false })
     const mine = await read(sql, worker, { includePublic: false })
     expect(mine.events.map(e => [e.kind, e.role])).toEqual([['job.activated', 'worker'], ['job.rejected', 'worker'], ['payout.owed', 'recipient']])
     expect(mine.events[1]).toMatchObject({ taskId: 'task-7', boardId: 'public', jobId: '7', next: { tool: 'get_task', args: { taskId: 'task-7' } }, url: 'https://testnet.hireling.xyz/job/7' })
@@ -54,6 +54,32 @@ describe('feed from finalized chain events', () => {
     expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: false })).toMatchObject({ stale: true })
     expect(await feedFromChain(sql, 'monad-testnet', now + 1000, { caughtUp: true })).toMatchObject({ stale: true })
     expect((await read(sql, worker)).events).toEqual([])
+  })
+})
+
+describe('feed from chain gaps and history', () => {
+  it('stops before an event whose block time is missing and resumes once it is backfilled (VV2-024)', async () => {
+    const sql = await setup()
+    await event(sql, 1, 'Activated')
+    await sql.batch([stmt('INSERT INTO events VALUES (?, ?, 2, 0, ?, ?, ?, ?)', chain, creator, 'tx-2', '7', 'JobSubmitted', '{}')])
+    await event(sql, 3, 'Rejected')
+    expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toEqual({ processed: 1, stale: false, waiting: true })
+    expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toEqual({ processed: 0, stale: false, waiting: true })
+    await sql.batch([stmt('INSERT INTO block_times VALUES (?, 2, ?)', chain, now - 98)])
+    expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toEqual({ processed: 2, stale: false, waiting: false })
+    expect((await read(sql, creator)).events.map(e => e.kind)).toEqual(['job.activated', 'job.submitted', 'job.rejected'])
+  })
+
+  it('starts a fresh feed after events already past retention, so history does not arrive as new', async () => {
+    const sql = await setup()
+    const old = now - FEED_RETENTION_SECONDS - 1000
+    await sql.batch([
+      stmt('INSERT INTO events VALUES (?, ?, 1, 0, ?, ?, ?, ?)', chain, creator, 'tx-1', '7', 'Activated', '{}'),
+      stmt('INSERT INTO block_times VALUES (?, 1, ?)', chain, old),
+    ])
+    await event(sql, 5, 'JobSubmitted')
+    expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toMatchObject({ processed: 1 })
+    expect((await read(sql, creator)).events.map(e => e.kind)).toEqual(['job.submitted'])
   })
 })
 

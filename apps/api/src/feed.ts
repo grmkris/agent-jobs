@@ -118,7 +118,7 @@ export async function readInbox(sql: AsyncSql, input: { network: Network; addres
   const addresses = [input.address.toLowerCase(), ...(input.includePublic === false ? [] : [PUBLIC_ADDRESS])]
   const where = [`chain_id = ?`, `address IN (${addresses.map(() => '?').join(',')})`, ...(kinds.length > 0 ? [`kind IN (${kinds.map(() => '?').join(',')})`] : [])]
   const params: (string | number)[] = [chainId, ...addresses, ...kinds]
-  if (after !== undefined) { where.push('seq > ?'); params.push(after) } else { where.push('created_at >= ?'); params.push(input.now - DEFAULT_LOOKBACK_SECONDS) }
+  if (after !== undefined) { where.push('seq > ?'); params.push(after) } else { where.push('occurred_at >= ?'); params.push(input.now - DEFAULT_LOOKBACK_SECONDS) }
   const rows = await sql.all<{ seq: number; id: string; address: string; kind: string; board_id: string | null; task_id: string | null; job_id: string | null; data_json: string; occurred_at: number }>(
     `SELECT seq, id, address, kind, board_id, task_id, job_id, data_json, occurred_at FROM feed_events WHERE ${where.join(' AND ')} ORDER BY seq LIMIT ?`, ...params, limit + 1)
   const page = rows.slice(0, limit)
@@ -178,7 +178,7 @@ export async function pruneFeed(sql: AsyncSql, now: number, limit = 1000): Promi
   await sql.batch([stmt('DELETE FROM feed_events WHERE seq IN (SELECT seq FROM feed_events WHERE created_at < ? ORDER BY seq LIMIT ?)', now - FEED_RETENTION_SECONDS, limit)])
 }
 
-type ChainEvent = { contract: string; block: number; log_index: number; tx_hash: string; job_id: string; name: string; args_json: string; timestamp: number }
+type ChainEvent = { contract: string; block: number; log_index: number; tx_hash: string; job_id: string; name: string; args_json: string; timestamp: number | null }
 
 /** Which chain events become feed events, for whom, and what each recipient might do next. */
 const CHAIN_KINDS: Readonly<Record<string, { kind: string; to: (job: JobRow, args: Record<string, unknown>) => Array<[string | null, string]> }>> = {
@@ -233,13 +233,20 @@ export async function feedFromChain(sql: AsyncSql, network: Network, now: number
   const [checkpoint] = await sql.all<{ updated_at: number }>('SELECT updated_at FROM checkpoint WHERE chain_id = ?', chainId)
   if (!options.caughtUp || checkpoint === undefined || checkpoint.updated_at < now - 120) return { processed: 0, stale: true }
   const name = `chain:${chainId}`
-  const [position] = await sql.all<{ block: number; log_index: number }>('SELECT block, log_index FROM feed_checkpoints WHERE name = ?', name)
   const names = Object.keys(CHAIN_KINDS)
-  const events = await sql.all<ChainEvent>(`SELECT e.*, b.timestamp FROM events e
-    JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
+  const oldest = now - FEED_RETENTION_SECONDS
+  // The first run starts after the newest event already past retention, so history never floods every inbox as new.
+  const [saved] = await sql.all<{ block: number; log_index: number }>('SELECT block, log_index FROM feed_checkpoints WHERE name = ?', name)
+  const [position] = saved !== undefined ? [saved] : await sql.all<{ block: number; log_index: number }>(`SELECT e.block, e.log_index FROM events e
+    JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block WHERE e.chain_id = ? AND b.timestamp < ? ORDER BY e.block DESC, e.log_index DESC LIMIT 1`, chainId, oldest)
+  const listed = await sql.all<ChainEvent>(`SELECT e.*, b.timestamp FROM events e
+    LEFT JOIN block_times b ON b.chain_id = e.chain_id AND b.block = e.block
     WHERE e.chain_id = ? AND e.name IN (${names.map(() => '?').join(',')}) AND (e.block > ? OR (e.block = ? AND e.log_index > ?))
     ORDER BY e.block, e.log_index LIMIT ?`, chainId, ...names, position?.block ?? -1, position?.block ?? -1, position?.log_index ?? -1, options.limit ?? 200)
-  if (events.length === 0) return { processed: 0, stale: false }
+  // Only the contiguous prefix whose block times are stored: the cursor never passes an event it could not write (VV2-024).
+  const gap = listed.findIndex(e => e.timestamp === null)
+  const events = (gap === -1 ? listed : listed.slice(0, gap)) as Array<ChainEvent & { timestamp: number }>
+  if (events.length === 0) return { processed: 0, stale: false, waiting: gap !== -1 }
   const rows: FeedEvent[] = []
   // One lookup per job per run: a job's transitions usually arrive together.
   const jobs = new Map<string, (JobRow & { board_id: string | null; task_id: string | null }) | undefined>()
@@ -247,7 +254,7 @@ export async function feedFromChain(sql: AsyncSql, network: Network, now: number
     if (!jobs.has(e.job_id)) jobs.set(e.job_id, (await sql.all<JobRow & { board_id: string | null; task_id: string | null }>(`SELECT j.*, o.board_id, o.task_id FROM jobs j
       LEFT JOIN board_offers o ON lower(o.terms_hash) = lower(j.policy_hash) WHERE j.chain_id = ? AND j.job_id = ?`, chainId, e.job_id))[0])
     const job = jobs.get(e.job_id)
-    if (job === undefined) continue
+    if (job === undefined || e.timestamp < oldest) continue
     const spec = CHAIN_KINDS[e.name]!
     const args = JSON.parse(e.args_json) as Record<string, unknown>
     const url = `${telegramSite(network)}/job/${encodeURIComponent(e.job_id)}`
@@ -266,5 +273,5 @@ export async function feedFromChain(sql: AsyncSql, network: Network, now: number
     stmt('INSERT INTO feed_checkpoints (name, chain_id, block, log_index, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (name) DO UPDATE SET block = excluded.block, log_index = excluded.log_index, updated_at = excluded.updated_at',
       name, chainId, last.block, last.log_index, now),
   ])
-  return { processed: events.length, stale: false }
+  return { processed: events.length, stale: false, waiting: gap !== -1 }
 }

@@ -74,7 +74,9 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
             runner: `cron:${crypto.randomUUID()}`,
             maxPages: 5,
           })
-          const caughtUp = result.nextBlock !== null && result.nextBlock > await head.finalizedBlock()
+          // A failed head lookup only marks the run as not caught up; the committed indexing result stands (VV2-025).
+          const finalized = await head.finalizedBlock().catch((error: unknown) => { reportFeedFailure(error); return null })
+          const caughtUp = result.nextBlock !== null && finalized !== null && result.nextBlock > finalized
           // The inbox feed (V1.1 WS4) follows finalized transitions whether or not Telegram is configured.
           const fedAt = Math.floor(Date.now() / 1000)
           await feedFromChain(sql, network, fedAt, { caughtUp }).catch(reportFeedFailure)
