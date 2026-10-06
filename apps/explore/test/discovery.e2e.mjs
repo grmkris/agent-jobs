@@ -48,7 +48,7 @@ try {
     await page.goto(`${base}/jobs`);
     await page.getByText('Fix coding tests', { exact: true }).waitFor();
     // A brief the screener rejected is marked in the list, not only in the job's collapsed details.
-    assert.equal(await page.getByText('Flagged as risky', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Screener flagged', { exact: true }).count(), 1);
     assert.equal(await page.getByRole('button', { name: /Board:/ }).count(), 0);
     const chips = page.getByRole('group', { name: 'Filter by tags' });
     await chips.getByRole('button', { name: 'Coding', exact: true }).click();

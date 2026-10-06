@@ -401,10 +401,14 @@ export function JobPage({
 
       {screening !== undefined && (screening.verdict === 'reject' || screening.verdict === 'caution') && (
         // The verdict is advice, but a worker deciding whether to take the job should see it before the brief.
-        <Alert variant={screening.verdict === 'reject' ? 'destructive' : 'default'}>
+        // Advice, not a block: the screener also flags ordinary briefs (a competitive teardown, job 16), so not red.
+        <Alert>
           <CircleAlert aria-hidden />
-          <AlertTitle>{screening.verdict === 'reject' ? 'The screener flagged this brief as risky' : 'The screener flagged this brief for a closer look'}</AlertTitle>
-          {screening.reasons[0] !== undefined && <AlertDescription className="[overflow-wrap:anywhere]">{screening.reasons[0]}</AlertDescription>}
+          <AlertTitle>{screening.verdict === 'reject' ? 'An AI screener flagged this brief as risky' : 'An AI screener flagged this brief for a closer look'}</AlertTitle>
+          <AlertDescription className="[overflow-wrap:anywhere]">
+            {screening.reasons[0] !== undefined && <span className="block">{screening.reasons[0]}</span>}
+            Its verdict is advice; read the brief before you take the job.
+          </AlertDescription>
         </Alert>
       )}
 
