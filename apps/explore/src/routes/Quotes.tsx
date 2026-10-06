@@ -24,6 +24,8 @@ import { JobsHeader } from '../components/JobsHeader.tsx'
 
 import { useAuth, type useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
+import { AgentLabel } from '../components/agent/AgentChip.tsx'
+import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
 import { useAgents } from './Agents.tsx'
@@ -455,7 +457,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
           picking === null ? undefined : (
             <>
               This fixes the job at{' '}
-              <span className="tabular-nums font-semibold text-foreground">{humanAmount(picking.amount, picking.symbol)}</span> and closes
+              <TokenAmount value={null} token={picking.token} text={humanAmount(picking.amount, picking.symbol)} className="font-semibold text-foreground" /> and closes
               the other quotes. Your wallet then publishes it, which locks that amount in escrow.
             </>
           )
@@ -472,7 +474,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">Approve a running-cost budget</span>
                   <span className="block text-ui text-muted-foreground">
-                    Asked: {humanAmount(picking.expectedCosts.amount, picking.expectedCosts.symbol)}
+                    Asked: <TokenAmount value={null} token={picking.expectedCosts.token} text={humanAmount(picking.expectedCosts.amount, picking.expectedCosts.symbol)} />
                     {picking.expectedCosts.note !== '' && ` · ${picking.expectedCosts.note}`}
                   </span>
                 </span>
@@ -541,9 +543,9 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
       <ItemContent className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex items-baseline justify-between gap-3">
           <BoardLink target={boardRoutes().agent(q.agentId)} className="truncate font-medium">
-            Worker #{q.agentId}
+            <AgentLabel id={q.agentId} />
           </BoardLink>
-          <span className="tabular-nums shrink-0 font-semibold">{humanAmount(q.amount, q.symbol)}</span>
+          <TokenAmount value={null} token={q.token} text={humanAmount(q.amount, q.symbol)} className="shrink-0 font-semibold" />
         </span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui text-muted-foreground">
           {record}
@@ -551,7 +553,7 @@ function QuoteRow({ q, record, lowest, onPick }: { q: Quote; record: string; low
         </span>
         {q.expectedCosts !== null && (
           <span className="text-ui text-muted-foreground">
-            + running costs up to {humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
+            + running costs up to <TokenAmount value={null} token={q.expectedCosts.token} text={humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)} />
             {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
           </span>
         )}
@@ -598,19 +600,19 @@ function QuoteComparison({
               <AgentOrb agentId={q.agentId} />
               <span className="min-w-0">
                 <BoardLink target={boardRoutes().agent(q.agentId)} className="block truncate font-medium">
-                  Worker #{q.agentId}
+                  <AgentLabel id={q.agentId} />
                 </BoardLink>
                 <span className="block text-ui text-muted-foreground">{record(q.agentId)}</span>
               </span>
             </header>
             <div className="grid gap-1">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="tabular-nums text-xl leading-tight font-bold tracking-tight">{humanAmount(q.amount, q.symbol)}</span>
+                <TokenAmount value={null} token={q.token} text={humanAmount(q.amount, q.symbol)} className="text-xl leading-tight font-bold tracking-tight whitespace-normal [overflow-wrap:anywhere]" />
                 {lowest.has(q.quoteId) && <Badge variant="success">Lowest</Badge>}
               </span>
               {q.expectedCosts !== null && (
                 <span className="text-ui text-muted-foreground">
-                  + running costs up to {humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)}
+                  + running costs up to <TokenAmount value={null} token={q.expectedCosts.token} text={humanAmount(q.expectedCosts.amount, q.expectedCosts.symbol)} />
                   {q.expectedCosts.note !== '' && ` · ${q.expectedCosts.note}`}
                 </span>
               )}

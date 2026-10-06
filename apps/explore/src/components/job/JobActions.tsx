@@ -30,6 +30,8 @@ import { TxSteps } from '../TxSteps.tsx'
 
 import type { useSignedIn } from '../Wallet.tsx'
 import { AgentOrb } from '../agent/AgentOrb.tsx'
+import { AgentLabel } from '../agent/AgentChip.tsx'
+import { TokenAmount } from '../token/TokenAmount.tsx'
 import { paidJob } from './HireAgain.tsx'
 
 export type JobEvent = 'approved' | 'rejected' | 'cancelled' | 'disputed' | 'settled'
@@ -279,12 +281,14 @@ export function JobActions({
         <ItemGroup>
           <Item>
             <ItemContent className="flex-1">{agent} receives</ItemContent>
-            <span className="tabular-nums font-semibold">{paid}</span>
+            <TokenAmount value={charge === null ? job.reward : charge.net} token={job.token} className="font-semibold" />
           </Item>
           {charge !== null && (
             <Item>
               <ItemContent className="flex-1">Sidequest’s {percent(charge.bps)} fee</ItemContent>
-              <ItemContent className="tabular-nums text-muted-foreground">{amount(charge.fee, job.token)}</ItemContent>
+              <ItemContent className="text-muted-foreground">
+                <TokenAmount value={charge.fee} token={job.token} />
+              </ItemContent>
             </Item>
           )}
           {job.creatorBond !== null && job.creatorBond !== '0' && (
@@ -547,7 +551,7 @@ function Applications({
               <ItemContent className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <BoardLink target={boardRoutes().agent(a.agent_id)} className="font-medium">
-                    Worker #{a.agent_id}
+                    <AgentLabel id={a.agent_id} />
                   </BoardLink>
                   {hiredBefore.has(a.agent_id) && <Badge variant="info">Hired before</Badge>}
                 </span>

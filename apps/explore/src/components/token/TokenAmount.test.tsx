@@ -28,6 +28,13 @@ describe('token chip', () => {
     expect(html).not.toMatch(/Listed by|View on|Copy token address/)
   })
 
+  it('shows words formatted elsewhere (a quote\'s "12.5 mUSD") with the same icon and popover', () => {
+    const html = render(<TokenAmount value={null} token={musd} text="12.5 mUSD" />)
+    expect(text(html)).toBe('12.5 mUSD')
+    expect(html.match(/<span>12\.5 mUSD<\/span>/g)).toHaveLength(1)
+    expect(html).toContain('<button')
+  })
+
   it('is plain inside a link or button', () => {
     const html = render(<StaticTokens><TokenAmount value={4500000n} token={musd} /></StaticTokens>)
     expect(html).not.toContain('<button')

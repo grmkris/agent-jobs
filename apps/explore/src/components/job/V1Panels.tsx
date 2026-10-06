@@ -21,6 +21,7 @@ import { percent } from '../../stake.ts'
 import { chain } from '../../wallet.ts'
 import { toBase } from '../post/form.ts'
 import { useToast } from '../Sheet.tsx'
+import { TokenAmount } from '../token/TokenAmount.tsx'
 import { TxSteps } from '../TxSteps.tsx'
 
 /** Before activation: the viewer's fee tier and net payout if they activate now. */
@@ -53,13 +54,17 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
             </ItemContent>
             {/* min-w-24: the value's room is kept while it loads, so the label does not rewrap when it lands. */}
             <ItemActions className="tabular-nums min-w-24 flex-col items-end text-right text-muted-foreground">
-              {fee === undefined ? '…' : `− ${amount(fee.toString(), token)}`}
+              {fee === undefined ? '…' : (
+                <span>
+                  − <TokenAmount value={fee} token={token} />
+                </span>
+              )}
             </ItemActions>
           </Item>
           <Item>
             <ItemContent className="flex-1 font-semibold">You receive</ItemContent>
             <ItemActions className="tabular-nums min-w-24 flex-col items-end text-right font-semibold">
-              {net === undefined ? '…' : amount(net.toString(), token)}
+              {net === undefined ? '…' : <TokenAmount value={net} token={token} />}
             </ItemActions>
           </Item>
           <Link to="/backing" className={cn(textLinkClass, 'flex min-h-11 items-center px-4 text-sm')}>
@@ -116,12 +121,14 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
       <ItemGroup>
         <Item>
           <ItemContent className="flex-1">Added so far</ItemContent>
-          <span className="tabular-nums">{listing === undefined ? '…' : amount(listing.bonus.toString(), token)}</span>
+          {listing === undefined ? <span>…</span> : <TokenAmount value={listing.bonus} token={token} />}
         </Item>
         {mine !== undefined && mine > 0n && (
           <Item>
             <ItemContent className="flex-1 text-muted-foreground">By you</ItemContent>
-            <ItemContent className="tabular-nums text-muted-foreground">{amount(mine.toString(), token)}</ItemContent>
+            <ItemContent className="text-muted-foreground">
+              <TokenAmount value={mine} token={token} />
+            </ItemContent>
           </Item>
         )}
       </ItemGroup>

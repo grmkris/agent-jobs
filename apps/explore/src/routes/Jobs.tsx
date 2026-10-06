@@ -18,7 +18,8 @@ import { useNow } from '../components/Time.tsx'
 
 import { useAuth } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
-import { amount, relative } from '../format.ts'
+import { TokenAmount } from '../components/token/TokenAmount.tsx'
+import { relative } from '../format.ts'
 import { useToken } from '../useTokens.ts'
 
 export interface JobListItem {
@@ -317,7 +318,9 @@ export function JobRow({ item, phase, note }: { item: JobListItem; phase: Phase 
   const reward = item.chain?.reward ?? item.task?.reward
   const token = item.chain?.token ?? item.task?.token
   const meta = useToken(token)
-  const rewardText = meta === 'reading' ? 'Reading token…' : meta === 'none' ? 'Token unavailable' : amount(reward, token)
+  // Inside the row's link the chip is plain (no popover button nested in a link); a long symbol may wrap in the row.
+  const rewardText =
+    meta === 'reading' ? 'Reading token…' : meta === 'none' ? 'Token unavailable' : <TokenAmount value={reward} token={token} static className="whitespace-normal" />
   const other = routes.boardId === 'public' && item.chain?.board_id != null && item.chain.board_id !== 'public' ? item.chain.board_id : null
   const target =
     item.jobId === null

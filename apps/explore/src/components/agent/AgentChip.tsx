@@ -37,6 +37,17 @@ export function AgentMention({ id, name, nameOnly = false }: { id: string; name:
   )
 }
 
+/** The words alone, for a row that already shows the agent's orb: "Scout #2013", or "Worker #2013" without a name. */
+export function AgentLabel({ id, name }: { id: string; name?: string | null }) {
+  const label = agentLabel(id, useAgentName(id, name))
+  return (
+    <>
+      {label.text}
+      {label.id !== null && <span className="text-muted-foreground"> {label.id}</span>}
+    </>
+  )
+}
+
 export function AgentChip({ id, name, link = true, nameOnly = false, className }: { id: string; name?: string | null; link?: boolean; nameOnly?: boolean; className?: string }) {
   const known = useAgentName(id, name)
   const title = nameOnly && known !== null ? `Agent ID ${id}` : undefined

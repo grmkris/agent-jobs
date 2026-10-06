@@ -39,16 +39,19 @@ export function TokenAmount({
   token,
   className,
   static: forceStatic = false,
+  text: given,
 }: {
   value: string | bigint | null | undefined
   token: string | null | undefined
   className?: string | undefined
   static?: boolean | undefined
+  /** Words already formatted elsewhere ("12.5 mUSD" from a quote), shown instead of formatting `value`. */
+  text?: string | undefined
 }) {
   // Re-render once a token read from the chain registers its symbol and decimals.
   useToken(token)
   const inert = useContext(Static) || forceStatic
-  const text = amount(value === null || value === undefined ? value : String(value), token)
+  const text = given ?? amount(value === null || value === undefined ? value : String(value), token)
   if (token === null || token === undefined || token === '')
     return <span className={cn('tabular-nums whitespace-nowrap', className)}>{text}</span>
   const face = (

@@ -24,6 +24,8 @@ import { useNow } from '../components/Time.tsx'
 
 import type { useSignedIn } from '../components/Wallet.tsx'
 import { AgentOrb } from '../components/agent/AgentOrb.tsx'
+import { AgentLabel } from '../components/agent/AgentChip.tsx'
+import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
 import { sidequest } from '../sidequest.ts'
 import { percent } from '../stake.ts'
@@ -503,7 +505,8 @@ function Money({
       </span>
       <span className="min-w-0">
         <span className="tabular-nums block text-2xl leading-none font-bold tracking-tight [overflow-wrap:anywhere]">
-          {amount(paid && charge !== null ? charge.net : reward, token)}
+          {/* At large text sizes on a phone the amount wraps rather than widen the page. */}
+          <TokenAmount value={paid && charge !== null ? charge.net : reward} token={token} className="whitespace-normal" />
         </span>
         <span className="mt-1 block text-sm text-muted-foreground">{where}</span>
         {token !== null && tokenInfo(token).unverified === true && (
@@ -640,7 +643,9 @@ function People({
               <AgentOrb agentId={agentId} />
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
-              <ItemTitle className="block font-medium">Worker #{agentId}</ItemTitle>
+              <ItemTitle className="block font-medium">
+                <AgentLabel id={agentId} />
+              </ItemTitle>
               <ItemDescription className="block truncate font-mono text-ui text-muted-foreground">{worker}</ItemDescription>
             </ItemContent>
             <ItemActions>

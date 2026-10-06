@@ -5,11 +5,12 @@ import * as sdk from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { erc20Abi, zeroAddress } from 'viem'
 import { useBalance, useReadContract } from 'wagmi'
-import { amount, formatNumber, tokenInfo } from '../../format.ts'
+import { formatNumber, tokenInfo } from '../../format.ts'
 import { sidequest } from '../../sidequest.ts'
 import { useToken } from '../../useTokens.ts'
 import { chain, isMainnet } from '../../wallet.ts'
 
+import { TokenAmount } from '../token/TokenAmount.tsx'
 import { Mark } from './parts.tsx'
 
 type Hex = `0x${string}`
@@ -112,9 +113,9 @@ export function Preflight({
               />
             </ItemMedia>
             <ItemContent className="min-w-0 flex-1">
-              <span className="block">Reward · {reward === null ? `— ${sym}` : amount(reward.toString(), token)}</span>
+              <span className="block">Reward · {reward === null ? `— ${sym}` : <TokenAmount value={reward} token={token} />}</span>
               {reward !== null && tokenHeld !== undefined && tokenHeld < reward && (
-                <span className="block text-ui text-warning-text">You need {amount((reward - tokenHeld).toString(), token)} more.</span>
+                <span className="block text-ui text-warning-text">You need <TokenAmount value={reward - tokenHeld} token={token} /> more.</span>
               )}
             </ItemContent>
             <ItemActions className="tabular-nums flex-col items-end text-right text-muted-foreground">
