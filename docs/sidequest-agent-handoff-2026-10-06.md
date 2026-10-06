@@ -476,3 +476,45 @@ ACKs and these committed local records remain the coordination evidence. No
 provider mutation, authentication, deploy, payment, transaction or path move
 occurred. The next dev apply remains held until S5/profile integration,
 release-wide SIGNOFF, final gates and Privy approval/readback are complete.
+
+## Overnight supervisor continuation — 06 October 2026, 06:02 UTC
+
+This entry supersedes the earlier moving-head descriptions where they differ.
+The shared checkout is on local `main` at `28a16eae97e20c287c4e6cc17bb072b828f2653a`
+(`28a16ea`, **Pin Sidequest build inputs in release guards**), 17 commits ahead
+of `origin/main` at `55c9282c050627f6a7ea8dcfc0eb66ed0180f4fc`. The commit only
+changes the staging payload pin list and its regression tests: Sidequest now
+pins `SIDEQUEST_NETWORK` and `SIDEQUEST_PROD_PRIVY_APP_ID` before upload. The
+focused suites pass 15/15 and the retained Node 24 staging suite passes 166/166;
+logs are `/tmp/sidequest-staging-focused-after.log` and
+`/tmp/sidequest-staging-all-after.log`. No provider call, push, authentication,
+transaction or deployment occurred. Foreign `.artifact-video/` and
+`packages/sdk/scripts/.local/` remain untracked and untouched.
+
+The observed panes remain owned as follows:
+
+| Pane | Verified state at readback | Gate / handoff |
+| --- | --- | --- |
+| `%14` Explore coordinator | Alive and actively running the P1b affected suites; four P1b commits are prepared in its worktree | Explore retains the S5/P1b merge order and must issue the explicit base-ready signal to profile after its gates |
+| `%35` FINALIZE-UI | Alive and actively running the S5 staking/browser fixture suite; S3/S4 Sidequest range `e9a4115..ad26f03` remains isolated evidence | Do not interrupt, rebase, cherry-pick or count the running suite; its owner posts S5 completion and the coordinated landing range |
+| `%20` profile/token chip | Alive; profile split is prepared on Sidequest and its full gate was running; integration is still waiting | It must wait for Explore base-ready, then land its owned C8–C12 paths with a fresh integrated gate |
+| `%13` V1.1 coordinator | Alive and holding after the resolved fixes | `e726244`, `d2ec71b` and review `95cb047` are component evidence; the moving candidate still needs release-wide review and final integrated gates |
+| `%3` reviewer | Alive/idle after component recheck | No release-wide SIGNOFF covers `28a16ea`, the reset/policy base, or the pending UI/profile integration |
+
+The earlier mytmux notice records remain `delivery: unknown` for `%14`, `%13`
+and `%20`, and `notDispatched` for `%35`; no resend, prompt clearing or input
+injection was attempted. The verified coordination handoff is this committed
+file plus the explicit Explore acknowledgement already recorded in `status/triage.md`.
+Observation of an alive pane is not an acknowledgement or completion claim.
+
+The canonical deployment boundary is unchanged: `https://dev.sidequest.exchange`
+on Monad testnet 10143, deployed source `e6aeb3b95f80f65fc781b54809aa757c6ad06995`,
+with fresh `sidequest-*` Workers/D1/R2 and `.alchemy/state/Sidequest/dev` as the
+only dev backend. `sidequest.exchange` remains reserved for separately authorized
+mainnet release. Do not run the dev apply until the coordinated UI/profile/V1.1
+candidate has exact SHA-bound release-wide review, `heavy pnpm check`,
+`pnpm sidequest:test`, `pnpm db:generate --check`, the Node 24 release plan,
+and the outstanding Privy approval/readback. Legacy jobs, old provider resources,
+credentials, journals and dated receipts remain retained pending the existing
+economic/authority reconciliation; no retirement action is implied by this
+coordination update.
