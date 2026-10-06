@@ -173,6 +173,9 @@ importers:
         specifier: 3.7.7
         version: 3.7.7(@coinbase/wallet-sdk@4.3.6(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(typescript@7.0.2)(use-sync-external-store@1.4.0(react@19.3.0))(utf-8-validate@5.0.10)(zod@3.25.76))(@safe-global/safe-apps-provider@0.18.6(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@3.25.76))(@safe-global/safe-apps-sdk@9.1.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@3.25.76))(@tanstack/query-core@5.104.0)(@tanstack/react-query@5.104.0(react@19.3.0))(@types/react@19.3.0)(@walletconnect/ethereum-provider@2.22.4(@types/react@19.3.0)(aws4fetch@1.0.20)(bufferutil@4.1.0)(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@3.25.76))(react@19.3.0)(typescript@7.0.2)(viem@2.56.9(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@3.25.76))
     devDependencies:
+      '@monad-crypto/token-list':
+        specifier: 2.49.0
+        version: 2.49.0
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))
@@ -188,6 +191,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 6.1.1
         version: 6.1.1(vite@8.3.1(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@web3icons/common':
+        specifier: 0.11.53
+        version: 0.11.53
       playwright-core:
         specifier: ^1.63.0
         version: 1.63.0
@@ -1178,6 +1184,10 @@ packages:
   '@metamask/utils@9.3.0':
     resolution: {integrity: sha512-w8CVbdkDrVXFJbfBSlDfafDR6BAkpDmv1bC1UJVCoVny5tW2RKAdn9i68Xf7asYT4TnUhl/hN4zfUiKQq9II4g==}
     engines: {node: '>=16.0.0'}
+
+  '@monad-crypto/token-list@2.49.0':
+    resolution: {integrity: sha512-p4shSx+ylWaNJ2GIeJ9XFtr5OdUKrbwK4O2ixAuAGc/omfK9kJwVLgFNdscgk7ItOkUk+DXohJ7+h6mDKqOldA==}
+    engines: {node: '>=18'}
 
   '@mrleebo/prisma-ast@0.13.1':
     resolution: {integrity: sha512-XyroGQXcHrZdvmrGJvsA9KNeOOgGMg1Vg9OlheUsBOSKznLMDl+YChxbkboRHvtFYJEMRYmlV3uoo/njCw05iw==}
@@ -3178,6 +3188,9 @@ packages:
 
   '@walletconnect/window-metadata@1.0.1':
     resolution: {integrity: sha512-9koTqyGrM2cqFRW517BPY/iEtUDx2r1+Pwwu5m7sJ7ka79wi3EyqhqcICk/yDmv6jAS1rjKgTKXlEhanYjijcA==}
+
+  '@web3icons/common@0.11.53':
+    resolution: {integrity: sha512-bNUB/Lfh9C+6T1juicWARU+oW27scRj7Xw/TkzCXlZBrJICEc/qTcIUStGpCjDq3jQuRfO6JHCbTIiiEPZAzBg==}
 
   abitype@1.0.6:
     resolution: {integrity: sha512-MMSqYh4+C/aVqI2RQaWqbvI4Kxo5cQV40WQ4QFtDnNzCkqChm8MuENhElmynZlO0qUy/ObkEUaXtKqYnx1Kp3A==}
@@ -6492,6 +6505,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@monad-crypto/token-list@2.49.0': {}
+
   '@mrleebo/prisma-ast@0.13.1':
     dependencies:
       chevrotain: 10.5.0
@@ -9681,6 +9696,8 @@ snapshots:
     dependencies:
       '@walletconnect/window-getters': 1.0.1
       tslib: 1.14.1
+
+  '@web3icons/common@0.11.53': {}
 
   abitype@1.0.6(typescript@7.0.2)(zod@3.25.76):
     optionalDependencies:
