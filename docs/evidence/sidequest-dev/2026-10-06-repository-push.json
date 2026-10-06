@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-06T05:14:03.877116+00:00",
+  "repository": "grmkris/sidequest",
+  "origin": "https://github.com/grmkris/sidequest.git",
+  "remoteMain": "55c9282c050627f6a7ea8dcfc0eb66ed0180f4fc",
+  "push": "ff3fce6..55c9282 (non-force, explicit commit)",
+  "checkedSource": "7a8b7c192dbd78d29b57e0ce21ca8806250ebd50",
+  "sourceGate": "heavy pnpm check exit 0",
+  "foreignMainCommitNotPushed": "abe06ec6b720e692e784b1a172f31b4e7d59a0ee",
+  "liveDevSource": "e6aeb3b95f80f65fc781b54809aa757c6ad06995",
+  "limits": [
+    "No fresh dev apply in this continuation.",
+    "V1.1 WS5 is local main only and awaits source review/final candidate gate.",
+    "No physical path move, legacy deletion, provider credential rotation or managed signing claimed."
+  ]
+}

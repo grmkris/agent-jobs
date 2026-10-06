@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-10-06T05:06:46.971705+00:00",
+  "observedAt": "2026-10-06T05:14:03.876003+00:00",
   "candidate": "7a8b7c192dbd78d29b57e0ce21ca8806250ebd50",
   "sourceIncludes": "fd76d04",
   "gates": {
@@ -13,10 +13,12 @@
     "pnpm sidequest:test": {
       "status": "passed",
       "suites": 1,
-      "tests": 1
+      "tests": 1,
+      "candidate": "d24fc74701e44fc4bc52bf01aa625f52f7a77f7b"
     },
     "pnpm db:generate --check": {
-      "status": "passed"
+      "status": "passed",
+      "candidate": "d24fc74701e44fc4bc52bf01aa625f52f7a77f7b"
     },
     "git diff --check": {
       "status": "passed"
@@ -33,7 +35,8 @@
         "sidequest-dev-manifests"
       ],
       "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
-      "log": "/tmp/sidequest-dev-plan-d24fc74.log"
+      "log": "/tmp/sidequest-dev-plan-d24fc74.log",
+      "candidate": "d24fc74701e44fc4bc52bf01aa625f52f7a77f7b"
     },
     "dev-release apply": {
       "status": "not-run",
@@ -45,7 +48,7 @@
       "findings": 0,
       "report": "/tmp/sidequest-gitleaks/report-7a8b7c1.json",
       "classification": "no leaks found",
-      "exitCode": 1
+      "exitCode": 0
     },
     "policy planner tests": {
       "status": "passed",
@@ -58,5 +61,16 @@
     "Release plan only; no apply or provider mutation was performed.",
     "Live dev remains deployed source e6aeb3b; fd76d04 is not live until an apply and readback.",
     "Foreign untracked work remains untouched."
-  ]
+  ],
+  "priorRangeSecretScan": {
+    "range": "origin/main..d24fc74 before push",
+    "exitCode": 1,
+    "reviewedFalsePositives": 33,
+    "classification": {
+      "public chain addresses": 29,
+      "operation identifiers": 2,
+      "environment variable name": 1,
+      "fake redaction-test key": 1
+    }
+  }
 }

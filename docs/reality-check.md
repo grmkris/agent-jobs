@@ -1318,3 +1318,12 @@ was outside that output. No provider credential, policy, quorum or deployment
 was changed in response. Automatic review refused an unverified Enter keypress
 in the Privy dashboard. App name, real login, authenticated MCP and managed
 signing remain open; source `e6aeb3b` is still the live dev source.
+
+**05:13 UTC publication:** the exact non-force push through `55c9282` succeeded;
+remote main readback is `55c9282c050627f6a7ea8dcfc0eb66ed0180f4fc`. Full local
+gate at source `7a8b7c1` passed, and its incremental redacted Gitleaks scan has
+zero findings / exit 0. [Repository receipt](evidence/sidequest-dev/2026-10-06-repository-push.json).
+This is source publication, not a new dev deployment. Concurrent V1.1 WS5 commit
+`abe06ec` is local main only, excluded from the push and awaits review; existing
+frontend integration is active under Explore's ownership. No new release apply,
+provider authority change or legacy retirement occurred.

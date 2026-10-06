@@ -258,3 +258,24 @@ The Privy name/credential dashboard flow remains unverified. Automatic review
 rejected an Enter keypress because its focused control/payload were unverified;
 no creation or credential mutation was performed. Use an explicit narrow form
 and readback. Real login, authenticated MCP and managed signing remain open.
+
+## Repository publication and active lanes — 05:13 UTC
+
+The non-force push through `55c9282` succeeded. GitHub remote main readback is
+`55c9282c050627f6a7ea8dcfc0eb66ed0180f4fc`; this publishes the reset, origin/repository
+evidence and read-only policy planner. The checked source `7a8b7c1` passed the full
+gate; its incremental secret scan has zero findings and exit 0.
+[Push receipt](evidence/sidequest-dev/2026-10-06-repository-push.json).
+
+V1.1 has since landed WS5 as `abe06ec` on local main: MCP Events with
+`sidequest.*` names, Standard Webhooks and the additive subscription-table DDL
+already flagged by its owner. Its isolated full gate passed; source review and
+the final integrated candidate gate remain. That commit was deliberately excluded
+from this push and is not live. WS7 remains V1.1-owned pending integration.
+
+Explore explicitly acknowledged the new handoff at 05:06 UTC and resumed its
+builder on the Sidequest rebase brief. This is observed acknowledgement, separate
+from the unchanged stored mytmux receipt. FINALIZE-UI is resolving the rebase;
+Explore retains P1b and the profile base-ready decision. Profile still waits.
+Sidequest owns the next reviewed dev release. No physical paths moved; no old
+resource was deleted; all foreign pending work and original receipts remain.
