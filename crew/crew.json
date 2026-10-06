@@ -193,6 +193,30 @@
         "turnaroundSeconds": 7200
       },
       "fallbackModel": "glm-5.3"
+    },
+    "grokbot": {
+      "name": "Grok Bot",
+      "email": "grokbot@agents.kris.gg",
+      "operator": "crew",
+      "harness": "grok",
+      "model": "grok-4.7",
+      "effort": "high",
+      "enabled": true,
+      "scopes": "sidequest:read sidequest:work",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "quick-answers",
+        "name": "Quick answers with sources",
+        "description": "Short explainers, fact checks and sourced lists, delivered as a one-page site within the hour.",
+        "inputs": "The question and how you will use the answer.",
+        "outputs": "A one-page answer with sources on a public URL.",
+        "turnaroundSeconds": 3600
+      },
+      "fallbackModel": "deepseek-v4-pro-0813"
     }
   },
   "operators": {

@@ -16,7 +16,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { parseEnv } from 'node:util'
 
 const crewDir = resolve(import.meta.dir, '..')
@@ -32,6 +32,10 @@ interface Member {
   email: string
   operator: string
   model: string
+  /** The OAuth scopes its login asks for (default: the board's); a worker-only member drops sidequest:hire. */
+  scopes?: string
+  /** The CLI that runs the member: Codex (default) or Grok's own CLI, both against cliproxy. */
+  harness?: 'codex' | 'grok'
   /** Used after `harness.fallbackAfter` failed runs in a row (cliproxy models come and go). */
   fallbackModel?: string
   effort: string
@@ -96,7 +100,7 @@ async function login(id: string, landed?: string) {
     const verifier = randomBytes(32).toString('base64url')
     const state = randomBytes(12).toString('hex')
     secretFile(loginPath, { verifier, state })
-    const q = new URLSearchParams({ response_type: 'code', client_id: client.clientId, redirect_uri: REDIRECT, scope: crew.board.scopes, resource: crew.board.mcp, state,
+    const q = new URLSearchParams({ response_type: 'code', client_id: client.clientId, redirect_uri: REDIRECT, scope: m.scopes ?? crew.board.scopes, resource: crew.board.mcp, state,
       code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' })
     console.log(`Open this while signed in to ${crew.board.origin}, pick ${m.name}'s agent and approve. The browser then`)
     console.log(`lands on a page that does not load (${REDIRECT}?code=…); pass that whole address within 2 minutes:\n`)
@@ -157,6 +161,9 @@ async function run(id: string, note = '', model?: string): Promise<number | null
   mkdirSync(join(harnessHome, '.codex'), { recursive: true, mode: 0o700 })
   writeFileSync(join(harnessHome, '.gitconfig'), `[user]\n\tname = ${m.name}\n\temail = ${m.email}\n[safe]\n\tdirectory = *\n[init]\n\tdefaultBranch = main\n`)
   const extraMcp = Object.entries(m.mcp).map(([n, url]) => `[mcp_servers.${n}]\nurl = "${url}"\n`).join('')
+  // Grok's CLI reads the board's bearer token from its config, not the environment; the home is the member's own (0700).
+  if (m.harness === 'grok') mkdirSync(join(harnessHome, '.grok'), { recursive: true, mode: 0o700 })
+  if (m.harness === 'grok') writeFileSync(join(harnessHome, '.grok', 'config.toml'), `[models]\ndefault = "${m.model}"\ndefault_reasoning_effort = "${m.effort}"\n[model."${m.model}"]\nbase_url = "${crew.harness.baseUrl}"\nenv_key = "CLIPROXY_API_KEY"\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nenabled = true\n[mcp_servers.sidequest.headers]\nAuthorization = "Bearer ${token.access_token}"\n${Object.entries(m.mcp).map(([n, url]) => `[mcp_servers.${n}]\nurl = "${url}"\nenabled = true\n`).join('')}`, { mode: 0o600 })
   writeFileSync(join(harnessHome, '.codex', 'config.toml'), `model = "${m.model}"\nmodel_provider = "cliproxy"\nmodel_reasoning_effort = "${m.effort}"\n[model_providers.cliproxy]\nname = "cliproxy"\nbase_url = "${crew.harness.baseUrl}"\nwire_api = "responses"\nenv_key = "CLIPROXY_API_KEY"\nrequires_openai_auth = false\n[mcp_servers.sidequest]\nurl = "${crew.board.mcp}"\nbearer_token_env_var = "SIDEQUEST_MCP_TOKEN"\n${extraMcp}[projects."/crew/agent"]\ntrust_level = "trusted"\n`)
   const service = { ...m.service, price: { model: 'quote', amountBaseUnits: '0', token: (await protocolInfo()).rewardTokens?.[0] } }
   const prompt = [
@@ -173,7 +180,7 @@ async function run(id: string, note = '', model?: string): Promise<number | null
     '-e', `GIT_AUTHOR_NAME=${m.name}`, '-e', `GIT_AUTHOR_EMAIL=${m.email}`, '-e', `GIT_COMMITTER_NAME=${m.name}`, '-e', `GIT_COMMITTER_EMAIL=${m.email}`]
   for (const v of m.env) envs.push('-e', v.includes('=') ? v : `${v}=${e[v] ?? ''}`)
   const mounts = ['-v', `${agent}:/crew/agent`, '-v', `${harnessHome}:/home/agent`, '-v', `${join(crewDir, 'shared')}:/crew/shared:ro`, '-v', `${join(repo, 'skill')}:/crew/skill:ro`,
-    '-v', `${dirname(dirname(bin('codex')))}:/opt/codex:ro`, '-v', `${dirname(bin('forge'))}:/opt/foundry:ro`, '-v', `${bin('bun')}:/opt/bin/bun:ro`]
+    '-v', `${dirname(dirname(bin('codex')))}:/opt/codex:ro`, '-v', `${dirname(bin('grok'))}:/opt/grok:ro`, '-v', `${dirname(bin('forge'))}:/opt/foundry:ro`, '-v', `${bin('bun')}:/opt/bin/bun:ro`]
   const runs = join(home(id), 'runs')
   mkdirSync(runs, { recursive: true, mode: 0o700 })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
@@ -186,8 +193,10 @@ async function run(id: string, note = '', model?: string): Promise<number | null
   const { cpus, memory } = m.resources ?? crew.harness.resources
   const limits = ['--cpus', String(cpus), '--memory', memory, '--memory-swap', memory, '--pids-limit', '1024', '--cpu-shares', String(crew.harness.cpuShares)]
   const docker = ['run', '--rm', '-i', '--network', 'host', '--user', '1000:1000', '--name', container, ...limits, ...envs, ...mounts, IMAGE]
-  const command = ['codex', 'exec', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '--json', prompt]
-  console.log(`${m.name} (${m.model}, ${cpus} CPU, ${memory}): run ${stamp}`)
+  const command = m.harness === 'grok'
+    ? [`/opt/grok/${basename(bin('grok'))}`, '-p', prompt, '--always-approve', '--output-format', 'streaming-json']
+    : ['codex', 'exec', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '--json', prompt]
+  console.log(`${m.name} (${m.harness ?? 'codex'} ${m.model}, ${cpus} CPU, ${memory}): run ${stamp}`)
   const out = Bun.file(join(runs, `${stamp}.jsonl`)).writer()
   const err: Buffer[] = []
   const child = spawn('docker', [...docker, ...command], { stdio: ['ignore', 'pipe', 'pipe'] })
