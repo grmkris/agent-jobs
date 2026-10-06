@@ -53,9 +53,14 @@ export async function censusOf(infra, token, fetcher = fetch) {
     const rows = []
     for (let page = 1; page <= 100; page++) {
       const body = await get(`${path}?page=${page}&per_page=100`)
-      if (!Array.isArray(body.result) || !Number.isInteger(body.result_info?.total_pages) || body.result_info.page !== page) throw new Error('cloudflare-pagination-incomplete')
+      const info = body.result_info
+      const totalPages = info?.total_pages ?? (Number.isInteger(info?.total_count) && info.total_count >= 0 && Number.isInteger(info?.per_page) && info.per_page > 0 ? Math.max(1, Math.ceil(info.total_count / info.per_page)) : NaN)
+      if (!Array.isArray(body.result) || !Number.isInteger(totalPages) || totalPages < 1 || info?.page !== page || info.count !== undefined && info.count !== body.result.length) throw new Error('cloudflare-pagination-incomplete')
       rows.push(...body.result)
-      if (page >= body.result_info.total_pages) return rows
+      if (page >= totalPages) {
+        if (info.total_count !== undefined && rows.length !== info.total_count) throw new Error('cloudflare-pagination-incomplete')
+        return rows
+      }
     }
     throw new Error('cloudflare-pagination-limit')
   }

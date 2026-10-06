@@ -52,3 +52,17 @@ test('census traverses domain and D1 pagination and rejects missing page metadat
 test('testnet sends require explicit enablement before keys or network are accessed', async () => {
   await assert.rejects(testnetOperation({ id: 'unit-refused', key: 'unused', to: 'unused', env: {} }), /testnet-send-not-enabled/)
 })
+
+const countPaginationFetcher = truncated => async url => {
+    const parsed = new URL(url), page = Number(parsed.searchParams.get('page'))
+    if (!page) return Response.json({ success: true, result: parsed.pathname.includes('/zones/') ? fresh().zone : parsed.pathname.endsWith('/r2/buckets') ? { buckets: [] } : [] })
+    const result = Array.from({ length: page === 1 ? 100 : truncated ? 0 : 1 }, (_, i) => ({ id: (page - 1) * 100 + i }))
+    return Response.json({ success: true, result, result_info: { page, per_page: 100, count: result.length, total_count: 101 } })
+}
+
+test('Cloudflare count-based pagination traverses every row and refuses incomplete totals', async () => {
+  const census = await censusOf(infra, 'test-token', countPaginationFetcher(false))
+  assert.equal(census.databases.length, 101)
+  assert.equal(census.domains.length, 101)
+  await assert.rejects(censusOf(infra, 'test-token', countPaginationFetcher(true)), /pagination-incomplete/)
+})
