@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import legacyLogs from '../test/fixtures/testnet-logs.json' with { type: 'json' }
 import {
   type AsyncSql, type IndexerConfig, type RawLog, contractsFromDeployment, decode, fromNodeSqlite,
-  configuredJobs, jobAvailability, jobDetail, listAgents, migrate, networkStats, protocolEvents, resetIndex, runOnce, stmt,
+  agentDetail, configuredJobs, jobAvailability, jobDetail, listAgents, migrate, networkStats, protocolEvents, resetIndex, runOnce, stmt,
 } from './index.ts'
 
 const addr = (n: number): Address => `0x${n.toString(16).padStart(40, '0')}`
@@ -36,9 +36,9 @@ function log(abi: Abi, address: Address, name: string, args: Record<string, unkn
   }
 }
 
-function published(id = 1000n, block = 100) {
+function published(id = 1000n, block = 100, by: Address = creator) {
   return log(holding, addr(2), 'Published', {
-    jobId: id, creator, approver, arbitrator, token, reward: 1000n, creatorBond: 100n, workerBond: 200n,
+    jobId: id, creator: by, approver, arbitrator, token, reward: 1000n, creatorBond: 100n, workerBond: 200n,
     manifestHash: hash(1), policyHash: hash(2), deliveryDeadline: 10_000, expiredAt: 60_000,
     reviewWindow: 3600, disputeWindow: 7200, arbitrationWindow: 43_200,
   }, block)
@@ -215,6 +215,39 @@ describe('Hireling event indexing', () => {
     await runOnce(sql, cfg(logs))
     expect((await jobDetail(sql, contracts.chainId, '1000', 0))?.job).toMatchObject({ status: 'completed', outcome: 'Accepted', settlement_outcome: 'Paid' })
     expect(await listAgents(sql, contracts.chainId)).toMatchObject([{ completed: 1, lost: 0, earned: { [token]: '990' } }])
+  })
+
+  it("an agent's record holds the jobs its wallets posted, gross/fee/net per side, and its timings", async () => {
+    const sql = await db()
+    const logs = [published(), activated(),
+      log(holding, addr(2), 'ToppedUp', { jobId: 1000n, contributor: creator, amount: 100n, bonus: 100n }, 102),
+      log(sdk.coreAbi as Abi, d.core, 'JobSubmitted', { jobId: 1000n, provider: worker, deliverable: hash(5) }, 103),
+      log(evaluator, addr(3), 'Accepted', { jobId: 1000n, approver }, 104),
+      log(sdk.coreAbi as Abi, d.core, 'PaymentReleased', { jobId: 1000n, recipient: worker, amount: 900n }, 104, 1),
+      log(sdk.coreAbi as Abi, d.core, 'JobCompleted', { jobId: 1000n, evaluator: addr(3), reason: hash(1) }, 104, 2),
+      log(holding, addr(2), 'RewardSettled', { jobId: 1000n, to: worker, outcome: 1, amount: 90n }, 105),
+      log(holding, addr(2), 'FeeCharged', { jobId: 1000n, token, worker, creator, amount: 110n, bonusPart: 10n }, 105, 1),
+      // Agent 7's wallet posts a job of its own.
+      published(1001n, 106, worker),
+    ]
+    await runOnce(sql, cfg(logs))
+    const seven = await agentDetail(sql, contracts.chainId, '7')
+    expect(seven?.jobs.map((j) => j.job_id)).toEqual(['1000'])
+    expect(seven?.wallets).toEqual([worker])
+    expect(seven?.posted.map((j) => j.job_id)).toEqual(['1001'])
+    expect(seven?.hiring).toEqual({ posted: 1, open: 1, paidOut: {} })
+    expect(seven?.work.earned).toEqual({ [token]: { gross: '1100', fee: '110', net: '990' } })
+    // Block times are 10_000 + block: activated at 101, submitted at 103, last event at 106.
+    expect(seven?.time).toEqual({ activeSince: 10_101, lastActive: 10_106, medianTurnaroundSeconds: 2, turnarounds: 1 })
+
+    // An agent that took nothing: its record is the hiring its known wallet did, paid out gross/fee/net.
+    const hirer = await agentDetail(sql, contracts.chainId, '8', [creator.toUpperCase().replace('0X', '0x')])
+    expect(hirer?.agent).toMatchObject({ agentId: '8', jobs: 0, completed: 0 })
+    expect(hirer?.jobs).toEqual([])
+    expect(hirer?.posted.map((j) => j.job_id)).toEqual(['1000'])
+    expect(hirer?.hiring).toEqual({ posted: 1, open: 0, paidOut: { [token]: { gross: '1100', fee: '110', net: '990' } } })
+    expect(hirer?.time.activeSince).toBe(10_100)
+    expect(await agentDetail(sql, contracts.chainId, '9')).toBeUndefined()
   })
 
   it('replay, small pages, restart and rebuild preserve job and protocol rows', async () => {

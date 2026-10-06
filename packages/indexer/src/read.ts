@@ -258,13 +258,79 @@ export async function agentsOfWallet(sql: AsyncSql, chainId: number, wallet: str
   return rows.map((r) => r.agent_id)
 }
 
-/** One agent's record: its summary, the wallets it worked from, and each job it took with the job's outcome rows. */
-export async function agentDetail(sql: AsyncSql, chainId: number, agentId: string) {
+/** A job that paid its worker: a v1 job settled Paid, or a completed legacy job. Gross = reward + bonus. */
+const PAID_JOB = "((kind = 'hireling-v1' AND settlement_outcome = 'Paid') OR (kind = 'legacy' AND status = 'completed'))"
+
+/** Per token: the reward and bonus (gross), the fee charged on them, and what was left for the worker (net). */
+export type MoneyTotals = { gross: string; fee: string; net: string }
+
+export interface AgentTime {
+  /** Unix time of its first activation or publication here; null while block times are unknown. */
+  activeSince: number | null
+  /** Unix time of the latest event on any job it took or posted. */
+  lastActive: number | null
+  /** Median seconds from activation to submission over its hires; null before the first submission. */
+  medianTurnaroundSeconds: number | null
+  /** How many submitted hires the median is taken over. */
+  turnarounds: number
+}
+
+const median = (values: readonly number[]): number | null => {
+  if (values.length === 0) return null
+  const sorted = values.toSorted((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 1 ? (sorted[mid] as number) : Math.round(((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2)
+}
+
+/** Block times, or null for each when the indexer has not looked them up yet (or the table does not exist yet). */
+async function times(sql: AsyncSql, chainId: number, blocks: readonly number[]): Promise<Map<number, number>> {
+  const unique = [...new Set(blocks)]
+  if (unique.length === 0) return new Map()
+  const out = new Map<number, number>()
+  // D1 binds at most 100 parameters per query.
+  for (let i = 0; i < unique.length; i += 90) {
+    const page = unique.slice(i, i + 90)
+    const rows = await sql
+      .all<{ block: number; timestamp: number }>(`SELECT block, timestamp FROM block_times WHERE chain_id = ? AND block IN (${page.map(() => '?').join(', ')})`, chainId, ...page)
+      .catch(() => [])
+    for (const r of rows) out.set(r.block, r.timestamp)
+  }
+  return out
+}
+
+/**
+ * One agent's record: its summary, the wallets it worked from, each job it took with the job's outcome rows, and the
+ * jobs it posted. `wallets` adds addresses the agent is known by (its current ERC-8004 agent wallet); the jobs posted
+ * by any of them, or by a wallet it worked from, are its hiring. Undefined only when it neither took nor posted a job.
+ */
+export async function agentDetail(sql: AsyncSql, chainId: number, agentId: string, wallets: readonly string[] = []) {
   const [summary] = await summaries(sql, chainId, [agentId], 1)
-  if (summary === undefined) return undefined
-  const jobs = await sql.all<JobRow & { submitted_block: number | null }>(
+  const jobs = summary === undefined ? [] : await sql.all<JobRow & { submitted_block: number | null }>(
     `SELECT j.*, s.block AS submitted_block FROM jobs j LEFT JOIN submissions s ON s.chain_id = j.chain_id AND s.job_id = j.job_id
      WHERE j.chain_id = ? AND j.agent_id = ? ORDER BY CAST(j.job_id AS INTEGER) DESC`,
+    chainId, agentId,
+  )
+  const worked = [...new Set(jobs.map((j) => j.worker).filter((w): w is string => w !== null))]
+  const known = [...new Set([...wallets, ...worked].map((w) => w.toLowerCase()))].slice(0, 50)
+  const marks = known.map(() => '?').join(', ')
+  const posted = known.length === 0 ? [] : await sql.all<JobRow>(
+    `SELECT * FROM jobs WHERE chain_id = ? AND lower(creator) IN (${marks}) ORDER BY CAST(job_id AS INTEGER) DESC LIMIT 200`,
+    chainId, ...known,
+  )
+  if (summary === undefined && posted.length === 0) return undefined
+  const [hiring] = known.length === 0 ? [{ posted: 0, open: 0 }] : await sql.all<{ posted: number; open: number }>(
+    `SELECT COUNT(*) AS posted, SUM(CASE WHEN status IN ('open', ${IN_PROGRESS.map(() => '?').join(', ')}) AND COALESCE(outcome, 'None') = 'None' THEN 1 ELSE 0 END) AS open
+     FROM jobs WHERE chain_id = ? AND lower(creator) IN (${marks})`,
+    ...IN_PROGRESS, chainId, ...known,
+  )
+  const paidOut = known.length === 0 ? [] : await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
+    `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
+     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND lower(creator) IN (${marks}) AND ${PAID_JOB}`,
+    chainId, ...known,
+  )
+  const earned = await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
+    `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
+     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND agent_id = ? AND ${PAID_JOB}`,
     chainId, agentId,
   )
   const bonds = await sql.all<{ outcome: string; n: number }>(
@@ -276,12 +342,40 @@ export async function agentDetail(sql: AsyncSql, chainId: number, agentId: strin
     'SELECT job_id, value, tag, recorded, tx_hash FROM feedback WHERE chain_id = ? AND agent_id = ? ORDER BY CAST(job_id AS INTEGER) DESC',
     chainId, agentId,
   )
+  // When it started (activation of a job it took, or publication of one it posted), when it last moved, and how long
+  // its hires took from activation to submission.
+  const activations = jobs.length === 0 ? [] : await sql.all<{ job_id: string; block: number }>(
+    `SELECT job_id, MIN(block) AS block FROM events WHERE chain_id = ? AND job_id IN (SELECT job_id FROM jobs WHERE chain_id = ? AND agent_id = ?)
+       AND name IN ('Activated', 'Awarded') GROUP BY job_id`,
+    chainId, chainId, agentId,
+  )
+  const firstBlocks = [...activations.map((a) => a.block), ...posted.map((j) => j.published_block).filter((b): b is number => b !== null)]
+  const lastBlock = Math.max(0, ...jobs.map((j) => j.updated_block), ...posted.map((j) => j.updated_block))
+  const submitted = jobs.filter((j) => j.mode === 'hire' && j.submitted_block !== null)
+  const at = await times(sql, chainId, [...firstBlocks, lastBlock, ...submitted.map((j) => j.submitted_block as number)])
+  const activatedAt = new Map(activations.map((a) => [a.job_id, at.get(a.block)]))
+  const spans = submitted.flatMap((j) => {
+    const start = activatedAt.get(j.job_id)
+    const end = at.get(j.submitted_block as number)
+    return start === undefined || end === undefined || end < start ? [] : [end - start]
+  })
+  const starts = firstBlocks.map((b) => at.get(b)).filter((t): t is number => t !== undefined)
+  const time: AgentTime = {
+    activeSince: starts.length === 0 ? null : Math.min(...starts),
+    lastActive: at.get(lastBlock) ?? null,
+    medianTurnaroundSeconds: median(spans),
+    turnarounds: spans.length,
+  }
   return {
-    agent: summary,
-    wallets: [...new Set(jobs.map((j) => j.worker).filter((w): w is string => w !== null))],
+    agent: summary ?? { agentId, jobs: 0, completed: 0, inProgress: 0, lost: 0, earned: {}, feedback: {}, lastBlock: 0 },
+    wallets: worked,
     bonds: Object.fromEntries(bonds.map((b) => [b.outcome, b.n])) as Record<string, number>,
     jobs,
     feedback,
+    posted,
+    work: { earned: sumAccounting(earned) as Record<string, MoneyTotals> },
+    hiring: { posted: hiring?.posted ?? 0, open: hiring?.open ?? 0, paidOut: sumAccounting(paidOut) as Record<string, MoneyTotals> },
+    time,
   }
 }
 
@@ -300,8 +394,7 @@ export async function networkStats(sql: AsyncSql, chainId: number) {
   )
   const accounting = await sql.all<{ token: string | null; reward: string; bonus: string; fee: string }>(
     `SELECT token, reward, COALESCE(bonus, '0') AS bonus, COALESCE(charged_fee, '0') AS fee
-     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL
-       AND ((kind = 'hireling-v1' AND settlement_outcome = 'Paid') OR (kind = 'legacy' AND status = 'completed'))`,
+     FROM jobs WHERE chain_id = ? AND reward IS NOT NULL AND ${PAID_JOB}`,
     chainId,
   )
   const workerTransfers = await sql.all<{ key: string; token: string | null; amount: string }>(
