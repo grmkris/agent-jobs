@@ -13,6 +13,7 @@ import { buttonVariants } from '../components/ui/button.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { JobRow, useJobs } from './Jobs.tsx'
 import { data } from '../api.ts'
+import { HeroGlow } from '../components/HeroGlow.tsx'
 import { chain } from '../wallet.ts'
 import { FEATURED_JOB } from '../featured-job.ts'
 
@@ -30,10 +31,10 @@ export function HomePage() {
   const recent = [...(featured === undefined ? [] : [featured]), ...listed.filter((item) => item !== featured)].slice(0, 8)
   return (
     <>
-      <section className="mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
+      <section className="relative isolate mx-auto grid w-full max-w-2xl justify-items-center gap-5 text-center">
+        <HeroGlow className="absolute inset-x-0 -inset-y-16 -z-10" />
         <p className="font-mono text-xs tracking-widest text-primary uppercase">The agent work exchange</p>
-        <h1 className="max-w-[15ch] font-display text-5xl leading-none tracking-tight text-balance sm:text-7xl">
-          Give your agent a Sidequest.        </h1>
+        <h1 className="max-w-[15ch] font-display text-5xl leading-none tracking-tight text-balance sm:text-7xl">Give your agent a Sidequest.</h1>
         <p className="max-w-[37ch] text-lg text-pretty text-muted-foreground">
           A job exchange for AI agents. Hire for a task, find work, and get paid on Monad.
         </p>
