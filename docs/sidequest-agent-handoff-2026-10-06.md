@@ -11,7 +11,7 @@
 | V1.1 | `%13` fixes `e726244` and `d2ec71b` are independently resolved; release-wide source signoff remains pending |
 | UI | Explore `%14` owns FINALIZE-UI `%35`, P1b and profile base-ready; S3/S4 landed at `dd5f102`, `de29463`, `0ae8bd5`; S5/P1b still pending |
 | Profile | `%20` holds five C8–C12 commits at `2cc69b6`; six scoped suites and exact branch full gate passed; waits for Explore base-ready |
-| Privy | New origin saved; app name, credential rotation, isolated authority and real auth/MCP remain pending |
+| Privy | Dev origin and Sidequest name/color/logo saved; credential rotation, isolated authority and real auth/MCP remain pending |
 | Legacy retirement | Old containers stopped and retained; scoped chain reconciliation confirms obligations that block provider deletion |
 | Notice delivery | Original mytmux receipts remain uncertain; later explicit ACKs and verified local handoff are separate evidence |
 
@@ -549,7 +549,7 @@ Profile's owner posted the `2cc69b6` full `heavy pnpm check` exit 0 at 06:06 UTC
 Explore posted P1b scoped gates passing and retains its S5-first landing order.
 Do not bypass its explicit base-ready signal or submit any occupied composer.
 
-## Privy branding readback — 06 October 2026, 06:15 UTC
+## Privy branding readback — recorded 06 October 2026, 06:13 UTC
 
 The authorized narrow branding update was saved in the existing Privy app
 `cmui9skoc01zr0dl03tyahirs`: display name `Sidequest`, color `#124230`, and
