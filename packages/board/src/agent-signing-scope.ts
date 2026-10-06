@@ -1,6 +1,6 @@
 /** Exact envelopes and field schemas, checked in addition to Privy's allowlist. */
 import * as sdk from '@agent-jobs/sdk'
-import { type Address, isAddress } from 'viem'
+import { type Address, isAddress, keccak256, stringToHex, zeroAddress } from 'viem'
 import { canonicalAgentArgs } from './agents.ts'
 
 export interface AgentTypedData {
@@ -48,9 +48,44 @@ function fields(message: Record<string, unknown>, schema: readonly { name: strin
   }
 }
 
-/** No extra schemas, message fields or domain fields can enter a routine signing call. */
-export function assertAgentEnvelope(ctx: sdk.GrantContext, json: string, address: Address): AgentTypedData {
+/** The agent and directory a directory record must name: its Agent ID and the directory's audience (its origin). */
+export interface DirectoryBinding {
+  agentId: string
+  audience: string
+}
+
+/**
+ * The records an agent signs for its own listing, each with its longest validity in seconds: an enrollment and a
+ * take-down are short-lived, an ad lasts a day. Heartbeats are not signed by the hosted signer at all: a hosted
+ * agent's presence is its MCP activity.
+ */
+const DIRECTORY_RECORDS = { Enrollment: 300, ServiceAd: 86_400, RevokeAd: 300 } as const
+
+function assertDirectoryRecord(ctx: sdk.GrantContext, typed: AgentTypedData, address: Address, bound: DirectoryBinding | undefined): AgentTypedData {
+  if (bound === undefined) throw new Error('A directory record needs the bound agent and audience')
+  const kind = typed.primaryType as keyof typeof DIRECTORY_RECORDS
+  const domain = { name: sdk.directoryDomainName(kind), version: '1', chainId: ctx.deployment.chainId, verifyingContract: zeroAddress, salt: keccak256(stringToHex(bound.audience)) }
+  const types = { EIP712Domain: sdk.directoryDomainFields, [kind]: sdk.directoryRecordFields }
+  if (canonicalAgentArgs(typed.domain) !== canonicalAgentArgs(domain) || canonicalAgentArgs(typed.types) !== canonicalAgentArgs(types)) throw new Error('Domain or types are outside the directory signing policy')
+  fields(typed.message, sdk.directoryRecordFields)
+  const m = typed.message
+  if (String(m.wallet).toLowerCase() !== address.toLowerCase()) throw new Error('Directory wallet is not this agent')
+  if (String(m.version) !== '1' || String(m.agentId) !== bound.agentId || m.audience !== bound.audience || String(m.identityRegistry).toLowerCase() !== ctx.deployment.identity.toLowerCase()) {
+    throw new Error('Directory record names another version, agent, audience or registry')
+  }
+  const issued = BigInt(m.issuedAt as string), expires = BigInt(m.expiresAt as string)
+  if (expires <= issued || expires - issued > BigInt(DIRECTORY_RECORDS[kind])) throw new Error('Directory record outlives its window')
+  return typed
+}
+
+/**
+ * No extra schemas, message fields or domain fields can enter a routine signing call. A directory record also needs
+ * `directory`: the agent and audience it must name.
+ */
+export function assertAgentEnvelope(ctx: sdk.GrantContext, json: string, address: Address, directory?: DirectoryBinding): AgentTypedData {
   const typed = parseAgentTypedData(json)
+  if (typed.primaryType === 'Heartbeat') throw new Error('Heartbeats are outside hosted signing')
+  if (typed.primaryType in DIRECTORY_RECORDS) return assertDirectoryRecord(ctx, typed, address, directory)
   const definitions = {
     Selection: { domain: sdk.holdingDomain(ctx.deployment.chainId, ctx.stack.holding), types: sdk.selectionTypes },
     SetBudgetAuthorization: { domain: sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), types: sdk.setBudgetTypes },

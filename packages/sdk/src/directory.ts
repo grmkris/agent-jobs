@@ -65,7 +65,8 @@ export function canonicalDirectoryJson(value: unknown): string {
 
 export const directoryHash = (value: unknown): Hex => keccak256(stringToHex(canonicalDirectoryJson(value)))
 
-const RECORD_FIELDS = [
+/** Every directory record kind signs these fields (EIP-712), with the payload as its canonical hash. */
+export const directoryRecordFields = [
   { name: 'version', type: 'uint256' },
   { name: 'identityRegistry', type: 'address' },
   { name: 'audience', type: 'string' },
@@ -77,12 +78,24 @@ const RECORD_FIELDS = [
   { name: 'expiresAt', type: 'uint256' },
   { name: 'payloadHash', type: 'bytes32' },
 ] as const
-const RECORD_TYPES = { Enrollment: RECORD_FIELDS, Heartbeat: RECORD_FIELDS, ServiceAd: RECORD_FIELDS, RevokeAd: RECORD_FIELDS } as const
+const RECORD_TYPES = { Enrollment: directoryRecordFields, Heartbeat: directoryRecordFields, ServiceAd: directoryRecordFields, RevokeAd: directoryRecordFields } as const
+
+/** The directory's EIP-712 domain fields: no contract verifies them, so the audience is bound by `salt`. */
+export const directoryDomainFields = [
+  { name: 'name', type: 'string' },
+  { name: 'version', type: 'string' },
+  { name: 'chainId', type: 'uint256' },
+  { name: 'verifyingContract', type: 'address' },
+  { name: 'salt', type: 'bytes32' },
+] as const
+
+/** A directory record's domain name: presence (enrollment, heartbeat) or service ads. */
+export const directoryDomainName = (kind: DirectoryKind) => (kind === 'ServiceAd' || kind === 'RevokeAd' ? 'HirelingServiceAd' : 'HirelingPresence')
 
 export function directoryTypedData(record: DirectoryEnvelope) {
   return {
     domain: {
-      name: record.kind === 'ServiceAd' || record.kind === 'RevokeAd' ? 'HirelingServiceAd' : 'HirelingPresence',
+      name: directoryDomainName(record.kind),
       version: '1',
       chainId: record.chainId,
       verifyingContract: zeroAddress,
@@ -106,6 +119,18 @@ export function directoryTypedData(record: DirectoryEnvelope) {
 }
 
 export const directoryRecordHash = (record: DirectoryEnvelope): Hex => hashTypedData(directoryTypedData(record))
+
+/**
+ * A directory record as `eth_signTypedData_v4` JSON for a hosted signer: the record's own type only, the domain with
+ * its `salt`, and integers as decimal strings. It hashes to `directoryRecordHash`.
+ */
+export function directoryTypedDataJson(record: DirectoryEnvelope): string {
+  const typed = directoryTypedData(record)
+  return JSON.stringify(
+    { types: { EIP712Domain: directoryDomainFields, [record.kind]: directoryRecordFields }, primaryType: typed.primaryType, domain: typed.domain, message: typed.message },
+    (_, value) => (typeof value === 'bigint' ? value.toString() : value),
+  )
+}
 
 export function directoryProfileURI(profile: DirectoryProfile): string {
   const file = { type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1', name: profile.name, description: profile.description, services: [], active: true }

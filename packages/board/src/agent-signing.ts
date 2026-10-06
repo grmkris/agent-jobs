@@ -3,7 +3,7 @@ import * as sdk from '@agent-jobs/sdk'
 import { type Hex, type SignedAuthorization, recoverTypedDataAddress } from 'viem'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { AgentStore } from './agents.ts'
-import { assertAgentEnvelope, assertExactAgentTypedData } from './agent-signing-scope.ts'
+import { type DirectoryBinding, assertAgentEnvelope, assertExactAgentTypedData } from './agent-signing-scope.ts'
 import { GrantStore } from './grants.ts'
 import type { Sql } from './store.ts'
 import { prepareAgentSignRequest, finishAgentSignRequest, type AgentSignRequest } from './agent-signing-store.ts'
@@ -38,9 +38,9 @@ export class AgentSigning {
     finishAgentSignRequest(this.sql, row, result)
   }
 
-  async #typed(id: string, purpose: string, typedData: string, verify: () => Promise<string>): Promise<Hex> {
+  async #typed(id: string, purpose: string, typedData: string, verify: () => Promise<string>, directory?: DirectoryBinding): Promise<Hex> {
     const agent = this.#agent(id)
-    assertAgentEnvelope(this.context, typedData, agent.address)
+    assertAgentEnvelope(this.context, typedData, agent.address, directory)
     const row = this.#request(id, purpose, { method: 'eth_signTypedData_v4', typedData })
     if (row.result_json !== null) return JSON.parse(row.result_json) as Hex
     assertExactAgentTypedData(typedData, await verify())
@@ -58,6 +58,17 @@ export class AgentSigning {
     const type = assertAgentEnvelope(this.context, typedData, this.#agent(id).address).primaryType
     if (!['Selection', 'SetBudgetAuthorization', 'SubmitAuthorization'].includes(type)) throw new Error('Not a routine tool signature')
     return this.#typed(id, `tool:${operationId}`, typedData, verify)
+  }
+
+  /**
+   * A record of the agent's own directory listing (an enrollment, a service ad or its take-down) for the directory at
+   * `audience`. `verify` returns the record the directory prepared, rebuilt from its state; the signature is journaled
+   * per record, so a retry of the same record gets the same signature.
+   */
+  signDirectory(id: string, record: sdk.DirectoryEnvelope, audience: string, verify: () => Promise<sdk.DirectoryEnvelope>): Promise<Hex> {
+    const agent = this.#agent(id)
+    if (agent.agent_id === null) throw new Error('Only a registered agent can sign directory records')
+    return this.#typed(id, `directory:${sdk.directoryRecordHash(record)}`, sdk.directoryTypedDataJson(record), async () => sdk.directoryTypedDataJson(await verify()), { agentId: agent.agent_id, audience })
   }
 
   signGrant(id: string, hash: Hex): Promise<Hex> {
