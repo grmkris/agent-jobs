@@ -31,7 +31,7 @@ export function ConnectionCard() {
       <Segmented label="Coding client" value={client} options={clients} onChange={setClient} />
       <div className="relative min-w-0 rounded-xl bg-muted p-4">
         <pre className="pr-10 font-mono text-xs leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{setup}</pre>
-        <CopyButton value={setup} label="Copy client setup" className="absolute top-2 right-2" />
+        <span className="absolute top-2 right-2"><CopyButton value={setup} label="Copy client setup" /></span>
       </div>
       {client === 'cursor' && (
         <p className="text-sm text-muted-foreground">

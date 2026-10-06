@@ -1,6 +1,6 @@
 /** App-only compositions over the vendored base-nova components. */
-import { Check, ChevronRight, Copy, ExternalLink } from 'lucide-react'
-import { type ReactNode, type SelectHTMLAttributes, useState } from 'react'
+import { Check, ChevronRight, CircleAlert, Copy, ExternalLink } from 'lucide-react'
+import { type ReactNode, type SelectHTMLAttributes, useEffect, useState } from 'react'
 import { amount as formatAmount } from '../format.ts'
 import { explorer } from '../wallet.ts'
 import { selectRadio } from './radio.ts'
@@ -54,32 +54,47 @@ export function Row({ label, children, hint }: { label: ReactNode; children: Rea
   )
 }
 
-/** Copies `value` and shows a check for a moment; falls back to selecting nothing when the clipboard is refused. */
+/** Copy with visible, announced success or failure; the value stays available when clipboard access is refused. */
 export function CopyButton({ value, label = 'Copy', className }: { value: string; label?: string; className?: string }) {
-  const [done, setDone] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'done' | 'failed'>('idle')
+  useEffect(() => {
+    if (status === 'idle') return
+    const timer = setTimeout(() => setStatus('idle'), status === 'done' ? 1400 : 2200)
+    return () => clearTimeout(timer)
+  }, [status])
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={label}
-      title={label}
-      onClick={() => {
-        void navigator.clipboard.writeText(value).then(
-          () => {
-            setDone(true)
-            setTimeout(() => setDone(false), 1400)
-          },
-          () => undefined,
-        )
-      }}
-      className={cn(
-        'inline-grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-(--dur-fast) active:bg-muted pointer-coarse:size-11 [@media(hover:hover)]:hover:bg-muted [@media(hover:hover)]:hover:text-foreground',
-        done && 'text-success-text',
-        className,
-      )}
-    >
-      {done ? <Check data-icon="inline-start" strokeWidth={2.5} /> : <Copy data-icon="inline-start" />}
-    </Button>
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={status === 'failed' ? `${label} failed` : status === 'done' ? `${label} copied` : label}
+        title={status === 'failed' ? 'Copy failed' : status === 'done' ? 'Copied' : label}
+        onClick={() => {
+          if (navigator.clipboard?.writeText === undefined) {
+            setStatus('failed')
+            return
+          }
+          void navigator.clipboard.writeText(value).then(
+            () => {
+              setStatus('done')
+            },
+            () => {
+              setStatus('failed')
+            },
+          )
+        }}
+        className={cn(
+          'inline-grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors duration-(--dur-fast) active:bg-muted pointer-coarse:size-11 [@media(hover:hover)]:hover:bg-muted [@media(hover:hover)]:hover:text-foreground',
+          status === 'done' && 'text-success-text',
+          status === 'failed' && 'text-destructive-text',
+          className,
+        )}
+      >
+        {status === 'done' ? <Check data-icon="inline-start" strokeWidth={2.5} /> : status === 'failed' ? <CircleAlert data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
+      </Button>
+      {status === 'done' && <span role="status" className="text-xs text-success-text">Copied</span>}
+      {status === 'failed' && <span role="status" className="text-xs text-destructive-text">Copy failed</span>}
+    </span>
   )
 }
 

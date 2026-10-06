@@ -1,15 +1,31 @@
 import { Button } from './ui/button.tsx'
 import { Item, ItemGroup, ItemContent, ItemDescription } from './ui/item.tsx'
-import { Details, Address, CopyButton, Section, shortAddress, textLinkClass } from './kit.tsx'
+import { Details, Address, CopyButton, Section, textLinkClass } from './kit.tsx'
 import { TestnetFaucet } from './TestnetFaucet.tsx'
 import { BuyButtons } from './Buy.tsx'
 import * as sdk from '@sidequest/sdk'
-import { useState } from 'react'
-import { formatEther, formatUnits } from 'viem'
+import { useState, useSyncExternalStore } from 'react'
+import { zeroAddress } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
-import { formatNumber, tokenInfo } from '../format.ts'
+import { formatNumber, rewardTokenList, subscribeTokens, tokenInfo, tokenRegistryVersion } from '../format.ts'
+import { useTokenList } from '../useTokens.ts'
 import { TokenIcon } from './token/TokenIcon.tsx'
-import { chain, deployment, isMainnet } from '../wallet.ts'
+import { TokenAmount } from './token/TokenAmount.tsx'
+import { chain, deployment, explorer, isMainnet } from '../wallet.ts'
+
+/** Configured and board-known wallet tokens, kept in address order and deduplicated without guessing by symbol. */
+function useWalletTokens() {
+  useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
+  const tokens = [...new Set([
+    deployment.factory,
+    ...deployment.rewardTokens,
+    ...(deployment.market === null ? [] : [deployment.market.quote]),
+    ...(deployment.x402 === null ? [] : [deployment.x402.usdc]),
+    ...rewardTokenList().map(([address]) => address),
+  ].filter((address) => address !== zeroAddress).map((address) => address.toLowerCase() as `0x${string}`))]
+  useTokenList(tokens)
+  return tokens
+}
 
 /**
  * The signed-in Privy wallet's balances and how to fund it: people send MON (gas) and the reward/bond tokens to this
@@ -29,7 +45,7 @@ export function FundButton({ address }: { address: `0x${string}` }) {
 
 function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () => void }) {
   const mon = useBalance({ address, chainId: chain.id, query: { refetchInterval: 10_000 } })
-  const tokens = [deployment.factory, ...deployment.rewardTokens]
+  const tokens = useWalletTokens()
   const balances = useReadContracts({
     contracts: tokens.map(
       (t) => ({ address: t, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
@@ -68,19 +84,26 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
       </Details>
       <ul className="mb-3 flex flex-col gap-1">
         <li className="flex justify-between">
-          <span>{chain.nativeCurrency.symbol}</span>
-          <span>{mon.data === undefined ? '…' : Number(formatEther(mon.data.value)).toFixed(4)}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <TokenIcon token={zeroAddress} />
+            {chain.nativeCurrency.symbol}
+          </span>
+          <span>{mon.isError || mon.data === undefined ? (mon.isPending ? '…' : 'Unavailable') : formatNumber(mon.data.value, 18)}</span>
         </li>
         {tokens.map((t, i) => {
-          const v = balances.data?.[i]?.result as bigint | undefined
-          const info = t === deployment.factory ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
+          const read = balances.data?.[i]
+          const v = !balances.isError && read?.status === 'success' ? read.result as bigint : undefined
+          const info = t.toLowerCase() === deployment.factory.toLowerCase() ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
           return (
             <li key={t} className="flex justify-between">
-              <span>
-                <TokenIcon token={t} className="mr-1.5" />
-                {info.symbol}
-              </span>
-              <span className="tabular-nums">{v === undefined ? '…' : formatUnits(v, info.decimals)}</span>
+              <span>{info.symbol}</span>
+              <TokenAmount
+                value={v}
+                token={t}
+                static
+                text={v === undefined ? (balances.isPending ? '…' : 'Unavailable') : undefined}
+                className="tabular-nums"
+              />
             </li>
           )
         })}
@@ -101,23 +124,41 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
 /** The wallet as a section of Me: the full address to fund, live balances, and where testnet tokens come from. */
 export function WalletCard({ address }: { address: `0x${string}` }) {
   const mon = useBalance({ address, chainId: chain.id, query: { refetchInterval: 10_000 } })
-  const tokens = [deployment.factory, ...deployment.rewardTokens]
+  const tokens = useWalletTokens()
   const balances = useReadContracts({
     contracts: tokens.map(
       (t) => ({ address: t, abi: sdk.factoryTokenAbi, functionName: 'balanceOf', args: [address], chainId: chain.id }) as const,
     ),
     query: { refetchInterval: 10_000 },
   })
-  const rows: Array<[string, string, string | undefined]> = [
-    [chain.nativeCurrency.symbol, 'Gas', mon.data === undefined ? undefined : formatNumber(mon.data.value, 18)],
-    ...tokens.map((t, i): [string, string, string | undefined] => {
-      const v = balances.data?.[i]?.result as bigint | undefined
-      const info = t === deployment.factory ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
-      return [
-        info.symbol,
-        t === deployment.factory ? 'For deposits at risk' : 'Paid in',
-        v === undefined ? undefined : formatNumber(v, info.decimals),
-      ]
+  const rows: Array<{
+    symbol: string
+    what: string
+    token: string | null
+    value: bigint | undefined
+    status: 'loading' | 'unavailable' | 'value'
+    decimals: number
+  }> = [
+    {
+      symbol: chain.nativeCurrency.symbol,
+      what: 'Gas',
+      token: null,
+      value: mon.isError ? undefined : mon.data?.value,
+      status: !mon.isError && mon.data !== undefined ? 'value' : mon.isPending ? 'loading' : 'unavailable',
+      decimals: 18,
+    },
+    ...tokens.map((t, i): (typeof rows)[number] => {
+      const read = balances.data?.[i]
+      const v = !balances.isError && read?.status === 'success' ? read.result as bigint : undefined
+      const info = t.toLowerCase() === deployment.factory.toLowerCase() ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
+      return {
+        symbol: info.symbol,
+        what: t.toLowerCase() === deployment.factory.toLowerCase() ? 'For deposits at risk' : 'Paid in',
+        token: t,
+        value: v,
+        status: v !== undefined ? 'value' : balances.isPending ? 'loading' : 'unavailable',
+        decimals: info.decimals,
+      }
     }),
   ]
   return (
@@ -140,22 +181,34 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
         )
       }
     >
-      <div className="flex items-center gap-1">
-        <span className="font-mono text-ui">{shortAddress(address)}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl bg-muted/60 px-3 py-2">
+        <code className="min-w-0 flex-1 break-all font-mono text-ui">{address}</code>
         <CopyButton value={address} label="Copy address" />
+        <a className={textLinkClass} href={explorer('address', address)} target="_blank" rel="noreferrer">
+          Explorer
+        </a>
       </div>
-      <Details summary="Technical details">
-        <p className="break-all font-mono text-ui">{address}</p>
-        <Address value={address} />
-      </Details>
       <ItemGroup>
-        {rows.map(([symbol, what, value]) => (
-          <Item key={symbol}>
-            <ItemContent className="flex-1">
+        {rows.map(({ symbol, what, token, value, status, decimals }) => (
+          <Item key={token ?? symbol}>
+            <ItemContent className="min-w-0 flex-1 [overflow-wrap:anywhere]">
               {symbol}
               <ItemDescription className="block text-xs text-muted-foreground">{what}</ItemDescription>
             </ItemContent>
-            <span className="tabular-nums text-foreground">{value ?? '…'}</span>
+            {token === null ? (
+              <span className="inline-flex items-center gap-1.5 tabular-nums text-foreground">
+                <TokenIcon token={zeroAddress} />
+                {status === 'value' ? formatNumber(value!, decimals) : status === 'loading' ? '…' : 'Unavailable'}
+              </span>
+            ) : (
+              <TokenAmount
+                value={value}
+                token={token}
+                static
+                text={status === 'value' ? undefined : status === 'loading' ? '…' : 'Unavailable'}
+                className="min-w-0 max-w-[60%] text-right font-medium whitespace-normal [overflow-wrap:anywhere]"
+              />
+            )}
           </Item>
         ))}
       </ItemGroup>
