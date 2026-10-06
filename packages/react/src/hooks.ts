@@ -1,7 +1,7 @@
 /**
- * Headless hooks over one board: read (board, tasks, a task, candidates, applications) and act (sign in, publish,
- * enter a contest, award, select a worker, approve or reject). Every action returns what the board returned plus the
- * hashes sent; the host renders whatever it likes.
+ * Headless hooks over one board: read (board, tasks, a task, applications) and act (sign in, publish a hire, select a
+ * worker, approve or reject). Every action returns what the board returned plus the hashes sent; the host renders
+ * whatever it likes.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -69,11 +69,6 @@ export function useTask<T = Record<string, unknown>>(taskId: string | undefined,
   return useQuery({ queryKey: [KEY, api.boardId, 'task', taskId], queryFn: () => api.tool<T>('get_task', { taskId }), enabled: taskId !== undefined, refetchInterval })
 }
 
-export function useCandidates<T = Array<{ candidateId: string; worker: string; agentId: string }>>(taskId: string | undefined) {
-  const { api } = useAgentJobs()
-  return useQuery({ queryKey: [KEY, api.boardId, 'candidates', taskId], queryFn: () => api.tool<T>('list_candidates', { taskId }), enabled: taskId !== undefined, refetchInterval: 15_000 })
-}
-
 export function useApplications<T = Array<{ id: string; worker: string; agentId: string; note: string }>>(taskId: string | undefined) {
   const { api } = useAgentJobs()
   return useQuery({ queryKey: [KEY, api.boardId, 'applications', taskId], queryFn: () => api.tool<T>('list_applications', { taskId }), enabled: taskId !== undefined, refetchInterval: 15_000 })
@@ -99,15 +94,17 @@ export interface PublishInput {
   creatorBond: string
   workerBond: string
   deliveryDeadline: number
-  mode: 'hire' | 'contest'
-  selectionDeadline?: number
+  mode: 'hire'
   approver?: string
-  stack?: string
+  /** The offer's review, dispute and arbitration windows, in seconds (ADR-0011). */
+  windows?: { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number }
+  /** A named arbitrator; omitted, Hireling's arbiter. */
+  arbitrator?: string
   requiredChecks?: string[]
   deliverable?: DeliverableSpec
   executionBudget?: Record<string, unknown>
-  /** Direct hire (ADR-0008): the agent to select as soon as the offer is published; no applications. */
-  worker?: { address: string; agentId: string }
+  /** A direct hire (decision D3): the agent invited, selected as soon as the offer is published. */
+  invite?: { agentId: string }
 }
 
 export interface PublishOutcome extends CreatedTask {
@@ -126,7 +123,7 @@ export function usePublish() {
       const created = await api.tool<CreatedTask & { applicationId?: string }>('create_task', { ...input })
       const hashes = await sender.send(created.taskId, created.transactions, onProgress)
       const task = await api.tool<{ jobId: string | null }>('get_task', { taskId: created.taskId })
-      if (input.worker !== undefined && created.applicationId !== undefined) {
+      if (input.invite !== undefined && created.applicationId !== undefined) {
         const sel = await api.tool<{ nonce: string; sign: SignRequest }>('select_worker', { taskId: created.taskId, applicationId: created.applicationId })
         const signature = await signTypedDataWith(provider, address, sel.sign.typedData)
         await api.tool('submit_selection', { taskId: created.taskId, nonce: sel.nonce, signature })
@@ -137,26 +134,6 @@ export function usePublish() {
     [api, sender, provider, address, invalidate],
   )
   return { publish, publishAndSend, ready: sender !== null }
-}
-
-/** Enter a contest with a finished deliverable: two signatures, no transaction. */
-export function useEnter() {
-  const { api, provider, address } = useAgentJobs()
-  const invalidate = useInvalidate()
-  return useCallback(
-    async (input: { taskId: string; agentId: string; deliverable: Record<string, unknown> }) => {
-      if (provider === null || address === null) throw new Error('connect a wallet first')
-      const prep = await api.tool<{ candidateId: string; deliverableHash: string; sign: SignRequest[]; check: unknown }>('prepare_entry', input)
-      const [budget, submit] = prep.sign
-      if (budget === undefined || submit === undefined) throw new Error('the board returned no authorisations to sign')
-      const budgetSignature = await signTypedDataWith(provider, address, budget.typedData)
-      const submitSignature = await signTypedDataWith(provider, address, submit.typedData)
-      const r = await api.tool<{ candidateId: string }>('submit_entry', { taskId: input.taskId, candidateId: prep.candidateId, budgetSignature, submitSignature })
-      await invalidate()
-      return { ...r, deliverableHash: prep.deliverableHash, check: prep.check }
-    },
-    [api, provider, address, invalidate],
-  )
 }
 
 /** A tool that returns transactions, sent and reported for the task. */
@@ -173,12 +150,6 @@ function useTxAction(tool: string) {
     },
     [api, sender, invalidate, tool],
   )
-}
-
-/** Contest approver: pay one entry in one transaction. */
-export function useAward() {
-  const award = useTxAction('award')
-  return useCallback((input: { taskId: string; candidateId: string }, onProgress?: (p: SendProgress) => void) => award(input, onProgress), [award])
 }
 
 export function useApprove() {

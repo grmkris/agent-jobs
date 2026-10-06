@@ -43,7 +43,7 @@ function fixture() {
 
 it('excludes archived tasks before list limits while retaining current and configured legacy pairs', async () => {
   const f = fixture()
-  expect(f.board.taskIndex({}).map(task => task.taskId)).toEqual(['legacy', 'current'])
+  expect(f.board.taskIndex({}).map(task => [task.taskId, task.kind])).toEqual([['legacy', 'legacy'], ['current', 'hireling-v1']])
   expect((await f.board.listTasks({}, { limit: 1 })).map(task => task.taskId)).toEqual(['legacy'])
   expect(await f.board.getTask({}, { taskId: 'current' })).toMatchObject({ taskId: 'current', chain: { status: 'awaiting-publish' } })
   expect(f.db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual({ n: 4 })

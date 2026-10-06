@@ -58,6 +58,8 @@ export interface TaskIndexEntry {
   taskId: string
   jobId: string | null
   stack: string
+  /** The contracts the offer is frozen on: the current Hireling v1 pair, or a pre-v1 one. */
+  kind: 'legacy' | 'hireling-v1'
   title: string
   brief: string
   acceptanceCriteria: string[]
@@ -85,6 +87,8 @@ export interface TaskIndexEntry {
 export interface ChainJob {
   job_id: string
   stack: string | null
+  /** The contracts the job was published on: Hireling v1, or a pre-v1 pair; null for a row indexed before kinds. */
+  kind: 'legacy' | 'hireling-v1' | null
   mode: string | null
   status: string
   creator: string | null

@@ -2587,13 +2587,17 @@ export class Board {
    * D1): the frozen offer's display fields, the job id once published, and Jev's advisory verdict.
    */
   taskIndex(_caller: Caller) {
-    return this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC').filter(t => this.#findTaskCtx(t) !== undefined).slice(0, 500).map((t) => {
+    return this.#sql.all<TaskRow>('SELECT * FROM tasks ORDER BY created_at DESC').flatMap((t) => {
+      const ctx = this.#findTaskCtx(t)
+      return ctx === undefined ? [] : [{ t, kind: ctx.stack.kind }]
+    }).slice(0, 500).map(({ t, kind }) => {
       const terms = parseTerms(t.terms_json)
       const screening = t.screening_json === null ? null : (JSON.parse(t.screening_json) as { verdict?: string; reasons?: string[] })
       return {
         taskId: t.id,
         jobId: t.job_id,
         stack: t.stack,
+        kind,
         title: terms.title,
         brief: terms.brief,
         acceptanceCriteria: terms.acceptanceCriteria,
