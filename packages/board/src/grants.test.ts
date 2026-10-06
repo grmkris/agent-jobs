@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { GrantStore } from './grants.ts'
 import { AgentStore } from './agents.ts'
 import { fromNodeSqlite } from './store.ts'
@@ -20,7 +20,7 @@ describe('agent grant store', () => {
     agents.create({ id: 'unstake-fixture', operator, privyUserId: 'did:privy:fixture', name: 'Fixture', registry: d.identity, chainId: d.chainId })
     agents.bindWallet('unstake-fixture', 'fixture-wallet', agent)
     const operation = agents.begin('unstake-fixture', 'unstake-one', 'public', 'request_unstake', { amount: '1' })
-    const call = { to: d.hireling!.vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [agent, 17n] }) }
+    const call = { to: d.sidequest!.vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [agent, 17n] }) }
     agents.requestApproval(operation, 'unstake', { amount: '17', shares: '17', call })
     const spec: sdk.GrantSpec = { kind: 'unstake', delegator: agent, shares: 17n, operationId: operation.id, start: now, salt: 9n }
     expect(() => store.prepare(operator, spec)).toThrow('verified operator decision')
@@ -44,7 +44,7 @@ describe('agent grant store', () => {
     agents.create({ id: 'unknown-hire', operator: operator.address, privyUserId: 'did:privy:fixture', name: 'Fixture', registry: d.identity, chainId: d.chainId })
     agents.bindWallet('unknown-hire', 'fixture-wallet', agent.address)
     const operation = agents.begin('unknown-hire', 'exact-hire', 'public', 'create_task', { token, reward: '17' })
-    const publish = encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'publish', args: [{
+    const publish = encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
       token, reward: 17n, approver: agent.address, arbitrator: operator.address, manifestHash: sdk.EMPTY_HASH, policyHash: sdk.EMPTY_HASH,
       creatorBond: 0n, workerBond: 0n, deliveryDeadline: now + 3600, expiredAt: now + 7200,
       reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200,

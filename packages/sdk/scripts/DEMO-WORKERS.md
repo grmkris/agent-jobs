@@ -1,6 +1,6 @@
 The Grok workers admit any Monad testnet creator under the reviewed
 `demo-worker-policy.json`: mUSD only, 10 quotes and 4 deliveries per worker per UTC
-day, one occupied job until terminal, worker bond at most 5 FACTORY, and at least
+day, one occupied job until terminal, worker bond at most 5 SIDE, and at least
 15 minutes to deliver. Unsafe or illegal prompts are declined.
 
 When moving from the original or reviewed creator-list policy, preserve the existing journal:

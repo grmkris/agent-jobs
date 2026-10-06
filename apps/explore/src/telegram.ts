@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { tool } from './api.ts'
 
-/** Hireling's bot. Its `/start <code>` finishes a link the wallet has signed for. */
-export const TELEGRAM_BOT = 'hireling_xyz_bot'
+/** Sidequest's bot. Its `/start <code>` finishes a link the wallet has signed for. */
+export const TELEGRAM_BOT = 'sidequest_xyz_bot'
 
 /** What the bot DMs about once linked (B9). */
 export const TELEGRAM_NOTICES = [
@@ -44,7 +44,7 @@ export function linkMessageProblem(prep: TelegramLinkPrep, wallet: string): stri
   return null
 }
 
-const key = (wallet: string) => `hireling.telegram-link:${wallet.toLowerCase()}`
+const key = (wallet: string) => `sidequest.telegram-link:${wallet.toLowerCase()}`
 
 /** A code waiting for the bot, kept across the trip to Telegram and back (mobile reloads the PWA). */
 export const pendingLink = {

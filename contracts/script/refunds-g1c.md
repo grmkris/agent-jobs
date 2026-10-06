@@ -1,4 +1,4 @@
-# G1b → G1c FACTORY refunds (coordinator only)
+# G1b → G1c SIDE refunds (coordinator only)
 
 `refund-manifest.mjs` reads Monad testnet at one finalized block. It queries the
 entire G1b vault/token log range through authenticated HyperSync, discovers
@@ -28,7 +28,7 @@ at the deposit block. Self-stake, mining-distributor deposits and other payers
 remain owned by the account. Active and cooldown assets both become G1c
 positions. A debit from a pool with multiple possible owners fails closed rather
 than inventing a split. An incomplete ledger or inconsistent RPC read also
-refuses. Old FACTORY is not burned or moved by these refunds.
+refuses. Old SIDE is not burned or moved by these refunds.
 
 Loose wallet inventory includes token transfer senders/recipients, vault
 accounts/payers, their registry operators, and explicit product wallets. The
@@ -41,7 +41,7 @@ agent wallets and 7702 EOAs are recognized as wallets.
 
 The funding wallet is the ecosystem recipient in the launch config,
 `0x675269d710692d4d0d7166da11B76463577aad73`, also the deployer and liquidity
-recipient. The recipe gives it 100M ecosystem plus 50M liquidity FACTORY v3.
+recipient. The recipe gives it 100M ecosystem plus 50M liquidity SIDE v3.
 The batch verifies the supplied private key belongs to this configured wallet.
 
 After G1c promotion and bootstrap, preview the reviewed manifest without a
@@ -57,7 +57,7 @@ different exported variable. The script refuses all chains except 10143. It
 requires fresh RPC/HyperSync evidence that no G1b token/stake activity occurred
 after the snapshot; a changed wind-down balance requires a new reviewed
 manifest. G1c addresses must differ from G1b and its deployment must follow the
-snapshot. The vault's FACTORY and Holding authorization are read back before send.
+snapshot. The vault's SIDE and Holding authorization are read back before send.
 
 A kernel lock protects `.g1c-refunds/journal.json` (directory 0700, file 0600).
 The binding pins the entire new config, manifest checksum and funding wallet.

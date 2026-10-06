@@ -1,4 +1,4 @@
-import { type Availability, type DirectoryAgent, type DirectoryEnvelope, type DirectoryKind, type DirectoryProfile, type ServiceAdvertisement, canonicalDirectoryJson, directoryRecordHash, directoryTypedData } from '@agent-jobs/sdk'
+import { type Availability, type DirectoryAgent, type DirectoryEnvelope, type DirectoryKind, type DirectoryProfile, type ServiceAdvertisement, canonicalDirectoryJson, directoryRecordHash, directoryTypedData } from '@sidequest/sdk'
 import { type Address, type Hex, getAddress, isAddress, maxUint256, zeroAddress } from 'viem'
 import type { Sql } from './store.ts'
 

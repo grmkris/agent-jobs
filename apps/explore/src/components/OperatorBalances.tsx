@@ -13,7 +13,7 @@ export function OperatorBalances({ operator, token = deployment.rewardTokens[0]!
   return <div className="grid gap-2 text-sm" aria-label="Your operator wallet balances">
     <p className="text-label-2">In your operator wallet</p>
     <dl className="flex flex-wrap gap-x-5 gap-y-2 tabular">
-      <div><dt className="text-label-2">FACTORY</dt><dd className="font-semibold">{value(balances.factory, 18)}</dd></div>
+      <div><dt className="text-label-2">SIDE</dt><dd className="font-semibold">{value(balances.factory, 18)}</dd></div>
       <div><dt className="text-label-2">{rewardSymbol}</dt><dd className="font-semibold">{value(balances.reward, typeof meta === "object" ? meta.decimals : 18)}</dd></div>
       <div><dt className="text-label-2">MON</dt><dd className="font-semibold">{value(balances.native, 18)}</dd></div>
     </dl>

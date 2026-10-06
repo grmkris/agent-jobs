@@ -2,7 +2,7 @@
  * A live log query against the testnet deployment through HyperSync and the chain's finalized head (plan S4).
  * Skipped without HYPERSYNC_API_TOKEN and MONAD_TESTNET_RPC_URL.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { describe, expect, it } from 'vitest'
 import { contractsOf, decode, hyperSync, rpcHead } from './index.ts'
 

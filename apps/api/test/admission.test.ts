@@ -1,4 +1,4 @@
-import { admissionFailure, disabledP0HostedTools, hostedToolNames, parseHostedAdmission, readOnlyHostedTools, recoveryHostedTools } from '@agent-jobs/board'
+import { admissionFailure, disabledP0HostedTools, hostedToolNames, parseHostedAdmission, readOnlyHostedTools, recoveryHostedTools } from '@sidequest/board'
 import { expect, test } from 'vitest'
 import { hostedCallFailure } from '../src/hosted-admission.ts'
 import { tools } from '../src/tools.ts'
@@ -22,7 +22,7 @@ test('every REST/MCP tool is classified; authenticated writes are open except po
 })
 
 test.each(['workers.dev', 'direct REST', 'MCP', 'embed'])('%s does not take authentication from arguments', () => {
-  const malicious = { caller: wallet, address: wallet, origin: 'https://hireling.xyz', boardId: 'ops', network: 'monad-testnet', steps: [{ caller: wallet, tool: 'create_task' }], admission: { drain: false } }
+  const malicious = { caller: wallet, address: wallet, origin: 'https://sidequest.exchange', boardId: 'ops', network: 'monad-testnet', steps: [{ caller: wallet, tool: 'create_task' }], admission: { drain: false } }
   for (const tool of ['create_task', 'request_quotes', 'apply', 'publish_transactions', 'select_worker', 'prepare_activation', 'create_board', 'update_board', 'upgrade_account', 'create_pool']) {
     expect(hostedCallFailure(policy, 'monad-mainnet', 'public', tool, malicious, undefined), tool).toBeDefined()
   }

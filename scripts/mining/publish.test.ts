@@ -26,10 +26,8 @@ const configOf = (stage: PublishStage = 'staging'): DeploymentConfig => ({
   ...structuredClone(testnet), network: stage === 'staging' ? 'monad-testnet' : 'monad-mainnet', chainId: stage === 'staging' ? 10143 : 143,
   deployment: {
     ...structuredClone(testnet.deployment), factory: address(3),
-    main: { ...testnet.deployment.main, kind: 'hireling-v1', factory: address(3) },
-    demo: { ...testnet.deployment.demo, kind: 'legacy', factory: testnet.deployment.factory },
-    legacy: Object.fromEntries(Object.entries(testnet.deployment.legacy).map(([name, pair]) => [name, { ...pair, kind: 'legacy' as const, factory: testnet.deployment.factory }])),
-    hireling: { block: 1, t0: 1, safe: address(2), factory: address(3), vault: address(4), feeSchedule: address(5), miningReserve: address(6), distributor, teamVesting: address(8) },
+    main: { ...testnet.deployment.main, kind: 'sidequest-v1', factory: address(3) },
+    sidequest: { block: 1, t0: 1, safe: address(2), factory: address(3), vault: address(4), feeSchedule: address(5), miningReserve: address(6), distributor, teamVesting: address(8) },
   },
 })
 const fake = (stage: PublishStage = 'staging') => {
@@ -143,9 +141,9 @@ test('a failed chain read refuses before any upload', async () => {
 const env = { CLOUDFLARE_ACCOUNT_ID: 'a'.repeat(32), CLOUDFLARE_API_TOKEN: 'fixture-token' }
 const json = (result: unknown, result_info?: unknown) => new Response(JSON.stringify({ success: true, result, result_info }), { headers: { 'content-type': 'application/json' } })
 const apiSettings = (stage: PublishStage, bucket: string) => ({
-  tags: ['alchemy:stack:AgentJobs', `alchemy:stage:${stage}`, 'alchemy:id:Api'],
+  tags: ['alchemy:stack:Sidequest', `alchemy:stage:${stage}`, 'alchemy:id:Api'],
   bindings: [
-    { name: 'ALCHEMY_STACK_NAME', type: 'plain_text', text: 'AgentJobs' },
+    { name: 'ALCHEMY_STACK_NAME', type: 'plain_text', text: 'Sidequest' },
     { name: 'ALCHEMY_STAGE', type: 'plain_text', text: stage },
     { name: 'NETWORK', type: 'plain_text', text: stage === 'staging' ? 'monad-testnet' : 'monad-mainnet' },
     { name: 'Manifests', type: 'r2_bucket', bucket_name: bucket },
@@ -163,7 +161,7 @@ test('fake Cloudflare R2 uses the existing stage binding and exact raw object PU
       calls.push({ method, path })
       expect(new Headers(options?.headers).get('authorization')).toBe('Bearer fixture-token')
       if (path.endsWith('/workers/scripts')) {
-        expect(u.searchParams.get('tags')).toBe(`alchemy:stack:AgentJobs:yes,alchemy:stage:${stage}:yes,alchemy:id:Api:yes`)
+        expect(u.searchParams.get('tags')).toBe(`alchemy:stack:Sidequest:yes,alchemy:stage:${stage}:yes,alchemy:id:Api:yes`)
         return json([{ id: script }], { total_count: 1 })
       }
       if (path.endsWith(`/workers/scripts/${script}/settings`)) return json(apiSettings(stage, bucket))

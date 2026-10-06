@@ -90,7 +90,7 @@ export function inviteRequest(invite: DemoInvite): DemoRequest {
 /** The request policy plus what only an invitation decides: a v1 hire with no quote, paying at least the worker's price. */
 export function inviteProblem(invite: DemoInvite, policy: DemoPolicy, minimumReward: bigint, now: number): string | undefined {
   const t = invite.terms
-  if (invite.kind !== 'hireling-v1' || t.mode !== 'hire') return 'Only the current Monad testnet v1 stack is supported'
+  if (invite.kind !== 'sidequest-v1' || t.mode !== 'hire') return 'Only the current Monad testnet v1 stack is supported'
   if (t.quote !== null && t.quote !== undefined) return 'A picked quote follows the quote flow'
   try { if (BigInt(String(t.reward)) < minimumReward) return 'The reward is below this worker\'s price' }
   catch { return 'Invalid reward' }

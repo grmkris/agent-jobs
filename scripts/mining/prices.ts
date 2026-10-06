@@ -2,7 +2,7 @@ import { getAddress, recoverTypedDataAddress, type Address, type Hex } from './v
 
 /**
  * The epoch price list a Safe owner signs (EIP-712). Pinned in README.md; UI U5's signing page builds the same typed
- * data. `usdPrice` is USD per whole token and `factoryUsdPrice` USD per whole FACTORY, both with 18 decimals.
+ * data. `usdPrice` is USD per whole token and `factoryUsdPrice` USD per whole SIDE, both with 18 decimals.
  * `decimals` is the token's own, so the value of a fee needs nothing outside the signed list (the tool checks it
  * against the token on chain).
  */
@@ -19,7 +19,7 @@ export const PRICE_LIST_TYPES = {
   ],
 } as const
 
-export const PRICE_LIST_DOMAIN_NAME = 'Hireling Mining Prices'
+export const PRICE_LIST_DOMAIN_NAME = 'Sidequest Mining Prices'
 export const PRICE_LIST_DOMAIN_VERSION = '1'
 
 export interface TokenPrice {
@@ -80,7 +80,7 @@ export function parsePriceList(file: PriceListFile): PriceList {
   })
   if (new Set(tokens.map(t => t.token)).size !== tokens.length) throw new Error('price list: a token is listed twice')
   const factoryUsdPrice = uint(m.factoryUsdPrice, 'factoryUsdPrice')
-  if (factoryUsdPrice === 0n) throw new Error('price list: no FACTORY price')
+  if (factoryUsdPrice === 0n) throw new Error('price list: no SIDE price')
   return { epoch: uint(m.epoch, 'epoch'), tokens, factoryUsdPrice }
 }
 

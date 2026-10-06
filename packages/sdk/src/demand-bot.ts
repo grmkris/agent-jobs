@@ -45,9 +45,9 @@ export const DEMAND_TEMPLATES: readonly [DemandTemplate, DemandTemplate] = [
   {
     kind: 'code',
     title: 'Small deterministic parser template',
-    brief: 'Add a small dependency-free TypeScript parser utility and focused tests to the public hireling-demo-deliveries repository. Work on a new branch; do not change main or add secrets. The utility should parse a line of key=value pairs deterministically and reject malformed input.',
+    brief: 'Add a small dependency-free TypeScript parser utility and focused tests to the public sidequest-demo-deliveries repository. Work on a new branch; do not change main or add secrets. The utility should parse a line of key=value pairs deterministically and reject malformed input.',
     acceptanceCriteria: ['The deliverable is a commit in the exact public repository.', 'The commit is immutable and has a completed successful GitHub Actions check named test.', 'The utility and its tests are small, deterministic and dependency-free.'],
-    deliverable: { accepts: ['git'], target: 'https://github.com/grmkris/hireling-demo-deliveries' },
+    deliverable: { accepts: ['git'], target: 'https://github.com/grmkris/sidequest-demo-deliveries' },
     requiredChecks: ['test'],
   },
 ]

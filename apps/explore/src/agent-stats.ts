@@ -54,6 +54,6 @@ export function tierProgress(active: bigint, tier: { threshold: bigint; nextThre
   return Number((done * 10_000n) / span) / 10_000
 }
 
-/** Whether a record has anything to show yet: a brand-new agent gets the "new on Hireling" card instead of stats. */
+/** Whether a record has anything to show yet: a brand-new agent gets the "new on Sidequest" card instead of stats. */
 export const isNew = (record: { agent: { jobs: number }; hiring?: { posted: number } | undefined } | null | undefined) =>
   record === null || record === undefined || (record.agent.jobs === 0 && (record.hiring?.posted ?? 0) === 0)

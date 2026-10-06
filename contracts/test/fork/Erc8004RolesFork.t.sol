@@ -11,7 +11,7 @@ contract Erc8004RolesForkTest is Test {
     IERC8004Identity internal constant IDENTITY = IERC8004Identity(0x8004A818BFB912233c491871b3d84c89A494BD9e);
     IERC8004Reputation internal constant REPUTATION =
         IERC8004Reputation(0x8004B663056A597Dffe9eCcC1965A193B7388713);
-    string internal constant ROLES_KEY = "agent-jobs.roles";
+    string internal constant ROLES_KEY = "sidequest.roles";
 
     address internal worker = makeAddr("worker");
     address internal projectController = makeAddr("project");

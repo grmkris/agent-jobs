@@ -1,5 +1,5 @@
 {
-  "name": "@agent-jobs/contracts",
+  "name": "@sidequest/contracts",
   "version": "0.0.0",
   "private": true,
   "type": "module",

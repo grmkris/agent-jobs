@@ -16,21 +16,21 @@ import { sponsorshipGrantTerms } from './grant-fixture.mjs';
 //            without an accessible name, horizontal scroll and layout shifts (audit-checks.mjs). Writes audit.json and
 //            exits 1 on any finding (U-PERF-A11Y).
 //   --widths=390,1440  only these widths.
-//   heavy node test/shots.mjs ~/code/agent-jobs.wt/ui-shots [--prod] [--audit] [--widths=…] [page…]
+//   heavy node test/shots.mjs ~/code/sidequest.wt/ui-shots [--prod] [--audit] [--widths=…] [page…]
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const args = process.argv.slice(2);
 const prod = args.includes('--prod');
 const auditing = args.includes('--audit');
 const widthsFlag = args.find((a) => a.startsWith('--widths='))?.slice('--widths='.length);
-const [output = '/tmp/hireling-shots', ...only] = args.filter((a) => !a.startsWith('--'));
+const [output = '/tmp/sidequest-shots', ...only] = args.filter((a) => !a.startsWith('--'));
 const base = 'http://127.0.0.1:5202';
 const me = '0x1111111111111111111111111111111111111111';
 const agentWallet = '0x6666666666666666666666666666666666666666';
 const configSource = readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8');
 const config = JSON.parse(configSource);
 const token = config.deployment.rewardTokens[0].toLowerCase();
-assert.equal(config.deployment.main.kind, 'hireling-v1', 'Submission captures require a promoted v1 testnet deployment');
-const { factory, vault, feeSchedule, distributor, miningReserve, safe } = config.deployment.hireling;
+assert.equal(config.deployment.main.kind, 'sidequest-v1', 'Submission captures require a promoted v1 testnet deployment');
+const { factory, vault, feeSchedule, distributor, miningReserve, safe } = config.deployment.sidequest;
 const contracts = { factory, vault, feeSchedule, distributor, miningReserve, safe, holding: config.deployment.main.holding, evaluator: config.deployment.main.evaluator };
 const grantTerms = sponsorshipGrantTerms(contracts);
 const now = Math.floor(Date.now() / 1000);
@@ -41,8 +41,8 @@ const LATENCY = 1200;
 const reply = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 // Job 74 is the one the lifecycle shots follow; the others fill the home page with the kind of work agents did on testnet.
 const TITLES = { 74: 'Fix the checkout on mobile Safari', 75: 'Add a CI badge and a test job to the README', 76: 'Roman numeral converter with property tests', 77: 'Summarise 40 support tickets into a FAQ', 78: 'Port the CSV stats script to TypeScript' };
-const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: TITLES[jobId] ?? TITLES[74], brief: 'The checkout button does nothing on iOS 18 Safari. Find out why and fix it; keep the change small.', acceptanceCriteria: ['Checkout completes on iOS 18 Safari', 'No change to desktop behaviour'], mode: 'hire', token, reward: '25000000', creatorBond: (5n * K).toString(), workerBond: (3n * K).toString(), creator: me, approver: me, deliveryDeadline: now + 2 * 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
-const chainJob = (id, status) => ({ job_id: id, status, mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '25000000', creator: me, approver: me, worker: status === 'open' ? null : agentWallet, agent_id: status === 'open' ? null : '1942', delivery_deadline: now + 2 * 86400, creator_bond: (5n * K).toString(), worker_bond: (3n * K).toString(), violation: null, rejection_reason_hash: null });
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'sidequest-v1', title: TITLES[jobId] ?? TITLES[74], brief: 'The checkout button does nothing on iOS 18 Safari. Find out why and fix it; keep the change small.', acceptanceCriteria: ['Checkout completes on iOS 18 Safari', 'No change to desktop behaviour'], mode: 'hire', token, reward: '25000000', creatorBond: (5n * K).toString(), workerBond: (3n * K).toString(), creator: me, approver: me, deliveryDeadline: now + 2 * 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+const chainJob = (id, status) => ({ job_id: id, status, mode: 'hire', stack: 'main', kind: 'sidequest-v1', board_id: 'public', token, reward: '25000000', creator: me, approver: me, worker: status === 'open' ? null : agentWallet, agent_id: status === 'open' ? null : '1942', delivery_deadline: now + 2 * 86400, creator_bond: (5n * K).toString(), worker_bond: (3n * K).toString(), violation: null, rejection_reason_hash: null });
 const DELIVERED = ['submitted', 'completed', 'rejected-pending', 'disputed'];
 // Job history (/data/agents) as the staging indexer read it on 3 Oct, for the agents the shots name.
 const AGENTS = [
@@ -66,7 +66,7 @@ const DIRECTORY = [
 const DATA = {
   '/data/stats': () => ({ ok: true, jobs: 61, completed: 36, agents: 9, paidOut: { [token]: '649000000' }, inEscrow: { [token]: '10000000' } }),
   '/data/agents': () => ({ ok: true, agents: AGENTS }),
-  '/data/directory': () => ({ ok: true, agents: DIRECTORY, nextCursor: null, observedAt: now, chainId: config.chainId, identityRegistry: config.erc8004.identity, scope: 'opted-in Hireling directory' }),
+  '/data/directory': () => ({ ok: true, agents: DIRECTORY, nextCursor: null, observedAt: now, chainId: config.chainId, identityRegistry: config.erc8004.identity, scope: 'opted-in Sidequest directory' }),
 };
 
 /**
@@ -114,7 +114,7 @@ function routes(p) {
 
 const settle = encodeFunctionData({ abi: parseAbi(['function settle(uint256 jobId)']), functionName: 'settle', args: [72n] });
 const miningClaim = encodeFunctionData({ abi: parseAbi(['function claim(uint256 epoch, address account, uint256 amount, bytes32[] proof)']), functionName: 'claim', args: [0n, me, 1234n * K, []] });
-// The sponsorship sheet's permission, as sponsor_prepare hands it out (onboarding.e2e.mjs): Hireling's contracts only.
+// The sponsorship sheet's permission, as sponsor_prepare hands it out (onboarding.e2e.mjs): Sidequest's contracts only.
 const delegation = JSON.stringify({
   types: { EIP712Domain: [], Delegation: [{ name: 'delegate', type: 'address' }, { name: 'delegator', type: 'address' }, { name: 'authority', type: 'bytes32' }, { name: 'caveats', type: 'Caveat[]' }, { name: 'salt', type: 'uint256' }], Caveat: [{ name: 'enforcer', type: 'address' }, { name: 'terms', type: 'bytes' }] },
   primaryType: 'Delegation',
@@ -167,7 +167,7 @@ const PAGES = [
     api: { collect_actions: () => [
       { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [{ description: 'Settle job #72', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
       { kind: 'claimTopUpRefund', jobId: '71', token, amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.holding, data: settle, value: '0' }] },
-      { kind: 'miningClaim', epoch: '0', token: config.deployment.factory, amount: (1234n * K).toString(), description: 'Claim work mining into your FACTORY stake.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.distributor, data: miningClaim, value: '0', gas: '500000' }] },
+      { kind: 'miningClaim', epoch: '0', token: config.deployment.factory, amount: (1234n * K).toString(), description: 'Claim work mining into your SIDE stake.', transactions: [{ description: 'Claim', chainId: 10143, to: contracts.distributor, data: miningClaim, value: '0', gas: '500000' }] },
     ] },
   },
   {
@@ -215,7 +215,7 @@ const PAGES = [
     api: { sponsor_status: () => ({ status: 'none', typedData: null, callsUsed: 0 }), sponsor_prepare: () => ({ sign: { typedData: delegation }, upgrade: { delegator: config.delegation.delegator } }) },
     prepare: async (page) => {
       await page.getByRole('button', { name: 'Turn on' }).click();
-      await page.getByRole('dialog', { name: 'Let Hireling pay your gas?' }).getByText('Call Holding', { exact: true }).waitFor();
+      await page.getByRole('dialog', { name: 'Let Sidequest pay your gas?' }).getByText('Call Holding', { exact: true }).waitFor();
     },
   },
   { name: 'job-quote', wagmi: 'v1-wagmi.mjs', path: '/job/70', v1: true, account: '0x5555555555555555555555555555555555555555', jobs: { 70: 'open' } },
@@ -248,7 +248,7 @@ const PAGES = [
   },
   // The production mainnet build as it is before launch day (no deployment in the config, MAINNET_LIVE false): Explore's
   // own wagmi and Privy, no fixture modules, nothing indexed yet.
-  ...['/', '/backing'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Hireling directory' }) } })),
+  ...['/', '/backing'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Sidequest directory' }) } })),
 ];
 
 mkdirSync(output, { recursive: true });
@@ -265,13 +265,13 @@ const fixtures = (p) => ({ name: 'shots-fixtures', enforce: 'pre', resolveId(sou
 const built = new Map();
 /**
  * The dev server, or (--prod) the production build for this page's fixtures, built once per set and previewed. A page
- * with a `network` is that network's build with no fixture modules (vite.config reads AGENT_JOBS_NETWORK when it loads).
+ * with a `network` is that network's build with no fixture modules (vite.config reads SIDEQUEST_NETWORK when it loads).
  */
 async function serve(p) {
-  const env = { network: process.env.AGENT_JOBS_NETWORK, privy: process.env.HIRELING_PROD_PRIVY_APP_ID };
+  const env = { network: process.env.SIDEQUEST_NETWORK, privy: process.env.SIDEQUEST_PROD_PRIVY_APP_ID };
   if (p.network !== undefined) {
-    process.env.AGENT_JOBS_NETWORK = p.network;
-    delete process.env.HIRELING_PROD_PRIVY_APP_ID;
+    process.env.SIDEQUEST_NETWORK = p.network;
+    delete process.env.SIDEQUEST_PROD_PRIVY_APP_ID;
   }
   try {
     const plugins = p.network === undefined ? [fixtures(p)] : [];
@@ -281,16 +281,16 @@ async function serve(p) {
       return server;
     }
     const key = (p.network ?? `${p.wagmi}-${p.privy ?? 'privy.mjs'}`).replace(/[^a-z0-9]+/gi, '-');
-    const outDir = `/tmp/hireling-prod-build/${key}`;
+    const outDir = `/tmp/sidequest-prod-build/${key}`;
     if (!built.has(key)) {
       await build({ envFile: false, logLevel: 'error', plugins, build: { outDir, emptyOutDir: true } });
       built.set(key, outDir);
     }
     return await preview({ envFile: false, logLevel: 'silent', preview: { host: '127.0.0.1', port: 5202, strictPort: true }, build: { outDir } });
   } finally {
-    if (env.network === undefined) delete process.env.AGENT_JOBS_NETWORK;
-    else process.env.AGENT_JOBS_NETWORK = env.network;
-    if (env.privy !== undefined) process.env.HIRELING_PROD_PRIVY_APP_ID = env.privy;
+    if (env.network === undefined) delete process.env.SIDEQUEST_NETWORK;
+    else process.env.SIDEQUEST_NETWORK = env.network;
+    if (env.privy !== undefined) process.env.SIDEQUEST_PROD_PRIVY_APP_ID = env.privy;
   }
 }
 
@@ -306,15 +306,15 @@ try {
         const context = await browser.newContext({ viewport: { width, height: width === 375 ? 667 : width === 390 ? 844 : 900 }, hasTouch: phone, isMobile: phone });
         // A visitor has no wallet connected and no board session.
         await context.addInitScript(({ account, c, arbiter, v1State, latency, visitor }) => {
-          window.__hireling = c;
+          window.__sidequest = c;
           window.__chainLatency = latency;
           window.__wallet = { address: account, connected: !visitor, signatures: [], messages: [], sends: [], upgrades: 0 };
           const extra = Object.fromEntries(Object.entries(v1State ?? {}).map(([k, v]) => [k, BigInt(v)]));
           window.__v1 = { arbiter, free: 2n * 10n ** 18n, quote: [1000, 2500000n, 22500000n], topUp: 0n, bonus: 0n, ...extra };
           if (visitor) return;
-          localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-          localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-        }, { account: p.account ?? me, c: contracts, arbiter: config.hireling.defaultArbitrator, latency: auditing ? LATENCY : 0, visitor: p.visitor === true, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
+          localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+          localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+        }, { account: p.account ?? me, c: contracts, arbiter: config.sidequest.defaultArbitrator, latency: auditing ? LATENCY : 0, visitor: p.visitor === true, v1State: p.v1State === undefined ? null : Object.fromEntries(Object.entries(p.v1State).map(([k, v]) => [k, String(v)])) });
         if (p.init !== undefined) await context.addInitScript(p.init, contracts);
         if (auditing) await context.addInitScript(trackShifts);
         await context.route('**/*', routes(p));
@@ -357,8 +357,8 @@ try {
   await browser.close();
 }
 writeFileSync(`${output}/capture.json`, JSON.stringify({ build: prod ? 'production' : 'dev', capturedAt: new Date().toISOString(),
-  configSha256: createHash('sha256').update(configSource).digest('hex'), deploymentBlock: config.deployment.hireling.block,
-  contracts, defaultArbitrator: config.hireling.defaultArbitrator, captures, pageErrors }, null, 2));
+  configSha256: createHash('sha256').update(configSource).digest('hex'), deploymentBlock: config.deployment.sidequest.block,
+  contracts, defaultArbitrator: config.sidequest.defaultArbitrator, captures, pageErrors }, null, 2));
 assert.deepEqual(pageErrors, [], 'Submission capture contains a page error');
 if (auditing) {
   writeFileSync(`${output}/audit.json`, JSON.stringify({ build: prod ? 'production' : 'dev', latency: LATENCY, report }, null, 2));

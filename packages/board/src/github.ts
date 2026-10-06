@@ -61,7 +61,7 @@ async function appJwt(app: GitHubApp, now: number): Promise<string> {
   return `${header}.${payload}.${b64url(new Uint8Array(signature))}`
 }
 
-const HEADERS = { accept: 'application/vnd.github+json', 'user-agent': 'agent-jobs-attester', 'x-github-api-version': '2022-11-28' }
+const HEADERS = { accept: 'application/vnd.github+json', 'user-agent': 'sidequest-attester', 'x-github-api-version': '2022-11-28' }
 
 export async function installationToken(app: GitHubApp, now = Math.floor(Date.now() / 1000)): Promise<string> {
   const res = await fetch(`https://api.github.com/app/installations/${app.installationId}/access_tokens`, {

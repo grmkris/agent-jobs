@@ -1,6 +1,6 @@
 import { type Address, erc20Abi, isAddress } from "viem";
 import { useBalance, useReadContracts } from "wagmi";
-import { hireling } from "./hireling.ts";
+import { sidequest } from "./sidequest.ts";
 import { chain, deployment } from "./wallet.ts";
 
 /** These are wallet[0]'s spendable balances, never the managed agent's funds. */
@@ -8,7 +8,7 @@ export function useOperatorBalances(operator: Address | undefined, rewardToken: 
   const validToken = isAddress(rewardToken);
   const tokens = useReadContracts({
     contracts: [
-      { address: hireling.factory, abi: erc20Abi, functionName: "balanceOf", args: [operator!], chainId: chain.id },
+      { address: sidequest.factory, abi: erc20Abi, functionName: "balanceOf", args: [operator!], chainId: chain.id },
       { address: rewardToken as Address, abi: erc20Abi, functionName: "balanceOf", args: [operator!], chainId: chain.id },
     ],
     query: { enabled: operator !== undefined && validToken, refetchInterval: 15_000, retry: false },

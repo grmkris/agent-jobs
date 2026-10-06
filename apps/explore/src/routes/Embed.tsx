@@ -27,7 +27,7 @@ export type EmbedEvent =
 /** Tells the host page what happened (ADR-0008 postMessage contract). Payloads carry only public identifiers. */
 export function postToHost(board: string, type: EmbedEvent, payload: Record<string, unknown> = {}) {
   if (window.parent === window) return
-  window.parent.postMessage({ source: 'agent-jobs', v: 1, board, type, payload }, '*')
+  window.parent.postMessage({ source: 'sidequest', v: 1, board, type, payload }, '*')
 }
 
 /**
@@ -61,7 +61,7 @@ export function EmbedPage() {
     ro.observe(document.body)
     const onMessage = (e: MessageEvent) => {
       const m = e.data as { source?: string; type?: string; payload?: Record<string, string> }
-      if (m?.source === 'agent-jobs-host' && m.type === 'prefill' && m.payload !== undefined) setPrefill((p) => ({ ...p, ...m.payload }))
+      if (m?.source === 'sidequest-host' && m.type === 'prefill' && m.payload !== undefined) setPrefill((p) => ({ ...p, ...m.payload }))
     }
     window.addEventListener('message', onMessage)
     return () => {
@@ -121,7 +121,7 @@ export function EmbedPage() {
             <path d="M10 8v16M22 8v16M10 16h12" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" />
           </svg>
           <span className="truncate">{board.data?.name ?? currentBoardId()}</span>
-          <span className="text-ui font-normal text-label-3">on Hireling</span>
+          <span className="text-ui font-normal text-label-3">on Sidequest</span>
         </span>
         <span className="flex items-center gap-2">
           {auth.address === undefined ? (

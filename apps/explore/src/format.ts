@@ -11,7 +11,7 @@ export interface TokenMeta {
 }
 
 const LISTED = new Set([...deployment.rewardTokens, deployment.factory].map((a) => a.toLowerCase()))
-/** One of the deployment's known tokens (listed first in the apps) or FACTORY; every other ERC-20 is unverified. */
+/** One of the deployment's known tokens (listed first in the apps) or SIDE; every other ERC-20 is unverified. */
 export const isListedToken = (address: string) => LISTED.has(address.toLowerCase())
 
 /**
@@ -22,12 +22,12 @@ export const isListedToken = (address: string) => LISTED.has(address.toLowerCase
 export const TOKENS: Record<string, TokenMeta> = isMainnet
   ? {
       [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
-      [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18 },
+      [deployment.factory.toLowerCase()]: { symbol: 'SIDE', decimals: 18 },
     }
   : {
       [deployment.rewardTokens[0]?.toLowerCase() ?? '']: { symbol: 'mUSD', name: 'Mock USD (testnet)', decimals: 6 },
       [deployment.rewardTokens[1]?.toLowerCase() ?? '']: { symbol: 'mEUR', name: 'Mock EUR (testnet)', decimals: 6 },
-      [deployment.factory.toLowerCase()]: { symbol: 'FACTORY', decimals: 18 },
+      [deployment.factory.toLowerCase()]: { symbol: 'SIDE', decimals: 18 },
     }
 
 let registryVersion = 0
@@ -85,7 +85,7 @@ export function budgetCap(eb: AdvanceBudgetTerms | CallBudgetTerms): string {
   return `${formatNumber(BigInt(eb.cap), 18)} MON for ${name}() on ${eb.target.slice(0, 8)}…${eb.target.slice(-4)}`
 }
 
-export const bond = (value: string | null | undefined) => (value === null || value === undefined ? '—' : `${formatNumber(BigInt(value), 18)} FACTORY`)
+export const bond = (value: string | null | undefined) => (value === null || value === undefined ? '—' : `${formatNumber(BigInt(value), 18)} SIDE`)
 
 /** "3 h 5 min", "2 d 4 h", "40 s": a span of seconds at two units of precision. */
 export function span(seconds: number): string {

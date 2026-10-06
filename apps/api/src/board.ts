@@ -1,6 +1,6 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, failureFromReply, type AgentRetry } from '@agent-jobs/board'
-import { fromD1 } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, sponsorToolNames, AdmissionRateLimits, admissionFailure, Board as BoardService, BoardError, fromDurableObjectSql, parseHostedAdmission, SessionDesk, type RelayRequest, migrateAgentSchema, retireFleetSchema, AgentStore, agentFailureReply, failureFromReply, type AgentRetry } from '@sidequest/board'
+import { fromD1 } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import { type Hex, getAddress, decodeFunctionData, isAddress } from 'viem'
@@ -221,7 +221,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
         /** Private management storage remains in the existing reserved object. */
         management: (req: { kind: 'migrate' | 'retire' }) => Effect.sync(() => {
           const namespace = (runtimeEnv as Record<string, unknown>).Board as { idFromName(name: string): { toString(): string } } | undefined
-          const objectName = req.kind === 'retire' ? '__hireling_fleet_v1__' : SPONSOR_OBJECT_NAME
+          const objectName = req.kind === 'retire' ? '__sidequest_fleet_v1__' : SPONSOR_OBJECT_NAME
           if (namespace?.idFromName(objectName).toString() !== state.id.toString()) throw new Error('management object identity mismatch')
           const sql = fromDurableObjectSql(state.storage.sql.raw, write => state.raw.storage.transactionSync(write))
           if (req.kind === 'retire') retireFleetSchema(sql)
@@ -244,7 +244,7 @@ export default class Board extends Cloudflare.DurableObject<Board>()(
               } else {
                 const pair = [...Object.values(deployment.stacks), ...Object.values(deployment.legacyStacks)].find(s => s?.evaluator.toLowerCase() === request.to.toLowerCase())
                 if (pair === undefined) throw new BoardError('forbidden', 'relay target is not a configured evaluator')
-                const decoded = decodeFunctionData({ abi: pair.kind === 'hireling-v1' ? sdk.hirelingEvaluatorAbi : sdk.jobsEvaluatorAbi, data: request.data })
+                const decoded = decodeFunctionData({ abi: pair.kind === 'sidequest-v1' ? sdk.sidequestEvaluatorAbi : sdk.jobsEvaluatorAbi, data: request.data })
                 if (!['attachEvidence', 'ruleWithSignature'].includes(decoded.functionName)) throw new BoardError('forbidden', 'invalid evaluator relay method')
               }
               return toJson({ ok: true, result: await boardFor(req.env).relayTransaction(request) })

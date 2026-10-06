@@ -2,7 +2,7 @@
  * Which requests the Explore Worker hands to the board API and which are the SPA's. The API serves `/api/<tool>`,
  * `/data/…`, `/offers/…`, `/mcp` and `/health`, and the same routes under a board's prefix `/b/<slug>`
  * (apps/api/src/worker.ts, BOARD_ROUTE). Every other `/b/<slug>/…` path is a page of the app (main.tsx board routes),
- * so a refresh, a shared link or the widget's "Open in Hireling" loads the SPA.
+ * so a refresh, a shared link or the widget's "Open in Sidequest" loads the SPA.
  */
 const PROXIED = ['/api/', '/data/', '/offers/', '/oauth/', '/.well-known/', '/mcp', '/health']
 const BOARD_API = /^\/b\/[a-z0-9-]{3,32}(?:\/api\/|\/data\/|\/offers\/|\/mcp$|\/health$)/

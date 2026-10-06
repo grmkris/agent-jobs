@@ -9,21 +9,21 @@ import { build, preview } from 'vite';
 // Opt-in G1 check: real promoted config, real wagmi/SDK/chain responses and public hosted API.
 // Only Privy's login is replaced with the existing injected-wallet bridge. The provider cannot sign/send;
 // a local display session is never sent to the hosted board. This does not test Privy login or live paid work.
-// From apps/explore: HIRELING_LIVE_READONLY=1 heavy node test/g1-readonly.e2e.mjs [evidence-dir]
-if (process.env.HIRELING_LIVE_READONLY !== '1') {
-  console.log('SKIP: set HIRELING_LIVE_READONLY=1 for live read-only testnet checks');
+// From apps/explore: SIDEQUEST_LIVE_READONLY=1 heavy node test/g1-readonly.e2e.mjs [evidence-dir]
+if (process.env.SIDEQUEST_LIVE_READONLY !== '1') {
+  console.log('SKIP: set SIDEQUEST_LIVE_READONLY=1 for live read-only testnet checks');
   process.exit(0);
 }
 
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'));
-const h = config.deployment.hireling;
+const h = config.deployment.sidequest;
 const contracts = { ...h, holding: config.deployment.main.holding, evaluator: config.deployment.main.evaluator, core: config.deployment.core };
-assert.equal(config.deployment.main.kind, 'hireling-v1');
+assert.equal(config.deployment.main.kind, 'sidequest-v1');
 const rpcUrl = monadTestnet.rpcUrls.default.http[0];
-const origin = 'https://testnet.hireling.xyz';
+const origin = 'https://dev.sidequest.exchange';
 const base = 'http://127.0.0.1:5212';
-const output = process.argv[2] ?? '/tmp/hireling-g1-readonly';
+const output = process.argv[2] ?? '/tmp/sidequest-g1-readonly';
 const outDir = `${output}/build`;
 const client = createPublicClient({ chain: monadTestnet, transport: http(rpcUrl) });
 const rpcMethods = new Set(['eth_call', 'eth_chainId', 'eth_blockNumber', 'eth_getCode', 'eth_getBalance', 'eth_getBlockByNumber', 'eth_getTransactionCount']);
@@ -46,14 +46,14 @@ assert.ok(me, 'Kris is not a Safe owner');
 assert.equal(await read(h.safe, 'function getThreshold() view returns (uint256)'), 1n);
 const pending = await read(h.feeSchedule, 'function pending() view returns ((uint256[4] thresholds, uint16[4] bps, address treasury), uint48)');
 const arbitrator = await read(contracts.holding, 'function defaultArbitrator() view returns (address)');
-assert.equal(arbitrator.toLowerCase(), config.hireling.defaultArbitrator.toLowerCase());
+assert.equal(arbitrator.toLowerCase(), config.sidequest.defaultArbitrator.toLowerCase());
 const jobs = await (await fetch(`${origin}/data/jobs`, { signal: AbortSignal.timeout(20_000) })).json();
 assert.equal(jobs.ok, true);
-const v1Job = jobs.jobs.find((j) => j.kind === 'hireling-v1' && j.published_block >= h.block);
-const legacyJob = jobs.jobs.find((j) => j.kind !== 'hireling-v1');
+const v1Job = jobs.jobs.find((j) => j.kind === 'sidequest-v1' && j.published_block >= h.block);
+const legacyJob = jobs.jobs.find((j) => j.kind !== 'sidequest-v1');
 
 process.env.PRIVY_APP_ID = 'g1-readonly-wallet-bridge';
-process.env.AGENT_JOBS_NETWORK = 'monad-testnet';
+process.env.SIDEQUEST_NETWORK = 'monad-testnet';
 await build({ envFile: false, logLevel: 'error', plugins: [{ name: 'readonly-wallet-bridge', enforce: 'pre', resolveId(source) {
   if (source.endsWith('/Privy.tsx')) return `${directory}real/devwallet.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
@@ -73,8 +73,8 @@ try {
         if (method === 'wallet_requestPermissions') return [];
         throw new Error(`Read-only wallet refuses ${method}`);
       }, on() {}, removeListener() {} };
-      localStorage.setItem('agent-jobs.session', 'local-display-only');
-      localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+      localStorage.setItem('sidequest.session', 'local-display-only');
+      localStorage.setItem('sidequest.session-owner', JSON.stringify({ address, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
     }, me);
     await context.route('**/*', async (route) => {
       const request = route.request();

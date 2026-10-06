@@ -1,5 +1,5 @@
 /** Operator decisions and revocation. Hosted state never stands in for a disable receipt. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, keccak256, stringToHex } from 'viem'
 import { AgentPermissions } from './agent-permissions.ts'
 import { AgentStore, type AgentRow } from './agents.ts'

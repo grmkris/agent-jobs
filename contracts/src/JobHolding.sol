@@ -23,8 +23,8 @@ interface ISettlementWindow {
 /// @title JobHolding
 /// @notice The ERC-8183 *client* of every listed job (spec §4). Two assets: the reward in any ERC-20 the creator
 ///         names (ADR-0010: no allowlist), escrowed here at publish and moved into the core once the worker accepts; and
-///         collateral in `$FACTORY`, a creator bond pulled at publish and a worker bond pulled at accept, both
-///         locked here through settlement. A hold requirement in FACTORY gates publishing and claiming.
+///         collateral in `$SIDE`, a creator bond pulled at publish and a worker bond pulled at accept, both
+///         locked here through settlement. A hold requirement in SIDE gates publishing and claiming.
 ///
 ///         Two modes. Hire: the creator signs an EIP-712 `Selection` off-chain and the selected worker's own
 ///         `activate` transaction is the final confirmation: provider, bond, budget and funding in one step, so
@@ -131,7 +131,7 @@ contract JobHolding is EIP712, ReentrancyGuardTransient {
     }
 
     ERC8183WithAuthorization public immutable core;
-    /// @notice The bond token ("FACTORY"): any plain ERC-20, e.g. our `FactoryToken` or a token launched elsewhere. A
+    /// @notice The bond token ("SIDE"): any plain ERC-20, e.g. our `FactoryToken` or a token launched elsewhere. A
     ///         fee-on-transfer token is refused at the first bond; a slashed bond is sent to `BURN_ADDRESS`, so the token
     ///         needs no `burn` function.
     IERC20 public immutable factory;
@@ -142,7 +142,7 @@ contract JobHolding is EIP712, ReentrancyGuardTransient {
     address public immutable admin;
     /// @notice Set exactly once after deploy (the evaluator needs this address in its constructor).
     address public evaluator;
-    /// @notice FACTORY a wallet must hold to publish, and to post a worker bond. Sybil resistance only.
+    /// @notice SIDE a wallet must hold to publish, and to post a worker bond. Sybil resistance only.
     uint256 public minHoldToPublish;
     uint256 public minHoldToClaim;
 
@@ -224,7 +224,7 @@ contract JobHolding is EIP712, ReentrancyGuardTransient {
         IERC8004Identity identity_,
         uint256 minHoldToPublish_,
         uint256 minHoldToClaim_
-    ) EIP712("AgentJobsHolding", "1") {
+    ) EIP712("SidequestHolding", "1") {
         core = core_;
         factory = factory_;
         identity = identity_;
@@ -264,7 +264,7 @@ contract JobHolding is EIP712, ReentrancyGuardTransient {
     // Creator actions
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice Escrows the reward and the creator's FACTORY bond and creates the core job with Holding as
+    /// @notice Escrows the reward and the creator's SIDE bond and creates the core job with Holding as
     ///         client and no provider. The listing is the escrow.
     function publish(PublishParams calldata p) external nonReentrant returns (uint256 jobId) {
         if (evaluator == address(0)) revert EvaluatorNotSet();
@@ -509,7 +509,7 @@ contract JobHolding is EIP712, ReentrancyGuardTransient {
     // Views
     // ---------------------------------------------------------------------------------------------
 
-    /// @notice The EIP-712 digest a creator signs for `sel` (domain "AgentJobsHolding", version "1").
+    /// @notice The EIP-712 digest a creator signs for `sel` (domain "SidequestHolding", version "1").
     function selectionDigest(Selection calldata sel) public view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(

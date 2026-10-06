@@ -94,9 +94,9 @@ export async function sampleOfficialPool(input: {
   const quote = pool === null ? undefined : prices.tokens.find(token => token.token === pool.quoteToken)
   const samples: HourlySample[] = []
   if (pool !== null) {
-    if (pool.quoteToken === factory.toLowerCase()) throw new Error('official pool quote is FACTORY')
+    if (pool.quoteToken === factory.toLowerCase()) throw new Error('official pool quote is SIDE')
     // Configuration mismatches refuse the run; ordinary missing historical reads use the documented fallback.
-    if (await decimalsOf(c, factory) !== 18) throw new Error('FACTORY must have 18 decimals')
+    if (await decimalsOf(c, factory) !== 18) throw new Error('SIDE must have 18 decimals')
     if (pool.kind === 'constant-product') {
       const [token0, token1] = await Promise.all([
         c.readContract({ address: pool.address, abi: pairAbi, functionName: 'token0' }),

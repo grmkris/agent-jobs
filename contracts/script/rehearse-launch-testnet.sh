@@ -35,7 +35,7 @@ export LAUNCH_LOGS
 LAUNCH_LOGS="$(mktemp -d)"
 LOCAL="$REHEARSAL_RPC"
 
-SAFE_FACTORY=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
+SAFE_SIDE=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
 SAFE_L2=0x29fcB43b46531BcA003ddC8FCB67FFE91900C762
 FALLBACK_HANDLER=0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99
 ZERO=0x0000000000000000000000000000000000000000
@@ -105,13 +105,13 @@ done
 ok "the dev accounts' EIP-7702 delegation code is cleared on the fork"
 
 # A fresh 1-of-2 Safe from the canonical v1.4.1 contracts (the real testnet Safe's owners' keys are not used here).
-for c in $SAFE_FACTORY $SAFE_L2 $FALLBACK_HANDLER; do
+for c in $SAFE_SIDE $SAFE_L2 $FALLBACK_HANDLER; do
   [[ "$(cast code --rpc-url "$LOCAL" $c 2>/dev/null)" != "0x" ]] || fail "no code at canonical Safe contract $c"
 done
 SETUP=$(cast calldata "setup(address[],uint256,address,bytes,address,address,uint256,address)" "[$OWNER1,$OWNER2]" 1 $ZERO 0x $FALLBACK_HANDLER $ZERO 0 $ZERO)
 SALT=$(date +%s)
-SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT" 2>/dev/null)
-cast send --rpc-url "$LOCAL" --private-key "$REHEARSAL_DEPLOYER_KEY" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
+SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT" 2>/dev/null)
+cast send --rpc-url "$LOCAL" --private-key "$REHEARSAL_DEPLOYER_KEY" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
 ok "Safe $SAFE (1.4.1, owners $OWNER1 $OWNER2, threshold 1)"
 
 # On testnet the deployer is roles.admin, the reused core's DEFAULT_ADMIN_ROLE, which launch-testnet.sh's pauser step
@@ -141,8 +141,8 @@ fi
 # The scratch config: testnet's prepared input, with the fork's deployer, fresh Safe and odd-token wallets.
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg a "$WALLET_A" --arg b "$WALLET_B" '
   .roles.admin = $admin
-  | .hireling.safe = $safe | .hireling.schedule.treasury = $safe | .hireling.allocation.treasury = $safe
-  | .hireling.allocation.ecosystem = $admin | .hireling.allocation.liquidity = $admin
+  | .sidequest.safe = $safe | .sidequest.schedule.treasury = $safe | .sidequest.allocation.treasury = $safe
+  | .sidequest.allocation.ecosystem = $admin | .sidequest.allocation.liquidity = $admin
   | .oddTokens = (.oddTokens // { wallets: [$a, $b], mint: 1000 })' "$CONFIG" >"$CONFIG.next"
 mv "$CONFIG.next" "$CONFIG"
 
@@ -186,21 +186,21 @@ if [[ "${PREP_REDEPLOY:-0}" == 1 ]]; then
   jq -e --slurpfile old "$ARCHIVE" '
     (.deployment.legacy | keys) == ($old[0].deployment.legacy | keys)
     and all(.deployment.legacy[]; .kind == "legacy")
-    and .deployment.main.kind == "hireling-v1"
+    and .deployment.main.kind == "sidequest-v1"
     and .deployment.main.holding != $old[0].deployment.main.holding
     and .deployment.factory != $old[0].deployment.factory
-    and .deployment.hireling.clocks == .hireling.clocks
-    and (.deployment.hireling.clocks | keys | length) == 9' "$CONFIG" >/dev/null \
-    || fail "G1c promotion kept G1b as legacy or reused its FACTORY/pair"
+    and .deployment.sidequest.clocks == .sidequest.clocks
+    and (.deployment.sidequest.clocks | keys | length) == 9' "$CONFIG" >/dev/null \
+    || fail "G1c promotion kept G1b as legacy or reused its SIDE/pair"
   # The nine promoted values and all duplicated clocks must match deployed getters, not just the input file.
   H=$(jq -r .deployment.main.holding "$CONFIG")
-  V=$(jq -r .deployment.hireling.vault "$CONFIG")
-  F=$(jq -r .deployment.hireling.feeSchedule "$CONFIG")
-  R=$(jq -r .deployment.hireling.miningReserve "$CONFIG")
-  D=$(jq -r .deployment.hireling.distributor "$CONFIG")
+  V=$(jq -r .deployment.sidequest.vault "$CONFIG")
+  F=$(jq -r .deployment.sidequest.feeSchedule "$CONFIG")
+  R=$(jq -r .deployment.sidequest.miningReserve "$CONFIG")
+  D=$(jq -r .deployment.sidequest.distributor "$CONFIG")
   while read -r target getter key; do
     actual=$(cast call --rpc-url "$LOCAL" "$target" "$getter" | cut -d ' ' -f1)
-    [[ "$actual" == "$(jq -r ".deployment.hireling.clocks.$key" "$CONFIG")" ]] || fail "promoted clock $key differs from $getter"
+    [[ "$actual" == "$(jq -r ".deployment.sidequest.clocks.$key" "$CONFIG")" ]] || fail "promoted clock $key differs from $getter"
   done <<EOF
 $H MIN_REVIEW_WINDOW()(uint32) minReviewWindow
 $H MIN_DISPUTE_WINDOW()(uint32) minDisputeWindow
@@ -221,10 +221,10 @@ import { readFileSync } from 'node:fs'
 import { deploymentFromConfig } from '$PWD/../packages/sdk/src/deployment.ts'
 const config = JSON.parse(readFileSync(process.argv[2], 'utf8'))
 const d = deploymentFromConfig('monad-testnet', config)
-const loaded = Object.entries(d.hireling?.clocks ?? {})
+const loaded = Object.entries(d.sidequest?.clocks ?? {})
 if (loaded.length !== 9) throw new Error('SDK did not load all nine promoted clocks')
 for (const [key, value] of loaded) {
-  if (config.hireling.clocks[key] !== value) throw new Error('SDK clock differs: ' + key)
+  if (config.sidequest.clocks[key] !== value) throw new Error('SDK clock differs: ' + key)
 }
 console.log('sdk: all nine fast promoted clocks loaded synchronously')
 EOF
@@ -269,8 +269,8 @@ cast rpc --rpc-url "$LOCAL" anvil_setStorageAt "$SAFE" $GUARD_SLOT "0x$(printf '
 ok "a Safe with a module, or with a guard, is refused before anything is sent (D18); cleared, it passes again"
 
 # The immutable timelocks, on the fork; anyone executes at each pending ETA.
-FEES=$(jq -r .deployment.hireling.feeSchedule "$CONFIG")
-VAULT=$(jq -r .deployment.hireling.vault "$CONFIG")
+FEES=$(jq -r .deployment.sidequest.feeSchedule "$CONFIG")
+VAULT=$(jq -r .deployment.sidequest.vault "$CONFIG")
 STRANGER=$(devkey 9)
 cast rpc --rpc-url "$LOCAL" anvil_setBalance "$(addr "$STRANGER")" 0x3635c9adc5dea00000 >/dev/null 2>&1
 advance_to() {
@@ -298,7 +298,7 @@ echo "GAS LIMITS (Monad charges the limit)"
 declare -A LIMIT COUNT
 while IFS=$'\t' read -r label hash; do
   case "$label" in
-    DeployHireling*) k="DeployHireling (deployer)" ;;
+    DeploySidequest*) k="DeploySidequest (deployer)" ;;
     SafeAccept*) k="SafeAccept (Safe owner)" ;;
     DeployOddTokens*) k="DeployOddTokens (deployer)" ;;
     pauser*) k="core ADMIN_ROLE (deployer)" ;;
@@ -307,7 +307,7 @@ while IFS=$'\t' read -r label hash; do
   LIMIT[$k]=$(( ${LIMIT[$k]:-0} + $(cast tx --rpc-url "$LOCAL" "$hash" gas 2>/dev/null) ))
   COUNT[$k]=$(( ${COUNT[$k]:-0} + 1 ))
 done <"$LAUNCH_LOGS/launch-hashes.tsv"
-for k in "DeployHireling (deployer)" "core ADMIN_ROLE (deployer)" "DeployOddTokens (deployer)" "SafeAccept (Safe owner)" "proposals (Safe owner)"; do
+for k in "DeploySidequest (deployer)" "core ADMIN_ROLE (deployer)" "DeployOddTokens (deployer)" "SafeAccept (Safe owner)" "proposals (Safe owner)"; do
   printf '  %-28s %3s txs %12s gas  %s MON at 102 gwei\n' "$k" "${COUNT[$k]:-0}" "${LIMIT[$k]:-0}" \
     "$(bc <<<"scale=4; ${LIMIT[$k]:-0} * 102 / 1000000000")"
 done

@@ -1,5 +1,5 @@
 /** Select scoped grants, read real allowance availability and compose the atomic hire entries. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, decodeFunctionData, encodeFunctionData, erc20Abi, parseAbi } from 'viem'
 import { GrantStore, type GrantRow } from './grants.ts'
 import { checkGrantCall, type GrantCall } from './grant-calls.ts'
@@ -25,7 +25,7 @@ export interface ApprovedAgentAction {
 export function publishedReward(ctx: sdk.GrantContext, call: GrantCall): { token: Address; reward: bigint } | undefined {
   if (!same(call.to, ctx.stack.holding)) return undefined
   try {
-    const decoded = decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: call.data as Hex })
+    const decoded = decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: call.data as Hex })
     return decoded.functionName === 'publish' ? decoded.args[0] : undefined
   } catch {
     return undefined

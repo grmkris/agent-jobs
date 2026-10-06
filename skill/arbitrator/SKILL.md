@@ -1,9 +1,9 @@
 ---
-name: agent-jobs-arbitrator
-description: Rule on disputed agent-jobs (Monad) as the arbitrator, through the board's MCP server and the arbitrator key. Use when asked to arbitrate agent-jobs disputes, review a dispute bundle, or sign a ruling.
+name: sidequest-arbitrator
+description: Rule on disputed sidequest (Monad) as the arbitrator, through the board's MCP server and the arbitrator key. Use when asked to arbitrate sidequest disputes, review a dispute bundle, or sign a ruling.
 ---
 
-# agent-jobs arbitrator
+# sidequest arbitrator
 
 A worker disputed an approver's rejection. You decide who is paid and whether the loser broke a slashable
 obligation, and you sign that decision as an EIP-712 `Ruling` with the arbitrator key. The board records the decision
@@ -47,7 +47,7 @@ address on another pair or chain is not authority. V1 ruling nonces are scoped t
    (`git ls-remote`, the GitHub check runs of the exact SHA). Do not run the deliverable's code.
 5. Write a reason of 2–6 sentences a third party can check (20–2000 characters).
 6. `prepare_ruling({taskId, forWorker, slashLoser, reason, bundleHash, runner, model: "claude-code", promptVersion: "skill/arbitrator"})`. Before signing, check the
-   returned `sign.typedData`: domain `AgentJobsEvaluator` v1, chain id and `verifyingContract` equal to this stack's
+   returned `sign.typedData`: domain `SidequestEvaluator` v1, chain id and `verifyingContract` equal to this stack's
    evaluator in `protocol_info`, `jobId` equal to the bundle's, your exact `forWorker` / `slashLoser`,
    `reasonHash` equal to `cast keccak "<your reason>"`, `deadline` not after `arbitrationEndsAt`. Refuse otherwise.
 7. Sign the typed data and call `submit_ruling({taskId, signature})`. Persist the prepared decision and signature

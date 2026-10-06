@@ -3,8 +3,8 @@ import { expect, test } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import { assertLaunchGate } from '../src/deploy-preflight.ts'
 import { launchOwnedContracts, launchClockReads, productionLaunchClocks, liveLaunchGate, opensAdmission, admissionDrainBinding, validateAdmissionMode, relayFloorWei, SAFE_GUARD_SLOT, SAFE_SINGLETON, type ChainConfig, type LaunchReader, type SafePolicy } from '../src/prod-config.ts'
-import { RELAY_FLOOR_MAINNET } from '@agent-jobs/sdk'
-import { parseHostedAdmission } from '@agent-jobs/board'
+import { RELAY_FLOOR_MAINNET } from '@sidequest/sdk'
+import { parseHostedAdmission } from '@sidequest/board'
 
 const abi = parseAbi([
   'function MIN_REVIEW_WINDOW() view returns (uint32)',
@@ -37,7 +37,7 @@ const ADMIN = keccak256(toHex('ADMIN_ROLE'))
 const FLOOR = RELAY_FLOOR_MAINNET
 const lower = (value: string) => value.toLowerCase()
 const OWNERS = [a(0x0a1), a(0x0a2)]
-/** The artifact's pinned Safe policy (deployment.hireling.safeOwners / safeThreshold). */
+/** The artifact's pinned Safe policy (deployment.sidequest.safeOwners / safeThreshold). */
 const POLICY: SafePolicy = { owners: OWNERS, threshold: 1 }
 const SLOT_0 = toHex(0, { size: 32 })
 const word = (address: string) => `0x${'0'.repeat(24)}${address.slice(2).toLowerCase()}` as Hex
@@ -47,8 +47,8 @@ function promoted(): ChainConfig {
   const config = structuredClone(mainnet) as unknown as ChainConfig
   config.deployment = {
     network: 'monad-mainnet', block: 123, core: addresses.core, factory: a(0xfa),
-    main: { kind: 'hireling-v1', factory: a(0xfa), holding: addresses.holding, evaluator: addresses.evaluator, openTokens: true },
-    hireling: { block: 123, safe: SAFE, factory: a(0xfa), vault: addresses.vault, feeSchedule: addresses.feeSchedule, distributor: addresses.distributor, miningReserve: addresses.miningReserve, teamVesting: a(0x16), t0: 1_791_500_000 },
+    main: { kind: 'sidequest-v1', factory: a(0xfa), holding: addresses.holding, evaluator: addresses.evaluator, openTokens: true },
+    sidequest: { block: 123, safe: SAFE, factory: a(0xfa), vault: addresses.vault, feeSchedule: addresses.feeSchedule, distributor: addresses.distributor, miningReserve: addresses.miningReserve, teamVesting: a(0x16), t0: 1_791_500_000 },
   }
   return config
 }
@@ -149,8 +149,8 @@ test('D16: a promoted deployment with the Safe in custody, a verifier attester a
 // ---- PROD-GATE-001: the Safe owns all six ----
 
 test('PROD-GATE-001: a missing Safe, a Safe without code, or an unreadable Safe refuses', async () => {
-  expect(await gate((_, config) => { delete config.deployment.hireling!.safe })).toEqual(['launch:safe unset'])
-  expect(await gate((_, config) => { config.deployment.hireling!.safe = null })).toEqual(['launch:safe unset'])
+  expect(await gate((_, config) => { delete config.deployment.sidequest!.safe })).toEqual(['launch:safe unset'])
+  expect(await gate((_, config) => { config.deployment.sidequest!.safe = null })).toEqual(['launch:safe unset'])
   expect(await gate(state => { state.code = {} })).toEqual(['launch:safe has no code'])
   expect(await gate(state => { state.failing.add(`code:${lower(SAFE)}`) })).toEqual(['launch:safe code unreadable'])
 })
@@ -247,7 +247,7 @@ test.each([
 
 test('PROD-GATE-004: an unreadable balance or an undefined floor refuses; the relay is the configured role, not any funded address', async () => {
   expect(await gate((state, config) => { state.failing.add(`balance:${lower(config.roles.relay!)}`) })).toEqual(['launch:relay balance unreadable'])
-  expect(await gate(() => {}, { floor: undefined })).toEqual(['launch:relay floor undefined (RELAY_FLOOR_MAINNET, @agent-jobs/sdk)'])
+  expect(await gate(() => {}, { floor: undefined })).toEqual(['launch:relay floor undefined (RELAY_FLOOR_MAINNET, @sidequest/sdk)'])
   expect(await gate((state, config) => {
     state.balances = { [lower(a(0xf00d))]: parseEther('100') }
     expect(config.roles.relay).not.toBe(a(0xf00d))
@@ -309,7 +309,7 @@ test('CLOCKS: testnet fast config passes readback; production cannot be overridd
   const fast = { minReviewWindow: 120, minDisputeWindow: 120, minArbitrationWindow: 300, unstakeDelay: 600,
     holdingDelay: 900, feeDelay: 300, proposalGrace: 1800, epochZeroDuration: 1800, epochDuration: 3600 }
   const setup = (state: LiveState, config: ChainConfig) => {
-    config.hireling = { ...config.hireling, clocks: fast }
+    config.sidequest = { ...config.sidequest, clocks: fast }
     for (const [name, getter, key] of launchClockReads) state.clocks[`${lower(addresses[name])}:${getter}`] = fast[key]
   }
   expect(await gate((state, config) => { setup(state, config); config.chainId = 10143 })).toEqual([])
@@ -323,10 +323,10 @@ test('CLOCKS: partial, zero, out-of-range and cross-clock-invalid config refuse'
     { minReviewWindow: 1209601 }, { holdingDelay: 60 }, { feeDelay: 59 }]) {
     const failures = await gate((_, config) => {
       config.chainId = 10143
-      config.hireling = { ...config.hireling, clocks: { ...productionLaunchClocks, ...patch } }
+      config.sidequest = { ...config.sidequest, clocks: { ...productionLaunchClocks, ...patch } }
     })
     expect(failures.length).toBeGreaterThan(0)
   }
-  const failures = await gate((_, config) => { config.hireling = { clocks: {} as never } })
+  const failures = await gate((_, config) => { config.sidequest = { clocks: {} as never } })
   expect(failures).toHaveLength(9)
 })

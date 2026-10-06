@@ -207,7 +207,7 @@ export async function checkDeliverable(d: Deliverable, deps: CheckDeps): Promise
       case 'git': {
         const api = commitApi(d.url, d.sha)
         if (api === undefined) return done(null, 'unverified host: the board checks github.com, gitlab.com, codeberg.org and gitea.com')
-        const res = await deps.fetch(api.api, { headers: { accept: 'application/json', 'user-agent': 'agent-jobs-board' }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+        const res = await deps.fetch(api.api, { headers: { accept: 'application/json', 'user-agent': 'sidequest-board' }, signal: AbortSignal.timeout(TIMEOUT_MS) })
         void res.body?.cancel().catch(() => {})
         if (res.status === 200) return done(true, `commit ${d.sha.slice(0, 12)} exists on ${api.host}`)
         if (res.status === 404 || res.status === 422) return done(false, `no commit ${d.sha.slice(0, 12)} in that repository on ${api.host} (or it is private)`)

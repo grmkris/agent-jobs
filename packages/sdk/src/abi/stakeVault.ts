@@ -11,7 +11,7 @@ export const stakeVaultAbi = [
       {
         "name": "clocks",
         "type": "tuple",
-        "internalType": "struct HirelingClocks.Config",
+        "internalType": "struct SidequestClocks.Config",
         "components": [
           {
             "name": "minReviewWindow",

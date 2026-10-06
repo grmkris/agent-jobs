@@ -1,11 +1,11 @@
 /** Real generated vault logs, SQLite discovery and canonical Monad fork reads. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
-import { Board, fromNodeSqlite as boardSql } from '@agent-jobs/board'
-import { fromNodeSqlite, migrate, stmt, contractsFromDeployment, decode } from '@agent-jobs/indexer'
+import * as sdk from '@sidequest/sdk'
+import { Board, fromNodeSqlite as boardSql } from '@sidequest/board'
+import { fromNodeSqlite, migrate, stmt, contractsFromDeployment, decode } from '@sidequest/indexer'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { decodeFunctionData, parseEther } from 'viem'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../../packages/sdk/test/sidequest-fixture.ts'
 import { backingCard, stakingSnapshot } from '../src/staking-index.ts'
 import { collectSnapshot } from '../src/collect-index.ts'
 import { tools } from '../src/tools.ts'
@@ -15,14 +15,14 @@ import { stakingDataRoute } from '../src/routes/staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('delegated backing API with a checked real event index', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>
+  let f: Awaited<ReturnType<typeof startSidequestFork>>
   let db: DatabaseSync
   let serviceDb: DatabaseSync
   let board: Board
   let start: bigint
   let clock: number
   beforeAll(async () => {
-    f = await startHirelingFork()
+    f = await startSidequestFork()
     start = await f.ctx.publicClient.getBlockNumber()
     db = new DatabaseSync(':memory:')
     serviceDb = new DatabaseSync(':memory:')
@@ -41,7 +41,7 @@ fork('delegated backing API with a checked real event index', () => {
     const block = await f.ctx.publicClient.getBlock()
     clock = Number(block.timestamp)
     const contracts = contractsFromDeployment(f.ctx.deployment)
-    const logs = await f.ctx.publicClient.getLogs({ address: f.ctx.deployment.hireling!.vault, fromBlock: start, toBlock: block.number })
+    const logs = await f.ctx.publicClient.getLogs({ address: f.ctx.deployment.sidequest!.vault, fromBlock: start, toBlock: block.number })
     const events = logs.map(l => decode(contracts, { address: l.address, block_number: Number(l.blockNumber), log_index: l.logIndex,
       transaction_hash: l.transactionHash, topic0: l.topics[0] ?? null, topic1: l.topics[1] ?? null,
       topic2: l.topics[2] ?? null, topic3: l.topics[3] ?? null, data: l.data }))
@@ -60,7 +60,7 @@ fork('delegated backing API with a checked real event index', () => {
       backing: { assets: parseEther('50'), active: parseEther('50') } })
     const result = await tools.list_delegations!.run(board, {}, { account }, { network: 'monad-testnet', mcpSession: undefined }) as Awaited<ReturnType<Board['listDelegations']>>
     expect(result.positions).toHaveLength(2)
-    expect(permittedTool({ scopes: ['hireling:read'] }, 'list_delegations')).toBe(true)
+    expect(permittedTool({ scopes: ['sidequest:read'] }, 'list_delegations')).toBe(true)
     expect(await backingCard(fromNodeSqlite(db), f.ctx, account, wallet, clock)).toMatchObject({
       assets: parseEther('50'), delegatorCount: 2, position: { value: parseEther('30'), shareBps: 6000 },
     })

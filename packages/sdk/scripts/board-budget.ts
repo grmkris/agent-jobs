@@ -10,7 +10,7 @@
  * 2. A call budget: one `faucet()` on mUSD from the creator's account, value 0. The creator's mUSD grows; a second
  *    call is refused by the board and reverts on-chain.
  *
- *   BOARD_URL=https://testnet.hireling.xyz bun packages/sdk/scripts/board-budget.ts   (from the repo root)
+ *   BOARD_URL=https://dev.sidequest.exchange bun packages/sdk/scripts/board-budget.ts   (from the repo root)
  *
  * Keys from .env.local: PRIVY_APP_ID / PRIVY_APP_SECRET / PRIVY_SERVER_WALLET_ID / PRIVY_SERVER_WALLET_ADDRESS
  * (creator), CAMPAIGN_CLAUDE_PRIVATE_KEY / CAMPAIGN_CLAUDE_AGENT_ID (worker), MONAD_TESTNET_RPC_URL.
@@ -21,7 +21,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import { check, checks, envLocal, log as stamp, sendReported } from './lib/common.ts'
 
-const BOARD = envLocal('BOARD_URL', 'https://testnet.hireling.xyz')
+const BOARD = envLocal('BOARD_URL', 'https://dev.sidequest.exchange')
 const RPC = envLocal('MONAD_TESTNET_RPC_URL')
 const ctx = sdk.context('monad-testnet', 'demo', RPC)
 const D = ctx.deployment.delegation

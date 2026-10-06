@@ -5,8 +5,8 @@
  * from the arbitrator wallet, and never signs a message it did not rebuild itself: the Ruling it signs uses the evaluator domain from the SDK deployment, the
  * job from the bundle and exactly the validated proposal.
  */
-import { type DisputeBundle, checkRulingRequest, validateProposal } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { type DisputeBundle, checkRulingRequest, validateProposal } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, type LocalAccount, encodeFunctionData } from 'viem'
 
 export interface BoardLike {
@@ -81,7 +81,7 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
   // A decision already recorded for this dispute (by this runner before a crash, or by another harness) is final:
   // re-use it and never ask the model again (R114-08). It still passes the same deterministic gate.
   const recorded = d.decision
-  if (recorded !== null && stack.kind === 'hireling-v1') {
+  if (recorded !== null && stack.kind === 'sidequest-v1') {
     const cancellation = await deps.board.call<{ resolved: boolean; nonce: string | null; transactions: sdk.TxRequest[] }>('cancel_ruling', { taskId: d.taskId })
     if (cancellation.resolved) return { taskId: d.taskId, result: 'skipped', why: 'the dispute is already resolved on-chain' }
     if (cancellation.transactions.length > 0) {
@@ -89,7 +89,7 @@ async function decide(deps: ArbiterDeps, d: DisputeRow, now: () => number, log: 
         return { taskId: d.taskId, result: 'skipped', why: 'invalid ruling cancellation nonce' }
       }
       const transaction: sdk.TxRequest = { description: 'Cancel the previous ruling authorization', chainId,
-        to: stack.evaluator, value: '0', data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'cancelRuling', args: [BigInt(cancellation.nonce)] }) }
+        to: stack.evaluator, value: '0', data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [BigInt(cancellation.nonce)] }) }
       const offered = cancellation.transactions[0]!
       if (cancellation.transactions.length !== 1 || offered.chainId !== chainId || offered.to.toLowerCase() !== stack.evaluator.toLowerCase() || offered.data !== transaction.data || offered.value !== '0') {
         return { taskId: d.taskId, result: 'skipped', why: 'ruling cancellation request refused' }

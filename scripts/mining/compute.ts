@@ -3,8 +3,8 @@ import type { PriceList } from './prices.ts'
 import type { LeafValue } from './tree.ts'
 import { creatorWeights, type TopUp } from './contributors.ts'
 
-/** The FACTORY reference price never counts below $0.0001 (18 decimals), whatever the list says. */
-export const MIN_FACTORY_USD_PRICE = 10n ** 14n
+/** The SIDE reference price never counts below $0.0001 (18 decimals), whatever the list says. */
+export const MIN_SIDE_USD_PRICE = 10n ** 14n
 export const WORKER_SHARE_PERCENT = 60n
 export const CREATOR_SHARE_PERCENT = 40n
 
@@ -52,7 +52,7 @@ export interface EpochResult {
   fees: FeeRecord[]
   feeUsd: bigint
   factoryUsdPrice: bigint
-  /** 0.5 × feeUsd ÷ factoryUsdPrice, in FACTORY wei. */
+  /** 0.5 × feeUsd ÷ factoryUsdPrice, in SIDE wei. */
   demand: bigint
   emission: bigint
   /** One leaf per account, ascending by address; amounts rounded down, zero amounts dropped. */
@@ -79,7 +79,7 @@ export function treasuryOwed(fee: FeeCharged, owed: readonly PayoutOwed[]): Payo
  * The epoch's emission and leaves (ADR-0011, D12 #2, D17):
  * - a fee counts only in a token on the signed price list, and only once the treasury holds it: a fee whose treasury
  *   transfer became `PayoutOwed` counts only if the treasury withdrew that token's owed balance later in the window;
- * - emission = min(budget, 0.5 × Σ fee USD ÷ max(FACTORY price, $0.0001));
+ * - emission = min(budget, 0.5 × Σ fee USD ÷ max(SIDE price, $0.0001));
  * - 60 % to workers and 40 % to creators, pro rata by fee USD; one leaf per account; each part rounded down;
  * - total = Σ leaves.
  */
@@ -102,7 +102,7 @@ export function computeEpoch(input: {
     return { fee, status: 'counted', usd: (fee.amount * p.usdPrice) / 10n ** BigInt(p.decimals) }
   })
   const feeUsd = fees.reduce((sum, r) => sum + r.usd, 0n)
-  const factoryUsdPrice = input.prices.factoryUsdPrice > MIN_FACTORY_USD_PRICE ? input.prices.factoryUsdPrice : MIN_FACTORY_USD_PRICE
+  const factoryUsdPrice = input.prices.factoryUsdPrice > MIN_SIDE_USD_PRICE ? input.prices.factoryUsdPrice : MIN_SIDE_USD_PRICE
   const demand = (feeUsd * 10n ** 18n) / (2n * factoryUsdPrice)
   const emission = demand < input.budget ? demand : input.budget
 

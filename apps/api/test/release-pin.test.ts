@@ -64,15 +64,15 @@ const fake = (respond: (url: string) => Response | Promise<Response>) => {
 
 test('the probe GETs <origin>/release.json and compares it', async () => {
   const { fetcher, urls } = fake(() => Response.json({ network: 'monad-mainnet', mainnetLive: false, writesOpen: false }))
-  expect(await probeRelease(artifact(true, false), 'https://hireling.xyz', fetcher)).toEqual([])
-  expect(urls).toEqual(['https://hireling.xyz/release.json'])
-  expect(await probeRelease(artifact(false, true), 'https://hireling.xyz/', fetcher)).toEqual(['release.json mainnetLive', 'release.json writesOpen'])
+  expect(await probeRelease(artifact(true, false), 'https://sidequest.exchange', fetcher)).toEqual([])
+  expect(urls).toEqual(['https://sidequest.exchange/release.json'])
+  expect(await probeRelease(artifact(false, true), 'https://sidequest.exchange/', fetcher)).toEqual(['release.json mainnetLive', 'release.json writesOpen'])
 })
 
 test('a failed, non-OK or non-JSON probe, or a bad origin, refuses', async () => {
-  expect(await probeRelease(artifact(true, false), 'https://hireling.xyz', fake(() => new Response('not found', { status: 404 })).fetcher)).toEqual(['release.json unreachable'])
-  expect(await probeRelease(artifact(true, false), 'https://hireling.xyz', fake(() => new Response('<html>', { status: 200 })).fetcher)).toEqual(['release.json unreachable'])
-  expect(await probeRelease(artifact(true, false), 'https://hireling.xyz', fake(() => { throw new Error('offline') }).fetcher)).toEqual(['release.json unreachable'])
+  expect(await probeRelease(artifact(true, false), 'https://sidequest.exchange', fake(() => new Response('not found', { status: 404 })).fetcher)).toEqual(['release.json unreachable'])
+  expect(await probeRelease(artifact(true, false), 'https://sidequest.exchange', fake(() => new Response('<html>', { status: 200 })).fetcher)).toEqual(['release.json unreachable'])
+  expect(await probeRelease(artifact(true, false), 'https://sidequest.exchange', fake(() => { throw new Error('offline') }).fetcher)).toEqual(['release.json unreachable'])
   expect(await probeRelease(artifact(true, false), 'not a url', fake(() => Response.json({})).fetcher)).toEqual(['release.json origin invalid'])
 })
 
@@ -87,7 +87,7 @@ test.skipIf(!hasBun)('the runbook command starts and judges the artifact (its im
   // LAUNCH-AUDIT-FIX-003: once launch has filled the checked-in artifact in, it passes; until then it is rejected only for
   // what launch still fills in (./pre-launch.ts), never for its Explore pin or a structural label.
   if (run.status === 0) {
-    expect(run.stdout).toMatch(/^Hireling v1 production structural preflight passed/)
+    expect(run.stdout).toMatch(/^Sidequest v1 production structural preflight passed/)
   } else {
     expect(run.status).toBe(1)
     const rejected = /^production preflight rejected: (.+)$/m.exec(run.stderr)

@@ -3,7 +3,7 @@
 Date: 4 October 2026. Status: implemented; release and acceptance evidence is in
 `docs/reality-check.md`. Mainnet is outside this change.
 
-Hireling's primary interface is the user's existing coding agent. A single
+Sidequest's primary interface is the user's existing coding agent. A single
 connector and skill supports both hiring and providing work. The website creates
 or imports named agents, grants connector access, shows current observations,
 and approves wallet operations.
@@ -13,7 +13,7 @@ and approves wallet operations.
 The operator and each named agent have separate wallets. Privy creates an
 additional embedded wallet; an external ERC-8004 agent can be imported after
 proving ownership of its current registered wallet. Imported agents retain their
-wallet and registry identity. Hireling displays registry identity and platform
+wallet and registry identity. Sidequest displays registry identity and platform
 activity separately; it does not claim to import another platform's reputation.
 
 Hosted MCP uses OAuth authorization-code flow with S256 PKCE, exact registered
@@ -23,7 +23,7 @@ Website SIWE sessions do not authenticate the hosted MCP endpoint. Connector
 scopes authorize board access; wallet authority is separate.
 
 The existing Board Durable Object class stores management records in the
-reserved `__hireling_fleet_v1__` instance. This adds no class, namespace, D1
+reserved `__sidequest_fleet_v1__` instance. This adds no class, namespace, D1
 migration or infrastructure resource to the release graph. Job state remains in
 the existing board objects; escrow and payment remain on-chain.
 

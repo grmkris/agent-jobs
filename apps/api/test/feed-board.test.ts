@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { fromNodeSqlite as boardSql, migrate as migrateBoard } from '@agent-jobs/board'
-import { fromNodeSqlite, migrate, stmt } from '@agent-jobs/indexer'
+import { fromNodeSqlite as boardSql, migrate as migrateBoard } from '@sidequest/board'
+import { fromNodeSqlite, migrate, stmt } from '@sidequest/indexer'
 import { boardFeedEvents, recordBoardEvent } from '../src/feed-board.ts'
 import { readInbox } from '../src/feed.ts'
 import { migrateTelegram } from '../src/telegram.ts'
@@ -43,7 +43,7 @@ describe('board feed hook', () => {
     expect(boardFeedEvents(board, call('report_transaction', { taskId: 't1' }, {}))).toEqual([])
     board.run("UPDATE tasks SET job_id = '42' WHERE id = 't1'")
     expect(boardFeedEvents(board, call('report_transaction', { taskId: 't1' }, {}))).toEqual([
-      expect.objectContaining({ id: `board:public:invite:t1:${worker}`, address: worker, kind: 'invite.received', jobId: '42', url: 'https://testnet.hireling.xyz/job/42' }),
+      expect.objectContaining({ id: `board:public:invite:t1:${worker}`, address: worker, kind: 'invite.received', jobId: '42', url: 'https://dev.sidequest.exchange/job/42' }),
     ])
   })
 

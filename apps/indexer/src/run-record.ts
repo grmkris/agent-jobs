@@ -1,5 +1,5 @@
-import { errorDiagnostics } from '@agent-jobs/board'
-import type { AsyncSql, RunResult } from '@agent-jobs/indexer'
+import { errorDiagnostics } from '@sidequest/board'
+import type { AsyncSql, RunResult } from '@sidequest/indexer'
 import * as Cause from 'effect/Cause'
 
 export type IndexerRunOutcome =

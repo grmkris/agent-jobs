@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decodeAbiParameters, type Address, type Hex } from 'viem'
+import { decodeAbiParameters, hashTypedData, type Address, type Hex } from 'viem'
+import { evidenceTypes } from '../../packages/sdk/src/typed-data.ts'
 import { canonicalJson as boardCanonicalJson } from '../../packages/board/src/terms.ts'
 import { buildEvidence, canonicalJson, checkRunsUrl, encodeReport, evidenceDigest, reportParameters, requestSchema, type EvidenceRequest } from './evidence.ts'
 import github from './fixtures/github-check-runs.json'
@@ -15,11 +16,16 @@ const run = github.check_runs[0]!
 const body = (runs: unknown[]) => ({ total_count: runs.length, check_runs: runs })
 
 describe('board attestation compatibility', () => {
-  it('reproduces every field and the real board transaction digest, including duplicate runs', () => {
+  it('preserves the historical receipt and uses a distinct Sidequest signing domain', () => {
     const result = buildEvidence(input, github, now)
     expect(JSON.parse(canonicalJson(result.attestation))).toEqual(golden.attestation)
     expect(result.checksJson).toBe(boardCanonicalJson(golden.checks))
-    expect(evidenceDigest(result.attestation, 10143, golden.evaluator as Address)).toBe(golden.digest)
+    const historicalDigest = hashTypedData({
+      domain: { name: 'AgentJobsEvaluator', version: '1', chainId: 10143, verifyingContract: golden.evaluator as Address },
+      types: evidenceTypes, primaryType: 'EvidenceAttestation', message: result.attestation,
+    })
+    expect(historicalDigest).toBe(golden.digest)
+    expect(evidenceDigest(result.attestation, 10143, golden.evaluator as Address)).not.toBe(historicalDigest)
     expect(decodeAbiParameters(reportParameters, encodeReport(result.attestation))[0]).toEqual(result.attestation)
   })
   it('preserves board key ordering, nulls and array order', () => {
@@ -28,8 +34,9 @@ describe('board attestation compatibility', () => {
   })
   it('binds the digest to the chain and evaluator', () => {
     const { attestation } = buildEvidence(input, github, now)
-    expect(evidenceDigest(attestation, 143, golden.evaluator as Address)).not.toBe(golden.digest)
-    expect(evidenceDigest(attestation, 10143, '0x0000000000000000000000000000000000000001')).not.toBe(golden.digest)
+    const digest = evidenceDigest(attestation, 10143, golden.evaluator as Address)
+    expect(evidenceDigest(attestation, 143, golden.evaluator as Address)).not.toBe(digest)
+    expect(evidenceDigest(attestation, 10143, '0x0000000000000000000000000000000000000001')).not.toBe(digest)
   })
   it('hashes failure and missing checks exactly like the board', () => {
     const failed = { ...run, conclusion: 'failure' }

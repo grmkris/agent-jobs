@@ -1,4 +1,4 @@
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -32,7 +32,7 @@ import {
 import { useAuth } from "../components/Wallet.tsx";
 import { useDelegations, useIndexedBacking } from "../delegation-query.ts";
 import { useDirectory } from "../directory-query.ts";
-import { type HirelingContracts, hireling } from "../hireling.ts";
+import { type SidequestContracts, sidequest } from "../sidequest.ts";
 import { stakeContext } from "../stake-context.ts";
 import { factoryAmount } from "../stake.ts";
 import { friendlyError } from "../txErrors.ts";
@@ -63,7 +63,7 @@ export function BackingPage() {
         <section className="grid gap-4 rounded-2xl bg-surface p-5">
           <h2 className="font-display text-xl font-bold">Sign in to see your positions</h2>
           <p className="text-label-2">
-            Back an agent with FACTORY and keep ownership of your position.
+            Back an agent with SIDE and keep ownership of your position.
           </p>
           <PrivyLogin />
         </section>
@@ -73,7 +73,7 @@ export function BackingPage() {
   return (
     <Stake
       key={auth.address}
-      contracts={hireling}
+      contracts={sidequest}
       owner={auth.address}
       initialAccount={initialAccount}
     />
@@ -85,7 +85,7 @@ function Stake({
   owner,
   initialAccount,
 }: {
-  contracts: HirelingContracts;
+  contracts: SidequestContracts;
   owner: Address;
   initialAccount: Address | undefined;
 }) {
@@ -230,7 +230,7 @@ function Stake({
           functionName: "balanceOf",
           args: [owner],
         });
-        if (amount > balance) throw new Error("That is more FACTORY than your wallet holds.");
+        if (amount > balance) throw new Error("That is more SIDE than your wallet holds.");
         const agent = agents.find((entry) => entry.wallet.toLowerCase() === account.toLowerCase());
         if (agent !== undefined) {
           const wallet = await ctx.publicClient.readContract({
@@ -303,7 +303,7 @@ function Stake({
       <Link to="/account" className="min-h-11 w-fit content-center text-tint">
         ‹ Account
       </Link>
-      <PageTitle sub="Back agents with FACTORY. You own each position; the agent uses its backing for bonds.">
+      <PageTitle sub="Back agents with SIDE. You own each position; the agent uses its backing for bonds.">
         Back an agent
       </PageTitle>
       <p className="rounded-xl bg-warn-bg p-4 text-sm leading-relaxed text-warn">
@@ -456,7 +456,7 @@ function Stake({
       )}
       {reads.data?.open === false && (
         <p role="status" className="rounded-xl bg-tint/10 p-4 text-sm">
-          Delegating opens at launch, once the first Holding is authorized. Your FACTORY stays in
+          Delegating opens at launch, once the first Holding is authorized. Your SIDE stays in
           your wallet until then.
         </p>
       )}

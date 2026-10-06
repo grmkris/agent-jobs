@@ -7,7 +7,7 @@ import { ensureFlowDirectory, saveFlowState } from '../scripts/flow-persistence.
 import { flowJson, parseFlowJson, type FlowState } from './flow-journal.ts'
 
 it('durably creates first-use directories and orders file fsync, rename and directory fsync before broadcast', () => {
-  const root = fs.mkdtempSync(join(tmpdir(), 'hireling-flow-durable-'))
+  const root = fs.mkdtempSync(join(tmpdir(), 'sidequest-flow-durable-'))
   const directory = pathToFileURL(`${root}/new/profile/`), events: string[] = [], paths = new Map<number, string>()
   const io = { ...fs,
     openSync: ((path, flags, mode) => { const fd = fs.openSync(path, flags, mode); paths.set(fd, String(path)); return fd }) as typeof fs.openSync,
@@ -30,7 +30,7 @@ it('durably creates first-use directories and orders file fsync, rename and dire
   } finally { fs.rmSync(root, { recursive: true }) }
 })
 it('a directory fsync failure refuses broadcast; an acknowledged snapshot survives a simulated host restart', () => {
-  const root = fs.mkdtempSync(join(tmpdir(), 'hireling-flow-fault-')), directory = pathToFileURL(`${root}/`)
+  const root = fs.mkdtempSync(join(tmpdir(), 'sidequest-flow-fault-')), directory = pathToFileURL(`${root}/`)
   let stable = '', fail = true, broadcasts = 0
   const io = { ...fs, fsyncSync: (fd: number) => {
     if (fs.fstatSync(fd).isDirectory()) {

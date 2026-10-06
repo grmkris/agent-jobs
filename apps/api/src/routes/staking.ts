@@ -1,7 +1,7 @@
 /** The public staking data routes shared by the Worker and real-fork HTTP regressions. */
-import { BoardError, delegationPositions, positionFilters } from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type { Ctx } from '@agent-jobs/sdk'
+import { BoardError, delegationPositions, positionFilters } from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
+import type { Ctx } from '@sidequest/sdk'
 import { backingCard, stakingSnapshot } from '../staking-index.ts'
 import { jsonResponse } from '../json.ts'
 

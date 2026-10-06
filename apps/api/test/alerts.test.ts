@@ -33,7 +33,7 @@ test('myagent sender has a fixed owner-only destination and stable operation id;
   }) as typeof fetch)
   await sender(ownerAlert('uptime', 'critical', '<script>', 'route=health', 1))
   expect(calls[0]?.url).toBe(myagentOwnerMcp)
-  expect(calls[0]?.body).toContain('hireling_alert_')
+  expect(calls[0]?.body).toContain('sidequest_alert_')
   expect(calls[0]?.body).toContain('&lt;script&gt;')
   expect(calls[0]?.body).not.toContain('chatId')
 })

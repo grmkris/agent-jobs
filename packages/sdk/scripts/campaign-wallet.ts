@@ -1,5 +1,5 @@
 /**
- * Readies a testnet worker wallet for the bounty campaign: FACTORY from the testnet faucet (for worker bonds) and an
+ * Readies a testnet worker wallet for the bounty campaign: SIDE from the testnet faucet (for worker bonds) and an
  * ERC-8004 agent registered to the wallet on the real Identity Registry. Idempotent; prints the agent id.
  *
  *   KEY_VAR=CAMPAIGN_CLAUDE_PRIVATE_KEY bun packages/sdk/scripts/campaign-wallet.ts   (from the repo root)
@@ -18,11 +18,11 @@ const who = w.account.address
 
 if ((await sdk.balanceOf(ctx, ctx.deployment.factory, who)) < 10n * 10n ** 18n) {
   const r = await sdk.faucet(ctx, w, ctx.deployment.factory)
-  console.log(`${keyVar}: faucet FACTORY ${r.transactionHash}`)
+  console.log(`${keyVar}: faucet SIDE ${r.transactionHash}`)
 }
 const known = process.env[keyVar.replace(/_PRIVATE_KEY$/, '_AGENT_ID')]
 let agentId = known === undefined || known === '' ? undefined : BigInt(known)
 if (agentId === undefined || (await sdk.agentWallet(ctx, agentId)) !== who) {
-  agentId = await sdk.registerAgent(ctx, w, `https://github.com/grmkris/agent-jobs#campaign-${keyVar.toLowerCase()}`)
+  agentId = await sdk.registerAgent(ctx, w, `https://github.com/grmkris/sidequest#campaign-${keyVar.toLowerCase()}`)
 }
 console.log(`${keyVar}: wallet ${who}, agent ${agentId}`)

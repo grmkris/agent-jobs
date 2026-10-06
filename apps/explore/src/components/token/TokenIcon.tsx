@@ -1,24 +1,24 @@
 /**
  * A token's icon, chosen by address only — never by symbol, since anyone can deploy a token called "USDC":
- * the tokens Hireling deploys (drawn), then a logo vendored from Monad's token list or web3icons (`scripts/tokens.ts`),
- * else a letter disc with a dot when the token is not one Hireling lists. Decorative: it adds no text to its line.
+ * the tokens Sidequest deploys (drawn), then a logo vendored from Monad's token list or web3icons (`scripts/tokens.ts`),
+ * else a letter disc with a dot when the token is not one Sidequest lists. Decorative: it adds no text to its line.
  */
 import { isListedToken, tokenMeta } from '../../format.ts'
-import { hireling } from '../../hireling.ts'
+import { sidequest } from '../../sidequest.ts'
 import { cn } from '../../lib/cn.ts'
 import { TOKEN_LOGOS } from '../../tokens.generated.ts'
 import { chain, deployment } from '../../wallet.ts'
 import { FactoryIcon, MeurIcon, MusdIcon } from './builtin.tsx'
 
-export type TokenSource = 'hireling' | 'monad-list' | 'web3icons' | 'unlisted'
+export type TokenSource = 'sidequest' | 'monad-list' | 'web3icons' | 'unlisted'
 
-/** Where a token's identity comes from: Hireling's own list, a public token list, or nowhere (unverified). */
-/** FACTORY by address: the deployment's, and v1's where a deployment names it separately. */
-const isFactory = (a: string) => a === deployment.factory.toLowerCase() || a === hireling?.factory.toLowerCase()
+/** Where a token's identity comes from: Sidequest's own list, a public token list, or nowhere (unverified). */
+/** SIDE by address: the deployment's, and v1's where a deployment names it separately. */
+const isFactory = (a: string) => a === deployment.factory.toLowerCase() || a === sidequest?.factory.toLowerCase()
 
 export function tokenSource(address: string): TokenSource {
   const a = address.toLowerCase()
-  if (isListedToken(a) || isFactory(a)) return 'hireling'
+  if (isListedToken(a) || isFactory(a)) return 'sidequest'
   return TOKEN_LOGOS[`${chain.id}:${a}`]?.source ?? 'unlisted'
 }
 

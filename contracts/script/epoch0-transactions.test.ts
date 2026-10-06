@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { startHirelingFork, forkEnabled } from '../../packages/sdk/test/hireling-fixture.ts'
+import { startSidequestFork, forkEnabled } from '../../packages/sdk/test/sidequest-fixture.ts'
 import { FlowJournal, flowJson, parseFlowJson, type FlowState } from '../../packages/sdk/src/flow-journal.ts'
 import { epochDistributorAbi } from '../../packages/sdk/src/abi/epochDistributor.ts'
 import { stakeVaultAbi } from '../../packages/sdk/src/abi/stakeVault.ts'
@@ -14,9 +14,9 @@ import { epochCalls, runEpoch, runEpoch0, safeEpochAbi, safeEpochCall, type Epoc
 
 const fork = forkEnabled ? describe : describe.skip
 fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>, snapshot: unknown, file: Epoch0File
+  let f: Awaited<ReturnType<typeof startSidequestFork>>, snapshot: unknown, file: Epoch0File
   beforeAll(async () => {
-    f = await startHirelingFork()
+    f = await startSidequestFork()
     const factory = '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67', singleton = '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762'
     const setup = parseAbi(['function setup(address[],uint256,address,bytes,address,address,uint256,address)'])
     const proxyFactory = parseAbi(['function createProxyWithNonce(address,bytes,uint256) returns (address)', 'event ProxyCreation(address indexed proxy,address singleton)'])
@@ -28,8 +28,8 @@ fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)
       try { const event = decodeEventLog({ abi: proxyFactory, data: log.data, topics: log.topics }); if (event.eventName === 'ProxyCreation') safe = event.args.proxy } catch { /* other Safe setup logs */ }
     }
     if (!safe) throw new Error('fork Safe was not created')
-    const h = f.ctx.deployment.hireling!
-    f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, hireling: { ...h, safe, block: await f.ctx.publicClient.getBlockNumber({ cacheTime: 0 }) } } }
+    const h = f.ctx.deployment.sidequest!
+    f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, sidequest: { ...h, safe, block: await f.ctx.publicClient.getBlockNumber({ cacheTime: 0 }) } } }
     const ownable = parseAbi(['function transferOwnership(address)', 'function acceptOwnership()'])
     for (const target of [h.miningReserve, h.distributor]) {
       await f.send(target, ownable, 'transferOwnership', [safe])
@@ -58,7 +58,7 @@ fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)
   it('stops at failed publication, resumes identical fund/root, and claims only after readback', async () => {
     const j = journal(), signer = vi.fn(sign), publisher = vi.fn(async (): Promise<void> => { throw new Error('readback failed') })
     await expect(runEpoch0(f.ctx, j, f.admin, signer, file, publisher, f.worker)).rejects.toThrow('readback failed')
-    const h = f.ctx.deployment.hireling!, safeNonce = await f.ctx.publicClient.readContract({ address: h.safe, abi: safeEpochAbi, functionName: 'nonce' })
+    const h = f.ctx.deployment.sidequest!, safeNonce = await f.ctx.publicClient.readContract({ address: h.safe, abi: safeEpochAbi, functionName: 'nonce' })
     const beforeSends = flowJson(j.state.sends)
     expect(await f.ctx.publicClient.readContract({ address: h.distributor, abi: epochDistributorAbi, functionName: 'isClaimed', args: [0n, f.worker.account.address] })).toBe(false)
     publisher.mockImplementation(async () => {})
@@ -90,7 +90,7 @@ fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)
   it('refuses a restored draft after another Safe transaction moves its nonce', async () => {
     const signer = vi.fn(sign), fund = file.calls.fund!, j = journal(undefined, state => { if (state.values['epoch0/fund/draft']) throw new Error('stop after draft') })
     await expect(safeEpochCall(f.ctx, j, f.admin, signer, 'fund', fund.to, fund.data, fund.expect)).rejects.toThrow('stop')
-    const h = f.ctx.deployment.hireling!, signature = `0x${f.admin.account.address.slice(2).padStart(64, '0')}${'0'.repeat(64)}01` as Hex
+    const h = f.ctx.deployment.sidequest!, signature = `0x${f.admin.account.address.slice(2).padStart(64, '0')}${'0'.repeat(64)}01` as Hex
     await f.send(h.safe, safeEpochAbi, 'execTransaction', [f.admin.account.address, 0n, '0x', 0, 0n, 0n, 0n, zeroAddress, zeroAddress, signature])
     await expect(safeEpochCall(f.ctx, journal(j.state), f.admin, signer, 'fund', fund.to, fund.data, fund.expect)).rejects.toThrow('snapshot moved')
     expect(j.state.sends).toEqual({}); expect(signer).toHaveBeenCalledTimes(1)
@@ -104,7 +104,7 @@ fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)
   }, 120_000)
 
   it('funds and claims a later epoch with separate journal keys and never replays its sends', async () => {
-    const h = f.ctx.deployment.hireling!, epoch = 2n, total = parseEther('17')
+    const h = f.ctx.deployment.sidequest!, epoch = 2n, total = parseEther('17')
     const end = await f.ctx.publicClient.readContract({ address: h.miningReserve, abi: reserveAbi, functionName: 'epochEnd', args: [epoch] })
     await f.rpc('evm_setNextBlockTimestamp', [Number(end) + 1]); await f.rpc('evm_mine')
     const tree = buildTree([[epoch.toString(), f.worker.account.address.toLowerCase() as Address, total.toString()]])
@@ -129,9 +129,9 @@ fork('testnet epoch script on real Safe and v1 contracts (local Monad fork only)
   }, 120_000)
 
   it('mines fees earned after empty epoch 0 and stakes the worker leaf of the later epoch', async () => {
-    const h = f.ctx.deployment.hireling!, epoch = 1n
+    const h = f.ctx.deployment.sidequest!, epoch = 1n
     const from = await f.ctx.publicClient.getBlockNumber({ cacheTime: 0 })
-    const agentId = await registerAgent(f.ctx, f.worker, 'https://hireling.xyz/later-epoch-fork')
+    const agentId = await registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/later-epoch-fork')
     await stake(f.ctx, f.creator, parseEther('100')); await stake(f.ctx, f.worker, parseEther('100'))
     await runV1CoreFlow({ ...f, journal: journal(), agentId, relay: f.contributor, token: h.factory,
       reward: parseEther('1'), bond: parseEther('10'), waitUntil: async () => { throw new Error('quick hire must not wait') }, log: () => {} }, 'hire')

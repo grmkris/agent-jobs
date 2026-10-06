@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address } from 'viem'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Board } from './service.ts'
@@ -18,7 +18,8 @@ function fixture() {
     if (functionName === 'defaultArbitrator') return creator
     throw new Error(`unexpected chain read: ${functionName}`)
   })
-  const ctx = { ...base, publicClient: { ...base.publicClient, readContract: read } } as unknown as sdk.Ctx
+  const legacy: sdk.Stack = { ...base.stack, kind: 'legacy', holding: '0x7777777777777777777777777777777777777777' }
+  const ctx = { ...base, deployment: { ...base.deployment, legacyStacks: { fixture: legacy } }, publicClient: { ...base.publicClient, readContract: read } } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const sql = fromNodeSqlite(db)
   const boot = () => new Board(sql, { network: 'monad-testnet', contexts: { main: ctx }, domain: 'archive.test', uri: 'https://archive.test', manifestBaseUrl: 'https://archive.test/offers', now: () => 1000 })
@@ -43,7 +44,7 @@ function fixture() {
 
 it('excludes archived tasks before list limits while retaining current and configured legacy pairs', async () => {
   const f = fixture()
-  expect(f.board.taskIndex({}).map(task => [task.taskId, task.kind])).toEqual([['legacy', 'legacy'], ['current', 'hireling-v1']])
+  expect(f.board.taskIndex({}).map(task => [task.taskId, task.kind])).toEqual([['legacy', 'legacy'], ['current', 'sidequest-v1']])
   expect((await f.board.listTasks({}, { limit: 1 })).map(task => task.taskId)).toEqual(['legacy'])
   expect(await f.board.getTask({}, { taskId: 'current' })).toMatchObject({ taskId: 'current', chain: { status: 'awaiting-publish' } })
   expect(f.db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual({ n: 4 })

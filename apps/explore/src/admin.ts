@@ -3,14 +3,14 @@
  * enforces (so the Safe never sends one that reverts), and the epoch file whose root `EpochDistributor.setRoot` posts.
  * Pure, so they are unit-tested (admin.test.ts).
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, type Address, type Hex, decodeFunctionData, getAddress, isAddress, isHex, zeroAddress } from 'viem'
 import { formatNumber } from './format.ts'
 import { MULTI_SEND_CALL_ONLY, describe, ecdsaSignature, preValidated, safeAbi, unpackMultiSend } from './safe.ts'
 import { factoryAmount } from './stake.ts'
 
 export interface ScheduleDraft {
-  /** FACTORY, as typed. */
+  /** SIDE, as typed. */
   thresholds: string[]
   /** Percent, as typed ("10", "2.5"). */
   rates: string[]
@@ -29,7 +29,7 @@ export function scheduleProposal(d: ScheduleDraft, maxBps: number): { thresholds
   const thresholds: bigint[] = []
   for (const [i, t] of d.thresholds.entries()) {
     const wei = i === 0 && t.trim() === '0' ? 0n : factoryAmount(t)
-    if (wei === null) return `Tier ${i + 1}: enter a FACTORY threshold.`
+    if (wei === null) return `Tier ${i + 1}: enter a SIDE threshold.`
     thresholds.push(wei)
   }
   const bps: number[] = []
@@ -38,7 +38,7 @@ export function scheduleProposal(d: ScheduleDraft, maxBps: number): { thresholds
     if (b === null) return `Tier ${i + 1}: enter a fee in percent, at most two decimals.`
     bps.push(b)
   }
-  if (thresholds[0] !== 0n) return 'The first tier must start at 0 FACTORY, so every stake has a fee.'
+  if (thresholds[0] !== 0n) return 'The first tier must start at 0 SIDE, so every stake has a fee.'
   if (thresholds.some((t, i) => i > 0 && t <= (thresholds[i - 1] as bigint))) return 'Each tier must start above the one before it.'
   if (bps.some((b) => b > maxBps)) return `No tier may charge more than ${maxBps / 100} %.`
   if (bps.some((b, i) => i > 0 && b > (bps[i - 1] as number))) return 'A bigger stake may not pay a higher fee.'
@@ -146,7 +146,7 @@ export function readEpochFile(text: string, ctx: EpochFileContext): { ok: true; 
  */
 export function resizeProblem(text: string, root: { total: bigint; claimed: bigint }): string | null {
   const total = /^0*\.?0*$/.test(text.trim()) && text.trim() !== '' && text.trim() !== '.' ? 0n : factoryAmount(text)
-  if (total === null) return 'Enter the new total in FACTORY: the sum of the root’s leaves.'
+  if (total === null) return 'Enter the new total in SIDE: the sum of the root’s leaves.'
   if (total >= root.total) return 'The new total must be below the posted one.'
   if (total < root.claimed) return 'The total cannot drop below what has already been claimed.'
   return null
@@ -192,7 +192,7 @@ export type AdminTx =
 const no = (problem: string) => ({ ok: false as const, problem })
 
 /** The pause pairs D13 sends atomically: the core's pause or unpause, then the Evaluator's notePause. */
-const ATOMIC = [['Core', ['pause', 'unpause']], ['HirelingEvaluator', ['notePause']]] as const
+const ATOMIC = [['Core', ['pause', 'unpause']], ['SidequestEvaluator', ['notePause']]] as const
 /** The core's pause and unpause go out only inside that pair, never alone (U5-SEC-002); a lone notePause is fine. */
 const pairedOnly = (call: InnerCall) => call.contract === ATOMIC[0][0] && (ATOMIC[0][1] as readonly string[]).includes(call.functionName)
 /**
@@ -213,7 +213,7 @@ export function readAdminTx(tx: { chainId: number; to: string; data: string; val
   if (!isHex(tx.data)) return no('Its calldata is not hex.')
   const call = (to: string, data: Hex, via: 'safe' | 'direct'): InnerCall | string => {
     const target = ctx.targets[to.toLowerCase()]
-    if (target === undefined) return `It calls ${to}, which is not a Hireling contract in this deployment.`
+    if (target === undefined) return `It calls ${to}, which is not a Sidequest contract in this deployment.`
     let read: ReturnType<typeof describe>
     try {
       read = describe(target.abi, data)
@@ -306,7 +306,7 @@ export function fundProblem(guard: FundGuard | undefined, live: { nonce: bigint;
   const rerun = `Run pnpm mining:epoch ${epoch} again, load the new file and review the funding again.`
   if (guard === undefined || !/^\d+$/.test(guard.nonce) || !/^\d+$/.test(guard.totalFunded)) return `It was saved without the Safe nonce and funding it was signed against. ${rerun}`
   if (BigInt(guard.nonce) !== live.nonce) return `A Safe transaction has gone through since this funding was signed (Safe nonce ${guard.nonce}, now ${live.nonce}), so the Safe would refuse it. ${rerun}`
-  if (BigInt(guard.totalFunded) !== live.totalFunded) return `The reserve has funded ${formatNumber(live.totalFunded, 18)} FACTORY in all; this funding was signed when it had funded ${formatNumber(BigInt(guard.totalFunded), 18)}. ${rerun}`
+  if (BigInt(guard.totalFunded) !== live.totalFunded) return `The reserve has funded ${formatNumber(live.totalFunded, 18)} SIDE in all; this funding was signed when it had funded ${formatNumber(BigInt(guard.totalFunded), 18)}. ${rerun}`
   if (!same(signer, owner)) return `It is not signed as you for the Safe’s nonce ${live.nonce}, so the Safe would refuse it. ${rerun}`
   return null
 }

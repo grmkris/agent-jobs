@@ -27,7 +27,7 @@ export function AccountPage() {
         <PageTitle>Account</PageTitle>
         <section className="grid gap-4 rounded-2xl bg-surface p-5 shadow-float">
           <h2 className="text-xl leading-tight font-bold tracking-[-0.02em]">Sign in to post and approve work</h2>
-          <p className="leading-relaxed text-label-2">Use your email or Google. Hireling makes you a wallet, so no browser extension is needed; you sign once to prove it is you.</p>
+          <p className="leading-relaxed text-label-2">Use your email or Google. Sidequest makes you a wallet, so no browser extension is needed; you sign once to prove it is you.</p>
           <div>
             <PrivyLogin />
           </div>
@@ -61,7 +61,7 @@ export function AccountPage() {
           <Link to="/sponsorship" className={rowClass({ interactive: true })}>
             <span className="flex-1">
               Gas sponsorship
-              <span className="block text-xs text-label-3">Hireling pays the gas for your Hireling transactions</span>
+              <span className="block text-xs text-label-3">Sidequest pays the gas for your Sidequest transactions</span>
             </span>
             {sponsor.data?.status === 'live' && <Badge tone="success">On</Badge>}
             <ChevronRight aria-hidden className="size-4 text-label-3" />
@@ -78,7 +78,7 @@ export function AccountPage() {
             <Link to="/admin" className={rowClass({ interactive: true })}>
               <span className="flex-1">
                 Admin
-                <span className="block text-xs text-label-3">You own the Safe that owns Hireling</span>
+                <span className="block text-xs text-label-3">You own the Safe that owns Sidequest</span>
               </span>
               <ChevronRight aria-hidden className="size-4 text-label-3" />
             </Link>

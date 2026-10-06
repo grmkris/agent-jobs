@@ -21,14 +21,14 @@ contract LifecycleTest is Base {
 
         uint256 jobId = publish();
         assertEq(pay.balanceOf(creator), payBefore - REWARD, "reward escrowed in the payment token");
-        assertEq(factory.balanceOf(creator), cFacBefore - CREATOR_BOND, "creator bond pulled in FACTORY");
+        assertEq(factory.balanceOf(creator), cFacBefore - CREATOR_BOND, "creator bond pulled in SIDE");
         assertEq(core.getJob(jobId).client, address(holding), "Holding is the client");
 
         activate(jobId);
         assertEq(core.getJob(jobId).providerAgentId, AGENT_ID, "agent id rides on the core job");
         assertEq(factory.balanceOf(worker), wFacBefore - WORKER_BOND, "worker bond pulled at activation");
         assertEq(pay.balanceOf(address(core)), REWARD, "reward moved into the core");
-        assertEq(factory.balanceOf(address(core)), 0, "FACTORY never enters the core");
+        assertEq(factory.balanceOf(address(core)), 0, "SIDE never enters the core");
         assertEq(factory.balanceOf(address(holding)), CREATOR_BOND + WORKER_BOND, "both bonds locked in Holding");
 
         submitDirect(jobId);

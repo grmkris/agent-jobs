@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { encodeErrorResult } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { contractErrorName, friendlyError } from './txErrors.ts'
@@ -11,13 +11,13 @@ describe('friendly transaction errors', () => {
     expect(friendlyError(new Error('insufficient funds for gas * price + value'))).toMatch(/MON for gas/)
   })
   it("decodes our contracts' errors from a viem cause chain", () => {
-    const data = encodeErrorResult({ abi: sdk.hirelingHoldingAbi, errorName: 'SelectionExpired' })
+    const data = encodeErrorResult({ abi: sdk.sidequestHoldingAbi, errorName: 'SelectionExpired' })
     const e = Object.assign(new Error('Execution reverted'), { cause: { cause: { data } } })
     expect(contractErrorName(e)).toBe('SelectionExpired')
     expect(friendlyError(e)).toMatch(/selection expired/)
   })
   it('names an error it has no sentence for', () => {
-    const data = encodeErrorResult({ abi: sdk.hirelingEvaluatorAbi, errorName: 'NotProvider' })
+    const data = encodeErrorResult({ abi: sdk.sidequestEvaluatorAbi, errorName: 'NotProvider' })
     expect(friendlyError(Object.assign(new Error('x'), { data }))).toBe('The contract refused it (NotProvider).')
   })
   it('decodes the v1 stake vault: closed before launch, reserved stake', () => {

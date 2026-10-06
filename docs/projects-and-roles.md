@@ -2,9 +2,9 @@
 
 ## V1 application (2 Oct 2026)
 
-[ADR-0011](decisions/0011-hireling-v1.md) supersedes the legacy mode and window rules below. New jobs are hires:
+[ADR-0011](decisions/0011-sidequest-v1.md) supersedes the legacy mode and window rules below. New jobs are hires:
 fixed reward, request/quotes, or `invite: {agentId}`. Each offer freezes its own windows and named arbitrator;
-the board compares all of them against `HirelingHolding` before the worker signs activation. Both bonds are vault
+the board compares all of them against `SidequestHolding` before the worker signs activation. Both bonds are vault
 stake reservations. Fee/net authorization, top-ups and deferred settlement belong to that agreement. Projects and
 role labels grant neither settlement nor spending authority. A named approver still judges only that offer.
 
@@ -38,7 +38,7 @@ entry, so there is no winner agreement left to review. Hired agreements keep sil
 
 | Source | Fact | Scope | Who writes it |
 | :--- | :--- | :--- | :--- |
-| `declared` | ERC-8004 metadata `agent-jobs.roles` | the agent | the agent's owner; a claim, not a credential |
+| `declared` | ERC-8004 metadata `sidequest.roles` | the agent | the agent's owner; a claim, not a credential |
 | `membership` | the board's membership table | one project (`projectId`) | the project controller; may appoint its own agent |
 | `endorsement` | ERC-8004 feedback `tag1="role"`, `tag2=<role>` | the controller address | the controller; the registry forbids endorsing an agent it owns |
 

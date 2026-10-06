@@ -1,14 +1,14 @@
-# Mainnet runbook (Hireling v1)
+# Mainnet runbook (Sidequest v1)
 
-The launch sequence for Hireling v1 on Monad mainnet (chain 143), in the order `contracts/script/rehearse-launch.sh`
+The launch sequence for Sidequest v1 on Monad mainnet (chain 143), in the order `contracts/script/rehearse-launch.sh`
 (R7) runs it on a fork. Every step that sends a mainnet transaction is marked **[tx]** and runs only on Kris's explicit
 go. Commands run in one bash session at the repo root (§2). A contracts step runs in an explicit
 `(cd contracts && set -a && . ../.env.local && set +a && …)` subshell, and a root read sources `./.env.local` in its own
 subshell. Every read names its `--rpc-url`, and RPC URLs and API keys are never printed. Signing keys never come from
 `.env.local`: every mainnet transaction signs from an encrypted Foundry keystore (§2).
 
-The existing **staging** stack has its own guarded release procedure ([staging-release-runbook.md](staging-release-runbook.md));
-nothing here touches it except the apex handoff in §1.4, which goes through that procedure.
+The fresh **development** stack serves only `dev.sidequest.exchange`. It has independent state and resources;
+this runbook does not update the previous staging stack, which is held for reconciliation and retirement.
 
 ## 0. What is already proven, without a mainnet transaction
 
@@ -18,7 +18,7 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
   passed after `SafeAccept`, and `SeedPool`'s receipt verification ran against forge's real run log. The budget in §2
   comes from that run.
 - **Fork tests** (`(cd contracts && set -a && . ../.env.local && set +a && forge test --match-path 'test/fork/*')`):
-  - `HirelingRehearsal.t.sol`: the recipe step by step on a mainnet fork, with third-party calls between the steps; a
+  - `SidequestRehearsal.t.sol`: the recipe step by step on a mainnet fork, with third-party calls between the steps; a
     fresh core whose admin roles move to the Safe; the Safe accepts every handover; one hire end to end against the
     real ERC-8004 registries.
   - `SeedPoolRehearsal.t.sol`: the seed on the live Uniswap v4 contracts. It covers junk-priced and dusted pools,
@@ -26,7 +26,7 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
   - `SafeAcceptRehearsal.t.sol`: the six acceptances through a real Safe (testnet's).
 - **Delegated (EIP-7702) wallets.** Every v1 signature check goes through `contracts/src/Signatures.sol`: ecrecover
   first, then ERC-1271. A 7702-delegated EOA's own ECDSA signature works whatever its delegation's ERC-1271 does.
-- **The Cloudflare stack is network-agnostic.** `AGENT_JOBS_NETWORK=monad-mainnet` points the API, the indexer and
+- **The Cloudflare stack is network-agnostic.** `SIDEQUEST_NETWORK=monad-mainnet` points the API, the indexer and
   Explore at chain 143, the mainnet RPC and `https://monad.hypersync.xyz`. The `prod` stage has its own D1, R2 and
   Durable Objects.
 - **Testnet first (G1).** `contracts/script/launch-testnet.sh` runs the same deploy, promote, accept and readback on
@@ -42,49 +42,47 @@ nothing here touches it except the apex handoff in §1.4, which goes through tha
 
    After the deploy it owns every v1 contract and holds both core admin roles; the deployer keeps nothing (§3.6
    enforces this). `SafeAccept.s.sol` needs a **threshold-1** Safe. With a higher threshold, do §3.5 in Safe{Wallet}.
-2. **`contracts/config/monad-mainnet.json`** (the coordinator commits it). The complete `hireling` object:
-   `HirelingRecipe.load` reads every row below, so DeployHireling refuses if any is missing. Numbers are whole FACTORY or
-   seconds. Leave the generated `deployment` fields absent: PromoteHireling writes them from the receipts.
+2. **`contracts/config/monad-mainnet.json`** (the coordinator commits it). The complete `sidequest` object:
+   `SidequestRecipe.load` reads every row below, so DeploySidequest refuses if any is missing. Numbers are whole SIDE or
+   seconds. Leave the generated `deployment` fields absent: PromoteSidequest writes them from the receipts.
 
    | field | type | on chain 143 |
    | --- | --- | --- |
-   | `hireling.reuseCore` | bool | `false`: mainnet deploys its own core (`true` is refused on 143) |
-   | `hireling.safe` | address | the Safe |
-   | `hireling.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator` (enforced); per-offer arbitrators override it |
-   | `hireling.margin` | uint | seconds added to the windows when checking `expiredAt`; the reviewed default is 3600 |
-   | `hireling.schedule.thresholds` | uint[4] | fee tiers in whole FACTORY: `[0, 10000, 100000, 1000000]` |
-   | `hireling.schedule.bps` | uint[4] | fee per tier: `[3000, 1000, 300, 100]` |
-   | `hireling.schedule.treasury` | address | the Safe |
-   | `hireling.allocation.treasury` | address | the Safe (200M FACTORY) |
-   | `hireling.allocation.ecosystem` | address | the ecosystem holder (100M) |
-   | `hireling.allocation.liquidity` | address | the account that seeds the pool (50M) |
-   | `hireling.vesting.beneficiary` | address | the team (150M, vested) |
-   | `hireling.vesting.startOffset` | uint | seconds after T0 before vesting starts, e.g. 31536000 (one year) |
-   | `hireling.vesting.duration` | uint | vesting length in seconds, e.g. 94608000 (three years) |
-   | `hireling.vesting.cliff` | uint | seconds, e.g. 0 |
-   | `hireling.mining.genesis` | uint | epoch 0 start in unix seconds; 0 means the deploy time |
+   | `sidequest.reuseCore` | bool | `false`: mainnet deploys its own core (`true` is refused on 143) |
+   | `sidequest.safe` | address | the Safe |
+   | `sidequest.defaultArbitrator` | address | the fresh v1 arbitrator, = `roles.arbitrator` (enforced); per-offer arbitrators override it |
+   | `sidequest.margin` | uint | seconds added to the windows when checking `expiredAt`; the reviewed default is 3600 |
+   | `sidequest.schedule.thresholds` | uint[4] | fee tiers in whole SIDE: `[0, 10000, 100000, 1000000]` |
+   | `sidequest.schedule.bps` | uint[4] | fee per tier: `[3000, 1000, 300, 100]` |
+   | `sidequest.schedule.treasury` | address | the Safe |
+   | `sidequest.allocation.treasury` | address | the Safe (200M SIDE) |
+   | `sidequest.allocation.ecosystem` | address | the ecosystem holder (100M) |
+   | `sidequest.allocation.liquidity` | address | the account that seeds the pool (50M) |
+   | `sidequest.vesting.beneficiary` | address | the team (150M, vested) |
+   | `sidequest.vesting.startOffset` | uint | seconds after T0 before vesting starts, e.g. 31536000 (one year) |
+   | `sidequest.vesting.duration` | uint | vesting length in seconds, e.g. 94608000 (three years) |
+   | `sidequest.vesting.cliff` | uint | seconds, e.g. 0 |
+   | `sidequest.mining.genesis` | uint | epoch 0 start in unix seconds; 0 means the deploy time |
 
-   Then, outside `hireling`:
+   Then, outside `sidequest`:
    - `liquidity.positionOwner` = the Safe; `maxRepairCost` = 5.
-   - `knownTokens` = [USDC] (= `x402.usdc`). Leave `deployment.rewardTokens` absent: PromoteHireling derives [USDC] from
+   - `knownTokens` = [USDC] (= `x402.usdc`). Leave `deployment.rewardTokens` absent: PromoteSidequest derives [USDC] from
      it, and refuses a mainnet reward list without USDC. The artifact's `deployment.rewardTokens` pins the same list.
    - Hold gates stay 0 and there is no faucet.
 
-   FACTORY is fixed-supply. The deploy mints exactly 1e9 once, split 50% mining reserve, 20% treasury, 15% team
+   SIDE is fixed-supply. The deploy mints exactly 1e9 once, split 50% mining reserve, 20% treasury, 15% team
    vesting, 10% ecosystem and 5% liquidity; nothing can mint again.
 3. **The reviewed production artifact** (`docs/p0-prod-artifact.json`, filled after §3.3). It records:
-   - the deployment addresses, including `deployment.hireling.safe`;
-   - the Safe policy the launch gate reads back (§3.6): `deployment.hireling.safeOwners`, the exact owner set, and
-     `deployment.hireling.safeThreshold`;
+   - the deployment addresses, including `deployment.sidequest.safe`;
+   - the Safe policy the launch gate reads back (§3.6): `deployment.sidequest.safeOwners`, the exact owner set, and
+     `deployment.sidequest.safeThreshold`;
    - the Privy app id and approval;
    - the RPC and HyperSync providers;
    - `admission.drain` (§3.8, §3.10).
 
    `bun scripts/preflight-prod.ts <artifact>` checks its structure.
-4. **Domain.** `prod` serves `hireling.xyz`. Staging still answers the apex with a 301. Before the first prod deploy,
-   release the apex with a guarded staging release that carries `HIRELING_APEX_REDIRECT=0`; it is the approved
-   `domainChanges` entry in `scripts/staging-release/approved-changes.json`. Add `https://hireling.xyz` to Privy's
-   allowed domains.
+4. **Domain.** `prod` serves only `sidequest.exchange`; development serves only `dev.sidequest.exchange`.
+   No apex alias or domain handoff is needed. Add `https://sidequest.exchange` to the production Privy app's allowed domains.
 
 ## 2. Budget and funding [tx, by Kris from his own wallet]
 
@@ -94,8 +92,8 @@ column, which covers forge's 203 gwei max fee, not just the charged one.
 | step | txs | gas limit | charged @ 102 gwei | on hand @ 203 gwei | paid by |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Safe (if created by script) | 1 | 319,209 | 0.033 MON | 0.065 MON | deployer |
-| DeployHireling, fresh core | 26 | 26,300,231 | 2.683 MON | 5.339 MON | deployer |
-| PromoteHireling | 0 | 0 | 0 | 0 | — |
+| DeploySidequest, fresh core | 26 | 26,300,231 | 2.683 MON | 5.339 MON | deployer |
+| PromoteSidequest | 0 | 0 | 0 | 0 | — |
 | SafeAccept, 6 × execTransaction | 6 | 797,168 | 0.081 MON | 0.162 MON | a Safe owner |
 | SeedPool: helper, 2 approvals, seed | 4 | 3,888,439 | 0.397 MON | 0.789 MON | liquidity holder |
 | Mining epoch 0: ECDSA fund, setRoot, two claims | 4 | 977,479 | 0.100 MON | 0.198 MON | a Safe owner; claimers |
@@ -105,8 +103,8 @@ Keep the role wallets separate; each has its own key.
 
 **Keystores, mandatory on mainnet.** No mainnet key goes on a command line or into `.env.local`; `--private-key` is a
 testnet fallback only. Each key that sends here lives in an encrypted Foundry keystore, unlocked by a password file
-you own with mode 600. Import each one once, on the box that sends: the deployer as `hireling-deployer`, the Safe owner
-as `hireling-safe-owner`, the liquidity holder as `hireling-liquidity`.
+you own with mode 600. Import each one once, on the box that sends: the deployer as `sidequest-deployer`, the Safe owner
+as `sidequest-safe-owner`, the liquidity holder as `sidequest-liquidity`.
 
 Everything from here on runs in one interactive **bash** session at the repo root. Start it with `bash`: zsh, this box's
 default shell, reads `read -rsp` differently, and `pwcheck` below is bash. Contract commands run in an explicit
@@ -115,12 +113,12 @@ default shell, reads `read -rsp` differently, and `pwcheck` below is bash. Contr
 never a mainnet key.
 
 ```
-mkdir -p ~/.config/hireling && chmod 700 ~/.config/hireling   # also tightens a directory that already exists
-cast wallet import hireling-deployer --interactive   # prompts for the key and a password; nothing reaches the shell
-rm -f ~/.config/hireling/deployer.password   # an existing file would keep its old mode when overwritten
-(umask 077; read -rsp 'keystore password: ' p; printf '%s' "$p" >~/.config/hireling/deployer.password; unset p; echo)
-chmod 600 ~/.config/hireling/deployer.password
-cast wallet address --account hireling-deployer --password-file ~/.config/hireling/deployer.password   # roles.admin
+mkdir -p ~/.config/sidequest && chmod 700 ~/.config/sidequest   # also tightens a directory that already exists
+cast wallet import sidequest-deployer --interactive   # prompts for the key and a password; nothing reaches the shell
+rm -f ~/.config/sidequest/deployer.password   # an existing file would keep its old mode when overwritten
+(umask 077; read -rsp 'keystore password: ' p; printf '%s' "$p" >~/.config/sidequest/deployer.password; unset p; echo)
+chmod 600 ~/.config/sidequest/deployer.password
+cast wallet address --account sidequest-deployer --password-file ~/.config/sidequest/deployer.password   # roles.admin
 ```
 
 Before every command that signs, check the password file the way `launch-testnet.sh` does. The directory must be yours
@@ -129,24 +127,24 @@ signing command below starts with it:
 
 ```
 pwcheck() {
-  local d=~/.config/hireling
+  local d=~/.config/sidequest
   [[ -d $d && ! -L $d && -O $d && $(stat -c %a "$d") == 700 && -f $1 && ! -L $1 && -O $1 && $(stat -c %a "$1") =~ ^[46]00$ ]] \
     || { echo "refusing: $1 or $d is not yours with mode 600/700" >&2; return 1; }
 }
 ```
 
-The keystore is `~/.foundry/keystores/hireling-deployer`. Delete any other copy of the raw key. The relay and attester
+The keystore is `~/.foundry/keystores/sidequest-deployer`. Delete any other copy of the raw key. The relay and attester
 keys are not used here; they live in the production secret sources.
 
 **Fresh keys (R2) first.** The relay and attester keys were exposed on 1 Oct, and the arbitrator key is replaced with them. Generate new relay, attester and arbitrator keys for mainnet, put only their addresses into `roles` in `config/monad-mainnet.json` and the artifact, and store the keys in the dedicated production secret sources. Never fund or configure `0xac72…9e7e`, `0x66b7…963f` or `0xc657…d632` on mainnet: the structural preflight refuses
 any of them as a role or artifact address (`RETIRED_ROLE_ADDRESSES`, `apps/api/src/prod-config.ts`), and as
-`hireling.defaultArbitrator`. It also requires `hireling.defaultArbitrator` to be `roles.arbitrator`, and on chain 143
-DeployHireling refuses either mistake before it sends anything (LAUNCH-AUDIT-FIX-001).
+`sidequest.defaultArbitrator`. It also requires `sidequest.defaultArbitrator` to be `roles.arbitrator`, and on chain 143
+DeploySidequest refuses either mistake before it sends anything (LAUNCH-AUDIT-FIX-001).
 
 | role | address | send | why |
 | :--- | :--- | :--- | :--- |
 | admin (deployer) | `0x675269d710692d4d0d7166da11B76463577aad73` | 6.5 MON | deploy + Safe, 5.4 on hand at the max fee, plus a retry |
-| liquidity holder (`hireling.allocation.liquidity`) | from the config | 1 MON + 305 USDC | the seed (3M FACTORY and $300 at $0.0001), plus the 5 USDC repair cap, which comes back unless spent |
+| liquidity holder (`sidequest.allocation.liquidity`) | from the config | 1 MON + 305 USDC | the seed (3M SIDE and $300 at $0.0001), plus the 5 USDC repair cap, which comes back unless spent |
 | Safe owner that sends | from the Safe | 0.5 MON | SafeAccept, and each epoch's fund + setRoot |
 | relay | `roles.relay` (a fresh R2 key) | 3 MON | must stay **above `RELAY_FLOOR_MAINNET` = 2 MON** (`packages/sdk/src/relay.ts`): the launch gate and each sponsored send check it |
 | attester | `roles.attester` (a fresh R2 key) | 1 MON | attaches evidence |
@@ -156,7 +154,7 @@ The arbiter process (`apps/arbiter`, a separate source from the Worker) refuses 
 `ARBITRATOR_PRIVATE_KEY` (legacy) and `V1_ARBITRATOR_PRIVATE_KEY` (the fresh v1 key above, which holds the cancellation
 reserve). Provision both, even though mainnet has no legacy pair.
 
-If the deployer is also the liquidity holder, send it both rows and use `hireling-deployer` in §3.7. Space out
+If the deployer is also the liquidity holder, send it both rows and use `sidequest-deployer` in §3.7. Space out
 transfers to one wallet (Monad's reserve-balance rule; see `reality-check.md`).
 Check balances with `bun scripts/reality-check.ts`, row "Mainnet readiness (B7)".
 
@@ -172,35 +170,35 @@ Create it in Safe{Wallet}, or from the factory as R7 does. Then check it:
   cast call --rpc-url "$R" "$S" "getThreshold()(uint256)")   # "1.4.1", the owners, the threshold
 ```
 
-### 3.2 DeployHireling [tx]
+### 3.2 DeploySidequest [tx]
 
 In a `contracts/` subshell. First run it without `--broadcast` as a dry run, then send:
 
 ```
-pwcheck ~/.config/hireling/deployer.password && \
+pwcheck ~/.config/sidequest/deployer.password && \
 (cd contracts && set -a && . ../.env.local && set +a && \
-  NETWORK=monad-mainnet MAINNET_GO=yes forge script script/DeployHireling.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-deployer --password-file ~/.config/hireling/deployer.password \
+  NETWORK=monad-mainnet MAINNET_GO=yes forge script script/DeploySidequest.s.sol \
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --account sidequest-deployer --password-file ~/.config/sidequest/deployer.password \
   --broadcast --slow \
   --verify --etherscan-api-key "$MONADSCAN_API_KEY")
 ```
 
-- It deploys a fresh core (ERC-1967 proxy), FACTORY, and the v1 contracts: TeamVesting, FeeSchedule, StakeVault,
-  HirelingHolding, HirelingEvaluator, EpochDistributor and MiningReserve.
+- It deploys a fresh core (ERC-1967 proxy), SIDE, and the v1 contracts: TeamVesting, FeeSchedule, StakeVault,
+  SidequestHolding, SidequestEvaluator, EpochDistributor and MiningReserve.
 - It wires them, moves both core admin roles to the Safe, and proposes each contract's ownership to the Safe
   (Ownable2Step).
 - The script refuses chain 143 without `MAINNET_GO=yes`, an RPC whose chain id isn't the config's, and a broadcaster
   that isn't `roles.admin`.
-- It writes nothing to config. It only writes `broadcast/hireling/monad-mainnet.candidate.json`, and only with
+- It writes nothing to config. It only writes `broadcast/sidequest/monad-mainnet.candidate.json`, and only with
   `--broadcast`.
 - If it is cut off part way, re-run the same command with `--resume`.
 - If `--verify` fails for a contract, run `forge verify-contract` for that address afterwards; Sourcify also works.
 
-### 3.3 PromoteHireling (no transaction)
+### 3.3 PromoteSidequest (no transaction)
 
 ```
 (cd contracts && set -a && . ../.env.local && set +a && \
-  NETWORK=monad-mainnet forge script script/PromoteHireling.s.sol --rpc-url "$MONAD_MAINNET_RPC_URL")
+  NETWORK=monad-mainnet forge script script/PromoteSidequest.s.sol --rpc-url "$MONAD_MAINNET_RPC_URL")
 ```
 
 It verifies the candidate against forge's receipts and live state, then writes the deployment record (with the Safe
@@ -237,11 +235,11 @@ executes. Stop if either line prints STOP, and never add a module or a guard lat
 Safe, sent by one owner, in a `contracts/` subshell:
 
 ```
-pwcheck ~/.config/hireling/safe-owner.password && \
+pwcheck ~/.config/sidequest/safe-owner.password && \
 (cd contracts && set -a && . ../.env.local && set +a && \
   NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SafeAccept.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-safe-owner \
-  --password-file ~/.config/hireling/safe-owner.password --broadcast --slow)
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --account sidequest-safe-owner \
+  --password-file ~/.config/sidequest/safe-owner.password --broadcast --slow)
 (cd contracts && set -a && . ../.env.local && set +a && \
   NETWORK=monad-mainnet forge script script/SafeAccept.s.sol --sig "check()" --rpc-url "$MONAD_MAINNET_RPC_URL")
 ```
@@ -255,7 +253,7 @@ schedule, Holding, Evaluator, distributor and mining reserve, through MultiSendC
 bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live   # repo root; reads through the artifact's RPC
 ```
 
-It must print `Hireling v1 production launch gate passed`. It runs after the structural check, reads live state through
+It must print `Sidequest v1 production launch gate passed`. It runs after the structural check, reads live state through
 the artifact's public RPC (chain 143 only), and refuses on any failed read. It requires:
 - the Safe set, with code, matching the artifact;
 - the reviewed Safe: storage slot 0 is the canonical SafeL2 singleton (§1.1), `VERSION()` is 1.4.1, `getOwners()` is
@@ -271,19 +269,19 @@ the artifact's public RPC (chain 143 only), and refuses on any failed read. It r
 In a `contracts/` subshell, sent by the liquidity holder:
 
 ```
-pwcheck ~/.config/hireling/liquidity.password && \
+pwcheck ~/.config/sidequest/liquidity.password && \
 (cd contracts && set -a && . ../.env.local && set +a && \
   NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol \
-  --rpc-url "$MONAD_MAINNET_RPC_URL" --account hireling-liquidity \
-  --password-file ~/.config/hireling/liquidity.password --broadcast --slow)
+  --rpc-url "$MONAD_MAINNET_RPC_URL" --account sidequest-liquidity \
+  --password-file ~/.config/sidequest/liquidity.password --broadcast --slow)
 (cd contracts && set -a && . ../.env.local && set +a && \
   NETWORK=monad-mainnet forge script script/SeedPool.s.sol --sig "verify()" --rpc-url "$MONAD_MAINNET_RPC_URL")
 ```
 
 It sends four transactions: deploy a one-shot `SeedHelper`, approve it for both tokens, and seed. The seed is **one**
-transaction that creates a full-range FACTORY/USDC position at $0.0001 (3M FACTORY + $300) owned by the Safe. If someone
+transaction that creates a full-range SIDE/USDC position at $0.0001 (3M SIDE + $300) owned by the Safe. If someone
 initialized the pool at another price first, the same transaction swaps it back, trading through whatever is in the
-way, up to `maxRepairCost` (5 USDC, or that value in FACTORY at the target price); above the cap it refuses.
+way, up to `maxRepairCost` (5 USDC, or that value in SIDE at the target price); above the cap it refuses.
 
 `verify()` is the authoritative check. It takes the token id from the seed receipt, then reads back the owner,
 liquidity, pool key and ticks, and checks that no allowance is left.
@@ -295,7 +293,7 @@ keystore, [tx]), and re-run both commands. A second run of a pool that was alrea
 ### 3.8 A drained production deploy (no chain transaction)
 
 ```
-AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm deploy:prod   # repo root, deploy env
+SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm deploy:prod   # repo root, deploy env
 ```
 
 - With `admission.drain: true` in the artifact, the deploy is drained: reads and authenticated recovery work, and new
@@ -313,10 +311,10 @@ AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm 
 
 - `curl <api>/health`: `ok: true`, `network: "monad-mainnet"`.
 - MCP `protocol_info` shows chain 143 and the v1 addresses from the config.
-- The indexer's `GET /` shows `next_block` at or past `deployment.hireling.block` within a few minutes.
+- The indexer's `GET /` shows `next_block` at or past `deployment.sidequest.block` within a few minutes.
 - Explore shows chain 143 and Monadscan links, and the board refuses new hosted writes (drained). Direct chain calls
   stay permissionless; draining is a hosted-admission control only.
-- `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz` must pass: the served
+- `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://sidequest.exchange` must pass: the served
   `/release.json` is `{"network": "monad-mainnet", "mainnetLive": <pinned>, "writesOpen": <pinned>}`, both false here.
 
 ### 3.10 Explicit opening
@@ -327,7 +325,7 @@ AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=1 pnpm 
    by any URL (PROD-GATE-006). Every write page shows "Launching soon", and only read tools reach the board. The build
    writes the value to `/release.json` as `{network, mainnetLive, writesOpen}`.
 2. Run `bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live` again; it must pass.
-3. Deploy with `AGENT_JOBS_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 pnpm deploy:prod`. An
+3. Deploy with `SIDEQUEST_PROD_ARTIFACT=docs/p0-prod-artifact.json PROD_ADMISSION_DRAIN=0 pnpm deploy:prod`. An
    opening deploy runs the D16 gate inside `assertDeployConfig` before any resource, and refuses on any failure.
 4. Repeat §3.9; write paths are now live. The `--probe` check now expects `"mainnetLive": true, "writesOpen": true`.
 
@@ -341,9 +339,9 @@ Registry the first time. Record every hash in `docs/reality-check.md` under "v1 
 
 Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch ends:
 1. Compute the epoch with B8 (`scripts/mining/README.md`). A Safe owner signs the epoch's price list (USD per priced
-   token, the FACTORY reference price):
-   `pwcheck ~/.config/hireling/safe-owner.password && bun scripts/mining/sign-prices.ts <list> --network monad-mainnet
-   --out <signed> --account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password`. The helper
+   token, the SIDE reference price):
+   `pwcheck ~/.config/sidequest/safe-owner.password && bun scripts/mining/sign-prices.ts <list> --network monad-mainnet
+   --out <signed> --account sidequest-safe-owner --password-file ~/.config/sidequest/safe-owner.password`. The helper
    checks the password file the same way before it signs. Then, from the repo root, run
    `(set -a && . ./.env.local && set +a && pnpm mining:epoch <n> --network monad-mainnet --rpc "$MONAD_MAINNET_RPC_URL"
    --prices <signed> --out <dir>)`. It writes `epoch-<n>.json` (root, total, dataHash, tree, proofs) and prints the
@@ -361,11 +359,11 @@ Epoch 0 runs 72 h from genesis; each later epoch runs 7 days. After an epoch end
 
    From a terminal instead, at the repo root. The script sources `.env.local` itself and stops at the first failure:
    ```
-   pwcheck ~/.config/hireling/safe-owner.password && \
+   pwcheck ~/.config/sidequest/safe-owner.password && \
    E=<dir>/epoch-<n>.json SAFE=<safe> bash -euo pipefail <<'FUND'
    set -a; . ./.env.local; set +a
    R="$MONAD_MAINNET_RPC_URL" Z=0x0000000000000000000000000000000000000000 TO=$(jq -r .calls.fund.to "$E")
-   KEY=(--account hireling-safe-owner --password-file ~/.config/hireling/safe-owner.password)
+   KEY=(--account sidequest-safe-owner --password-file ~/.config/sidequest/safe-owner.password)
    B=$(cast block-number --rpc-url "$R")
    NONCE=$(cast call --block "$B" --rpc-url "$R" "$SAFE" 'nonce()(uint256)')
    [ "$(cast call --block "$B" --rpc-url "$R" "$TO" 'totalFunded()(uint256)' | cut -d' ' -f1)" \

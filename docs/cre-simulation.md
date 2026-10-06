@@ -2,7 +2,7 @@
 
 The hackathon can show real GitHub checks recorded on Monad testnet through Chainlink's local simulator; Kris needs no paid CRE access, and the result is not a hosted oracle-network deployment.
 
-The public hackathon domain will be `hireling.xyz`. Its Cloudflare zone is active, but the domain is not wired to the app yet; Kris will decide who wires it.
+The public hackathon domain will be `sidequest.exchange`. Its Cloudflare zone is active, but the domain is not wired to the app yet; Kris will decide who wires it.
 
 ## What runs
 
@@ -42,7 +42,7 @@ The demonstration reuses **completed job 8 on legacy demo-v1**, whose actual eva
 - Core submission/award transaction: `0x98566e40bfdd10b477dabdeda258b308e16f26c24e4c8b5e45f8ca0ee01d42c3` (block 66177447).
 - Exact EIP-712 digest: `0xbee95e08ac012e11a3e1093725daf5b9ce0f782b5a9500779a1f51650f897507`.
 
-The test vector was decoded from that real board transaction and independently matched to evaluator storage. Tests require byte-for-byte attestation equality, the board's canonical JSON, ABI round-trip, and the same EIP-712 digest. The domain is `AgentJobsEvaluator`, version `1`, chain 10143, with the **legacy evaluator** as verifying contract. The repository hash covers the full submitted URL; both SHA words are left-padded to bytes32.
+The test vector was decoded from that real board transaction and independently matched to evaluator storage. Tests require byte-for-byte attestation equality, the board's canonical JSON, ABI round-trip, and the same EIP-712 digest. The historical domain was `AgentJobsEvaluator`, version `1`, chain 10143, with the **legacy evaluator** as verifying contract. Sidequest uses a distinct `SidequestEvaluator` domain; this dated receipt is not Sidequest live proof. The repository hash covers the full submitted URL; both SHA words are left-padded to bytes32.
 
 Like the board, any unfinished relevant check or no relevant checks prevents a report. Missing required checks, skipped/null/failed conclusions produce failure (`2`); only all-success without missing checks produces success (`1`). Unlike the board's current one-page fetch, this workflow refuses responses with more than 100 checks or a count that does not match the returned array. It also refuses an unexpected returned SHA. This prevents attesting an incomplete successful subset.
 

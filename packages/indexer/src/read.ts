@@ -4,7 +4,7 @@
  * the recorded `JobSubmitted` deliverable and is unexpired now (R114-06); otherwise it is not an on-chain match.
  */
 import type { AsyncSql } from './store.ts'
-import { allStacks, type Deployment } from '@agent-jobs/sdk'
+import { allStacks, type Deployment } from '@sidequest/sdk'
 
 /** Stack names can be reused. Only the original Published contract identifies a job's Holding. */
 export function configuredJobs(deployment: Deployment, alias: 'jobs' | 'j' = 'jobs') {
@@ -48,7 +48,7 @@ export interface JobRow {
   deliverable: string | null
   violation: string | null
   rejection_reason_hash: string | null
-  kind: 'legacy' | 'hireling-v1' | null
+  kind: 'legacy' | 'sidequest-v1' | null
   arbitrator: string | null
   expired_at: number | null
   review_window: number | null
@@ -205,8 +205,8 @@ function sumAccounting(rows: ReadonlyArray<{ token: string | null; reward: strin
   }]))
 }
 
-/** Hireling v1 jobs: agent records and network stats count only these, never a pre-v1 pair's. */
-const V1_JOB = "kind = 'hireling-v1'"
+/** Sidequest v1 jobs: agent records and network stats count only these, never a pre-v1 pair's. */
+const V1_JOB = "kind = 'sidequest-v1'"
 const V1_JOB_IDS = `SELECT job_id FROM jobs WHERE chain_id = ? AND ${V1_JOB}`
 
 async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly string[] | null, limit: number): Promise<AgentSummary[]> {
@@ -248,7 +248,7 @@ async function summaries(sql: AsyncSql, chainId: number, agentIds: readonly stri
   }))
 }
 
-/** Every agent that has taken a Hireling v1 job here, most completed first. */
+/** Every agent that has taken a Sidequest v1 job here, most completed first. */
 export async function listAgents(sql: AsyncSql, chainId: number, limit = 200): Promise<AgentSummary[]> {
   return summaries(sql, chainId, null, limit)
 }
@@ -263,7 +263,7 @@ export async function agentsOfWallet(sql: AsyncSql, chainId: number, wallet: str
 }
 
 /** A job that paid its worker: a v1 job settled Paid, or a completed legacy job. Gross = reward + bonus. */
-const PAID_JOB = "((kind = 'hireling-v1' AND settlement_outcome = 'Paid') OR (kind = 'legacy' AND status = 'completed'))"
+const PAID_JOB = "((kind = 'sidequest-v1' AND settlement_outcome = 'Paid') OR (kind = 'legacy' AND status = 'completed'))"
 
 /** Per token: the reward and bonus (gross), the fee charged on them, and what was left for the worker (net). */
 export type MoneyTotals = { gross: string; fee: string; net: string }
@@ -383,7 +383,7 @@ export async function agentDetail(sql: AsyncSql, chainId: number, agentId: strin
   }
 }
 
-/** The network's headline numbers for a first visit, on Hireling v1: jobs, paid jobs, agents, paid out, held now. */
+/** The network's headline numbers for a first visit, on Sidequest v1: jobs, paid jobs, agents, paid out, held now. */
 export async function networkStats(sql: AsyncSql, chainId: number) {
   const [counts] = await sql.all<{ jobs: number; completed: number; agents: number }>(
     `SELECT COUNT(*) AS jobs, SUM(CASE WHEN status = 'completed' OR outcome IN ${WORKER_OUTCOMES} THEN 1 ELSE 0 END) AS completed,

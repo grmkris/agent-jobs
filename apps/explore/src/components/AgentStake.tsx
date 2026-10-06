@@ -1,11 +1,11 @@
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { type Address, encodeFunctionData, erc20Abi, formatUnits, parseSignature } from "viem";
 import { useSignTypedData } from "wagmi";
 import type { ManagedAgent } from "../api.ts";
 import { chain, deployment } from "../wallet.ts";
-import { hireling } from "../hireling.ts";
+import { sidequest } from "../sidequest.ts";
 import { factoryAmount } from "../stake.ts";
 import { stakeContext } from "../stake-context.ts";
 import { friendlyError } from "../txErrors.ts";
@@ -34,7 +34,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
   const balances = useOperatorBalances(operator as Address);
   const backing = useBacking(agent.address === null ? undefined : agent.address as Address);
   const { signTypedDataAsync } = useSignTypedData();
-  const key = vaultIntentKey(chain.id, hireling.vault, operator);
+  const key = vaultIntentKey(chain.id, sidequest.vault, operator);
   const [initial] = useState(() => {
     try {
       return {
@@ -79,29 +79,29 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           );
         const units = factoryAmount(amount);
         if (agent.address === null || agent.agent_id === null || units === null) {
-          throw new Error("Enter a positive FACTORY amount");
+          throw new Error("Enter a positive SIDE amount");
         }
-        const vault = hireling.vault;
+        const vault = sidequest.vault;
         const ctx = stakeContext();
         const [balance, wallet] = await Promise.all([
-          ctx.publicClient.readContract({ address: hireling.factory, abi: sdk.factoryV2Abi, functionName: "balanceOf", args: [operator as Address] }),
+          ctx.publicClient.readContract({ address: sidequest.factory, abi: sdk.factoryV2Abi, functionName: "balanceOf", args: [operator as Address] }),
           ctx.publicClient.readContract({ address: deployment.identity, abi: sdk.identityAbi, functionName: "getAgentWallet", args: [BigInt(agent.agent_id)] }),
         ]);
         if (units > balance)
-          throw new Error("That is more FACTORY than your wallet holds");
+          throw new Error("That is more SIDE than your wallet holds");
         if (wallet.toLowerCase() !== agent.address.toLowerCase())
           throw new Error("This agent changed its wallet. Refresh before delegating.");
         const target = agent.address as Address;
         const approval = {
           chainId: chain.id,
-          description: `Approve ${amount} FACTORY for the vault`,
-          to: hireling.factory,
+          description: `Approve ${amount} SIDE for the vault`,
+          to: sidequest.factory,
           value: "0",
           data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [vault, units] }),
         };
         const delegation = {
           chainId: chain.id,
-          description: `Delegate ${amount} FACTORY to ${agent.name}`,
+          description: `Delegate ${amount} SIDE to ${agent.name}`,
           to: vault,
           value: "0",
           data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegate", args: [target, units] }),
@@ -119,7 +119,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           setIntent(next);
         };
         if (delegatedTo?.toLowerCase() === deployment.delegation.delegator.toLowerCase()) {
-          await save([{ chainId: chain.id, description: `Delegate ${amount} FACTORY to ${agent.name}`, to: operator as Address, value: "0", data: sdk.batchCalldata([approval, delegation]) }]);
+          await save([{ chainId: chain.id, description: `Delegate ${amount} SIDE to ${agent.name}`, to: operator as Address, value: "0", data: sdk.batchCalldata([approval, delegation]) }]);
         } else {
           const permit = await sdk.delegatePermit(ctx, operator as Address, units, BigInt(Math.floor(Date.now() / 1000) + 3600));
           await withVaultPermitPreparation(
@@ -129,7 +129,7 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
               const { r, s, v, yParity } = parseSignature(signature);
               await save([{
                 chainId: chain.id,
-                description: `Delegate ${amount} FACTORY to ${agent.name}`,
+                description: `Delegate ${amount} SIDE to ${agent.name}`,
                 to: vault,
                 value: "0",
                 data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegateWithPermit", args: [target, units, permit.message.deadline, Number(v ?? BigInt(yParity + 27)), r, s] }),
@@ -166,8 +166,8 @@ export function AgentStake({ agent, operator }: { agent: ManagedAgent; operator:
           <Input
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            placeholder="FACTORY amount"
-            aria-label="FACTORY to delegate to agent"
+            placeholder="SIDE amount"
+            aria-label="SIDE to delegate to agent"
             inputMode="decimal"
           />
           <Button variant="plain" disabled={balances.factory === undefined || balances.factory === 0n || busy} onClick={() => setAmount(formatUnits(balances.factory!, 18))}>

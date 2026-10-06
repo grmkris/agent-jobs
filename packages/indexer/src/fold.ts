@@ -41,18 +41,18 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
         // retired Holding out of active discovery (configuredJobs/jobAvailability still use current addresses).
         const role = contracts.roles.get(e.contract)
         const publicationIsV1 = a.arbitrator !== undefined && a.reviewWindow !== undefined && a.disputeWindow !== undefined && a.arbitrationWindow !== undefined
-        const kind = publicationIsV1 ? 'hireling-v1' : 'legacy'
+        const kind = publicationIsV1 ? 'sidequest-v1' : 'legacy'
         Object.assign(job, {
           stack: role?.stack ?? null,
           kind,
-          mode: kind === 'hireling-v1' || Number(a.mode) === 0 ? 'hire' : 'contest',
+          mode: kind === 'sidequest-v1' || Number(a.mode) === 0 ? 'hire' : 'contest',
           creator: a.creator, approver: a.approver, token: a.token, reward: a.reward,
           creator_bond: a.creatorBond, worker_bond: a.workerBond, policy_hash: a.policyHash,
           delivery_deadline: Number(a.deliveryDeadline), selection_deadline: a.selectionDeadline === undefined ? null : Number(a.selectionDeadline),
           expired_at: Number(a.expiredAt),
           status: 'open', published_block: e.block, published_tx: e.txHash,
         })
-        if (kind === 'hireling-v1') Object.assign(job, {
+        if (kind === 'sidequest-v1') Object.assign(job, {
           arbitrator: a.arbitrator, review_window: Number(a.reviewWindow), dispute_window: Number(a.disputeWindow),
           arbitration_window: Number(a.arbitrationWindow), bonus: '0', outcome: 'None', settlement_outcome: 'None',
           charged_fee: '0', bonus_fee: '0', payout_deferred: 0, refund_deferred: 0,
@@ -78,13 +78,13 @@ export function foldJob(contracts: Contracts, chainId: number, jobId: string, ev
         job.status = 'disputed'
         break
       case 'Accepted':
-        if (job.kind === 'hireling-v1') job.outcome = 'Accepted'
+        if (job.kind === 'sidequest-v1') job.outcome = 'Accepted'
         break
       case 'TimedOut':
-        if (job.kind === 'hireling-v1') job.outcome = TIMEOUT_OUTCOMES[hexToString(a.reason as Hex, { size: 32 })] ?? null
+        if (job.kind === 'sidequest-v1') job.outcome = TIMEOUT_OUTCOMES[hexToString(a.reason as Hex, { size: 32 })] ?? null
         break
       case 'Ruled':
-        if (job.kind === 'hireling-v1') job.outcome = a.forWorker ? 'RuledForWorker' : 'RuledForCreator'
+        if (job.kind === 'sidequest-v1') job.outcome = a.forWorker ? 'RuledForWorker' : 'RuledForCreator'
         out.push(stmt('INSERT INTO rulings (chain_id, job_id, for_worker, slash_loser, reason_hash, block, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?)',
           chainId, jobId, a.forWorker ? 1 : 0, a.slashLoser ? 1 : 0, a.reasonHash as string, e.block, e.txHash))
         break

@@ -1,5 +1,5 @@
 /**
- * Shared FACTORY input, percentage and proposal-time helpers. Backing and position arithmetic lives in the SDK.
+ * Shared SIDE input, percentage and proposal-time helpers. Backing and position arithmetic lives in the SDK.
  */
 import { parseUnits } from "viem";
 
@@ -7,7 +7,7 @@ import { parseUnits } from "viem";
 export const percent = (bps: number) =>
   `${(bps / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })} %`;
 
-/** A FACTORY amount typed by a person, in wei; null when it is not a positive amount with at most 18 decimals. */
+/** A SIDE amount typed by a person, in wei; null when it is not a positive amount with at most 18 decimals. */
 export function factoryAmount(text: string): bigint | null {
   const t = text.trim();
   if (!/^\d*\.?\d*$/.test(t) || t === "" || t === ".") return null;

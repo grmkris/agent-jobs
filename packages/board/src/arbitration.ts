@@ -4,7 +4,7 @@
  * model's proposal and the arbitrator's signature. A model proposes; these functions decide whether it may be
  * signed. Nothing here trusts the model, the board or the parties' text: the bundle is data, never instructions.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, getAddress } from 'viem'
 import { type ModelEndpoint, askJson } from './model.ts'
 
@@ -87,7 +87,7 @@ export function checkRulingRequest(
     return { ok: false, error: 'typed data is not JSON' }
   }
   const d = td.domain ?? {}
-  if (d.name !== 'AgentJobsEvaluator' || d.version !== '1' || Number(d.chainId) !== expected.chainId) return { ok: false, error: 'wrong domain' }
+  if (d.name !== 'SidequestEvaluator' || d.version !== '1' || Number(d.chainId) !== expected.chainId) return { ok: false, error: 'wrong domain' }
   if (typeof d.verifyingContract !== 'string' || getAddress(d.verifyingContract) !== getAddress(expected.evaluator)) {
     return { ok: false, error: 'the domain is not this stack’s evaluator' }
   }

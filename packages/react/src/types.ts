@@ -58,8 +58,8 @@ export interface TaskIndexEntry {
   taskId: string
   jobId: string | null
   stack: string
-  /** The contracts the offer is frozen on: the current Hireling v1 pair, or a pre-v1 one. */
-  kind: 'legacy' | 'hireling-v1'
+  /** The contracts the offer is frozen on: the current Sidequest v1 pair, or a pre-v1 one. */
+  kind: 'legacy' | 'sidequest-v1'
   title: string
   brief: string
   acceptanceCriteria: string[]
@@ -87,8 +87,8 @@ export interface TaskIndexEntry {
 export interface ChainJob {
   job_id: string
   stack: string | null
-  /** The contracts the job was published on: Hireling v1, or a pre-v1 pair; null for a row indexed before kinds. */
-  kind: 'legacy' | 'hireling-v1' | null
+  /** The contracts the job was published on: Sidequest v1, or a pre-v1 pair; null for a row indexed before kinds. */
+  kind: 'legacy' | 'sidequest-v1' | null
   mode: string | null
   status: string
   creator: string | null
@@ -104,7 +104,7 @@ export interface ChainJob {
   deliverable: string | null
   violation: string | null
   published_tx: string | null
-  /** Indexed Hireling v1 activation and settlement accounting; unknown before those events. */
+  /** Indexed Sidequest v1 activation and settlement accounting; unknown before those events. */
   net?: string | null
   charged_fee?: string | null
   bonus?: string | null

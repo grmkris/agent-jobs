@@ -138,8 +138,8 @@ async function prove(): Promise<void> {
       fixture.pending = 'user'
       saveFixture(fixture)
       const user = await api.checked('POST', '/users', {
-        linked_accounts: [{ type: 'email', address: `hireling-v2-p0-${fixture.runId}@fixture.invalid` }],
-        custom_metadata: { fixture: true, purpose: 'Hireling spec v2 P0', run_id: fixture.runId },
+        linked_accounts: [{ type: 'email', address: `sidequest-v2-p0-${fixture.runId}@fixture.invalid` }],
+        custom_metadata: { fixture: true, purpose: 'Sidequest spec v2 P0', run_id: fixture.runId },
       })
       check(typeof user.id === 'string', 'Privy did not return a fixture user ID')
       fixture.userId = user.id
@@ -153,7 +153,7 @@ async function prove(): Promise<void> {
       const wallet = await api.checked('POST', '/wallets', {
         chain_type: 'ethereum', owner: { user_id: fixture.userId },
         additional_signers: [{ signer_id: signerId, override_policy_ids: [policyId] }],
-      }, undefined, `hireling-v2-p0-wallet-${fixture.runId}`)
+      }, undefined, `sidequest-v2-p0-wallet-${fixture.runId}`)
       check(typeof wallet.id === 'string' && typeof wallet.address === 'string', 'Privy did not return fixture wallet identifiers')
       fixture.walletId = wallet.id
       fixture.address = wallet.address

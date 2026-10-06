@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {HirelingRecipe} from "../script/HirelingRecipe.sol";
+import {SidequestRecipe} from "../script/SidequestRecipe.sol";
 
 /// @notice PROD-GATE-007: `docs/mainnet-runbook.md` is the v1 launch, in the order R7 (`script/rehearse-launch.sh`)
 ///         runs it, with the custody readback and the drained-then-open deploy gates, and no legacy deploy path. Each
@@ -19,8 +19,8 @@ contract MainnetRunbookTest is Test {
     /// The forge steps both documents share, in launch order.
     function _sharedSteps() internal pure returns (string[] memory s) {
         s = new string[](6);
-        s[0] = "MAINNET_GO=yes forge script script/DeployHireling.s.sol";
-        s[1] = "forge script script/PromoteHireling.s.sol";
+        s[0] = "MAINNET_GO=yes forge script script/DeploySidequest.s.sol";
+        s[1] = "forge script script/PromoteSidequest.s.sol";
         s[2] = "MAINNET_GO=yes forge script script/SafeAccept.s.sol";
         s[3] = "forge script script/SafeAccept.s.sol --sig \"check()\"";
         s[4] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
@@ -35,8 +35,8 @@ contract MainnetRunbookTest is Test {
     function test_runbookSequenceWithGates() public view {
         string memory live = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --live";
         string[] memory s = new string[](18);
-        s[0] = "MAINNET_GO=yes forge script script/DeployHireling.s.sol";
-        s[1] = "forge script script/PromoteHireling.s.sol";
+        s[0] = "MAINNET_GO=yes forge script script/DeploySidequest.s.sol";
+        s[1] = "forge script script/PromoteSidequest.s.sol";
         s[2] = live;
         s[3] = "production launch gate refused";
         // Before the Safe takes ownership: no module and no guard, which the mining fund's nonce guard needs (D18).
@@ -45,14 +45,14 @@ contract MainnetRunbookTest is Test {
         s[6] = "MAINNET_GO=yes forge script script/SafeAccept.s.sol";
         s[7] = "forge script script/SafeAccept.s.sol --sig \"check()\"";
         s[8] = live;
-        s[9] = "Hireling v1 production launch gate passed";
+        s[9] = "Sidequest v1 production launch gate passed";
         // LAUNCH-AUDIT-003: the gate reads the reviewed Safe back against the artifact's pins.
         s[10] = "the reviewed Safe: storage slot 0 is the canonical SafeL2 singleton";
         s[11] = "MAINNET_GO=yes forge script script/SeedPool.s.sol";
         s[12] = "forge script script/SeedPool.s.sol --sig \"verify()\"";
         s[13] = "PROD_ADMISSION_DRAIN=1 pnpm deploy:prod";
         s[14] = "Post-deploy probes";
-        s[15] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://hireling.xyz";
+        s[15] = "bun scripts/preflight-prod.ts docs/p0-prod-artifact.json --probe https://sidequest.exchange";
         s[16] = live;
         s[17] = "PROD_ADMISSION_DRAIN=0 pnpm deploy:prod";
         _inOrder(doc, s, "runbook");
@@ -109,8 +109,8 @@ contract MainnetRunbookTest is Test {
         for (uint256 i; i < reads.length; ++i) {
             assertTrue(vm.contains(gate, reads[i]), string.concat("prod-config.ts lacks ", reads[i]));
         }
-        assertTrue(vm.contains(doc, "`deployment.hireling.safeOwners`"), "runbook does not pin the Safe owners");
-        assertTrue(vm.contains(doc, "`deployment.hireling.safeThreshold`"), "runbook does not pin the Safe threshold");
+        assertTrue(vm.contains(doc, "`deployment.sidequest.safeOwners`"), "runbook does not pin the Safe owners");
+        assertTrue(vm.contains(doc, "`deployment.sidequest.safeThreshold`"), "runbook does not pin the Safe threshold");
         assertTrue(
             vm.contains(
                 r7,
@@ -125,42 +125,42 @@ contract MainnetRunbookTest is Test {
         assertTrue(vm.contains(r7, "launch:safe has a guard set"), "R7 does not show a guard refusing");
     }
 
-    /// LAUNCH-AUDIT-001: runbook §1.2's `hireling` table is a complete recipe input. A fixture built only from its rows
-    /// (path and type) loads through HirelingRecipe.load; without one row it does not. On 143 the documented reuseCore
-    /// is false. FIX-003: the fixture is set as the `hireling` object of a scratch copy of the shipped record, so this
+    /// LAUNCH-AUDIT-001: runbook §1.2's `sidequest` table is a complete recipe input. A fixture built only from its rows
+    /// (path and type) loads through SidequestRecipe.load; without one row it does not. On 143 the documented reuseCore
+    /// is false. FIX-003: the fixture is set as the `sidequest` object of a scratch copy of the shipped record, so this
     /// holds whatever that record holds: no block before R2, R2's own block after (replaced here).
-    function test_documentedHirelingInputLoads() public {
-        (string memory json, uint256 rows) = _documentedHireling("");
-        assertEq(rows, 15, "runbook: the hireling table lists the 15 fields load reads");
+    function test_documentedSidequestInputLoads() public {
+        (string memory json, uint256 rows) = _documentedSidequest("");
+        assertEq(rows, 15, "runbook: the sidequest table lists the 15 fields load reads");
 
         string memory real = vm.readFile(string.concat(vm.projectRoot(), "/config/monad-mainnet.json"));
         string memory path_ = string.concat(vm.projectRoot(), "/config/.test-schema.json");
         vm.writeFile(path_, real);
-        vm.writeJson('{"reuseCore":true,"safe":"0x0000000000000000000000000000000000000bad"}', path_, ".hireling");
-        string[2] memory bases = [real, vm.readFile(path_)]; // as shipped, and with an R2 hireling block
+        vm.writeJson('{"reuseCore":true,"safe":"0x0000000000000000000000000000000000000bad"}', path_, ".sidequest");
+        string[2] memory bases = [real, vm.readFile(path_)]; // as shipped, and with an R2 sidequest block
         for (uint256 i; i < 2; ++i) {
             vm.writeFile(path_, bases[i]);
-            vm.writeJson(json, path_, ".hireling");
-            HirelingRecipe.Config memory c = HirelingRecipe.load(vm, ".test-schema");
+            vm.writeJson(json, path_, ".sidequest");
+            SidequestRecipe.Config memory c = SidequestRecipe.load(vm, ".test-schema");
             assertEq(c.chainId, 143);
             assertFalse(c.reuseCore);
             assertEq(c.safe, address(uint160(0xa000 + 2)));
             assertEq(c.genesis, 1);
         }
-        (string memory short,) = _documentedHireling("margin");
+        (string memory short,) = _documentedSidequest("margin");
         vm.writeFile(path_, real);
-        vm.writeJson(short, path_, ".hireling");
+        vm.writeJson(short, path_, ".sidequest");
         vm.expectRevert();
         this.loadSchema();
         vm.removeFile(path_);
     }
 
     function loadSchema() external view returns (uint256) {
-        return HirelingRecipe.load(vm, ".test-schema").chainId;
+        return SidequestRecipe.load(vm, ".test-schema").chainId;
     }
 
-    /// The §1.2 table as a `hireling` object (one fixture value per type), without the field named `skip`.
-    function _documentedHireling(string memory skip) internal view returns (string memory json, uint256 rows) {
+    /// The §1.2 table as a `sidequest` object (one fixture value per type), without the field named `skip`.
+    function _documentedSidequest(string memory skip) internal view returns (string memory json, uint256 rows) {
         string[] memory lines = vm.split(doc, "\n");
         json = "{";
         string memory group = "";
@@ -168,9 +168,9 @@ contract MainnetRunbookTest is Test {
         bool firstInGroup;
         for (uint256 i; i < lines.length; ++i) {
             string memory line = vm.trim(lines[i]);
-            if (vm.indexOf(line, "| `hireling.") != 0) continue;
+            if (vm.indexOf(line, "| `sidequest.") != 0) continue;
             string[] memory cells = vm.split(line, "|");
-            string memory path = vm.replace(vm.replace(vm.trim(cells[1]), "`", ""), "hireling.", "");
+            string memory path = vm.replace(vm.replace(vm.trim(cells[1]), "`", ""), "sidequest.", "");
             string memory kind = vm.trim(cells[2]);
             string memory value = _fixtureValue(kind, ++rows);
             if (_eq(path, skip)) continue;
@@ -183,7 +183,7 @@ contract MainnetRunbookTest is Test {
                 group = "";
                 json = string.concat(json, first ? "" : ",", '"', parts[0], '":', value);
             } else {
-                assertEq(parts.length, 2, string.concat("runbook: unexpected hireling field ", path));
+                assertEq(parts.length, 2, string.concat("runbook: unexpected sidequest field ", path));
                 if (!_eq(group, parts[0])) {
                     if (bytes(group).length > 0) json = string.concat(json, "}");
                     json = string.concat(json, first ? "" : ",", '"', parts[0], '":{');
@@ -203,7 +203,7 @@ contract MainnetRunbookTest is Test {
         if (_eq(kind, "address")) return string.concat('"', vm.toString(address(uint160(0xa000 + row))), '"');
         if (_eq(kind, "uint")) return "1";
         if (_eq(kind, "uint[4]")) return "[0,1,2,3]";
-        revert(string.concat("runbook: unknown hireling field type ", kind));
+        revert(string.concat("runbook: unknown sidequest field type ", kind));
     }
 
     function _eq(string memory a, string memory b) internal pure returns (bool) {
@@ -358,20 +358,20 @@ contract MainnetRunbookTest is Test {
 
     function test_mainnetSignsFromKeystores() public view {
         string[12] memory needles = [
-            "cast wallet import hireling-deployer --interactive",
-            "--account hireling-deployer --password-file ~/.config/hireling/deployer.password",
-            "--account hireling-safe-owner",
-            "--account hireling-liquidity",
-            "--password-file ~/.config/hireling/safe-owner.password",
+            "cast wallet import sidequest-deployer --interactive",
+            "--account sidequest-deployer --password-file ~/.config/sidequest/deployer.password",
+            "--account sidequest-safe-owner",
+            "--account sidequest-liquidity",
+            "--password-file ~/.config/sidequest/safe-owner.password",
             // KEYSTORE-SEC-002: an existing directory or file is tightened, and every signer is checked first.
-            "chmod 700 ~/.config/hireling",
-            "rm -f ~/.config/hireling/deployer.password",
-            "chmod 600 ~/.config/hireling/deployer.password",
-            "pwcheck ~/.config/hireling/deployer.password && \\",
-            "pwcheck ~/.config/hireling/safe-owner.password && \\",
-            "pwcheck ~/.config/hireling/liquidity.password && \\",
+            "chmod 700 ~/.config/sidequest",
+            "rm -f ~/.config/sidequest/deployer.password",
+            "chmod 600 ~/.config/sidequest/deployer.password",
+            "pwcheck ~/.config/sidequest/deployer.password && \\",
+            "pwcheck ~/.config/sidequest/safe-owner.password && \\",
+            "pwcheck ~/.config/sidequest/liquidity.password && \\",
             // KEYSTORE-SEC-003: the mining price list is signed behind the same check.
-            "pwcheck ~/.config/hireling/safe-owner.password && bun scripts/mining/sign-prices.ts"
+            "pwcheck ~/.config/sidequest/safe-owner.password && bun scripts/mining/sign-prices.ts"
         ];
         for (uint256 i; i < needles.length; ++i) {
             assertTrue(vm.contains(doc, needles[i]), string.concat("runbook lacks ", needles[i]));
@@ -384,7 +384,7 @@ contract MainnetRunbookTest is Test {
         string[5] memory paths = [
             string.concat(root, "/SURFACE.md"),
             string.concat(root, "/script/SeedPool.s.sol"),
-            string.concat(root, "/script/DeployHireling.s.sol"),
+            string.concat(root, "/script/DeploySidequest.s.sol"),
             string.concat(root, "/script/SafeAccept.s.sol"),
             string.concat(root, "/../docs/mainnet-runbook.md")
         ];
@@ -422,12 +422,12 @@ contract MainnetRunbookTest is Test {
 
     function test_namedScriptsExist() public view {
         string memory root = vm.projectRoot();
-        _has(string.concat(root, "/script/DeployHireling.s.sol"), "function run()");
-        _has(string.concat(root, "/script/PromoteHireling.s.sol"), "function run()");
+        _has(string.concat(root, "/script/DeploySidequest.s.sol"), "function run()");
+        _has(string.concat(root, "/script/PromoteSidequest.s.sol"), "function run()");
         _has(string.concat(root, "/script/SafeAccept.s.sol"), "function check()");
         _has(string.concat(root, "/script/SeedPool.s.sol"), "function verify()");
         _has(string.concat(root, "/../scripts/preflight-prod.ts"), "process.argv.includes('--live')");
-        _has(string.concat(root, "/../scripts/preflight-prod.ts"), "Hireling v1 production launch gate passed");
+        _has(string.concat(root, "/../scripts/preflight-prod.ts"), "Sidequest v1 production launch gate passed");
         _has(string.concat(root, "/../scripts/preflight-prod.ts"), "process.argv.indexOf('--probe')");
         _has(string.concat(root, "/../package.json"), "\"deploy:prod\":");
     }

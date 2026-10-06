@@ -1,6 +1,6 @@
 /** Per-job economic assertions for the live harness, using its original reconciled terminal receipts. */
 import { type Abi, type Address, type TransactionReceipt, decodeEventLog, zeroAddress } from 'viem'
-import { coreAbi, factoryTokenAbi, hirelingHoldingAbi, stakeVaultAbi } from './abi/index.ts'
+import { coreAbi, factoryTokenAbi, sidequestHoldingAbi, stakeVaultAbi } from './abi/index.ts'
 
 interface Event { name: string; args: Record<string, unknown> }
 const eq = (a: unknown, b: Address) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
@@ -35,7 +35,7 @@ export interface JobEconomics {
 
 /** Excludes setup, staking and withdrawal receipts; no current wallet total can replace this proof. */
 export function verifyJobEconomics(receipts: readonly TransactionReceipt[], x: JobEconomics) {
-  const holding = events(receipts, hirelingHoldingAbi, x.holding).filter(e => e.args.jobId !== undefined && uint(e.args.jobId) === x.jobId)
+  const holding = events(receipts, sidequestHoldingAbi, x.holding).filter(e => e.args.jobId !== undefined && uint(e.args.jobId) === x.jobId)
   const vault = events(receipts, stakeVaultAbi, x.vault)
   for (const [side, account, bond, slash] of [[0, x.creator, x.creatorBond, x.slashCreator], [1, x.worker, x.workerBond, x.slashWorker]] as const) {
     const match = (a: Event['args']) => Number(a.side) === side && eq(a.account, account)
@@ -47,7 +47,7 @@ export function verifyJobEconomics(receipts: readonly TransactionReceipt[], x: J
   }
   const transfers = events(receipts, factoryTokenAbi, x.factory)
   // Factory v2 burns supply, so the recipient is zero (not the legacy dead-address sink).
-  exact('FACTORY burned by Vault', amount(transfers, 'Transfer', a => eq(a.from, x.vault) && eq(a.to, zeroAddress)),
+  exact('SIDE burned by Vault', amount(transfers, 'Transfer', a => eq(a.from, x.vault) && eq(a.to, zeroAddress)),
     (x.slashCreator ? x.creatorBond : 0n) + (x.slashWorker ? x.workerBond : 0n))
   const core = events(receipts, coreAbi, x.core).filter(e => e.args.jobId !== undefined && uint(e.args.jobId) === x.jobId)
   exact('worker reward entitlement', amount(core, 'PaymentReleased', a => eq(a.recipient, x.worker))
@@ -59,6 +59,6 @@ export function verifyJobEconomics(receipts: readonly TransactionReceipt[], x: J
 
 /** A withdrawal has no jobId: bind it to this scope's exact reconciled withdrawal receipt and token/account. */
 export function verifyOwedWithdrawal(receipt: TransactionReceipt, holding: Address, token: Address, worker: Address, expected: bigint) {
-  exact('worker owed withdrawal', amount(events([receipt], hirelingHoldingAbi, holding), 'OwedWithdrawn', a => eq(a.to, worker) && eq(a.token, token)), expected)
+  exact('worker owed withdrawal', amount(events([receipt], sidequestHoldingAbi, holding), 'OwedWithdrawn', a => eq(a.to, worker) && eq(a.token, token)), expected)
   exact('worker owed reward transferred', amount(events([receipt], factoryTokenAbi, token), 'Transfer', a => eq(a.from, holding) && eq(a.to, worker)), expected)
 }

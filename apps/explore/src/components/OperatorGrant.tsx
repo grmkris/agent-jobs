@@ -1,4 +1,4 @@
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { useState } from "react";
 import { type Address } from "viem";
 import { useSignTypedData } from "wagmi";

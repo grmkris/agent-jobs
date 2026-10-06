@@ -63,7 +63,7 @@ live('typed data matches the deployed contracts (monad-testnet)', () => {
     expect(await ctx.publicClient.getChainId()).toBe(10143)
     const listing = await ctx.publicClient.readContract({
       address: ctx.stack.holding,
-      abi: ctx.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi,
+      abi: ctx.stack.kind === 'sidequest-v1' ? sdk.sidequestHoldingAbi : sdk.jobHoldingAbi,
       functionName: 'evaluator',
     })
     expect(listing).toBe(ctx.stack.evaluator)

@@ -1,5 +1,5 @@
 /** Execute a hosted agent action from one frozen intent, signing request and relay journal. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, keccak256, stringToHex } from 'viem'
 import { AgentStore, canonicalAgentArgs, type AgentOperationRow, type AgentRow, type ApprovalRow } from './agents.ts'
 import { AgentPermissions, type PermissionApprovalRequest, type PermissionDecision } from './agent-permissions.ts'

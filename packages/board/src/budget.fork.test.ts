@@ -9,7 +9,7 @@
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { localTestPort } from '../../sdk/test/fork-port.ts'
 import { type AbiFunction, type Address, type Hex, encodeFunctionData, erc20Abi, parseAbiItem, parseEther, parseUnits, toFunctionSelector } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -174,7 +174,7 @@ fork('execution budget on a testnet fork', () => {
         ...base, workerBond: '1', mode: 'hire', deliveryDeadline: t + 3600, executionBudget: { kind: 'advance', token: stranger.address, cap: '1' },
       }),
     ).rejects.toThrow('not an ERC-20')
-    // Any ERC-20 works, not only reward tokens: FACTORY is one.
+    // Any ERC-20 works, not only reward tokens: SIDE is one.
     const open = await board.createTask({ address: creator.address }, {
       ...base, workerBond: '1', mode: 'hire', deliveryDeadline: t + 3600, executionBudget: { kind: 'advance', token: ctx().stack.factory, cap: '1' },
     })

@@ -55,7 +55,7 @@ if (command === 'get-board') {
     ...(flags['rotate-webhook-secret'] === undefined ? {} : { rotateWebhookSecret: true }),
   }
   const r = await board.call<{ board: { id: string }; webhookSecret?: string }>(command === 'create-board' ? 'create_board' : 'update_board', args)
-  if (r.webhookSecret !== undefined) log('admin', 'webhook secret (shown once; put it in the host as AGENT_JOBS_WEBHOOK_SECRET): ' + r.webhookSecret)
+  if (r.webhookSecret !== undefined) log('admin', 'webhook secret (shown once; put it in the host as SIDEQUEST_WEBHOOK_SECRET): ' + r.webhookSecret)
   delete r.webhookSecret
   console.log(JSON.stringify(r, null, 2))
 } else {

@@ -3,7 +3,7 @@
 ## V1 requirements (updated for StakeVault v2, 5 Oct 2026)
 
 The vendor rows below retain their dated evidence; v1 source and local fork tests do not promote a documented wallet
-to live-tested. A v1 worker needs its current ERC-8004 agent wallet, available active FACTORY backing for the reservation,
+to live-tested. A v1 worker needs its current ERC-8004 agent wallet, available active SIDE backing for the reservation,
 and SIWE/EIP-712 support. At activation it signs the freshly quoted net reward, not the gross listing reward.
 Wallet-paid methods need MON and must preserve the returned gas floors. Mainnet signers use encrypted keystores as
 specified in the [runbook](mainnet-runbook.md); the live-flow runner is testnet-only.
@@ -32,15 +32,15 @@ obligations, while the vault holds backing. Routine agent work uses relay gas.
 Optional backing deposits remain wallet-paid. Rotation never moves old jobs,
 bonds, owed funds, positions or cooldowns to the new wallet.
 
-Since 6 Oct 2026 managed-agent exits and earnings sweeps require Hireling's hosted
+Since 6 Oct 2026 managed-agent exits and earnings sweeps require Sidequest's hosted
 API and the relay; Explore's browser emergency recovery (Privy owner + plain RPC)
 was removed. During an API or relay outage, funds and permissions stay at their
 recorded on-chain addresses until service returns. See the ADR-0013 amendment.
 
-Anyone can back any account with FACTORY. Backing is the total FACTORY behind the
+Anyone can back any account with SIDE. Backing is the total SIDE behind the
 account; a position is one owner's shares behind it. The operator's wallet[0]
 signs an approval to the vault and `delegate(agentWallet, amount)`, retaining the
-position rather than sending FACTORY to the agent. The operator signs its own
+position rather than sending SIDE to the agent. The operator signs its own
 `requestUndelegate`, `cancelUndelegate` and `withdraw(account)` calls; withdrawal
 pays that owner. Self-backing is `delegate(self, amount)`.
 

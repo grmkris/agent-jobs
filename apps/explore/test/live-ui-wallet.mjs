@@ -34,15 +34,15 @@ export function atomic(file, value) {
 
 function deploymentIdentity(config) {
   const d = config.deployment;
-  const h = d.hireling;
-  assert.ok(h !== undefined && h !== null, 'LIVE-UI requires a promoted Hireling deployment');
+  const h = d.sidequest;
+  assert.ok(h !== undefined && h !== null, 'LIVE-UI requires a promoted Sidequest deployment');
   return digest({
     chainId: config.chainId,
     block: d.block,
-    hirelingBlock: h.block,
+    sidequestBlock: h.block,
     core: lower(d.core),
     main: d.main,
-    hireling: h,
+    sidequest: h,
     rewardTokens: d.rewardTokens.map(lower),
     delegation: { manager: lower(config.delegation.manager), delegator: lower(config.delegation.delegator) },
   });
@@ -89,14 +89,14 @@ export function liveWallet({ account, config, stateDir, enabled, onTransaction =
   const save = () => atomic(path, journal);
   const reads = clients?.reads ?? createPublicClient({ chain: monadTestnet, transport: http(rpcUrl) });
   const wallet = clients?.wallet ?? createWalletClient({ account, chain: monadTestnet, transport: http(rpcUrl) });
-  const h = config.deployment.hireling;
+  const h = config.deployment.sidequest;
   const targets = new Set([account.address, config.deployment.main.holding, config.deployment.main.evaluator,
     config.deployment.core, h.factory, h.vault, config.delegation.manager, ...config.deployment.rewardTokens].map(lower));
   const delegate = config.delegation.delegator;
   const policy = new Map([
     [lower(h.vault), [loadAbi('stakeVault'), ['stakeWithPermit', 'requestUnstake', 'cancelUnstake', 'withdraw']]],
-    [lower(config.deployment.main.holding), [loadAbi('hirelingHolding'), ['publish', 'topUp', 'cancel', 'settle', 'claimTopUpRefund', 'withdraw']]],
-    [lower(config.deployment.main.evaluator), [loadAbi('hirelingEvaluator'), ['accept', 'reject', 'rejectAfterWindow', 'retryDeferred', 'completeAfterSilence']]],
+    [lower(config.deployment.main.holding), [loadAbi('sidequestHolding'), ['publish', 'topUp', 'cancel', 'settle', 'claimTopUpRefund', 'withdraw']]],
+    [lower(config.deployment.main.evaluator), [loadAbi('sidequestEvaluator'), ['accept', 'reject', 'rejectAfterWindow', 'retryDeferred', 'completeAfterSilence']]],
     [lower(config.deployment.core), [loadAbi('core'), ['claimRefund']]],
     [lower(h.distributor), [loadAbi('epochDistributor'), ['claim']]],
     [lower(config.delegation.manager), [parseAbi(['function disableDelegation(bytes32 delegationHash)']), ['disableDelegation']]],
@@ -231,10 +231,10 @@ export function liveWallet({ account, config, stateDir, enabled, onTransaction =
       signing();
       assert.equal(lower(params[1]), lower(account.address), 'another signing account');
       const message = params[0].startsWith('0x') ? hexToString(params[0]) : params[0];
-      assert.ok(message.startsWith('testnet.hireling.xyz wants you to sign in') &&
+      assert.ok(message.startsWith('dev.sidequest.exchange wants you to sign in') &&
         lower(message.split('\n')[1]) === lower(account.address) &&
         message.includes('Chain ID: 10143') &&
-        /^URI: https:\/\/testnet\.hireling\.xyz(?:\/|\s|$)/m.test(message), 'unexpected SIWE message');
+        /^URI: https:\/\/testnet\.sidequest\.xyz(?:\/|\s|$)/m.test(message), 'unexpected SIWE message');
       return signed('siwe', message, () => account.signMessage({ message }));
     }
     if (method === 'eth_signTypedData_v4') {

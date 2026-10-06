@@ -163,7 +163,7 @@ contract JobsEvaluator is EIP712 {
         uint48 disputeWindow_,
         uint48 arbitrationWindow_,
         uint48 margin_
-    ) EIP712("AgentJobsEvaluator", "1") {
+    ) EIP712("SidequestEvaluator", "1") {
         core = core_;
         holding = holding_;
         reputation = reputation_;
@@ -254,7 +254,7 @@ contract JobsEvaluator is EIP712 {
         _rule(r.jobId, r.forWorker, r.slashLoser, r.reasonHash);
     }
 
-    /// @notice The EIP-712 digest the arbitrator signs for `r` (domain "AgentJobsEvaluator", version "1").
+    /// @notice The EIP-712 digest the arbitrator signs for `r` (domain "SidequestEvaluator", version "1").
     function rulingDigest(Ruling calldata r) public view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(abi.encode(RULING_TYPEHASH, r.jobId, r.forWorker, r.slashLoser, r.reasonHash, r.deadline, r.nonce))
@@ -484,7 +484,7 @@ contract JobsEvaluator is EIP712 {
         // worker is paid but its reputation entry is silently lost (found live, testnet jobs 12 and 34).
         uint256 needed = FEEDBACK_GAS * 64 / 63 + 10_000;
         if (gasleft() < needed) revert FeedbackGasTooLow(gasleft(), needed);
-        try reputation.giveFeedback{gas: FEEDBACK_GAS}(agentId, value, 0, "agent-jobs", tag, "", "", bytes32(jobId)) {
+        try reputation.giveFeedback{gas: FEEDBACK_GAS}(agentId, value, 0, "sidequest", tag, "", "", bytes32(jobId)) {
             emit FeedbackRecorded(jobId, agentId, value, tag);
         } catch (bytes memory reason) {
             emit FeedbackFailed(jobId, agentId, reason);

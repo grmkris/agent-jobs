@@ -5,16 +5,17 @@
  * a simulated divergence, and a restart and full rebuild equal to the live state; the folds of known jobs.
  */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { beforeEach, describe, expect, it } from 'vitest'
 import fixture from '../test/fixtures/testnet-logs.json' with { type: 'json' }
+import historicalConfig from '../../sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 import {
   type AsyncSql,
   type ChainHead,
   type IndexerConfig,
   type LogSource,
   type RawLog,
-  contractsOf,
+  contractsFromDeployment,
   agentDetail,
   agentsOfWallet,
   fromNodeSqlite,
@@ -27,8 +28,9 @@ import {
 } from './index.ts'
 
 const logs = fixture.logs as unknown as RawLog[]
-const contracts = contractsOf('monad-testnet')
-const deployBlock = Number(sdk.deployment('monad-testnet').deployBlock)
+const historicalDeployment = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
+const contracts = contractsFromDeployment(historicalDeployment)
+const deployBlock = Number(historicalDeployment.deployBlock)
 const finalized = fixture.toBlock
 const hashOf = (b: number) => `0x${b.toString(16).padStart(64, '0')}` as const
 
@@ -196,7 +198,7 @@ describe('block times for job timelines', () => {
 })
 
 describe('agent reads', () => {
-  it('count Hireling v1 jobs only: a chain of pre-v1 jobs has no agents, no agent record and no stats', async () => {
+  it('count Sidequest v1 jobs only: a chain of pre-v1 jobs has no agents, no agent record and no stats', async () => {
     const kinds = await liveDb.all<{ kind: string }>('SELECT DISTINCT kind FROM jobs')
     expect(kinds).toEqual([{ kind: 'legacy' }])
     const [worker] = await liveDb.all<{ agent_id: string; worker: string }>("SELECT agent_id, worker FROM jobs WHERE agent_id IS NOT NULL AND agent_id <> '0' LIMIT 1")

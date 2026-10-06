@@ -1,15 +1,15 @@
 # ADR-0003: Collateral, modes and evidence
 
-**V1 scope note (2 Oct):** the hold gate, absence of a vault, allowlisted rewards and timeout assumptions below are historical. [ADR-0011](0011-hireling-v1.md) specifies fixed-supply FACTORY stake reservations, fees and per-offer terms; [ADR-0010](0010-permissionless-tokens.md) removed the reward allowlist.
+**V1 scope note (2 Oct):** the hold gate, absence of a vault, allowlisted rewards and timeout assumptions below are historical. [ADR-0011](0011-sidequest-v1.md) specifies fixed-supply SIDE stake reservations, fees and per-offer terms; [ADR-0010](0010-permissionless-tokens.md) removed the reward allowlist.
 
 Date: 2026-09-26. Status: accepted (spike S1b); modes, slashing and review **superseded in part by
 [ADR-0004](0004-r20-modes-slashing-approver.md)**, which is decided but not implemented yet.
 
 ## Decision
 
-Two assets. The reward is any payment token the core allowlists; `$FACTORY` is collateral and never enters
+Two assets. The reward is any payment token the core allowlists; `$SIDE` is collateral and never enters
 the core. Collateral takes two forms: a **hold requirement** (a wallet must hold `minHoldToPublish` /
-`minHoldToClaim` FACTORY to publish or to post a worker bond; sybil resistance only, not slashable) and
+`minHoldToClaim` SIDE to publish or to post a worker bond; sybil resistance only, not slashable) and
 **per-job bonds** (`creatorBond` pulled at publish, `workerBond` pulled at accept, both locked in Holding
 through settlement). No account-level stake vault yet.
 
@@ -42,7 +42,7 @@ payouts on evidence is a later, opt-in policy that must apply to every payout pa
 - `via_ir = true`: the 15-field `Listing` getter exceeds the legacy stack.
 - 35 tests (34 lifecycle incl. fuzz over both assets and all four ruling combinations, 1 invariant over
   both tokens, both bonds and burned supply) plus 4 opt-in fork tests.
-- Publish needs two approvals (payment token + FACTORY); accept needs one. The skill and the Publish
+- Publish needs two approvals (payment token + SIDE); accept needs one. The skill and the Publish
   screen batch them; the faucets hand out both tokens.
 - `EvidenceReceiver` is a minimal `IReceiver`; spike S5 swaps in Chainlink's `ReceiverTemplate` and pins
   the Monad forwarder.

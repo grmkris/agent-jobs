@@ -9,7 +9,7 @@ const consent = { agentId: 7n, newWallet: '0x22222222222222222222222222222222222
 
 describe('ERC-8004 registry helpers', () => {
   it('builds registration and wallet consent calldata', () => {
-    expect(decodeFunctionData({ abi: identityAbi, data: registerCalldata('https://hireling.xyz/a') }).functionName).toBe('register')
+    expect(decodeFunctionData({ abi: identityAbi, data: registerCalldata('https://sidequest.exchange/a') }).functionName).toBe('register')
     expect(decodeFunctionData({ abi: identityAbi, data: setAgentWalletCalldata(consent, '0x1234') }).functionName).toBe('setAgentWallet')
   })
 

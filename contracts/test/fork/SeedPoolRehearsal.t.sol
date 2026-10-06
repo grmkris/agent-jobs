@@ -5,15 +5,15 @@ import {Test} from "forge-std/Test.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
-import {HirelingOutput} from "../../script/HirelingOutput.sol";
+import {SidequestRecipe} from "../../script/SidequestRecipe.sol";
+import {SidequestOutput} from "../../script/SidequestOutput.sol";
 import {SeedPoolRecipe} from "../../script/SeedPoolRecipe.sol";
-import {PoolKey, IV4PoolManager, IV4PositionManager, IV4Permit2, SeedHelper} from "../../src/hireling/SeedHelper.sol";
-import {RecipeDriver} from "../hireling/Recipe.t.sol";
+import {PoolKey, IV4PoolManager, IV4PositionManager, IV4Permit2, SeedHelper} from "../../src/sidequest/SeedHelper.sol";
+import {RecipeDriver} from "../sidequest/Recipe.t.sol";
 
-/// @dev C12 rehearsal on a local fork of Monad mainnet (nothing is sent): a fresh v1 deploy gives FACTORY and the Safe,
+/// @dev C12 rehearsal on a local fork of Monad mainnet (nothing is sent): a fresh v1 deploy gives SIDE and the Safe,
 ///      the proposed `liquidity` block (SURFACE, "Liquidity seed") goes into a scratch config, and the seeder creates
-///      the full-range FACTORY/USDC position on the live Uniswap v4 contracts through a `SeedHelper`. The races of
+///      the full-range SIDE/USDC position on the live Uniswap v4 contracts through a `SeedHelper`. The races of
 ///      review C12-001/002 are played between the helper's deployment and its `seed()`. Skipped unless
 ///      MONAD_MAINNET_RPC_URL is set.
 contract SeedPoolRehearsalForkTest is Test {
@@ -42,7 +42,7 @@ contract SeedPoolRehearsalForkTest is Test {
         if (bytes(rpc).length == 0) return (false, c);
         vm.createSelectFork(rpc);
         vm.etch(safe, hex"00");
-        HirelingRecipe.Config memory r = HirelingRecipe.loadBase(vm, "monad-mainnet");
+        SidequestRecipe.Config memory r = SidequestRecipe.loadBase(vm, "monad-mainnet");
         r.safe = safe;
         r.defaultArbitrator = makeAddr("arbiter");
         r.arbitrator = r.defaultArbitrator; // the fixture's own role, not the shipped config's (LAUNCH-AUDIT-FIX-001/003)
@@ -61,18 +61,18 @@ contract SeedPoolRehearsalForkTest is Test {
         for (uint256 i; i < 13; ++i) {
             driver.step(i);
         }
-        HirelingRecipe.Deployed memory d = driver.deployed();
+        SidequestRecipe.Deployed memory d = driver.deployed();
 
         // One scratch file per test: tests run in parallel.
         string memory path = string.concat(vm.projectRoot(), "/config/.test-seedpool-", name, ".json");
-        vm.writeFile(path, vm.readFile(HirelingRecipe.path(vm, "monad-mainnet")));
+        vm.writeFile(path, vm.readFile(SidequestRecipe.path(vm, "monad-mainnet")));
         vm.writeJson("{}", path, ".deployment"); // unpromoted, whatever the shipped record holds (LAUNCH-AUDIT-FIX-003)
-        HirelingOutput.write(vm, path, d, safe, block.number, block.number);
+        SidequestOutput.write(vm, path, d, safe, block.number, block.number);
         vm.writeJson(_liquidityBlock(safe), path, ".liquidity");
         c = SeedPoolRecipe.load(vm, vm.readFile(path));
         vm.removeFile(path);
         assertEq(address(c.factory), address(d.factory));
-        assertEq(c.safe, safe, "the Safe from deployment.hireling");
+        assertEq(c.safe, safe, "the Safe from deployment.sidequest");
         assertEq(c.factoryAmount, 3_000_000e18);
         assertEq(c.quoteAmount, 300e6);
         assertEq(c.maxRepairCost, 5e6, "default repair cap: 5 USDC");
@@ -125,7 +125,7 @@ contract SeedPoolRehearsalForkTest is Test {
 
     // ---- the plain seed ----
 
-    /// @dev SEED-TESTNET-001: the mainnet path approves fractional raw FACTORY and seeds successfully at that cap.
+    /// @dev SEED-TESTNET-001: the mainnet path approves fractional raw SIDE and seeds successfully at that cap.
     function test_fork_mainnet_nonDivisibleRepairRatio_approvesExactRawAmounts() public {
         (bool forked, SeedPoolRecipe.Config memory c) = _setUp("fractional-repair");
         if (!forked) return vm.skip(true);
@@ -162,11 +162,11 @@ contract SeedPoolRehearsalForkTest is Test {
         (uint256 f1, uint256 q1) = _balances(c);
         uint256 factorySpent = f0 - f1;
         uint256 usdcSpent = q0 - q1;
-        assertApproxEqRel(factorySpent, 3_000_000e18, 2e14, "about 3M FACTORY (within 0.02%)");
+        assertApproxEqRel(factorySpent, 3_000_000e18, 2e14, "about 3M SIDE (within 0.02%)");
         assertApproxEqRel(usdcSpent, 300e6, 2e14, "about $300");
         assertLe(factorySpent, 3_000_000e18, "the repair caps came back");
         assertLe(usdcSpent, 300e6);
-        // $0.0001 per FACTORY: spent USDC per FACTORY, in raw units, ~= 100 / 1e18.
+        // $0.0001 per SIDE: spent USDC per SIDE, in raw units, ~= 100 / 1e18.
         assertApproxEqRel(usdcSpent * 1e18 / factorySpent, 100, 1e15);
         assertEq(c.positionManager.ownerOf(tokenId), safe);
         assertTrue(h.seeded());
@@ -316,8 +316,8 @@ contract SeedPoolRehearsalForkTest is Test {
         (uint256 tokenId, VmSafe.Log[] memory logs) = _seed(h);
         _mintAs(c, p.key, -6000, 6000, 1e12); // someone else adds liquidity right after
 
-        vm.createDir(string.concat(vm.projectRoot(), "/broadcast/hireling"), true);
-        string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test-seedpool-run.json");
+        vm.createDir(string.concat(vm.projectRoot(), "/broadcast/sidequest"), true);
+        string memory path = string.concat(vm.projectRoot(), "/broadcast/sidequest/.test-seedpool-run.json");
         vm.writeFile(path, _runJson("0x1", logs));
         VmSafe.Log[] memory parsed = SeedPoolRecipe.runLogs(vm, path, true);
         (uint256 fromRun, address helper) = SeedPoolRecipe.fromLogs(c, p, parsed);
@@ -341,8 +341,8 @@ contract SeedPoolRehearsalForkTest is Test {
         if (!forked) return vm.skip(true);
         SeedPoolRecipe.Plan memory p = SeedPoolRecipe.plan(c);
         SeedHelper h = _helper(c, p);
-        vm.createDir(string.concat(vm.projectRoot(), "/broadcast/hireling"), true);
-        string memory path = string.concat(vm.projectRoot(), "/broadcast/hireling/.test-seedpool-partial.json");
+        vm.createDir(string.concat(vm.projectRoot(), "/broadcast/sidequest"), true);
+        string memory path = string.concat(vm.projectRoot(), "/broadcast/sidequest/.test-seedpool-partial.json");
 
         vm.writeFile(path, _runJson("0x1", new VmSafe.Log[](0)));
         this.refusePriorSeedExt(c, p, path);
@@ -402,7 +402,7 @@ contract SeedPoolRehearsalForkTest is Test {
         SeedPoolRecipe.check(c);
         c.positionOwner = stranger;
         vm.expectRevert(
-            abi.encodeWithSelector(SeedPoolRecipe.BadConfig.selector, "positionOwner is not deployment.hireling.safe")
+            abi.encodeWithSelector(SeedPoolRecipe.BadConfig.selector, "positionOwner is not deployment.sidequest.safe")
         );
         this.checkExt(c);
         c.positionOwner = address(0);
@@ -442,7 +442,7 @@ contract SeedPoolRehearsalForkTest is Test {
         assertLe(uint256(paid), cap, "within the cap");
     }
 
-    /// @dev `usd` dollars of `token` at the target price ($0.0001 per FACTORY).
+    /// @dev `usd` dollars of `token` at the target price ($0.0001 per SIDE).
     function _dollars(SeedPoolRecipe.Config memory c, address token, uint256 usd) internal pure returns (uint256) {
         return token == address(c.quote) ? usd * 1e6 : usd * 10_000e18;
     }

@@ -1,4 +1,4 @@
-import type { DirectoryAgent } from "@agent-jobs/sdk";
+import type { DirectoryAgent } from "@sidequest/sdk";
 import { Link } from "@tanstack/react-router";
 import type { Address } from "viem";
 import type { BackedPosition } from "../delegation-query.ts";
@@ -7,10 +7,10 @@ import { percent } from "../stake.ts";
 import { Countdown, useNow } from "./Time.tsx";
 import { Address as AddressText, Badge, Button, EmptyState, Section } from "./ui.tsx";
 
-export const factoryValue = (value: bigint) => `${formatNumber(value, 18)} FACTORY`;
+export const factoryValue = (value: bigint) => `${formatNumber(value, 18)} SIDE`;
 
 export const DELEGATION_RISK =
-  "If the agent is slashed for bad work, everyone backing it loses the same share. Your FACTORY stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.";
+  "If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.";
 
 export function DelegationPositions({
   positions,
@@ -35,7 +35,7 @@ export function DelegationPositions({
     >
       {positions.length === 0 ? (
         <EmptyState title="No positions yet">
-          Choose an agent below to back it with FACTORY.
+          Choose an agent below to back it with SIDE.
         </EmptyState>
       ) : (
         positions.map(({ position, backing }) => {

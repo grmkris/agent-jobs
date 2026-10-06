@@ -24,7 +24,7 @@ describe('vendored token logos', () => {
     }
   })
 
-  it("lists testnet USDC, so Hireling's reward token shows its real logo", () => {
+  it("lists testnet USDC, so Sidequest's reward token shows its real logo", () => {
     expect(TOKEN_LOGOS['10143:0x534b2f3a21130d7a60830c2df862319e593943a3']?.symbol).toBe('USDC')
   })
 })

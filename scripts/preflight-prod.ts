@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-// By path: scripts/ is not a workspace package, so the bare '@agent-jobs/sdk' specifier does not resolve here.
+// By path: scripts/ is not a workspace package, so the bare '@sidequest/sdk' specifier does not resolve here.
 import { RELAY_FLOOR_MAINNET } from '../packages/sdk/src/relay.ts'
 import { liveLaunchGate, relayFloorWei, safePolicy, validateExploreRelease, validateProdConfig, type ProdArtifact } from '../apps/api/src/prod-config.ts'
 import { probeRelease, rpcReader } from '../apps/api/src/deploy-preflight.ts'
@@ -35,10 +35,10 @@ if (failures.length > 0) {
     console.error(`production release probe refused: ${probe.join(', ')}`)
     process.exitCode = 1
   } else {
-    console.log(`Hireling v1 production release probe passed: ${origin}/release.json serves monad-mainnet with mainnetLive ${artifact.explore.mainnetLive}, as pinned`)
+    console.log(`Sidequest v1 production release probe passed: ${origin}/release.json serves monad-mainnet with mainnetLive ${artifact.explore.mainnetLive}, as pinned`)
   }
 } else if (process.exitCode !== 1 && !live) {
-  console.log('Hireling v1 production structural preflight passed (single main pair, Safe, vault, fees and mining, Explore release flag); run with --live for the D16 launch gate')
+  console.log('Sidequest v1 production structural preflight passed (single main pair, Safe, vault, fees and mining, Explore release flag); run with --live for the D16 launch gate')
 } else if (process.exitCode !== 1 && artifact !== undefined) {
   // D16 live launch gate, read-only, against the artifact's reviewed public RPC.
   const reader = rpcReader(artifact.rpc.url)
@@ -54,6 +54,6 @@ if (failures.length > 0) {
     console.error(`production launch gate refused: ${gate.join(', ')}`)
     process.exitCode = 1
   } else {
-    console.log('Hireling v1 production launch gate passed: the reviewed Safe (canonical 1.4.1, pinned owners and threshold, no module, no guard) owns all six, holds both core admin roles (deployer neither), attester verifies, relay above RELAY_FLOOR_MAINNET')
+    console.log('Sidequest v1 production launch gate passed: the reviewed Safe (canonical 1.4.1, pinned owners and threshold, no module, no guard) owns all six, holds both core admin roles (deployer neither), attester verifies, relay above RELAY_FLOOR_MAINNET')
   }
 }

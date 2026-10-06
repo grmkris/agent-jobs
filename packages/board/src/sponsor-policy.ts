@@ -1,4 +1,4 @@
-import { RELAY_FLOOR_MAINNET, type Network } from '@agent-jobs/sdk'
+import { RELAY_FLOOR_MAINNET, type Network } from '@sidequest/sdk'
 
 /** Current funding policy keeps 2 MON on either chain, including G1's testnet relay. */
 export const SPONSOR_RELAY_FLOORS: Readonly<Record<Network, bigint>> = {

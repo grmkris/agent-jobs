@@ -23,7 +23,7 @@ const max = (a: bigint, b: bigint) => a > b ? a : b
 
 export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeFlow, scope: string) {
   const { ctx, journal: j, creator, worker, relay } = d
-  const h = ctx.deployment.hireling!
+  const h = ctx.deployment.sidequest!
   const actions = v1FlowActions(d, flow, scope)
   const { call, approve } = actions
   const wallets = { creator, relay, worker }
@@ -97,7 +97,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
   const net = await actions.activate(job)
   await j.once(`${scope}/activation-verified`, async () => {
     const receipt = actions.receipts.get('activate')!
-    const listing = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi,
+    const listing = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi,
       functionName: 'getListing', args: [job.jobId], blockNumber: receipt.blockNumber })
     const active = await snapshot(receipt.blockNumber)
     exact('delegated backing sets the frozen fee tier', listing.feeBps, active.pool.tier.feeBps)
@@ -158,17 +158,17 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
 
   await actions.submit(job.jobId)
   if (flow === 'delegate') {
-    await call('accept', creator, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'accept', [job.jobId], sdk.V1_GAS.evaluator)
+    await call('accept', creator, ctx.stack.evaluator, sdk.sidequestEvaluatorAbi, 'accept', [job.jobId], sdk.V1_GAS.evaluator)
   } else {
-    await call('reject', creator, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'reject', [job.jobId, 1, sdk.hashText(`${scope}:quality`)] )
-    await call('dispute', worker, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'dispute', [job.jobId])
+    await call('reject', creator, ctx.stack.evaluator, sdk.sidequestEvaluatorAbi, 'reject', [job.jobId, 1, sdk.hashText(`${scope}:quality`)] )
+    await call('dispute', worker, ctx.stack.evaluator, sdk.sidequestEvaluatorAbi, 'dispute', [job.jobId])
     const before = await j.once(`${scope}/slash-before`, () => snapshot())
     const signed = await j.once(`${scope}/ruling`, async () => {
       const ruling = { jobId: job.jobId, forWorker: false, slashLoser: true, reasonHash: sdk.hashText(`${scope}:slash`),
         deadline: BigInt(await actions.now() + 3600), nonce: sdk.randomNonce() }
       return { ruling, signature: await sdk.signRuling(ctx, d.arbitrator, ruling) }
     })
-    const receipt = await call('rule', relay, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'ruleWithSignature',
+    const receipt = await call('rule', relay, ctx.stack.evaluator, sdk.sidequestEvaluatorAbi, 'ruleWithSignature',
       [signed.ruling, signed.signature], sdk.V1_GAS.evaluator)
     await j.once(`${scope}/slash-verified`, async () => {
       const after = await snapshot(receipt.blockNumber)
@@ -208,7 +208,7 @@ export async function runDelegatedStakeFlow(d: V1FlowDeps, flow: DelegatedStakeF
   if (guardedJob !== undefined) {
     await stillBonded('blocked-after-slash')
     await guard.submit(guardedJob.jobId)
-    await guard.call('accept', creator, ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, 'accept', [guardedJob.jobId], sdk.V1_GAS.evaluator)
+    await guard.call('accept', creator, ctx.stack.evaluator, sdk.sidequestEvaluatorAbi, 'accept', [guardedJob.jobId], sdk.V1_GAS.evaluator)
     await guard.settle(guardedJob.jobId)
     await verifyJob(guard, guardedJob, guardedNet, false)
     await j.once(`${scope}/guard-release-verified`, async () => {

@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, type LocalAccount, type SignedAuthorization, type TransactionReceipt, TransactionReceiptNotFoundError, keccak256 } from 'viem'
 import type { Sql } from './store.ts'
 import { SponsorRecovery } from './sponsor-recovery.ts'

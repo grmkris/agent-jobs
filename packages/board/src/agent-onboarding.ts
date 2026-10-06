@@ -1,5 +1,5 @@
 /** Server-created wallets and resumable registry ownership. Each provider/send identity is persisted first. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, type SignedAuthorization, parseEventLogs, keccak256, stringToHex } from 'viem'
 import { AgentStore, type AgentRow } from './agents.ts'
 import { AgentSigning } from './agent-signing.ts'

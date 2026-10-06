@@ -1,6 +1,6 @@
 import { type Address, type Hex, zeroAddress } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { hirelingEvaluatorAbi, hirelingHoldingAbi, jobHoldingAbi } from './abi/index.ts'
+import { sidequestEvaluatorAbi, sidequestHoldingAbi, jobHoldingAbi } from './abi/index.ts'
 import { accept, activate, cancel, claimTopUpRefund, createPool, hashText, publish, settleDeferred, type ActivationTerms, type Ctx, type Wallet, V1_GAS } from './actions.ts'
 import { deployment } from './deployment.ts'
 import type { Selection } from './typed-data.ts'
@@ -17,13 +17,13 @@ const policyHash = hashText('offer')
 const selection: Selection = { jobId: 7n, worker, agentId: 1n, termsHash: policyHash, activateBy: 1_900_000_000, nonce: 1n }
 const txHash = `0x${'ab'.repeat(32)}` as Hex
 
-function fixture(kind: 'legacy' | 'hireling-v1' = 'hireling-v1', over: Partial<ActivationTerms> = {}, available = 20n) {
+function fixture(kind: 'legacy' | 'sidequest-v1' = 'sidequest-v1', over: Partial<ActivationTerms> = {}, available = 20n) {
   const events: string[] = []
   const signed: Array<{ message: Record<string, unknown> }> = []
   const simulated: Array<Record<string, unknown>> = []
   const sent: Array<Record<string, unknown>> = []
   const reads: Array<Record<string, unknown>> = []
-  const ctx = { deployment: { ...deployment('monad-testnet'), hireling: { factory: oldFactory, vault: holding } },
+  const ctx = { deployment: { ...deployment('monad-testnet'), sidequest: { factory: oldFactory, vault: holding } },
     stack: { kind, factory: oldFactory, holding, evaluator, openTokens: true },
     publicClient: {
       readContract: async (r: Record<string, unknown>) => {
@@ -61,14 +61,14 @@ describe('kind-aware activation', () => {
     expect(f.events.slice(f.events.indexOf('quoteActivation'), f.events.indexOf('simulate:activate'))).toEqual(['quoteActivation', 'sign'])
     expect(f.events.indexOf('availableOf')).toBeLessThan(f.events.indexOf('quoteActivation'))
     expect(f.reads.find(r => r.functionName === 'quoteActivation')?.args).toEqual([7n, worker])
-    expect(f.sent[0]?.abi).toBe(hirelingHoldingAbi)
+    expect(f.sent[0]?.abi).toBe(sidequestHoldingAbi)
     expect(f.sent.some(r => r.functionName === 'approve')).toBe(false)
   })
 
   for (const [field, value] of Object.entries({ token: holding, arbitrator: holding, creator: holding, approver: holding,
     reward: 102n, creatorBond: 4n, workerBond: 4n, reviewWindow: 7200, disputeWindow: 3600, arbitrationWindow: 86400, deliveryDeadline: 2_000_000_001 })) {
     it(`refuses an independently changed ${field} before signing, even with the same policyHash`, async () => {
-      const f = fixture('hireling-v1', { [field]: value })
+      const f = fixture('sidequest-v1', { [field]: value })
       await expect(activate(f.ctx, f.wallet, selection, '0x11', terms)).rejects.toThrow(`Listing ${field}`)
       expect(f.signed).toHaveLength(0)
       expect(f.sent).toHaveLength(0)
@@ -79,7 +79,7 @@ describe('kind-aware activation', () => {
     const f = fixture()
     await expect(activate(f.ctx, f.wallet, selection, '0x11')).rejects.toThrow('accepted offer terms')
     await expect(activate(f.ctx, f.wallet, { ...selection, termsHash: hashText('other') }, '0x11', terms)).rejects.toThrow('policy hash')
-    const poor = fixture('hireling-v1', {}, 2n)
+    const poor = fixture('sidequest-v1', {}, 2n)
     await expect(activate(poor.ctx, poor.wallet, selection, '0x11', terms)).rejects.toThrow('Insufficient available stake')
     expect(poor.signed).toHaveLength(0)
     expect(poor.sent).toHaveLength(0)
@@ -114,7 +114,7 @@ describe('v1 payout limits and recovery ordering', () => {
     await claimTopUpRefund(f.ctx, f.wallet, 7n)
     expect(f.simulated.map(r => r.gas)).toEqual([V1_GAS.evaluator, V1_GAS.cancel, V1_GAS.claimTopUpRefund])
     expect(f.sent.map(r => r.gas)).toEqual([V1_GAS.evaluator, V1_GAS.cancel, V1_GAS.claimTopUpRefund])
-    expect(f.sent[0]?.abi).toBe(hirelingEvaluatorAbi)
+    expect(f.sent[0]?.abi).toBe(sidequestEvaluatorAbi)
   })
 
   it('waits for retryDeferred to be confirmed before it simulates and sends settle', async () => {

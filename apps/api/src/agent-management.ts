@@ -1,10 +1,10 @@
 /** Private management RPC: SIWE controls decisions; Privy binds server wallet creation to its owner. */
-import { AgentLifecycle, AgentOnboarding, AgentSigning, AgentStore, BoardError, GrantStore, RelaySender, SponsorDesk, type Sql } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { AgentLifecycle, AgentOnboarding, AgentSigning, AgentStore, BoardError, GrantStore, RelaySender, SponsorDesk, type Sql } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, isAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { privyOperator } from './privy-operator.ts'
-import { fromD1 } from '@agent-jobs/indexer'
+import { fromD1 } from '@sidequest/indexer'
 import { decisionFeedEvents, recordAgentEvents } from './feed-agent.ts'
 import type { AgentRouteRequest } from './routes/agents.ts'
 

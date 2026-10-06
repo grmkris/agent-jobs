@@ -110,7 +110,7 @@ test('the budget caps the emission, and every part rounds down: total is the sum
   expect(r.total).toBe(9n)
 })
 
-test('the FACTORY reference price never counts below $0.0001', () => {
+test('the SIDE reference price never counts below $0.0001', () => {
   const r = computeEpoch({ fees: [fee(21, 21, USDC, A, B, 1)], owed: [], withdrawals: [], prices: { ...prices, factoryUsdPrice: 10n ** 13n }, budget: factory(10_000_000) })
   expect(r.factoryUsdPrice).toBe(10n ** 14n)
   expect(r.emission).toBe(factory(5_000))
@@ -306,7 +306,7 @@ test('KEYSTORE-SEC-003: sign-prices refuses a loose or symlinked password file b
     spawnSync('mkdir', [bin])
     writeFileSync(join(bin, 'cast'), `#!/bin/sh\ntouch ${marker}\nexit 1\n`, { mode: 0o755 })
     const config = join(dir, 'config.json')
-    writeFileSync(config, JSON.stringify({ chainId: 10143, deployment: { hireling: { distributor: DISTRIBUTOR } } }))
+    writeFileSync(config, JSON.stringify({ chainId: 10143, deployment: { sidequest: { distributor: DISTRIBUTOR } } }))
     const unsigned = join(dir, 'unsigned.json')
     writeFileSync(unsigned, JSON.stringify({ epoch: '0', tokens: [{ token: USDC, decimals: 6, usdPrice: '1000000000000000000' }], factoryUsdPrice: '100000000000000' }))
     const env = { ...process.env, NO_COLOR: '1', PATH: `${bin}:${process.env.PATH}` }

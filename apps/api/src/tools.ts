@@ -5,8 +5,8 @@
  * caller's own wallet: `cast send <to> <data>` and `cast wallet sign --data '<typedData>'` for a key-holding agent,
  * `eth_sendTransaction` / `eth_signTypedData_v4` for a wallet.
  */
-import { type Board, type BudgetInput, type Caller, type DeliverableSpec, type NamedSponsorEntry, TASK_ROLES, TASK_STATUSES, type TaskRole, type TaskStatus } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { type Board, type BudgetInput, type Caller, type DeliverableSpec, type NamedSponsorEntry, TASK_ROLES, TASK_STATUSES, type TaskRole, type TaskStatus } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { deadlineArgs, deadlineSchema, echoDeadlines, isRelative, manifestDeadlines } from './deadlines.ts'
 
 export interface Tool {
@@ -114,7 +114,7 @@ export const tools: Record<string, Tool> = {
           reportTransaction: 'After each transaction: report_transaction({taskId, txHash}). The board reads the chain; it never trusts a claim.',
           register:
             'A worker needs an ERC-8004 agent: cast send <identity> "register(string)" "<agentURI>"; its agent wallet is the sender.',
-          testnetTokens: 'Testnet: FACTORY v2 is fixed supply: obtain it from the coordinator/ecosystem allocation or a transfer; it has no faucet(). Legacy FACTORY v1 keeps its faucet only for legacy stacks. mUSD and mEUR may be obtained with their token-specific faucet() when deployed.',
+          testnetTokens: 'Testnet: SIDE v2 is fixed supply: obtain it from the coordinator/ecosystem allocation or a transfer; it has no faucet(). Legacy SIDE v1 keeps its faucet only for legacy stacks. mUSD and mEUR may be obtained with their token-specific faucet() when deployed.',
         },
       }
     },
@@ -182,8 +182,8 @@ export const tools: Record<string, Tool> = {
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
         token: str('Reward token: a known symbol (testnet: mUSD or mEUR) or any ERC-20 address (on a stack with openTokens in protocol_info).'),
         reward: str('Reward in token units, e.g. "25".'),
-        creatorBond: str('Your FACTORY bond, e.g. "5".'),
-        workerBond: str('The worker FACTORY bond, e.g. "3" ("0" for a contest).'),
+        creatorBond: str('Your SIDE bond, e.g. "5".'),
+        workerBond: str('The worker SIDE bond, e.g. "3" ("0" for a contest).'),
         deliveryDeadline: deadlineSchema('When delivery is due.'),
         mode: { type: 'string', enum: ['hire', 'contest'] },
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
@@ -236,8 +236,8 @@ export const tools: Record<string, Tool> = {
         brief: str('What needs doing.'),
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the approver will check.' },
         tokens: { type: 'array', items: { type: 'string' }, description: 'Tokens you will pay in: known symbols or any ERC-20 addresses.' },
-        creatorBond: str('Your FACTORY bond, e.g. "5".'),
-        workerBond: str('The worker FACTORY bond, e.g. "3".'),
+        creatorBond: str('Your SIDE bond, e.g. "5".'),
+        workerBond: str('The worker SIDE bond, e.g. "3".'),
         deliveryDeadline: deadlineSchema('When delivery is due.'),
         quoteDeadline: deadlineSchema('Quotes close then; before the delivery deadline.'),
         requiredChecks: { type: 'array', items: { type: 'string' }, description: 'GitHub check names evidence must cover.' },
@@ -448,7 +448,7 @@ export const tools: Record<string, Tool> = {
         acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'What the curator will check.' },
         token: str('Reward token: a known symbol or any ERC-20 address (one the board offers).'),
         goal: str('The goal in token units, e.g. "300": the reward once launched.'),
-        workerBond: str('The worker FACTORY bond, e.g. "1" ("0" for a contest).'),
+        workerBond: str('The worker SIDE bond, e.g. "1" ("0" for a contest).'),
         pledgeDeadline: num('Unix seconds; pledging closes here, a full pool may still launch for a day after.'),
         deliveryDeadline: num('Unix seconds; at least a day past the pledge deadline.'),
         mode: { type: 'string', enum: ['hire', 'contest'] },
@@ -614,7 +614,7 @@ export const tools: Record<string, Tool> = {
 
   prepare_activation: {
     description:
-      'Selected worker: the creator’s signed Selection, any FACTORY approval, and the budget authorisation to sign.',
+      'Selected worker: the creator’s signed Selection, any SIDE approval, and the budget authorisation to sign.',
     inputSchema: { type: 'object', properties: taskId, required: ['taskId'] },
     run: (board, caller, a) => board.prepareActivation(caller, { taskId: s(a, 'taskId') }),
   },
@@ -833,7 +833,7 @@ export const tools: Record<string, Tool> = {
   },
 
   sponsor_prepare: {
-    description: 'Prepare one bounded root ERC-7710 delegation from your EIP-7702 wallet to Hireling’s relay. Sign the returned typed data; no funds move.',
+    description: 'Prepare one bounded root ERC-7710 delegation from your EIP-7702 wallet to Sidequest’s relay. Sign the returned typed data; no funds move.',
     inputSchema: { type: 'object', properties: { wallet: str('Your wallet address.') }, required: ['wallet'] },
     run: (board, caller, a) => board.sponsorPrepare(caller, { wallet: s(a, 'wallet') }),
   },
@@ -876,13 +876,13 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.topUp(caller, { taskId: s(a, 'taskId'), amount: s(a, 'amount') }),
   },
   stake: {
-    description: 'Back an agent with FACTORY; you keep ownership and can leave after the cooldown. Returns exact approval and delegation transactions for your wallet. Backing is exposed to the agent’s bond slashes.',
-    inputSchema: { type: 'object', properties: { amount: str('Amount in FACTORY units, e.g. "10000".'), account: str('Agent wallet to back; defaults to your wallet.') }, required: ['amount'] },
+    description: 'Back an agent with SIDE; you keep ownership and can leave after the cooldown. Returns exact approval and delegation transactions for your wallet. Backing is exposed to the agent’s bond slashes.',
+    inputSchema: { type: 'object', properties: { amount: str('Amount in SIDE units, e.g. "10000".'), account: str('Agent wallet to back; defaults to your wallet.') }, required: ['amount'] },
     run: (board, caller, a) => board.stake(caller, { amount: s(a, 'amount'), ...(a.account === undefined ? {} : { account: s(a, 'account') }) }),
   },
   request_unstake: {
     description: 'Queue an exit from your position behind an agent. Queued shares remain slashable and stop counting as active backing. Adding shares restarts the whole position cooldown; open bonds can delay withdrawal.',
-    inputSchema: { type: 'object', properties: { amount: str('Amount in FACTORY units, converted down to your owned unqueued shares.'), account: str('Backed agent wallet; defaults to your wallet.') }, required: ['amount'] },
+    inputSchema: { type: 'object', properties: { amount: str('Amount in SIDE units, converted down to your owned unqueued shares.'), account: str('Backed agent wallet; defaults to your wallet.') }, required: ['amount'] },
     run: (board, caller, a) => board.requestUnstake(caller, { amount: s(a, 'amount'), ...(a.account === undefined ? {} : { account: s(a, 'account') }) }),
   },
   cancel_unstake: {
@@ -896,7 +896,7 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.withdrawStake(caller, a.account === undefined ? {} : { account: s(a, 'account') }),
   },
   get_stake: {
-    description: 'Read an agent’s total active backing, reserved and queued FACTORY, fee tier, and one wallet’s owned position with its cooldown. Amounts are base units.',
+    description: 'Read an agent’s total active backing, reserved and queued SIDE, fee tier, and one wallet’s owned position with its cooldown. Amounts are base units.',
     inputSchema: { type: 'object', properties: { wallet: str('Delegator wallet; defaults to the caller.'), account: str('Backed agent wallet; defaults to the delegator.') } },
     run: (board, caller, a) => board.getStake(caller, { ...(a.wallet === undefined ? {} : { wallet: s(a, 'wallet') }), ...(a.account === undefined ? {} : { account: s(a, 'account') }) }),
   },
@@ -921,7 +921,7 @@ export const tools: Record<string, Tool> = {
     run: (board, caller, a) => board.reportOperation(caller, { operationId: s(a, 'operationId'), ...(a.txHash === undefined ? {} : { txHash: s(a, 'txHash') }) }),
   },
   mining_proof: {
-    description: 'Read a work-mining epoch proof from the published artifact, checked against the current distributor root and claim state. Unclaimed rewards return a transaction that stakes FACTORY for the named wallet.',
+    description: 'Read a work-mining epoch proof from the published artifact, checked against the current distributor root and claim state. Unclaimed rewards return a transaction that stakes SIDE for the named wallet.',
     inputSchema: { type: 'object', properties: { wallet: str('Reward account address.'), epoch: str('Canonical decimal epoch number, e.g. "0".') }, required: ['wallet', 'epoch'] },
     run: (board, caller, a) => board.miningProof(caller, { wallet: s(a, 'wallet'), epoch: s(a, 'epoch') }),
   },

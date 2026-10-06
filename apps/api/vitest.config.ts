@@ -18,7 +18,7 @@ export default defineConfig({
       CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN ?? 'local-placeholder-token',
       ALCHEMY_PLAIN: '1',
       // Explore's local Vite child needs a remote Cloudflare session; this suite probes the API's bindings only.
-      AGENT_JOBS_WITHOUT_EXPLORE: '1',
+      SIDEQUEST_WITHOUT_EXPLORE: '1',
     },
     // The stack boots workerd once per file; give it room.
     testTimeout: 60_000,

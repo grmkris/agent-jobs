@@ -5,14 +5,14 @@ import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-ux-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-ux-evidence';
 const base = 'http://127.0.0.1:5190';
 const creator = '0x1111111111111111111111111111111111111111';
 const token = '0x2222222222222222222222222222222222222222';
-const arbitrator = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.hireling.defaultArbitrator;
-const transactions = ['Approve reward token', 'Approve FACTORY bond', 'Publish job'].map((description, index) => ({ description, chainId: 10143, to: token, data: `0x0${index}`, value: '0' }));
+const arbitrator = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8')).deployment.sidequest.defaultArbitrator;
+const transactions = ['Approve reward token', 'Approve SIDE bond', 'Publish job'].map((description, index) => ({ description, chainId: 10143, to: token, data: `0x0${index}`, value: '0' }));
 const now = Math.floor(Date.now() / 1000);
-const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job', creator, approver: creator, mode: 'hire', stack: 'main', kind: 'hireling-v1', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: '0xabcdef', manifestUrl: '/offers/fixture.json', terms: { brief: `Long URL https://example.test/${'long-segment'.repeat(60)}`, acceptanceCriteria: [`Long criterion ${'unbroken'.repeat(60)}`], evidencePolicy: { checks: [] }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } }, deliverable: { accepts: ['url'] }, screening: { verdict: 'ok', reasons: [] }, executionBudget: null, requiredChecks: [], brief: `https://example.test/${'segment'.repeat(100)}`, acceptanceCriteria: ['Readable on a phone'], status: 'completed' };
+const offer = { taskId: 'fixture-offer', jobId: null, title: 'Wallet fixture job', creator, approver: creator, mode: 'hire', stack: 'main', kind: 'sidequest-v1', token, reward: '5000000', creatorBond: '0', workerBond: '0', deliveryDeadline: now + 86400, selectionDeadline: null, termsHash: '0xabcdef', manifestUrl: '/offers/fixture.json', terms: { brief: `Long URL https://example.test/${'long-segment'.repeat(60)}`, acceptanceCriteria: [`Long criterion ${'unbroken'.repeat(60)}`], evidencePolicy: { checks: [] }, windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 3600 } }, deliverable: { accepts: ['url'] }, screening: { verdict: 'ok', reasons: [] }, executionBudget: null, requiredChecks: [], brief: `https://example.test/${'segment'.repeat(100)}`, acceptanceCriteria: ['Readable on a phone'], status: 'completed' };
 // A Privy app id whatever the runner's shell holds, so sign-in buttons render the same everywhere; Privy itself is a
 // test double (privy.mjs, privy-react-auth.mjs) and nothing reaches Privy.
 process.env.PRIVY_APP_ID = 'fixture-privy-app-id';
@@ -34,11 +34,11 @@ async function fixture(viewport, options = {}) {
     window.__wallet = { sends: JSON.parse(localStorage.getItem('fixture-wallet-sends') ?? '[]'), connected, batch, address: localStorage.getItem('fixture-wallet-address') ?? owner };
     if (!session) {
       // Signed out: the automatic sign-in prompt was already asked (and declined) in this tab.
-      sessionStorage.setItem(`agent-jobs.asked:${window.__wallet.address.toLowerCase()}`, '1');
+      sessionStorage.setItem(`sidequest.asked:${window.__wallet.address.toLowerCase()}`, '1');
       return;
     }
-    if (!localStorage.getItem('agent-jobs.session')) localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    if (!localStorage.getItem('agent-jobs.session-owner')) localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+    if (!localStorage.getItem('sidequest.session')) localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    if (!localStorage.getItem('sidequest.session-owner')) localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { owner: options.address ?? creator, batch: options.batch ?? false, connected: options.connected ?? true, session: options.session ?? true, arbiter: arbitrator });
   const state = { chainError: options.chainError ?? false, detailError: false, boardError: options.boardError ?? false, receiptError: false, reportError: false, reports: 0, published: false, tokenError: options.tokenError ?? false, tokenDelay: options.tokenDelay ?? 0, tokenDecimals: options.tokenDecimals ?? 6, tokenSymbol: options.tokenSymbol ?? 'OPEN', jobStatus: options.jobStatus ?? 'completed', boardStatus: options.boardStatus ?? 'completed', taskError: false, signIns: 0 };
   await context.route('**/*', async (route) => {
@@ -76,12 +76,12 @@ async function fixture(viewport, options = {}) {
     if (url.pathname.includes('/api/')) return reply({ ok: false, message: 'Fixture denies this operation' }, 400);
     if (url.pathname === '/data/jobs') return state.chainError
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
-      : reply({ ok: true, jobs: [{ job_id: '60', status: 'completed', kind: 'hireling-v1', mode: 'hire', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0' }], index: { next_block: 100, updated_at: now } });
+      : reply({ ok: true, jobs: [{ job_id: '60', status: 'completed', kind: 'sidequest-v1', mode: 'hire', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0' }], index: { next_block: 100, updated_at: now } });
     if (url.pathname === '/data/boards') return reply({ ok: true, boards: [] });
     if (url.pathname === '/data/stats') return reply({ ok: true, jobs: 1, completed: 1, agents: 1, activity: { demo: 1, unclassified: 0, independent: null }, accounting: { [token]: { gross: '5000000', fee: '0', net: '5000000', paid: '5000000' } } });
     if (url.pathname.startsWith('/data/jobs/')) return (state.chainError || state.detailError)
       ? reply({ ok: false, message: 'Chain unavailable' }, 503)
-      : reply({ ok: true, job: { job_id: '60', status: state.jobStatus, kind: 'hireling-v1', mode: 'hire', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', violation: null }, rewards: [{ amount: '5000000', to_worker: 1 }], evidence: [], timeline: [], ruling: null, board: null });
+      : reply({ ok: true, job: { job_id: '60', status: state.jobStatus, kind: 'sidequest-v1', mode: 'hire', token, reward: '5000000', creator, approver: creator, worker: creator, agent_id: '1', violation: null }, rewards: [{ amount: '5000000', to_worker: 1 }], evidence: [], timeline: [], ruling: null, board: null });
     if (url.pathname.startsWith('/data/')) return reply({ ok: true, agents: [], jobs: [] });
     return route.continue();
   });
@@ -195,7 +195,7 @@ async function testControls(viewport) {
   await page.goto(`${base}/jobs`);
   const how = page.getByRole('button', { name: 'How it works' });
   await how.click();
-  const dialog = page.getByRole('dialog', { name: 'How Hireling works' });
+  const dialog = page.getByRole('dialog', { name: 'How Sidequest works' });
   await dialog.waitFor();
   await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
@@ -408,7 +408,7 @@ async function testNewPublishOwner() {
   await page.getByRole('button', { name: 'Try again' }).waitFor();
   await page.reload();
   await page.getByRole('button', { name: 'Confirm step 1 of 3' }).waitFor();
-  const snapshots = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('hireling.post-draft:')).map((key) => ({ key, value: JSON.parse(localStorage.getItem(key)) })));
+  const snapshots = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('sidequest.post-draft:')).map((key) => ({ key, value: JSON.parse(localStorage.getItem(key)) })));
   assert.ok(snapshots.some(({ key, value }) => key.endsWith(creator) && value.frozen.owner === creator && value.frozen.started === true));
   assert.equal(snapshots.some(({ key, value }) => key.endsWith(accountB) && value.frozen !== null), false);
   await page.reload();
@@ -453,7 +453,7 @@ async function testFrozenRecovery() {
     await page.getByRole('button', { name: confirmed ? 'Confirm fixture' : 'Decline fixture' }).click();
     await page.getByRole('button', { name: confirmed ? 'Confirm step 2 of 3' : 'Try again' }).waitFor();
     await page.evaluate(() => {
-      const key = Object.keys(localStorage).find((entry) => entry.startsWith('hireling.post-draft:'));
+      const key = Object.keys(localStorage).find((entry) => entry.startsWith('sidequest.post-draft:'));
       const draft = JSON.parse(localStorage.getItem(key));
       draft.frozen.deliveryDeadline = Math.floor(Date.now() / 1000) - 1;
       localStorage.setItem(key, JSON.stringify(draft));
@@ -479,12 +479,12 @@ async function testFrozenPrefill() {
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('button', { name: 'Review', exact: true }).click();
   await page.getByRole('button', { name: 'Confirm step 1 of 3' }).click();
-  await page.evaluate((replacementToken) => window.postMessage({ source: 'agent-jobs-host', type: 'prefill', payload: { title: 'Changed offer', brief: 'Changed terms', reward: '999', token: replacementToken, mode: 'contest' } }, '*'), token);
+  await page.evaluate((replacementToken) => window.postMessage({ source: 'sidequest-host', type: 'prefill', payload: { title: 'Changed offer', brief: 'Changed terms', reward: '999', token: replacementToken, mode: 'contest' } }, '*'), token);
   await page.getByRole('button', { name: 'Decline fixture' }).click();
   await page.getByRole('button', { name: 'Try again' }).waitFor();
   await page.getByText('Original offer', { exact: true }).first().waitFor();
   assert.equal(await page.getByText('Changed offer', { exact: true }).count(), 0);
-  const snapshot = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((entry) => entry.startsWith('hireling.post-draft:')))));
+  const snapshot = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((entry) => entry.startsWith('sidequest.post-draft:')))));
   assert.equal(snapshot.frozen.form.reward, '10');
   assert.equal(snapshot.frozen.form.mode, 'hire');
   assert.notEqual(snapshot.frozen.form.token, token);

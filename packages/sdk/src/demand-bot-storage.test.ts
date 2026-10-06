@@ -15,7 +15,7 @@ const operation = (): DemandOperation => ({
 
 describe('private demand persistence', () => {
   it('retains the abandoned operation and releases only its reservation across every carried day', () => {
-    const path = mkdtempSync(join(tmpdir(), 'hireling-demand-'))
+    const path = mkdtempSync(join(tmpdir(), 'sidequest-demand-'))
     try {
       const store = openDemandStore(path, 'pinned-policy', 1)
       const saved = operation()
@@ -36,7 +36,7 @@ describe('private demand persistence', () => {
   })
 
   it.each(['send', 'receipt', 'published', 'selected'])('refuses to release a reservation with a possible %s effect', effect => {
-    const path = mkdtempSync(join(tmpdir(), 'hireling-demand-'))
+    const path = mkdtempSync(join(tmpdir(), 'sidequest-demand-'))
     try {
       const store = openDemandStore(path, 'pinned-policy', 1)
       const saved = operation()
@@ -52,7 +52,7 @@ describe('private demand persistence', () => {
   })
 
   it('restores cap reservations after restart and commits the actual receipt day atomically', () => {
-    const path = mkdtempSync(join(tmpdir(), 'hireling-demand-'))
+    const path = mkdtempSync(join(tmpdir(), 'sidequest-demand-'))
     try {
       const original = openDemandStore(path, 'creator-and-policy', 1)
       reserveSpend(original.bot.spend, '2026-10-05', 'hire-1', 8_000_000n)
@@ -70,7 +70,7 @@ describe('private demand persistence', () => {
   })
 
   it('refuses a changed identity or policy without clearing the original journal', () => {
-    const path = mkdtempSync(join(tmpdir(), 'hireling-demand-'))
+    const path = mkdtempSync(join(tmpdir(), 'sidequest-demand-'))
     try {
       const original = openDemandStore(path, 'pinned-policy', 1)
       reserveSpend(original.bot.spend, '2026-10-05', 'saved-hire', 12_000_000n)

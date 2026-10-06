@@ -2,7 +2,7 @@
  * Decoding: a raw log becomes a job or protocol event with JSON-safe arguments. Each pair keeps its own ABI;
  * job-less events (including stake and epoch claims) follow the same atomic checkpoint as job events.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, type Address, type Hex, decodeEventLog } from 'viem'
 
 export interface RawLog {
@@ -51,11 +51,11 @@ export function contractsFromDeployment(d: sdk.Deployment): Contracts {
     roles.set(s.holding.toLowerCase(), { role: 'holding', stack: name, kind: s.kind })
     roles.set(s.evaluator.toLowerCase(), { role: 'evaluator', stack: name, kind: s.kind })
   }
-  if (d.hireling !== null) {
-    roles.set(d.hireling.vault.toLowerCase(), { role: 'vault', stack: null, kind: 'hireling-v1' })
-    roles.set(d.hireling.feeSchedule.toLowerCase(), { role: 'feeSchedule', stack: null, kind: 'hireling-v1' })
-    roles.set(d.hireling.miningReserve.toLowerCase(), { role: 'miningReserve', stack: null, kind: 'hireling-v1' })
-    roles.set(d.hireling.distributor.toLowerCase(), { role: 'distributor', stack: null, kind: 'hireling-v1' })
+  if (d.sidequest !== null) {
+    roles.set(d.sidequest.vault.toLowerCase(), { role: 'vault', stack: null, kind: 'sidequest-v1' })
+    roles.set(d.sidequest.feeSchedule.toLowerCase(), { role: 'feeSchedule', stack: null, kind: 'sidequest-v1' })
+    roles.set(d.sidequest.miningReserve.toLowerCase(), { role: 'miningReserve', stack: null, kind: 'sidequest-v1' })
+    roles.set(d.sidequest.distributor.toLowerCase(), { role: 'distributor', stack: null, kind: 'sidequest-v1' })
   }
   return { chainId: d.chainId, roles }
 }
@@ -63,8 +63,8 @@ export function contractsFromDeployment(d: sdk.Deployment): Contracts {
 const legacyAbis: Partial<Record<Role, Abi>> = { core: sdk.coreAbi as Abi, holding: sdk.jobHoldingAbi as Abi, evaluator: sdk.jobsEvaluatorAbi as Abi }
 const v1Abis: Partial<Record<Role, Abi>> = {
   core: sdk.coreAbi as Abi,
-  holding: sdk.hirelingHoldingAbi as Abi,
-  evaluator: sdk.hirelingEvaluatorAbi as Abi,
+  holding: sdk.sidequestHoldingAbi as Abi,
+  evaluator: sdk.sidequestEvaluatorAbi as Abi,
   vault: sdk.stakeVaultAbi as Abi,
   feeSchedule: sdk.feeScheduleAbi as Abi,
   miningReserve: sdk.miningReserveAbi as Abi,
@@ -86,7 +86,7 @@ export function decode(contracts: Contracts, log: RawLog): IndexedEvent | undefi
   if (topics.length === 0) return undefined
   let decoded: { eventName: string; args: unknown }
   try {
-    const abi = who.kind === 'hireling-v1' ? v1Abis[who.role] : legacyAbis[who.role]
+    const abi = who.kind === 'sidequest-v1' ? v1Abis[who.role] : legacyAbis[who.role]
     if (abi === undefined) return undefined
     decoded = decodeEventLog({ abi, data: log.data, topics: topics as [Hex, ...Hex[]] }) as typeof decoded
   } catch {

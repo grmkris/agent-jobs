@@ -8,10 +8,10 @@ import { createServer } from 'vite';
 // The v1 job page's own calls (flow matrix E column): cancel before activation, approve, reject, then the worker's
 // dispute. Each goes to the v1 Holding or Evaluator; cancel and accept carry their ADR-0011 gas limits, reject and
 // dispute (unfloored) go with the wallet's estimate. With gas sponsorship on, the creator's cancel and approval go
-// through Hireling's relay (D15 methods) with no wallet prompt, and the relay's hash is reported to the board.
+// through Sidequest's relay (D15 methods) with no wallet prompt, and the relay's hash is reported to the board.
 // Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-v1-job-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-v1-job-evidence';
 const base = 'http://127.0.0.1:5200';
 const creator = '0x1111111111111111111111111111111111111111';
 const agentWallet = '0x6666666666666666666666666666666666666666';
@@ -25,7 +25,7 @@ const jobs = { 80: 'open', 81: 'submitted', 82: 'submitted', 83: 'rejected-pendi
 // From activation on, the indexer has the job's fee (quoteActivation's terms at 10 %): 0.5 of the 5 mUSD.
 const feeOf = (id) => (jobs[id] === 'open' ? { fee_bps: null, fee: null, net: null } : { fee_bps: 1000, fee: '500000', net: '4500000' });
 const tx = (description, to, data) => ({ description, chainId: 10143, to, data, value: '0' });
-const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'sidequest-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
 // A live sponsorship delegation from the creator to the relay (D15: Holding.cancel and Evaluator.accept are in it).
 const uint = (x) => encodeAbiParameters([{ type: 'uint256' }], [x]);
 const enforcers = config.delegation.enforcers;
@@ -54,7 +54,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -62,14 +62,14 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, account, sponsored = false, clocks = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ viewer, hireling, fixedNow }) => {
+  await context.addInitScript(({ viewer, sidequest, fixedNow }) => {
     if (fixedNow !== undefined) Date.now = () => fixedNow * 1000;
-    window.__hireling = hireling;
+    window.__sidequest = sidequest;
     window.__v1 = { arbiter: '0xa000000000000000000000000000000000000001', free: 10n ** 21n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
     window.__wallet = { address: viewer, connected: true, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { viewer: account, hireling: contracts, fixedNow: clocks.now });
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { viewer: account, sidequest: contracts, fixedNow: clocks.now });
   const state = { calls: [], submits: [], reports: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -78,7 +78,7 @@ async function fixture(viewport, account, sponsored = false, clocks = {}) {
     const body = () => route.request().postDataJSON();
     if (url.pathname === '/__test/token') return reply({ symbol: 'mUSD', decimals: 6 });
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    const chainJob = (id) => ({ job_id: id, status: jobs[id], mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: jobs[id] === 'open' ? null : agentWallet, agent_id: jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: jobs[id] === 'rejected-pending' ? 'Quality' : null, rejection_reason_hash: null, ...feeOf(id) });
+    const chainJob = (id) => ({ job_id: id, status: jobs[id], mode: 'hire', stack: 'main', kind: 'sidequest-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: jobs[id] === 'open' ? null : agentWallet, agent_id: jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: jobs[id] === 'rejected-pending' ? 'Quality' : null, rejection_reason_hash: null, ...feeOf(id) });
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
@@ -141,13 +141,13 @@ try {
       // Approve inside the review window: Evaluator.accept with its 1.2M limit. The money card says what the agent is
       // paid: the reward less the fee fixed at activation (D11), not the reward.
       await page.goto(`${base}/job/81`);
-      await page.getByText('Locked in escrow · Agent #7001 gets 4.5 mUSD when the work is accepted, after Hireling’s 10 % fee', { exact: true }).waitFor();
+      await page.getByText('Locked in escrow · Agent #7001 gets 4.5 mUSD when the work is accepted, after Sidequest’s 10 % fee', { exact: true }).waitFor();
       await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
       await capture(page, `${device}-v1-approve`);
       // The confirmation shows the net the agent receives and the fee, not the gross reward.
       const confirm = page.getByRole('dialog', { name: 'Approve and pay?' });
       await confirm.getByText('4.5 mUSD', { exact: true }).waitFor();
-      await confirm.getByText('Hireling’s 10 % fee', { exact: true }).waitFor();
+      await confirm.getByText('Sidequest’s 10 % fee', { exact: true }).waitFor();
       await confirm.getByRole('button', { name: 'Approve and pay', exact: true }).click();
       await send(page, 'Paid 4.5 mUSD');
       assert.deepEqual(await lastSend(page), { to: contracts.evaluator, gas: '1200000' });
@@ -165,7 +165,7 @@ try {
 
       // Paid: the amount is what reached the agent.
       await page.goto(`${base}/job/84`);
-      await page.getByText('Paid to Agent #7001: the 5 mUSD reward less Hireling’s 10 % fee', { exact: true }).waitFor();
+      await page.getByText('Paid to Agent #7001: the 5 mUSD reward less Sidequest’s 10 % fee', { exact: true }).waitFor();
       assert.equal(await page.getByText('4.5 mUSD', { exact: true }).filter({ visible: true }).count(), 1);
       await capture(page, `${device}-v1-paid`);
       assert.deepEqual(state.calls[2].args, { taskId: 'task-82', violation: 'Quality', reason: 'The page does not load on a phone.' });
@@ -195,14 +195,14 @@ try {
     await page.goto(`${base}/job/80`);
     await page.getByRole('button', { name: 'Cancel the job', exact: true }).click();
     await page.getByRole('dialog', { name: 'Cancel this job?' }).getByRole('button', { name: 'Cancel the job', exact: true }).click();
-    await page.getByRole('button', { name: 'Send · Hireling pays the gas', exact: true }).click();
+    await page.getByRole('button', { name: 'Send · Sidequest pays the gas', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Cancelled.' }).waitFor();
     await page.goto(`${base}/job/81`);
     await page.getByRole('button', { name: /^Approve and pay/ }).first().click();
     await page.getByRole('dialog', { name: 'Approve and pay?' }).getByRole('button', { name: 'Approve and pay', exact: true }).click();
-    await page.getByText('Waiting · Hireling pays the gas', { exact: true }).waitFor();
+    await page.getByText('Waiting · Sidequest pays the gas', { exact: true }).waitFor();
     await capture(page, 'v1-approve-sponsored');
-    await page.getByRole('button', { name: 'Send · Hireling pays the gas', exact: true }).click();
+    await page.getByRole('button', { name: 'Send · Sidequest pays the gas', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Paid 4.5 mUSD' }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     assert.deepEqual(state.submits.map((x) => x.entries), [

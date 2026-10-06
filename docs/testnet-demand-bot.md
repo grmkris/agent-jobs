@@ -6,7 +6,7 @@ omitted the inline manifest. DIRECTIVE 20:00 requires abandoning that expired of
 and releasing its reservation; Claude owns the reviewed source restart. There is
 no automatic reset, replacement wallet, refill or deployment fallback.
 
-The independent creator runs against `https://testnet.hireling.xyz`, Monad testnet
+The independent creator runs against `https://dev.sidequest.exchange`, Monad testnet
 10143, using the current `main` v1 pair from `contracts/config/monad-testnet.json`.
 It posts one quote request every 90 minutes, alternating public-safe geometric
 images and small dependency-free code tasks. A missed interval produces one new
@@ -24,7 +24,7 @@ day before fresh demand; the successful publication receipt determines the actua
 spend day. Refunds do not reopen the budget. An unfunded or unmatched quote closes
 that request without signing. The bot receives **50 mUSD and 0.5 MON** from the
 configured ecosystem deployer once; setup retries retain the original amounts,
-signed bytes and hashes. It needs no creator registration or FACTORY stake.
+signed bytes and hashes. It needs no creator registration or SIDE stake.
 
 Hosted request and pick calls use durable idempotency keys. The private journal
 pins creator, contracts, token, cadence, cap and templates. It stores exact signed
@@ -56,7 +56,7 @@ job and terms. Review verifies the onchain provider and `JobSubmitted` receipt.
 
 Approval requires an automated check of that exact submission:
 
-- Images: immutable public raw GitHub URL in `grmkris/hireling-demo-deliveries`,
+- Images: immutable public raw GitHub URL in `grmkris/sidequest-demo-deliveries`,
   bounded fetch without redirects, matching SHA-256, and PNG/JPEG structure.
 - Code: the exact public repository and immutable 40-character commit SHA; the
   newest matching GitHub Actions check named `test` must have completed with
@@ -94,7 +94,7 @@ pnpm exec node scripts/demand-bot.mjs status
 pnpm exec node scripts/demand-bot.mjs stop
 ```
 
-Container `hireling-crew-demand` uses Docker bridge `hireling-crew`, publishes no
+Container `sidequest-crew-demand` uses Docker bridge `sidequest-crew`, publishes no
 ports, has `--memory 2g` and `--restart unless-stopped`, and runs as the host UID/GID.
 Source is an immutable git archive labeled with its commit; dependencies and Bun
 are read-only mounts. The journal is writable at `/state`. It uses the existing `aj-worker`

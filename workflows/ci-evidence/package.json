@@ -1,5 +1,5 @@
 {
-  "name": "@agent-jobs/ci-evidence",
+  "name": "@sidequest/ci-evidence",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@agent-jobs/sdk": "workspace:*",
-    "@agent-jobs/board": "workspace:*",
+    "@sidequest/sdk": "workspace:*",
+    "@sidequest/board": "workspace:*",
     "@types/node": "^24.3.0",
     "typescript": "catalog:",
     "vite-plus": "catalog:",

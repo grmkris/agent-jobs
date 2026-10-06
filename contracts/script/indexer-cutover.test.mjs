@@ -63,9 +63,9 @@ test('config mutation refuses before rewind and releases only owned lease', asyn
 })
 
 test('G1b/mainnet/wrong expected block refuse', () => {
-  const config = { network: 'monad-testnet', chainId: 10143, deployment: { hireling: { block: 68900000, vault: '0x1111111111111111111111111111111111111111' }, main: { kind: 'hireling-v1' } } }
+  const config = { network: 'monad-testnet', chainId: 10143, deployment: { sidequest: { block: 68900000, vault: '0x1111111111111111111111111111111111111111' }, main: { kind: 'sidequest-v1' } } }
   assert.equal(targetBlock(config, 68900000), 68900000)
   assert.throws(() => targetBlock(config, 68800000), /expect-block/)
   assert.throws(() => targetBlock({ ...config, chainId: 143 }), /G1c/)
-  assert.throws(() => targetBlock({ ...config, deployment: { ...config.deployment, hireling: { ...config.deployment.hireling, block: 67856884 } } }), /G1c/)
+  assert.throws(() => targetBlock({ ...config, deployment: { ...config.deployment, sidequest: { ...config.deployment.sidequest, block: 67856884 } } }), /G1c/)
 })

@@ -19,12 +19,12 @@ export const sql = {
 }
 
 export function targetBlock(config, expectedBlock) {
-  const h = config?.deployment?.hireling
+  const h = config?.deployment?.sidequest
   if (config.network !== 'monad-testnet' || config.chainId !== 10143 || !Number.isSafeInteger(h?.block)
     || !/^0x[\da-f]{40}$/i.test(h.vault ?? '')
     || h.block <= 67856884 || h.vault?.toLowerCase() === '0x6e980b0545be5622f7399e40655aeccb6f56e3fa'
-    || config.deployment.main?.kind !== 'hireling-v1') throw new Error('cutover: requires a promoted G1c testnet config')
-  if (expectedBlock !== undefined && h.block !== expectedBlock) throw new Error('cutover: --expect-block differs from config hireling block')
+    || config.deployment.main?.kind !== 'sidequest-v1') throw new Error('cutover: requires a promoted G1c testnet config')
+  if (expectedBlock !== undefined && h.block !== expectedBlock) throw new Error('cutover: --expect-block differs from config sidequest block')
   return h.block
 }
 

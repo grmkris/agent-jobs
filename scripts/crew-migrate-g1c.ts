@@ -22,9 +22,9 @@ if (!['workers', 'demand'].includes(commandKind!) || !stateDirectory || (approva
 }
 
 function workerBinding(config: typeof current) {
-  return crewPolicyBinding({ chainId: 10143, factory: config.deployment.hireling.factory as `0x${string}`, vault: config.deployment.hireling.vault as `0x${string}`,
-    core: config.deployment.core as `0x${string}`, identity: config.erc8004.identity as `0x${string}`, boardUrl: 'https://testnet.hireling.xyz',
-    token: config.deployment.rewardTokens[0] as `0x${string}`, repository: 'grmkris/hireling-demo-deliveries' }, reviewedCrewPolicy(policy))
+  return crewPolicyBinding({ chainId: 10143, factory: config.deployment.sidequest.factory as `0x${string}`, vault: config.deployment.sidequest.vault as `0x${string}`,
+    core: config.deployment.core as `0x${string}`, identity: config.erc8004.identity as `0x${string}`, boardUrl: 'https://dev.sidequest.exchange',
+    token: config.deployment.rewardTokens[0] as `0x${string}`, repository: 'grmkris/sidequest-demo-deliveries' }, reviewedCrewPolicy(policy))
 }
 
 async function main(kind: string, directory: string, apply: string | undefined) {
@@ -34,13 +34,13 @@ async function main(kind: string, directory: string, apply: string | undefined) 
     })
     return
   }
-  if (previous.chainId !== 10143 || current.chainId !== 10143 || current.deployment.hireling.block <= previous.deployment.hireling.block) {
+  if (previous.chainId !== 10143 || current.chainId !== 10143 || current.deployment.sidequest.block <= previous.deployment.hireling.block) {
     throw new Error('Require the promoted G1c testnet deployment')
   }
   const ctx = sdk.context('monad-testnet', 'main', process.env.MONAD_TESTNET_RPC_URL ?? 'https://testnet-rpc.monad.xyz')
   if (await ctx.publicClient.getChainId() !== 10143) throw new Error('Wrong chain')
   const state = sdk.parseFlowJson(readFileSync(resolve(directory, 'journal.json'), 'utf8'))
-  for (const name of kind === 'workers' ? ['hireling-crew-grok', 'hireling-crew-grok-studio'] : ['hireling-crew-demand']) {
+  for (const name of kind === 'workers' ? ['sidequest-crew-grok', 'sidequest-crew-grok-studio'] : ['sidequest-crew-demand']) {
     let running = false
     try { running = execFileSync('docker', ['inspect', '--format', '{{.State.Running}}', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() === 'true' } catch { /* Not created yet. */ }
     if (running) throw new Error('Stop the crew container before migrating its journal')
@@ -50,7 +50,7 @@ async function main(kind: string, directory: string, apply: string | undefined) 
   function expectedDemandBinding(config: typeof current) {
     return demandCanonicalJson({ version: 1, chainId: 10143, creator: demandBinding.creator,
       token: config.deployment.rewardTokens[0], core: config.deployment.core, holding: config.deployment.main.holding,
-      evaluator: config.deployment.main.evaluator, board: 'https://testnet.hireling.xyz',
+      evaluator: config.deployment.main.evaluator, board: 'https://dev.sidequest.exchange',
       cap: DEMAND_DAILY_CAP, cadence: DEMAND_INTERVAL_SECONDS, templates: [templateForSequence(0), templateForSequence(1)] })
   }
   const previousBinding = kind === 'workers' ? workerBinding(previous) : expectedDemandBinding(previous)

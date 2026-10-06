@@ -1,7 +1,7 @@
 # Prepared Monad 143 recipe — not a launch authorization
 
 The committed `contracts/config/monad-mainnet.json` and `Recipe.sol` are the proposed
-recipe: chain 143, real configured registries and USDC, FACTORY with no faucet,
+recipe: chain 143, real configured registries and USDC, SIDE with no faucet,
 zero hold gates, one main stack, and zero platform/evaluator fees. The deployment
 object is intentionally empty. No deployment addresses, wallet keys, or production
 resources were invented or created for preparation.

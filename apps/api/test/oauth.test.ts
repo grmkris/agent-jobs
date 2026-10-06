@@ -1,7 +1,7 @@
 /** Real SQLite storage and WebCrypto PKCE. No provider/network substitutions. */
 import { DatabaseSync } from 'node:sqlite'
 import { expect, test } from 'vitest'
-import { AgentStore, fromNodeSqlite } from '@agent-jobs/board'
+import { AgentStore, fromNodeSqlite } from '@sidequest/board'
 import type { Address } from 'viem'
 import { oauthRoute, resolveOAuth, type OAuthReply } from '../src/oauth.ts'
 import { pkceChallenge } from '../src/oauth-validation.ts'
@@ -9,7 +9,7 @@ import { pkceChallenge } from '../src/oauth-validation.ts'
 const owner = `0x${'11'.repeat(20)}` as Address
 const wallet = `0x${'22'.repeat(20)}` as Address
 const registry = `0x${'33'.repeat(20)}` as Address
-const origin = 'https://hireling.example'
+const origin = 'https://sidequest.example'
 const resource = `${origin}/b/team-board/mcp`
 const verifier = 'a'.repeat(43)
 const redirectUri = 'http://127.0.0.1:3210/callback'
@@ -31,7 +31,7 @@ function fixture() {
 async function connection(f: ReturnType<typeof fixture>, scopes?: string[]) {
   const registered = await f.route('/oauth/register', { redirect_uris: [redirectUri], client_name: 'SQLite client' })
   const clientId = (registered.body as { client_id: string }).client_id
-  const query = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', scope: 'hireling:read hireling:work hireling:hire', resource, code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier), state: 'state-one' })
+  const query = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', scope: 'sidequest:read sidequest:work sidequest:hire', resource, code_challenge_method: 'S256', code_challenge: await pkceChallenge(verifier), state: 'state-one' })
   const authorize = await f.route('/oauth/authorize', {}, query, 'GET')
   const requestId = new URL(authorize.redirect!).searchParams.get('oauth_request')!
   const approve = await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], ...(scopes === undefined ? {} : { scopes }) })
@@ -84,9 +84,9 @@ test('revoked agents cannot use or refresh an OAuth token and consent cannot gra
 test('operator consent narrows the token scopes and cannot widen the requested authority', async () => {
   const f = fixture()
   try {
-    const c = await connection(f, ['hireling:read'])
+    const c = await connection(f, ['sidequest:read'])
     const tokens = (await f.route('/oauth/token', c.tokenBody)).body as Tokens
-    expect((await resolveOAuth(f.sql, tokens.access_token, resource, 1000))?.scopes).toEqual(['hireling:read'])
+    expect((await resolveOAuth(f.sql, tokens.access_token, resource, 1000))?.scopes).toEqual(['sidequest:read'])
     const next = await f.route('/oauth/authorize', {}, c.query, 'GET')
     const requestId = new URL(next.redirect!).searchParams.get('oauth_request')!
     expect((await f.route(`/oauth/requests/${requestId}/approve`, { agentIds: ['one'], scopes: ['arbitrary:write'] })).status).toBe(400)

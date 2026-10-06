@@ -29,17 +29,17 @@ function clients() {
   return { reads, wallet, calls }
 }
 
-function state() { return mkdtempSync(join(tmpdir(), 'hireling-live-ui-')) }
+function state() { return mkdtempSync(join(tmpdir(), 'sidequest-live-ui-')) }
 
 // Browser JSON uses string chainId. The resulting signature must match the
 // contract's canonical Permit domain, including chainId, across journal resume.
 {
   const dir = state()
   const typed = {
-    domain: { name: 'Factory', version: '1', chainId: 10143, verifyingContract: config.deployment.hireling.factory },
+    domain: { name: 'Factory', version: '1', chainId: 10143, verifyingContract: config.deployment.sidequest.factory },
     types: { Permit: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
     primaryType: 'Permit',
-    message: { owner: account.address, spender: config.deployment.hireling.vault, value: 20_000_000_000_000_000_000n, nonce: 0n, deadline: 1_800_000_000n },
+    message: { owner: account.address, spender: config.deployment.sidequest.vault, value: 20_000_000_000_000_000_000n, nonce: 0n, deadline: 1_800_000_000n },
   }
   const browser = JSON.parse(JSON.stringify(typed, (_, value) => typeof value === 'bigint' ? value.toString() : value))
   browser.domain.chainId = '10143'
@@ -66,7 +66,7 @@ function state() { return mkdtempSync(join(tmpdir(), 'hireling-live-ui-')) }
   const dir = state()
   const w = liveWallet({ account, config, stateDir: dir, enabled: false, clients: clients() })
   assert.deepEqual(await w.request({ method: 'eth_accounts' }), [account.address])
-  await assert.rejects(() => w.request({ method: 'eth_sendTransaction', params: [{ to: config.deployment.hireling.vault, data: calldata }] }), /Read-only mode/)
+  await assert.rejects(() => w.request({ method: 'eth_sendTransaction', params: [{ to: config.deployment.sidequest.vault, data: calldata }] }), /Read-only mode/)
   await assert.rejects(() => w.request({ method: 'personal_sign', params: ['hello', account.address] }), /Read-only mode/)
   w.close()
   rmSync(dir, { recursive: true, force: true })
@@ -77,10 +77,10 @@ function state() { return mkdtempSync(join(tmpdir(), 'hireling-live-ui-')) }
   const dir = state()
   const first = liveWallet({ account, config, stateDir: dir, enabled: true, clients: clients() })
   first.setRow('binding')
-  await first.request({ method: 'eth_sendTransaction', params: [{ from: account.address, chainId: 10143, to: config.deployment.hireling.vault, data: calldata, value: 0 }] })
+  await first.request({ method: 'eth_sendTransaction', params: [{ from: account.address, chainId: 10143, to: config.deployment.sidequest.vault, data: calldata, value: 0 }] })
   first.close()
   const changed = structuredClone(config)
-  changed.deployment.hireling.block += 1
+  changed.deployment.sidequest.block += 1
   assert.throws(() => liveWallet({ account, config: changed, stateDir: dir, enabled: false, clients: clients() }), /different deployment/)
   rmSync(dir, { recursive: true, force: true })
 }
@@ -91,7 +91,7 @@ function state() { return mkdtempSync(join(tmpdir(), 'hireling-live-ui-')) }
   const firstClients = clients()
   const first = liveWallet({ account, config, stateDir: dir, enabled: true, clients: firstClients })
   first.setRow('K6-01')
-  const tx = { from: account.address, chainId: 10143, to: config.deployment.hireling.vault, data: calldata, value: 0 }
+  const tx = { from: account.address, chainId: 10143, to: config.deployment.sidequest.vault, data: calldata, value: 0 }
   const hash = await first.request({ method: 'eth_sendTransaction', params: [tx] })
   assert.equal(firstClients.calls.prepared, 1)
   assert.throws(() => liveWallet({ account, config, stateDir: dir, enabled: true, clients: clients() }), /already in use/)
@@ -104,7 +104,7 @@ function state() { return mkdtempSync(join(tmpdir(), 'hireling-live-ui-')) }
   secondClients.reads.getTransactionCount = async () => 1
   await assert.rejects(() => second.request({ method: 'eth_sendTransaction', params: [tx] }), /nonce consumed/)
   assert.equal(secondClients.calls.raw.length, 1)
-  await assert.rejects(() => second.request({ method: 'eth_sendTransaction', params: [{ ...tx, to: config.deployment.hireling.safe }] }), /unexpected target/)
+  await assert.rejects(() => second.request({ method: 'eth_sendTransaction', params: [{ ...tx, to: config.deployment.sidequest.safe }] }), /unexpected target/)
   second.close()
   rmSync(dir, { recursive: true, force: true })
 }

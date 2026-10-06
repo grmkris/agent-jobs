@@ -79,7 +79,7 @@ export function AccountMenu({ collect }: { collect: number }) {
   )
 }
 
-/** Admin, only for an owner of the Safe that owns Hireling; the Safe is read only once the menu opens. */
+/** Admin, only for an owner of the Safe that owns Sidequest; the Safe is read only once the menu opens. */
 function AdminItem({ address, onSelect }: { address: string; onSelect: () => void }) {
   const owner = useSafeOwner(address)
   if (owner !== true) return null

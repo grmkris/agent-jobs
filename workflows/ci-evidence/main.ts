@@ -16,7 +16,7 @@ interface Config {
 function fetchChecks(send: HTTPSendRequester, input: EvidenceRequest, now: number): string {
   const response = send.sendRequest({
     url: checkRunsUrl(input), method: 'GET',
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-jobs-cre-simulation', 'X-GitHub-Api-Version': '2022-11-28' },
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'sidequest-cre-simulation', 'X-GitHub-Api-Version': '2022-11-28' },
   }).result()
   if (!ok(response)) throw new Error(`GitHub unavailable: HTTP ${response.statusCode}`)
   // Each node validates the response and hashes the same normalized fields before consensus.

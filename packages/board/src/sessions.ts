@@ -92,7 +92,7 @@ export class SessionDesk {
       nonce,
       issuedAt: new Date(now * 1000),
       expirationTime: new Date((now + NONCE_SECONDS) * 1000),
-      statement: `Sign in to the agent-jobs board "${input.boardId}". This signature moves no funds.`,
+      statement: `Sign in to the sidequest board "${input.boardId}". This signature moves no funds.`,
     })
     return { message }
   }

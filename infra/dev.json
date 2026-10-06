@@ -1,0 +1,24 @@
+{
+  "product": "Sidequest",
+  "stage": "dev",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "origin": "https://dev.sidequest.exchange",
+  "cloudflare": {
+    "accountId": "bceaeae4788dce3493514fde194b4a7e",
+    "zoneId": "e78889c667018d6213b1cdb1887d02ab",
+    "zoneName": "sidequest.exchange"
+  },
+  "resources": {
+    "Api": "sidequest-api-dev",
+    "Indexer": "sidequest-indexer-dev",
+    "Explore": "sidequest-explore-dev",
+    "Database": "sidequest-dev-db",
+    "Manifests": "sidequest-dev-manifests"
+  },
+  "safeInfrastructure": {
+    "factory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+    "singleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+    "fallbackHandler": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99"
+  }
+}

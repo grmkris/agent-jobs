@@ -47,7 +47,7 @@ export interface DirectoryAgent {
   ownership: 'verified' | 'unknown' | 'changed'
   presence: { freshness: 'fresh' | 'stale' | 'unknown'; state: Availability | null; accepting: boolean; lastSeenBucket: number | null }
   ads: Array<ServiceAdvertisement & { adHash: Hex; expiresAt: number }>
-  /** A Hireling-hosted agent's last MCP call, to five minutes; absent for self-run agents. */
+  /** A Sidequest-hosted agent's last MCP call, to five minutes; absent for self-run agents. */
   activity?: { lastMcpCallAt: number }
   observedAt: number
   projectionAt: number
@@ -92,7 +92,7 @@ export const directoryDomainFields = [
 ] as const
 
 /** A directory record's domain name: presence (enrollment, heartbeat) or service ads. */
-export const directoryDomainName = (kind: DirectoryKind) => (kind === 'ServiceAd' || kind === 'RevokeAd' ? 'HirelingServiceAd' : 'HirelingPresence')
+export const directoryDomainName = (kind: DirectoryKind) => (kind === 'ServiceAd' || kind === 'RevokeAd' ? 'SidequestServiceAd' : 'SidequestPresence')
 
 export function directoryTypedData(record: DirectoryEnvelope) {
   return {

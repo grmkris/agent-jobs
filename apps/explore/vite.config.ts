@@ -8,11 +8,11 @@ import { MAINNET_LIVE } from './src/release.ts'
 import { startGuide } from './start-guide-plugin.ts'
 import { NotDeployedError, deployment } from '../../packages/sdk/src/deployment.ts'
 
-const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet'
-/** Whether the network's config has Hireling v1: false on mainnet until launch day promotes it (as `wallet.ts` reads it). */
+const network = process.env.SIDEQUEST_NETWORK ?? 'monad-testnet'
+/** Whether the network's config has Sidequest v1: false on mainnet until launch day promotes it (as `wallet.ts` reads it). */
 const deployed = (() => {
   try {
-    return deployment(network as 'monad-testnet' | 'monad-mainnet').hireling !== null
+    return deployment(network as 'monad-testnet' | 'monad-mainnet').sidequest !== null
   } catch (error) {
     if (error instanceof NotDeployedError) return false
     throw error
@@ -26,7 +26,7 @@ const deployed = (() => {
 function manifest() {
   const testnet = network !== 'monad-mainnet'
   return {
-    name: 'hireling-manifest',
+    name: 'sidequest-manifest',
     generateBundle(this: { emitFile(f: { type: 'asset'; fileName: string; source: string }): void }) {
       this.emitFile({
         type: 'asset',
@@ -34,8 +34,8 @@ function manifest() {
         source: JSON.stringify(
           {
             id: '/',
-            name: testnet ? 'Hireling (testnet)' : 'Hireling',
-            short_name: testnet ? 'Hireling Test' : 'Hireling',
+            name: testnet ? 'Sidequest (testnet)' : 'Sidequest',
+            short_name: testnet ? 'Sidequest Test' : 'Sidequest',
             description: 'Hire AI agents for escrow-backed jobs on Monad',
             start_url: '/',
             scope: '/',
@@ -66,7 +66,7 @@ function manifest() {
 const releaseInfo = () => `${JSON.stringify({ network, mainnetLive: MAINNET_LIVE, writesOpen: (network !== 'monad-mainnet' || MAINNET_LIVE) && deployed }, null, 2)}\n`
 function release() {
   return {
-    name: 'hireling-release',
+    name: 'sidequest-release',
     configureServer(server: { middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void } }) {
       server.middlewares.use((req, res, next) => {
         if ((req.url ?? '').split('?')[0] !== '/release.json') return next()
@@ -89,7 +89,7 @@ const SKILL_ROLES = ['connector', 'worker', 'publisher', 'arbitrator'] as const
 const skillSource = (role: string) => readFileSync(fileURLToPath(new URL(`../../skill/${role}/SKILL.md`, import.meta.url)), 'utf8')
 function skills() {
   return {
-    name: 'hireling-skills',
+    name: 'sidequest-skills',
     configureServer(server: { middlewares: { use(fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): void } }) {
       server.middlewares.use((req, res, next) => {
         const role = /^\/skills\/([a-z]+)\/SKILL\.md$/.exec((req.url ?? '').split('?')[0] ?? '')?.[1]
@@ -106,11 +106,11 @@ function skills() {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), manifest(), skills(), startGuide(), release()],
-  // The network is fixed per deploy stage (AGENT_JOBS_NETWORK, the same variable the API and indexer read).
+  // The network is fixed per deploy stage (SIDEQUEST_NETWORK, the same variable the API and indexer read).
   // PRIVY_APP_ID is public (it identifies the app to Privy's login modal); the app secret never reaches the browser.
   define: {
-    __AGENT_JOBS_NETWORK__: JSON.stringify(network),
-    __PRIVY_APP_ID__: JSON.stringify((network === 'monad-mainnet' ? process.env.HIRELING_PROD_PRIVY_APP_ID : process.env.PRIVY_APP_ID) ?? ''),
+    __SIDEQUEST_NETWORK__: JSON.stringify(network),
+    __PRIVY_APP_ID__: JSON.stringify((network === 'monad-mainnet' ? process.env.SIDEQUEST_PROD_PRIVY_APP_ID : process.env.PRIVY_APP_ID) ?? ''),
   },
   run: {
     tasks: {

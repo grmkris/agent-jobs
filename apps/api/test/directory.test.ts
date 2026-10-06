@@ -1,9 +1,9 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it } from 'vitest'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import { deployment, type DirectoryAgent } from '@agent-jobs/sdk'
+import type { AsyncSql } from '@sidequest/indexer'
+import { deployment, type DirectoryAgent } from '@sidequest/sdk'
 import { zeroAddress } from 'viem'
-import { fromNodeSqlite } from '@agent-jobs/board'
+import { fromNodeSqlite } from '@sidequest/board'
 import { DirectoryProjectionJournal } from '../src/directory-projection.ts'
 import { directoryPage, migrateDirectory, projectDirectory, runDirectoryTool } from '../src/directory.ts'
 
@@ -88,7 +88,7 @@ it.each([
 ] as const)('dispatches %s on mainnet through directory RPC for object admission', async (name, args) => {
   const context = fixture()
   let called = false
-  const result = await runDirectoryTool({ sql: context.sql, network: 'monad-mainnet', audience: 'https://hireling.xyz', rpcUrl: '', call: async () => { called = true; return { ok: true, result: name.startsWith('prepare_') ? {} : { agent: context.agent('1'), projection: null, idempotent: false } } } }, name, args)
+  const result = await runDirectoryTool({ sql: context.sql, network: 'monad-mainnet', audience: 'https://sidequest.exchange', rpcUrl: '', call: async () => { called = true; return { ok: true, result: name.startsWith('prepare_') ? {} : { agent: context.agent('1'), projection: null, idempotent: false } } } }, name, args)
   if (name.startsWith('prepare_')) expect(result).toEqual({})
   else expect(result).toMatchObject({ scope: 'directory only; no job or money authority' })
   expect(called).toBe(true)
@@ -105,7 +105,7 @@ it('binds discovery to the complete deployment and audience and bounds paginatio
 
 it('preserves rate-limit retry metadata from the directory owner for REST and MCP', async () => {
   const { sql } = fixture()
-  await expect(runDirectoryTool({ sql, network: 'monad-mainnet', audience: 'https://hireling.xyz', rpcUrl: '',
+  await expect(runDirectoryTool({ sql, network: 'monad-mainnet', audience: 'https://sidequest.exchange', rpcUrl: '',
     call: async () => ({ ok: false, code: 'rate-limited', message: 'wallet write limit reached', retryAfter: 42 }),
   }, 'prepare_directory_enrollment', { agentId: '1', payload: {} })).rejects.toMatchObject({ code: 'rate-limited', retryAfter: 42 })
 })

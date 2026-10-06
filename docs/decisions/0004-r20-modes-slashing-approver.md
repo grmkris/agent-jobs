@@ -1,6 +1,6 @@
 # ADR-0004: Finished-work contests, signed hire handshake, slashing, approver (R20)
 
-**V1 scope note (2 Oct):** [ADR-0011](0011-hireling-v1.md) supersedes new-job contests, direct bond transfers, global windows, EOA launch authority and the restricted relay policy. The dated decisions and amendments below remain the legacy record; existing jobs stay on their original pair. V1 sponsorship is a separately caveated relay grant, not a change to the worker named by activation.
+**V1 scope note (2 Oct):** [ADR-0011](0011-sidequest-v1.md) supersedes new-job contests, direct bond transfers, global windows, EOA launch authority and the restricted relay policy. The dated decisions and amendments below remain the legacy record; existing jobs stay on their original pair. V1 sponsorship is a separately caveated relay grant, not a change to the worker named by activation.
 
 Date: 2026-09-26. Status: **contracts implemented and tested (S7, 27 Sep, `main`); not yet deployed.** The board
 side (S8) is still to build. Current contract surface: `contracts/SURFACE.md`. Spec: myplan note 12, R20 synthesis.
@@ -39,7 +39,7 @@ Decided by Kris in the R20 round (ChatGPT review comments R20-01…R20-11) and t
   signs an EIP-712 `Ruling`; `JobsEvaluator.ruleWithSignature` accepts it from any relayer.
 - **No mocks, testnet like mainnet:** no stubs or placeholder contracts in any deployment; real Jev; CRE
   counts only when the deployed workflow delivers on 10143; testnet first, mainnet (real USDC, real
-  FACTORY, EOA admin) before the deadline.
+  SIDE, EOA admin) before the deadline.
 - **Quote-to-hire is in for the hackathon.** A quote request is a board record ("Accepting quotes — reward
   not escrowed") listing the accepted tokens; a quote names one token and exact amount; quotes are private to
   publisher and bidder until selection; no automatic lowest bid. Picking a quote publishes the ordinary
@@ -92,6 +92,6 @@ ChatGPT reviewed spec revision 114 and the code at `47c4dd2`. Kris decided:
   rehearsal; no public write endpoint in any staging deploy); candidate vs on-chain evidence labels;
   durable operation records with `termsHash` idempotency on-chain; arbitrator = model proposes,
   deterministic signer validates, decision persisted per dispute.
-- **R114-09** FACTORY supply and mint authority decided before mainnet; the code supports a no-faucet
+- **R114-09** SIDE supply and mint authority decided before mainnet; the code supports a no-faucet
   production configuration now. **R114-10** no exposure caps. Mainnet hold gates 0 at launch.
 - First real jobs: CI for `runner-spike-fixture`, then `scripts/reality-check.ts` in this repo.

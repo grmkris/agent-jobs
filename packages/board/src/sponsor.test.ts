@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, TransactionReceiptNotFoundError, decodeFunctionData, encodeFunctionData, keccak256, parseTransaction, size } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,7 @@ import { Board, BoardError } from './service.ts'
 import { SPONSOR_LIMITS, SponsorDesk } from './sponsor.ts'
 import { sponsorRelayFloor } from './sponsor-policy.ts'
 import { fromNodeSqlite } from './store.ts'
-import { delegationManagerAbi } from '@agent-jobs/sdk'
+import { delegationManagerAbi } from '@sidequest/sdk'
 import { RelaySender } from './relay.ts'
 import { admissionFailure, hostedToolNames, parseHostedAdmission, readOnlyHostedTools } from './admission.ts'
 
@@ -17,8 +17,8 @@ const addr = (n: string) => `0x${n.repeat(40)}` as Address
 function fixture(network: sdk.Network = 'monad-testnet') {
   const owner = privateKeyToAccount(generatePrivateKey()), relay = privateKeyToAccount(generatePrivateKey())
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
-  const stack: sdk.Stack = { ...base.stack, kind: 'hireling-v1', holding: addr('1'), evaluator: addr('2') }
-  const deployment = { ...base.deployment, network, chainId: network === 'monad-mainnet' ? 143 : 10143, relay: relay.address, stacks: { main: stack }, hireling: {
+  const stack: sdk.Stack = { ...base.stack, kind: 'sidequest-v1', holding: addr('1'), evaluator: addr('2') }
+  const deployment = { ...base.deployment, network, chainId: network === 'monad-mainnet' ? 143 : 10143, relay: relay.address, stacks: { main: stack }, sidequest: {
     block: 0n, factory: stack.factory, safe: addr('4'), vault: addr('3'), feeSchedule: addr('5'),
     distributor: addr('6'), miningReserve: addr('7'), teamVesting: addr('8'), t0: 1,
   } }
@@ -75,7 +75,7 @@ function fixture(network: sdk.Network = 'monad-testnet') {
   const desk = boot()
   const sign = (typedData: string, account = owner) => sdk.signTypedDataJson({ account, signTypedData: (args: Parameters<typeof account.signTypedData>[0]) => account.signTypedData(args) } as never, typedData)
   const live = async () => { const p = await desk.prepare(owner.address); await desk.confirm(owner.address, await sign(p.sign.typedData)); return p }
-  const cancel = (n = 1n) => ({ to: stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [n] }) })
+  const cancel = (n = 1n) => ({ to: stack.holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [n] }) })
   const entries = (calls: readonly import('./sponsor.ts').SponsorCall[], wallet = owner.address) => {
     const row = sql.all<{ delegation_hash: Hex }>("SELECT delegation_hash FROM grants WHERE delegator=? AND kind='operator' ORDER BY expires_at DESC,rowid DESC LIMIT 1", wallet.toLowerCase())[0]
     const fallback = sql.all<{ delegation_hash: Hex }>("SELECT delegation_hash FROM grants WHERE kind='operator' ORDER BY rowid DESC LIMIT 1")[0]
@@ -155,9 +155,9 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
   it('D15 refuses every omitted mutating method and noncanonical calldata before simulation', async () => {
     const f = fixture(); await f.live()
     for (const [to, abi, methods] of [
-      [f.ctx.stack.holding, sdk.hirelingHoldingAbi, ['publish', 'topUp', 'setDefaultArbitrator']],
-      [f.ctx.stack.evaluator, sdk.hirelingEvaluatorAbi, ['rule', 'ruleWithSignature', 'cancelRuling', 'notePause', 'setVerifier']],
-      [f.ctx.deployment.hireling!.vault, sdk.stakeVaultAbi, ['delegate', 'delegateWithPermit', 'requestUndelegate', 'setHoldingDenied']],
+      [f.ctx.stack.holding, sdk.sidequestHoldingAbi, ['publish', 'topUp', 'setDefaultArbitrator']],
+      [f.ctx.stack.evaluator, sdk.sidequestEvaluatorAbi, ['rule', 'ruleWithSignature', 'cancelRuling', 'notePause', 'setVerifier']],
+      [f.ctx.deployment.sidequest!.vault, sdk.stakeVaultAbi, ['delegate', 'delegateWithPermit', 'requestUndelegate', 'setHoldingDenied']],
       [f.ctx.deployment.core, sdk.coreAbi, ['setPayoutReceiver', 'pause', 'upgradeToAndCall']],
     ] as const) {
       for (const name of methods) {
@@ -175,8 +175,8 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
   it('uses estimated gas, a small priority fee and receipt cost, reserving gas times the full max fee', async () => {
     const f = fixture(); await f.live()
     const calls = [
-      { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },
-      { to: f.ctx.stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [1n] }) },
+      { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },
+      { to: f.ctx.stack.holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'settle', args: [1n] }) },
     ]
     const op = await f.desk.submit(f.owner.address, f.entries(calls, f.owner.address), 'deferred')
     const raw = f.sql.all<{ raw_tx: Hex; cost: string; reserved_cost: string }>('SELECT * FROM sponsor_operations WHERE id=?', op.operationId)[0]!
@@ -192,8 +192,8 @@ describe('ERC-7710 sponsorship boundaries and recovery', () => {
   it('uses the summed inner gas limits and manager overhead only for an unreliable estimate', async () => {
     const f = fixture(); await f.live()
     const calls = [
-      { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },
-      { to: f.ctx.stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [1n] }) },
+      { to: f.ctx.stack.evaluator, data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'retryDeferred', args: [1n] }) },
+      { to: f.ctx.stack.holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'settle', args: [1n] }) },
     ]
     f.client.call.mockRejectedValueOnce(new Error('CoreGasTooLow'))
     const op = await f.desk.submit(f.owner.address, f.entries(calls, f.owner.address), 'fallback')

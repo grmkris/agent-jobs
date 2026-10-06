@@ -9,7 +9,7 @@ const agent: Address = '0x2222222222222222222222222222222222222222'
 const edgeIp = '2001:db8::1234'
 const spoofedIp = '192.0.2.99'
 const env: BoardCall['env'] = {
-  network: 'monad-mainnet', boardId: 'public', rpcUrl: '', domain: 'hireling.test', uri: 'https://hireling.test', manifestBaseUrl: '',
+  network: 'monad-mainnet', boardId: 'public', rpcUrl: '', domain: 'sidequest.test', uri: 'https://sidequest.test', manifestBaseUrl: '',
   screening: { baseUrl: '', apiKey: '', model: '' }, attesterKey: '', relayKey: '', github: { appId: '', privateKeyPem: '', installationId: '' },
 }
 

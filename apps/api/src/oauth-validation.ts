@@ -1,5 +1,5 @@
 /** OAuth 2.1 public clients: exact redirect/resource binding and PKCE S256 only. */
-export const OAUTH_SCOPES = ['hireling:read', 'hireling:hire', 'hireling:work'] as const
+export const OAUTH_SCOPES = ['sidequest:read', 'sidequest:hire', 'sidequest:work'] as const
 
 export function parseScopes(value: unknown): string[] | undefined {
   if (typeof value !== 'string') return undefined

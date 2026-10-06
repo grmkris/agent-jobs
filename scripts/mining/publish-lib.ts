@@ -99,8 +99,8 @@ export async function publishEpoch(bytes: Uint8Array, stage: PublishStage, confi
   try {
     const d = deploymentFromConfig(selected.network, config)
     if (d.chainId !== selected.chainId) return refuse('stage-chain-mismatch')
-    if (d.hireling === null) return refuse('config-unavailable')
-    distributor = d.hireling.distributor
+    if (d.sidequest === null) return refuse('config-unavailable')
+    distributor = d.sidequest.distributor
   } catch (error) {
     if (error instanceof MiningPublishError) throw error
     return refuse('config-unavailable')
@@ -143,7 +143,7 @@ export class CloudflareManifests implements ManifestsStore {
   }
   async bucket(stage: PublishStage) {
     const selected = stageOf(stage)
-    const tags = ['alchemy:stack:AgentJobs', `alchemy:stage:${stage}`, 'alchemy:id:Api']
+    const tags = ['alchemy:stack:Sidequest', `alchemy:stage:${stage}`, 'alchemy:id:Api']
     let script: string = targets.Api
     if (stage === 'prod') {
       // Pinned listScripts is mode=single with a tag filter; verify returned count metadata if supplied.
@@ -158,13 +158,13 @@ export class CloudflareManifests implements ManifestsStore {
     const bindings = settings.bindings
     if (!Array.isArray(bindings)) return refuse('worker-identity-invalid')
     const bound = (name: string) => bindings.filter(b => b.name === name)
-    for (const [name, text] of [['ALCHEMY_STACK_NAME', 'AgentJobs'], ['ALCHEMY_STAGE', stage], ['NETWORK', selected.network]]) {
+    for (const [name, text] of [['ALCHEMY_STACK_NAME', 'Sidequest'], ['ALCHEMY_STAGE', stage], ['NETWORK', selected.network]]) {
       const rows = bound(name!)
       if (rows.length !== 1 || rows[0]!.type !== 'plain_text' || rows[0]!.text !== text) return refuse('worker-identity-invalid')
     }
     const manifests = bound('Manifests'), bucket = manifests[0]?.bucket_name ?? ''
     // Bucket('Manifests') uses createPhysicalName({id:'Manifests',maxLength:63}).toLowerCase():
-    // AgentJobs-Manifests-<stage>-<16 base32 instance chars>. The deployed binding supplies that instance suffix.
+    // Sidequest-Manifests-<stage>-<16 base32 instance chars>. The deployed binding supplies that instance suffix.
     if (manifests.length !== 1 || manifests[0]!.type !== 'r2_bucket' || !new RegExp(`^agentjobs-manifests-${stage}-[a-z2-7]{16}$`).test(bucket)
       || (stage === 'staging' && bucket !== targets.Manifests)) return refuse('bucket-identity-invalid')
     const bucketInfo = (await this.#json(`/r2/buckets/${bucket}`)).result as { name?: string }

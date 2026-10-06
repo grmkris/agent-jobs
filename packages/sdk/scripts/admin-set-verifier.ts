@@ -9,7 +9,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import { env, envLocal, log, txUrl } from './lib/common.ts'
 
-const network = (process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet') as sdk.Network
+const network = (process.env.SIDEQUEST_NETWORK ?? 'monad-testnet') as sdk.Network
 if (network !== 'monad-testnet') throw new Error('this script is testnet only')
 const verifier = env('VERIFIER')
 if (!isAddress(verifier)) throw new Error('VERIFIER must be a 0x address')

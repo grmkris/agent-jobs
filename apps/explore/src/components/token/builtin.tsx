@@ -1,6 +1,6 @@
 /**
- * The icons of the tokens Hireling itself deploys, drawn here rather than vendored: FACTORY (the Hireling mark on its
- * indigo) and the testnet's mUSD and mEUR. The test tokens are a $ and a € on muted green and blue under a diagonal
+ * The icons of the tokens Sidequest itself deploys, drawn here rather than vendored: SIDE (the Sidequest mark on its
+ * ink) and the testnet's mUSD and mEUR. The test tokens are a $ and a € on muted green and blue under a diagonal
  * hatch, so they never pass for USDC or EURC. Paths only (no SVG <text>): an icon adds no text to the line it sits in.
  */
 import { type SVGProps, useId } from 'react'
@@ -12,9 +12,9 @@ const svg = (props: IconProps) => ({ viewBox: '0 0 32 32', 'aria-hidden': true, 
 export function FactoryIcon(props: IconProps) {
   return (
     <svg {...svg(props)}>
-      {/* The Hireling mark in the page's ink: near-black on light, inverted on dark, like the favicon. */}
+      {/* The Sidequest mark in the page's ink: near-black on light, inverted on dark, like the favicon. */}
       <circle cx="16" cy="16" r="16" className="fill-foreground" />
-      <path d="M11 9v14M21 9v14M11 16h10" className="stroke-background" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+      <path d="M8 9h8l8 8M24 23h-8l-8-8" className="stroke-background" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   )
 }

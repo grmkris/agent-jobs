@@ -11,7 +11,7 @@ export function LaunchingSoon({ title }: { title: string }) {
     <>
       <PageTitle sub="Launching soon">{title}</PageTitle>
       <div role="status" className="grid gap-2 rounded-2xl bg-tint/10 px-4 py-3.5">
-        <p className="font-semibold">Hireling on mainnet opens soon</p>
+        <p className="font-semibold">Sidequest on mainnet opens soon</p>
         <p className="text-sm leading-relaxed text-label-2">
           Until launch you can look around, but nothing can be published, taken, staked or paid here. Everything already works on testnet, with test tokens.
         </p>

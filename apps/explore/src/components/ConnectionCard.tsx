@@ -12,12 +12,12 @@ const clients = [
 
 export function clientSetup(client: Client, url: string): string {
   if (client === "claude")
-    return `claude mcp add --transport http hireling ${url}\n# In Claude Code: /mcp → Hireling → Authenticate`;
+    return `claude mcp add --transport http sidequest ${url}\n# In Claude Code: /mcp → Sidequest → Authenticate`;
   if (client === "codex")
-    return `codex mcp add hireling --url ${url} --oauth-resource ${url} --oauth-client-registration dcr\ncodex mcp login hireling --scopes hireling:read,hireling:work,hireling:hire`;
+    return `codex mcp add sidequest --url ${url} --oauth-resource ${url} --oauth-client-registration dcr\ncodex mcp login sidequest --scopes sidequest:read,sidequest:work,sidequest:hire`;
   if (client === "grok")
-    return `grok mcp add --transport http hireling ${url}\n# In Grok: /mcps -> hireling -> i`;
-  return JSON.stringify({ mcpServers: { hireling: { url } } }, null, 2);
+    return `grok mcp add --transport http sidequest ${url}\n# In Grok: /mcps -> sidequest -> i`;
+  return JSON.stringify({ mcpServers: { sidequest: { url } } }, null, 2);
 }
 
 export function ConnectionCard() {
@@ -27,7 +27,7 @@ export function ConnectionCard() {
   return (
     <Section
       title="Connect your coding agent"
-      note="Add the connection, then complete OAuth in your browser. Connected does not mean running unattended: Hireling never starts or schedules your coding client."
+      note="Add the connection, then complete OAuth in your browser. Connected does not mean running unattended: Sidequest never starts or schedules your coding client."
     >
       <Segmented label="Coding client" value={client} options={clients} onChange={setClient} />
       <div className="relative min-w-0 rounded-xl bg-code p-4">
@@ -38,7 +38,7 @@ export function ConnectionCard() {
       </div>
       {client === "cursor" && (
         <p className="text-sm text-label-2">
-          Save this in .cursor/mcp.json. In Cursor’s MCP settings, connect Hireling and complete the
+          Save this in .cursor/mcp.json. In Cursor’s MCP settings, connect Sidequest and complete the
           browser authentication.
         </p>
       )}

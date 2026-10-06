@@ -1,9 +1,9 @@
 /** Local ECDSA authority, SQLite reconstruction and the deployed registry/delegation contracts on a Monad fork. */
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type LocalAccount } from 'viem'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { fromNodeSqlite } from './store.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
 import { GrantStore } from './grants.ts'
@@ -16,7 +16,7 @@ import { BoardError } from './service.ts'
 
 const suite = forkEnabled ? describe : describe.skip
 suite('resumable agent registry onboarding', () => {
-  let fixture: Awaited<ReturnType<typeof startHirelingFork>>
+  let fixture: Awaited<ReturnType<typeof startSidequestFork>>
   let db: DatabaseSync
   let ctx: sdk.Ctx
   let agents: AgentStore
@@ -41,7 +41,7 @@ suite('resumable agent registry onboarding', () => {
   }
 
   beforeAll(async () => {
-    fixture = await startHirelingFork()
+    fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
     now = Number((await ctx.publicClient.getBlock()).timestamp)
     db = new DatabaseSync(':memory:')

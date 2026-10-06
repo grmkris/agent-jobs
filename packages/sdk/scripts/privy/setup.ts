@@ -86,7 +86,7 @@ export async function setup(): Promise<{ signerId: string; adminId: string; poli
         state[name] = { key: crypto.randomUUID(), startedAt: new Date().toISOString() }
         saveState(state)
         const result = await api.checked('POST', '/key_quorums', {
-          display_name: `Hireling v2 ${name} Monad testnet`, public_keys: [publicKey], authorization_threshold: 1,
+          display_name: `Sidequest v2 ${name} Monad testnet`, public_keys: [publicKey], authorization_threshold: 1,
         })
         id = required(result as Record<string, string>, 'id')
         state[name]!.id = id

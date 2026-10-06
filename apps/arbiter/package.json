@@ -1,5 +1,5 @@
 {
-  "name": "@agent-jobs/arbiter",
+  "name": "@sidequest/arbiter",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,8 +7,8 @@
     "start": "bun src/main.ts"
   },
   "dependencies": {
-    "@agent-jobs/board": "workspace:*",
-    "@agent-jobs/sdk": "workspace:*",
+    "@sidequest/board": "workspace:*",
+    "@sidequest/sdk": "workspace:*",
     "viem": "2.56.9"
   },
   "devDependencies": {

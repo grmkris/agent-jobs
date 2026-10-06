@@ -36,7 +36,7 @@ const escapeHtml = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<
 
 export async function ownerOperationId(id: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id))
-  return `hireling_alert_${Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('')}`
+  return `sidequest_alert_${Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('')}`
 }
 
 export function myagentOwnerSender(accessToken: string, transport: typeof fetch): (item: OwnerAlert) => Promise<void> {
@@ -50,7 +50,7 @@ export function myagentOwnerSender(accessToken: string, transport: typeof fetch)
         headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'send_message', arguments: {
           operationId,
-          text: `<b>Hireling ${escapeHtml(item.severity)}</b>\n${escapeHtml(item.summary)}\n${escapeHtml(item.detail)}`,
+          text: `<b>Sidequest ${escapeHtml(item.severity)}</b>\n${escapeHtml(item.summary)}\n${escapeHtml(item.detail)}`,
         } } }),
       })
     } catch {

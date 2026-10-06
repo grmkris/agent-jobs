@@ -1,7 +1,7 @@
 /** Discovery comes from a checked index; every claim and amount below is re-read from the chain. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, encodeFunctionData, zeroAddress } from 'viem'
-import { holdingAbi, settleHireling, transaction } from './hireling.ts'
+import { holdingAbi, settleSidequest, transaction } from './sidequest.ts'
 import { miningProof, type MiningSource } from './mining.ts'
 
 export interface CollectSnapshot {
@@ -66,11 +66,11 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
     const [job, listing] = await Promise.all([sdk.getJob(ctx, jobId), sdk.getListing(ctx, jobId)])
     if (!same(job.client, ctx.stack.holding)) throw new Error('the collect index does not match the canonical job Holding')
     if (ctx.stack.openTokens) addToken(ctx, listing.token)
-    const contribution = ctx.stack.kind === 'hireling-v1'
-      ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'topUpOf', args: [jobId, wallet] }) : 0n
+    const contribution = ctx.stack.kind === 'sidequest-v1'
+      ? await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'topUpOf', args: [jobId, wallet] }) : 0n
     const party = [listing.creator, listing.approver, listing.worker].some(a => same(a, wallet))
     if (party || contribution > 0n) {
-      const transactions = ctx.stack.kind === 'hireling-v1' ? await settleHireling(ctx, jobId, undefined, now) : await legacySettlement(ctx, jobId, now)
+      const transactions = ctx.stack.kind === 'sidequest-v1' ? await settleSidequest(ctx, jobId, undefined, now) : await legacySettlement(ctx, jobId, now)
       if (transactions.length > 0) out.push({ kind: 'settle', jobId: candidate.jobId, description: 'Finalize and settle this job under its agreed outcome.', transactions })
       else if (['Open', 'Funded', 'Submitted'].includes(job.statusName) && now >= job.expiredAt) {
         // The core's own claim cutoff and pending-claim restrictions remain authoritative.
@@ -84,7 +84,7 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
           ] })
       }
     }
-    if (ctx.stack.kind === 'hireling-v1') {
+    if (ctx.stack.kind === 'sidequest-v1') {
       const v1 = await sdk.getV1Listing(ctx, jobId)
       if (v1.outcome === 2 && contribution > 0n) out.push({ kind: 'claimTopUpRefund', jobId: candidate.jobId, token: listing.token, amount: contribution.toString(), description: 'Collect your contribution to this refunded job.', transactions: [sdk.topUpRefundTransaction(ctx, jobId, wallet)] })
     }
@@ -93,8 +93,8 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
     const owed = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: holdingAbi(ctx), functionName: 'owed', args: [token, wallet] })
     if (owed > 0n) out.push({ kind: 'withdraw', token, amount: owed.toString(), description: 'Withdraw the token payment held for your wallet.', transactions: [transaction(ctx, 'Withdraw the refused token payout', ctx.stack.holding, encodeFunctionData({ abi: holdingAbi(ctx), functionName: 'withdraw', args: [token] }), 450_000n)] })
   }
-  if (base.deployment.hireling !== null) {
-    const h = base.deployment.hireling
+  if (base.deployment.sidequest !== null) {
+    const h = base.deployment.sidequest
     const candidates = snapshot.positions ?? [{ account: wallet, delegator: wallet, generation: 0n }]
     for (const candidate of candidates) {
       if (!same(candidate.delegator, wallet)) throw new Error('the collect index references another position owner')
@@ -113,7 +113,7 @@ export async function collectActions(base: sdk.Ctx, wallet: Address, snapshot: C
       if (mining === undefined) throw new Error('mining artifacts are unavailable for Collect')
       const claim = await miningProof(base, wallet, epoch, mining)
       if (claim.transactions.length > 0) out.push({ kind: 'miningClaim', epoch, token: claim.token, amount: claim.amount,
-        description: 'Claim work mining into your FACTORY stake.', transactions: claim.transactions })
+        description: 'Claim work mining into your SIDE stake.', transactions: claim.transactions })
     }
   }
   return out

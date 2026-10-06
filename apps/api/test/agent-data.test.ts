@@ -1,7 +1,7 @@
 /** `/data/agents/<id>` over a real SQLite index: the current agent wallet's posted jobs, boards and registry answers. */
 import { DatabaseSync } from 'node:sqlite'
-import { fromNodeSqlite, migrate } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { fromNodeSqlite, migrate } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
 import { type Address, ContractFunctionRevertedError, zeroAddress } from 'viem'
 import { afterEach, expect, it } from 'vitest'
 import { agentDataBody, currentIdentity, type IdentityReads } from '../src/routes/agent-data.ts'
@@ -17,7 +17,7 @@ async function fixture() {
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const sql = fromNodeSqlite(db)
   await migrate(sql); await migrateRegistry(sql)
-  const job = db.prepare("INSERT INTO jobs (chain_id,job_id,stack,kind,mode,status,creator,token,reward,policy_hash,published_block,updated_block) VALUES (?,?,'main','hireling-v1','hire',?,?,?,'5000000',?,?,?)")
+  const job = db.prepare("INSERT INTO jobs (chain_id,job_id,stack,kind,mode,status,creator,token,reward,policy_hash,published_block,updated_block) VALUES (?,?,'main','sidequest-v1','hire',?,?,?,'5000000',?,?,?)")
   // Agent 2013's wallet posted two jobs (checksummed, as the indexer stores it); another wallet posted one more.
   job.run(chainId, '130', 'open', agentWallet, other, '0xAAAA', 10, 10)
   job.run(chainId, '131', 'active', agentWallet, other, '0xBBBB', 12, 13)

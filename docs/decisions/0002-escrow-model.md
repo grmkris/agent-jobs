@@ -1,6 +1,6 @@
 # ADR-0002: Escrow model — Holding as the ERC-8183 client
 
-**V1 scope note (2 Oct):** this dated spike establishes Holding as client, not the current handshake or bond custody. [ADR-0011](0011-hireling-v1.md) specifies worker activation, net-budget authorization and vault reservations for v1.
+**V1 scope note (2 Oct):** this dated spike establishes Holding as client, not the current handshake or bond custody. [ADR-0011](0011-sidequest-v1.md) specifies worker activation, net-budget authorization and vault reservations for v1.
 
 Date: 2026-09-25. Status: accepted (spike S1).
 
@@ -39,7 +39,7 @@ such a job so the creator recovers immediately rather than at expiry.
 ## Superseded in part
 
 ADR-0003 (26 Sep) separates the collateral asset from the reward, replaces the single optional bond with
-creator and worker bonds in FACTORY, and makes the ruling two-part. The Holding-as-client model and the
+creator and worker bonds in SIDE, and makes the ruling two-part. The Holding-as-client model and the
 refund paths described here stand.
 
 ## Consequences

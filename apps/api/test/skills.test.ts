@@ -20,7 +20,7 @@ describe('skills are the single source for hosted MCP guidance', () => {
   })
 
   it('sends connector instructions under the 2,048 characters MCP clients keep', () => {
-    for (const origin of ['https://testnet.hireling.xyz', 'https://hireling.xyz']) {
+    for (const origin of ['https://dev.sidequest.exchange', 'https://sidequest.exchange']) {
       const text = connectorInstructions(origin)
       expect(text.length).toBeLessThanOrEqual(2048)
       expect(text).toContain(`${origin}/start.md`)
@@ -32,7 +32,7 @@ describe('skills are the single source for hosted MCP guidance', () => {
     for (const role of ['connector', 'worker', 'publisher'] as const) {
       const body = read(`skill/${role}/SKILL.md`).replace(/^---\n[\s\S]*?\n---\n+/, '').trimEnd()
       expect(ROLE_GUIDES[role]).toBe(body)
-      expect(ROLE_GUIDES[role].startsWith('# Hireling ')).toBe(true)
+      expect(ROLE_GUIDES[role].startsWith('# Sidequest ')).toBe(true)
     }
   })
 

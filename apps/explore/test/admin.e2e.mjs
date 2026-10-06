@@ -5,14 +5,14 @@ import { chromium } from 'playwright-core';
 import { concatHex, encodeFunctionData, encodePacked, parseAbi, size } from 'viem';
 import { createServer } from 'vite';
 
-// The Safe console (U5) against a fixture Safe and Hireling v1 (admin-wagmi.mjs): owner-only gating, accepting
+// The Safe console (U5) against a fixture Safe and Sidequest v1 (admin-wagmi.mjs): owner-only gating, accepting
 // ownership, pausing the core, a fee schedule proposal with its 3-day timelock (refused rules, cancel, execute by
 // anyone), a vault Holding proposal refused before 8 days and a revocation, an epoch's funding and root from its
 // epoch file (unfunded, partly, fully, or funded since the run), and the epoch price list signed by the owner's wallet
 // and read back by the mining tool's own code. Every action is reviewed as the decoded call before the wallet opens.
 // Mocked Chromium only: no sends; the price list is signed with a public anvil test key.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-admin-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-admin-evidence';
 const base = 'http://127.0.0.1:5196';
 // The signed-in Safe owner: the address of the public anvil test key #0, which the fixture wallet signs typed data with
 // (admin-wagmi.mjs), so its Safe transaction and price-list signatures recover to the owner.
@@ -30,7 +30,7 @@ const minedRoot = `0x${'ab'.repeat(32)}`;
 const minedDataHash = `0x${'cd'.repeat(32)}`;
 const miningAbi = parseAbi(['function fund(uint256 epoch, uint256 amount)', 'function setRoot(uint256 epoch, bytes32 root, uint256 total, bytes32 dataHash)']);
 /**
- * Epoch 1 in the pinned shape mining:epoch writes (B8, scripts/mining/README.md): 5,000 FACTORY, `fundedForEpoch` of
+ * Epoch 1 in the pinned shape mining:epoch writes (B8, scripts/mining/README.md): 5,000 SIDE, `fundedForEpoch` of
  * it already in when the reserve had funded `totalFunded` in all, so its fund call sends the rest, or is left out.
  */
 function minedFile(totalFunded, fundedForEpoch) {
@@ -53,7 +53,7 @@ const [mUSD, mEUR, third] = testnet.rewardTokens.map((a) => a.toLowerCase());
 const tokenDecimals = { [mUSD]: 6, [mEUR]: 6, [third]: 18 };
 const pauseAbi = parseAbi(['function pause()', 'function unpause()', 'function notePause()']);
 const pauseCall = (functionName) => encodeFunctionData({ abi: pauseAbi, functionName });
-const asSafe = (to, data, operation = 0) => ({ description: 'Core.pause + HirelingEvaluator.notePause as the Safe, in one transaction', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) });
+const asSafe = (to, data, operation = 0) => ({ description: 'Core.pause + SidequestEvaluator.notePause as the Safe, in one transaction', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) });
 const multiSendAbi = parseAbi(['function multiSend(bytes transactions) payable']);
 const multiSend = (calls) => encodeFunctionData({ abi: multiSendAbi, functionName: 'multiSend', args: [concatHex(calls.map(([to, data]) => encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, to, 0n, BigInt(size(data)), data])))] });
 const phone = { width: 390, height: 844 };
@@ -67,7 +67,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -77,15 +77,15 @@ async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
   await context.addInitScript(({ account, contracts, owners, previousOwner, bytecode, draft, funded, nonce, decimals, safeIsAdmin, clocks, unreadableClocks }) => {
     const K = 10n ** 21n;
-    window.__hireling = contracts;
+    window.__sidequest = contracts;
     window.__bytecode = bytecode;
     if (draft !== null && sessionStorage.getItem('fixture-draft-set') === null) {
-      localStorage.setItem(`hireling.admin-op:${account.toLowerCase()}`, JSON.stringify(draft));
+      localStorage.setItem(`sidequest.admin-op:${account.toLowerCase()}`, JSON.stringify(draft));
       sessionStorage.setItem('fixture-draft-set', '1');
     }
     window.__wallet = { address: account, connected: true, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
     const owned = [contracts.vault, contracts.holding, contracts.evaluator, contracts.miningReserve, contracts.distributor].map((a) => a.toLowerCase());
     window.__admin = {
       safe: contracts.safe, owners, threshold: 1n,
@@ -243,14 +243,14 @@ try {
     await mining.getByText('epoch-1.json', { exact: true }).waitFor();
     await mining.getByText(minedDataHash, { exact: true }).waitFor();
     // The root waits for its funding: the distributor holds nothing spare yet.
-    await mining.getByText('Fund it first: the root needs 5,000 FACTORY in the distributor, which has 0 FACTORY spare.', { exact: true }).waitFor();
+    await mining.getByText('Fund it first: the root needs 5,000 SIDE in the distributor, which has 0 SIDE spare.', { exact: true }).waitFor();
     assert.equal(await mining.getByRole('button', { name: 'Review the root' }).isDisabled(), true);
     await capture(page, `${device}-mining-file`);
-    await mining.getByRole('button', { name: 'Review funding · 5,000 FACTORY' }).click();
+    await mining.getByRole('button', { name: 'Review funding · 5,000 SIDE' }).click();
     await page.getByText('fund(epoch, amount)', { exact: true }).waitFor();
     await page.getByText(/with the signature you made for this exact transaction at the Safe’s current nonce/).waitFor();
     await send(page, 'Fund epoch 1');
-    await mining.getByText('Funded: the remaining 5,000 FACTORY has gone in since the file was made.', { exact: true }).waitFor();
+    await mining.getByText('Funded: the remaining 5,000 SIDE has gone in since the file was made.', { exact: true }).waitFor();
     await mining.getByRole('button', { name: 'Review the root' }).click();
     await page.getByText('setRoot(epoch, root, total, dataHash)', { exact: true }).waitFor();
     await page.getByText(total, { exact: true }).first().waitFor();
@@ -258,8 +258,8 @@ try {
     await mining.getByText('Posted.', { exact: true }).waitFor();
     await mining.getByText(minedRoot, { exact: true }).nth(1).waitFor();
     // As on the real fork: the posted total is owed, and the distributor has nothing spare.
-    await mining.getByText(/^Owed, unclaimed\s*5,000 FACTORY$/).waitFor();
-    await mining.getByText(/^Spare in the distributor\s*0 FACTORY$/).waitFor();
+    await mining.getByText(/^Owed, unclaimed\s*5,000 SIDE$/).waitFor();
+    await mining.getByText(/^Spare in the distributor\s*0 SIDE$/).waitFor();
     // The posted total overstated the leaves: shrink it to their sum, never above the posted total.
     await mining.getByRole('textbox', { name: 'New epoch total' }).fill('6000');
     await mining.getByText('The new total must be below the posted one.', { exact: true }).waitFor();
@@ -267,8 +267,8 @@ try {
     await mining.getByRole('button', { name: 'Review the new total' }).click();
     await page.getByText('resizeRoot(epoch, newTotal)', { exact: true }).waitFor();
     await send(page, 'Shrink the total of epoch 1');
-    await mining.getByText('0 FACTORY of 4,200 FACTORY', { exact: true }).waitFor();
-    await mining.getByText(/^Spare in the distributor\s*800 FACTORY$/).waitFor();
+    await mining.getByText('0 SIDE of 4,200 SIDE', { exact: true }).waitFor();
+    await mining.getByText(/^Spare in the distributor\s*800 SIDE$/).waitFor();
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), [
       'safe:acceptOwnership', 'atomic:pause', 'atomic:notePause', 'atomic:unpause', 'atomic:notePause', 'direct:notePause', 'safe:propose', 'safe:cancel', 'safe:propose', 'direct:execute', 'safe:proposeHolding', 'safe:revokeHolding', 'safe:fund', 'safe:setRoot', 'safe:resizeRoot',
     ]);
@@ -285,14 +285,14 @@ try {
     await page.goto(`${base}/admin`);
     const mining = section(page, 'Mining');
     await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(2000n * W, 2000n * W)));
-    await mining.getByText(/^Funded for it\s*2,000 FACTORY$/).waitFor();
-    await mining.getByText(/^Still to fund\s*3,000 FACTORY$/).waitFor();
+    await mining.getByText(/^Funded for it\s*2,000 SIDE$/).waitFor();
+    await mining.getByText(/^Still to fund\s*3,000 SIDE$/).waitFor();
     assert.equal(await mining.getByRole('button', { name: 'Review the root' }).isDisabled(), true);
     await capture(page, 'mining-partly-funded');
-    await mining.getByRole('button', { name: 'Review funding · 3,000 FACTORY' }).click();
+    await mining.getByRole('button', { name: 'Review funding · 3,000 SIDE' }).click();
     await send(page, 'Fund epoch 1');
     assert.equal(await page.evaluate(() => window.__admin.totalFunded.toString()), (5000n * W).toString());
-    await mining.getByText('Funded: the remaining 3,000 FACTORY has gone in since the file was made.', { exact: true }).waitFor();
+    await mining.getByText('Funded: the remaining 3,000 SIDE has gone in since the file was made.', { exact: true }).waitFor();
     await mining.getByRole('button', { name: 'Review the root' }).click();
     await send(page, 'Post the root of epoch 1');
     assert.deepEqual(await page.evaluate(() => window.__admin.calls.map((call) => `${call.via}:${call.functionName}`)), ['safe:fund', 'safe:setRoot']);
@@ -304,7 +304,7 @@ try {
     await page.goto(`${base}/admin`);
     const mining = section(page, 'Mining');
     await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(2000n * W, 2000n * W)));
-    await mining.getByRole('alert').filter({ hasText: 'The reserve has funded 2,500 FACTORY in all; the file expected 2,000 FACTORY.' }).filter({ hasText: 'Run pnpm mining:epoch 1 again and load the new file.' }).waitFor();
+    await mining.getByRole('alert').filter({ hasText: 'The reserve has funded 2,500 SIDE in all; the file expected 2,000 SIDE.' }).filter({ hasText: 'Run pnpm mining:epoch 1 again and load the new file.' }).waitFor();
     assert.equal(await mining.getByRole('button', { name: /^Review funding/ }).count(), 0);
     assert.equal(await mining.getByRole('button', { name: 'Review the root' }).isDisabled(), true);
     await capture(page, 'mining-funded-since');
@@ -329,12 +329,12 @@ try {
   // D18: a funding is signed for the Safe's nonce, read with the reserve's total at one block. Any Safe transaction
   // first and the Safe would refuse it (GS026), so the page refuses it too, fresh or restored, and offers nothing.
   {
-    const key = `hireling.admin-op:${owner}`;
+    const key = `sidequest.admin-op:${owner}`;
     const { context, page } = await fixture(phone, { funded: 2000n * W });
     await page.goto(`${base}/admin`);
     const mining = section(page, 'Mining');
     await mining.getByLabel('Epoch file').setInputFiles(epochFile(minedFile(2000n * W, 2000n * W)));
-    const review = mining.getByRole('button', { name: 'Review funding · 3,000 FACTORY' });
+    const review = mining.getByRole('button', { name: 'Review funding · 3,000 SIDE' });
     // Declined, or a signature that does not recover to the owner: nothing to review.
     await page.evaluate(() => { window.__admin.signWith = 'decline'; });
     await review.click();
@@ -362,7 +362,7 @@ try {
     const restored = [
       [{ funded: 5000n * W, nonce: 8n }, saved, /A Safe transaction has gone through since this funding was signed \(Safe nonce 7, now 8\)/],
       [{ funded: 2000n * W, nonce: 8n }, { ...saved, guard: { ...saved.guard, nonce: '8' } }, /It is not signed as you for the Safe’s nonce 8, so the Safe would refuse it\./],
-      [{ funded: 2500n * W }, saved, /The reserve has funded 2,500 FACTORY in all; this funding was signed when it had funded 2,000\./],
+      [{ funded: 2500n * W }, saved, /The reserve has funded 2,500 SIDE in all; this funding was signed when it had funded 2,000\./],
       [{ funded: 2000n * W }, { txs: saved.txs }, /It was saved without the Safe nonce and funding it was signed against\./],
       [{ funded: 2000n * W }, { txs: [{ ...saved.txs[0], data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [c.miningReserve, 0n, encodeFunctionData({ abi: miningAbi, functionName: 'fund', args: [1n, 3000n * W] }), 0, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(owner)] }) }] }, /MiningReserve\.fund goes out only signed for one Safe nonce/],
     ];
@@ -399,8 +399,8 @@ try {
     assert.equal(await prices.getByText('Price at least one token: fees in unpriced tokens do not count.', { exact: true }).count(), 0);
     await prices.getByRole('textbox', { name: 'USD price of mUSD' }).fill('1');
     await prices.getByRole('textbox', { name: 'USD price of mEUR' }).fill('1.08');
-    await prices.getByText('Enter the FACTORY price in USD, above 0.', { exact: true }).waitFor();
-    await prices.getByRole('textbox', { name: 'FACTORY price in USD' }).fill('0.0001');
+    await prices.getByText('Enter the SIDE price in USD, above 0.', { exact: true }).waitFor();
+    await prices.getByRole('textbox', { name: 'SIDE price in USD' }).fill('0.0001');
     // A token added by address answers no decimals on chain: priced, the list cannot be signed.
     await prices.getByRole('textbox', { name: 'Another token' }).fill('0x12');
     await prices.getByText('Not a token address.', { exact: true }).waitFor();
@@ -442,7 +442,7 @@ try {
     await sign.waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await context.close();
-    results.push({ checks: ['price list epoch defaults to the last ended', 'decimals read from the chain; an address with none cannot be priced', 'declined: nothing signed', 'signature recovering to another address: nothing to download', 'downloaded file read back by scripts/mining/prices.ts: epoch, tokens, decimals, FACTORY price, signer recovered to the owner', 'a change after signing asks for a new signature', 'no transaction sent'], passed: true });
+    results.push({ checks: ['price list epoch defaults to the last ended', 'decimals read from the chain; an address with none cannot be priced', 'declined: nothing signed', 'signature recovering to another address: nothing to download', 'downloaded file read back by scripts/mining/prices.ts: epoch, tokens, decimals, SIDE price, signer recovered to the owner', 'a change after signing asks for a new signature', 'no transaction sent'], passed: true });
   }
 
   // A restored draft is read again from its calldata: one that calls outside the deployment, or is signed for another
@@ -451,7 +451,7 @@ try {
     const foreign = encodeFunctionData({ abi: parseAbi(['function transfer(address to, uint256 amount)']), functionName: 'transfer', args: [stranger, 10n ** 24n] });
     const tampered = (to, data, signer) => ({ txs: [{ description: 'FeeSchedule.acceptOwnership as the Safe', chainId: 10143, to: c.safe, value: '0', data: encodeFunctionData({ abi: safeExec, functionName: 'execTransaction', args: [to, 0n, data, 0, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', preValidatedBy(signer)] }) }] });
     for (const [draft, problem] of [
-      [tampered(c.factory, foreign, owner), /which is not a Hireling contract in this deployment/],
+      [tampered(c.factory, foreign, owner), /which is not a Sidequest contract in this deployment/],
       [tampered(c.feeSchedule, '0x79ba5097', stranger), /It is not signed as you, the signed-in Safe owner\./],
     ]) {
       const { context, page } = await fixture({ width: 390, height: 844 }, { draft });

@@ -1,4 +1,4 @@
-import { batchCalldata } from '@agent-jobs/sdk';
+import { batchCalldata } from '@sidequest/sdk';
 
 export async function waitForTransactionReceipt(_config, { hash }) {
   const response = await fetch(`/__test/receipt?hash=${hash}`);

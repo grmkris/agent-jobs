@@ -1,5 +1,5 @@
 /** Permissions on demand at the sponsor boundary: only the stored operator → agent delegation, alone, inside its terms. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeAbiParameters, encodeFunctionData, erc20Abi } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { checkGrantCall, checkHireFunding } from './grant-calls.ts'
@@ -18,7 +18,7 @@ const periodic: sdk.GrantSpec = { kind: 'permission', delegator: operator, agent
   terms: { type: 'erc20-token-periodic', token, periodAmount: 10n, periodDuration: 86_400, recipient } }
 const exactData = encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient, 4n] })
 const exact: sdk.GrantSpec = { kind: 'permission', delegator: operator, agent, salt: 10n, start, expiry: start + 3600,
-  terms: { type: 'hireling:contract-call', target: token, value: 0n, callData: exactData } }
+  terms: { type: 'sidequest:contract-call', target: token, value: 0n, callData: exactData } }
 const signature = `0x${'ab'.repeat(65)}` as Hex
 const signed = (spec: sdk.GrantSpec) => ({ ...sdk.buildGrant(ctx, spec), signature })
 const transfer = (to: Address, value: bigint) => encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [to, value] })
@@ -56,7 +56,7 @@ describe('permission redemption', () => {
 
   it('refuses a permission mixed into a hire, and a delegation chain', () => {
     const allowanceSpec: sdk.GrantSpec = { kind: 'allowance-once', delegator: operator, agent, token, amount: 100n, salt: 3n, start }
-    const publish = encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'publish', args: [{
+    const publish = encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
       approver: agent, arbitrator: operator, manifestHash: sdk.EMPTY_HASH, policyHash: sdk.EMPTY_HASH, token, reward: 100n, creatorBond: 0n, workerBond: 0n,
       deliveryDeadline: start + 3600, expiredAt: start + 7200, reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200,
     }] })

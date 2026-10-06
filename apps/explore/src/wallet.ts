@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Chain, type EIP1193Provider, zeroAddress } from 'viem'
 import { createConfig, custom, http, useReadContract } from 'wagmi'
 import { monad, monadTestnet } from 'wagmi/chains'
@@ -6,17 +6,17 @@ import { injected } from 'wagmi/connectors'
 import { closeWrites } from './launch.ts'
 import { MAINNET_LIVE } from './release.ts'
 
-declare const __AGENT_JOBS_NETWORK__: sdk.Network
+declare const __SIDEQUEST_NETWORK__: sdk.Network
 declare const __PRIVY_APP_ID__: string
 
 /** Privy's public app id; empty hides the email/social sign-in. */
 export const privyAppId: string = typeof __PRIVY_APP_ID__ === 'string' ? __PRIVY_APP_ID__ : ''
 
-export const network: sdk.Network = typeof __AGENT_JOBS_NETWORK__ === 'string' ? __AGENT_JOBS_NETWORK__ : 'monad-testnet'
+export const network: sdk.Network = typeof __SIDEQUEST_NETWORK__ === 'string' ? __SIDEQUEST_NETWORK__ : 'monad-testnet'
 export const isMainnet = network === 'monad-mainnet'
 
 /** Canonical origin of each network's Explore (the header's network switch links to the other one's root). */
-export const NETWORK_ORIGINS = { 'monad-mainnet': 'https://hireling.xyz', 'monad-testnet': 'https://testnet.hireling.xyz' } as const
+export const NETWORK_ORIGINS = { 'monad-mainnet': 'https://sidequest.exchange', 'monad-testnet': 'https://dev.sidequest.exchange' } as const
 export { MAINNET_LIVE }
 
 /** The deploy's chain; testnet with the explorer overridden (the chain's default testnet explorer entry is stale). */
@@ -24,10 +24,10 @@ export const chain: Chain = isMainnet
   ? monad
   : { ...monadTestnet, blockExplorers: { default: { name: 'Monadscan', url: 'https://testnet.monadscan.com' } } }
 
-/** A deployment with Hireling v1: its contracts and the v1 `main` pair. The only kind of network Explore serves. */
-export type V1Deployment = sdk.Deployment & { readonly hireling: sdk.HirelingDeployment; readonly stacks: { readonly main: sdk.Stack } }
+/** A deployment with Sidequest v1: its contracts and the v1 `main` pair. The only kind of network Explore serves. */
+export type V1Deployment = sdk.Deployment & { readonly sidequest: sdk.SidequestDeployment; readonly stacks: { readonly main: sdk.Stack } }
 
-const isV1 = (d: sdk.Deployment): d is V1Deployment => d.hireling !== null && d.stacks.main?.kind === 'hireling-v1'
+const isV1 = (d: sdk.Deployment): d is V1Deployment => d.sidequest !== null && d.stacks.main?.kind === 'sidequest-v1'
 
 /** The network's contracts, or null before launch day promotes them (mainnet's `deployment` block is empty until then). */
 function loadDeployment(): V1Deployment | null {
@@ -40,7 +40,7 @@ function loadDeployment(): V1Deployment | null {
   }
 }
 const loaded = loadDeployment()
-/** Whether this network has Hireling v1 (U-MAINNET-EMPTY): false only on mainnet before launch day promotes it. */
+/** Whether this network has Sidequest v1 (U-MAINNET-EMPTY): false only on mainnet before launch day promotes it. */
 export const deployed = loaded !== null
 /**
  * The network's deployment. Before launch day it is a placeholder of zero addresses, so module-level reads of it stay
@@ -50,10 +50,10 @@ export const deployment: V1Deployment = loaded ?? undeployed()
 function undeployed(): V1Deployment {
   const none = zeroAddress
   const enforcers = { erc20PeriodTransfer: none, erc20TransferAmount: none, allowedCalldata: none, valueLte: none, allowedTargets: none, allowedMethods: none, limitedCalls: none, timestamp: none }
-  const hireling = { block: 0n, safe: none, factory: none, vault: none, feeSchedule: none, distributor: none, miningReserve: none, teamVesting: none, t0: 0 }
+  const sidequest = { block: 0n, safe: none, factory: none, vault: none, feeSchedule: none, distributor: none, miningReserve: none, teamVesting: none, t0: 0 }
   return {
-    network, chainId: chain.id, core: none, factory: none, hireling, rewardTokens: [],
-    stacks: { main: { kind: 'hireling-v1', factory: none, holding: none, evaluator: none, openTokens: false } }, legacyStacks: {}, identity: none,
+    network, chainId: chain.id, core: none, factory: none, sidequest, rewardTokens: [],
+    stacks: { main: { kind: 'sidequest-v1', factory: none, holding: none, evaluator: none, openTokens: false } }, legacyStacks: {}, identity: none,
     reputation: none, delegation: { manager: none, delegator: none, enforcers }, admin: none, poolFactory: null, arbitrator: none, attester: none,
     relay: none, x402: null, deployBlock: 0n,
   }
@@ -90,7 +90,7 @@ export const wagmiConfig = createConfig({
   // Sign-in is Privy only (email or social login with an embedded wallet); the injected connector serves the widget.
   connectors: privyAppId === '' ? [injectedConnector] : [privyConnector, injectedConnector],
   // With no contracts deployed there is nothing to read: every chain request is refused here, none goes out.
-  transports: { [chain.id]: deployed ? http() : custom({ request: () => Promise.reject(new Error('Hireling is not deployed on this network yet')) }) },
+  transports: { [chain.id]: deployed ? http() : custom({ request: () => Promise.reject(new Error('Sidequest is not deployed on this network yet')) }) },
 })
 
 /** The core's pause flag (admin power, README Trust): while set, every core call reverts and the board hands out none. */

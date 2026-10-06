@@ -1,5 +1,5 @@
 /** Lazy gas-grant renewal cannot refresh an operator spending allowance. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, keccak256, stringToHex } from 'viem'
 import { AgentStore } from './agents.ts'
 import { AgentSigning } from './agent-signing.ts'

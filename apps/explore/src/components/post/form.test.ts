@@ -111,7 +111,7 @@ describe('the Post form', () => {
 
 describe('Hire again', () => {
   const task: TaskIndexEntry = {
-    taskId: 't1', jobId: '58', stack: 'main', kind: 'hireling-v1', title: 'Fix the flaky test', brief: 'It fails one run in ten.', acceptanceCriteria: ['CI is green', 'No retries added'],
+    taskId: 't1', jobId: '58', stack: 'main', kind: 'sidequest-v1', title: 'Fix the flaky test', brief: 'It fails one run in ten.', acceptanceCriteria: ['CI is green', 'No retries added'],
     mode: 'hire', token: MEUR, reward: '12500000', creatorBond: '2000000000000000000', workerBond: '1500000000000000000',
     creator: MUSD, approver: MUSD, deliveryDeadline: NOW + 72 * 3600, selectionDeadline: null, requiredChecks: ['ci'], quoted: true,
     executionBudget: { kind: 'advance', token: MUSD, cap: '3000000', expiresAt: NOW + 72 * 3600 }, deliverable: { accepts: ['git', 'url'], target: 'https://example.test' },

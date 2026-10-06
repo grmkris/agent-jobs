@@ -21,7 +21,7 @@ type Auth = ReturnType<typeof useSignedIn>
 interface SavedOffer {
   taskId: string
   title: string
-  kind: 'legacy' | 'hireling-v1'
+  kind: 'legacy' | 'sidequest-v1'
   token: string
   reward: string
   creatorBond: string
@@ -79,7 +79,7 @@ export function ResumeOffer({ taskId, auth, onPublished }: { taskId: string; aut
       </>
     )
   }
-  if (t.kind !== 'hireling-v1') {
+  if (t.kind !== 'sidequest-v1') {
     return (
       <>
         {header}

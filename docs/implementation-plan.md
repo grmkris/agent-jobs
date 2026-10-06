@@ -1,14 +1,14 @@
 # Implementation plan (26 Sep 2026, after the R114 review)
 
-**Historical legacy build plan.** The S/B numbers, immutable evaluator windows, faucet and authorization statements below belong to the September protocol. Current v1 scope/order comes from the assigned track brief, coordinator decisions and [ADR-0011](decisions/0011-hireling-v1.md). They grant no deployment or transaction permission. The current testnet-only flow matrix runner is [v1-flows](../packages/sdk/scripts/v1-flows.md).
+**Historical legacy build plan.** The S/B numbers, immutable evaluator windows, faucet and authorization statements below belong to the September protocol. Current v1 scope/order comes from the assigned track brief, coordinator decisions and [ADR-0011](decisions/0011-sidequest-v1.md). They grant no deployment or transaction permission. The current testnet-only flow matrix runner is [v1-flows](../packages/sdk/scripts/v1-flows.md).
 
-The spec is myplan note 12 "Hackathon spec — agent-jobs"; decisions are in ADR-0004 (R20 + R114
+The spec is myplan note 12 "Hackathon spec — sidequest"; decisions are in ADR-0004 (R20 + R114
 amendment). This file is the execution order and must agree with note 12 §9. Working deadline: 13 Oct
 2026, 23:59 ET (official portal rules still to be confirmed by Kris).
 
 ## Rules for every step
 
-- **Dev machine: `netcup`** (`ssh netcup`, `~/code/agent-jobs`). All work happens there, in a session
+- **Dev machine: `netcup`** (`ssh netcup`, `~/code/sidequest`). All work happens there, in a session
   started on that machine; `.env.local` lives there (mode 600). Toolchain: Foundry 1.8.3, pnpm 10.13.1
   (`~/.local/bin`), Bun 1.4.2, Node 22, Docker, `gh`, `cre`, `mm`.
 - **No mocks in the product.** No stub code paths, no placeholder contracts in any deployment, no
@@ -117,7 +117,7 @@ access), the B6a video, and everything on mainnet.
 S7 progress: done (27 Sep) — R114-02, R114-03 (`settle`), approver and publish refusals, `activate`, `award`,
 violation-naming `reject` and burns, penalty guard, late-submission rules, `ruleWithSignature`, evidence event fields,
 reason-aware feedback, `MockPaymentToken(name, symbol)`, the CRE receiver code and the deploy recipe. Not deployed:
-the CRE receiver (S5, CRE access). 28 Sep: the bond token is any plain ERC-20 (a FACTORY launched elsewhere): slashes
+the CRE receiver (S5, CRE access). 28 Sep: the bond token is any plain ERC-20 (a SIDE launched elsewhere): slashes
 go to `0x…dEaD`, a fee-on-transfer token is refused, the recipe takes `factory.address`. Testnet's stacks were
 redeployed with this bytecode the same day (`script/DeployStacks.s.sol`).
 
@@ -200,7 +200,7 @@ separate agent, crops, audit skim, independent adversarial review; fixes, then r
 
 ## B7 Mainnet
 
-After B6a and Kris's FACTORY supply/mint decision. Same recipe, real windows, USDC the known token (any ERC-20 is a reward, ADR-0010), no faucet,
+After B6a and Kris's SIDE supply/mint decision. Same recipe, real windows, USDC the known token (any ERC-20 is a reward, ADR-0010), no faucet,
 hold gates 0, custom domain, `prod` stage; one real job settled with real USDC. Every transaction waits
 for Kris's explicit go.
 
@@ -213,7 +213,7 @@ AI disclosure), submission per the official rules.
 
 ```
 ssh netcup
-cd ~/code/agent-jobs && git status && git log --oneline -3
+cd ~/code/sidequest && git status && git log --oneline -3
 claude
 ```
 

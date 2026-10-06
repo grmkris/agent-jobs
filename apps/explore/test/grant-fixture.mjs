@@ -5,7 +5,7 @@ import { concat, toFunctionSelector } from 'viem';
 // Keep mocked sponsorship bytes tied to the same ABI and method allow-list as the signed grant template.
 const d = deployment('monad-testnet');
 const stack = d.stacks.main;
-if (stack === undefined || d.hireling === null) throw new Error('The testnet Hireling grant fixture is not deployed');
+if (stack === undefined || d.sidequest === null) throw new Error('The testnet Sidequest grant fixture is not deployed');
 const targets = workTargets({ deployment: d, stack });
 const target = (address) => {
   const found = targets.find((item) => item.address.toLowerCase() === address.toLowerCase());
@@ -13,14 +13,14 @@ const target = (address) => {
   return found;
 };
 const holding = target(stack.holding);
-const vault = target(d.hireling.vault);
+const vault = target(d.sidequest.vault);
 
 export const holdingAbi = holding.abi;
 export const vaultAbi = vault.abi;
 
 export function sponsorshipGrantTerms(contracts) {
   const ctx = {
-    deployment: { ...d, hireling: { ...d.hireling, vault: contracts.vault } },
+    deployment: { ...d, sidequest: { ...d.sidequest, vault: contracts.vault } },
     stack: { ...stack, holding: contracts.holding, evaluator: contracts.evaluator },
   };
   const templateTargets = workTargets(ctx);

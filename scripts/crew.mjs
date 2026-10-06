@@ -7,13 +7,13 @@ import { reportCliFailure } from './cli-errors.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const directory = join(root, '.crew')
-const network = 'hireling-crew'
+const network = 'sidequest-crew'
 const providerHost = '100.105.51.45'
 const workers = [
-  { slug: 'canvas', container: 'hireling-crew-grok', key: 'DEMO_CANVAS_PRIVATE_KEY' },
-  { slug: 'studio', container: 'hireling-crew-grok-studio', key: 'DEMO_STUDIO_PRIVATE_KEY' },
+  { slug: 'canvas', container: 'sidequest-crew-grok', key: 'DEMO_CANVAS_PRIVATE_KEY' },
+  { slug: 'studio', container: 'sidequest-crew-grok-studio', key: 'DEMO_STUDIO_PRIVATE_KEY' },
 ]
-const containers = [...workers.map(worker => worker.container), 'hireling-crew-demand', 'hireling-crew-codex']
+const containers = [...workers.map(worker => worker.container), 'sidequest-crew-demand', 'sidequest-crew-codex']
 
 function execute(program, args, options = {}) {
   const result = execFileSync(program, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options })
@@ -116,7 +116,7 @@ function start() {
     }
     execute('docker', ['run', '-d', '--name', worker.container, '--restart', 'unless-stopped', '--memory', '2g',
       '--network', network, '--user', `${process.getuid()}:${process.getgid()}`, '--stop-timeout', '180',
-      '--label', `hireling.crew.source=${sha}`, '--label', 'hireling.crew.network=monad-testnet',
+      '--label', `sidequest.crew.source=${sha}`, '--label', 'sidequest.crew.network=monad-testnet',
       '--env-file', join(directory, `${worker.slug}.env`),
       '-e', `DEMO_WORKER_SLUG=${worker.slug}`, '-e', 'DEMO_WORKER_STATE_DIR=/state',
       '-e', 'DEMO_JOURNAL_LOCKED=1',
@@ -137,7 +137,7 @@ function start() {
 function stop() {
   for (const name of containers) {
     if (!dockerState(name)?.Running) continue
-    if (name === 'hireling-crew-demand') {
+    if (name === 'sidequest-crew-demand') {
       execute('node', ['scripts/demand-bot.mjs', 'stop'], { timeout: 200_000 })
       console.log(`${name}: stopped; journal retained`)
       continue

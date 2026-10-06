@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, encodeFunctionData } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { type CollectAction, type MiningClaimContext, readMiningClaim } from './collect.ts'
@@ -12,7 +12,7 @@ const claim = (epoch: bigint, account: string, amount: bigint) =>
   encodeFunctionData({ abi: sdk.epochDistributorAbi as Abi, functionName: 'claim', args: [epoch, account, amount, [`0x${'aa'.repeat(32)}`]] })
 const row = (patch: Partial<CollectAction> = {}, data: `0x${string}` = claim(0n, me, 1234n * W), to = distributor): CollectAction => ({
   kind: 'miningClaim', epoch: '0', token: '0x00000000000000000000000000000000000000f1', amount: (1234n * W).toString(),
-  description: 'Claim work mining into your FACTORY stake.', transactions: [{ description: 'Claim', chainId: 10143, to, data, value: '0', gas: '500000' }], ...patch,
+  description: 'Claim work mining into your SIDE stake.', transactions: [{ description: 'Claim', chainId: 10143, to, data, value: '0', gas: '500000' }], ...patch,
 })
 
 const problem = (r: CollectAction, c = ctx) => {

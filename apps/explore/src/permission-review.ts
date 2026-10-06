@@ -3,7 +3,7 @@
  * locally from the agent's frozen request and the operator's own adjustment; the server's prepared template must equal
  * it exactly, so the server's display text is never signing authority (as with agent grants).
  */
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { type Address, type Hex, decodeFunctionData, erc20Abi } from "viem";
 import { formatNumber, tokenMeta } from "./format.ts";
 

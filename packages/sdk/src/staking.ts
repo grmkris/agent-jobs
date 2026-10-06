@@ -1,4 +1,4 @@
-/** Delegated backing and wallet-owned positions, read at one block. Amounts are FACTORY base units. */
+/** Delegated backing and wallet-owned positions, read at one block. Amounts are SIDE base units. */
 import { type Address, getAbiItem } from 'viem'
 import { feeScheduleAbi, stakeVaultAbi } from './abi/index.ts'
 import type { Ctx } from './actions.ts'
@@ -73,8 +73,8 @@ export function positionIn(pool: StakePool, position: StakePosition, knownGenera
 }
 
 function vaultOf(ctx: Ctx) {
-  if (ctx.stack.kind !== 'hireling-v1' || ctx.deployment.hireling === null) throw new Error('Delegated staking requires Hireling v1')
-  return ctx.deployment.hireling
+  if (ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null) throw new Error('Delegated staking requires Sidequest v1')
+  return ctx.deployment.sidequest
 }
 
 export async function getBacking(ctx: Ctx, account: Address, options: StakeReadOptions = {}) {

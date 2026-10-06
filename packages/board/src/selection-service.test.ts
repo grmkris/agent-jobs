@@ -1,12 +1,13 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { zeroAddress, type Address } from 'viem'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { canonicalJson, termsHash, type OfferTerms } from './terms.ts'
+import legacyConfig from '../../sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 
-vi.mock('@agent-jobs/sdk', async (original) => ({
+vi.mock('@sidequest/sdk', async (original) => ({
   ...(await original<typeof sdk>()), getJob: vi.fn(), getListing: vi.fn(), agentWallet: vi.fn(),
 }))
 
@@ -19,7 +20,8 @@ afterEach(() => { databases.splice(0).forEach((database) => database.close()); v
 
 function fixture(pool = false) {
   // Persisted v2 terms and pool selections belong to a legacy pair after main is promoted.
-  const base = sdk.contextFor('monad-testnet', sdk.deployment('monad-testnet').legacyStacks['main-v3']!, 'http://127.0.0.1:1')
+  const historical = sdk.deploymentFromConfig('monad-testnet', legacyConfig)
+  const base = { ...sdk.contextFor('monad-testnet', historical.stacks.main!, 'http://127.0.0.1:1'), deployment: historical }
   const verify = vi.fn(async () => true)
   const read = vi.fn(async ({ functionName }: { functionName: string }): Promise<boolean | number> => {
     if (functionName === 'selectionNonceUsed' || functionName === 'paused') return false

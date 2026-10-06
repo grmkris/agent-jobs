@@ -5,7 +5,7 @@
  * the journal, and a record that fell outside the directory's server-time window is prepared again, at most three
  * times. Listing is discovery only: it grants no job, money or signing authority.
  */
-import type * as sdk from '@agent-jobs/sdk'
+import type * as sdk from '@sidequest/sdk'
 import { type Hex, zeroAddress } from 'viem'
 import { AgentFailure } from './agent-failure.ts'
 import type { AgentSigning } from './agent-signing.ts'

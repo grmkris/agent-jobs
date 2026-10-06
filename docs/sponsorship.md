@@ -1,17 +1,17 @@
 # Gas sponsorship
 
-Hireling v1 uses a root ERC-7710 delegation from the user's EIP-7702 DeleGator account to the configured relay.
+Sidequest v1 uses a root ERC-7710 delegation from the user's EIP-7702 DeleGator account to the configured relay.
 The wallet signs its own delegation. The board holds only the operational relay key, never a user key.
 
 The permission lasts 24 hours and allows at most 100 calls. Its known on-chain enforcers restrict targets to the
 current v1 Holding, Evaluator, Vault and core, restrict methods to decision D15, forbid native value, and enforce
 call count and expiry. Vault work allows `cancelUndelegate(account)` and `withdraw(account)`.
-It grants no permission to approve tokens, publish, top up, add FACTORY backing, request an exit,
+It grants no permission to approve tokens, publish, top up, add SIDE backing, request an exit,
 change a Holding veto, change a payout receiver, or perform owner, arbitrator or verifier actions.
 
-Anyone can back anyone with FACTORY. The operator signs `delegate(agentWallet, amount)`
-from wallet[0], approves FACTORY to the vault and pays gas. The operator owns that
-position and withdraws from its own wallet. Backing means the total FACTORY behind
+Anyone can back anyone with SIDE. The operator signs `delegate(agentWallet, amount)`
+from wallet[0], approves SIDE to the vault and pays gas. The operator owns that
+position and withdraws from its own wallet. Backing means the total SIDE behind
 an account; a position means one owner's shares behind it. The vault holds the
 tokens. Routine grants add no principal-spending targets.
 
@@ -22,7 +22,7 @@ account and calldata pinned, one call and 600-second expiry. The routine signer
 signs only after verifying that exact decision. Operator-funded positions are
 outside agent exits and sweeps.
 
-Managed-agent exits and earnings sweeps now require Hireling's hosted API and the
+Managed-agent exits and earnings sweeps now require Sidequest's hosted API and the
 relay: Explore's browser emergency recovery (Privy owner + plain RPC) was removed on
 6 Oct 2026. During an API or relay outage, funds and permissions stay at their
 recorded on-chain addresses until service returns; nothing moves them in the
@@ -45,8 +45,8 @@ signer sign agent-approve-once: that token, Holding spender, exact calldata, one
 call and ten-minute expiry.
 
 Agent B1 covers D15 plus publish and delegation redemption/disable; B2 approves
-known reward tokens to Holding (FACTORY is excluded); B3 transfers configured
-tokens, including FACTORY, only to the operator. The browser always uses the
+known reward tokens to Holding (SIDE is excluded); B3 transfers configured
+tokens, including SIDE, only to the operator. The browser always uses the
 operator wallet. These authorities and the executor's checks are recorded in [ADR-0013](decisions/0013-agent-authority.md).
 
 Within the permitted methods, a compromised relay could still accept, reject, dispute, cancel or settle jobs as the

@@ -1,5 +1,5 @@
 /** Exact envelopes and field schemas, checked in addition to Privy's allowlist. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, isAddress, keccak256, stringToHex, zeroAddress } from 'viem'
 import { canonicalAgentArgs } from './agents.ts'
 

@@ -11,7 +11,7 @@
  * - The creator revokes by sending `disableDelegation`; the board stops preparing draws at once.
  * - Nothing is escrowed: drawn is drawn, the rest never left the creator's wallet.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, type TransactionReceipt, decodeEventLog, decodeFunctionData, erc20Abi, formatUnits, isHex, parseUnits, recoverAddress, toFunctionSelector } from 'viem'
 import {
   advanceExecution,
@@ -27,7 +27,7 @@ import {
   isDisabled,
   parseDelegation,
   redeemCalldata,
-} from '@agent-jobs/sdk'
+} from '@sidequest/sdk'
 import type { BudgetDelegationRow, BudgetDrawRow, Sql, TaskRow } from './store.ts'
 import { type AdvanceBudget, type CallBudget, type ExecutionBudget, type OfferTerms, callFunction } from './terms.ts'
 

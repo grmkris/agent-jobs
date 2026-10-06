@@ -1,9 +1,9 @@
 /** SDK-backed reads: every position and its backing are valued at the same block. */
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { data } from "./api.ts";
-import { type HirelingContracts, hireling } from "./hireling.ts";
+import { type SidequestContracts, sidequest } from "./sidequest.ts";
 import { stakeContext } from "./stake-context.ts";
 import { deployed } from "./wallet.ts";
 
@@ -55,7 +55,7 @@ export function parsePosition(position: WirePosition): Position {
   };
 }
 
-export async function readDelegations(contracts: HirelingContracts, delegator: Address) {
+export async function readDelegations(contracts: SidequestContracts, delegator: Address) {
   const snapshot = await data<{
     source: "index+vault";
     blockNumber: string;
@@ -110,7 +110,7 @@ export async function readDelegations(contracts: HirelingContracts, delegator: A
 
 export function useIndexedBacking(account: Address, wallet?: Address) {
   return useQuery({
-    queryKey: ["indexed-backing", hireling.vault, account.toLowerCase(), wallet?.toLowerCase()],
+    queryKey: ["indexed-backing", sidequest.vault, account.toLowerCase(), wallet?.toLowerCase()],
     enabled: deployed,
     queryFn: async () => {
       const snapshot = await data<
@@ -124,8 +124,8 @@ export function useIndexedBacking(account: Address, wallet?: Address) {
         }
       >(`backing/${account}${wallet === undefined ? "" : `?wallet=${encodeURIComponent(wallet)}`}`);
       if (
-        snapshot.vault.toLowerCase() !== hireling.vault.toLowerCase() ||
-        snapshot.token.toLowerCase() !== hireling.factory.toLowerCase()
+        snapshot.vault.toLowerCase() !== sidequest.vault.toLowerCase() ||
+        snapshot.token.toLowerCase() !== sidequest.factory.toLowerCase()
       ) {
         throw new Error("The backing index describes a different deployment.");
       }
@@ -141,7 +141,7 @@ export function useIndexedBacking(account: Address, wallet?: Address) {
   });
 }
 
-export function useDelegations(contracts: HirelingContracts, delegator: Address) {
+export function useDelegations(contracts: SidequestContracts, delegator: Address) {
   return useQuery({
     queryKey: ["delegations", contracts.vault, delegator.toLowerCase()],
     queryFn: () => readDelegations(contracts, delegator),
@@ -152,7 +152,7 @@ export function useDelegations(contracts: HirelingContracts, delegator: Address)
 
 export function useBacking(account: Address | undefined, delegator?: Address) {
   return useQuery({
-    queryKey: ["backing", hireling.vault, account?.toLowerCase(), delegator?.toLowerCase()],
+    queryKey: ["backing", sidequest.vault, account?.toLowerCase(), delegator?.toLowerCase()],
     enabled: deployed && account !== undefined,
     queryFn: async () => {
       if (account === undefined) throw new Error("Choose a backing wallet");

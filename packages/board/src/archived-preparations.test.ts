@@ -1,6 +1,6 @@
 /** Real board storage and preparations; promotion retires the original Holding without erasing cached evidence. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Board } from './service.ts'
 import { fromNodeSqlite, type SqlValue } from './store.ts'
@@ -22,7 +22,7 @@ async function fixture(kind: sdk.StackKind) {
     if (functionName === 'margin') return 120
     if (functionName === 'MIN_REVIEW_WINDOW' || functionName === 'MIN_DISPUTE_WINDOW' || functionName === 'reviewWindow' || functionName === 'disputeWindow' || functionName === 'settlementWindow') return 120
     if (functionName === 'MIN_ARBITRATION_WINDOW' || functionName === 'arbitrationWindow') return 300
-    if (functionName.startsWith('MAX_')) return sdk.MAX_HIRELING_WINDOW
+    if (functionName.startsWith('MAX_')) return sdk.MAX_SIDEQUEST_WINDOW
     throw new Error(`unexpected chain read: ${functionName}`)
   })
   const blockNumber = vi.fn(async () => 100n)
@@ -62,14 +62,14 @@ async function fixture(kind: sdk.StackKind) {
 
 for (const operation of ['create_task', 'pick_task', 'pick_quote'] as const) {
   it(`${operation} early cache refuses a retired Holding before RPC and preserves its preparation`, async () => {
-    const f = await fixture('hireling-v1'), before = f.snapshot()
+    const f = await fixture('sidequest-v1'), before = f.snapshot()
     await expect(f.retry(f.boot(), operation)).rejects.toMatchObject({ code: 'unavailable' })
     expect(f.read).not.toHaveBeenCalled(); expect(f.blockNumber).not.toHaveBeenCalled()
     expect(f.snapshot()).toEqual(before)
   })
   for (const keep of [false, true]) {
     it(`${operation} atomic cache ${keep ? 'retains the original configured legacy bytes' : 'refuses a retired Holding without changing evidence'}`, async () => {
-      const f = await fixture(keep ? 'legacy' : 'hireling-v1')
+      const f = await fixture(keep ? 'legacy' : 'sidequest-v1')
       if (operation === 'pick_quote') {
         // Only the outer cached response appears late. The nested cache belongs to a separate, current draft.
         f.db.prepare("DELETE FROM hosted_idempotency WHERE operation='pick_task'").run()
@@ -93,7 +93,7 @@ for (const operation of ['create_task', 'pick_task', 'pick_quote'] as const) {
   })
 }
 it('a crash between pick_task and pick_quote refuses a retired nested draft before RPC', async () => {
-  const f = await fixture('hireling-v1')
+  const f = await fixture('sidequest-v1')
   f.db.prepare("DELETE FROM hosted_idempotency WHERE operation='pick_quote'").run()
   f.db.prepare('UPDATE quote_requests SET task_id=NULL').run()
   const before = f.snapshot()

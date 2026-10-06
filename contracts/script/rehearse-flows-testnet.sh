@@ -5,7 +5,7 @@
 #      odd tokens and makes the fee proposal and Holding probe, all with fresh keys, promoting into a scratch
 #      config/rehearsal-<pid>-<random>.json (gitignored). The tracked config/monad-testnet.json is only ever read: at G1 the real
 #      launch promotes into it, possibly in this same checkout (G1-DRY-001);
-#   2. the wallets get MON, fresh-stack FACTORY and legacy FACTORY and the reward token (mUSD) on the fork, and deployment.oddTokens is
+#   2. the wallets get MON, fresh-stack SIDE and legacy SIDE and the reward token (mUSD) on the fork, and deployment.oddTokens is
 #      recorded;
 #   3. the runner, which reads the SDK's bundled monad-testnet config, runs from a private mirror: byte-identical copies
 #      of packages/sdk/src and scripts (without any journal), the real node_modules, and the scratch config as its
@@ -42,7 +42,7 @@ PROFILE="g1dry-$(date +%s)"
 WORK="$(mktemp -d)"
 chmod 700 "$WORK"
 MIRROR="$WORK/mirror"
-SAFE_FACTORY=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
+SAFE_SIDE=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
 SAFE_L2=0x29fcB43b46531BcA003ddC8FCB67FFE91900C762
 FALLBACK_HANDLER=0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99
 ZERO=0x0000000000000000000000000000000000000000
@@ -67,7 +67,7 @@ ANVIL_PID= WARPER_PID= SAFE= CONFIG=
 cleanup() {
   [[ -n "$WARPER_PID" ]] && kill "$WARPER_PID" 2>/dev/null || true
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  owned_file "$CONFIG" .hireling.safe "$SAFE"
+  owned_file "$CONFIG" .sidequest.safe "$SAFE"
   owned_run_dirs
   rm -rf "$WORK"
   [[ "$(sha256sum <"$TRACKED")" == "$TRACKED_SUM" ]] || echo "WARNING: $TRACKED changed during the run (not by it); check it" >&2
@@ -93,8 +93,8 @@ for a in $DEPLOYER $OWNER1 $ARBITRATOR $RELAY $CREATOR $WORKER; do rpc anvil_set
 # 1. Safe, then the launch into the scratch config.
 SETUP=$(cast calldata "setup(address[],uint256,address,bytes,address,address,uint256,address)" "[$OWNER1,$OWNER2]" 1 $ZERO 0x $FALLBACK_HANDLER $ZERO 0 $ZERO)
 SALT=$(date +%s)
-SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT" 2>/dev/null)
-cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
+SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT" 2>/dev/null)
+cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" >/dev/null 2>&1
 # On testnet the deployer is roles.admin, which holds the reused core's DEFAULT_ADMIN_ROLE, so launch-testnet.sh's
 # pauser step can grant the Safe ADMIN_ROLE. Here the deployer is a fresh key, so roles.admin (impersonated, on the fork
 # only) first makes it the core's admin too; the grant to the Safe is then launch-testnet.sh's own transaction.
@@ -116,8 +116,8 @@ ok "G1b archived verbatim; fresh deployment outputs removed; core and legacy pai
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg attester "$ATTESTER" --arg arb "$ARBITRATOR" \
   --arg c "$CREATOR" --arg w "$WORKER" '
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arb }
-  | .hireling.safe = $safe | .hireling.defaultArbitrator = $arb | .hireling.schedule.treasury = $safe
-  | .hireling.allocation = { treasury: $safe, ecosystem: $admin, liquidity: $admin }
+  | .sidequest.safe = $safe | .sidequest.defaultArbitrator = $arb | .sidequest.schedule.treasury = $safe
+  | .sidequest.allocation = { treasury: $safe, ecosystem: $admin, liquidity: $admin }
   | .oddTokens = { wallets: [$c, $w], mint: 1000 }' "$CONFIG" >"$WORK/prepared-fixture.json"
 cp "$WORK/prepared-fixture.json" "$CONFIG"
 export FLOW_RPC="$LOCAL" FLOW_DEPLOYER_KEY="$K_DEPLOYER" FLOW_SAFE_OWNER_KEY="$K_OWNER1"
@@ -136,10 +136,10 @@ jq --arg b "$(jq -r '[.transactions[] | select(.contractName == "BlocklistUSD")]
   --arg g "$(jq -r '[.transactions[] | select(.contractName == "GasBurnerUSD")][0].contractAddress' "$ODD")" \
   --argjson block "$(cast to-dec "$(jq -r '.receipts[0].blockNumber' "$ODD")")" \
   '.deployment.oddTokens = { blocklist: $b, gasBurner: $g, block: $block }' "$CONFIG" >"$WORK/config.next" && cp "$WORK/config.next" "$CONFIG"
-FACTORY=$(jq -r .deployment.hireling.factory "$CONFIG")
+SIDE=$(jq -r .deployment.sidequest.factory "$CONFIG")
 for w in $CREATOR $WORKER; do
-  cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" "$FACTORY" "transfer(address,uint256)" "$w" 50000000000000000000000 >/dev/null 2>&1 \
-    || fail "FACTORY to $w"
+  cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" "$SIDE" "transfer(address,uint256)" "$w" 50000000000000000000000 >/dev/null 2>&1 \
+    || fail "SIDE to $w"
 done
 MUSD=$(jq -r '.deployment.rewardTokens[0]' "$CONFIG")
 rpc anvil_dealERC20 "$CREATOR" "$MUSD" 0x3b9aca00 # 1,000 mUSD (6 decimals)
@@ -148,14 +148,14 @@ rpc anvil_dealERC20 "$CREATOR" "$MUSD" 0x3b9aca00 # 1,000 mUSD (6 decimals)
 # Fund the actual legacy open-token pair preserved by preparation, rather than the archived G1b v1 main pair.
 LEGACY_HOLDING=$(jq -r '[.deployment.legacy[] | select(.kind == "legacy" and .openTokens == true)][0].holding // empty' "$CONFIG")
 [[ -n "$LEGACY_HOLDING" ]] || fail "no configured legacy open-token pair"
-FACTORY_V1=$(cast call --rpc-url "$LOCAL" "$LEGACY_HOLDING" "factory()(address)" 2>/dev/null)
-[[ "${FACTORY_V1,,}" != "${FACTORY,,}" ]] || fail "the legacy pair uses the new FACTORY?"
+SIDE_V1=$(cast call --rpc-url "$LOCAL" "$LEGACY_HOLDING" "factory()(address)" 2>/dev/null)
+[[ "${SIDE_V1,,}" != "${SIDE,,}" ]] || fail "the legacy pair uses the new SIDE?"
 for w in $CREATOR $WORKER; do
-  rpc anvil_dealERC20 "$w" "$FACTORY_V1" 0x56bc75e2d63100000 # 100 FACTORY v1
-  [[ "$(cast call --rpc-url "$LOCAL" "$FACTORY_V1" "balanceOf(address)(uint256)" "$w" 2>/dev/null | awk '{print $1}')" == 100000000000000000000 ]] \
-    || fail "could not deal FACTORY v1 to $w on the fork"
+  rpc anvil_dealERC20 "$w" "$SIDE_V1" 0x56bc75e2d63100000 # 100 SIDE v1
+  [[ "$(cast call --rpc-url "$LOCAL" "$SIDE_V1" "balanceOf(address)(uint256)" "$w" 2>/dev/null | awk '{print $1}')" == 100000000000000000000 ]] \
+    || fail "could not deal SIDE v1 to $w on the fork"
 done
-ok "creator and worker hold 50,000 fresh-stack FACTORY and 100 legacy FACTORY; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
+ok "creator and worker hold 50,000 fresh-stack SIDE and 100 legacy SIDE; the creator holds 1,000 mUSD; deployment.oddTokens recorded"
 if [[ -n "${HOLD:-}" ]]; then # HOLD=<file>: pause here, fork up and config promoted, until the file is removed
   touch "$HOLD"; echo "holding: fork $LOCAL, config $PWD/$CONFIG; remove $HOLD to run the cases"
   while [[ -e "$HOLD" ]]; do sleep 2; done

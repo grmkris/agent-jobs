@@ -1,23 +1,23 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { tools } from '../../../apps/api/src/tools.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('live hosted runner through the REST/MCP registry on a real local fork', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>, board: Board, db: DatabaseSync, agentId: bigint
+  let f: Awaited<ReturnType<typeof startSidequestFork>>, board: Board, db: DatabaseSync, agentId: bigint
   const boot = () => new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: f.ctx }, relay: { account: f.admin.account as import('viem').LocalAccount, rpcUrl: f.url },
     domain: 'fork.test', uri: 'https://fork.test', manifestBaseUrl: 'https://fork.test/offers', now: () => Math.floor(Date.now() / 1000) })
   beforeAll(async () => {
-    f = await startHirelingFork(); db = new DatabaseSync(':memory:')
+    f = await startSidequestFork(); db = new DatabaseSync(':memory:')
     const ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, relay: f.admin.account.address } }
     f.ctx = ctx
     board = boot()
-    agentId = await sdk.registerAgent(ctx, f.worker, 'https://hireling.xyz/hosted-live-runner')
+    agentId = await sdk.registerAgent(ctx, f.worker, 'https://sidequest.exchange/hosted-live-runner')
     await sdk.delegate(ctx, f.creator, parseEther('100')); await sdk.delegate(ctx, f.worker, parseEther('100'))
   }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })

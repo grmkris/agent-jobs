@@ -28,7 +28,7 @@ export function txJournalKey(taskId: string, txs: WalletStep[]): string {
   const native = txs.some(tx => tx.value !== '0')
   let hash = 0x811c9dc5
   for (const char of txs.map(tx => native ? `${tx.chainId}:${tx.to}:${tx.data}:${tx.value}` : `${tx.to}:${tx.data}`).join('|')) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193)
-  return `hireling.op${native ? '-value' : ''}:${taskId}:${(hash >>> 0).toString(36)}`
+  return `sidequest.op${native ? '-value' : ''}:${taskId}:${(hash >>> 0).toString(36)}`
 }
 export const JOURNAL_CORRUPT = 'Transaction journal is corrupt. Wallet outcome is unknown; reconcile before continuing.'
 
@@ -58,7 +58,7 @@ export function writeTxJournal(storage: JournalStorage, key: string, record: OpR
   } catch { throw new Error('Transaction journal could not be saved. No new wallet prompt is allowed; reconcile any existing broadcast.') }
 }
 
-const journalCheckpointKey = (key: string) => `hireling.tx-journal:${key}`
+const journalCheckpointKey = (key: string) => `sidequest.tx-journal:${key}`
 
 /** Read the inner send journal from the committed cross-renderer store before trusting localStorage. */
 export async function readTxJournalDurable(storage: JournalStorage, key: string, requireExisting = false, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint): Promise<OpRecord | null> {

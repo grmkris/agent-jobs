@@ -10,7 +10,7 @@ const job = (over: Partial<LifecycleInput>): LifecycleInput => ({ mode: 'hire', 
 
 describe('v1 final decisions and collection', () => {
   it('advances minute-clock phases at the per-job second, independent of production defaults', () => {
-    const row = { kind: 'hireling-v1' as const, mode: 'hire', status: 'submitted', creator: CREATOR, approver: APPROVER, worker: WORKER,
+    const row = { kind: 'sidequest-v1' as const, mode: 'hire', status: 'submitted', creator: CREATOR, approver: APPROVER, worker: WORKER,
       delivery_deadline: NOW + 3600, selection_deadline: null, worker_bond: '10', submitted_at: NOW, review_window: 120,
       rejected_at: NOW + 60, dispute_window: 120, disputed_at: NOW + 120, arbitration_window: 300 }
     const input = lifecycleFromIndexed(row)
@@ -23,26 +23,26 @@ describe('v1 final decisions and collection', () => {
     expect(lifecycle({ ...input, status: 'disputed' }, WORKER, NOW + 421).key).toBe('arbitration-lapsed')
   })
   it('keeps a worker ruling final while the core call is deferred, even after arbitration expiry', () => {
-    const phase = lifecycle(job({ kind: 'hireling-v1', status: 'disputed', arbitrationEndsAt: NOW - 1,
+    const phase = lifecycle(job({ kind: 'sidequest-v1', status: 'disputed', arbitrationEndsAt: NOW - 1,
       outcome: 'ruled-worker', deferredDecision: true }), WORKER, NOW)
     expect(phase).toMatchObject({ key: 'payout-deferred', terminal: true, beneficiary: 'worker', timeout: 'retryDeferred', actions: ['settle'] })
   })
 
   it('offers terminal collection through a pause, but cannot retry the paused core', () => {
-    const input = job({ kind: 'hireling-v1', status: 'rejected', outcome: 'accepted', collectPending: true, paused: true })
+    const input = job({ kind: 'sidequest-v1', status: 'rejected', outcome: 'accepted', collectPending: true, paused: true })
     expect(lifecycle(input, WORKER, NOW)).toMatchObject({ key: 'collect', beneficiary: 'worker', actions: ['settle'] })
     expect(lifecycle({ ...input, deferredDecision: true }, WORKER, NOW).actions).toEqual([])
     expect(lifecycle({ ...input, listingMatchesOffer: false }, WORKER, NOW).actions).toEqual([])
   })
 
   it('the recorded worker outcome remains paid after the deferred route finishes as core Rejected', () => {
-    expect(lifecycle(job({ kind: 'hireling-v1', status: 'rejected', outcome: 'silence' }), WORKER, NOW))
+    expect(lifecycle(job({ kind: 'sidequest-v1', status: 'rejected', outcome: 'silence' }), WORKER, NOW))
       .toMatchObject({ key: 'completed', beneficiary: 'worker', terminal: true, timeout: null })
-    expect(lifecycle(job({ kind: 'hireling-v1', status: 'rejected', outcome: 'arbitration-timeout', collectPending: true }), CREATOR, NOW).beneficiary).toBe('creator')
+    expect(lifecycle(job({ kind: 'sidequest-v1', status: 'rejected', outcome: 'arbitration-timeout', collectPending: true }), CREATOR, NOW).beneficiary).toBe('creator')
   })
 
   it('uses the indexed job windows and clears historical deferred flags once settled', () => {
-    const row = { kind: 'hireling-v1' as const, mode: 'hire', status: 'disputed', creator: CREATOR, approver: APPROVER, worker: WORKER,
+    const row = { kind: 'sidequest-v1' as const, mode: 'hire', status: 'disputed', creator: CREATOR, approver: APPROVER, worker: WORKER,
       delivery_deadline: NOW + 100, selection_deadline: null, worker_bond: '1000', outcome: 'RuledForWorker', settlement_outcome: 'None',
       payout_deferred: 1, refund_deferred: 0, submitted_at: NOW - 20, review_window: 3600,
       rejected_at: NOW - 10, dispute_window: 7200, disputed_at: NOW - 5, arbitration_window: 43200 }

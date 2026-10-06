@@ -6,10 +6,11 @@ import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, isAllowedOrigin, publicTenant } from '@agent-jobs/board'
+import { BoardError, parseHostedAdmission, PUBLIC_BOARD_ID, SPONSOR_OBJECT_NAME, sponsorToolNames, SessionDesk, type TenantConfig, type TenantToken, isAllowedOrigin, publicTenant } from '@sidequest/board'
 import { admissionDrainBinding, runtimeSecret } from './prod-config.ts'
-import { type AsyncSql, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { type AsyncSql, agentsOfWallet, fromD1, indexStatus, listAgents, networkStats } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
+import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
 import type { Address } from 'viem'
 import Board, { type BoardCall, type BoardReply } from './board.ts'
 import { corsHeaders } from './cors.ts'
@@ -74,13 +75,14 @@ export default class Api extends Cloudflare.Worker<Api>()(
   'Api',
   {
     main: import.meta.url,
+    ...(process.env.SIDEQUEST_STAGE === 'dev' ? { name: devInfrastructure.resources.Api } : {}),
     compatibility: { date: '2026-09-01', flags: ['nodejs_compat'] },
     dev: { port: 8788 },
     // Values come from the deploying shell (.env.local); secrets are bound as secret_text, never plain text.
     env: {
       DIRECTORY_DATABASE: Database,
-      NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
-      DEPLOY_STAGE: process.env.AGENT_JOBS_STAGE ?? 'local',
+      NETWORK: process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
+      DEPLOY_STAGE: process.env.SIDEQUEST_STAGE ?? 'local',
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       SCREENING_BASE_URL: process.env.ARBITER_MODEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
       SCREENING_MODEL: process.env.SCREENING_MODEL || 'anthropic/claude-haiku-4.5',
@@ -174,7 +176,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           await migrateTelegram(sql)
         })()
         yield* Effect.promise(() => migrated as Promise<void>)
-        yield* boards.getByName('__hireling_fleet_v1__').management({ kind: 'retire' })
+        yield* boards.getByName('__sidequest_fleet_v1__').management({ kind: 'retire' })
         yield* boards.getByName(SPONSOR_OBJECT_NAME).management({ kind: 'migrate' })
 
         const tenant = yield* Effect.promise(async (): Promise<TenantConfig | undefined> => {

@@ -98,7 +98,7 @@ describe('agent start guide built assets and deployed routes', () => {
     expect(files['/llms.txt']).toBe(source)
   })
 
-  it.each(['https://testnet.hireling.xyz', 'https://preview.example:8443'])('serves identical bodies with URLs at %s', async (origin) => {
+  it.each(['https://dev.sidequest.exchange', 'https://preview.example:8443'])('serves identical bodies with URLs at %s', async (origin) => {
     const bodies = []
     for (const [path, type] of routes) {
       const response = await worker.fetch(new Request(`${origin}${path}?reader=agent`), env())
@@ -109,16 +109,16 @@ describe('agent start guide built assets and deployed routes', () => {
       expect(response.headers.get('x-content-type-options')).toBe('nosniff')
       const body = await response.text()
       expect(body).toBe(renderStartGuide(source, origin))
-      expect(body).not.toContain('{{HIRELING_ORIGIN}}')
-      expect(body).toContain(`claude mcp add --transport http hireling ${origin}/mcp`)
-      expect(body).toContain('# Set yourself up on Hireling')
+      expect(body).not.toContain('{{SIDEQUEST_ORIGIN}}')
+      expect(body).toContain(`claude mcp add --transport http sidequest ${origin}/mcp`)
+      expect(body).toContain('# Set yourself up on Sidequest')
       expect(body).toContain(`${origin}/skills/connector/SKILL.md`)
       expect(body).toContain(`${origin}/skills/worker/SKILL.md`)
       expect(body).toContain(`${origin}/skills/publisher/SKILL.md`)
       expect(body).toContain('**work**, **hire**, or **work and hire**')
       expect(body).toContain('Should I work, hire, or both?')
       expect(body).toContain('never assume a role')
-      expect(body).toContain('`hireling:work`, `hireling:hire`,')
+      expect(body).toContain('`sidequest:work`, `sidequest:hire`,')
       expect(body).toContain('| WORK | Find jobs, quote/apply, deliver.')
       expect(body).toContain('| HIRE | Post jobs or request quotes, pick a worker, review/approve.')
       expect(body).toContain('weekly allowance pulled from wallet[0]')
@@ -139,14 +139,14 @@ describe('agent start guide built assets and deployed routes', () => {
   })
 
   it.each(routes)('answers deployed HEAD %s without a body', async (path, type) => {
-    const response = await worker.fetch(new Request(`https://testnet.hireling.xyz${path}`, { method: 'HEAD' }), env())
+    const response = await worker.fetch(new Request(`https://dev.sidequest.exchange${path}`, { method: 'HEAD' }), env())
     expect(response.headers.get('content-type')).toBe(type)
     expect(await response.text()).toBe('')
   })
 
   it.each(routes)('does not serve the SPA as a missing %s document', async (path) => {
     const missing = { ...env(), ASSETS: { fetch: async () => new Response('<html>SPA fallback</html>', { headers: { 'Content-Type': 'text/html' } }) } }
-    const response = await worker.fetch(new Request(`https://testnet.hireling.xyz${path}`), missing)
+    const response = await worker.fetch(new Request(`https://dev.sidequest.exchange${path}`), missing)
     expect(response.status).toBe(404)
     expect(await response.text()).toBe('not found')
   })
@@ -154,13 +154,13 @@ describe('agent start guide built assets and deployed routes', () => {
 
 describe('Explore onboarding examples', () => {
   it('gives the landing one role-free prompt that points at the served guide', () => {
-    expect(startPrompt('https://testnet.hireling.xyz')).toBe('Read https://testnet.hireling.xyz/start.md and set yourself up on Hireling.')
+    expect(startPrompt('https://dev.sidequest.exchange')).toBe('Read https://dev.sidequest.exchange/start.md and set yourself up on Sidequest.')
     // start.md asks the human once whether to work, hire or both, so the prompt can stay role-free.
     expect(source).toMatch(/Should I work, hire, or both\?/)
-    vi.stubGlobal('window', { location: { origin: 'https://testnet.hireling.xyz' } })
+    vi.stubGlobal('window', { location: { origin: 'https://dev.sidequest.exchange' } })
     try {
       const html = renderToStaticMarkup(createElement(StartPrompt))
-      expect(html).toContain('Read https://testnet.hireling.xyz/start.md and set yourself up on Hireling.')
+      expect(html).toContain('Read https://dev.sidequest.exchange/start.md and set yourself up on Sidequest.')
       expect(html).toContain('Copy prompt')
     } finally {
       vi.unstubAllGlobals()

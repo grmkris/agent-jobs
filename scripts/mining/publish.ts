@@ -13,7 +13,7 @@ try {
   const selected = stageOf(args[2]!)
   const envPath = resolve('.env.local')
   const env = { ...process.env, ...(existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : {}) }
-  if ((env.AGENT_JOBS_STAGE && env.AGENT_JOBS_STAGE !== selected.stage) || (env.AGENT_JOBS_NETWORK && env.AGENT_JOBS_NETWORK !== selected.network)) throw new MiningPublishError('stage-chain-mismatch')
+  if ((env.SIDEQUEST_STAGE && env.SIDEQUEST_STAGE !== selected.stage) || (env.SIDEQUEST_NETWORK && env.SIDEQUEST_NETWORK !== selected.network)) throw new MiningPublishError('stage-chain-mismatch')
   const rpc = env[selected.stage === 'prod' ? 'MONAD_MAINNET_RPC_URL' : 'MONAD_TESTNET_RPC_URL']
   if (!rpc || rpc === 'unset') throw new MiningPublishError('credentials-missing')
   const bytes = readFileSync(resolve(args[0]))

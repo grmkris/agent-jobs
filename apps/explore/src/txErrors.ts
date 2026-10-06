@@ -1,12 +1,12 @@
 /**
  * Wallet and contract failures in words people can act on. A revert carrying our contracts' error data is decoded
- * against Hireling v1's ABIs (ADR-0011: Holding, evaluator, stake vault, fee schedule, FACTORY) and the core's; the
+ * against Sidequest v1's ABIs (ADR-0011: Holding, evaluator, stake vault, fee schedule, SIDE) and the core's; the
  * common refusals get a sentence, the rest their name.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, type Hex, decodeErrorResult } from 'viem'
 
-const ABIS = [sdk.hirelingHoldingAbi, sdk.hirelingEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.coreAbi] as unknown as Abi[]
+const ABIS = [sdk.sidequestHoldingAbi, sdk.sidequestEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.coreAbi] as unknown as Abi[]
 
 const PLAIN: Record<string, string> = {
   ReviewWindowClosed: 'The review window has closed: the work now counts as accepted, and anyone can release the payment.',
@@ -20,7 +20,7 @@ const PLAIN: Record<string, string> = {
   AlreadyRejected: 'This work has already been rejected.',
   PolicyHashUsed: 'This offer is already published.',
   EnforcedPause: 'The contracts are paused by their admin.',
-  NotBootstrapped: 'Staking opens at launch, when the first Hireling contract is authorized. Nothing was staked.',
+  NotBootstrapped: 'Staking opens at launch, when the first Sidequest contract is authorized. Nothing was staked.',
   InsufficientAvailable: 'Not enough unreserved stake: bonds on live jobs stay staked until those jobs settle.',
   ERC2612ExpiredSignature: 'The staking signature expired. Stake again to sign a fresh one.',
   ERC2612InvalidSigner: 'The staking signature does not match this wallet. Stake again to sign a fresh one.',

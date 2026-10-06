@@ -32,7 +32,7 @@ export async function onboarding(runtime: Runtime): Promise<Proof> {
         const storage = (
           globalThis as unknown as { localStorage: { setItem(key: string, value: string): void } }
         ).localStorage;
-        storage.setItem(`hireling.agent-draft:${owner}`, JSON.stringify(intent));
+        storage.setItem(`sidequest.agent-draft:${owner}`, JSON.stringify(intent));
       },
       { owner: operator, intent: draft },
     );

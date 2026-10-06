@@ -1,6 +1,6 @@
 import { type Abi, type Address, type TransactionReceipt, encodeAbiParameters, encodeEventTopics, zeroAddress } from 'viem'
 import { expect, it } from 'vitest'
-import { coreAbi, factoryTokenAbi, hirelingHoldingAbi, stakeVaultAbi } from './abi/index.ts'
+import { coreAbi, factoryTokenAbi, sidequestHoldingAbi, stakeVaultAbi } from './abi/index.ts'
 import { type JobEconomics, verifyJobEconomics, verifyOwedWithdrawal } from './v1-flow-economics.ts'
 
 const addr = (n: number) => `0x${n.toString(16).padStart(40, '0')}` as Address
@@ -16,13 +16,13 @@ function log(abi: Abi, name: string, address: Address, args: Record<string, unkn
 const receipt = (logs: ReturnType<typeof log>[]): TransactionReceipt => ({ status: 'success', transactionHash: `0x${'1'.repeat(64)}`, logs }) as TransactionReceipt
 function terminal(owed = false) {
   return receipt([
-    log(hirelingHoldingAbi, 'BondReleased', x.holding, { jobId: x.jobId, side: 0, account: x.creator, amount: 10n }),
+    log(sidequestHoldingAbi, 'BondReleased', x.holding, { jobId: x.jobId, side: 0, account: x.creator, amount: 10n }),
     log(stakeVaultAbi, 'Released', x.vault, { holding: x.holding, account: x.creator, amount: 10n }),
-    log(hirelingHoldingAbi, 'BondSlashed', x.holding, { jobId: x.jobId, side: 1, account: x.worker, amount: 10n }),
+    log(sidequestHoldingAbi, 'BondSlashed', x.holding, { jobId: x.jobId, side: 1, account: x.worker, amount: 10n }),
     log(stakeVaultAbi, 'Slashed', x.vault, { holding: x.holding, account: x.worker, amount: 10n }),
     log(factoryTokenAbi, 'Transfer', x.factory, { from: x.vault, to: zeroAddress, value: 10n }),
-    ...(owed ? [log(hirelingHoldingAbi, 'RewardSettled', x.holding, { jobId: x.jobId, to: x.worker, outcome: 1, amount: 70n }),
-      log(hirelingHoldingAbi, 'PayoutOwed', x.holding, { jobId: x.jobId, to: x.worker, token: x.token, amount: 70n })]
+    ...(owed ? [log(sidequestHoldingAbi, 'RewardSettled', x.holding, { jobId: x.jobId, to: x.worker, outcome: 1, amount: 70n }),
+      log(sidequestHoldingAbi, 'PayoutOwed', x.holding, { jobId: x.jobId, to: x.worker, token: x.token, amount: 70n })]
       : [log(coreAbi, 'PaymentReleased', x.core, { jobId: x.jobId, recipient: x.worker, amount: 70n }),
         log(factoryTokenAbi, 'Transfer', x.token, { from: x.core, to: x.worker, value: 70n })]),
   ])
@@ -45,7 +45,7 @@ it('binds owed proof and withdrawal to the exact token/account/contract and amou
   for (const change of [{ token: addr(8) }, { worker: addr(8) }, { workerOwed: 69n }])
     expect(() => verifyJobEconomics([r], { ...x, workerOwed: 70n, ...change })).toThrow()
   const withdrawal = receipt([
-    log(hirelingHoldingAbi, 'OwedWithdrawn', x.holding, { to: x.worker, token: x.token, amount: 70n }),
+    log(sidequestHoldingAbi, 'OwedWithdrawn', x.holding, { to: x.worker, token: x.token, amount: 70n }),
     log(factoryTokenAbi, 'Transfer', x.token, { from: x.holding, to: x.worker, value: 70n }),
   ])
   verifyOwedWithdrawal(withdrawal, x.holding, x.token, x.worker, 70n)

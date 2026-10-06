@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'

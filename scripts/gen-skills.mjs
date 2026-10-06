@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * The skill files in skill/ are the single source for what hosted MCP tells agents: `initialize` instructions come
- * from skill/connector/INSTRUCTIONS.md and get_instructions / hireling://skills/<role> serve the role SKILL.md body.
+ * from skill/connector/INSTRUCTIONS.md and get_instructions / sidequest://skills/<role> serve the role SKILL.md body.
  * This writes apps/api/src/generated/skills.ts (the Worker cannot read the repo at runtime). `--check` fails when the
  * checked-in file is stale.
  */

@@ -20,17 +20,17 @@ export function networkTool(network: string, name: string): boolean {
 }
 const CONTINUATIONS = new Set(['submit_selection', 'build_activation', 'report_transaction', 'report_operation'])
 
-export function requiredToolScope(name: string): 'hireling:read' | 'hireling:hire' | 'hireling:work' | 'write' | undefined {
-  if (READ_TOOLS.has(name)) return 'hireling:read'
-  if (HIRE_TOOLS.has(name)) return 'hireling:hire'
-  if (WORK_TOOLS.has(name)) return 'hireling:work'
+export function requiredToolScope(name: string): 'sidequest:read' | 'sidequest:hire' | 'sidequest:work' | 'write' | undefined {
+  if (READ_TOOLS.has(name)) return 'sidequest:read'
+  if (HIRE_TOOLS.has(name)) return 'sidequest:hire'
+  if (WORK_TOOLS.has(name)) return 'sidequest:work'
   if (SHARED_TOOLS.has(name)) return 'write'
   return undefined
 }
 
 export function permittedTool(grant: Pick<OAuthGrant, 'scopes'>, name: string, internal = false): boolean {
-  if (internal && CONTINUATIONS.has(name)) return grant.scopes.includes('hireling:hire') || grant.scopes.includes('hireling:work')
+  if (internal && CONTINUATIONS.has(name)) return grant.scopes.includes('sidequest:hire') || grant.scopes.includes('sidequest:work')
   const scope = requiredToolScope(name)
-  if (scope === 'write') return grant.scopes.includes('hireling:hire') || grant.scopes.includes('hireling:work')
+  if (scope === 'write') return grant.scopes.includes('sidequest:hire') || grant.scopes.includes('sidequest:work')
   return scope !== undefined && grant.scopes.includes(scope)
 }

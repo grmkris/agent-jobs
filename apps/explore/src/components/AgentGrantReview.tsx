@@ -1,4 +1,4 @@
-import type * as sdk from "@agent-jobs/sdk";
+import type * as sdk from "@sidequest/sdk";
 import { Address, Group, ListRow } from "./ui.tsx";
 
 export function AgentGrantReview({

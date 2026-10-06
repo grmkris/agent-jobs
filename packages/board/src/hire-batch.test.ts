@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { encodeFunctionData } from 'viem'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { buildHireBatch, decodeHireBatch, redeemGrantBatch } from './hire-batch.ts'
 
 const address = (digit: string) => `0x${digit.repeat(40)}` as `0x${string}`
@@ -11,7 +11,7 @@ const grant = (delegator: `0x${string}`, delegate: `0x${string}`, salt: bigint):
 describe('atomic hire batch encoding', () => {
   it('keeps allowance pull, Holding approval, and publish as three ordered executions', () => {
     const manager = address('1'), holding = address('2'), token = address('3'), agent = address('4')
-    const publish = encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'publish', args: [{
+    const publish = encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
       approver: agent, arbitrator: holding, manifestHash: sdk.EMPTY_HASH, policyHash: sdk.EMPTY_HASH,
       token, reward: 9n, creatorBond: 0n, workerBond: 0n, deliveryDeadline: 1_800_000_000, expiredAt: 1_800_010_000,
       reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200,

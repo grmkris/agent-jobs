@@ -5,7 +5,7 @@ import { type DirectoryEnvelope, directoryRecordHash, directoryTypedData, direct
 
 const account = privateKeyToAccount(`0x${'11'.repeat(32)}`)
 const record = (kind: DirectoryEnvelope['kind'], payload: Record<string, unknown>): DirectoryEnvelope => ({
-  version: 1, kind, chainId: 10143, identityRegistry: '0x8004A818BFB912233c491871b3d84c89A494BD9e', audience: 'https://testnet.hireling.xyz',
+  version: 1, kind, chainId: 10143, identityRegistry: '0x8004A818BFB912233c491871b3d84c89A494BD9e', audience: 'https://dev.sidequest.exchange',
   agentId: '2013', wallet: account.address, generation: 1, nonce: 3, issuedAt: 1_790_000_000, expiresAt: 1_790_000_300, payload,
 })
 
@@ -26,6 +26,6 @@ describe('a directory record as signer JSON', () => {
 
   it('binds the audience: another origin is another digest', () => {
     const r = record('RevokeAd', { serviceId: 'review' })
-    expect(directoryRecordHash({ ...r, audience: 'https://hireling.xyz' })).not.toBe(directoryRecordHash(r))
+    expect(directoryRecordHash({ ...r, audience: 'https://sidequest.exchange' })).not.toBe(directoryRecordHash(r))
   })
 })

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import type { AgentExecuteResult, ApprovalRow } from '@agent-jobs/board'
-import { fromNodeSqlite, migrate, stmt } from '@agent-jobs/indexer'
+import type { AgentExecuteResult, ApprovalRow } from '@sidequest/board'
+import { fromNodeSqlite, migrate, stmt } from '@sidequest/indexer'
 import { agentFeedEvents, approvalUrl, decisionFeedEvents, recordAgentEvents } from '../src/feed-agent.ts'
 import { feedTools, readInbox } from '../src/feed.ts'
 import { permittedTool } from '../src/mcp-policy.ts'
@@ -28,13 +28,13 @@ describe('management feed events', () => {
     const produced = agentFeedEvents({ network, agent, tool: 'request_permissions', operationKey: 'k1', result, now })
     expect(produced.events.map(e => [e.address, e.kind, e.role])).toEqual([[address, 'approval.requested', 'agent'], [operator, 'approval.requested', 'operator']])
     expect(produced.events[0]!.next).toEqual({ tool: 'request_permissions', args: { operationKey: 'k1' } })
-    expect(produced.operatorNotice).toEqual({ id: 'telegram:approval:ap1', text: 'Canvas needs your decision: a new permission. Review and sign: https://testnet.hireling.xyz/agent/77?tab=approvals&approval=ap1' })
+    expect(produced.operatorNotice).toEqual({ id: 'telegram:approval:ap1', text: 'Canvas needs your decision: a new permission. Review and sign: https://dev.sidequest.exchange/agent/77?tab=approvals&approval=ap1' })
     const sql = await d1()
     await recordAgentEvents(sql, network, operator, produced, now)
     await recordAgentEvents(sql, network, operator, produced, now)
     expect(await sql.all('SELECT id, chat_id FROM telegram_outbox')).toEqual([{ id: 'telegram:approval:ap1', chat_id: 'chat-operator' }])
     expect((await readInbox(sql, { network, address, now })).events.map(e => e.kind)).toEqual(['approval.requested'])
-    expect(approvalUrl(network, { ...agent, agent_id: null }, 'ap1')).toBe('https://testnet.hireling.xyz/agents')
+    expect(approvalUrl(network, { ...agent, agent_id: null }, 'ap1')).toBe('https://dev.sidequest.exchange/agents')
   })
 
   it('records a standing-rule grant silently in both feeds and tells the agent which permission to use', () => {
@@ -58,7 +58,7 @@ describe('management feed events', () => {
 
 describe('inbox tool', () => {
   it('is a read-scope tool for the signed-in wallet only, with typed cursor errors', async () => {
-    expect(permittedTool({ scopes: ['hireling:read'] }, 'inbox')).toBe(true)
+    expect(permittedTool({ scopes: ['sidequest:read'] }, 'inbox')).toBe(true)
     const sql = await d1()
     const deps = { sql, network, now }
     await expect(feedTools.inbox.run(deps, undefined, {})).rejects.toMatchObject({ code: 'unauthenticated' })

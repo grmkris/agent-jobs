@@ -4,9 +4,9 @@
  * note, brief or other worker-written text. The two Telegram notices the Worker used to send after these tools move
  * here with their ids unchanged, so a deploy across the move sends nothing twice. Nothing here ever fails the tool.
  */
-import type { Sql } from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type { Network } from '@agent-jobs/sdk'
+import type { Sql } from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
+import type { Network } from '@sidequest/sdk'
 import { type FeedEvent, PUBLIC_ADDRESS, reportFeedFailure, writeFeed } from './feed.ts'
 import { enqueuePublicRequest, enqueueWalletNotification, telegramPublicChannel, telegramSite } from './telegram.ts'
 
@@ -80,7 +80,7 @@ export async function recordBoardEvent(board: Sql, d1: AsyncSql, input: BoardToo
     for (const event of events) {
       if (event.kind === 'selection.received') await enqueueWalletNotification(d1, input.network, event.address, {
         id: `telegram:selected:${input.boardId}:${event.taskId}:${String(input.args.nonce)}`,
-        text: `You were selected for Hireling task ${event.taskId}. Activate the agreement to accept the job.`, now: input.now,
+        text: `You were selected for Sidequest task ${event.taskId}. Activate the agreement to accept the job.`, now: input.now,
       })
       if (event.kind === 'request.opened') await enqueuePublicRequest(d1, telegramPublicChannel(input.network), {
         boardId: input.boardId, taskId: event.requestId!, kind: 'quotes', network: input.network, now: input.now,

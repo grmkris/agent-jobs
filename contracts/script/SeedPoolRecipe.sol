@@ -7,15 +7,15 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BroadcastPath} from "./BroadcastPath.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {PoolKey, IV4PositionManager, IV4Permit2, IV4StateView, SeedHelper} from "../src/hireling/SeedHelper.sol";
+import {PoolKey, IV4PositionManager, IV4Permit2, IV4StateView, SeedHelper} from "../src/sidequest/SeedHelper.sol";
 
 /// @title SeedPoolRecipe
-/// @notice C12: one full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, owned by the protocol Safe, created
+/// @notice C12: one full-range Uniswap v4 SIDE/USDC position on Monad mainnet, owned by the protocol Safe, created
 ///         in one transaction by a `SeedHelper` (review C12-002): set the price (initialize, or repair a pool someone
 ///         initialized at another price, trading through what is in the way up to `maxRepairCost`), mint, clean up.
 ///         Input: the `liquidity` block of `config/monad-mainnet.json` (protocol addresses checked with `cast code`;
-///         amounts, cap and owner are the coordinator's); FACTORY and the Safe from `deployment.hireling`. The price is
-///         `quoteAmount / factoryAmount` (3M FACTORY for $300 = $0.0001). Liquidity is computed from 99.99% of each
+///         amounts, cap and owner are the coordinator's); SIDE and the Safe from `deployment.sidequest`. The price is
+///         `quoteAmount / factoryAmount` (3M SIDE for $300 = $0.0001). Liquidity is computed from 99.99% of each
 ///         amount with the amounts as the caps, so the mint refuses a pool whose price is off by more than that.
 ///
 ///         After the broadcast, `verifyRun` is the authoritative check (review C12-001): it takes the token id from the
@@ -46,7 +46,7 @@ library SeedPoolRecipe {
         uint256 quoteAmount; // raw units
         uint256 maxRepairCost; // raw quote units
         address positionOwner;
-        address safe; // deployment.hireling.safe
+        address safe; // deployment.sidequest.safe
     }
 
     struct Plan {
@@ -72,8 +72,8 @@ library SeedPoolRecipe {
         c.positionManager = IV4PositionManager(vm.parseJsonAddress(json, ".liquidity.uniswapV4.positionManager"));
         c.permit2 = vm.parseJsonAddress(json, ".liquidity.uniswapV4.permit2");
         c.stateView = IV4StateView(vm.parseJsonAddress(json, ".liquidity.uniswapV4.stateView"));
-        c.factory = IERC20(vm.parseJsonAddress(json, ".deployment.hireling.factory"));
-        c.safe = vm.parseJsonAddress(json, ".deployment.hireling.safe");
+        c.factory = IERC20(vm.parseJsonAddress(json, ".deployment.sidequest.factory"));
+        c.safe = vm.parseJsonAddress(json, ".deployment.sidequest.safe");
         c.quote = IERC20(vm.parseJsonAddress(json, ".liquidity.quote"));
         c.fee = SafeCast.toUint24(vm.parseJsonUint(json, ".liquidity.fee"));
         c.tickSpacing = SafeCast.toInt24(SafeCast.toInt256(vm.parseJsonUint(json, ".liquidity.tickSpacing")));
@@ -91,7 +91,7 @@ library SeedPoolRecipe {
     function check(Config memory c) internal view {
         if (c.positionOwner == address(0)) revert BadConfig("positionOwner unset");
         // Review C12-003: the position goes to the deployed protocol Safe, not to whatever the field says.
-        if (c.positionOwner != c.safe) revert BadConfig("positionOwner is not deployment.hireling.safe");
+        if (c.positionOwner != c.safe) revert BadConfig("positionOwner is not deployment.sidequest.safe");
         if (c.safe.code.length == 0) revert BadConfig("no code at the Safe");
         if (c.factoryAmount == 0 || c.quoteAmount == 0) revert BadConfig("zero amount");
         if (c.maxRepairCost == 0) revert BadConfig("zero maxRepairCost");
@@ -114,7 +114,7 @@ library SeedPoolRecipe {
         (address c0, address c1) =
             factoryFirst ? (address(c.factory), address(c.quote)) : (address(c.quote), address(c.factory));
         (p.amount0, p.amount1) = factoryFirst ? (c.factoryAmount, c.quoteAmount) : (c.quoteAmount, c.factoryAmount);
-        // The repair cap in each token: maxRepairCost in quote, and its FACTORY value at the target price.
+        // The repair cap in each token: maxRepairCost in quote, and its SIDE value at the target price.
         uint256 factoryCap = Math.mulDiv(c.maxRepairCost, c.factoryAmount, c.quoteAmount);
         (p.repairMax0, p.repairMax1) = factoryFirst ? (factoryCap, c.maxRepairCost) : (c.maxRepairCost, factoryCap);
         p.key = PoolKey(c0, c1, c.fee, c.tickSpacing, address(0));

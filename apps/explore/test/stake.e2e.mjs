@@ -30,23 +30,23 @@ try {
     await page.goto(`${base}/account`);
     await page.getByRole('link', { name: /Back an agent/ }).click();
     await page.waitForURL('**/backing');
-    await text(page, '50,000 FACTORY');
-    await position(page).getByText('6,000 FACTORY', { exact: true }).waitFor();
+    await text(page, '50,000 SIDE');
+    await position(page).getByText('6,000 SIDE', { exact: true }).waitFor();
     await position(page).getByText('60 % of total backing', { exact: true }).waitFor();
-    await text(page, 'If the agent is slashed for bad work, everyone backing it loses the same share. Your FACTORY stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.');
+    await text(page, 'If the agent is slashed for bad work, everyone backing it loses the same share. Your SIDE stays at risk until you withdraw. Leaving starts a 10-minute wait on testnet (7 days on mainnet); if the agent still has open jobs bonded against its backing, withdrawal waits until they settle.');
     assert.ok((await page.locator('article[aria-label^="Position in"]').first().innerText()).includes('My worker'), 'operator agent position first');
     await capture(page, `${name}-positions`);
     await page.getByRole('combobox', { name: 'Agent to back' }).selectOption(agentWallet);
     await amount(page).fill('60000');
-    await text(page, 'That is more FACTORY than your wallet holds.');
-    assert.equal(await page.getByRole('button', { name: 'Delegate 60,000 FACTORY', exact: true }).isDisabled(), true);
+    await text(page, 'That is more SIDE than your wallet holds.');
+    assert.equal(await page.getByRole('button', { name: 'Delegate 60,000 SIDE', exact: true }).isDisabled(), true);
     await amount(page).fill('1000');
     await page.evaluate(() => { window.__wallet.declineSign = true; });
-    await page.getByRole('button', { name: 'Delegate 1,000 FACTORY', exact: true }).click();
+    await page.getByRole('button', { name: 'Delegate 1,000 SIDE', exact: true }).click();
     await text(page, 'You cancelled in your wallet. Nothing was sent.');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await page.evaluate(() => { window.__wallet.declineSign = false; });
-    await page.getByRole('button', { name: 'Delegate 1,000 FACTORY', exact: true }).click();
+    await page.getByRole('button', { name: 'Delegate 1,000 SIDE', exact: true }).click();
     await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
     const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { owner: p.message.owner, spender: p.message.spender, amount: String(p.message.value) }; });
     assert.deepEqual(permit, { owner, spender: contracts.vault, amount: (1000n * 10n ** 18n).toString() });
@@ -54,7 +54,7 @@ try {
     await page.reload();
     await page.getByRole('heading', { name: 'Confirm your position action' }).waitFor();
     await confirm(page, 'Delegated. You own the position.');
-    await position(page).getByText('7,000 FACTORY', { exact: true }).waitFor();
+    await position(page).getByText('7,000 SIDE', { exact: true }).waitFor();
     const call = await page.evaluate(() => window.__stake.calls.at(-1));
     assert.equal(call.functionName, 'delegateWithPermit');
     assert.equal(call.args[0], agentWallet);
@@ -62,7 +62,7 @@ try {
     await position(page).getByRole('button', { name: 'Leave', exact: true }).click();
     await page.getByRole('button', { name: 'Max', exact: true }).click();
     assert.equal(await amount(page).inputValue(), '7000');
-    await page.getByRole('button', { name: 'Leave 7,000 FACTORY', exact: true }).click();
+    await page.getByRole('button', { name: 'Leave 7,000 SIDE', exact: true }).click();
     await confirm(page, 'Leaving started. Your position stays at risk.');
     await position(page).getByText('Leaving', { exact: true }).waitFor();
     assert.equal(await position(page).getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
@@ -85,7 +85,7 @@ try {
     await position(page).getByText('Active', { exact: true }).waitFor();
     await position(page).getByRole('button', { name: 'Leave', exact: true }).click();
     await page.getByRole('button', { name: 'Max', exact: true }).click();
-    await page.getByRole('button', { name: /^Leave .* FACTORY$/ }).click();
+    await page.getByRole('button', { name: /^Leave .* SIDE$/ }).click();
     await confirm(page, 'Leaving started. Your position stays at risk.');
     assert.equal((await page.evaluate(() => window.__stake.calls.at(-1))).args[1], (7000n * 10n ** 18n).toString(), 'MAX owns all shares after rounding');
     await page.evaluate(({ account }) => { const pool = window.__stake.pools[account]; pool.reserved = 0n; pool.positions[window.__wallet.address].unlockAt = Math.floor(Date.now() / 1000) - 1; }, { account: agentWallet });
@@ -107,7 +107,7 @@ try {
     await page.getByRole('radio', { name: 'Leave', exact: true }).click();
     await page.getByRole('button', { name: 'Max', exact: true }).click();
     assert.equal(await amount(page).inputValue(), '0.000000000000000002');
-    await page.getByRole('button', { name: /^Leave .* FACTORY$/ }).click();
+    await page.getByRole('button', { name: /^Leave .* SIDE$/ }).click();
     await confirm(page, 'Leaving started. Your position stays at risk.');
     assert.equal((await page.evaluate(() => window.__stake.calls.at(-1))).args[1], '4');
     await context.close();
@@ -129,7 +129,7 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Delegate', exact: true }).isDisabled(), true);
     await page.evaluate(() => { window.__stake.down = false; });
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
-    await position(page).getByText('6,000 FACTORY', { exact: true }).waitFor();
+    await position(page).getByText('6,000 SIDE', { exact: true }).waitFor();
     await page.evaluate(() => { window.__stake.down = true; });
     await refresh(page);
     await text(page, 'Showing last-known positions. Actions are paused until chain facts refresh.');
@@ -148,12 +148,12 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 });
     await page.goto(`${base}/agent/1942`);
     const backing = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Backing', exact: true }) });
-    await backing.getByText('10,000 FACTORY', { exact: true }).first().waitFor();
-    await backing.getByText('8,000 FACTORY', { exact: true }).waitFor();
-    await backing.getByText('2,000 FACTORY', { exact: true }).waitFor();
+    await backing.getByText('10,000 SIDE', { exact: true }).first().waitFor();
+    await backing.getByText('8,000 SIDE', { exact: true }).waitFor();
+    await backing.getByText('2,000 SIDE', { exact: true }).waitFor();
     await backing.getByText('2', { exact: true }).waitFor();
     await backing.getByRole('heading', { name: 'Top delegators' }).waitFor();
-    await backing.getByText('6,000 FACTORY · 60 %', { exact: true }).waitFor();
+    await backing.getByText('6,000 SIDE · 60 %', { exact: true }).waitFor();
     await capture(page, 'agent-backing');
     await backing.getByRole('link', { name: 'Delegate', exact: true }).click();
     await page.waitForURL('**/backing?account=*');
@@ -202,26 +202,26 @@ try {
     await balances.getByText('50,000', { exact: true }).waitFor();
     await balances.getByText('25', { exact: true }).waitFor();
     await balances.getByText('0.5', { exact: true }).waitFor();
-    await delegate.getByLabel('This agent’s backing').getByText('8,000 FACTORY', { exact: true }).waitFor();
+    await delegate.getByLabel('This agent’s backing').getByText('8,000 SIDE', { exact: true }).waitFor();
     await delegate.getByRole('button', { name: 'Max', exact: true }).click();
-    assert.equal(await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).inputValue(), '50000');
+    assert.equal(await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).inputValue(), '50000');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0, 'Max only fills the operator balance');
-    await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
+    await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).fill('1');
     await page.evaluate(() => { window.__wallet.declineSign = true; });
     await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
     await text(page, 'You cancelled in your wallet. Nothing was sent.');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await page.evaluate(() => { window.__wallet.declineSign = false; });
     for (const round of [1, 2]) {
-      await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1.000000000000000001');
+      await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).fill('1.000000000000000001');
       await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
-      await text(page, 'Delegate 1.000000000000000001 FACTORY to My worker');
+      await text(page, 'Delegate 1.000000000000000001 SIDE to My worker');
       const permit = await page.evaluate(() => { const p = window.__wallet.signatures.at(-1); return { owner: p.message.owner, spender: p.message.spender, value: String(p.message.value) }; });
       assert.deepEqual(permit, { owner, spender: contracts.vault, value: '1000000000000000001' });
       if (round === 1) {
         await page.reload();
         await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-        await text(page, 'Delegate 1.000000000000000001 FACTORY to My worker');
+        await text(page, 'Delegate 1.000000000000000001 SIDE to My worker');
         assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'reload resumes the saved permit without signing again');
       }
       await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
@@ -241,9 +241,9 @@ try {
     const { context, page } = await fixture({ width: 390, height: 844 }, { delegated: true });
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('100');
+    await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).fill('100');
     await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
-    await text(page, 'Delegate 100 FACTORY to My worker');
+    await text(page, 'Delegate 100 SIDE to My worker');
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'already-upgraded wallet needs no permit or upgrade signature');
     const code = await page.evaluate(() => window.__stake.code[window.__wallet.address]);
     await page.evaluate(() => { window.__stake.code = {}; });
@@ -267,14 +267,14 @@ try {
   }
   {
     const { context, page } = await fixture({ width: 1440, height: 900 });
-    const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
+    const pointerKey = `sidequest.delegation-op:10143:${contracts.vault}:${owner}`;
     const second = await context.newPage();
     second.setDefaultTimeout(20000);
     second.on('pageerror', error => errors.push(error.message));
     await Promise.all([page.goto(`${base}/backing?account=${agentWallet}`), second.goto(`${base}/backing?account=${agentWallet}`)]);
     await Promise.all([amount(page).fill('1'), amount(second).fill('1')]);
     await page.evaluate(() => { window.__wallet.signGate = true; });
-    await page.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await page.getByRole('button', { name: 'Delegate 1 SIDE', exact: true }).click();
     await page.waitForFunction(() => window.__wallet.signatures.length === 1 && window.__releasePermit !== undefined);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null, 'the permit prompt precedes the prepared pointer, while the vault lock is still held');
     // Reproduce Chromium's stale localStorage renderer cache deterministically:
@@ -286,7 +286,7 @@ try {
         return this === localStorage && item === key ? null : getItem.call(this, item);
       };
     }, pointerKey);
-    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.getByRole('button', { name: 'Delegate 1 SIDE', exact: true }).click();
     await second.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock => lock.name.includes('vault:')));
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'second tab waits before signing');
     await page.evaluate(() => window.__releasePermit());
@@ -303,7 +303,7 @@ try {
     await second.evaluate(() => window.__restorePointerCache());
     await second.waitForFunction(({ key, id }) => JSON.parse(localStorage.getItem(key) ?? 'null')?.id === id, { key: pointerKey, id: saved.id });
     assert.equal(await second.evaluate(key => JSON.parse(localStorage.getItem(key)).id, pointerKey), saved.id, 'a remounted tab may resume only the original intent');
-    assert.equal(await second.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('hireling.op:delegation:')).length), 1, 'only one prepared journal exists across both tabs');
+    assert.equal(await second.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('sidequest.op:delegation:')).length), 1, 'only one prepared journal exists across both tabs');
     await page.getByRole('button', { name: 'Not now', exact: true }).waitFor();
     await second.evaluate(async ({ key, saved: priorIntent }) => {
       const { withVaultIntentLock, writeVaultIntent } = await import('/src/vault-lock.ts');
@@ -325,12 +325,12 @@ try {
   }
   for (const surface of ['stake', 'setup']) {
     const { context, page } = await fixture({ width: 1440, height: 900 });
-    const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
+    const pointerKey = `sidequest.delegation-op:10143:${contracts.vault}:${owner}`;
     await context.addInitScript(() => {
       const put = IDBObjectStore.prototype.put;
       window.__rejectVaultWrite = 'all';
       IDBObjectStore.prototype.put = function (value, key) {
-        if (this.transaction.db.name === 'hireling-vault-intents' &&
+        if (this.transaction.db.name === 'sidequest-vault-intents' &&
           (window.__rejectVaultWrite === 'all' || window.__rejectVaultWrite === 'prepared' &&
             typeof value === 'string' && Array.isArray(JSON.parse(value).txs))) {
           this.transaction.abort();
@@ -344,14 +344,14 @@ try {
     second.on('pageerror', error => errors.push(error.message));
     await page.goto(`${base}/${surface === 'stake' ? `backing?account=${agentWallet}` : 'agents/new'}`);
     if (surface === 'setup') await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    const firstAmount = surface === 'stake' ? amount(page) : page.getByRole('textbox', { name: 'FACTORY to delegate to agent' });
-    const review = () => page.getByRole('button', { name: surface === 'stake' ? 'Delegate 1 FACTORY' : 'Review delegation', exact: true });
+    const firstAmount = surface === 'stake' ? amount(page) : page.getByRole('textbox', { name: 'SIDE to delegate to agent' });
+    const review = () => page.getByRole('button', { name: surface === 'stake' ? 'Delegate 1 SIDE' : 'Review delegation', exact: true });
     await firstAmount.fill('1');
     await second.goto(`${base}/backing?account=${agentWallet}`);
     await amount(second).fill('1');
     await review().click();
     await text(page, 'vault intent write aborted');
-    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.getByRole('button', { name: 'Delegate 1 SIDE', exact: true }).click();
     await text(second, 'vault intent write aborted');
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 0, 'failed reservation cannot open the first permit prompt');
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'undefined checkpoint and stale null cannot open the second permit prompt when its reservation fails');
@@ -368,19 +368,19 @@ try {
     await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 1);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), pointerKey), null, 'rejected final pointer write stays unexposed after signing');
-    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.getByRole('button', { name: 'Delegate 1 SIDE', exact: true }).click();
     await second.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'durable reservation blocks the stale renderer before a second signature');
     await second.reload();
     await amount(second).fill('1');
-    await second.getByRole('button', { name: 'Delegate 1 FACTORY', exact: true }).click();
+    await second.getByRole('button', { name: 'Delegate 1 SIDE', exact: true }).click();
     await second.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor();
     assert.equal(await second.evaluate(() => window.__wallet.signatures.length), 0, 'interrupted reservation survives reload');
     await page.evaluate(() => { window.__rejectVaultWrite = false; });
     await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).click();
     await page.getByRole('button', { name: 'Discard interrupted preparation', exact: true }).waitFor({ state: 'detached' });
     await review().click();
-    await page.getByText('Delegate 1 FACTORY to My worker', { exact: true }).waitFor();
+    await page.getByText('Delegate 1 SIDE to My worker', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length), 2, 'explicit discard permits one fresh preparation');
     assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
     await context.close();
@@ -390,11 +390,11 @@ try {
     const { context, page } = await fixture({ width: 1440, height: 900 }, { delegated: true });
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-    await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('1');
+    await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).fill('1');
     await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
-    await text(page, 'Delegate 1 FACTORY to My worker');
+    await text(page, 'Delegate 1 SIDE to My worker');
     const journal = await page.evaluate(() => {
-      const key = Object.keys(localStorage).find(item => item.startsWith('hireling.op:delegation:'));
+      const key = Object.keys(localStorage).find(item => item.startsWith('sidequest.op:delegation:'));
       return { key, raw: localStorage.getItem(key) };
     });
     const second = await context.newPage();
@@ -429,7 +429,7 @@ try {
     assert.equal(pending.pending, 0, 'pending journal committed before the first wallet prompt');
     assert.equal(pending.snapshot.nonce, 0);
     await second.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
-    await second.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock => lock.name.startsWith('hireling.wallet-step:hireling.op:')));
+    await second.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock => lock.name.startsWith('sidequest.wallet-step:sidequest.op:')));
     await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
     await second.waitForFunction(async key => {
       const { readTxJournalDurable } = await import('/src/components/txJournal.ts');

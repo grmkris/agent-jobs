@@ -16,7 +16,7 @@ export async function proveRegistration(chain: AuthorityChain, details: unknown[
     Number((await chain.ctx.publicClient.getBlock()).timestamp) + 600,
   ))
   const register = encodeFunctionData({ abi: registryAbi, functionName: 'register',
-    args: [`https://hireling.xyz/fixtures/spec-v2-p0/${chain.runId}`] })
+    args: [`https://sidequest.exchange/fixtures/spec-v2-p0/${chain.runId}`] })
   const receipt = await chain.send('registration/register', chain.ctx.deployment.delegation.manager,
     redeemCallsCalldata(grant, [{ target: identity, value: 0n, callData: register }]), 800_000n)
   const registered = receipt.logs.filter(log => log.address.toLowerCase() === identity.toLowerCase()).flatMap(log => {

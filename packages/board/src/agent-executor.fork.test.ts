@@ -1,9 +1,9 @@
-/** Cryptographic fixture signers, real SQLite and real delegation/Hireling contracts on a Monad fork. */
+/** Cryptographic fixture signers, real SQLite and real delegation/Sidequest contracts on a Monad fork. */
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type Hex, type LocalAccount, decodeFunctionData, encodeFunctionData, erc20Abi, parseEther } from 'viem'
-import * as sdk from '@agent-jobs/sdk'
-import { startHirelingFork, forkEnabled, forkSetupTimeout } from '../../sdk/test/hireling-fixture.ts'
+import * as sdk from '@sidequest/sdk'
+import { startSidequestFork, forkEnabled, forkSetupTimeout } from '../../sdk/test/sidequest-fixture.ts'
 import { Board, BoardError } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { AgentStore } from './agents.ts'
@@ -17,9 +17,9 @@ import { AgentLifecycle } from './agent-lifecycle.ts'
 import { AgentPermissions } from './agent-permissions.ts'
 
 const suite = forkEnabled ? describe : describe.skip
-const fixtureWallet = (fixture: Awaited<ReturnType<typeof startHirelingFork>>, id: string) => id === 'creator-agent-wallet' ? fixture.contributor : fixture.worker
+const fixtureWallet = (fixture: Awaited<ReturnType<typeof startSidequestFork>>, id: string) => id === 'creator-agent-wallet' ? fixture.contributor : fixture.worker
 suite('agent executor through real contracts', () => {
-  let fixture: Awaited<ReturnType<typeof startHirelingFork>>
+  let fixture: Awaited<ReturnType<typeof startSidequestFork>>
   let ctx: sdk.Ctx
   let db: DatabaseSync
   let boardDb: DatabaseSync
@@ -80,7 +80,7 @@ suite('agent executor through real contracts', () => {
   }
 
   beforeAll(async () => {
-    fixture = await startHirelingFork()
+    fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
     now = Number((await ctx.publicClient.getBlock()).timestamp)
     db = new DatabaseSync(':memory:')
@@ -89,7 +89,7 @@ suite('agent executor through real contracts', () => {
     agents = new AgentStore(fromNodeSqlite(db), () => now)
     grants = new GrantStore(fromNodeSqlite(db), ctx)
     signing = new AgentSigning(fromNodeSqlite(db), ctx, fixtureSigner(), () => now)
-    workerId = await sdk.registerAgent(ctx, fixture.worker, 'https://hireling.xyz/executor-fixture')
+    workerId = await sdk.registerAgent(ctx, fixture.worker, 'https://sidequest.exchange/executor-fixture')
     for (const [id, wallet, walletId] of [['creator-agent', fixture.contributor, 'creator-agent-wallet'], ['worker-agent', fixture.worker, 'worker-agent-wallet']] as const) {
       agents.create({ id, operator: fixture.creator.account.address, privyUserId: 'did:privy:fork-fixture', name: id, registry: ctx.deployment.identity, chainId: ctx.deployment.chainId })
       agents.bindWallet(id, walletId, wallet.account.address)
@@ -335,7 +335,7 @@ suite('agent executor through real contracts', () => {
     expect(await usePermission('perm-use-3', periodic, { amount: '1000000' })).toMatchObject({ status: 'confirmed' })
     expect(await balance()).toBe(before + 3_000_000n)
     const exact = await grant('perm-exact', { chainId: ctx.deployment.chainId, to: fixture.contributor.account.address, rules: [{ type: 'expiry', data: { timestamp: now + 3600 } }],
-      permission: { type: 'hireling:contract-call', data: { target: token, calldata: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient, 500_000n] }) } } })
+      permission: { type: 'sidequest:contract-call', data: { target: token, calldata: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [recipient, 500_000n] }) } } })
     expect(await usePermission('perm-exact-1', exact)).toMatchObject({ status: 'confirmed' })
     expect(await balance()).toBe(before + 3_500_000n)
     // LimitedCalls(1): a second redemption is refused before any send.

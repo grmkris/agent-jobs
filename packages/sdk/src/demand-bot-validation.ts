@@ -2,7 +2,7 @@
 import { type Address, type Hex, encodeFunctionData, getAddress, keccak256 } from 'viem'
 import type { Ctx } from './actions.ts'
 import { hashText } from './actions.ts'
-import { factoryTokenAbi, hirelingEvaluatorAbi, hirelingHoldingAbi } from './abi/index.ts'
+import { factoryTokenAbi, sidequestEvaluatorAbi, sidequestHoldingAbi } from './abi/index.ts'
 import type { TxRequest } from './board-client.ts'
 import type { OfferWindows } from './clocks.ts'
 import { type DemandQuote, type DemandTemplate, parseMUsdAmount } from './demand-bot.ts'
@@ -121,7 +121,7 @@ export function validateDemandPreparation(ctx: Ctx, intent: DemandIntent, reques
   if (demandCanonicalJson(manifest) !== prepared.manifest || hashText(prepared.manifest) !== prepared.termsHash) throw new Error('manifest hash differs from prepared terms')
   const publish: TxRequest = {
     description: 'Publish exact demand hire', chainId: 10143, to: ctx.stack.holding, value: '0',
-    data: encodeFunctionData({ abi: hirelingHoldingAbi, functionName: 'publish', args: [{
+    data: encodeFunctionData({ abi: sidequestHoldingAbi, functionName: 'publish', args: [{
       approver: intent.creator, arbitrator: intent.arbitrator, manifestHash: prepared.termsHash, policyHash: prepared.termsHash,
       token: intent.token, reward, creatorBond: 0n, workerBond: 0n, deliveryDeadline: intent.deliveryDeadline, expiredAt,
       reviewWindow: intent.windows.reviewSeconds, disputeWindow: intent.windows.disputeSeconds, arbitrationWindow: intent.windows.arbitrationSeconds,
@@ -146,5 +146,5 @@ export function validateDemandSelection(ctx: Ctx, json: string, nonce: string, e
 }
 
 export function demandAcceptTransaction(ctx: Ctx, jobId: bigint): TxRequest {
-  return { description: 'Accept checked deliverable', chainId: 10143, to: ctx.stack.evaluator, value: '0', gas: '1200000', data: encodeFunctionData({ abi: hirelingEvaluatorAbi, functionName: 'accept', args: [jobId] }) }
+  return { description: 'Accept checked deliverable', chainId: 10143, to: ctx.stack.evaluator, value: '0', gas: '1200000', data: encodeFunctionData({ abi: sidequestEvaluatorAbi, functionName: 'accept', args: [jobId] }) }
 }

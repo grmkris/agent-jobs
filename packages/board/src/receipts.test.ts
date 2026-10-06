@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, type TransactionReceipt, encodeAbiParameters, encodeEventTopics, parseAbi } from 'viem'
 import { expect, it, vi } from 'vitest'
 import { confirmedOperationIds, confirmsVaultOperation, vaultOperationResult } from './receipts.ts'
@@ -9,12 +9,12 @@ import type { OperationRow } from './store.ts'
 
 const wallet = `0x${'1'.repeat(40)}` as Address, relay = `0x${'2'.repeat(40)}` as Address, mallory = `0x${'3'.repeat(40)}` as Address
 const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
-const ctx = { ...base, stack: { ...base.stack, kind: 'hireling-v1' as const }, publicClient: { ...base.publicClient,
+const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' as const }, publicClient: { ...base.publicClient,
   readContract: vi.fn(async () => ({ creator: wallet, approver: wallet })) } } as unknown as sdk.Ctx
 const op = (kind: string, actor: string = wallet, detail?: object): OperationRow => ({ id: kind + actor, kind, actor, task_id: 'task', status: 'prepared', tx_hash: null, detail: detail === undefined ? null : JSON.stringify(detail), created_at: 0, updated_at: 0 })
 const receipt = (logs: unknown[]): TransactionReceipt => ({ status: 'success', from: relay, to: ctx.deployment.delegation.manager, logs }) as TransactionReceipt
 function accepted(approver: Address = wallet, address = ctx.stack.evaluator, jobId = 1n) {
-  return { address, data: '0x' as Hex, topics: encodeEventTopics({ abi: sdk.hirelingEvaluatorAbi, eventName: 'Accepted', args: { jobId, approver } }) }
+  return { address, data: '0x' as Hex, topics: encodeEventTopics({ abi: sdk.sidequestEvaluatorAbi, eventName: 'Accepted', args: { jobId, approver } }) }
 }
 
 it('a relay/manager receipt confirms only the decoded event actor and method', async () => {
@@ -27,7 +27,7 @@ it('counterfeit contracts, another job, and reverted receipts cannot confirm an 
     expect(await confirmedOperationIds(ctx, 1n, r, [op('accept')])).toEqual([])
 })
 it('an activation event must match the prepared selection nonce', async () => {
-  const log = { address: ctx.stack.holding, topics: encodeEventTopics({ abi: sdk.hirelingHoldingAbi, eventName: 'Activated', args: { jobId: 1n, worker: wallet } }),
+  const log = { address: ctx.stack.holding, topics: encodeEventTopics({ abi: sdk.sidequestHoldingAbi, eventName: 'Activated', args: { jobId: 1n, worker: wallet } }),
     data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint16' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }], [4n, 5n, 3000, 3n, 7n, 1n]) }
   expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [op('activate', wallet, { selectionNonce: '5' })])).toEqual([op('activate').id])
   expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [op('activate', wallet, { selectionNonce: '6' })])).toEqual([])
@@ -35,7 +35,7 @@ it('an activation event must match the prepared selection nonce', async () => {
 })
 it('same-reason rejections confirm only their exact violation, with complete prepared details', async () => {
   const reasonHash = sdk.hashText('same reason')
-  const log = { address: ctx.stack.evaluator, topics: encodeEventTopics({ abi: sdk.hirelingEvaluatorAbi, eventName: 'Rejected', args: { jobId: 1n, approver: wallet } }),
+  const log = { address: ctx.stack.evaluator, topics: encodeEventTopics({ abi: sdk.sidequestEvaluatorAbi, eventName: 'Rejected', args: { jobId: 1n, approver: wallet } }),
     data: encodeAbiParameters([{ type: 'uint8' }, { type: 'bytes32' }], [1, reasonHash]) }
   const none = { ...op('reject', wallet, { reasonHash, violation: 'None' }), id: 'none' }, quality = { ...op('reject', wallet, { reasonHash, violation: 'Quality' }), id: 'quality' }
   expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [none, quality, op('reject', wallet, { reasonHash }), op('reject', mallory, { reasonHash, violation: 'Quality' })])).toEqual(['quality'])
@@ -43,7 +43,7 @@ it('same-reason rejections confirm only their exact violation, with complete pre
 it('rulings match both decision flags and the canonical v1 or legacy arbitrator', async () => {
   const reasonHash = sdk.hashText('decision')
   const fields = encodeAbiParameters([{ type: 'bool' }, { type: 'bool' }, { type: 'bytes32' }], [true, false, reasonHash])
-  const log = { address: ctx.stack.evaluator, topics: encodeEventTopics({ abi: sdk.hirelingEvaluatorAbi, eventName: 'Ruled', args: { jobId: 1n, arbitrator: wallet } }), data: fields }
+  const log = { address: ctx.stack.evaluator, topics: encodeEventTopics({ abi: sdk.sidequestEvaluatorAbi, eventName: 'Ruled', args: { jobId: 1n, arbitrator: wallet } }), data: fields }
   const right = op('rule', wallet, { reasonHash, forWorker: true, slashLoser: false })
   const wrong = [op('rule', wallet, { reasonHash, forWorker: false, slashLoser: false }), op('rule', wallet, { reasonHash, forWorker: true, slashLoser: true }), op('rule', wallet, { reasonHash }), op('rule', mallory, { reasonHash, forWorker: true, slashLoser: false })]
   expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [right, ...wrong])).toEqual([right.id])
@@ -69,12 +69,12 @@ it('the core submission event confirms only the recorded deliverable, regardless
 it('cancel is authorized by the canonical listing creator, and a settle event never confirms an accept', async () => {
   const abi = parseAbi(['event Cancelled(uint256 indexed jobId)'])
   expect(await confirmedOperationIds(ctx, 1n, receipt([{ address: ctx.stack.holding, data: '0x', topics: encodeEventTopics({ abi, eventName: 'Cancelled', args: { jobId: 1n } }) }]), [op('cancel'), op('cancel', mallory)])).toEqual([op('cancel').id])
-  const settle = { address: ctx.stack.holding, topics: encodeEventTopics({ abi: sdk.hirelingHoldingAbi, eventName: 'RewardSettled', args: { jobId: 1n, to: wallet } }), data: encodeAbiParameters([{ type: 'uint8' }, { type: 'uint256' }], [1, 7n]) }
+  const settle = { address: ctx.stack.holding, topics: encodeEventTopics({ abi: sdk.sidequestHoldingAbi, eventName: 'RewardSettled', args: { jobId: 1n, to: wallet } }), data: encodeAbiParameters([{ type: 'uint8' }, { type: 'uint256' }], [1, 7n]) }
   expect(await confirmedOperationIds(ctx, 1n, receipt([settle]), [op('accept')])).toEqual([])
 })
 
 const vault = `0x${'4'.repeat(40)}` as Address
-const vaultCtx = { ...ctx, deployment: { ...ctx.deployment, hireling: { vault, factory: ctx.stack.factory } } } as sdk.Ctx
+const vaultCtx = { ...ctx, deployment: { ...ctx.deployment, sidequest: { vault, factory: ctx.stack.factory } } } as sdk.Ctx
 function vaultLog(kind: 'stake' | 'request-unstake' | 'cancel-unstake' | 'withdraw-stake', account = wallet, payer = wallet, amount = 7n, address = vault, shares = 7n, delegator = wallet) {
   if (kind === 'stake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator, payer } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [amount, shares]) }
   if (kind === 'request-unstake') return { address, topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'UndelegateRequested', args: { account, delegator } }), data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint48' }], [shares, amount, 10n, 1000]) }
@@ -96,7 +96,7 @@ it.each(['stake', 'request-unstake', 'cancel-unstake', 'withdraw-stake'] as cons
 })
 it('third-party delegateFor cannot confirm a wallet stake, and a replaced vault cannot confirm an old preparation', () => {
   expect(confirmsVaultOperation(vaultCtx, receipt([vaultLog('stake', wallet, mallory)]), vaultOp('stake'))).toBe(false)
-  expect(confirmsVaultOperation({ ...vaultCtx, deployment: { ...vaultCtx.deployment, hireling: { ...vaultCtx.deployment.hireling!, vault: mallory } } }, receipt([vaultLog('stake')]), vaultOp('stake'))).toBe(false)
+  expect(confirmsVaultOperation({ ...vaultCtx, deployment: { ...vaultCtx.deployment, sidequest: { ...vaultCtx.deployment.sidequest!, vault: mallory } } }, receipt([vaultLog('stake')]), vaultOp('stake'))).toBe(false)
 })
 it('a saved wallet-operation hash survives a lost receipt response and polls the original without another preparation', async () => {
   const db = new DatabaseSync(':memory:'), sql = fromNodeSqlite(db)

@@ -1,13 +1,13 @@
 /** Delegation discovery over the unchanged D1 ledger, guarded by a fresh canonical checkpoint. */
-import { BoardError, delegationPositions, type PositionFilters, type DelegationSnapshot } from '@agent-jobs/board'
-import { indexedDelegations, type AsyncSql } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { BoardError, delegationPositions, type PositionFilters, type DelegationSnapshot } from '@sidequest/board'
+import { indexedDelegations, type AsyncSql } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
 import type { Address } from 'viem'
 import { COLLECT_INDEX_MAX_AGE } from './collect-index.ts'
 
 export async function stakingSnapshot(sql: AsyncSql, ctx: sdk.Ctx, filters: PositionFilters, now: number): Promise<DelegationSnapshot> {
-  const h = ctx.deployment.hireling
-  if (h === null || ctx.stack.kind !== 'hireling-v1') throw new BoardError('unavailable', 'delegated backing is unavailable')
+  const h = ctx.deployment.sidequest
+  if (h === null || ctx.stack.kind !== 'sidequest-v1') throw new BoardError('unavailable', 'delegated backing is unavailable')
   type Checkpoint = { next_block: number; updated_at: number; block_hash: string | null }
   const query = 'SELECT next_block, updated_at, block_hash FROM checkpoint WHERE chain_id=?'
   const [cp] = await sql.all<Checkpoint>(query, ctx.deployment.chainId)

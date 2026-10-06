@@ -1,6 +1,6 @@
 # ADR-0010: Permissionless payment tokens
 
-**V1 scope note (2 Oct):** permissionless rewards remain. `HirelingHolding` extends exact inflow and owed payouts to fees and top-ups, while FACTORY v2 stake reservations isolate bonds. A recorded deferred outcome is recovered, not reversed into a refund. The dated deployment statements below are legacy receipts; [ADR-0011](0011-hireling-v1.md) governs v1.
+**V1 scope note (2 Oct):** permissionless rewards remain. `SidequestHolding` extends exact inflow and owed payouts to fees and top-ups, while SIDE v2 stake reservations isolate bonds. A recorded deferred outcome is recovered, not reversed into a refund. The dated deployment statements below are legacy receipts; [ADR-0011](0011-sidequest-v1.md) governs v1.
 
 Date: 2026-09-29 (overnight). Status: **live on testnet** (`main` pair, job 60, `docs/reality-check.md`); `demo`
 awaits a redeploy; mainnet unchanged until Kris decides.
@@ -29,12 +29,12 @@ config's `rewardTokens`. Every new community token needed an admin transaction a
   - *Transfer hooks and reentrancy:* every state-changing entry point of `JobHolding` and of the core is
     non-reentrant, and both follow checks-effects-interactions.
   - *Blocklists and pauses:* a reward the token refuses to send at `settle` is recorded as `owed` and withdrawn later
-    with `withdraw(token)`; the bonds (FACTORY) settle regardless, so a token cannot hold them hostage. A paused token
+    with `withdraw(token)`; the bonds (SIDE) settle regardless, so a token cannot hold them hostage. A paused token
     freezes its own jobs until it unpauses.
   - *Isolation:* escrow is pooled per token, so a hostile or broken token can only affect listings in that same token.
   - *Rebasing down:* the last listing in such a token can come up short. That risk belongs to whoever chose the
     token, and the "unverified" label says so.
-  - FACTORY stays the only bond token; bonds never depend on the reward token.
+  - SIDE stays the only bond token; bonds never depend on the reward token.
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
-import { fromNodeSqlite, migrate } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { fromNodeSqlite, migrate } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 import { collectSnapshot } from '../src/collect-index.ts'
 
@@ -27,7 +27,7 @@ it('a partial RPC read fails the entire snapshot', async () => {
 })
 it('discovers unique mining epochs only from the configured distributor on this chain', async () => {
   const f = await fixture(), distributor = `0x${'c'.repeat(40)}` as const
-  f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, hireling: { ...f.ctx.deployment.hireling!, distributor } } } as unknown as sdk.Ctx
+  f.ctx = { ...f.ctx, deployment: { ...f.ctx.deployment, sidequest: { ...f.ctx.deployment.sidequest!, distributor } } } as unknown as sdk.Ctx
   const insert = f.db.prepare('INSERT INTO protocol_events VALUES (?,?,?,?,?,?,?)')
   insert.run(10143, distributor, 2, 0, 'tx1', 'RootSet', '{"epoch":"0"}')
   insert.run(10143, distributor, 3, 0, 'tx2', 'RootSet', '{"epoch":"0"}')

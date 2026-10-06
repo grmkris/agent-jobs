@@ -33,7 +33,7 @@ export type JobStatusWord =
 export type JobOutcome = 'accepted' | 'silence' | 'awarded' | 'ruled-worker' | 'ruled-creator' | 'arbitration-timeout' | 'missed' | 'rejection-final'
 
 export interface LifecycleInput {
-  kind?: 'legacy' | 'hireling-v1' | null
+  kind?: 'legacy' | 'sidequest-v1' | null
   mode: 'hire' | 'contest'
   status: JobStatusWord | (string & {})
   deliveryDeadline: number | null
@@ -322,7 +322,7 @@ function draftOf(input: LifecycleInput, now: number): Draft {
   }
 
   // A refused core payout may finish as Rejected/Expired while the worker's recorded payment right stays final.
-  if (input.kind === 'hireling-v1' && ['completed', 'rejected', 'expired'].includes(s)
+  if (input.kind === 'sidequest-v1' && ['completed', 'rejected', 'expired'].includes(s)
     && ['accepted', 'silence', 'ruled-worker'].includes(input.outcome ?? '')) {
     return { key: 'completed', label: 'Paid', tone: 'success', actor: null, deadline: null,
       next: ['The work was accepted; the worker payment is settled.'], terminal: true, beneficiary: 'worker' }
@@ -377,7 +377,7 @@ export function lifecycle(input: LifecycleInput, viewer?: string | null, now: nu
     actions = []
   }
   if (input.paused) {
-    warnings.push(input.kind === 'hireling-v1'
+    warnings.push(input.kind === 'sidequest-v1'
       ? 'The core is paused. A delivery deadline inside a recorded pause does not burn the worker bond.'
       : 'Paused by the admin: nothing can be sent, and deadlines keep running.')
     if (d.key !== 'collect') actions = []
@@ -444,7 +444,7 @@ export function phaseText(parts: Segment[], time: (t: number) => string = (t) =>
 
 /** A row of the indexer's `jobs` table (Explore's `/data/jobs`), as lifecycle input. */
 export function lifecycleFromIndexed(row: {
-  kind?: 'legacy' | 'hireling-v1' | null
+  kind?: 'legacy' | 'sidequest-v1' | null
   mode: string | null
   status: string
   creator: string | null
@@ -476,8 +476,8 @@ export function lifecycleFromIndexed(row: {
     violation: (row.violation ?? null) as ViolationName | null,
     workerBond: row.worker_bond,
     outcome: protocolOutcome(row.outcome),
-    deferredDecision: row.kind === 'hireling-v1' && decided && !terminal && (row.payout_deferred === 1 || row.refund_deferred === 1),
-    collectPending: row.kind === 'hireling-v1' && terminal && row.settlement_outcome === 'None',
+    deferredDecision: row.kind === 'sidequest-v1' && decided && !terminal && (row.payout_deferred === 1 || row.refund_deferred === 1),
+    collectPending: row.kind === 'sidequest-v1' && terminal && row.settlement_outcome === 'None',
     reviewEndsAt: row.submitted_at != null && row.review_window != null ? row.submitted_at + row.review_window : null,
     disputeEndsAt: row.rejected_at != null && row.dispute_window != null ? row.rejected_at + row.dispute_window : null,
     arbitrationEndsAt: row.disputed_at != null && row.arbitration_window != null ? row.disputed_at + row.arbitration_window : null,
@@ -487,7 +487,7 @@ export function lifecycleFromIndexed(row: {
 
 /** The board's `get_task` result (its summary and `chain` view), as lifecycle input. */
 export function lifecycleFromTask(task: {
-  kind?: 'legacy' | 'hireling-v1' | null
+  kind?: 'legacy' | 'sidequest-v1' | null
   mode: string
   creator: string
   approver: string

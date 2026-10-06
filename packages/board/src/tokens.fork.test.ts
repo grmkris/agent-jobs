@@ -1,13 +1,13 @@
 /**
  * ADR-0010 on a local anvil fork of Monad testnet: a reward in a token nobody listed, through the board, on the pair
  * whose Holding is safe with any ERC-20, and refused on a legacy pair that predates it. The reward is the real
- * FACTORY v2, funded from the recorded ecosystem holder only on the local fork; it has no faucet.
+ * SIDE v2, funded from the recorded ecosystem holder only on the local fork; it has no faucet.
  *
  * Needs MONAD_TESTNET_RPC_URL and `anvil` on PATH; skipped otherwise.
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { localTestPort } from '../../sdk/test/fork-port.ts'
 import { type Address, type Hex, encodeFunctionData, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -127,7 +127,7 @@ fork('permissionless reward tokens on a testnet fork (ADR-0010)', () => {
     expect(listed.chain.status).toBe('open')
     expect(listed.chain.listingMatchesOffer).toBe(true)
 
-    const app = await board.apply({ address: worker.address }, { taskId: created.taskId, agentId, note: 'I accept FACTORY' })
+    const app = await board.apply({ address: worker.address }, { taskId: created.taskId, agentId, note: 'I accept SIDE' })
     const sel = await board.selectWorker({ address: creator.address }, { taskId: created.taskId, applicationId: app.applicationId })
     await board.submitSelection({ address: creator.address }, { taskId: created.taskId, nonce: sel.nonce, signature: await sdk.signTypedDataJson(w(creator), sel.sign.typedData) })
     const prep = await board.prepareActivation({ address: worker.address }, { taskId: created.taskId })

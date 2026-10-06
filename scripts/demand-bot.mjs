@@ -7,7 +7,7 @@ import { reportCliFailure } from './cli-errors.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const directory = join(root, '.crew')
-const name = 'hireling-crew-demand'
+const name = 'sidequest-crew-demand'
 const environmentFile = join(directory, 'demand.env')
 
 function execute(program, args, options = {}) {
@@ -48,8 +48,8 @@ function runSpec(sha) {
   const source = join(directory, 'demand-source', sha)
   const bun = execute('readlink', ['-f', execute('which', ['bun']).trim()]).trim()
   return ['run', '-d', '--name', name, '--restart', 'unless-stopped', '--memory', '2g',
-    '--network', 'hireling-crew', '--user', `${process.getuid()}:${process.getgid()}`, '--stop-timeout', '180',
-    '--label', `hireling.crew.source=${sha}`, '--label', 'hireling.crew.network=monad-testnet',
+    '--network', 'sidequest-crew', '--user', `${process.getuid()}:${process.getgid()}`, '--stop-timeout', '180',
+    '--label', `sidequest.crew.source=${sha}`, '--label', 'sidequest.crew.network=monad-testnet',
     '--env-file', environmentFile, '-e', 'DEMAND_BOT_STATE_DIR=/state', '-e', 'DEMAND_BOT_LOCKED=1',
     '-v', `${source}:/workspace:ro`, '-v', `${root}/node_modules:/workspace/node_modules:ro`,
     '-v', `${root}/packages/sdk/node_modules:/workspace/packages/sdk/node_modules:ro`,
@@ -73,13 +73,13 @@ function start() {
   const files = ['scripts/demand-bot.mjs', ...execute('git', ['ls-files', 'packages/sdk/*demand*', 'packages/sdk/src/demand-bot*', 'packages/sdk/scripts/demand-bot*']).trim().split('\n')]
   if (execute('git', ['status', '--porcelain', '--', ...files]).trim()) throw new Error('Commit demand source before starting')
   let driver
-  try { driver = execute('docker', ['network', 'inspect', '--format', '{{.Driver}}', 'hireling-crew']).trim() }
-  catch { execute('docker', ['network', 'create', '--driver', 'bridge', 'hireling-crew']); driver = 'bridge' }
+  try { driver = execute('docker', ['network', 'inspect', '--format', '{{.Driver}}', 'sidequest-crew']).trim() }
+  catch { execute('docker', ['network', 'create', '--driver', 'bridge', 'sidequest-crew']); driver = 'bridge' }
   if (driver !== 'bridge') throw new Error('Demand requires the dedicated bridge network')
   const existing = containerState()
   if (existing) {
     const config = JSON.parse(execute('docker', ['inspect', '--format', '{{json .HostConfig}}', name]))
-    if (config.NetworkMode !== 'hireling-crew' || config.Memory !== 2 * 1024 ** 3 || config.RestartPolicy.Name !== 'unless-stopped' || Object.keys(config.PortBindings ?? {}).length !== 0) throw new Error('Existing demand container does not match the reviewed bridge and resource policy')
+    if (config.NetworkMode !== 'sidequest-crew' || config.Memory !== 2 * 1024 ** 3 || config.RestartPolicy.Name !== 'unless-stopped' || Object.keys(config.PortBindings ?? {}).length !== 0) throw new Error('Existing demand container does not match the reviewed bridge and resource policy')
     if (!existing.Running) {
       prepare()
       execute('docker', ['start', name])

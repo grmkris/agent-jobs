@@ -14,7 +14,7 @@ import {IReceiver} from "../src/vendor/cre/IReceiver.sol";
 contract ReceiverTest is Base {
     address internal forwarder = makeAddr("keystone-forwarder");
     address internal workflowOwner = makeAddr("workflow-owner");
-    string internal constant WORKFLOW = "agent-jobs-evidence";
+    string internal constant WORKFLOW = "sidequest-evidence";
     bytes32 internal constant WORKFLOW_ID = keccak256("workflow-id");
     EvidenceReceiver internal receiver;
 

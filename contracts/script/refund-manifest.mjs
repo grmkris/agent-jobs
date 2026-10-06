@@ -58,9 +58,9 @@ function registryCandidates(logs) {
 
 export async function captureSnapshot(config, blockNumber, rpc, token, extras = []) {
   const identity = JSON.parse(readFileSync(new URL('./redeploy-identities.json', import.meta.url))).g1b
-  const h = config.deployment.hireling
-  const pinned = key => identity.addresses[`deployment.hireling.${key}`]
-  if (config.chainId !== 10143 || config.network !== 'monad-testnet' || h.block !== identity.hirelingBlock
+  const h = config.deployment.sidequest
+  const pinned = key => identity.addresses[`deployment.sidequest.${key}`]
+  if (config.chainId !== 10143 || config.network !== 'monad-testnet' || h.block !== identity.sidequestBlock
     || ['factory', 'vault', 'distributor'].some(key => address(h[key]) !== address(pinned(key)))) throw new Error('refund: G1b identity mismatch')
   const client = createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 2 }) })
   if (await client.getChainId() !== 10143) throw new Error('refund: RPC must be chain 10143')
@@ -146,7 +146,7 @@ export async function captureSnapshot(config, blockNumber, rpc, token, extras = 
     [address(h.distributor), 'old mining distributor; new mining reserve allocation'],
     [address(h.miningReserve), 'old mining reserve; new genesis allocation'],
     [address(h.teamVesting), 'old vesting; new genesis allocation'],
-    ...Object.values(config.hireling.allocation).map(wallet => [address(wallet), 'genesis allocation recipient; new genesis allocation']),
+    ...Object.values(config.sidequest.allocation).map(wallet => [address(wallet), 'genesis allocation recipient; new genesis allocation']),
     ...Object.values(config.liquidity?.uniswapV4 ?? {}).map(wallet => [address(wallet), 'liquidity infrastructure; not a product wallet']),
     ...[h.feeSchedule, config.deployment.main.holding, config.deployment.main.evaluator].map(wallet => [address(wallet), 'old protocol contract; not a product wallet']),
   ])

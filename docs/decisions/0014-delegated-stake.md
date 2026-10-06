@@ -5,7 +5,7 @@ staking ownership and exit accounting in ADR-0011. Verification and independent
 review are recorded in the contracts pane status; this ADR does not establish a
 live deployment.
 
-Any wallet can back an account with FACTORY and retain its own position. A payer
+Any wallet can back an account with SIDE and retain its own position. A payer
 can fund a different delegator through `delegateFor`; mining creates a self
 position with `delegateFor(account, account, amount)`. The account owns its
 Holding veto, while each delegator owns its withdrawal rights. There are no

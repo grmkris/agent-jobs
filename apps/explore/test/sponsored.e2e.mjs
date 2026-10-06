@@ -8,13 +8,13 @@ import { epochDistributorAbi } from '../../../packages/sdk/src/abi/epochDistribu
 import { holdingAbi, sponsorshipGrantTerms, vaultAbi } from './grant-fixture.mjs';
 
 // Sponsored sends (U7b) on the Collect tab, against a fixture board with B6's sponsor_submit shape (20:26): a step
-// the signed delegation covers goes through Hireling's relay with no wallet prompt and a caller key; a lost answer is
+// the signed delegation covers goes through Sidequest's relay with no wallet prompt and a caller key; a lost answer is
 // asked again with the same key (one operation, never two); refusals for the cap and a failing simulation, and a
 // reverted relay transaction, fall back to the wallet with the reason; a step outside the policy opens the wallet; a
 // reload mid-send picks the same key up again, and a transaction not mined yet is checked again, not resent.
 // Mocked Chromium only: no live board, relay, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-sponsored-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-sponsored-evidence';
 const base = 'http://127.0.0.1:5203';
 const me = '0x1111111111111111111111111111111111111111';
 const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'));
@@ -25,7 +25,7 @@ const tx = (description, to, data) => ({ description, chainId: 10143, to, data, 
 const ACTIONS = [
   { kind: 'settle', jobId: '72', description: 'The rejection is final: this releases the escrow and the bonds.', transactions: [tx('Settle job #72', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'settle', args: [72n] }))] },
   { kind: 'claimTopUpRefund', jobId: '71', token: d.rewardTokens[0], amount: '2000000', description: 'The creator was refunded, so your top-up comes back to you.', transactions: [tx('Claim your top-up back', contracts.holding, encodeFunctionData({ abi: holdingAbi, functionName: 'claimTopUpRefund', args: [71n, me] }))] },
-  { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked FACTORY', contracts.vault, encodeFunctionData({ abi: vaultAbi, functionName: 'withdraw', args: [me] }))] },
+  { kind: 'stakeWithdraw', token: d.factory, amount: (2000n * 10n ** 18n).toString(), description: 'Your unstaking cooldown has ended.', transactions: [tx('Withdraw unstaked SIDE', contracts.vault, encodeFunctionData({ abi: vaultAbi, functionName: 'withdraw', args: [me] }))] },
   { kind: 'miningClaim', epoch: '0', token: d.factory, amount: (1234n * 10n ** 18n).toString(), description: 'Your share of epoch 0.', transactions: [tx('Claim epoch 0', contracts.distributor, encodeFunctionData({ abi: epochDistributorAbi, functionName: 'claim', args: [0n, me, 1234n * 10n ** 18n, []] }))] },
 ];
 
@@ -60,7 +60,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -72,12 +72,12 @@ mkdirSync(output, { recursive: true });
  */
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling }) => {
-    window.__hireling = hireling;
+  await context.addInitScript(({ account, sidequest }) => {
+    window.__sidequest = sidequest;
     window.__wallet = { address: account, connected: true, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: me, hireling: contracts });
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { account: me, sidequest: contracts });
   const state = { actions: options.actions ?? [...ACTIONS], collecting: null, script: [], submits: [], operations: new Map(), callsUsed: 0, receiptDown: false };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -152,11 +152,11 @@ try {
     assert.equal(await sends(page), 0);
     await page.getByText('Settle job #72', { exact: true }).waitFor({ state: 'hidden' });
 
-    // Hireling's daily budget is used up: the refusal says so and the wallet sends it, with its gas limit.
+    // Sidequest's daily budget is used up: the refusal says so and the wallet sends it, with its gas limit.
     state.collecting = 'claimTopUpRefund';
     state.script = ['cap'];
     await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
-    await page.getByRole('status').filter({ hasText: 'Hireling’s gas budget for today is used up, so these go from your wallet; you pay the gas.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Sidequest’s gas budget for today is used up, so these go from your wallet; you pay the gas.' }).waitFor();
     await capture(page, `${device}-sponsor-cap`);
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture' }).click();
@@ -169,10 +169,10 @@ try {
     state.collecting = 'stakeWithdraw';
     state.script = ['simulation', 'reverted'];
     await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
-    await page.getByText('Hireling checked these steps against the chain and they would fail, so nothing was sent.', { exact: true }).waitFor();
+    await page.getByText('Sidequest checked these steps against the chain and they would fail, so nothing was sent.', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Pay the gas yourself instead' }).waitFor();
     await page.getByRole('button', { name: 'Try again' }).click();
-    await page.getByRole('status').filter({ hasText: 'Hireling sent these steps and the transaction reverted, so nothing changed.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Sidequest sent these steps and the transaction reverted, so nothing changed.' }).waitFor();
     const [simulated, reverted] = state.submits.slice(-2);
     assert.notEqual(simulated.key, reverted.key);
     await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).click();
@@ -201,7 +201,7 @@ try {
     state.collecting = 'claimTopUpRefund';
     state.script = ['lose', 'rate-limited'];
     await page.getByRole('button', { name: 'Collect', exact: true }).click();
-    await page.getByText(/Hireling’s relay did not answer/).waitFor();
+    await page.getByText(/Sidequest’s relay did not answer/).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Confirm in your wallet', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Check again' }).click();
     await page.getByRole('status').filter({ hasText: 'Top-up refunded' }).waitFor();
@@ -219,13 +219,13 @@ try {
     state.collecting = 'settle';
     state.receiptDown = true;
     await page.getByRole('button', { name: 'Collect', exact: true }).first().click();
-    await page.getByText('Hireling’s relay sent it and Monad has not mined it yet. Check again in a moment.', { exact: true }).waitFor({ timeout: 90_000 });
+    await page.getByText('Sidequest’s relay sent it and Monad has not mined it yet. Check again in a moment.', { exact: true }).waitFor({ timeout: 90_000 });
     const dropped = state.submits[0].key;
     state.dropExisting = true;
     state.receiptDown = false;
     const submitsBeforeCheck = state.submits.length;
     await page.getByRole('button', { name: 'Check again' }).click();
-    await page.getByRole('status').filter({ hasText: 'Hireling’s relay transaction was replaced before it was mined, so nothing happened.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Sidequest’s relay transaction was replaced before it was mined, so nothing happened.' }).waitFor();
     assert.equal(state.submits.length, submitsBeforeCheck + 1, 'recheck asks the relay about the saved operation before following its hash');
     await capture(page, 'sponsor-dropped');
     assert.equal(state.submits.at(-1).key, dropped);
@@ -251,16 +251,16 @@ try {
     state.collecting = 'settle';
     state.script = Array.from({ length: 6 }, () => 'lose');
     await page.getByRole('button', { name: 'Collect', exact: true }).click();
-    await page.getByText('Hireling’s relay did not answer, so whether it sent these steps is unknown. Check again: the relay never sends the same steps twice.', { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByText('Sidequest’s relay did not answer, so whether it sent these steps is unknown. Check again: the relay never sends the same steps twice.', { exact: true }).waitFor({ timeout: 30_000 });
     await capture(page, 'sponsor-lost');
     const key = state.submits[0].key;
     assert.ok(state.submits.every((s) => s.key === key));
     await page.reload();
     await page.getByRole('button', { name: 'Collect', exact: true }).click();
-    await page.getByText(/Hireling’s relay did not answer/).waitFor();
+    await page.getByText(/Sidequest’s relay did not answer/).waitFor();
     state.receiptDown = true;
     await page.getByRole('button', { name: 'Check again' }).click();
-    await page.getByText('Hireling’s relay sent it and Monad has not mined it yet. Check again in a moment.', { exact: true }).waitFor();
+    await page.getByText('Sidequest’s relay sent it and Monad has not mined it yet. Check again in a moment.', { exact: true }).waitFor();
     state.receiptDown = false;
     await page.getByRole('button', { name: 'Check again' }).click();
     await page.getByRole('status').filter({ hasText: 'Settled' }).waitFor();

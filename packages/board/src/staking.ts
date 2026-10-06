@@ -1,5 +1,5 @@
 /** Indexed discovery supplies owners; the vault supplies every value at one verified block. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { getAddress, isAddress, type Address } from 'viem'
 
 export interface PositionFilters {
@@ -36,6 +36,6 @@ export async function delegationPositions(ctx: sdk.Ctx, snapshot: DelegationSnap
     })
     positions.push({ ...position, backing: backing.get(key)! })
   }
-  return { source: 'index+vault' as const, blockNumber: snapshot.blockNumber, token: ctx.deployment.hireling!.factory,
-    vault: ctx.deployment.hireling!.vault, positions }
+  return { source: 'index+vault' as const, blockNumber: snapshot.blockNumber, token: ctx.deployment.sidequest!.factory,
+    vault: ctx.deployment.sidequest!.vault, positions }
 }

@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
-import { DirectoryError, DirectoryService, fromNodeSqlite } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { DirectoryError, DirectoryService, fromNodeSqlite } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { verifyTypedData, zeroAddress } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, expect, it } from 'vitest'
@@ -14,9 +14,9 @@ afterEach(() => { for (const database of databases.splice(0)) database.close() }
 it('listing tools are work tools of the hosted agent and stay off mainnet until its signer rules are promoted', () => {
   for (const name of LISTING_TOOLS) {
     expect(Object.hasOwn(agentTools, name)).toBe(true)
-    expect(requiredToolScope(name)).toBe('hireling:work')
-    expect(permittedTool({ scopes: ['hireling:read', 'hireling:work'] }, name)).toBe(true)
-    expect(permittedTool({ scopes: ['hireling:read', 'hireling:hire'] }, name)).toBe(false)
+    expect(requiredToolScope(name)).toBe('sidequest:work')
+    expect(permittedTool({ scopes: ['sidequest:read', 'sidequest:work'] }, name)).toBe(true)
+    expect(permittedTool({ scopes: ['sidequest:read', 'sidequest:hire'] }, name)).toBe(false)
     expect(networkTool('monad-testnet', name)).toBe(true)
     expect(networkTool('monad-mainnet', name)).toBe(false)
   }
@@ -24,7 +24,7 @@ it('listing tools are work tools of the hosted agent and stay off mainnet until 
 
 it('the directory port calls the agent own directory object and keeps its refusals', async () => {
   const deployment = sdk.deployment('monad-testnet')
-  const audience = 'https://testnet.hireling.xyz'
+  const audience = 'https://dev.sidequest.exchange'
   const key = privateKeyToAccount(generatePrivateKey())
   const database = new DatabaseSync(':memory:')
   databases.push(database)
@@ -61,6 +61,6 @@ it('the directory port calls the agent own directory object and keeps its refusa
 
 it('a reply code the board does not know reads as an unavailable directory', async () => {
   const bindings = { DirectoryObject: { idFromName: (name: string) => name, get: () => ({ call: async () => JSON.stringify({ ok: false, code: 'teapot', message: 'no' }) }) } }
-  const port = directoryPort(bindings, { network: 'monad-testnet', rpcUrl: 'http://127.0.0.1:1', audience: 'https://testnet.hireling.xyz', agentId: '2013' })
+  const port = directoryPort(bindings, { network: 'monad-testnet', rpcUrl: 'http://127.0.0.1:1', audience: 'https://dev.sidequest.exchange', agentId: '2013' })
   await expect(port.read()).rejects.toMatchObject({ code: 'chain', message: 'no' })
 })

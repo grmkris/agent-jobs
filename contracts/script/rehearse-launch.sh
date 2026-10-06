@@ -2,8 +2,8 @@
 # R7: the mainnet launch, end to end, on a throwaway anvil fork of Monad mainnet (chain 143), Monad gas pricing.
 # Steps, in launch order (docs/mainnet-runbook.md, D16):
 #   1. a 1-of-2 Safe from the canonical v1.4.1 SafeProxyFactory + SafeL2 singleton (their code is checked first);
-#   2. DeployHireling with a fresh core and MAINNET_GO;
-#   3. PromoteHireling (no transactions), then the D16 launch gate, which must refuse: the six are only pending;
+#   2. DeploySidequest with a fresh core and MAINNET_GO;
+#   3. PromoteSidequest (no transactions), then the D16 launch gate, which must refuse: the six are only pending;
 #   4. SafeAccept (six execTransactions from an owner), then the D16 gate, which must pass with this Safe's owners and
 #      threshold pinned (LAUNCH-AUDIT-003), and refuse a wrong owner pin and a guard;
 #   5. SeedPool (helper, approvals, seed) and its receipt-based verify();
@@ -35,7 +35,7 @@ MINING="$(mktemp -d)"
 REPO="$(cd .. && pwd)"
 
 # Canonical Safe v1.4.1 on chain 143.
-SAFE_FACTORY=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
+SAFE_SIDE=0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
 SAFE_L2=0x29fcB43b46531BcA003ddC8FCB67FFE91900C762
 FALLBACK_HANDLER=0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99
 ZERO=0x0000000000000000000000000000000000000000
@@ -52,7 +52,7 @@ ANVIL_PID= SAFE= CONFIG=
 # Only what this run created, and still owns.
 cleanup() {
   [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true
-  owned_file "$CONFIG" .hireling.safe "$SAFE"
+  owned_file "$CONFIG" .sidequest.safe "$SAFE"
   owned_run_dirs
   rm -f "$GATE_TS" "$BUDGET"
   rm -rf "$MINING"
@@ -90,7 +90,7 @@ import { RELAY_FLOOR_MAINNET } from '$REPO/packages/sdk/src/relay.ts'
 import { liveLaunchGate } from '$REPO/apps/api/src/prod-config.ts'
 import { rpcReader } from '$REPO/apps/api/src/deploy-preflight.ts'
 const config = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-// argv[4]: the Safe policy the artifact would pin (deployment.hireling.safeOwners / safeThreshold), as JSON.
+// argv[4]: the Safe policy the artifact would pin (deployment.sidequest.safeOwners / safeThreshold), as JSON.
 const failures = await liveLaunchGate(config, rpcReader(process.argv[3]), RELAY_FLOOR_MAINNET, JSON.parse(process.argv[4]))
 console.log(JSON.stringify(failures))
 process.exit(failures.length > 0 ? 3 : 0)
@@ -106,7 +106,7 @@ for _ in $(seq 60); do cast chain-id --rpc-url "$LOCAL" >/dev/null 2>&1 && break
 kill -0 "$ANVIL_PID" 2>/dev/null || fail "the anvil this run started is not running (port $PORT taken?)"
 
 DEPLOYER=$(addr $K_DEPLOYER); OWNER1=$(addr $K_OWNER1); OWNER2=$(addr $K_OWNER2)
-# The Safe policy an artifact would pin for this Safe (deployment.hireling.safeOwners / safeThreshold), which D16 reads back.
+# The Safe policy an artifact would pin for this Safe (deployment.sidequest.safeOwners / safeThreshold), which D16 reads back.
 POLICY="{\"owners\":[\"$OWNER1\",\"$OWNER2\"],\"threshold\":1}"
 ARBITRATOR=$(addr $K_ARBITRATOR); RELAY=$(addr $K_RELAY); ATTESTER=$(addr $K_ATTESTER); TEAM=$(addr $K_TEAM)
 for k in $K_DEPLOYER $K_OWNER1 $K_OWNER2 $K_RELAY $K_CREATOR $K_WORKER; do
@@ -119,23 +119,23 @@ for k in $K_DEPLOYER $K_OWNER1 $K_OWNER2 $K_ARBITRATOR $K_RELAY $K_ATTESTER $K_C
 done
 
 # 1. The Safe.
-for c in $SAFE_FACTORY $SAFE_L2 $FALLBACK_HANDLER; do
+for c in $SAFE_SIDE $SAFE_L2 $FALLBACK_HANDLER; do
   [[ "$(cast code --rpc-url "$LOCAL" $c)" != "0x" ]] || fail "no code at canonical Safe contract $c on chain 143"
 done
 SETUP=$(cast calldata "setup(address[],uint256,address,bytes,address,address,uint256,address)" "[$OWNER1,$OWNER2]" 1 $ZERO 0x $FALLBACK_HANDLER $ZERO 0 $ZERO)
 SALT=$(date +%s)
-SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT")
-TX=$(cast send --rpc-url "$LOCAL" --private-key $K_DEPLOYER --json $SAFE_FACTORY "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" | jq -r .transactionHash)
+SAFE=$(cast call --rpc-url "$LOCAL" --from "$DEPLOYER" $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)(address)" $SAFE_L2 "$SETUP" "$SALT")
+TX=$(cast send --rpc-url "$LOCAL" --private-key $K_DEPLOYER --json $SAFE_SIDE "createProxyWithNonce(address,bytes,uint256)" $SAFE_L2 "$SETUP" "$SALT" | jq -r .transactionHash)
 budget_hashes "1. Safe (1-of-2, SafeProxyFactory)" "$TX"
 [[ "$(cast call --rpc-url "$LOCAL" "$SAFE" "getThreshold()(uint256)")" == "1" ]] || fail "Safe threshold"
 [[ "$(cast call --rpc-url "$LOCAL" "$SAFE" "VERSION()(string)")" == '"1.4.1"' ]] || fail "Safe version"
 ok "Safe $SAFE (1.4.1, owners $OWNER1 $OWNER2, threshold 1)"
 
-# The scratch config: mainnet's, with the fork's roles, the Safe and a v1 hireling block.
+# The scratch config: mainnet's, with the fork's roles, the Safe and a v1 sidequest block.
 jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg attester "$ATTESTER" \
   --arg arbitrator "$ARBITRATOR" --arg team "$TEAM" '
   .roles = { admin: $admin, relay: $relay, attester: $attester, arbitrator: $arbitrator }
-  | .hireling = {
+  | .sidequest = {
       reuseCore: false, safe: $safe, defaultArbitrator: $arbitrator, margin: 3600,
       schedule: { thresholds: [0, 10000, 100000, 1000000], bps: [3000, 1000, 300, 100], treasury: $safe },
       allocation: { treasury: $safe, ecosystem: $safe, liquidity: $admin },
@@ -144,17 +144,17 @@ jq --arg safe "$SAFE" --arg admin "$DEPLOYER" --arg relay "$RELAY" --arg atteste
   | .liquidity.positionOwner = $safe
   | .deployment = {}' config/monad-mainnet.json >"$CONFIG"
 
-# 2. DeployHireling (fresh core).
-log /tmp/r7-deploy.log env MAINNET_GO=yes forge script script/DeployHireling.s.sol --rpc-url "$LOCAL" \
-  --private-key $K_DEPLOYER --broadcast --slow || fail "DeployHireling"
-budget_run "2. DeployHireling (fresh core)" DeployHireling
-ok "deployed ($(jq '.transactions | length' "$FOUNDRY_BROADCAST/DeployHireling.s.sol/$CHAIN/run-latest.json") transactions)"
+# 2. DeploySidequest (fresh core).
+log /tmp/r7-deploy.log env MAINNET_GO=yes forge script script/DeploySidequest.s.sol --rpc-url "$LOCAL" \
+  --private-key $K_DEPLOYER --broadcast --slow || fail "DeploySidequest"
+budget_run "2. DeploySidequest (fresh core)" DeploySidequest
+ok "deployed ($(jq '.transactions | length' "$FOUNDRY_BROADCAST/DeploySidequest.s.sol/$CHAIN/run-latest.json") transactions)"
 
-# 3. PromoteHireling, then the D16 gate: pending ownership must not open.
-log /tmp/r7-promote.log forge script script/PromoteHireling.s.sol --rpc-url "$LOCAL" || fail "PromoteHireling"
-record "3. PromoteHireling (reads; writes config)" 0 0 0
-[[ "$(jq -r .deployment.main.kind "$CONFIG")" == "hireling-v1" ]] || fail "promotion did not record the v1 pair"
-[[ "$(jq -r .deployment.hireling.safe "$CONFIG")" == "$SAFE" ]] || fail "promotion did not record the Safe"
+# 3. PromoteSidequest, then the D16 gate: pending ownership must not open.
+log /tmp/r7-promote.log forge script script/PromoteSidequest.s.sol --rpc-url "$LOCAL" || fail "PromoteSidequest"
+record "3. PromoteSidequest (reads; writes config)" 0 0 0
+[[ "$(jq -r .deployment.main.kind "$CONFIG")" == "sidequest-v1" ]] || fail "promotion did not record the v1 pair"
+[[ "$(jq -r .deployment.sidequest.safe "$CONFIG")" == "$SAFE" ]] || fail "promotion did not record the Safe"
 set +e; REFUSED=$(gate); CODE=$?; set -e
 [[ $CODE -eq 3 ]] || fail "D16 gate opened before the Safe accepted ($REFUSED)"
 [[ "$(jq length <<<"$REFUSED")" == 6 && "$(jq '[.[] | select(endswith("is not the Safe"))] | length' <<<"$REFUSED")" == 6 ]] \
@@ -204,14 +204,14 @@ budget_run "6. One hire (fund, register, stake, publish, activate, submit, accep
 ok "hire settled ($(grep -o 'net to worker [0-9]*' /tmp/r7-hire.log))"
 
 # 7. Mining epoch 0.
-RESERVE=$(jq -r .deployment.hireling.miningReserve "$CONFIG")
+RESERVE=$(jq -r .deployment.sidequest.miningReserve "$CONFIG")
 END=$(cast call --rpc-url "$LOCAL" "$RESERVE" "epochEnd(uint256)(uint256)" 0 | awk '{print $1}')
 NOW=$(cast block --rpc-url "$LOCAL" latest -f timestamp)
 cast rpc --rpc-url "$LOCAL" evm_increaseTime $((END - NOW + 60)) >/dev/null
 cast rpc --rpc-url "$LOCAL" evm_mine >/dev/null
 # mining:epoch reads only up to the finalized head, which on anvil trails latest by 64 blocks.
 cast rpc --rpc-url "$LOCAL" anvil_mine 0x41 >/dev/null
-# The B8 tool, as the coordinator runs it: the price list signed from a keystore (USDC at $1, FACTORY at $0.0001), then
+# The B8 tool, as the coordinator runs it: the price list signed from a keystore (USDC at $1, SIDE at $0.0001), then
 # the epoch from chain logs alone.
 chmod 700 "$MINING"
 (umask 077; printf 'r7-%s%s' "$RANDOM" "$RANDOM" >"$MINING/password")
@@ -232,7 +232,7 @@ log /tmp/r7-mine.log env MAINNET_GO=yes SAFE_OWNER_KEY=$K_OWNER1 WORKER_KEY=$K_W
   CREATOR_AMOUNT="$(claim $K_CREATOR amount)" CREATOR_PROOF="$(claim $K_CREATOR proof)" \
   forge script script/RehearseHireAndMine.s.sol --tc RehearseMining --rpc-url "$LOCAL" --broadcast --slow || fail "mining"
 budget_run "7. Mining epoch 0 (fund + setRoot via Safe, two claims → stake)" RehearseHireAndMine
-ok "epoch 0 by scripts/mining: $(jq -r .total "$EPOCH") FACTORY wei over $(jq '.claims | length' "$EPOCH") leaves, root $(jq -r .root "$EPOCH" | cut -c1-14)…; funded, root set, both claims staked"
+ok "epoch 0 by scripts/mining: $(jq -r .total "$EPOCH") SIDE wei over $(jq '.claims | length' "$EPOCH") leaves, root $(jq -r .root "$EPOCH" | cut -c1-14)…; funded, root set, both claims staked"
 
 echo
 echo "LAUNCH BUDGET (Monad charges the gas limit; MON at 102 gwei now, and at forge's 203 gwei max fee)"

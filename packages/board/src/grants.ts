@@ -1,5 +1,5 @@
 /** Immutable prepared grant templates and signed bytes. Chain counters remain the authority for availability. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, recoverAddress } from 'viem'
 import { migrateAgentSchema } from './agent-schema.ts'
 import type { Sql } from './store.ts'

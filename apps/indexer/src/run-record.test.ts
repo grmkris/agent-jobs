@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import { fromNodeSqlite } from '@agent-jobs/indexer'
+import { fromNodeSqlite } from '@sidequest/indexer'
 import * as Cause from 'effect/Cause'
 import * as Effect from 'effect/Effect'
 import { describe, expect, it } from 'vitest'

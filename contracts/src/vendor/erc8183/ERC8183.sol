@@ -91,7 +91,7 @@ contract ERC8183 is Initializable, AccessControlUpgradeable, PausableUpgradeable
     uint256 public jobCounter;
     /// @notice Hook address -> whether it is whitelisted for use
     mapping(address => bool) public whitelistedHooks;
-    /// @dev    agent-jobs patch (ADR-0010): the payment-token allowlist is retired, so any ERC-20 can be a
+    /// @dev    sidequest patch (ADR-0010): the payment-token allowlist is retired, so any ERC-20 can be a
     ///         job's budget. The slot stays so the upgradeable storage layout is unchanged; nothing reads it.
     ///         `fund` still refuses a token that delivers less than the budget (fee-on-transfer), and every
     ///         entry point is non-reentrant.

@@ -1,5 +1,5 @@
 # Sourced by the fork rehearsals (rehearse-launch.sh, rehearse-launch-testnet.sh, rehearse-flows-testnet.sh,
-# rehearse-hireling-pipeline.sh). A real launch run from the same checkout writes config/<network>.json and forge's
+# rehearse-sidequest-pipeline.sh). A real launch run from the same checkout writes config/<network>.json and forge's
 # broadcast/<script>/<chain>/run-latest.json (with its cache/ twin); a rehearsal must never write or delete either
 # (G1-DRY-001 and its residual).
 
@@ -57,6 +57,6 @@ prepare_rehearsal_redeploy() { # <scratch config> <archive> <original config> <R
     del(.archive) == $original[0] and (.archive.reason | length > 0) and (.archive.date | length > 0)' "$archive" >/dev/null \
     || { echo "refusing: G1b archive differs from the original record" >&2; return 1; }
   jq -e --slurpfile original "$original" '
-    . == ($original[0] | del(.deployment.hireling, .deployment.main, .deployment.oddTokens))' "$scratch" >/dev/null \
+    . == ($original[0] | del(.deployment.sidequest, .deployment.main, .deployment.oddTokens))' "$scratch" >/dev/null \
     || { echo "refusing: preparation changed more than the G1b deployment output" >&2; return 1; }
 }

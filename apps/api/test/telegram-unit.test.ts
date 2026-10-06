@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
-import { type AsyncSql, fromNodeSqlite, stmt } from '@agent-jobs/indexer'
+import { type AsyncSql, fromNodeSqlite, stmt } from '@sidequest/indexer'
 import {
   drainTelegramOutbox, handleTelegramWebhook, migrateTelegram, telegramLinkConfirm, telegramLinkPrepare,
   telegramPublicChannel, telegramStatus,
@@ -30,7 +30,7 @@ describe('Telegram wallet links and outbox', () => {
     expect(prepared.message).toContain(account.address)
     const signature = await account.signMessage({ message: prepared.message })
     const confirmed = await telegramLinkConfirm(sql, 'monad-testnet', account.address, prepared.nonce, signature, 101, verifyMessage)
-    expect(confirmed.botUrl).toBe(`https://t.me/hireling_xyz_bot?start=${prepared.nonce}`)
+    expect(confirmed.botUrl).toBe(`https://t.me/sidequest_xyz_bot?start=${prepared.nonce}`)
     expect((await telegramStatus(sql, 'monad-testnet', account.address))).toMatchObject({ linked: false, username: null, linkedAt: null })
     const update = { update_id: 1, message: { chat: { id: chat, type: 'private' }, from: { id: chat, username: 'kris' }, text: `/start ${prepared.nonce}` } }
     expect(await handleTelegramWebhook(sql, 'monad-testnet', update, 'secret', 'secret', 102)).toEqual({ ok: true, queued: true })
@@ -86,7 +86,7 @@ describe('link security and delivery reconciliation', () => {
 
   it('allows only the signed-in wallet in all REST/MCP tool shapes and registers admission', async () => {
     const { telegramTools } = await import('../src/tools-telegram.ts')
-    const { hostedToolNames, readOnlyHostedTools } = await import('@agent-jobs/board')
+    const { hostedToolNames, readOnlyHostedTools } = await import('@sidequest/board')
     const sql = await db()
     const deps = { sql, network: 'monad-testnet' as const, configured: true, now: () => 100, verify: verifyMessage }
     for (const name of Object.keys(telegramTools)) expect(hostedToolNames.has(name)).toBe(true)
@@ -116,7 +116,7 @@ describe('link security and delivery reconciliation', () => {
     const sql = await db()
     expect(await handleTelegramWebhook(sql, 'monad-testnet', { update_id: 5, message: { chat: { id: chat, type: 'private' }, from: { id: chat }, text: 'hello' } }, 'secret', 'secret', 100))
       .toEqual({ ok: true, queued: true })
-    expect((await sql.all<{ text: string }>('SELECT text FROM telegram_outbox'))[0]?.text).toContain('https://testnet.hireling.xyz/telegram')
+    expect((await sql.all<{ text: string }>('SELECT text FROM telegram_outbox'))[0]?.text).toContain('https://dev.sidequest.exchange/telegram')
     await sql.batch([stmt("UPDATE telegram_outbox SET status = 'sent'")])
     await enqueueTelegram(sql, { id: 'moved', chatId: String(chat), text: 'notice', now: 100 })
     let redirect: RequestInit['redirect']

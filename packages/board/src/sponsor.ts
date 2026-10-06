@@ -1,12 +1,12 @@
 /** ERC-7710 gas sponsorship. Only the relay signs transactions; the wallet signs its own bounded delegation. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import {
   type Address, type Hex, type LocalAccount, getAddress, isAddress, keccak256, recoverAddress, stringToHex,
 } from 'viem'
 import {
   type Delegation, callsMade, delegationDigest, delegationHash,
   delegationTypedData, disableCalldata, isDisabled, parseDelegation,
-} from '@agent-jobs/sdk'
+} from '@sidequest/sdk'
 import type { Sql } from './store.ts'
 import { migrateAgentSchema } from './agent-schema.ts'
 import { RelaySender, withRelayNonce } from './relay.ts'
@@ -69,7 +69,7 @@ export class SponsorDesk {
   }
   #ctx(): sdk.Ctx {
     const ctx = this.#d.ctx
-    if (ctx.stack.kind !== 'hireling-v1' || ctx.deployment.hireling === null) throw this.#d.fail('conflict', 'sponsorship requires a deployed Hireling v1 stack')
+    if (ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null) throw this.#d.fail('conflict', 'sponsorship requires a deployed Sidequest v1 stack')
     return ctx
   }
   #relay() {

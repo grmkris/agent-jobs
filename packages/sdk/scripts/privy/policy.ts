@@ -56,7 +56,7 @@ export interface SigningShape {
 }
 
 export const signingShapes: readonly SigningShape[] = [
-  { name: 'AgentJobsHolding', contract: config.deployment.main.holding, types: selectionTypes,
+  { name: 'SidequestHolding', contract: config.deployment.main.holding, types: selectionTypes,
     primaryType: 'Selection', field: 'nonce', operator: 'gte', value: '0' },
   { name: 'ERC8183', contract: config.deployment.core, types: setBudgetTypes,
     primaryType: 'SetBudgetAuthorization', field: 'signer', operator: 'eq', value: '{{wallet.address}}' },
@@ -96,7 +96,7 @@ export function authorityPolicy(ownerId: string) {
   }))
   return {
     version: '1.0',
-    name: 'Hireling v2 Monad testnet routine signer',
+    name: 'Sidequest v2 Monad testnet routine signer',
     chain_type: 'ethereum',
     owner_id: ownerId,
     rules: [

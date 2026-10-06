@@ -1,5 +1,5 @@
 # Sourced by script/launch-testnet.sh and the four fork rehearsals (rehearse-launch.sh, rehearse-launch-testnet.sh,
-# rehearse-flows-testnet.sh, rehearse-hireling-pipeline.sh), which call take_launch_lock before anything else (the
+# rehearse-flows-testnet.sh, rehearse-sidequest-pipeline.sh), which call take_launch_lock before anything else (the
 # G1-DRY-001 residual). One exclusive flock per checkout, on contracts/.launch.lock, held on fd 9 for the whole run: a
 # second launch or rehearsal started meanwhile refuses at once instead of waiting. A rehearsal's own launch-testnet.sh
 # inherits fd 9, and with it the lock. A process that may outlive the run (anvil, kept by KEEP=1) is started with 9>&-

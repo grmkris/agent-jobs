@@ -26,11 +26,11 @@ A missing or empty `PROD_ADMISSION_DRAIN` means drained, and the artifact's admi
 value. The launch order is in [mainnet-runbook.md](mainnet-runbook.md) §3.8–3.10.
 
 The Alchemy stack calls `assertDeployConfig` before any resources are evaluated whenever either `prod` stage or
-`monad-mainnet` is selected. Both must be selected together, with `AGENT_JOBS_STAGE=prod`,
-`ALCHEMY_REMOTE_STATE=1`, and an explicit `AGENT_JOBS_PROD_ARTIFACT` JSON path. There is no production local-state
+`monad-mainnet` is selected. Both must be selected together, with `SIDEQUEST_STAGE=prod`,
+`ALCHEMY_REMOTE_STATE=1`, and an explicit `SIDEQUEST_PROD_ARTIFACT` JSON path. There is no production local-state
 fallback. The artifact checks network/chain 143, provider URL/chain metadata, approved Privy app and origin,
 addresses matching the chain config, no faucet, zero hold gates, USDC, open-token main Holding metadata,
-closed legacy flags, and the exact dedicated `HIRELING_PROD_*` secret source names. Deploy preflight also checks
+closed legacy flags, and the exact dedicated `SIDEQUEST_PROD_*` secret source names. Deploy preflight also checks
 the actual named sources, runtime Privy/HyperSync/RPC mappings, relay/attester public addresses, and read-only
 RPC `eth_chainId`. No secret values are printed.
 

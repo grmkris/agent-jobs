@@ -45,7 +45,7 @@ describe('token chip', () => {
     expect(real).not.toContain('bg-warning')
   })
 
-  it('draws the tokens Hireling deploys', () => {
-    expect(render(<TokenAmount value="10000000000000000000000" token={deployment.factory} static />)).toMatch(/<svg[^>]*aria-hidden="true"[\s\S]*10,000 FACTORY/)
+  it('draws the tokens Sidequest deploys', () => {
+    expect(render(<TokenAmount value="10000000000000000000000" token={deployment.factory} static />)).toMatch(/<svg[^>]*aria-hidden="true"[\s\S]*10,000 SIDE/)
   })
 })

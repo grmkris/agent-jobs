@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { concat, decodeFunctionData, encodeAbiParameters, hashTypedData, keccak256, slice, zeroAddress } from 'viem'
 import { describe as group, expect, it } from 'vitest'
 import { MULTI_SEND_CALL_ONLY, atomically, calldata, describe, ecdsaSignature, execSigned, execTransaction, multiSend, preValidated, safeAbi, safeTxTypedData, unpackMultiSend, walletSignature } from './safe.ts'
@@ -31,7 +31,7 @@ group('one atomic Safe transaction (D13)', () => {
   const core = '0x4444444444444444444444444444444444444444'
   const evaluator = '0x5555555555555555555555555555555555555555'
   const pause = calldata({ contract: 'Core', to: core, abi: sdk.coreAbi, functionName: 'pause' })
-  const note = calldata({ contract: 'HirelingEvaluator', to: evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'notePause' })
+  const note = calldata({ contract: 'SidequestEvaluator', to: evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'notePause' })
   it('packs plain calls for MultiSendCallOnly and reads them back', () => {
     expect(unpackMultiSend(multiSend([{ to: core, data: pause }, { to: evaluator, data: note }]))).toEqual([
       { operation: 0, to: core, value: 0n, data: pause },

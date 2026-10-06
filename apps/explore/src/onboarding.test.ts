@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, type Hex, concat, encodeAbiParameters, encodePacked, toFunctionSelector } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { type SponsorRules, readDelegation } from './sponsor.ts'
@@ -14,7 +14,7 @@ const swap =
 
 describe('Telegram link', () => {
   it('builds the bot deep link only for a code Telegram passes to /start', () => {
-    expect(deepLink('a1_B-2')).toBe('https://t.me/hireling_xyz_bot?start=a1_B-2')
+    expect(deepLink('a1_B-2')).toBe('https://t.me/sidequest_xyz_bot?start=a1_B-2')
     expect(deepLink('')).toBeNull()
     expect(deepLink('has space')).toBeNull()
     expect(deepLink('x&start=evil')).toBeNull()
@@ -22,7 +22,7 @@ describe('Telegram link', () => {
   })
 
   it('signs only text that names this wallet and this code', () => {
-    const prep = { nonce: 'code123', message: `Link Telegram to Hireling\nWallet: ${wallet.toUpperCase().replace('0X', '0x')}\nCode: code123`, expiresAt: 0 }
+    const prep = { nonce: 'code123', message: `Link Telegram to Sidequest\nWallet: ${wallet.toUpperCase().replace('0X', '0x')}\nCode: code123`, expiresAt: 0 }
     expect(linkMessageProblem(prep, wallet)).toBeNull()
     expect(linkMessageProblem({ ...prep, message: 'Link Telegram\nCode: code123' }, wallet)).toMatch(/wallet/)
     expect(linkMessageProblem({ ...prep, nonce: 'other' }, wallet)).toMatch(/code/)
@@ -39,7 +39,7 @@ describe('sponsorship delegation', () => {
     manager: a(0xaa),
     relay: a(0xbb),
     enforcers,
-    targets: { [holding]: { name: 'Holding', abi: sdk.hirelingHoldingAbi as Abi }, [vault]: { name: 'Stake vault', abi: sdk.stakeVaultAbi as Abi } },
+    targets: { [holding]: { name: 'Holding', abi: sdk.sidequestHoldingAbi as Abi }, [vault]: { name: 'Stake vault', abi: sdk.stakeVaultAbi as Abi } },
   }
   const settle = toFunctionSelector('function settle(uint256 jobId)')
   const withdraw = toFunctionSelector('function withdraw(address account)')
@@ -88,8 +88,8 @@ describe('sponsorship delegation', () => {
     for (const e of [enforcers.allowedTargets, enforcers.allowedMethods, enforcers.limitedCalls, enforcers.timestamp]) expect(problem(without(e))).toMatch(/missing a limit/)
   })
 
-  it('refuses a target that is not a Hireling contract, and empty bounds', () => {
-    expect(problem(swap(enforcers.allowedTargets, concat([holding, a(0xee)])))).toMatch(/not a Hireling contract/)
+  it('refuses a target that is not a Sidequest contract, and empty bounds', () => {
+    expect(problem(swap(enforcers.allowedTargets, concat([holding, a(0xee)])))).toMatch(/not a Sidequest contract/)
     expect(problem(swap(enforcers.allowedTargets, '0x1234'))).toMatch(/malformed/)
     expect(problem(swap(enforcers.limitedCalls, encodeAbiParameters([{ type: 'uint256' }], [0n])))).toMatch(/no call count/)
     expect(problem(swap(enforcers.timestamp, encodePacked(['uint128', 'uint128'], [0n, 0n])))).toMatch(/no end time/)
@@ -98,7 +98,7 @@ describe('sponsorship delegation', () => {
   // The AllowedTargetsEnforcer reads its terms 20 bytes at a time. `encodePacked(['address[]'], …)` pads each address
   // to 32 bytes, which the enforcer refuses on every redemption; so does this check, before anything is signed.
   it('refuses targets packed as a padded address array', () => {
-    expect(problem(swap(enforcers.allowedTargets, encodePacked(['address[]'], [[holding, vault]])))).toMatch(/malformed|not a Hireling contract/)
-    expect(problem(swap(enforcers.allowedTargets, encodePacked(['address[]'], [[holding, vault, holding, vault]])))).toMatch(/malformed|not a Hireling contract/)
+    expect(problem(swap(enforcers.allowedTargets, encodePacked(['address[]'], [[holding, vault]])))).toMatch(/malformed|not a Sidequest contract/)
+    expect(problem(swap(enforcers.allowedTargets, encodePacked(['address[]'], [[holding, vault, holding, vault]])))).toMatch(/malformed|not a Sidequest contract/)
   })
 })

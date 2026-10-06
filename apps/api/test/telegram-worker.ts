@@ -3,12 +3,12 @@ import * as Effect from 'effect/Effect'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { fromD1, migrate, stmt } from '@agent-jobs/indexer'
+import { fromD1, migrate, stmt } from '@sidequest/indexer'
 import { drainTelegramOutbox, handleTelegramWebhook, migrateTelegram, telegramLinkConfirm, telegramLinkPrepare, telegramStatus, telegramTransport } from '../src/telegram.ts'
 import { queueTelegramNotifications } from '../src/telegram-notifications.ts'
 
-const Database = Cloudflare.D1.Database('HirelingTelegramLocalDatabase')
-export default class TelegramDrill extends Cloudflare.Worker<TelegramDrill>()('HirelingTelegramLocalDrill', {
+const Database = Cloudflare.D1.Database('SidequestTelegramLocalDatabase')
+export default class TelegramDrill extends Cloudflare.Worker<TelegramDrill>()('SidequestTelegramLocalDrill', {
   main: import.meta.url, compatibility: { date: '2026-09-01', flags: ['nodejs_compat'] },
 }, Effect.gen(function* () {
   const binding = yield* Cloudflare.D1.QueryDatabase(Database)
@@ -26,7 +26,7 @@ export default class TelegramDrill extends Cloudflare.Worker<TelegramDrill>()('H
       const duplicate = await handleTelegramWebhook(sql, 'monad-testnet', update, 'fixture-secret', 'fixture-secret', 103)
       await sql.batch([
         stmt('INSERT INTO checkpoint VALUES (10143, 100, NULL, 104)'),
-        stmt("INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, updated_block) VALUES (10143, '1', ?, ?, ?, 'hireling-v1', 'submitted', 99)", account.address, account.address, account.address),
+        stmt("INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, updated_block) VALUES (10143, '1', ?, ?, ?, 'sidequest-v1', 'submitted', 99)", account.address, account.address, account.address),
         stmt("INSERT INTO events VALUES (10143, ?, 99, 1, 'fixture-tx', '1', 'JobSubmitted', '{}')", account.address),
         stmt('INSERT INTO block_times VALUES (10143, 99, 104)'),
       ])

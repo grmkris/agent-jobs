@@ -1,4 +1,4 @@
-import { agentFailureReply } from '@agent-jobs/board'
+import { agentFailureReply } from '@sidequest/board'
 import type { OAuthGrant } from './oauth.ts'
 import { OAUTH_SCOPES } from './oauth-validation.ts'
 import { permittedTool, requiredToolScope } from './mcp-policy.ts'
@@ -40,20 +40,20 @@ export async function mcpRoute(input: {
   const respond = (result: unknown) => json({ jsonrpc: '2.0', id: id ?? null, result })
   if (id === undefined && methodName !== 'notifications/initialized') return { status: 202, headers: { 'cache-control': 'no-store' } }
   if (methodName === 'initialize') {
-    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {} }, serverInfo: { name: 'hireling', version: '2.0.0' }, instructions: connectorInstructions(origin) })
+    return respond({ protocolVersion: typeof body.params === 'object' && body.params !== null && PROTOCOLS.includes((body.params as { protocolVersion?: string }).protocolVersion as typeof PROTOCOLS[number]) ? (body.params as { protocolVersion: typeof PROTOCOLS[number] }).protocolVersion : PROTOCOLS[0], capabilities: { tools: { listChanged: false }, prompts: {}, resources: {} }, serverInfo: { name: 'sidequest', version: '2.0.0' }, instructions: connectorInstructions(origin) })
   }
   if (methodName === 'ping') return respond({})
   if (methodName === 'tools/list') {
     return respond({ tools: Object.entries({ ...tools, get_instructions: { description: 'Read the full connector, worker or publisher role instructions.', inputSchema: { type: 'object', properties: { role: { type: 'string', enum: ['connector', 'worker', 'publisher'] } } } } })
       .filter(([name]) => permittedTool(grant, name)).map(([name, tool]) => {
         const schema = tool.inputSchema ?? { type: 'object', properties: {} }
-        const write = requiredToolScope(name) !== 'hireling:read'
+        const write = requiredToolScope(name) !== 'sidequest:read'
         const existingRequired = Array.isArray((schema as { required?: unknown }).required) ? (schema as unknown as { required: string[] }).required : []
         return { name, description: tool.description, inputSchema: { ...schema, properties: { ...(schema.properties as Record<string, unknown>), ...(write ? { operationKey: { type: 'string', description: 'Persist this stable unique action key before calling. Reuse it with identical arguments after any lost response.' } } : {}) }, ...(write ? { required: [...existingRequired, 'operationKey'] } : {}) } }
       }) })
   }
   if (methodName === 'prompts/list') return respond({ prompts: [{ name: 'find_work', description: 'Find available work' }, { name: 'hire', description: 'Hire a worker' }, { name: 'check_status', description: 'Check a job status' }] })
-  if (methodName === 'resources/list') return respond({ resources: Object.keys(ROLE_GUIDES).map(role => ({ uri: `hireling://skills/${role}`, name: role, mimeType: 'text/markdown' })) })
+  if (methodName === 'resources/list') return respond({ resources: Object.keys(ROLE_GUIDES).map(role => ({ uri: `sidequest://skills/${role}`, name: role, mimeType: 'text/markdown' })) })
   const params = typeof body.params === 'object' && body.params !== null ? body.params as Record<string, unknown> : {}
   if (methodName === 'prompts/get') {
     const prompts: Record<string, string> = { find_work: 'Read get_instructions(role=worker), list available jobs and quotes, and propose suitable work. Check the frozen terms, bond and arbitrator before activation.', hire: 'Read get_instructions(role=publisher), write public acceptance criteria and request quotes. Inspect quotes and select a worker within the allowance.', check_status: 'Read the task and its chain status. Report which actor must act next and any deadline. Reconcile pending operations before retries.' }
@@ -61,7 +61,7 @@ export async function mcpRoute(input: {
     if (text !== undefined) return respond({ messages: [{ role: 'user', content: { type: 'text', text } }] })
   }
   if (methodName === 'resources/read') {
-    const role = String(params.uri).replace(/^hireling:\/\/skills\//, '') as keyof typeof ROLE_GUIDES
+    const role = String(params.uri).replace(/^sidequest:\/\/skills\//, '') as keyof typeof ROLE_GUIDES
     if (Object.hasOwn(ROLE_GUIDES, role)) return respond({ contents: [{ uri: params.uri, mimeType: 'text/markdown', text: ROLE_GUIDES[role] }] })
   }
   if (methodName === 'tools/call') {

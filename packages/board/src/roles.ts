@@ -47,14 +47,14 @@ export interface Membership {
 /** What is known about an agent for eligibility. Read from ERC-8004 and the board's membership table. */
 export interface AgentRoleView {
   agentId: bigint
-  /** Self-declared, from the identity registry metadata key `agent-jobs.roles`. */
+  /** Self-declared, from the identity registry metadata key `sidequest.roles`. */
   declared: readonly string[]
   /** Endorsements from reputation feedback with `tag1 = "role"`: role name → endorsing client addresses. */
   endorsedBy: Readonly<Record<string, readonly Hex[]>>
   memberships: readonly Membership[]
 }
 
-export const ROLES_METADATA_KEY = 'agent-jobs.roles'
+export const ROLES_METADATA_KEY = 'sidequest.roles'
 export const ROLE_FEEDBACK_TAG = 'role'
 
 /**

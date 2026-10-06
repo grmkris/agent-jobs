@@ -52,7 +52,7 @@ direct counterparts. `cancelAuthorization` lets a signer burn its own nonce; har
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
-| `JobHolding.publish` | anyone holding >= `minHoldToPublish` FACTORY | Pulls the reward (any ERC-20, ADR-0010; it must arrive in full, else `RewardTokenShortfall`, `ArbitraryTokensTest`) and the creator bond (FACTORY: the immutable bond token, any plain ERC-20; a fee-on-transfer token reverts `BondTokenFeeOnTransfer` at the first bond, `BondTokenTest`). Stores the offer's `approver` (zero = the creator). Refuses a zero or already-listed `policyHash` (R114-07) and a contest with `workerBond > 0` (`ApproverTest`). |
+| `JobHolding.publish` | anyone holding >= `minHoldToPublish` SIDE | Pulls the reward (any ERC-20, ADR-0010; it must arrive in full, else `RewardTokenShortfall`, `ArbitraryTokensTest`) and the creator bond (SIDE: the immutable bond token, any plain ERC-20; a fee-on-transfer token reverts `BondTokenFeeOnTransfer` at the first bond, `BondTokenTest`). Stores the offer's `approver` (zero = the creator). Refuses a zero or already-listed `policyHash` (R114-07) and a contest with `workerBond > 0` (`ApproverTest`). |
 | `JobHolding.activate(selection, creatorSig, budgetAuth)` | **the selected worker itself** (never relayed, R114-01) | Replaced `assign` + `postWorkerBond` + `fundAfterAccept` for hires. Checks the creator's EIP-712 `Selection` (signature, own nonce space, `activateBy` ≤ now allowed at the deadline, `activateBy` < delivery deadline, `termsHash` = listing's `policyHash`), `agentId` ≠ 0, `identity.getAgentWallet(agentId) == msg.sender` and the hold gate; then setProvider, pulls the worker bond, applies the worker's `SetBudgetAuthorization` for exactly the listed token and reward, funds. All or nothing; at most once per listing (`ActivationTest`, `AdmissionForkTest`). |
 | `JobHolding.cancelSelection(nonce)` | creator | None; burns a selection nonce. |
 | `JobHolding.award(jobId, candidate)` | the listing's approver, until `selectionDeadline` (allowed at it) | Replaced `select` + `postWorkerBond` + `fundAfterAccept`. Checks `getAgentWallet(agentId) == candidate.worker`, then setProvider → `setBudgetWithAuthorization` (exactly the prize) → fund → `submitWithAuthorization` (exactly the named deliverable) → `JobsEvaluator.completeAward`: the entrant is paid and the creator bond returns in one transaction, winner offline. Any failure reverts all; the contest stays open; at most once (`ContestTest`, `AdmissionForkTest`). |
@@ -96,10 +96,10 @@ so an outage promise made while paused is void; this is stated rather than mitig
 `getJob`, `jobs`, `jobCounter`, `pendingClaimHash`, `submittedClaimHash`, `whitelistedHooks`, fee getters, `DOMAIN_SEPARATOR`, the typehash constants. Read freely; the
 indexer builds Explore from events plus `getJob`.
 
-# Hireling v1 (ADR-0011) — draft, frozen at F0 (3 Oct 20:00)
+# Sidequest v1 (ADR-0011) — draft, frozen at F0 (3 Oct 20:00)
 
-New contracts in `src/hireling/`, against the interfaces in `src/hireling/interfaces/`. The legacy pairs above are
-unchanged and keep their jobs. Status: **implemented and unit-tested (C2–C7, `test/hireling/*`)**; not deployed. Testnet deploy is G1 (5 Oct). Every owner is the Safe (`Ownable2Step`); the deployer hands over at the end of the recipe.
+New contracts in `src/sidequest/`, against the interfaces in `src/sidequest/interfaces/`. The legacy pairs above are
+unchanged and keep their jobs. Status: **implemented and unit-tested (C2–C7, `test/sidequest/*`)**; not deployed. Testnet deploy is G1 (5 Oct). Every owner is the Safe (`Ownable2Step`); the deployer hands over at the end of the recipe.
 
 ## The core under v1
 
@@ -107,14 +107,14 @@ Same vendored core, same rows as above, with these differences:
 
 | Function | v1 |
 | :--- | :--- |
-| `createJob` | Through `HirelingHolding.publish` only; `expiredAt ≥ deliveryDeadline + review + dispute + arbitration + margin`, from the listing's own windows. |
-| `setProvider`, `setBudget`, `fund` | Inside `HirelingHolding.activate` only. The budget is **`net = reward − fee`**, not the reward: the worker's `SetBudgetAuthorization` names `net` (`quoteActivation`). Holding keeps the fee until `settle`. Core fees stay 0. |
-| `complete` | Only `HirelingEvaluator`, wrapped in `try` and capped at `CORE_GAS` (M2, C9-001). On failure the evaluator calls `reject("payout-deferred")` if gas allows, else `retryDeferred` does later, and the worker is paid by `HirelingHolding.settle`. |
-| `reject` | `HirelingHolding.cancel` (Open) and the evaluator's terminal paths. |
+| `createJob` | Through `SidequestHolding.publish` only; `expiredAt ≥ deliveryDeadline + review + dispute + arbitration + margin`, from the listing's own windows. |
+| `setProvider`, `setBudget`, `fund` | Inside `SidequestHolding.activate` only. The budget is **`net = reward − fee`**, not the reward: the worker's `SetBudgetAuthorization` names `net` (`quoteActivation`). Holding keeps the fee until `settle`. Core fees stay 0. |
+| `complete` | Only `SidequestEvaluator`, wrapped in `try` and capped at `CORE_GAS` (M2, C9-001). On failure the evaluator calls `reject("payout-deferred")` if gas allows, else `retryDeferred` does later, and the worker is paid by `SidequestHolding.settle`. |
+| `reject` | `SidequestHolding.cancel` (Open) and the evaluator's terminal paths. |
 | `claimRefund` | The outage path, as before: the refund lands in Holding and `settle` pays whoever `earnedByWorker` names. |
 | `award`, contests | Do not exist on the v1 pair. |
 
-## HirelingHolding
+## SidequestHolding
 
 | Function | Who | Effect on money |
 | :--- | :--- | :--- |
@@ -125,7 +125,7 @@ Same vendored core, same rows as above, with these differences:
 | `cancelSelection(nonce)` | creator | None. |
 | `topUp(jobId, amount)` | anyone, after activation while Funded or Submitted and undecided | Pulls a bonus in the reward token (must arrive in full). Refused once the evaluator recorded an outcome (`NotActive`) or if reward + bonus would overflow (`TopUpTooLarge`). |
 | `claimTopUpRefund(jobId, contributor)` | anyone | After a refunded settlement: the contributor's top-ups back to the contributor (or `owed`). |
-| `settle(jobId)` | anyone, after a terminal core status | The money table in `IHirelingHolding`: worker paid (fee + bonus fee to the treasury, `FeeCharged`), or reward back to the creator (bonus refundable per contributor). Bonds the evaluator did not settle: slashed if `creatorPenaltyDue` / `workerPenaltyDue`, else released. Every transfer falls back to `owed`. |
+| `settle(jobId)` | anyone, after a terminal core status | The money table in `ISidequestHolding`: worker paid (fee + bonus fee to the treasury, `FeeCharged`), or reward back to the creator (bonus refundable per contributor). Bonds the evaluator did not settle: slashed if `creatorPenaltyDue` / `workerPenaltyDue`, else released. Every transfer falls back to `owed`. |
 | `withdraw(token)` | whoever is `owed` | Everything owed in `token`. |
 | `pushPayment(token, to, amount)` | **this contract only** (`OnlySelf`) | The payout push's own frame (C9-002): a transfer that moves the balance and then reports failure (`false`, short return data) reverts here, so `_pay` records `owed` only after the token's move rolled back. Each liability is paid or owed, never both. |
 | `burnBond(jobId, side)` / `returnBonds(jobId)` | evaluator only, non-reentrant | `vault.slash` (burns) / `vault.release`. |
@@ -136,7 +136,7 @@ worst case → send 1,000,000; `claimTopUpRefund` 367k → 450,000; `cancel` 523
 frame (`TRANSFER_GAS` 300k for the token, about 345k in all) and reverts `TransferGasTooLow` rather than silently
 falling back to `owed`.
 
-## HirelingEvaluator
+## SidequestEvaluator
 
 Same functions as `JobsEvaluator` minus `completeAward` and `settlementWindow`, with per-listing windows, approver and
 arbitrator from `holding.termsOf`.
@@ -175,7 +175,7 @@ arbitrator from `holding.termsOf`.
 | `bootstrapHolding` | owner, once, while `totalAssets == 0` and nothing proposed | Opens delegation and authorizes the first Holding without delay. |
 
 Pool invariant: `reserved <= assets`, including when reservations exceed active backing after a queue request.
-The vault FACTORY balance is at least `totalAssets`; unsolicited token transfers do not affect share prices.
+The vault SIDE balance is at least `totalAssets`; unsolicited token transfers do not affect share prices.
 `Delegated`, `UndelegateRequested`, `UndelegateCancelled`, `Withdrawn`, `PoolReset`, and the unchanged
 `Reserved`/`Released`/`Slashed` events reconstruct every pool and position for future profit-sharing epochs.
 Deposits reject total shares above `uint192` before taking funds, keeping every accepted position withdrawable in
@@ -198,26 +198,26 @@ These are tested local floors. Check live estimation against actual state before
 
 | Contract | Surface |
 | :--- | :--- |
-| `FeeSchedule` | `feeBps(stake)`, `treasury()`, `schedule()`, `pending()`; owner `propose` / `cancel`, anyone `execute` from 3 d to 10 d (then `ScheduleExpired`); an ownership change drops the proposal. Starts at 0 / 10k / 100k / 1M FACTORY → 30 / 10 / 3 / 1 %. |
+| `FeeSchedule` | `feeBps(stake)`, `treasury()`, `schedule()`, `pending()`; owner `propose` / `cancel`, anyone `execute` from 3 d to 10 d (then `ScheduleExpired`); an ownership change drops the proposal. Starts at 0 / 10k / 100k / 1M SIDE → 30 / 10 / 3 / 1 %. |
 | `Factory` | ERC-20 + permit + burn, 18 decimals, 1e9 minted once to the genesis allocation, no owner. |
 | `MiningReserve` | owner `fund(epoch, amount)` for an ended epoch, capped by the cumulative schedule (epoch 0: 72 h, W·3/7; epoch k ≥ 1: `W >> ((k − 1) / 26)`, W = 500M/52), itself capped at 500M; `budget(epoch)` is cut at that cap (zero from epoch 182). |
 | `EpochDistributor` | owner `setRoot(epoch, root, total, dataHash)` after the epoch, backed by unpromised funds, replaceable until the first claim; owner `resizeRoot(epoch, newTotal)` corrects a total (≥ claimed; increases only from unpromised funds); anyone `claim(epoch, account, amount, proof)`, which stakes for `account` via `vault.delegateFor(account, account, amount)`. One leaf per account and epoch: the tree builder must aggregate, and `total` should equal the leaf sum. |
 
-## Deploy (C8): `script/HirelingRecipe.sol`, `script/DeployHireling.s.sol`, `script/PromoteHireling.s.sol`
+## Deploy (C8): `script/SidequestRecipe.sol`, `script/DeploySidequest.s.sol`, `script/PromoteSidequest.s.sol`
 
 Two steps, run by the coordinator only (review C8-001). Neither a dry run nor a failed or partial broadcast can touch
 `config/<network>.json`:
 
 ```sh
-# 1. Broadcast. Writes only broadcast/hireling/<network>.candidate.json (gitignored), and only with --broadcast.
+# 1. Broadcast. Writes only broadcast/sidequest/<network>.candidate.json (gitignored), and only with --broadcast.
 #    Cut off part way? Re-run the same command with --resume.
-#    Testnet takes the raw key; mainnet signs from a keystore (--account hireling-deployer --password-file …, runbook §3.2).
-NETWORK=monad-testnet forge script script/DeployHireling.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast --slow
+#    Testnet takes the raw key; mainnet signs from a keystore (--account sidequest-deployer --password-file …, runbook §3.2).
+NETWORK=monad-testnet forge script script/DeploySidequest.s.sol --rpc-url … --private-key $DEPLOYER_PRIVATE_KEY --broadcast --slow
 # 2. Promote. Sends nothing. Verifies the candidate against live state and forge's receipts, then writes the record.
-NETWORK=<network> forge script script/PromoteHireling.s.sol --rpc-url …
+NETWORK=<network> forge script script/PromoteSidequest.s.sol --rpc-url …
 # 3. The Safe accepts the six handovers (C10), sent by one Safe owner (testnet: the backup owner), then reads back
 #    owner() == safe on all six. Re-running skips what the Safe already owns; --sig "check()" only reads back.
-#    Mainnet: --account hireling-safe-owner --password-file … instead of the raw key (runbook §3.5).
+#    Mainnet: --account sidequest-safe-owner --password-file … instead of the raw key (runbook §3.5).
 NETWORK=monad-testnet forge script script/SafeAccept.s.sol --rpc-url … --private-key $SAFE_BACKUP_TESTNET_PRIVATE_KEY --broadcast
 ```
 
@@ -227,29 +227,29 @@ non-owner sender or a handover that is not pending to the Safe. `test/fork/SafeA
 the live testnet Safe on a fork.
 
 Chain 143 also needs `MAINNET_GO=yes` on step 1. Step 2 refuses unless every transaction in
-`broadcast/DeployHireling.s.sol/<chainId>/run-latest.json` (under `FOUNDRY_BROADCAST` instead, when a fork rehearsal
+`broadcast/DeploySidequest.s.sol/<chainId>/run-latest.json` (under `FOUNDRY_BROADCAST` instead, when a fork rehearsal
 sets it to its own directory: `script/BroadcastPath.sol`) has a successful receipt, every candidate contract was
-created by that run, and the live readbacks in `script/HirelingVerify.sol` pass: code at every address and at the
+created by that run, and the live readbacks in `script/SidequestVerify.sol` pass: code at every address and at the
 Safe, the wiring, the bootstrap, a 500M reserve with nothing funded or promised, `reserve.genesis == distributor.genesis
 == t0`, a 1e9 supply, the configured fee schedule with nothing queued, the vesting allocation, every owner the Safe or
 pending to it, and on a fresh core both admin roles held by the Safe and renounced by the deployer. Block numbers come
-from the receipts (`hireling.block` = the run's first block, `block` = the fresh core proxy's). Running step 2 again
-after success changes nothing; a different recorded deployment refuses. `script/rehearse-hireling-pipeline.sh` runs the
+from the receipts (`sidequest.block` = the run's first block, `block` = the fresh core proxy's). Running step 2 again
+after success changes nothing; a different recorded deployment refuses. `script/rehearse-sidequest-pipeline.sh` runs the
 whole sequence (dry run, cut-off broadcast, resume, promote twice) against an anvil fork of Monad testnet.
 
-Input: the `hireling` block of `config/<network>.json` (values are the coordinator's). `load` reads every field, so a
+Input: the `sidequest` block of `config/<network>.json` (values are the coordinator's). `load` reads every field, so a
 missing one refuses; runbook §1.2 has the same list as a checklist, which `MainnetRunbook.t.sol` builds a fixture from
 and loads (LAUNCH-AUDIT-001):
 
 ```jsonc
-"hireling": {
+"sidequest": {
   "reuseCore": false,                      // chain 143: false, a fresh core (true is refused); testnet: true, reuse
                                            // deployment.core (which must charge 0 fees)
   "safe": "0x…",                           // owner of every v1 contract; mainnet core admin
   "defaultArbitrator": "0x…",              // = roles.arbitrator, the fresh arbiter key (enforced on 143; never a retired
                                            // 1 Oct key, LAUNCH-AUDIT-FIX-001); not the deployer
   "margin": 3600,                          // seconds added to the windows when checking expiredAt (reviewed default)
-  "schedule": { "thresholds": [0, 10000, 100000, 1000000],   // whole FACTORY
+  "schedule": { "thresholds": [0, 10000, 100000, 1000000],   // whole SIDE
                 "bps": [3000, 1000, 300, 100], "treasury": "0x…" },
   "allocation": { "treasury": "0x…",      // 200M (the Safe)
                   "ecosystem": "0x…",     // 100M (the Safe; the deployer on testnet)
@@ -259,17 +259,17 @@ and loads (LAUNCH-AUDIT-001):
 }
 ```
 
-D24 adds an optional `hireling.clocks` input. If present, every key is required and is a number of seconds;
+D24 adds an optional `sidequest.clocks` input. If present, every key is required and is a number of seconds;
 if absent, the recipe supplies production values. The approved testnet block prepares G1b and does not describe
-the old G1 deployment's clocks. The same `HirelingClocks.Config` tuple is appended to the constructors of
-StakeVault, FeeSchedule, HirelingHolding, MiningReserve and EpochDistributor. Each constructor validates the whole
+the old G1 deployment's clocks. The same `SidequestClocks.Config` tuple is appended to the constructors of
+StakeVault, FeeSchedule, SidequestHolding, MiningReserve and EpochDistributor. Each constructor validates the whole
 tuple on every chain and stores its relevant fields as immutables; no setter exists.
 
 | Config key | Production (143) | Fast testnet (10143) | Getter and return type |
 | --- | ---: | ---: | --- |
-| minReviewWindow | 3600 | 120 | HirelingHolding.MIN_REVIEW_WINDOW(): uint32 |
-| minDisputeWindow | 3600 | 120 | HirelingHolding.MIN_DISPUTE_WINDOW(): uint32 |
-| minArbitrationWindow | 43200 | 300 | HirelingHolding.MIN_ARBITRATION_WINDOW(): uint32 |
+| minReviewWindow | 3600 | 120 | SidequestHolding.MIN_REVIEW_WINDOW(): uint32 |
+| minDisputeWindow | 3600 | 120 | SidequestHolding.MIN_DISPUTE_WINDOW(): uint32 |
+| minArbitrationWindow | 43200 | 300 | SidequestHolding.MIN_ARBITRATION_WINDOW(): uint32 |
 | unstakeDelay | 604800 | 600 | StakeVault.UNSTAKE_DELAY(): uint48 |
 | holdingDelay | 691200 | 900 | StakeVault.HOLDING_DELAY(): uint48 |
 | feeDelay | 259200 | 300 | FeeSchedule.DELAY(): uint48 |
@@ -285,22 +285,22 @@ another clock is required. Promotion and D16 read all clock values back; D16 als
 
 Steps, one broadcast transaction or a few each: core (reuse, or a proxy initialised inside its CREATE, fees 0 to the
 Safe) → TeamVesting → Factory (mining 500M to the deployer, forwarded below) → FeeSchedule → StakeVault →
-HirelingHolding → HirelingEvaluator → `setEvaluator` + attester verifier → `bootstrapHolding` (staking opens) →
+SidequestHolding → SidequestEvaluator → `setEvaluator` + attester verifier → `bootstrapHolding` (staking opens) →
 EpochDistributor → MiningReserve → 500M to the reserve → `transferOwnership(safe)` on all six owned contracts, and on a
 fresh core both admin roles granted to the Safe and renounced by the deployer. No address is predicted. Between steps a
 third party can do nothing useful: staking is closed until the bootstrap, `publish` reverts `EvaluatorNotSet` and then
-`NotHolding` until the bootstrap, and every setup call is owner-only (`test/hireling/Recipe.t.sol`,
-`test/fork/HirelingRehearsal.t.sol`). Handover is complete only when the Safe has called `acceptOwnership` on each
+`NotHolding` until the bootstrap, and every setup call is owner-only (`test/sidequest/Recipe.t.sol`,
+`test/fork/SidequestRehearsal.t.sol`). Handover is complete only when the Safe has called `acceptOwnership` on each
 contract; until then `owner()` is still the deployer.
 
-Output (`.deployment`, decisions D1 + D5): `factory` = FACTORY v2; `hireling = { block, safe, factory, vault,
-feeSchedule, distributor, miningReserve, teamVesting, t0 }`; `main = { kind: "hireling-v1", factory, holding,
+Output (`.deployment`, decisions D1 + D5): `factory` = SIDE v2; `sidequest = { block, safe, factory, vault,
+feeSchedule, distributor, miningReserve, teamVesting, t0 }`; `main = { kind: "sidequest-v1", factory, holding,
 evaluator, openTokens: true }`; the previous `main`/`demo` move to the next free `legacy.main-vN`/`legacy.demo-vN` and
 every legacy pair gets an explicit `kind: "legacy"` and `factory`; `core`, `block`, `poolFactory`, `rewardTokens`,
 `stacksBlock` are kept. On mainnet (LAUNCH-AUDIT-004) an absent `rewardTokens` is derived from the single `knownTokens`
 entry, USDC, and a list without `x402.usdc` refuses: the SDK and Explore take their reward tokens from it. The
 production preflight requires the promoted list to hold USDC and the artifact's `deployment.rewardTokens` to equal it.
-An unknown key or an existing `hireling` record refuses before anything is broadcast. `load`
+An unknown key or an existing `sidequest` record refuses before anything is broadcast. `load`
 narrows every config number with `SafeCast` and `check` refuses a Safe with no code, a threshold above the supply and a
 genesis more than a day in the past or 90 days ahead (C9).
 
@@ -325,13 +325,13 @@ output and the deploy receipt (the script writes no config). Command:
 
 ## Liquidity seed (C12): `script/SeedPool.s.sol`
 
-One full-range Uniswap v4 FACTORY/USDC position on Monad mainnet, owned by the protocol Safe. It is created in **one
-transaction** by a one-shot `SeedHelper` (`src/hireling/SeedHelper.sol`; review C12-002). The price is
-`quoteAmount / factoryAmount` ($300 / 3M FACTORY = $0.0001, $100k FDV). The script sends four transactions from the
+One full-range Uniswap v4 SIDE/USDC position on Monad mainnet, owned by the protocol Safe. It is created in **one
+transaction** by a one-shot `SeedHelper` (`src/sidequest/SeedHelper.sol`; review C12-002). The price is
+`quoteAmount / factoryAmount` ($300 / 3M SIDE = $0.0001, $100k FDV). The script sends four transactions from the
 seeder (the account holding the liquidity allocation and the USDC):
 
 1. Deploy the helper with the plan.
-2. and 3. Approve it, one transaction per token, the seed amount plus the repair cap: 3M FACTORY + 50,000, then $300 + $5.
+2. and 3. Approve it, one transaction per token, the seed amount plus the repair cap: 3M SIDE + 50,000, then $300 + $5.
 4. Call `seed()`. In that one call the helper:
    1. pulls both approvals;
    2. sets the price: it initializes the pool, or, if someone already initialized it at another price, swaps it to the
@@ -345,8 +345,8 @@ seeder (the account holding the liquidity allocation and the USDC):
    and only once.
 
 Commands, with `MAINNET_GO=yes`:
-`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --account hireling-liquidity
---password-file ~/.config/hireling/liquidity.password --broadcast --slow` (a keystore, never a raw key; runbook §3.7).
+`NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url … --account sidequest-liquidity
+--password-file ~/.config/sidequest/liquidity.password --broadcast --slow` (a keystore, never a raw key; runbook §3.7).
 The dry run (without `--broadcast`) simulates the seed; a `Repaired` event in its trace shows what a repair would cost.
 
 **After the broadcast, check it** (review C12-001; the simulation's readback proves nothing):
@@ -362,7 +362,7 @@ the PositionManager's `Transfer(0 → Safe)` in the seed receipt, matched by the
 **A second `run` is refused** (`AlreadySeeded`) while that run log holds a seed of this pool for the Safe.
 
 **Refusals and the fallback key.** The checks run before anything is approved:
-- `positionOwner` must equal `deployment.hireling.safe`, be nonzero, and the Safe must have code (review C12-003).
+- `positionOwner` must equal `deployment.sidequest.safe`, be nonzero, and the Safe must have code (review C12-003).
 - If the repair cap runs out before the target (`PriceNotSet`), `seed()` reverts and nothing moves.
 
 The coordinator then switches the config to the **fallback key, `"fee": 10000, "tickSpacing": 200`** (1%, ticks
@@ -379,8 +379,8 @@ The coordinator then switches the config to the **fallback key, `"fee": 10000, "
 - the owner checks.
 
 Config (coordinator commits it in `config/monad-mainnet.json`; the protocol addresses were checked with `cast code`,
-and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY and the Safe come from
-`deployment.hireling.factory` / `.safe`:
+and `PositionManager.poolManager()` / `permit2()` return the two above). SIDE and the Safe come from
+`deployment.sidequest.factory` / `.safe`:
 
 ```jsonc
 "liquidity": {
@@ -394,7 +394,7 @@ and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY
   "fee": 3000, "tickSpacing": 60,                           // 0.3 %, ticks ±887220
   "factoryAmount": 3000000, "quoteAmount": 300,             // whole tokens
   "maxRepairCost": 5,                                       // whole quote units; optional, default 5 (USDC)
-  "positionOwner": "0x…"                                    // = deployment.hireling.safe (R2); anything else refuses
+  "positionOwner": "0x…"                                    // = deployment.sidequest.safe (R2); anything else refuses
 }
 ```
 
@@ -403,13 +403,13 @@ and `PositionManager.poolManager()` / `permit2()` return the two above). FACTORY
 The mainnet launch end to end on a throwaway anvil fork of chain 143 (`--network monad` pricing), in runbook order:
 1. A 1-of-2 Safe from the canonical v1.4.1 SafeProxyFactory `0x4e1D…ec67`, SafeL2 `0x29fc…C762` and fallback handler
    `0xfd07…Ec99` (code checked first).
-2. `DeployHireling` with a fresh core and `MAINNET_GO`.
-3. `PromoteHireling`, then the D16 launch gate (`apps/api/src/prod-config.ts`), which must **refuse**: all six
+2. `DeploySidequest` with a fresh core and `MAINNET_GO`.
+3. `PromoteSidequest`, then the D16 launch gate (`apps/api/src/prod-config.ts`), which must **refuse**: all six
    handovers are only pending.
 4. `SafeAccept` from one owner, then the gate, which must **pass**: the reviewed Safe, Safe custody, both core admin
    roles with the Safe and none with the deployer, attester verifier, relay above 2 MON. The reviewed Safe
    (LAUNCH-AUDIT-003) means a proxy of the canonical SafeL2 (slot 0), `VERSION` 1.4.1, exactly the artifact's pinned
-   `deployment.hireling.safeOwners` and `safeThreshold`, no module and no guard. R7 pins its own Safe's owners and
+   `deployment.sidequest.safeOwners` and `safeThreshold`, no module and no guard. R7 pins its own Safe's owners and
    threshold, then shows that a wrong owner pin and a guard written to the guard slot each refuse.
 5. `SeedPool`, then its receipt-based `--sig "verify()"` against forge's real run log.
 6. One direct hire through the v1 pair (`script/RehearseHireAndMine.s.sol`, `RehearseHire`).
@@ -429,8 +429,8 @@ gas price.
 | step | txs | gas limit | gas used | MON @ 102 gwei | MON @ 203 gwei (max fee) | paid by |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | Safe (1-of-2) | 1 | 319,209 | 315,034 | 0.033 | 0.065 | anyone (deployer) |
-| DeployHireling, fresh core | 26 | 26,300,231 | 20,227,347 | 2.683 | 5.339 | deployer |
-| PromoteHireling | 0 | 0 | 0 | 0 | 0 | — |
+| DeploySidequest, fresh core | 26 | 26,300,231 | 20,227,347 | 2.683 | 5.339 | deployer |
+| PromoteSidequest | 0 | 0 | 0 | 0 | 0 | — |
 | SafeAccept (6 × execTransaction) | 6 | 797,168 | 607,843 | 0.081 | 0.162 | a Safe owner |
 | SeedPool (helper, 2 approvals, seed) | 4 | 3,888,439 | 2,990,539 | 0.397 | 0.789 | seeder (liquidity holder) |
 | Mining epoch 0 (ECDSA fund + setRoot via Safe, two claims) | 4 | 977,479 | 747,172 | 0.100 | 0.198 | a Safe owner; claimers |
@@ -442,7 +442,7 @@ checks the balance against limit × max fee). A Safe owner needs about 0.15 MON,
 more than `RELAY_FLOOR_MAINNET` (2 MON, B6) before opening.
 
 Since B8 (2 Oct), step 7 is four transactions: `fund`, `setRoot` and two claims. That's 968,520 gas limit (0.099 MON
-@ 102 gwei), and each claim is paid by whoever sends it. In that run the hire's 2.5 USDC fee mined 12,500 FACTORY:
+@ 102 gwei), and each claim is paid by whoever sends it. In that run the hire's 2.5 USDC fee mined 12,500 SIDE:
 7,500 to the worker and 5,000 to the creator.
 
 ## Testnet launch (G1): `script/launch-testnet.sh`, `script/rehearse-launch-testnet.sh`
@@ -460,8 +460,8 @@ the same checkout refuses at once. Forge writes its default `broadcast/` and `ca
    `ADMIN_ROLE`, the Safe is v1.4.1 with threshold 1, no module and no guard (the mining fund's nonce guard, D18, needs
    neither), the Safe-owner key is an owner, an `oddTokens` block exists, and both senders hold the gas limits at twice
    the current gas price.
-2. `DeployHireling` dry run, then `--broadcast --slow`.
-3. `PromoteHireling`.
+2. `DeploySidequest` dry run, then `--broadcast --slow`.
+3. `PromoteSidequest`.
 4. `SafeAccept`, then its `check()`.
 5. `pauser`: the deployer grants the Safe the reused core's `ADMIN_ROLE`, which `pause()`/`unpause()` require, so
    /admin's pause works. `ADMIN_ROLE` only, not the upgrade role; the deployer keeps its roles. Skipped if the Safe holds
@@ -494,7 +494,7 @@ from that run:
 
 | step | txs | gas limit | MON @ 102 gwei | paid by |
 | --- | ---: | ---: | ---: | --- |
-| DeployHireling, reused core | 18 | 17,940,929 | 1.830 | deployer |
+| DeploySidequest, reused core | 18 | 17,940,929 | 1.830 | deployer |
 | pauser: `core.grantRole(ADMIN_ROLE, Safe)` | 1 | 88,395 | 0.009 | deployer |
 | DeployOddTokens (2 tokens, 2 wallets) | 6 | 2,189,372 | 0.223 | deployer |
 | SafeAccept (6 × execTransaction) | 6 | 797,152 | 0.081 | Safe owner |
@@ -517,7 +517,7 @@ same checkout (G1-DRY-001 and its residual):
   inherits the lock (fd 9); its anvil is started without it, so a kept fork never holds it.
 - It names everything by a run id, the pid plus 32 random bits (`rehearsal_run` in `script/rehearse-owned.sh`): the
   scratch `config/rehearsal-<id>.json`, and forge's broadcast logs and their cache twins under `broadcast/rehearsal-<id>`
-  and `cache/rehearsal-<id>` (`FOUNDRY_BROADCAST`, `FOUNDRY_CACHE_PATH`; PromoteHireling, SeedPool's `verify()` and the
+  and `cache/rehearsal-<id>` (`FOUNDRY_BROADCAST`, `FOUNDRY_CACHE_PATH`; PromoteSidequest, SeedPool's `verify()` and the
   candidate read them back through `script/BroadcastPath.sol`). So it never touches a real launch's
   `broadcast/<script>/<10143|143>/run-latest.json`, and before passing it checks a digest of every such log, taken at
   its start, is unchanged.
@@ -531,7 +531,7 @@ refuses `FOUNDRY_BROADCAST`. `test/LaunchLock.t.sol` pins the same in the source
 It prints pass/fail per case and the gas limits per wallet, for the launch and for the flows. Every runner case that
 needs no board passed on 2 Oct (21/21), all but `legacy-dispute`, which signs with the real legacy arbitrator's key.
 Fork-only stand-ins: an impersonated `roles.admin` makes the fresh deployer the core's admin, and `anvil_dealERC20`
-gives mUSD and FACTORY v1. The anvil dev keys are not used, because on Monad testnet every one carries an EIP-7702
+gives mUSD and SIDE v1. The anvil dev keys are not used, because on Monad testnet every one carries an EIP-7702
 sweeper delegation.
 
 | wallet | txs | gas limit | MON @ 102 gwei |
@@ -553,13 +553,13 @@ block and t0. It refuses an existing archive or changed G1 identity before modif
 
 The archive `config/archive/monad-testnet-g1.json` retains the original config bytes, including G1 contracts, roles
 and odd-token receipts, plus `archive.reason`, UTC `archive.date` and `archive.sourceSha256`. The active config loses
-only `deployment.hireling`, `deployment.main` and `deployment.oddTokens`. The last is launch-generated output that
-HirelingOutput does not accept as a fresh input; `launch-testnet.sh` creates new odd-token receipts. All five legacy
-pairs, the reused core, roles, top-level oddTokens, liquidity and approved `hireling.clocks` inputs remain unchanged.
+only `deployment.sidequest`, `deployment.main` and `deployment.oddTokens`. The last is launch-generated output that
+SidequestOutput does not accept as a fresh input; `launch-testnet.sh` creates new odd-token receipts. All five legacy
+pairs, the reused core, roles, top-level oddTokens, liquidity and approved `sidequest.clocks` inputs remain unchanged.
 `main` must be absent: promotion writes the fresh v1 pair directly, preserving the legacy key set. G1 is archived;
-it does not become a legacy Hireling stack.
+it does not become a legacy Sidequest stack.
 
-Promotion writes all nine `deployment.hireling.clocks` fields with the input key names. Values come from the deployed
+Promotion writes all nine `deployment.sidequest.clocks` fields with the input key names. Values come from the deployed
 Holding/Vault/FeeSchedule/MiningReserve getters, with the repeated grace and epoch clocks checked on
 FeeSchedule/EpochDistributor. Every value must equal the input (an absent input defaults to production). A mismatch
 refuses before any config write. Mainnet promotion additionally requires production clocks. An idempotent promotion
@@ -569,7 +569,7 @@ After CLOCKS-PARAM and G1B-PREP review/merge, the coordinator runs from the repo
 
 ```bash
 set -a
-. /home/kristjan/code/agent-jobs/.env.local
+. /home/kristjan/code/sidequest/.env.local
 set +a
 bash contracts/script/prepare-redeploy-testnet.sh --check
 bash contracts/script/prepare-redeploy-testnet.sh
@@ -587,4 +587,4 @@ config/nonce changes, deploys/promotes/accepts the fast recipe, verifies every p
 and loads all nine clocks synchronously through the SDK. It also checks signer/chain/lock/relaunch/Safe-policy
 refusals and executes the fee and Holding proposals at their immutable ETAs. Owned config/archive/Forge directories
 and anvil are removed afterward; real launch logs and the checked-in config are untouched. The production-values
-mainnet fork remains covered by `test/fork/HirelingRehearsal.t.sol`.
+mainnet fork remains covered by `test/fork/SidequestRehearsal.t.sol`.

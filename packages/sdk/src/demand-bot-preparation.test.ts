@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { encodeFunctionData } from 'viem'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type DemandOperation, openDemandStore, persistDemandManifest } from '../scripts/demand-bot-store.ts'
-import { factoryTokenAbi, hirelingHoldingAbi } from './abi/index.ts'
+import { factoryTokenAbi, sidequestHoldingAbi } from './abi/index.ts'
 import { hashText } from './actions.ts'
 import { context } from './index.ts'
 import { templateForSequence } from './demand-bot.ts'
@@ -38,7 +38,7 @@ describe('hosted demand preparation', () => {
   beforeEach(async () => {
     requests = 0
     respond = response => response.end(manifest)
-    path = mkdtempSync(join(tmpdir(), 'hireling-demand-manifest-'))
+    path = mkdtempSync(join(tmpdir(), 'sidequest-demand-manifest-'))
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`
   })
@@ -56,7 +56,7 @@ describe('hosted demand preparation', () => {
         taskId: 'task', applicationId: 'application', termsHash, manifestUrl: `${baseUrl}/offers/${termsHash}.json`,
         transactions: [
           { description: 'approve', chainId: 10143, to: token, value: '0', data: encodeFunctionData({ abi: factoryTokenAbi, functionName: 'approve', args: [ctx.stack.holding, 3_000_000n] }) },
-          { description: 'publish', chainId: 10143, to: ctx.stack.holding, value: '0', data: encodeFunctionData({ abi: hirelingHoldingAbi, functionName: 'publish', args: [{ approver: creator, arbitrator, manifestHash: termsHash, policyHash: termsHash, token, reward: 3_000_000n, creatorBond: 0n, workerBond: 0n, deliveryDeadline: intent.deliveryDeadline, expiredAt, reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200 }] }) },
+          { description: 'publish', chainId: 10143, to: ctx.stack.holding, value: '0', data: encodeFunctionData({ abi: sidequestHoldingAbi, functionName: 'publish', args: [{ approver: creator, arbitrator, manifestHash: termsHash, policyHash: termsHash, token, reward: 3_000_000n, creatorBond: 0n, workerBond: 0n, deliveryDeadline: intent.deliveryDeadline, expiredAt, reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200 }] }) },
         ],
       },
     }

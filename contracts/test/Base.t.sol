@@ -64,7 +64,7 @@ abstract contract Base is Test {
         (attester, attesterPk) = makeAddrAndKey("attester");
 
         vm.startPrank(deployer);
-        factory = new FactoryToken("Factory (testnet)", "FACTORY", true, address(0));
+        factory = new FactoryToken("Factory (testnet)", "SIDE", true, address(0));
         pay = new MockPaymentToken("Mock USD (testnet)", "mUSD");
         ERC8183WithAuthorization impl = new ERC8183WithAuthorization();
         bytes memory init = abi.encodeCall(ERC8183WithAuthorization.initialize, (deployer, deployer));
@@ -81,14 +81,14 @@ abstract contract Base is Test {
         evaluator.setVerifier(attester, true);
         vm.stopPrank();
 
-        // Creator: rewards in the payment token, bonds plus the hold minimum in FACTORY.
+        // Creator: rewards in the payment token, bonds plus the hold minimum in SIDE.
         pay.mint(creator, 10 * REWARD);
         factory.mint(creator, 10 * CREATOR_BOND + MIN_HOLD);
         vm.startPrank(creator);
         pay.approve(address(holding), type(uint256).max);
         factory.approve(address(holding), type(uint256).max);
         vm.stopPrank();
-        // Worker: bonds plus the hold minimum in FACTORY, nothing else.
+        // Worker: bonds plus the hold minimum in SIDE, nothing else.
         factory.mint(worker, 10 * WORKER_BOND + MIN_HOLD);
         vm.prank(worker);
         factory.approve(address(holding), type(uint256).max);
@@ -102,7 +102,7 @@ abstract contract Base is Test {
     // Lifecycle helpers
     // ------------------------------------------------------------------------------------------
 
-    /// @dev FACTORY in circulation: slashed bonds sit at the burn address, never in a wallet or in Holding.
+    /// @dev SIDE in circulation: slashed bonds sit at the burn address, never in a wallet or in Holding.
     function circulating() internal view returns (uint256) {
         return factory.totalSupply() - factory.balanceOf(holding.BURN_ADDRESS());
     }

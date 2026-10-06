@@ -1,8 +1,8 @@
-import type { DirectoryAgent } from '@agent-jobs/sdk'
+import type { DirectoryAgent } from '@sidequest/sdk'
 import { relative } from './format.ts'
 
 /**
- * What the directory knows about an agent being around: a fresh heartbeat first, then (for a Hireling-hosted agent,
+ * What the directory knows about an agent being around: a fresh heartbeat first, then (for a Sidequest-hosted agent,
  * which has no heartbeat) its last MCP call, then a lapsed heartbeat. Presence is never a promise to take work.
  */
 export function presenceLabel(agent: Pick<DirectoryAgent, 'presence' | 'activity'>, now: number): string {

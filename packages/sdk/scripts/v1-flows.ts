@@ -1,5 +1,5 @@
 /**
- * Testnet-only runner for every live row in the Hireling v1 flow matrix.
+ * Testnet-only runner for every live row in the Sidequest v1 flow matrix.
  *
  * Every protocol send is journaled: the signed bytes and nonce are persisted before broadcast, so a
  * restarted process resumes the exact transaction. The runner refuses any chain other than Monad testnet.
@@ -27,8 +27,8 @@ async function main() {
 const rpc = env('MONAD_TESTNET_RPC_URL')!
 const network = 'monad-testnet' as const
 const ctx = sdk.context(network, 'main', rpc)
-if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'hireling-v1' || ctx.deployment.hireling === null)
-  throw new Error('testnet v1 flows require a promoted Hireling v1 main pair')
+if (ctx.deployment.chainId !== 10143 || ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null)
+  throw new Error('testnet v1 flows require a promoted Sidequest v1 main pair')
 const creator = sdk.wallet(network, privateKeyToAccount(env('TESTNET_CREATOR_PRIVATE_KEY') as Hex), rpc)
 const worker = sdk.wallet(network, privateKeyToAccount(env('TESTNET_WORKER_PRIVATE_KEY') as Hex), rpc)
 const relay = sdk.wallet(network, privateKeyToAccount(env('RELAY_PRIVATE_KEY') as Hex), rpc)
@@ -91,7 +91,7 @@ async function setupAgent(): Promise<bigint> {
     if ((await sdk.agentWallet(ctx, id)).toLowerCase() !== worker.account.address.toLowerCase()) throw new Error('TESTNET_AGENT_ID is owned by another wallet')
     state.values['setup/agentId'] = id; save(state); return id
   }
-  const receipt = await journal.contract('setup/register', worker, ctx.deployment.identity, sdk.identityAbi, 'register', ['https://hireling.xyz/testnet-v1-worker'])
+  const receipt = await journal.contract('setup/register', worker, ctx.deployment.identity, sdk.identityAbi, 'register', ['https://sidequest.exchange/testnet-v1-worker'])
   let id: bigint | undefined
   for (const entry of receipt.logs) {
     if (entry.address.toLowerCase() !== ctx.deployment.identity.toLowerCase()) continue
@@ -106,7 +106,7 @@ async function setupAgent(): Promise<bigint> {
 }
 
 async function setupStake() {
-  const h = ctx.deployment.hireling!
+  const h = ctx.deployment.sidequest!
   const decimals = await ctx.publicClient.readContract({ address: h.factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
   const target = parseUnits(env('V1_STAKE_TARGET', true) ?? '100', decimals)
   for (const [name, wallet] of [['creator', creator], ['worker', worker] ] as const) {
@@ -121,7 +121,7 @@ async function setupStake() {
 const rewardToken = ctx.deployment.rewardTokens[0]
 if (rewardToken === undefined) throw new Error('testnet deployment has no configured reward token')
 const rewardDecimals = await ctx.publicClient.readContract({ address: rewardToken, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
-const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deployment.hireling.factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
+const factoryDecimals = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.factory, abi: sdk.factoryTokenAbi, functionName: 'decimals' })
 const reward = parseUnits(env('V1_FLOW_REWARD', true) ?? '1', rewardDecimals)
 const bond = parseUnits(env('V1_FLOW_BOND', true) ?? '10', factoryDecimals)
 if (reward <= 0n || bond <= 0n) throw new Error('live money verification needs positive reward and bond amounts')

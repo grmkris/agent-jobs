@@ -1,5 +1,5 @@
-import { ADMISSION_OBJECT_NAME, SESSION_SCHEMA } from '@agent-jobs/board'
-import { fromD1 } from '@agent-jobs/indexer'
+import { ADMISSION_OBJECT_NAME, SESSION_SCHEMA } from '@sidequest/board'
+import { fromD1 } from '@sidequest/indexer'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'

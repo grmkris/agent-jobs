@@ -1,5 +1,5 @@
 // Browser-only RPC double. The real SDK reads, conversions and ABI decoding run against this transport.
-import * as sdk from '@agent-jobs/sdk';
+import * as sdk from '@sidequest/sdk';
 import { createPublicClient, custom, erc20Abi, decodeFunctionData, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
 import { chainLatency } from './wagmi.mjs';
 import { chain, deployment } from '../src/wallet.ts';
@@ -30,9 +30,9 @@ export function answer({ functionName, address, args = [] }, historical = false)
     case 'holdingDenied': return s.denied?.[args[1].toLowerCase()] === true;
     case 'schedule': return schedule;
     case 'balanceOf': return args[0].toLowerCase() === window.__wallet.address.toLowerCase()
-      ? address?.toLowerCase() === window.__hireling.factory.toLowerCase() ? s.wallet : s.reward ?? 25_000_000n
+      ? address?.toLowerCase() === window.__sidequest.factory.toLowerCase() ? s.wallet : s.reward ?? 25_000_000n
       : 0n;
-    case 'symbol': return 'FACTORY';
+    case 'symbol': return 'SIDE';
     case 'decimals': return 18;
     case 'nonces': return s.nonce;
     case 'name': return 'Factory';
@@ -70,7 +70,7 @@ const transport = custom({ request: async ({ method, params }) => {
       const position = s.pools[account].positions[window.__wallet.address.toLowerCase()];
       if (position === undefined || Number(BigInt(params[0].fromBlock)) > 100 || Number(BigInt(params[0].toBlock)) < 100) return null;
       return {
-        address: window.__hireling.vault,
+        address: window.__sidequest.vault,
         topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator: window.__wallet.address, payer: window.__wallet.address } }),
         data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [position.shares, position.shares]),
         blockNumber: '0x64', blockHash: hash, transactionHash: hash, transactionIndex: '0x0', logIndex: '0x' + index.toString(16), removed: false,
@@ -80,8 +80,8 @@ const transport = custom({ request: async ({ method, params }) => {
   throw new Error(`Unexpected fixture RPC ${method}`);
 } }, { retryCount: 0 });
 const publicClient = createPublicClient({ chain, transport });
-export function stakeContext(contracts = window.__hireling) {
-  return { publicClient, deployment: { ...deployment, hireling: { ...deployment.hireling, ...contracts, block: 100n } }, stack: deployment.stacks.main };
+export function stakeContext(contracts = window.__sidequest) {
+  return { publicClient, deployment: { ...deployment, sidequest: { ...deployment.sidequest, ...contracts, block: 100n } }, stack: deployment.stacks.main };
 }
 
 export function apply({ data }, logs = []) {
@@ -113,7 +113,7 @@ export function apply({ data }, logs = []) {
     if (position.generation !== pool.generation) Object.assign(position, emptyPosition(pool.generation));
     s.wallet -= args[1]; s.nonce += 1n; pool.assets += args[1]; pool.shares += shares; position.shares += shares;
     logs.push({
-      address: window.__hireling.vault,
+      address: window.__sidequest.vault,
       topics: encodeEventTopics({ abi: sdk.stakeVaultAbi, eventName: 'Delegated', args: { account, delegator: owner, payer: owner } }),
       data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [args[1], shares]),
       removed: false,
@@ -141,7 +141,7 @@ window.__stakingSnapshot = (poolAccount, wallet) => {
   const positions = Object.keys(s.pools).filter(key => poolAccount === undefined || poolAccount.toLowerCase() === key).flatMap(key =>
     Object.keys(s.pools[key].positions).filter(delegator => poolAccount !== undefined || wallet === undefined || wallet.toLowerCase() === delegator)
       .map(delegator => ({ ...position(key, delegator), backing: backing(key) })));
-  const common = { source: 'index+vault', blockNumber, vault: window.__hireling.vault, token: window.__hireling.factory };
+  const common = { source: 'index+vault', blockNumber, vault: window.__sidequest.vault, token: window.__sidequest.factory };
   const result = poolAccount === undefined ? { ...common, positions } : { ...common, ...backing(poolAccount),
     delegatorCount: positions.filter(p => p.shares > 0n).length,
     topDelegators: positions.filter(p => p.shares > 0n).toSorted((a, b) => a.value > b.value ? -1 : a.value < b.value ? 1 : 0),

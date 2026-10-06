@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, verifyTypedData, zeroAddress } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,7 +12,7 @@ import { fromNodeSqlite } from './store.ts'
 
 const deployment = sdk.deployment('monad-testnet')
 const context = { deployment, stack: sdk.stack(deployment, 'main'), publicClient: {} } as unknown as sdk.Ctx
-const audience = 'https://testnet.hireling.xyz'
+const audience = 'https://dev.sidequest.exchange'
 const operator: Address = '0x2222222222222222222222222222222222222222'
 const databases: DatabaseSync[] = []
 afterEach(() => { for (const database of databases.splice(0)) database.close() })

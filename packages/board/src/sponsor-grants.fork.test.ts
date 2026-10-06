@@ -2,8 +2,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type Hex, type LocalAccount, encodeFunctionData, erc20Abi, keccak256, parseTransaction, stringToHex } from 'viem'
-import * as sdk from '@agent-jobs/sdk'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import * as sdk from '@sidequest/sdk'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { SponsorDesk, type NamedSponsorEntry } from './sponsor.ts'
 import { GrantStore } from './grants.ts'
 import { AgentStore } from './agents.ts'
@@ -12,7 +12,7 @@ import { fromNodeSqlite } from './store.ts'
 import { redeemGrantBatch } from './hire-batch.ts'
 
 describe.skipIf(!forkEnabled)('named sponsorship grants on a real Monad fork', () => {
-  let fixture: Awaited<ReturnType<typeof startHirelingFork>>
+  let fixture: Awaited<ReturnType<typeof startSidequestFork>>
   let db: DatabaseSync
   let ctx: sdk.Ctx
   let grants: GrantStore
@@ -24,7 +24,7 @@ describe.skipIf(!forkEnabled)('named sponsorship grants on a real Monad fork', (
   const token = sdk.deployment('monad-testnet').rewardTokens[0]!
   const boot = () => new SponsorDesk({ sql: fromNodeSqlite(db), ctx, now: () => now,
     relay: { account: fixture.admin.account as LocalAccount, rpcUrl: fixture.url }, fail: (code, message) => new BoardError(code, message) })
-  const call = (nonce = 123456n) => ({ to: ctx.stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [nonce] }) })
+  const call = (nonce = 123456n) => ({ to: ctx.stack.holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [nonce] }) })
 
   async function confirm(wallet: sdk.Wallet, spec: sdk.GrantSpec): Promise<Hex> {
     const prepared = grants.prepare(fixture.creator.account.address, spec)
@@ -40,7 +40,7 @@ describe.skipIf(!forkEnabled)('named sponsorship grants on a real Monad fork', (
   }
 
   beforeAll(async () => {
-    fixture = await startHirelingFork()
+    fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
     db = new DatabaseSync(':memory:')
     now = Number((await ctx.publicClient.getBlock()).timestamp)

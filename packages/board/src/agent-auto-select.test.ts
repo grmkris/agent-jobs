@@ -1,6 +1,6 @@
 /** A confirmed hosted publish that names its worker continues to select_worker under a derived key. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 import { AgentExecutor, type AgentToolRequest } from './agent-executor.ts'
 import type { AgentSigning } from './agent-signing.ts'

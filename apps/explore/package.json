@@ -1,5 +1,5 @@
 {
-  "name": "@agent-jobs/explore",
+  "name": "@sidequest/explore",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,8 +8,8 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@agent-jobs/react": "workspace:*",
-    "@agent-jobs/sdk": "workspace:*",
+    "@sidequest/react": "workspace:*",
+    "@sidequest/sdk": "workspace:*",
     "@base-ui/react": "1.8.0",
     "@fontsource-variable/geist": "5.3.0",
     "@paper-design/shaders-react": "0.0.81",

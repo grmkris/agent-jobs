@@ -1,5 +1,5 @@
 /** Call and nested funding checks shared by the executor and sponsor desk, before simulation or signing. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type AbiFunction, type Address, type Hex, decodeFunctionData, encodeFunctionData, getAddress, isAddress, toFunctionSelector } from 'viem'
 import { decodeGrantBatch } from './hire-batch.ts'
 
@@ -37,7 +37,7 @@ export function checkGrantCall(ctx: sdk.GrantContext, spec: sdk.GrantSpec, call:
   if (spec.kind === 'allowance-once' && args[1] !== spec.amount) throw new Error('One-off allowance amount mismatch')
   if (spec.kind === 'agent-approve-once' && args[1] !== spec.amount) throw new Error('One-off approval amount mismatch')
   if (spec.kind === 'unstake' && (typeof args[0] !== 'string' || !same(args[0], spec.delegator) || args[1] !== spec.shares)) throw new Error('One-off unstake account or shares mismatch')
-  if (spec.kind === 'agent-work' && ctx.deployment.hireling !== null && same(target.address, ctx.deployment.hireling.vault)
+  if (spec.kind === 'agent-work' && ctx.deployment.sidequest !== null && same(target.address, ctx.deployment.sidequest.vault)
     && (typeof args[0] !== 'string' || !same(args[0], spec.delegator))) throw new Error('Agent vault calls require the agent own position')
   if (fn.name === 'disableDelegation') {
     const disabled = args[0] as sdk.Delegation

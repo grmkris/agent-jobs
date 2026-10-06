@@ -3,7 +3,7 @@
  * action that moves money or cannot be undone says what will happen in a confirmation sheet first, then goes out
  * through the transaction sheet; selecting an applicant is a signature, not a transaction.
  */
-import type { JobAction, Phase } from '@agent-jobs/react'
+import type { JobAction, Phase } from '@sidequest/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { useAccount, useSignTypedData } from 'wagmi'
@@ -204,7 +204,7 @@ export function JobActions({ job, phase, roles, auth, afterSignIn = [], sourceAv
           </ListRow>
           {charge !== null && (
             <ListRow>
-              <span className="flex-1">Hireling’s {percent(charge.bps)} fee</span>
+              <span className="flex-1">Sidequest’s {percent(charge.bps)} fee</span>
               <span className="tabular text-label-2">{amount(charge.fee, job.token)}</span>
             </ListRow>
           )}

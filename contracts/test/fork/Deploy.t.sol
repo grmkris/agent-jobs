@@ -51,7 +51,7 @@ contract DeployForkTest is Test {
         assertGt(address(c.reputation).code.length, 0, "reputation registry exists on this chain");
     }
 
-    /// @dev The stacks-only redeploy (script/DeployStacks.s.sol): new pairs against the deployed core and FACTORY,
+    /// @dev The stacks-only redeploy (script/DeployStacks.s.sol): new pairs against the deployed core and SIDE,
     ///      wired like the recipe's, while the recorded pairs keep their evaluators.
     function test_fork_testnetStacksOnly() public {
         if (!_fork("MONAD_TESTNET_RPC_URL")) return vm.skip(true);
@@ -156,7 +156,7 @@ contract DeployForkTest is Test {
         address forwarder = vm.parseJsonAddress(vm.readFile(Recipe.path(vm, "monad-testnet")), ".cre.forwarder");
         assertGt(forwarder.code.length, 0, "the KeystoneForwarder exists on this chain");
         vm.startBroadcast(c.admin);
-        EvidenceReceiver r = Recipe.deployReceiver(d.evaluators[0], forwarder, makeAddr("workflow-owner"), "agent-jobs-evidence");
+        EvidenceReceiver r = Recipe.deployReceiver(d.evaluators[0], forwarder, makeAddr("workflow-owner"), "sidequest-evidence");
         vm.stopBroadcast();
         assertTrue(d.evaluators[0].verifiers(address(r)));
         assertEq(r.owner(), address(0), "ownerless: checks can never be weakened");

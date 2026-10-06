@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Vm} from "forge-std/Vm.sol";
 import {BlocklistUSD, GasBurnerUSD} from "../src/testnet/OddTokens.sol";
-import {HirelingRecipe} from "./HirelingRecipe.sol";
+import {SidequestRecipe} from "./SidequestRecipe.sol";
 
 /// @title OddTokensRecipe
 /// @notice Testnet only (C11). Input, written by the coordinator in `config/<network>.json`:
@@ -28,7 +28,7 @@ library OddTokensRecipe {
 
     /// @dev Both tokens owned by the deployer (the caller's broadcaster), and `amount` of each minted to every wallet.
     function deploy(address owner, address[] memory wallets, uint256 amount) internal returns (Deployed memory d) {
-        if (block.chainid == HirelingRecipe.MAINNET) revert MainnetRefused();
+        if (block.chainid == SidequestRecipe.MAINNET) revert MainnetRefused();
         d.blocklist = new BlocklistUSD(owner);
         d.gasBurner = new GasBurnerUSD(owner);
         for (uint256 i; i < wallets.length; ++i) {

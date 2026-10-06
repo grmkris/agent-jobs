@@ -3,8 +3,8 @@ import { type Hex, keccak256, stringToHex } from 'viem'
 import { isImmutableSha } from './demand-bot.ts'
 import { demandCanonicalJson } from './demand-bot-validation.ts'
 
-export const DEMAND_REPOSITORY = 'https://github.com/grmkris/hireling-demo-deliveries'
-const repositoryPath = 'grmkris/hireling-demo-deliveries'
+export const DEMAND_REPOSITORY = 'https://github.com/grmkris/sidequest-demo-deliveries'
+const repositoryPath = 'grmkris/sidequest-demo-deliveries'
 const maxArtifactBytes = 8 * 1024 * 1024
 
 export type DemandDescriptor =
@@ -36,7 +36,7 @@ export function demandArtifactUrl(value: string): URL {
   const url = new URL(value)
   const segments = url.pathname.split('/')
   if (url.protocol !== 'https:' || url.host !== 'raw.githubusercontent.com' || url.username || url.password || url.search || url.hash) throw new Error('artifact must be hosted at an immutable public GitHub URL')
-  if (segments[1] !== 'grmkris' || segments[2] !== 'hireling-demo-deliveries' || !isImmutableSha(segments[3])) throw new Error('artifact must name the delivery repository and exact commit')
+  if (segments[1] !== 'grmkris' || segments[2] !== 'sidequest-demo-deliveries' || !isImmutableSha(segments[3])) throw new Error('artifact must name the delivery repository and exact commit')
   if (!/\.(png|jpe?g)$/i.test(url.pathname)) throw new Error('artifact must be a PNG or JPEG')
   return url
 }
@@ -53,7 +53,7 @@ export function validDemandImage(bytes: Uint8Array, mediaType: string): boolean 
 }
 
 async function boundedPublicFetch(url: URL, limit: number): Promise<Uint8Array> {
-  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20_000), headers: { 'user-agent': 'hireling-testnet-demand', accept: 'application/vnd.github+json' } })
+  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20_000), headers: { 'user-agent': 'sidequest-testnet-demand', accept: 'application/vnd.github+json' } })
   if (!response.ok || response.body === null) throw new Error('public deliverable is unavailable')
   const length = Number(response.headers.get('content-length') ?? '0')
   if (length > limit) throw new Error('public response is too large')

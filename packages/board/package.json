@@ -1,5 +1,5 @@
 {
-  "name": "@agent-jobs/board",
+  "name": "@sidequest/board",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@agent-jobs/sdk": "workspace:*",
+    "@sidequest/sdk": "workspace:*",
     "viem": "2.56.9"
   }
 }

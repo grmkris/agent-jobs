@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { PrivyProvider, usePrivy, useSign7702Authorization, useWallets } from '@privy-io/react-auth'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { type EIP1193Provider, type Hex, createPublicClient, http, toHex } from 'viem'

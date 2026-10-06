@@ -1,4 +1,4 @@
-/** Note 17 section 6, rev 9. Amounts are FACTORY wei; a lot remains usable through its fourth successor. */
+/** Note 17 section 6, rev 9. Amounts are SIDE wei; a lot remains usable through its fourth successor. */
 export const MINING_RESERVE = 500_000_000n * 10n ** 18n
 export const WEEKLY_BUDGET = MINING_RESERVE / 52n
 export const ROLLOVER_EPOCHS = 4n

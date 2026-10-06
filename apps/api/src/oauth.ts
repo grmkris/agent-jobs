@@ -1,5 +1,5 @@
-import { AgentStore, migrateAgentSchema, type Sql } from '@agent-jobs/board'
-import type { Statement } from '@agent-jobs/indexer'
+import { AgentStore, migrateAgentSchema, type Sql } from '@sidequest/board'
+import type { Statement } from '@sidequest/indexer'
 import { parseScopes, pkceChallenge, randomToken, resourceBoard, tokenHash, validRedirect, OAUTH_SCOPES } from './oauth-validation.ts'
 
 export interface OAuthGrant {

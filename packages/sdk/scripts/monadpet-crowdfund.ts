@@ -15,12 +15,12 @@
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, formatUnits } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { envLocal, log as stamp, sendReported, sleep } from './lib/common.ts'
 
-const API = envLocal('BOARD_URL', 'https://testnet.hireling.xyz').replace(/\/$/, '')
+const API = envLocal('BOARD_URL', 'https://dev.sidequest.exchange').replace(/\/$/, '')
 const RPC = envLocal('MONAD_TESTNET_RPC_URL').split(' ')[0] as string
 const BOARD = 'monad-pet'
 const MODE = envLocal('MODE', 'cancel') as 'cancel' | 'hire'
@@ -64,7 +64,7 @@ function startClaudeWorker(taskId: string) {
   const root = join(import.meta.dirname, '../../..')
   const prompt = join(RUNS, 'feature-prompt.txt')
   const branch = `feature/blocks-since-breakfast-${taskId.slice(0, 6)}`
-  const instruction = `Apply to the HIRE task ${taskId} on the agent-jobs board (the MCP server you have is that board: sign in with your wallet first, then \`apply\` with your agent id ${claudeAgent} and a one-line note). The listing's creator is a JobPool contract; its curator will select you and sign, so poll get_task until your selection appears, then activate with prepare_activation / build_activation and send the activation from your wallet. Do the work on a NEW branch named ${branch} of github.com/grmkris/monad-pet (clone with gh, never touch main): in web/public/app.js the pet already tracks blocks; add a small "blocks since breakfast" counter next to the meter that shows how many Monad blocks passed since the last feed (persist the feed block in localStorage with the existing state), with a line in web/public/index.html and matching styles. Commit, push the branch, then submit_work with deliverable {kind: "git", url: "https://github.com/grmkris/monad-pet", ref: "${branch}", sha: "<full 40-char commit sha>"}, send the submit transaction and report_transaction. Report the job id and stop.`
+  const instruction = `Apply to the HIRE task ${taskId} on the sidequest board (the MCP server you have is that board: sign in with your wallet first, then \`apply\` with your agent id ${claudeAgent} and a one-line note). The listing's creator is a JobPool contract; its curator will select you and sign, so poll get_task until your selection appears, then activate with prepare_activation / build_activation and send the activation from your wallet. Do the work on a NEW branch named ${branch} of github.com/grmkris/monad-pet (clone with gh, never touch main): in web/public/app.js the pet already tracks blocks; add a small "blocks since breakfast" counter next to the meter that shows how many Monad blocks passed since the last feed (persist the feed block in localStorage with the existing state), with a line in web/public/index.html and matching styles. Commit, push the branch, then submit_work with deliverable {kind: "git", url: "https://github.com/grmkris/monad-pet", ref: "${branch}", sha: "<full 40-char commit sha>"}, send the submit transaction and report_transaction. Report the job id and stop.`
   const mk = spawn('bash', [join(root, 'packages/sdk/scripts/harness/worker-prompt.sh'), prompt, claudeAgent, 'monad-pet', instruction], { stdio: 'ignore' })
   return new Promise<void>((resolve, reject) => {
     mk.on('exit', (code) => {
@@ -107,7 +107,7 @@ async function main() {
   const code = await ctx.publicClient.getCode({ address: created.pool })
   if (code === undefined || code === '0x') throw new Error('the pool was not created at the predicted address')
   const p0 = await board.call<{ phase: string; totalPledged: string }>('get_pool', { poolId })
-  note(`pool exists at ${created.pool}: phase ${p0.phase}, pledged ${fmt(BigInt(p0.totalPledged))} CHOMP, hold ${fmt(await sdk.balanceOf(ctx, ctx.deployment.factory, created.pool))} FACTORY`)
+  note(`pool exists at ${created.pool}: phase ${p0.phase}, pledged ${fmt(BigInt(p0.totalPledged))} CHOMP, hold ${fmt(await sdk.balanceOf(ctx, ctx.deployment.factory, created.pool))} SIDE`)
 
   const a0 = await chomp(aAccount.address)
   const b0 = await chomp(bAccount.address)
@@ -141,7 +141,7 @@ async function main() {
     await sendReported(boardB, pledgerB, ctx.publicClient, poolId, rb.transactions, 'pledger B')
     const f0 = await sdk.balanceOf(ctx, ctx.deployment.factory, curatorAccount.address)
     await sendReported(board, curator, ctx.publicClient, poolId, [ra.reclaimHold], 'curator')
-    note(`refunds: A ${fmt((await chomp(aAccount.address)) - a0)} (net of 180 pledged), B ${fmt((await chomp(bAccount.address)) - b0)} (net of 120); pool left with ${fmt(await chomp(created.pool))} CHOMP; hold reclaimed ${fmt((await sdk.balanceOf(ctx, ctx.deployment.factory, curatorAccount.address)) - f0)} FACTORY`)
+    note(`refunds: A ${fmt((await chomp(aAccount.address)) - a0)} (net of 180 pledged), B ${fmt((await chomp(bAccount.address)) - b0)} (net of 120); pool left with ${fmt(await chomp(created.pool))} CHOMP; hold reclaimed ${fmt((await sdk.balanceOf(ctx, ctx.deployment.factory, curatorAccount.address)) - f0)} SIDE`)
     const p2 = await board.call<{ phase: string; paidOut: string; refundable: boolean }>('get_pool', { poolId })
     note(`get_pool: phase ${p2.phase}, paid out ${fmt(BigInt(p2.paidOut))}, refundable ${p2.refundable}`)
     return
@@ -177,7 +177,7 @@ async function main() {
   }
   const f0 = await sdk.balanceOf(ctx, ctx.deployment.factory, curatorAccount.address)
   await sdk.reclaimHold(ctx, curator, created.pool)
-  note(`hold reclaimed: ${fmt((await sdk.balanceOf(ctx, ctx.deployment.factory, curatorAccount.address)) - f0)} FACTORY back to the curator`)
+  note(`hold reclaimed: ${fmt((await sdk.balanceOf(ctx, ctx.deployment.factory, curatorAccount.address)) - f0)} SIDE back to the curator`)
 }
 
 main()

@@ -5,7 +5,7 @@
  * the deployment it is valid on; the listing must match it on every enforceable field.
  */
 import { type AbiFunction, type Address, type Hex, isAddress, keccak256, parseAbiItem, stringToHex, zeroAddress } from 'viem'
-import { type WindowBounds, validateOfferWindows, windowBounds } from '@agent-jobs/sdk'
+import { type WindowBounds, validateOfferWindows, windowBounds } from '@sidequest/sdk'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 import type { EligibilityPolicy } from './roles.ts'
 
@@ -185,10 +185,10 @@ export class TermsError extends Error {
  * publish that must revert, and against the deployed evaluator's windows.
  * @param now Unix seconds.
  */
-export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, kind: 'legacy' | 'hireling-v1' = 'legacy', bounds: WindowBounds = windowBounds()): void {
-  if (kind === 'hireling-v1') {
-    validateHirelingWindows(offer.windows, bounds)
-    if (offer.mode !== 'hire') throw new TermsError('unsupported-mode', 'Hireling v1 supports hires only.')
+export function validateOffer(offer: OfferTerms, evaluator: EvaluatorWindows, now: number, kind: 'legacy' | 'sidequest-v1' = 'legacy', bounds: WindowBounds = windowBounds()): void {
+  if (kind === 'sidequest-v1') {
+    validateSidequestWindows(offer.windows, bounds)
+    if (offer.mode !== 'hire') throw new TermsError('unsupported-mode', 'Sidequest v1 supports hires only.')
     const a = offer.arbitrator
     if (a === undefined || !isAddress(a) || a.toLowerCase() === zeroAddress || eq(a, offer.creator) || eq(a, offer.approver)) {
       throw new TermsError('invalid-arbitrator', 'A v1 offer needs a nonzero arbitrator distinct from its creator and approver.')
@@ -274,14 +274,14 @@ export function listingMatches(offer: OfferTerms, hash: Hex, listing: OnChainLis
   )
 }
 
-export interface HirelingWindows {
+export interface SidequestWindows {
   reviewSeconds: number
   disputeSeconds: number
   arbitrationSeconds: number
 }
 
 /** V1 bounds come from chain/config clocks; production is the fallback for offline legacy records. */
-export function validateHirelingWindows(windows: HirelingWindows, bounds: WindowBounds = windowBounds()): void {
+export function validateSidequestWindows(windows: SidequestWindows, bounds: WindowBounds = windowBounds()): void {
   try { validateOfferWindows(windows, bounds) }
   catch (error) { throw new TermsError('windows-bounds', (error as Error).message) }
 }

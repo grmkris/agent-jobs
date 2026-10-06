@@ -9,11 +9,11 @@ export const refundVaultAbi = parseAbi([
 
 export function refundPlan(manifest, config) {
   validateManifest(manifest)
-  const h = config?.deployment?.hireling
+  const h = config?.deployment?.sidequest
   if (config.chainId !== 10143 || config.network !== 'monad-testnet' || !Number.isSafeInteger(h?.block)
     || h.block <= manifest.snapshot.block || address(h.vault) === address(manifest.old.vault)
     || address(h.factory) === address(manifest.old.factory)) throw new Error('refund: requires promoted G1c testnet contracts')
-  const funding = address(config.hireling.allocation.ecosystem)
+  const funding = address(config.sidequest.allocation.ecosystem)
   if (funding !== address(config.roles.admin)) throw new Error('refund: ecosystem funding wallet is not the reviewed deployer')
   const totalPositions = manifest.positions.reduce((n, row) => n + BigInt(row.amount), 0n)
   const operations = [

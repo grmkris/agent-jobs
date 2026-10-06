@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAgentJobs } from '../provider.tsx'
+import { useSidequest } from '../provider.tsx'
 import type { SendProgress } from '../send.ts'
 import type { TxRequest } from '../types.ts'
 
@@ -9,7 +9,7 @@ import type { TxRequest } from '../types.ts'
  * `aj-txsteps-error`) so a host's stylesheet decides how it looks.
  */
 export function TxSteps({ taskId, txs, onDone, label, explorerTx }: { taskId: string; txs: TxRequest[]; onDone?: (hashes: string[]) => void; label?: string; explorerTx?: (hash: string) => string }) {
-  const { sender } = useAgentJobs()
+  const { sender } = useSidequest()
   const [progress, setProgress] = useState<SendProgress[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

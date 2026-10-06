@@ -7,9 +7,9 @@ import { build, preview } from 'vite';
 // promotes it (an empty `deployment`). No fixture modules: Explore's own wagmi, release flag and SDK loader. Every route
 // renders by URL without throwing, the launch gate shows ("Launching soon", the testnet link), no request reaches a
 // Monad RPC (no contract reads), and /release.json reports writes closed. Only the board and the data API are answered.
-//   heavy node test/mainnet-empty.e2e.mjs [/tmp/hireling-mainnet-empty-evidence]
-const output = process.argv[2] ?? '/tmp/hireling-mainnet-empty-evidence';
-const outDir = '/tmp/hireling-mainnet-empty-build';
+//   heavy node test/mainnet-empty.e2e.mjs [/tmp/sidequest-mainnet-empty-evidence]
+const output = process.argv[2] ?? '/tmp/sidequest-mainnet-empty-evidence';
+const outDir = '/tmp/sidequest-mainnet-empty-build';
 const base = 'http://127.0.0.1:5211';
 const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-mainnet.json', import.meta.url), 'utf8'));
 // This test is about the empty block; once launch day promotes it, the routes are covered by the other e2e suites.
@@ -21,8 +21,8 @@ const me = '0x1111111111111111111111111111111111111111';
 const results = [];
 mkdirSync(output, { recursive: true });
 
-process.env.AGENT_JOBS_NETWORK = 'monad-mainnet';
-delete process.env.HIRELING_PROD_PRIVY_APP_ID;
+process.env.SIDEQUEST_NETWORK = 'monad-mainnet';
+delete process.env.SIDEQUEST_PROD_PRIVY_APP_ID;
 await build({ envFile: false, logLevel: 'error', build: { outDir, emptyOutDir: true } });
 const server = await preview({ envFile: false, logLevel: 'silent', preview: { host: '127.0.0.1', port: 5211, strictPort: true }, build: { outDir } });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -38,8 +38,8 @@ async function open(session) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   if (session) {
     await context.addInitScript((account) => {
-      localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-      localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+      localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+      localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
     }, me);
   }
   const blocked = [];
@@ -79,7 +79,7 @@ try {
       if (!path.startsWith('/embed')) await page.getByRole('note').filter({ hasText: 'Launching soon.' }).first().waitFor({ timeout: 10_000 });
       assert.ok((await page.locator('body').innerText()).trim().length > 0, `${path}: blank`);
       if (['/backing', '/admin', '/collect', '/publish', '/telegram', '/sponsorship', '/boards/new', '/b/acme/publish'].includes(path)) {
-        await page.getByRole('status').filter({ hasText: 'Hireling on mainnet opens soon' }).waitFor({ timeout: 10_000 });
+        await page.getByRole('status').filter({ hasText: 'Sidequest on mainnet opens soon' }).waitFor({ timeout: 10_000 });
         await page.getByRole('link', { name: 'Try it on testnet' }).first().waitFor();
       }
       assert.deepEqual(errors, [], `${path}: ${errors.join(' | ')}`);

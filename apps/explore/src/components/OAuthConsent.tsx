@@ -38,7 +38,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
     try {
       const scopes =
         request.data?.request.scopes.filter((scope) =>
-          scope === "hireling:work" ? work : scope === "hireling:hire" ? hire : true,
+          scope === "sidequest:work" ? work : scope === "sidequest:hire" ? hire : true,
         ) ?? [];
       const response = await agentEndpoint<{ redirectUrl: string }>(
         `/oauth/requests/${requestId}/approve`,
@@ -108,7 +108,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
       {agent !== undefined && (
         <Section title="Connection permissions">
           <p className="font-semibold">Agent #{agent.agent_id} is registered</p>
-          {request.data?.request.scopes.includes("hireling:work") && (
+          {request.data?.request.scopes.includes("sidequest:work") && (
             <label className="flex min-h-11 items-center gap-3">
               <input
                 type="checkbox"
@@ -118,7 +118,7 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
               <span>Work · apply, quote, activate, deliver and dispute</span>
             </label>
           )}
-          {request.data?.request.scopes.includes("hireling:hire") && (
+          {request.data?.request.scopes.includes("sidequest:hire") && (
             <label className="flex min-h-11 items-center gap-3">
               <input
                 type="checkbox"
@@ -139,15 +139,15 @@ export function OAuthConsent({ requestId }: { requestId: string }) {
           >
             Use this agent for this connection
           </Button>
-          <p className="text-sm text-label-2">Spending allowance and FACTORY backing can be added later.</p>
-          {hire && request.data?.request.scopes.includes("hireling:hire") && (
+          <p className="text-sm text-label-2">Spending allowance and SIDE backing can be added later.</p>
+          {hire && request.data?.request.scopes.includes("sidequest:hire") && (
             <details>
               <summary className="cursor-pointer text-sm font-semibold">Optional weekly spending allowance</summary>
               <div className="pt-3"><AllowanceEditor agent={agent} onConfirmed={() => undefined} /></div>
             </details>
           )}
           <details>
-            <summary className="cursor-pointer text-sm font-semibold">Optional FACTORY backing</summary>
+            <summary className="cursor-pointer text-sm font-semibold">Optional SIDE backing</summary>
             <div className="pt-3"><AgentStake agent={agent} operator={auth.address!} /></div>
           </details>
         </Section>

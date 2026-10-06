@@ -1,4 +1,4 @@
-import { coreAbi, epochDistributorAbi, feeScheduleAbi, miningReserveAbi, stakeVaultAbi, hirelingHoldingAbi, hirelingEvaluatorAbi } from '@agent-jobs/sdk';
+import { coreAbi, epochDistributorAbi, feeScheduleAbi, miningReserveAbi, stakeVaultAbi, sidequestHoldingAbi, sidequestEvaluatorAbi } from '@sidequest/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { decodeFunctionData, hexToNumber, recoverTypedDataAddress, size, slice } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -7,7 +7,7 @@ import { chainLatency, sendFixtureTransaction } from './wagmi.mjs';
 
 export * from './wagmi.mjs';
 
-// A fixture Safe and Hireling v1 in `window.__admin`: reads answer from it, and every call the wallet double sends
+// A fixture Safe and Sidequest v1 in `window.__admin`: reads answer from it, and every call the wallet double sends
 // (through the Safe's execTransaction, or direct) is decoded and applied, so the console shows the chain moving. The
 // Safe keeps a nonce as Safe v1.4.1 does: each Safe transaction moves it, and an ECDSA signature counts only when it
 // recovers to an owner for the transaction at the current nonce (else GS026, and nothing happens).
@@ -68,7 +68,7 @@ export const useReadContracts = ({ contracts, query }) => useQuery({
   ...query,
 });
 
-const ABIS = [coreAbi, feeScheduleAbi, stakeVaultAbi, hirelingHoldingAbi, hirelingEvaluatorAbi, miningReserveAbi, epochDistributorAbi];
+const ABIS = [coreAbi, feeScheduleAbi, stakeVaultAbi, sidequestHoldingAbi, sidequestEvaluatorAbi, miningReserveAbi, epochDistributorAbi];
 function decode(data) {
   for (const abi of ABIS) {
     try { return decodeFunctionData({ abi, data }); } catch { /* not this contract */ }

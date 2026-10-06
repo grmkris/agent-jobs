@@ -15,16 +15,16 @@ heavy bun packages/sdk/scripts/live/deployed/smoke.ts
 ```
 
 Full acceptance requires Claude's exact `RELEASED <full sha>` line in
-`/home/kristjan/code/agent-jobs.wt/status/triage.md`. Read triage between steps for
+`/home/kristjan/code/sidequest.wt/status/triage.md`. Read triage between steps for
 coordinator directives. Source the existing environment only in the invoking shell:
 
 ```sh
 set -a
-source /home/kristjan/code/agent-jobs/.env.local
+source /home/kristjan/code/sidequest/.env.local
 set +a
 export P8_RELEASED_SHA=<full released commit>
-export P8_RELEASE_STATUS_FILE=/home/kristjan/code/agent-jobs.wt/status/triage.md
-export P8_HARNESS_STATUS_FILE=/home/kristjan/code/agent-jobs.wt/status/harness.md
+export P8_RELEASE_STATUS_FILE=/home/kristjan/code/sidequest.wt/status/triage.md
+export P8_HARNESS_STATUS_FILE=/home/kristjan/code/sidequest.wt/status/harness.md
 export P8_RUN_ID=p8-fixture-20261005
 export P8_GROK_AGENT_ID=<reviewed registered Grok demo worker ID>
 pnpm live:deployed

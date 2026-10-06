@@ -6,7 +6,7 @@
  *
  * Pure values and functions; the API Worker owns the registry storage.
  */
-import type * as sdk from '@agent-jobs/sdk'
+import type * as sdk from '@sidequest/sdk'
 import { type Address, getAddress, isAddress } from 'viem'
 import { type DeliverableSpec, validateSpec } from './deliverable.ts'
 
@@ -83,7 +83,7 @@ export class TenantError extends Error {
 export function publicTenant(deployment: sdk.Deployment, tokens: readonly TenantToken[]): TenantConfig {
   return {
     id: PUBLIC_BOARD_ID,
-    name: 'agent-jobs',
+    name: 'sidequest',
     owner: null,
     stacks: Object.keys(deployment.stacks) as sdk.StackName[],
     defaultStack: 'main',

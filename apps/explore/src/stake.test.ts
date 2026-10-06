@@ -14,7 +14,7 @@ describe("displayed rates", () => {
 });
 
 describe("typed amounts", () => {
-  it("reads FACTORY in wei and refuses what is not a positive amount", () => {
+  it("reads SIDE in wei and refuses what is not a positive amount", () => {
     expect(factoryAmount("1.5")).toBe(1_500_000_000_000_000_000n);
     expect(factoryAmount("0")).toBeNull();
     expect(factoryAmount("abc")).toBeNull();

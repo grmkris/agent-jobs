@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { type Address, type Hex, verifyTypedData, zeroAddress } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { type DirectoryEnvelope, directoryTypedData } from '@agent-jobs/sdk'
+import { type DirectoryEnvelope, directoryTypedData } from '@sidequest/sdk'
 import { DirectoryService } from './directory.ts'
 import { fromNodeSqlite } from './store.ts'
 

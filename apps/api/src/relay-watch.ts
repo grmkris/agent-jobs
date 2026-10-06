@@ -1,6 +1,6 @@
-import { errorDiagnostics } from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type { Network } from '@agent-jobs/sdk'
+import { errorDiagnostics } from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
+import type { Network } from '@sidequest/sdk'
 import { type Address, formatEther } from 'viem'
 import { enqueueWalletNotification, telegramOwnerWallets, telegramSite } from './telegram.ts'
 
@@ -21,7 +21,7 @@ export async function watchRelay(sql: AsyncSql, input: { network: Network; now: 
   const balance = await input.balance()
   const level = relayLevel(balance)
   if (level === 'ok') return { level, balance: balance.toString(), queued: false }
-  const text = `<b>Hireling relay ${level}</b> (${input.network}): ${Number(formatEther(balance)).toFixed(3)} MON at ${input.relay}. `
+  const text = `<b>Sidequest relay ${level}</b> (${input.network}): ${Number(formatEther(balance)).toFixed(3)} MON at ${input.relay}. `
     + `Sponsored agent actions refuse below 2 MON plus the send cost. Top up per docs/sponsorship.md (Relay funding). ${telegramSite(input.network)}`
   const id = `relay:${input.network}:${level}:${Math.floor(input.now / RELAY_ALERT.repeatSeconds)}`
   for (const wallet of telegramOwnerWallets(input.network)) await enqueueWalletNotification(sql, input.network, wallet, { id: `${id}:${wallet.toLowerCase()}`, text, now: input.now })

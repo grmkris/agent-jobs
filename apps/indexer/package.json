@@ -1,12 +1,12 @@
 {
-  "name": "@agent-jobs/indexer-worker",
+  "name": "@sidequest/indexer-worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@agent-jobs/board": "workspace:*",
-    "@agent-jobs/indexer": "workspace:*",
-    "@agent-jobs/sdk": "workspace:*",
+    "@sidequest/board": "workspace:*",
+    "@sidequest/indexer": "workspace:*",
+    "@sidequest/sdk": "workspace:*",
     "alchemy": "catalog:",
     "effect": "catalog:"
   },

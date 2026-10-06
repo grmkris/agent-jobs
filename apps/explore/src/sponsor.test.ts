@@ -25,7 +25,7 @@ describe('which steps the relay sends', () => {
     expect(sponsorable([tx()], null, 10143, 1_000)).toBe(false)
     expect(sponsorable([], live, 10143, 1_000)).toBe(false)
     expect(sponsorable(Array.from({ length: SPONSOR_BATCH + 1 }, () => tx()), live, 10143, 1_000)).toBe(false)
-    // An ERC-20 approve before a top-up: the token is not a Hireling contract, so the whole step goes from the wallet.
+    // An ERC-20 approve before a top-up: the token is not a Sidequest contract, so the whole step goes from the wallet.
     expect(sponsorable([tx({ to: token, data: '0x095ea7b3' }), tx()], live, 10143, 1_000)).toBe(false)
     expect(sponsorable([tx({ data: '0xa9059cbb' })], live, 10143, 1_000)).toBe(false)
     expect(sponsorable([{ ...tx(), value: '1' } as unknown as TxRequest], live, 10143, 1_000)).toBe(false)

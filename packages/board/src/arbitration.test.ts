@@ -1,8 +1,8 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { describe, expect, it } from 'vitest'
 import { type DisputeBundle, bundleHash, checkRulingRequest, rulingRefusal, validateProposal } from './arbitration.ts'
 
-const evaluator = sdk.deployment('monad-testnet').legacyStacks['demo-v2']!.evaluator
+const evaluator = '0x7777777777777777777777777777777777777777' as const
 const bundle = (violation: 'None' | 'Quality' | 'Falsified' = 'Quality'): DisputeBundle => ({
   taskId: 't1',
   jobId: '9',
@@ -56,7 +56,7 @@ describe('checkRulingRequest', () => {
   const typed = (over: { domain?: object; message?: object } = {}) =>
     JSON.stringify({
       primaryType: 'Ruling',
-      domain: { name: 'AgentJobsEvaluator', version: '1', chainId: 10143, verifyingContract: evaluator, ...over.domain },
+      domain: { name: 'SidequestEvaluator', version: '1', chainId: 10143, verifyingContract: evaluator, ...over.domain },
       message: { jobId: '9', forWorker: true, slashLoser: false, reasonHash: sdk.hashText(reason), deadline: '1200', nonce: '7', ...over.message },
     })
   const expected = { chainId: 10143, evaluator, now: 1_100 } as const

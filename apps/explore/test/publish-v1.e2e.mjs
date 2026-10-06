@@ -5,11 +5,11 @@ import { chromium } from 'playwright-core';
 import { encodeFunctionData, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
-// Publishing on Hireling v1 (U1): a direct hire with a named agent, window presets and custom windows within the
-// Holding's bounds, Hireling's arbiter by name or a custom one with a warning, bonds reserved from stake, and the
+// Publishing on Sidequest v1 (U1): a direct hire with a named agent, window presets and custom windows within the
+// Holding's bounds, Sidequest's arbiter by name or a custom one with a warning, bonds reserved from stake, and the
 // exact create_task arguments. Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-publish-v1-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-publish-v1-evidence';
 const base = 'http://127.0.0.1:5197';
 const creator = '0x1111111111111111111111111111111111111111';
 const arbiter = '0xa000000000000000000000000000000000000001';
@@ -27,7 +27,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -36,19 +36,19 @@ mkdirSync(output, { recursive: true });
 const now = Math.floor(Date.now() / 1000);
 const worker = '0x5555555555555555555555555555555555555555';
 const agentWallet = '0x6666666666666666666666666666666666666666';
-const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
+const offer = (jobId, status) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'sidequest-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status });
 const v1Jobs = { 70: 'open', 71: 'active', 72: 'submitted' };
 const silence = encodeFunctionData({ abi: parseAbi(['function completeAfterSilence(uint256 jobId)']), functionName: 'completeAfterSilence', args: [72n] });
 
 async function fixture(viewport, account = creator, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ viewer, hireling, defaultArbiter, bounds }) => {
-    window.__hireling = hireling;
+  await context.addInitScript(({ viewer, sidequest, defaultArbiter, bounds }) => {
+    window.__sidequest = sidequest;
     window.__v1 = { bounds, arbiter: defaultArbiter, free: 2n * 10n ** 18n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
     window.__wallet = { address: viewer, connected: true, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { viewer: account, hireling: contracts, defaultArbiter: arbiter, bounds: options.bounds });
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { viewer: account, sidequest: contracts, defaultArbiter: arbiter, bounds: options.bounds });
   const state = { created: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -56,7 +56,7 @@ async function fixture(viewport, account = creator, options = {}) {
     const reply = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (url.pathname === '/__test/token') return reply({ symbol: 'mUSD', decimals: 6 });
     if (url.pathname === '/__test/receipt') return reply({ status: 'success' });
-    const chainJob = (id) => ({ job_id: id, status: v1Jobs[id], mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: v1Jobs[id] === 'open' ? null : agentWallet, agent_id: v1Jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: null, rejection_reason_hash: null });
+    const chainJob = (id) => ({ job_id: id, status: v1Jobs[id], mode: 'hire', stack: 'main', kind: 'sidequest-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: v1Jobs[id] === 'open' ? null : agentWallet, agent_id: v1Jobs[id] === 'open' ? null : '7001', delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: null, rejection_reason_hash: null });
     if (url.pathname === '/data/jobs') return reply({ ok: true, jobs: Object.keys(v1Jobs).map(chainJob), index: { next_block: 100, updated_at: now } });
     const detail = /^\/data\/jobs\/(\d+)$/.exec(url.pathname)?.[1];
     if (detail !== undefined) return reply({ ok: true, job: chainJob(detail), board: { boardId: 'public', taskId: `task-${detail}` }, rewards: [], bonds: [], evidence: [], timeline: [], ruling: null, feedback: null });
@@ -117,10 +117,10 @@ try {
     await page.locator('#post-disputeHours').fill('12');
     await page.locator('#post-arbitrationHours').fill('72');
 
-    // Hireling's arbiter by name and address; a custom one gets a warning and cannot be the creator.
+    // Sidequest's arbiter by name and address; a custom one gets a warning and cannot be the creator.
     await page.getByText(arbiter, { exact: true }).waitFor();
     await page.getByRole('radio', { name: 'Someone else', exact: true }).click();
-    await page.getByRole('alert').filter({ hasText: 'A custom arbitrator rules on disputes instead of Hireling' }).waitFor();
+    await page.getByRole('alert').filter({ hasText: 'A custom arbitrator rules on disputes instead of Sidequest' }).waitFor();
     await page.locator('#post-arbitrator').fill(creator);
     await page.getByText('You cannot arbitrate your own job: you are its creator and approver.', { exact: true }).waitFor();
     await page.locator('#post-arbitrator').fill(custom);
@@ -133,8 +133,8 @@ try {
     await page.getByText('review 1 d 12 h · dispute 12 h · arbitration 3 d', { exact: true }).waitFor();
     await page.getByText(`${custom} · yours`, { exact: true }).waitFor();
     await page.getByText('Agent #1942 · invited', { exact: true }).waitFor();
-    await page.getByText('5 FACTORY reserved from your stake · at least 3 from the agent\'s', { exact: true }).waitFor();
-    await page.getByText(/Delegate 3 FACTORY more\./).waitFor();
+    await page.getByText('5 SIDE reserved from your stake · at least 3 from the agent\'s', { exact: true }).waitFor();
+    await page.getByText(/Delegate 3 SIDE more\./).waitFor();
 
     await page.getByRole('button', { name: /Confirm step 1 of 2/ }).waitFor();
     assert.equal(state.created.length, 1);
@@ -200,7 +200,7 @@ try {
     const { context, page } = await fixture(viewport, worker);
     await page.goto(`${base}/job/70`);
     await page.getByRole('heading', { name: 'If you take this job' }).waitFor();
-    await page.getByText('Hireling’s fee · 10 %', { exact: true }).waitFor();
+    await page.getByText('Sidequest’s fee · 10 %', { exact: true }).waitFor();
     await page.getByText('Your rate, set by total backing', { exact: true }).waitFor();
     await page.getByText('− 0.5 mUSD', { exact: true }).waitFor();
     await page.getByText('4.5 mUSD', { exact: true }).waitFor();

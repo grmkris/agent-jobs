@@ -3,9 +3,9 @@
  * by polling `inbox` (or MCP Events). Rows are metadata only, never briefs or worker-written text, with deterministic
  * ids so every producer is replay-safe (INSERT OR IGNORE). The tables are additive runtime DDL (Kris, 6 Oct 2026).
  */
-import { BoardError, errorDiagnostics } from '@agent-jobs/board'
-import { type AsyncSql, type JobRow, type Statement, stmt } from '@agent-jobs/indexer'
-import type { Network } from '@agent-jobs/sdk'
+import { BoardError, errorDiagnostics } from '@sidequest/board'
+import { type AsyncSql, type JobRow, type Statement, stmt } from '@sidequest/indexer'
+import type { Network } from '@sidequest/sdk'
 import { telegramChainId, telegramSite } from './telegram.ts'
 
 export const FEED_SCHEMA = [

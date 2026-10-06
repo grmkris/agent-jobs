@@ -64,7 +64,7 @@ async function main() {
     }
   }
   const balance = await client.readContract({ address: plan.factory, abi: erc20Abi, functionName: 'balanceOf', args: [plan.funding] })
-  if (balance < remaining) throw new Error('refund: funding wallet lacks remaining FACTORY v3')
+  if (balance < remaining) throw new Error('refund: funding wallet lacks remaining SIDE v3')
   const vaultFactory = await client.readContract({ address: plan.vault, abi: refundVaultAbi, functionName: 'factory' })
   const holdingAuthorized = await client.readContract({ address: plan.vault, abi: refundVaultAbi, functionName: 'isHolding', args: [plan.holding] })
   if (address(vaultFactory) !== plan.factory || !holdingAuthorized) throw new Error('refund: G1c vault factory/bootstrap mismatch')

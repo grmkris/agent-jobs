@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../packages/sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../packages/sdk/test/sidequest-fixture.ts'
 import { accept, activate, hashText, publish, registerAgent, settle, signSelection, submit, topUp } from '../../packages/sdk/src/actions.ts'
 import { holdingLogs, topUpLogs } from './chain.ts'
 import { computeEpoch } from './compute.ts'
@@ -7,11 +7,11 @@ import { parseEther, type Address } from './viem.ts'
 
 /** Sends only to local Anvil. Real Holding events prove contribution reads span the fee window boundary. */
 test.skipIf(!forkEnabled)('real paid-job fees include earlier top-ups in the 40-percent creator allocation', async () => {
-  const f = await startHirelingFork()
+  const f = await startSidequestFork()
   try {
     const { ctx, creator, worker, contributor, arbitrator } = f
     const historyStart = await ctx.publicClient.getBlockNumber()
-    const agentId = await registerAgent(ctx, worker, 'https://hireling.xyz/mining-local-fork')
+    const agentId = await registerAgent(ctx, worker, 'https://sidequest.exchange/mining-local-fork')
     const now = Number((await ctx.publicClient.getBlock()).timestamp)
     const terms = {
       creator: creator.account.address, approver: creator.account.address, token: ctx.stack.factory,

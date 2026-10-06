@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {HirelingRecipe} from "../../script/HirelingRecipe.sol";
-import {HirelingOutput} from "../../script/HirelingOutput.sol";
-import {HirelingSafeAccept, ISafe} from "../../script/HirelingSafeAccept.sol";
-import {RecipeDriver} from "../hireling/Recipe.t.sol";
+import {SidequestRecipe} from "../../script/SidequestRecipe.sol";
+import {SidequestOutput} from "../../script/SidequestOutput.sol";
+import {SidequestSafeAccept, ISafe} from "../../script/SidequestSafeAccept.sol";
+import {RecipeDriver} from "../sidequest/Recipe.t.sol";
 import {UnpromotedTestnet} from "../helpers/UnpromotedTestnet.sol";
 
 interface ISafeOwners {
@@ -20,23 +20,23 @@ contract SafeAcceptRehearsalForkTest is Test {
     address stranger = makeAddr("stranger");
 
     function acceptExt(ISafe safe, address[6] memory t, address sender) external returns (uint256) {
-        return HirelingSafeAccept.accept(safe, t, sender);
+        return SidequestSafeAccept.accept(safe, t, sender);
     }
 
     function verifyExt(address safe, address[6] memory t) external view {
-        HirelingSafeAccept.verify(safe, t);
+        SidequestSafeAccept.verify(safe, t);
     }
 
     function test_fork_testnet_safeAcceptsAllSix() public {
         string memory rpc = vm.envOr("MONAD_TESTNET_RPC_URL", string(""));
         if (bytes(rpc).length == 0) return vm.skip(true);
         vm.createSelectFork(rpc);
-        string memory real = vm.readFile(HirelingRecipe.path(vm, "monad-testnet"));
-        address safe = vm.parseJsonAddress(real, ".hireling.safe");
+        string memory real = vm.readFile(SidequestRecipe.path(vm, "monad-testnet"));
+        address safe = vm.parseJsonAddress(real, ".sidequest.safe");
         assertGt(safe.code.length, 0, "the live testnet Safe");
 
-        HirelingRecipe.Config memory c = HirelingRecipe.loadBase(vm, "monad-testnet");
-        c.clocks = HirelingRecipe.load(vm, "monad-testnet").clocks;
+        SidequestRecipe.Config memory c = SidequestRecipe.loadBase(vm, "monad-testnet");
+        c.clocks = SidequestRecipe.load(vm, "monad-testnet").clocks;
         c.reuseCore = true;
         c.safe = safe;
         c.defaultArbitrator = makeAddr("arbiter");
@@ -55,31 +55,31 @@ contract SafeAcceptRehearsalForkTest is Test {
         for (uint256 i; i < 13; ++i) {
             driver.step(i);
         }
-        HirelingRecipe.Deployed memory d = driver.deployed();
+        SidequestRecipe.Deployed memory d = driver.deployed();
 
-        // The promoted record, as PromoteHireling writes it, in a scratch copy of the config.
+        // The promoted record, as PromoteSidequest writes it, in a scratch copy of the config.
         string memory path = string.concat(vm.projectRoot(), "/config/.test-safeaccept.json");
         UnpromotedTestnet.write(vm, path, real);
-        HirelingOutput.write(vm, path, d, safe, 0, block.number);
-        (address recorded, address[6] memory t) = HirelingSafeAccept.targets(vm, vm.readFile(path));
+        SidequestOutput.write(vm, path, d, safe, 0, block.number);
+        (address recorded, address[6] memory t) = SidequestSafeAccept.targets(vm, vm.readFile(path));
         vm.removeFile(path);
         assertEq(recorded, safe);
         assertEq(t[2], address(d.holding));
         assertEq(t[5], address(d.reserve));
 
-        vm.expectRevert(abi.encodeWithSelector(HirelingSafeAccept.NotOwned.selector, t[0], c.admin));
+        vm.expectRevert(abi.encodeWithSelector(SidequestSafeAccept.NotOwned.selector, t[0], c.admin));
         this.verifyExt(safe, t);
-        vm.expectRevert(abi.encodeWithSelector(HirelingSafeAccept.NotSafeOwner.selector, stranger));
+        vm.expectRevert(abi.encodeWithSelector(SidequestSafeAccept.NotSafeOwner.selector, stranger));
         this.acceptExt(ISafe(safe), t, stranger);
 
         address owner = ISafeOwners(safe).getOwners()[1];
         uint256 nonceBefore = ISafe(safe).nonce();
         vm.startPrank(owner, owner);
-        uint256 accepted = HirelingSafeAccept.accept(ISafe(safe), t, owner);
+        uint256 accepted = SidequestSafeAccept.accept(ISafe(safe), t, owner);
         vm.stopPrank();
         assertEq(accepted, 6);
         assertEq(ISafe(safe).nonce(), nonceBefore + 6, "one Safe transaction per contract");
-        HirelingSafeAccept.verify(safe, t);
+        SidequestSafeAccept.verify(safe, t);
         assertEq(d.vault.owner(), safe);
         assertEq(d.fees.owner(), safe);
         assertEq(d.holding.owner(), safe);

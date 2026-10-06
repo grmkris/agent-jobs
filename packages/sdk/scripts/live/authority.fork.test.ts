@@ -67,7 +67,7 @@ describe.skipIf(!enabled)('P0 authority on real Monad fork', () => {
     const once = await sign(operator, buildGrant(grantContext, { kind: 'allowance-once', delegator: operator.address, agent: agent.address, token, amount: 1n, salt: 101n, start }))
     const work = await sign(agent, buildGrant(grantContext, { kind: 'agent-work', delegator: agent.address, salt: 102n, start }))
     await send(token, encodeFunctionData({ abi: mintAbi, functionName: 'mint', args: [operator.address, 10n] }))
-    const register = encodeFunctionData({ abi: registryAbi, functionName: 'register', args: ['https://hireling.xyz/fixtures/same-second'] })
+    const register = encodeFunctionData({ abi: registryAbi, functionName: 'register', args: ['https://sidequest.exchange/fixtures/same-second'] })
     const registrationCall = decodeFunctionData({ abi: delegationManagerAbi, data: redeemCallsCalldata(registration,
       [{ target: ctx.deployment.identity, value: 0n, callData: register }]) })
     const allowanceCall = decodeFunctionData({ abi: delegationManagerAbi, data: redeemCallsCalldata(work,
@@ -89,7 +89,7 @@ describe.skipIf(!enabled)('P0 authority on real Monad fork', () => {
     const now = Number((await ctx.publicClient.getBlock()).timestamp)
     const grant = await sign(operator, fixtureGrant(operator.address, relay.account.address, 1n, [identity],
       ['register(string)', 'setAgentWallet(uint256,address,uint256,bytes)'], 2, now + 600))
-    const data = encodeFunctionData({ abi: registryAbi, functionName: 'register', args: ['https://hireling.xyz/fixtures/local-p0'] })
+    const data = encodeFunctionData({ abi: registryAbi, functionName: 'register', args: ['https://sidequest.exchange/fixtures/local-p0'] })
     const receipt = await send(ctx.deployment.delegation.manager, redeemCallsCalldata(grant, [{ target: identity, value: 0n, callData: data }]))
     const event = receipt.logs.flatMap(log => {
       try {

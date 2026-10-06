@@ -3,19 +3,19 @@ pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {Vm, VmSafe} from "forge-std/Vm.sol";
-import {HirelingRecipe} from "./HirelingRecipe.sol";
+import {SidequestRecipe} from "./SidequestRecipe.sol";
 import {SeedPoolRecipe} from "./SeedPoolRecipe.sol";
-import {SeedHelper} from "../src/hireling/SeedHelper.sol";
+import {SeedHelper} from "../src/sidequest/SeedHelper.sol";
 
 /// @notice Run by the coordinator, from the account holding the liquidity allocation and the USDC (seed amounts plus
 ///         the repair cap of each, which come back unless a repair spends them):
 ///
 ///         NETWORK=monad-mainnet MAINNET_GO=yes forge script script/SeedPool.s.sol --rpc-url $MONAD_MAINNET_RPC_URL \
-///           --account hireling-liquidity --password-file ~/.config/hireling/liquidity.password --broadcast --slow
+///           --account sidequest-liquidity --password-file ~/.config/sidequest/liquidity.password --broadcast --slow
 ///
 ///         Mainnet signs from a keystore, never a raw key (docs/mainnet-runbook.md §2, §3.7).
 ///
-///         Four transactions: deploy the `SeedHelper`, approve it FACTORY, approve it USDC, `seed()`. Without
+///         Four transactions: deploy the `SeedHelper`, approve it SIDE, approve it USDC, `seed()`. Without
 ///         `--broadcast` it is a dry run (the simulated `Repaired` event shows what a repair would cost). Then, the
 ///         authoritative check:
 ///
@@ -50,8 +50,8 @@ contract SeedPool is Script {
     }
 
     function _prepare(bool sends) internal view returns (SeedPoolRecipe.Config memory c, SeedPoolRecipe.Plan memory p) {
-        string memory json = vm.readFile(HirelingRecipe.path(vm, vm.envString("NETWORK")));
-        HirelingRecipe.guardChain(vm, json, sends);
+        string memory json = vm.readFile(SidequestRecipe.path(vm, vm.envString("NETWORK")));
+        SidequestRecipe.guardChain(vm, json, sends);
         c = SeedPoolRecipe.load(vm, json);
         SeedPoolRecipe.check(c);
         p = SeedPoolRecipe.plan(c);

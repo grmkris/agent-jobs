@@ -1,17 +1,21 @@
 /**
- * Renders the app icons from the one brand mark (src/brand/mark.svg's white "H" on the near-black ink) with the headless
+ * Renders the app icons from the Sidequest brand mark on evergreen ink with the headless
  * Chromium that playwright-core already brings, so no image library is needed. Run by hand after changing the mark;
  * the PNGs are committed (`bun apps/explore/scripts/icons.ts [chromium-executable]`; without a path Playwright's own
  * Chromium is used). Icons are opaque and full-bleed: iOS applies its own
  * mask, and a transparent icon would sit on black.
  */
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
-/** --primary, oklch(0.22 0.012 255), in sRGB. */
-const INK = '#171b20'
+/** --primary, oklch(0.34 0.06 165), in sRGB. */
+const INK = '#124230'
 const out = (p: string) => fileURLToPath(new URL(`../public/${p}`, import.meta.url))
+const mark = readFileSync(new URL('../src/brand/mark.svg', import.meta.url), 'utf8')
+const glyph = mark.match(/<path\b[^>]*\/>/)?.[0]
+if (glyph === undefined) throw new Error('Brand mark has no path')
+writeFileSync(out('favicon.svg'), mark)
 
 /** The glyph at `scale` of the canvas (the maskable icon keeps it inside Android's 80% safe circle). */
 const icon = (size: number, scale: number) => {
@@ -19,7 +23,7 @@ const icon = (size: number, scale: number) => {
   const o = (size - g) / 2
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <rect width="${size}" height="${size}" fill="${INK}"/>
-  <g transform="translate(${o} ${o}) scale(${g / 32})"><path d="M10 8v16M22 8v16M10 16h12" stroke="#fff" stroke-width="3.5" stroke-linecap="round" fill="none"/></g>
+  <g transform="translate(${o} ${o}) scale(${g / 32})">${glyph}</g>
 </svg>`
 }
 

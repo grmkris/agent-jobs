@@ -29,8 +29,8 @@ import {
   jobPoolAbi,
   jobPoolFactoryAbi,
   jobsEvaluatorAbi,
-  hirelingHoldingAbi,
-  hirelingEvaluatorAbi,
+  sidequestHoldingAbi,
+  sidequestEvaluatorAbi,
   stakeVaultAbi,
   factoryV2Abi,
 } from './abi/index.ts'
@@ -104,9 +104,9 @@ async function write(
   return send(ctx, wallet, request as never)
 }
 
-const isV1 = (ctx: Ctx) => ctx.stack.kind === 'hireling-v1'
-const holdingAbi = (ctx: Ctx) => isV1(ctx) ? hirelingHoldingAbi : jobHoldingAbi
-const evaluatorAbi = (ctx: Ctx) => isV1(ctx) ? hirelingEvaluatorAbi : jobsEvaluatorAbi
+const isV1 = (ctx: Ctx) => ctx.stack.kind === 'sidequest-v1'
+const holdingAbi = (ctx: Ctx) => isV1(ctx) ? sidequestHoldingAbi : jobHoldingAbi
+const evaluatorAbi = (ctx: Ctx) => isV1(ctx) ? sidequestEvaluatorAbi : jobsEvaluatorAbi
 /** ADR-0011/D4b: Monad charges the requested limit; floors are deliberately explicit. */
 export const V1_GAS = { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n, evaluator: 1_200_000n, retryDeferred: 300_000n } as const
 
@@ -114,7 +114,7 @@ export const V1_GAS = { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 
 // Tokens and identity
 // -------------------------------------------------------------------------------------------------
 
-/** Testnet only: mints the token's faucet amount to the wallet (FACTORY, mUSD, mEUR). */
+/** Testnet only: mints the token's faucet amount to the wallet (SIDE, mUSD, mEUR). */
 export function faucet(ctx: Ctx, wallet: Wallet, token: Address) {
   return write(ctx, wallet, token, faucetTokenAbi, 'faucet', [])
 }
@@ -186,7 +186,7 @@ export interface PublishInput {
 export async function minExpiry(ctx: Ctx, deliveryDeadline: number, windows?: { reviewWindow: number; disputeWindow: number; arbitrationWindow: number }): Promise<number> {
   if (isV1(ctx)) {
     if (windows === undefined) throw new Error('v1 expiry needs the offer windows')
-    const margin = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hirelingHoldingAbi, functionName: 'margin' })
+    const margin = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'margin' })
     return deliveryDeadline + windows.reviewWindow + windows.disputeWindow + windows.arbitrationWindow + Number(margin)
   }
   const window = await ctx.publicClient.readContract({
@@ -200,7 +200,7 @@ export async function minExpiry(ctx: Ctx, deliveryDeadline: number, windows?: { 
 /** Escrows the reward and posts or reserves the creator bond. Returns the job id. */
 export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
   if (isV1(ctx)) {
-    if (p.mode !== 'hire') throw new Error('hireling-v1 supports hires only')
+    if (p.mode !== 'hire') throw new Error('sidequest-v1 supports hires only')
     if (p.arbitrator === undefined || p.arbitrator.toLowerCase() === zeroAddress) throw new Error('v1 publish needs an explicit arbitrator')
     const windows = { reviewWindow: p.reviewWindow, disputeWindow: p.disputeWindow, arbitrationWindow: p.arbitrationWindow }
     if (Object.values(windows).some(v => v === undefined || !Number.isSafeInteger(v) || v <= 0)) throw new Error('v1 publish needs explicit review, dispute and arbitration windows')
@@ -208,7 +208,7 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
     const expiry = await minExpiry(ctx, p.deliveryDeadline, windows as { reviewWindow: number; disputeWindow: number; arbitrationWindow: number })
     await requireStake(ctx, wallet.account.address, p.creatorBond)
     await ensureAllowance(ctx, wallet, p.token, ctx.stack.holding, p.reward)
-    const receipt = await write(ctx, wallet, ctx.stack.holding, hirelingHoldingAbi, 'publish', [{
+    const receipt = await write(ctx, wallet, ctx.stack.holding, sidequestHoldingAbi, 'publish', [{
       approver: p.approver ?? '0x0000000000000000000000000000000000000000',
       arbitrator: p.arbitrator, manifestHash: p.manifestHash,
       policyHash: p.termsHash, token: p.token, reward: p.reward, creatorBond: p.creatorBond, workerBond: p.workerBond,
@@ -217,7 +217,7 @@ export async function publish(ctx: Ctx, wallet: Wallet, p: PublishInput) {
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== ctx.stack.holding.toLowerCase()) continue
       try {
-        const event = decodeEventLog({ abi: hirelingHoldingAbi, data: log.data, topics: log.topics })
+        const event = decodeEventLog({ abi: sidequestHoldingAbi, data: log.data, topics: log.topics })
         if (event.eventName === 'Published') return { jobId: event.args.jobId, receipt }
       } catch { /* Other logs are not the listing receipt. */ }
     }
@@ -389,7 +389,7 @@ export interface Candidate {
 
 /** What an entrant signs at entry: both authorisations, valid until the contest's selection deadline. */
 export async function signEntry(ctx: Ctx, worker: Wallet, jobId: bigint, agentId: bigint, deliverable: Hex) {
-  if (isV1(ctx)) throw new Error('hireling-v1 supports hires only')
+  if (isV1(ctx)) throw new Error('sidequest-v1 supports hires only')
   const listing = await getListing(ctx, jobId)
   const deadline = BigInt(listing.selectionDeadline)
   return {
@@ -403,12 +403,12 @@ export async function signEntry(ctx: Ctx, worker: Wallet, jobId: bigint, agentId
 
 /** The approver buys one finished entry: paid in this transaction, the winner offline. */
 export function award(ctx: Ctx, approver: Wallet, jobId: bigint, candidate: Candidate) {
-  if (isV1(ctx)) throw new Error('hireling-v1 supports hires only')
+  if (isV1(ctx)) throw new Error('sidequest-v1 supports hires only')
   return write(ctx, approver, ctx.stack.holding, jobHoldingAbi, 'award', [jobId, candidate])
 }
 
 export function expireContest(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  if (isV1(ctx)) throw new Error('hireling-v1 supports hires only')
+  if (isV1(ctx)) throw new Error('sidequest-v1 supports hires only')
   return write(ctx, anyone, ctx.stack.holding, jobHoldingAbi, 'expireContest', [jobId])
 }
 
@@ -484,8 +484,8 @@ export function settle(ctx: Ctx, anyone: Wallet, jobId: bigint) {
 
 /** C9 deferred decision recovery. A caller must send this before `settle`. */
 export function retryDeferred(ctx: Ctx, anyone: Wallet, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('retryDeferred is only available on hireling-v1')
-  return write(ctx, anyone, ctx.stack.evaluator, hirelingEvaluatorAbi, 'retryDeferred', [jobId], V1_GAS.retryDeferred)
+  if (!isV1(ctx)) throw new Error('retryDeferred is only available on sidequest-v1')
+  return write(ctx, anyone, ctx.stack.evaluator, sidequestEvaluatorAbi, 'retryDeferred', [jobId], V1_GAS.retryDeferred)
 }
 
 /** Waits for the deferred core recovery before settling. Reconcile both calls before retrying. */
@@ -496,49 +496,49 @@ export async function settleDeferred(ctx: Ctx, anyone: Wallet, jobId: bigint) {
 }
 
 export async function topUp(ctx: Ctx, contributor: Wallet, jobId: bigint, amount: bigint) {
-  if (!isV1(ctx)) throw new Error('topUp is only available on hireling-v1')
+  if (!isV1(ctx)) throw new Error('topUp is only available on sidequest-v1')
   if (amount <= 0n) throw new Error('top-up amount must be positive')
   const listing = await getListing(ctx, jobId)
   await ensureAllowance(ctx, contributor, listing.token, ctx.stack.holding, amount)
-  return write(ctx, contributor, ctx.stack.holding, hirelingHoldingAbi, 'topUp', [jobId, amount])
+  return write(ctx, contributor, ctx.stack.holding, sidequestHoldingAbi, 'topUp', [jobId, amount])
 }
 
 export function claimTopUpRefund(ctx: Ctx, caller: Wallet, jobId: bigint, contributor: Address = caller.account.address) {
-  if (!isV1(ctx)) throw new Error('claimTopUpRefund is only available on hireling-v1')
-  return write(ctx, caller, ctx.stack.holding, hirelingHoldingAbi, 'claimTopUpRefund', [jobId, contributor], V1_GAS.claimTopUpRefund)
+  if (!isV1(ctx)) throw new Error('claimTopUpRefund is only available on sidequest-v1')
+  return write(ctx, caller, ctx.stack.holding, sidequestHoldingAbi, 'claimTopUpRefund', [jobId, contributor], V1_GAS.claimTopUpRefund)
 }
 
 export async function delegate(ctx: Ctx, staker: Wallet, amount: bigint, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegate is only available on hireling-v1')
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('delegate is only available on sidequest-v1')
   if (amount <= 0n) throw new Error('delegation amount must be positive')
-  await ensureAllowance(ctx, staker, ctx.deployment.hireling.factory, ctx.deployment.hireling.vault, amount)
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegate', [account, amount])
+  await ensureAllowance(ctx, staker, ctx.deployment.sidequest.factory, ctx.deployment.sidequest.vault, amount)
+  return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'delegate', [account, amount])
 }
 
 export function delegateWithPermit(ctx: Ctx, staker: Wallet, amount: bigint, permit: { deadline: bigint; v: number; r: Hex; s: Hex }, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegateWithPermit is only available on hireling-v1')
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('delegateWithPermit is only available on sidequest-v1')
   if (amount <= 0n) throw new Error('delegation amount must be positive')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'delegateWithPermit', [account, amount, permit.deadline, permit.v, permit.r, permit.s])
+  return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'delegateWithPermit', [account, amount, permit.deadline, permit.v, permit.r, permit.s])
 }
 
 export async function delegatePermit(ctx: Ctx, staker: Address, amount: bigint, deadline: bigint) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('delegatePermit is only available on hireling-v1')
-  const factory = ctx.deployment.hireling.factory
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('delegatePermit is only available on sidequest-v1')
+  const factory = ctx.deployment.sidequest.factory
   const [name, nonce] = await Promise.all([
     ctx.publicClient.readContract({ address: factory, abi: factoryV2Abi, functionName: 'name' }),
     ctx.publicClient.readContract({ address: factory, abi: factoryV2Abi, functionName: 'nonces', args: [staker] }),
   ])
   return { domain: { name, version: '1', chainId: ctx.deployment.chainId, verifyingContract: factory }, primaryType: 'Permit' as const,
     types: { Permit: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
-    message: { owner: staker, spender: ctx.deployment.hireling.vault, value: amount, nonce, deadline },
+    message: { owner: staker, spender: ctx.deployment.sidequest.vault, value: amount, nonce, deadline },
   }
 }
 
-/** Convert FACTORY assets to an owned, unqueued share amount before preparing an exit. */
+/** Convert SIDE assets to an owned, unqueued share amount before preparing an exit. */
 export async function undelegationShares(ctx: Ctx, account: Address, delegator: Address, amount: bigint): Promise<bigint> {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('undelegation requires Hireling v1')
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('undelegation requires Sidequest v1')
   if (amount <= 0n) throw new Error('undelegation amount must be positive')
-  const vault = ctx.deployment.hireling.vault
+  const vault = ctx.deployment.sidequest.vault
   const blockNumber = await ctx.publicClient.getBlockNumber()
   const [position, pool, converted] = await Promise.all([
     ctx.publicClient.readContract({ address: vault, abi: stakeVaultAbi, functionName: 'positionOf', args: [account, delegator], blockNumber }),
@@ -556,33 +556,33 @@ export async function undelegationShares(ctx: Ctx, account: Address, delegator: 
 }
 
 export async function requestUndelegate(ctx: Ctx, staker: Wallet, amount: bigint, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('requestUndelegate is only available on hireling-v1')
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('requestUndelegate is only available on sidequest-v1')
   const shares = await undelegationShares(ctx, account, staker.account.address, amount)
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'requestUndelegate', [account, shares])
+  return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'requestUndelegate', [account, shares])
 }
 
 export function cancelUndelegate(ctx: Ctx, staker: Wallet, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('cancelUndelegate is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'cancelUndelegate', [account])
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('cancelUndelegate is only available on sidequest-v1')
+  return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'cancelUndelegate', [account])
 }
 
 export function withdraw(ctx: Ctx, staker: Wallet, account: Address = staker.account.address) {
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('withdraw is only available on hireling-v1')
-  return write(ctx, staker, ctx.deployment.hireling.vault, stakeVaultAbi, 'withdraw', [account])
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('withdraw is only available on sidequest-v1')
+  return write(ctx, staker, ctx.deployment.sidequest.vault, stakeVaultAbi, 'withdraw', [account])
 }
 
 export async function requireStake(ctx: Ctx, account: Address, bond: bigint): Promise<void> {
   if (bond < 0n) throw new Error('bond cannot be negative')
   if (bond === 0n) return
-  if (!isV1(ctx) || ctx.deployment.hireling === null) throw new Error('Backing requires Hireling v1')
-  const available = await ctx.publicClient.readContract({ address: ctx.deployment.hireling.vault,
+  if (!isV1(ctx) || ctx.deployment.sidequest === null) throw new Error('Backing requires Sidequest v1')
+  const available = await ctx.publicClient.readContract({ address: ctx.deployment.sidequest.vault,
     abi: stakeVaultAbi, functionName: 'availableOf', args: [account] })
-  if (available < bond) throw new Error('Insufficient available stake for the bond; back the account with FACTORY before proceeding')
+  if (available < bond) throw new Error('Insufficient available stake for the bond; back the account with SIDE before proceeding')
 }
 
 export function quoteActivation(ctx: Ctx, jobId: bigint, worker: Address) {
-  if (!isV1(ctx)) throw new Error('quoteActivation is only available on hireling-v1')
-  return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hirelingHoldingAbi, functionName: 'quoteActivation', args: [jobId, worker] })
+  if (!isV1(ctx)) throw new Error('quoteActivation is only available on sidequest-v1')
+  return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'quoteActivation', args: [jobId, worker] })
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -601,7 +601,7 @@ export async function getJob(ctx: Ctx, jobId: bigint) {
 
 export async function getListing(ctx: Ctx, jobId: bigint) {
   if (isV1(ctx)) {
-    const listing = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hirelingHoldingAbi, functionName: 'getListing', args: [jobId] })
+    const listing = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'getListing', args: [jobId] })
     return { ...listing, mode: 0, selectionDeadline: 0, workerBondPosted: listing.workerBondReserved }
   }
   return ctx.publicClient.readContract({
@@ -622,23 +622,23 @@ export function selectionDigest(ctx: Ctx, sel: Selection) {
 }
 
 export function getV1Listing(ctx: Ctx, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('v1 listing is only available on hireling-v1')
-  return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hirelingHoldingAbi, functionName: 'getListing', args: [jobId] })
+  if (!isV1(ctx)) throw new Error('v1 listing is only available on sidequest-v1')
+  return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'getListing', args: [jobId] })
 }
 
 export function termsOf(ctx: Ctx, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('termsOf is only available on hireling-v1')
-  return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: hirelingHoldingAbi, functionName: 'termsOf', args: [jobId] })
+  if (!isV1(ctx)) throw new Error('termsOf is only available on sidequest-v1')
+  return ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sidequestHoldingAbi, functionName: 'termsOf', args: [jobId] })
 }
 
 export function caseOf(ctx: Ctx, jobId: bigint) {
-  if (!isV1(ctx)) throw new Error('v1 caseOf is only available on hireling-v1')
-  return ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: hirelingEvaluatorAbi, functionName: 'caseOf', args: [jobId] })
+  if (!isV1(ctx)) throw new Error('v1 caseOf is only available on sidequest-v1')
+  return ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sidequestEvaluatorAbi, functionName: 'caseOf', args: [jobId] })
 }
 
 export function cancelRuling(ctx: Ctx, arbitrator: Wallet, nonce: bigint) {
-  if (!isV1(ctx)) throw new Error('cancelRuling is only available on hireling-v1')
-  return write(ctx, arbitrator, ctx.stack.evaluator, hirelingEvaluatorAbi, 'cancelRuling', [nonce])
+  if (!isV1(ctx)) throw new Error('cancelRuling is only available on sidequest-v1')
+  return write(ctx, arbitrator, ctx.stack.evaluator, sidequestEvaluatorAbi, 'cancelRuling', [nonce])
 }
 
 export function withdrawOwed(ctx: Ctx, account: Wallet, token: Address) {
@@ -687,12 +687,12 @@ export interface PoolInput {
   readonly pledgeDeadline: number
   /** The offer the pool publishes at launch: its reward is the goal, its creator bond zero. */
   readonly publish: Omit<PublishInput, 'reward' | 'creatorBond' | 'approver'>
-  /** Receives the FACTORY hold back; defaults to the creator. */
+  /** Receives the SIDE hold back; defaults to the creator. */
   readonly holdProvider?: Address
 }
 
 function poolFactoryOf(ctx: Ctx): Address {
-  if (isV1(ctx)) throw new Error('Pools are not supported on Hireling v1')
+  if (isV1(ctx)) throw new Error('Pools are not supported on Sidequest v1')
   const f = ctx.deployment.poolFactory
   if (f === null) throw new Error(`no JobPoolFactory on ${ctx.deployment.network}`)
   return f
@@ -705,7 +705,7 @@ export function predictPool(ctx: Ctx, creator: Address, salt: Hex) {
 
 /** The `JobPool.Params` tuple `create` takes, as the SDK builds it. */
 export async function poolParams(ctx: Ctx, p: PoolInput) {
-  if (isV1(ctx)) throw new Error('Pools are not supported on Hireling v1')
+  if (isV1(ctx)) throw new Error('Pools are not supported on Sidequest v1')
   const pub = p.publish
   return {
     token: pub.token,
@@ -731,7 +731,7 @@ export async function poolParams(ctx: Ctx, p: PoolInput) {
   } as const
 }
 
-/** Clones the pool (approving the FACTORY hold to the factory first). Returns the pool address. */
+/** Clones the pool (approving the SIDE hold to the factory first). Returns the pool address. */
 export async function createPool(ctx: Ctx, creator: Wallet, p: PoolInput) {
   const factory = poolFactoryOf(ctx)
   const hold = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: jobHoldingAbi, functionName: 'minHoldToPublish' })

@@ -2,10 +2,10 @@
   "network": "monad-testnet",
   "chainId": 10143,
   "roles": {
-    "admin": "0x675269d710692d4d0d7166da11B76463577aad73",
-    "relay": "0xac7282b6a519665dcb71563317C71d1F357f9e7e",
-    "attester": "0x66b72404Ad8ce4C650C4f67F13AAd1Ee82F2963f",
-    "arbitrator": "0xc657F023F938BB89de590Ed96f79B775c7dDd632"
+    "admin": "0xe5B7054e177e833D63f8d0548ffa9ecfC4289A71",
+    "relay": "0xC4173dBC98ffd6F5785E8Fba85E9e5bd8b3F5058",
+    "attester": "0x4fDeda60bF7A9fDa470E4a171f1210CF5542a8FB",
+    "arbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716"
   },
   "erc8004": {
     "identity": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
@@ -39,8 +39,8 @@
   },
   "faucetTokens": {
     "names": [
-      "Mock USD (testnet)",
-      "Mock EUR (testnet)"
+      "Sidequest USD (testnet)",
+      "Sidequest EUR (testnet)"
     ],
     "symbols": [
       "mUSD",
@@ -48,66 +48,49 @@
     ]
   },
   "knownTokens": [
-    "0x130556848511554b181e645309754F265522F3c2"
+    "0x6b56d64150818f91f5112b285e806ec6c78eade8",
+    "0x7523106f742b1445b14b0992ee2ea41a3691dc24"
   ],
   "stacks": {
     "names": [
-      "main",
-      "demo",
-      "fast"
+      "main"
     ],
     "review": [
-      259200,
-      120,
       7200
     ],
     "dispute": [
-      259200,
-      120,
       7200
     ],
     "arbitration": [
-      604800,
-      300,
       43200
     ],
     "margin": [
-      86400,
-      60,
       3600
     ]
   },
   "cre": {
     "forwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
     "workflowOwner": null,
-    "workflowName": "agent-jobs-evidence",
-    "simulation": {
-      "label": "Local CRE simulator only; exact-report gate, not a hosted workflow",
-      "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
-      "chainSelector": "2183018362218727504",
-      "rpcUrl": "https://testnet-rpc.monad.xyz",
-      "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
-      "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3",
-      "gate": "0xf70742f0b6279d5531610177408e5623ccf568e5",
-      "receiver": "0x70608994217617Ad800A3cd2d585dB6eCFB28b30",
-      "reportHash": "0x158c915d12e7c65c413ee583e528e3b07b898c37866e0395b157aa7b9217dfef",
-      "gasLimit": "500000",
-      "jobId": "8"
-    }
-  },
-  "oddTokens": {
-    "wallets": [
-      "0x675269d710692d4d0d7166da11B76463577aad73",
-      "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471"
-    ],
-    "mint": 10000
+    "workflowName": "sidequest-evidence"
   },
   "deployment": {
-    "block": 66169332,
-    "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
-    "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
-    "hireling": {
-      "block": 68454129,
+    "block": 68581020,
+    "core": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32",
+    "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+    "main": {
+      "evaluator": "0x999576200d2216591bDb8c3Fb662b48F1109414b",
+      "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+      "holding": "0xfa52B3d905346c53436B6F4824A7c6F0439A0614",
+      "kind": "sidequest-v1",
+      "openTokens": true
+    },
+    "network": "monad-testnet",
+    "rewardTokens": [
+      "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "0x7523106F742B1445b14b0992eE2eA41A3691dc24"
+    ],
+    "sidequest": {
+      "block": 68581014,
       "clocks": {
         "epochDuration": 3600,
         "epochZeroDuration": 1800,
@@ -119,70 +102,17 @@
         "proposalGrace": 1800,
         "unstakeDelay": 600
       },
-      "distributor": "0x2A01c50941a99cefe46A890E56cc4b0bb53cCED1",
-      "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
-      "feeSchedule": "0xFD023A795dE24D31F6cd6979A14A969e425FCdD4",
-      "miningReserve": "0x9AB4Ee2d2F833716c78bC6D79c54C2087a05570e",
-      "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
-      "t0": 1791219243,
-      "teamVesting": "0x0D2c0890d8E6130494E05d653A0cAa254C97F053",
-      "vault": "0xfa1eA4A0fF138f7cbB271806aB6d122d0DAa47C6"
-    },
-    "legacy": {
-      "demo-v1": {
-        "evaluator": "0xb041FcC2E5d93F9f9df66f7235165Fbe304084C6",
-        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
-        "holding": "0x45fF71d3E8C3a7Ccd6903b53E359B2Adb2ffABe3",
-        "kind": "legacy"
-      },
-      "demo-v2": {
-        "evaluator": "0x9ea507e9510234e1e47AD8147c474eD7c9BC283b",
-        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
-        "holding": "0x8aea320f3BD5e65e97e423308596Ba7D6301a9b2",
-        "kind": "legacy"
-      },
-      "main-v1": {
-        "evaluator": "0x0445e425ff4092Dd1a862aa793d5277d42CfD4e8",
-        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
-        "holding": "0xCb87503c2332E35C733Bf07df0d9f4b18B8450CC",
-        "kind": "legacy"
-      },
-      "main-v2": {
-        "evaluator": "0x04562342Ef68ECdFcDc24B552e6C8E180dd6b908",
-        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
-        "holding": "0x9d2E6dD5dA61f5849c812A49eE4D7498351Ade73",
-        "kind": "legacy"
-      },
-      "main-v3": {
-        "evaluator": "0xc0c8A4D4bDE3f6B0Ab3A3741ba555523B37D90D3",
-        "factory": "0x8a7Df3f323c3065e7Fbf531596F62D50d933085A",
-        "holding": "0xdfb84873E07A7C0a42a63BF7b25a00bD09754bd1",
-        "kind": "legacy",
-        "openTokens": true
-      }
-    },
-    "main": {
-      "evaluator": "0x593D5AbB4E8Bd7244078f655d964089931BF0f1F",
-      "factory": "0xB1B07790341D5F79023987F91842F58a11087A28",
-      "holding": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
-      "kind": "hireling-v1",
-      "openTokens": true
-    },
-    "network": "monad-testnet",
-    "poolFactory": "0xbdd6A1ba2589203f252260bCE63C8888D693ed37",
-    "rewardTokens": [
-      "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
-      "0xDEef53f34fa71C46E7bB6E34d42d4cF36987C44E",
-      "0x130556848511554b181e645309754F265522F3c2"
-    ],
-    "stacksBlock": 66784609,
-    "oddTokens": {
-      "blocklist": "0x6489d03029f8ab77dfa0f8117cccc2a43c1635a0",
-      "gasBurner": "0x28c656f24e6daa83d4cb96cbdd325fe31b26ff00",
-      "block": 68454339
+      "distributor": "0xD54ab32a456878e1Ad3a346d537Ea569602F425e",
+      "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+      "feeSchedule": "0x6b3946408838CFd43eb28024Bc11B5C0b119DfAC",
+      "miningReserve": "0x2610f52Ff9e18B7108a0d6EcAd28243c680A7BC0",
+      "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "t0": 1791257814,
+      "teamVesting": "0x754662106Bf8305b33999aB37C1CC4F9ad6f9f46",
+      "vault": "0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76"
     }
   },
-  "hireling": {
+  "sidequest": {
     "clocks": {
       "minReviewWindow": 120,
       "minDisputeWindow": 120,
@@ -194,9 +124,9 @@
       "epochZeroDuration": 1800,
       "epochDuration": 3600
     },
-    "reuseCore": true,
-    "safe": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
-    "defaultArbitrator": "0x0E616916682E3DB0bFFe188Be07513CbB829ebC5",
+    "reuseCore": false,
+    "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+    "defaultArbitrator": "0x96eE4e1660744A4dE92D9E22476C501063524716",
     "margin": 3600,
     "schedule": {
       "thresholds": [
@@ -211,15 +141,15 @@
         300,
         100
       ],
-      "treasury": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF"
+      "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8"
     },
     "allocation": {
-      "treasury": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF",
-      "ecosystem": "0x675269d710692d4d0d7166da11B76463577aad73",
-      "liquidity": "0x675269d710692d4d0d7166da11B76463577aad73"
+      "treasury": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "ecosystem": "0xeF41b657Ecc8b710e6e32c7c255B891836F060b7",
+      "liquidity": "0xe5B7054e177e833D63f8d0548ffa9ecfC4289A71"
     },
     "vesting": {
-      "beneficiary": "0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471",
+      "beneficiary": "0x9ebB46bE653CA656251772f5f55749DaE8c0aE2B",
       "startOffset": 31536000,
       "duration": 94608000,
       "cliff": 0
@@ -227,20 +157,5 @@
     "mining": {
       "genesis": 0
     }
-  },
-  "liquidity": {
-    "uniswapV4": {
-      "poolManager": "0x451D64ab3b650040d2aE1886602b97ed6eDc643d",
-      "positionManager": "0x3Bb14E3D0Cd50aBe3EdACa06d06c29C78676C31A",
-      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-      "stateView": "0xB639209539c61BaF67AC04876315786F8D0b153c"
-    },
-    "quote": "0xabd60a1e40519E3609C4F9eBb551FcF242a8AD8f",
-    "fee": 3000,
-    "tickSpacing": 60,
-    "factoryAmount": 10000,
-    "quoteAmount": 1,
-    "maxRepairCost": 1,
-    "positionOwner": "0x1006582a6d0C40E19eAbd1847C652D48b88BD5bF"
   }
 }

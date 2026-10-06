@@ -1,6 +1,6 @@
 # ADR-0007: JobPool, pooled funding of one offer
 
-**V1 scope note (2 Oct):** this is a legacy contract and live-history record. V1 has no JobPool successor; `topUp` and contributor refunds replace pooled funding. Hosted pools remain disabled. The legacy security findings and v1 resolution are recorded in [ADR-0011](0011-hireling-v1.md); the old guarantees below are not a recommendation to launch new pools.
+**V1 scope note (2 Oct):** this is a legacy contract and live-history record. V1 has no JobPool successor; `topUp` and contributor refunds replace pooled funding. Hosted pools remain disabled. The legacy security findings and v1 resolution are recorded in [ADR-0011](0011-sidequest-v1.md); the old guarantees below are not a recommendation to launch new pools.
 
 Date: 2026-09-30. Status: **implemented, unit-tested (26 tests), deployed on Monad testnet, live cancel-and-refund path
 proven on the `monad-pet` board (job 55); the hire path's run is recorded in `docs/reality-check.md`.** Testnet only.
@@ -23,7 +23,7 @@ creator at `publish`, lets only the creator cancel and only the creator sign a `
   and the only key the pool honours through ERC-1271, so Holding's `activate` accepts a curator-signed `Selection` for
   a listing whose creator is a contract, and the board's `submit_selection` verifies it the same way. The curator also
   forwards `cancel` and `cancelSelection`, which Holding restricts to the creator.
-- **Hold gate.** Holding requires `minHoldToPublish` FACTORY of the publisher. The factory moves that amount from
+- **Hold gate.** Holding requires `minHoldToPublish` SIDE of the publisher. The factory moves that amount from
   the pool's creator into the pool at `create`; it is never spent and returns through `reclaimHold` once the pool is
   over.
 - **Refunds, pro rata, only from what comes back.** A paid reward never returns. What returns (a cancelled or

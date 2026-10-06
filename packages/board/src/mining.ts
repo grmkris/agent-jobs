@@ -1,7 +1,7 @@
 /** Epoch consumers only: verify the artifact's claims against the Safe-published distributor root. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, concat, encodeAbiParameters, encodeFunctionData, getAddress, keccak256, maxUint256, stringToHex } from 'viem'
-import { transaction } from './hireling.ts'
+import { transaction } from './sidequest.ts'
 
 export interface MiningSource { load(epoch: string): Promise<unknown | null> }
 export interface MiningProof {
@@ -30,8 +30,8 @@ export function verifyMiningClaim(root: Hex, epoch: string, account: Address, am
 }
 
 export async function miningProof(ctx: sdk.Ctx, account: Address, epochText: string, source: MiningSource): Promise<MiningProof> {
-  const epoch = miningEpoch(epochText), h = ctx.deployment.hireling
-  if (h === null) throw new Error('work mining requires a deployed Hireling v1 distributor')
+  const epoch = miningEpoch(epochText), h = ctx.deployment.sidequest
+  if (h === null) throw new Error('work mining requires a deployed Sidequest v1 distributor')
   const payload = await source.load(epoch)
   if (payload === null || typeof payload !== 'object') throw new Error(`mining artifact epoch-${epoch}.json is unavailable`)
   const file = payload as { chainId: number; epoch: string; total: string; root: Hex; dataHash: Hex; inputs: unknown; claims: Record<string, { amount: string; proof: Hex[] }> }
@@ -48,7 +48,7 @@ export async function miningProof(ctx: sdk.Ctx, account: Address, epochText: str
     ctx.publicClient.readContract({ address: h.distributor, abi: sdk.epochDistributorAbi, functionName: 'isClaimed', args: [BigInt(epoch), account] }),
   ])
   if (!same(root.root, artifactRoot) || root.total !== total || !same(root.dataHash, dataHash)) throw new Error('mining artifact does not match the distributor’s current root')
-  const transactions = match === undefined || claimed ? [] : [transaction(ctx, 'Claim work mining into your FACTORY stake', h.distributor,
+  const transactions = match === undefined || claimed ? [] : [transaction(ctx, 'Claim work mining into your SIDE stake', h.distributor,
     encodeFunctionData({ abi: sdk.epochDistributorAbi, functionName: 'claim', args: [BigInt(epoch), account, BigInt(amount), proof] }), 500_000n)]
   return { epoch, account: getAddress(account), token: h.factory, amount, proof, root: root.root, dataHash: root.dataHash, eligible: match !== undefined, claimed, transactions }
 }

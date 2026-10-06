@@ -54,7 +54,7 @@ export function Mark() {
   return (
     <svg aria-hidden viewBox="0 0 32 32" className="size-6 shrink-0">
       <rect width="32" height="32" rx="7" className="fill-tint" />
-      <path d="M10 8v16M22 8v16M10 16h12" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M8 9h8l8 8M24 23h-8l-8-8" className="stroke-on-tint" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   )
 }
@@ -65,7 +65,7 @@ function Brand() {
     <Link to="/" className="flex min-h-11 min-w-0 items-center gap-2 text-base font-semibold tracking-tight">
       <Mark />
       <span className="truncate">
-        Hireling
+        Sidequest
         {boardId !== 'public' && <span className="font-normal text-muted-foreground"> · {boardId}</span>}
       </span>
     </Link>
@@ -151,7 +151,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {paused && (
             <div role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive-text">
               The contracts are paused by their admin: nothing can be published, delivered, paid or spent until they are unpaused, and deadlines keep running.{' '}
-              <a className="underline" href="https://github.com/grmkris/agent-jobs#trust" target="_blank" rel="noreferrer">
+              <a className="underline" href="https://github.com/grmkris/sidequest#trust" target="_blank" rel="noreferrer">
                 What the admin can do
               </a>
             </div>

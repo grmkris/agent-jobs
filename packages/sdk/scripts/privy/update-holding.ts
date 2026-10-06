@@ -89,8 +89,8 @@ export function holdingPolicyUpdate(live: JsonRecord, desired: AuthorityPolicy, 
 export async function updateHolding(apply = false) {
   const archived = JSON.parse(readFileSync(new URL('../../../../contracts/config/archive/monad-testnet-g1b.json', import.meta.url), 'utf8'))
   if (archived.chainId !== 10143 || archived.deployment?.main?.kind !== 'hireling-v1' ||
-      config.deployment?.main?.kind !== 'hireling-v1') {
-    throw new HoldingUpdateError('Expected archived G1b and promoted testnet Hireling configs')
+      config.deployment?.main?.kind !== 'sidequest-v1') {
+    throw new HoldingUpdateError('Expected archived G1b and promoted testnet Sidequest configs')
   }
   const env = localEnv()
   const api = new PrivyApi(required(env, 'PRIVY_APP_ID'), required(env, 'PRIVY_APP_SECRET'))

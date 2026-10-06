@@ -17,13 +17,13 @@ import { friendlyError } from '../txErrors.ts'
 import { typedDataArgs } from '../typed-data.ts'
 import { chain, deployment, wagmiConfig } from '../wallet.ts'
 
-const SUB = 'Hireling pays the gas for your Hireling transactions.'
+const SUB = 'Sidequest pays the gas for your Sidequest transactions.'
 const ENDED = { expired: 'Your last permission expired.', used: 'Your last permission is used up.', revoked: 'You turned it off.' } as const
 
 /**
- * Gas sponsorship onboarding (U7, ADR B6): one ERC-7710 delegation from the wallet's EIP-7702 DeleGator to Hireling's
- * relay, limited to Hireling's contracts and methods, a number of calls and an expiry. The relay redeems it to send
- * the wallet's Hireling transactions and pays their gas. Agents sign the same delegation from their own wallet.
+ * Gas sponsorship onboarding (U7, ADR B6): one ERC-7710 delegation from the wallet's EIP-7702 DeleGator to Sidequest's
+ * relay, limited to Sidequest's contracts and methods, a number of calls and an expiry. The relay redeems it to send
+ * the wallet's Sidequest transactions and pays their gas. Agents sign the same delegation from their own wallet.
  */
 export function SponsorshipPage() {
   const auth = useAuth()
@@ -75,7 +75,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
     setError(null)
     try {
       if (p.upgrade !== null) {
-        if (upgrade === null) throw new Error('Turn this on from your Hireling email or Google wallet: it points that wallet at the delegation contract first.')
+        if (upgrade === null) throw new Error('Turn this on from your Sidequest email or Google wallet: it points that wallet at the delegation contract first.')
         const hash = await upgrade()
         if (hash !== null) await waitForTransactionReceipt(wagmiConfig, { hash, chainId: chain.id })
       }
@@ -83,7 +83,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
       await sponsorApi.confirm(wallet, signature)
       setPrep(null)
       await refresh()
-      toast('Hireling now pays your gas')
+      toast('Sidequest now pays your gas')
     } catch (e) {
       setPrep(null)
       setError(walletRefused(e) ? 'You declined to sign. Nothing changed.' : friendlyError(e))
@@ -118,19 +118,19 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
         <LoadingRows rows={3} />
       ) : status.isError || s === undefined ? (
         <div role="status" className="grid gap-2 rounded-xl bg-warn-bg p-4 text-sm text-warn">
-          <p>Whether Hireling pays your gas cannot be read right now.</p>
+          <p>Whether Sidequest pays your gas cannot be read right now.</p>
           <Button variant="tinted" onClick={() => void status.refetch()}>Retry</Button>
         </div>
       ) : live !== null ? (
         live.ok ? (
           <>
-            <Section title="On" note="The relay sends your Hireling transactions and pays their gas. It can do nothing outside these limits.">
+            <Section title="On" note="The relay sends your Sidequest transactions and pays their gas. It can do nothing outside these limits.">
               <Group>
                 <ListRow inset>
                   <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ok-bg text-ok">
                     <Fuel aria-hidden className="size-4" />
                   </span>
-                  <span className="flex-1 font-medium">Hireling pays your gas</span>
+                  <span className="flex-1 font-medium">Sidequest pays your gas</span>
                   <Badge tone="success">On</Badge>
                 </ListRow>
                 <ListRow>
@@ -148,7 +148,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
           </>
         ) : (
           <div className="grid gap-2">
-            <ErrorText>The permission on file does not read as Hireling’s: {live.problem} Turn it off.</ErrorText>
+            <ErrorText>The permission on file does not read as Sidequest’s: {live.problem} Turn it off.</ErrorText>
             <Button variant="danger" busy={busy === 'revoke'} onClick={() => setTurningOff(true)}>
               Turn off
             </Button>
@@ -163,7 +163,7 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
                   <Fuel aria-hidden className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1 text-sm leading-snug">
-                  You sign one permission. Hireling’s relay then sends your hires, deliveries, approvals and payouts, and pays their gas: only calls to Hireling’s contracts, a limited number of times, until it expires.
+                  You sign one permission. Sidequest’s relay then sends your hires, deliveries, approvals and payouts, and pays their gas: only calls to Sidequest’s contracts, a limited number of times, until it expires.
                 </span>
               </ListRow>
             </Group>
@@ -196,8 +196,8 @@ function Sponsorship({ wallet, rules }: { wallet: string; rules: SponsorRules })
       <ConfirmSheet
         open={prep !== null}
         onClose={() => setPrep(null)}
-        title="Let Hireling pay your gas?"
-        description="You sign this permission for Hireling’s relay. Nothing moves now, and you can turn it off at any time."
+        title="Let Sidequest pay your gas?"
+        description="You sign this permission for Sidequest’s relay. Nothing moves now, and you can turn it off at any time."
         confirm="Sign the permission"
         busy={busy === 'sign'}
         onConfirm={() => void enable()}

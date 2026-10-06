@@ -7,7 +7,7 @@ import policyConfig from './demo-worker-policy.json' with { type: 'json' }
 const original = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471' as Address
 const agent = '0x1111111111111111111111111111111111111111' as Address
 const binding: DemoBinding = { chainId: 10143, factory: agent, vault: agent, core: agent, identity: agent,
-  boardUrl: 'https://testnet.hireling.xyz', token: agent, repository: 'fixture/repo' }
+  boardUrl: 'https://dev.sidequest.exchange', token: agent, repository: 'fixture/repo' }
 const state: FlowState = {
   binding: originalDemoBinding(binding, original),
   values: { 'worker/entries': { taskId: 'frozen-task', phase: 'active' }, signature: 'saved-signature', amount: 12n },

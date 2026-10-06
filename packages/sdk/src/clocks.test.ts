@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { type Address } from 'viem'
 import type { Ctx } from './actions.ts'
-import { configuredClocks, minimumOfferWindows, readHirelingClocks, readWindowBounds, standardOfferWindows, validateOfferWindows, windowBounds } from './clocks.ts'
-import { clocksFromConfig, deployment, MAX_HIRELING_WINDOW, PRODUCTION_CLOCKS } from './deployment.ts'
+import { configuredClocks, minimumOfferWindows, readSidequestClocks, readWindowBounds, standardOfferWindows, validateOfferWindows, windowBounds } from './clocks.ts'
+import { clocksFromConfig, deployment, MAX_SIDEQUEST_WINDOW, PRODUCTION_CLOCKS } from './deployment.ts'
 
 const FAST = { minReviewWindow: 120, minDisputeWindow: 120, minArbitrationWindow: 300,
   unstakeDelay: 600, holdingDelay: 900, feeDelay: 300, proposalGrace: 1800, epochZeroDuration: 1800, epochDuration: 3600 }
 
 function fixture() {
-  const d = deployment('monad-testnet'), h = d.hireling!
+  const d = deployment('monad-testnet'), h = d.sidequest!
   const values: Record<string, number> = { MIN_REVIEW_WINDOW: FAST.minReviewWindow, MIN_DISPUTE_WINDOW: FAST.minDisputeWindow, MIN_ARBITRATION_WINDOW: FAST.minArbitrationWindow,
-    MAX_REVIEW_WINDOW: MAX_HIRELING_WINDOW, MAX_DISPUTE_WINDOW: MAX_HIRELING_WINDOW, MAX_ARBITRATION_WINDOW: MAX_HIRELING_WINDOW,
+    MAX_REVIEW_WINDOW: MAX_SIDEQUEST_WINDOW, MAX_DISPUTE_WINDOW: MAX_SIDEQUEST_WINDOW, MAX_ARBITRATION_WINDOW: MAX_SIDEQUEST_WINDOW,
     UNSTAKE_DELAY: FAST.unstakeDelay, HOLDING_DELAY: FAST.holdingDelay, PROPOSAL_GRACE: FAST.proposalGrace,
     DELAY: FAST.feeDelay, EPOCH_ZERO_DURATION: FAST.epochZeroDuration, EPOCH_DURATION: FAST.epochDuration }
   const readContract = vi.fn(async ({ functionName }: { functionName: string; address: Address }) => {
@@ -19,14 +19,14 @@ function fixture() {
   })
   const ctx: Ctx = { publicClient: { readContract } as unknown as Ctx['publicClient'], stack: d.stacks.main!,
     // A stale config must not override the deployed immutable reads.
-    deployment: { ...d, hireling: { ...h, clocks: PRODUCTION_CLOCKS } } }
+    deployment: { ...d, sidequest: { ...h, clocks: PRODUCTION_CLOCKS } } }
   return { ctx, readContract, values }
 }
 
 describe('deploy-time clocks', () => {
   it('retains production defaults for absent clocks and refuses omissions in a present block', () => {
-    expect(configuredClocks({ chainId: 10143, hireling: null })).toEqual(PRODUCTION_CLOCKS)
-    expect(() => clocksFromConfig({ minReviewWindow: 120 } as never, 10143)).toThrow('Invalid Hireling clock')
+    expect(configuredClocks({ chainId: 10143, sidequest: null })).toEqual(PRODUCTION_CLOCKS)
+    expect(() => clocksFromConfig({ minReviewWindow: 120 } as never, 10143)).toThrow('Invalid Sidequest clock')
     expect(clocksFromConfig(FAST, 10143)).toEqual(FAST)
   })
 
@@ -36,11 +36,11 @@ describe('deploy-time clocks', () => {
   })
 
   it.each([
-    { minReviewWindow: 0 }, { minDisputeWindow: MAX_HIRELING_WINDOW + 1 }, { minArbitrationWindow: 1.5 },
+    { minReviewWindow: 0 }, { minDisputeWindow: MAX_SIDEQUEST_WINDOW + 1 }, { minArbitrationWindow: 1.5 },
     { unstakeDelay: 59 }, { holdingDelay: NaN }, { feeDelay: 0 }, { proposalGrace: 2 ** 48 },
     { epochZeroDuration: 599 }, { epochDuration: Number.MAX_SAFE_INTEGER },
   ])('refuses invalid config clocks %j', clocks => {
-    expect(() => clocksFromConfig({ ...PRODUCTION_CLOCKS, ...clocks }, 10143)).toThrow('Invalid Hireling clock')
+    expect(() => clocksFromConfig({ ...PRODUCTION_CLOCKS, ...clocks }, 10143)).toThrow('Invalid Sidequest clock')
   })
 
   it('preserves the vault cross-clock invariant', () => {
@@ -61,10 +61,10 @@ describe('deploy-time clocks', () => {
   })
 
   it('reads delay/grace/epoch clocks from the right contracts, without reusing stale config values', async () => {
-    const f = fixture(), h = f.ctx.deployment.hireling!
-    const clocks = await readHirelingClocks(f.ctx)
+    const f = fixture(), h = f.ctx.deployment.sidequest!
+    const clocks = await readSidequestClocks(f.ctx)
     expect(clocks).toEqual(FAST)
-    expect(await readHirelingClocks(f.ctx)).toBe(clocks)
+    expect(await readSidequestClocks(f.ctx)).toBe(clocks)
     expect(f.readContract).toHaveBeenCalledWith(expect.objectContaining({ address: h.vault, functionName: 'UNSTAKE_DELAY' }))
     expect(f.readContract).toHaveBeenCalledWith(expect.objectContaining({ address: h.feeSchedule, functionName: 'DELAY' }))
     expect(f.readContract).toHaveBeenCalledWith(expect.objectContaining({ address: h.miningReserve, functionName: 'EPOCH_DURATION' }))
@@ -82,10 +82,10 @@ describe('deploy-time clocks', () => {
 
   it('catches mismatched grace values and retries full clock reads after a failure', async () => {
     const f = fixture(), original = f.readContract.getMockImplementation()!
-    f.readContract.mockImplementation(async request => request.functionName === 'PROPOSAL_GRACE' && request.address === f.ctx.deployment.hireling!.feeSchedule ? 600 : original(request))
-    await expect(readHirelingClocks(f.ctx)).rejects.toThrow('grace clocks disagree')
+    f.readContract.mockImplementation(async request => request.functionName === 'PROPOSAL_GRACE' && request.address === f.ctx.deployment.sidequest!.feeSchedule ? 600 : original(request))
+    await expect(readSidequestClocks(f.ctx)).rejects.toThrow('grace clocks disagree')
     f.readContract.mockImplementation(original)
-    expect(await readHirelingClocks(f.ctx)).toEqual(FAST)
+    expect(await readSidequestClocks(f.ctx)).toEqual(FAST)
   })
 
   it('validates the minute-clock boundaries and clamps a Standard preference without changing custom windows', () => {
@@ -94,8 +94,8 @@ describe('deploy-time clocks', () => {
     expect(() => validateOfferWindows(minimum, bounds)).not.toThrow()
     expect(() => validateOfferWindows(minimum)).toThrow('1 hour')
     expect(() => validateOfferWindows({ ...minimum, arbitrationSeconds: 299 }, bounds)).toThrow('5 minutes')
-    expect(() => validateOfferWindows({ ...minimum, reviewSeconds: MAX_HIRELING_WINDOW + 1 }, bounds)).toThrow('14 days')
+    expect(() => validateOfferWindows({ ...minimum, reviewSeconds: MAX_SIDEQUEST_WINDOW + 1 }, bounds)).toThrow('14 days')
     expect(standardOfferWindows(bounds)).toEqual({ reviewSeconds: 86400, disputeSeconds: 86400, arbitrationSeconds: 172800 })
-    expect(standardOfferWindows({ ...bounds, review: { min: 100000, max: MAX_HIRELING_WINDOW } }).reviewSeconds).toBe(100000)
+    expect(standardOfferWindows({ ...bounds, review: { min: 100000, max: MAX_SIDEQUEST_WINDOW } }).reviewSeconds).toBe(100000)
   })
 })

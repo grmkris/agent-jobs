@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type AbiParameter, encodeFunctionData } from 'viem'
 import { describe, expect, it } from 'vitest'
 import type { AgentApproval } from './agent-api.ts'
@@ -18,9 +18,9 @@ function zero(p: AbiParameter): unknown {
   if (p.type.startsWith('bytes')) return p.type === 'bytes' ? '0x' : `0x${'00'.repeat(Number(p.type.slice(5)))}`
   return 0n
 }
-const publishAbi = sdk.hirelingHoldingAbi.find((f) => f.type === 'function' && f.name === 'publish')!
+const publishAbi = sdk.sidequestHoldingAbi.find((f) => f.type === 'function' && f.name === 'publish')!
 const params = zero(publishAbi.inputs[0]!) as Record<string, unknown>
-const publish = encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'publish', args: [{ ...params, token, reward: 12_000_000n, policyHash: policy }] as never })
+const publish = encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{ ...params, token, reward: 12_000_000n, policyHash: policy }] as never })
 
 const approval = (over: Partial<AgentApproval>): AgentApproval => ({ id: 'x', agent_id: 'a', operation_id: 'op', kind: 'hire-over-limit', status: 'pending', request_json: '{}', ...over })
 
@@ -35,7 +35,7 @@ describe('approval lines', () => {
     expect(jobOfLine({ ...line, status: 'approved' }, [job])).toBeUndefined()
   })
 
-  it('reads leaving backing in FACTORY and a permission with its cadence and adjustment', () => {
+  it('reads leaving backing in SIDE and a permission with its cadence and adjustment', () => {
     expect(approvalLine(approval({ kind: 'unstake', request_json: JSON.stringify({ amount: '5', shares: '5' }) }), deployment.factory)).toMatchObject({ title: 'Leave agent-owned backing', amount: { value: '5', token: deployment.factory } })
     const terms = { type: 'erc20-token-periodic', token, periodAmount: '10', periodDuration: 86_400, recipient: '0x3333333333333333333333333333333333333333' }
     const line = approvalLine(approval({ kind: 'permission', status: 'executed', decision_json: JSON.stringify({ permissionHash: '0x1', standing: false, adjusted: true }), request_json: JSON.stringify({ terms: JSON.stringify(terms), expiry: 1_791_000_000, adjustable: true, justification: null, standing: false }) }), deployment.factory)

@@ -105,7 +105,7 @@ export class Runtime {
       process.env.MONAD_TESTNET_RPC_URL!,
     );
     this.chain.addActor(wallet.account.address);
-    const board = sdk.boardClient("https://testnet.hireling.xyz");
+    const board = sdk.boardClient("https://dev.sidequest.exchange");
     await this.chain.reserve("creator-login", 100_000n, parseEther("0.05"));
     await board.signIn(wallet.account as import("viem").LocalAccount);
     await this.chain.finish("creator-login", []);

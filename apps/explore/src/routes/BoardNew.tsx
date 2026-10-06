@@ -70,7 +70,7 @@ export function BoardNewPage({ auth }: { auth: ReturnType<typeof useSignedIn> })
             <p className="flex items-start gap-3 text-sm leading-snug">
               <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
               <span>
-                <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event sent to your webhook, and Hireling
+                <span className="font-semibold">Webhook secret, shown once.</span> Copy it now: it signs every event sent to your webhook, and Sidequest
                 can&apos;t show it again.
               </span>
             </p>

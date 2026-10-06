@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AgentSigning } from './agent-signing.ts'
 import { AgentStore } from './agents.ts'
@@ -63,7 +63,7 @@ const changed = (r: sdk.DirectoryEnvelope, change: (value: AgentTypedData) => vo
 }
 
 describe('directory records an agent signs for its own listing', () => {
-  const audience = 'https://testnet.hireling.xyz'
+  const audience = 'https://dev.sidequest.exchange'
   const bound = { agentId: '2013', audience }
   const record = (kind: sdk.DirectoryKind, payload: Record<string, unknown>, seconds = 300): sdk.DirectoryEnvelope => ({
     version: 1, kind, chainId: deployment.chainId, identityRegistry: deployment.identity, audience, agentId: '2013', wallet: agent,
@@ -83,8 +83,8 @@ describe('directory records an agent signs for its own listing', () => {
   })
 
   it.each([
-    ['another directory', (r: sdk.DirectoryEnvelope) => json({ ...r, audience: 'https://hireling.xyz' })],
-    ['the presence domain for an ad', (r: sdk.DirectoryEnvelope) => changed(r, (v) => { v.domain.name = 'HirelingPresence' })],
+    ['another directory', (r: sdk.DirectoryEnvelope) => json({ ...r, audience: 'https://sidequest.exchange' })],
+    ['the presence domain for an ad', (r: sdk.DirectoryEnvelope) => changed(r, (v) => { v.domain.name = 'SidequestPresence' })],
     ['another chain', (r: sdk.DirectoryEnvelope) => json({ ...r, chainId: 143 })],
     ['a verifying contract', (r: sdk.DirectoryEnvelope) => changed(r, (v) => { v.domain.verifyingContract = agent })],
     ['a domain without its salt', (r: sdk.DirectoryEnvelope) => changed(r, (v) => { delete v.domain.salt })],

@@ -1,11 +1,11 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, type LocalAccount, type PublicClient } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 /** Legacy pairs keep their old key; a v1-only network never reads or requires that secret. */
 export function arbiterAccounts(deployment: sdk.Deployment, env: NodeJS.ProcessEnv): LocalAccount[] {
   const kinds = new Set(sdk.allStacks(deployment).map(([, stack]) => stack.kind))
-  const names = [...(kinds.has('legacy') ? ['ARBITRATOR_PRIVATE_KEY'] : []), ...(kinds.has('hireling-v1') ? ['V1_ARBITRATOR_PRIVATE_KEY'] : [])]
+  const names = [...(kinds.has('legacy') ? ['ARBITRATOR_PRIVATE_KEY'] : []), ...(kinds.has('sidequest-v1') ? ['V1_ARBITRATOR_PRIVATE_KEY'] : [])]
   if (names.length === 0) throw new Error('No deployed arbiter pairs')
   const accounts = names.map(name => {
     const key = env[name]

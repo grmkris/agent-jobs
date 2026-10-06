@@ -5,13 +5,13 @@ import {Script, console2} from "forge-std/Script.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC8183WithAuthorization} from "../src/vendor/erc8183/ERC8183WithAuthorization.sol";
 import {IERC8004Identity} from "../src/vendor/erc8004/IERC8004.sol";
-import {IHirelingHolding} from "../src/hireling/interfaces/IHirelingHolding.sol";
-import {IHirelingEvaluator} from "../src/hireling/interfaces/IHirelingEvaluator.sol";
-import {IStakeVault} from "../src/hireling/interfaces/IStakeVault.sol";
-import {IMiningReserve} from "../src/hireling/interfaces/IMiningReserve.sol";
-import {IEpochDistributor} from "../src/hireling/interfaces/IEpochDistributor.sol";
-import {HirelingRecipe} from "./HirelingRecipe.sol";
-import {ISafe} from "./HirelingSafeAccept.sol";
+import {ISidequestHolding} from "../src/sidequest/interfaces/ISidequestHolding.sol";
+import {ISidequestEvaluator} from "../src/sidequest/interfaces/ISidequestEvaluator.sol";
+import {IStakeVault} from "../src/sidequest/interfaces/IStakeVault.sol";
+import {IMiningReserve} from "../src/sidequest/interfaces/IMiningReserve.sol";
+import {IEpochDistributor} from "../src/sidequest/interfaces/IEpochDistributor.sol";
+import {SidequestRecipe} from "./SidequestRecipe.sol";
+import {ISafe} from "./SidequestSafeAccept.sol";
 
 /// @dev Safe v1.4.1's SafeTx hash, which an owner's ECDSA signature commits to (nonce included).
 interface ISafeTxHash {
@@ -41,8 +41,8 @@ abstract contract RehearsalScript is Script {
             n.length > 10 && keccak256(bytes(vm.split(network, "-")[0])) == keccak256("rehearsal"),
             "rehearsal configs only (config/rehearsal-*.json)"
         );
-        json = vm.readFile(HirelingRecipe.path(vm, network));
-        HirelingRecipe.guardChain(vm, json, true);
+        json = vm.readFile(SidequestRecipe.path(vm, network));
+        SidequestRecipe.guardChain(vm, json, true);
     }
 
     function _addr(string memory key) internal view returns (address) {
@@ -52,7 +52,7 @@ abstract contract RehearsalScript is Script {
 
 /// @notice One direct hire through the v1 pair: the worker registers and stakes, the creator publishes in USDC and
 ///         signs the selection, the worker activates and submits, the creator accepts, anyone settles.
-///         Keys: DEPLOYER_KEY (holds FACTORY and USDC), CREATOR_KEY, WORKER_KEY.
+///         Keys: DEPLOYER_KEY (holds SIDE and USDC), CREATOR_KEY, WORKER_KEY.
 contract RehearseHire is RehearsalScript {
     function run() external {
         _load();
@@ -61,11 +61,11 @@ contract RehearseHire is RehearsalScript {
         uint256 workerKey = vm.envUint("WORKER_KEY");
         address creator = vm.addr(creatorKey);
         address worker = vm.addr(workerKey);
-        IHirelingHolding holding = IHirelingHolding(_addr(".deployment.main.holding"));
-        IHirelingEvaluator evaluator = IHirelingEvaluator(_addr(".deployment.main.evaluator"));
+        ISidequestHolding holding = ISidequestHolding(_addr(".deployment.main.holding"));
+        ISidequestEvaluator evaluator = ISidequestEvaluator(_addr(".deployment.main.evaluator"));
         ERC8183WithAuthorization core = ERC8183WithAuthorization(_addr(".deployment.core"));
-        IStakeVault vault = IStakeVault(_addr(".deployment.hireling.vault"));
-        IERC20 factory = IERC20(_addr(".deployment.hireling.factory"));
+        IStakeVault vault = IStakeVault(_addr(".deployment.sidequest.vault"));
+        IERC20 factory = IERC20(_addr(".deployment.sidequest.factory"));
         IERC20 usdc = IERC20(_addr(".liquidity.quote"));
         IERC8004Identity identity = IERC8004Identity(_addr(".erc8004.identity"));
         uint256 reward = 25e6;
@@ -83,7 +83,7 @@ contract RehearseHire is RehearsalScript {
 
         uint48 deadline = uint48(block.timestamp + 2 days);
         bytes32 policy = keccak256(abi.encode("rehearsal-policy", block.timestamp));
-        IHirelingHolding.PublishParams memory p = IHirelingHolding.PublishParams({
+        ISidequestHolding.PublishParams memory p = ISidequestHolding.PublishParams({
             approver: address(0),
             arbitrator: address(0),
             manifestHash: keccak256("rehearsal-manifest"),
@@ -103,8 +103,8 @@ contract RehearseHire is RehearsalScript {
         uint256 jobId = holding.publish(p);
         vm.stopBroadcast();
 
-        IHirelingHolding.Selection memory sel =
-            IHirelingHolding.Selection(jobId, worker, agentId, policy, deadline - 1, 1);
+        ISidequestHolding.Selection memory sel =
+            ISidequestHolding.Selection(jobId, worker, agentId, policy, deadline - 1, 1);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(creatorKey, holding.selectionDigest(sel));
         bytes memory creatorSig = abi.encodePacked(r, s, v);
         (, uint256 fee, uint256 net) = holding.quoteActivation(jobId, worker);
@@ -163,10 +163,10 @@ contract RehearseMining is RehearsalScript {
     function run() external {
         _load();
         uint256 ownerKey = vm.envUint("SAFE_OWNER_KEY");
-        ISafe safe = ISafe(_addr(".deployment.hireling.safe"));
-        IMiningReserve reserve = IMiningReserve(_addr(".deployment.hireling.miningReserve"));
-        IEpochDistributor distributor = IEpochDistributor(_addr(".deployment.hireling.distributor"));
-        IStakeVault vault = IStakeVault(_addr(".deployment.hireling.vault"));
+        ISafe safe = ISafe(_addr(".deployment.sidequest.safe"));
+        IMiningReserve reserve = IMiningReserve(_addr(".deployment.sidequest.miningReserve"));
+        IEpochDistributor distributor = IEpochDistributor(_addr(".deployment.sidequest.distributor"));
+        IStakeVault vault = IStakeVault(_addr(".deployment.sidequest.vault"));
         require(block.timestamp >= reserve.epochEnd(0), "epoch 0 has not ended; warp first");
         address worker = vm.addr(vm.envUint("WORKER_KEY"));
         address creator = vm.addr(vm.envUint("CREATOR_KEY"));

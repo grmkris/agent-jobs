@@ -1,5 +1,5 @@
 /** Rebuild the expected permission locally; the server's display text is never signing authority. */
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import type { Address, Hex } from "viem";
 import { deployment } from "./wallet.ts";
 

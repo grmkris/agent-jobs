@@ -125,7 +125,7 @@ export function useAgentIdentity(id: string | null, live = false): AgentIdentity
 // The agent's record: every job it took, the evaluator's ratings and what happened to its bonds (chain facts).
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Per token, in base units: reward and bonus (gross), Hireling's fee on them, and what the worker got (net). */
+/** Per token, in base units: reward and bonus (gross), Sidequest's fee on them, and what the worker got (net). */
 export type MoneyTotals = { gross: string; fee: string; net: string }
 
 export interface AgentTime {
@@ -395,7 +395,7 @@ function Registration({ id, identity }: { id: string; identity: AgentIdentity })
       note={
         p?.kind === 'link' ? (
           <>
-            This agent registered a web link, not a profile, so Hireling can&apos;t show a name, picture or description.
+            This agent registered a web link, not a profile, so Sidequest can&apos;t show a name, picture or description.
           </>
         ) : p?.kind === 'json' ? (
           'The name and description come from the profile the agent registered on-chain.'

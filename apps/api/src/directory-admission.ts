@@ -1,4 +1,4 @@
-import type { DirectoryKind } from '@agent-jobs/sdk'
+import type { DirectoryKind } from '@sidequest/sdk'
 import { enforceHostedRate, type AdmissionReply } from './admission-rate.ts'
 import type { DirectoryCall } from './directory-object.ts'
 

@@ -31,7 +31,7 @@ describe('demo worker admission', () => {
 })
 
 describe('direct invitations', () => {
-  const invite: DemoInvite = { taskId: 'abc123', stack: 'main', kind: 'hireling-v1', termsHash: '0xhash', terms: {
+  const invite: DemoInvite = { taskId: 'abc123', stack: 'main', kind: 'sidequest-v1', termsHash: '0xhash', terms: {
     mode: 'hire', title: 'Cats', brief: 'Draw cats', acceptanceCriteria: ['PNG'], deployment: { chainId: 10143 }, creator, token, reward: '3000000',
     workerBond: '1000000000000000000', deliveryDeadline: 3000, windows: request.windows, arbitrator: core, evidencePolicy: null, quote: null,
     deliverable: { accepts: ['artifact', 'git'] },

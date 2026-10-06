@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# U-REAL: a throwaway anvil fork of Monad testnet with Hireling v1 deployed on it, left running for real.e2e.mjs.
+# U-REAL: a throwaway anvil fork of Monad testnet with Sidequest v1 deployed on it, left running for real.e2e.mjs.
 #   bash apps/explore/test/real/fork.sh up     # KEEP=1 rehearse-launch-testnet.sh, then one hire; prints the state file
 #   bash apps/explore/test/real/fork.sh down   # stop the fork, remove this run's scratch config and forge directories
 # The launch is contracts' own G1 rehearsal (contracts/script/rehearse-launch-testnet.sh with KEEP=1): a fresh 1-of-2
@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../../../../contracts"
 
 PORT="${PORT:-8611}"
-STATE_DIR="${STATE_DIR:-/tmp/hireling-real}"
+STATE_DIR="${STATE_DIR:-/tmp/sidequest-real}"
 CHAIN=10143
 LOCAL="http://127.0.0.1:$PORT"
 
@@ -29,7 +29,7 @@ down() {
       . script/rehearse-owned.sh
       NETWORK=$(jq -r .network "$f") FOUNDRY_BROADCAST=$(jq -r .broadcast "$f") FOUNDRY_CACHE_PATH=$(jq -r .cache "$f")
       RUN_ID=${NETWORK#rehearsal-}
-      owned_file "config/$NETWORK.json" .hireling.safe "$(jq -r .safe "$f")"
+      owned_file "config/$NETWORK.json" .sidequest.safe "$(jq -r .safe "$f")"
       owned_run_dirs
     )
   fi
@@ -60,7 +60,7 @@ NETWORK=$(sed -n 's/.* NETWORK=\([^ ]*\) .*/\1/p' <<<"$FORGE_ENV")
 FOUNDRY_BROADCAST=$(sed -n 's/.* FOUNDRY_BROADCAST=\([^ ]*\) .*/\1/p' <<<"$FORGE_ENV")
 FOUNDRY_CACHE_PATH=$(sed -n 's/.* FOUNDRY_CACHE_PATH=\([^ ]*\) .*/\1/p' <<<"$FORGE_ENV")
 CONFIG="config/$NETWORK.json"
-SAFE=$(jq -r .deployment.hireling.safe "$CONFIG" 2>/dev/null || true)
+SAFE=$(jq -r .deployment.sidequest.safe "$CONFIG" 2>/dev/null || true)
 [[ -n "$ANVIL_PID" && "$NETWORK" == rehearsal-* && "$FOUNDRY_BROADCAST" == broadcast/rehearsal-* && "$FOUNDRY_CACHE_PATH" == cache/rehearsal-* && "$SAFE" == 0x* ]] \
   || { tail -10 "$STATE_DIR/launch.log" >&2; fail "could not read the KEEP lines"; }
 # Recorded at once, so a failure from here on removes exactly this run's things.
@@ -101,9 +101,9 @@ ADMIN_ROLE=$(cast call --rpc-url "$LOCAL" "$CORE" "ADMIN_ROLE()(bytes32)")
 [[ "$(cast call --rpc-url "$LOCAL" "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE")" == true ]] || fail "the Safe does not hold the core's ADMIN_ROLE"
 ok "the Safe holds the core's ADMIN_ROLE (launch-testnet.sh's pauser step)"
 
-# The staker holds FACTORY (from the deployer's allocation) to stake from the page.
-FACTORY=$(jq -r .deployment.hireling.factory "$CONFIG")
-cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" "$FACTORY" "transfer(address,uint256)" "$STAKER" "$(cast to-wei 50000)" >/dev/null
+# The staker holds SIDE (from the deployer's allocation) to stake from the page.
+SIDE=$(jq -r .deployment.sidequest.factory "$CONFIG")
+cast send --rpc-url "$LOCAL" --private-key "$K_DEPLOYER" "$SIDE" "transfer(address,uint256)" "$STAKER" "$(cast to-wei 50000)" >/dev/null
 
 [[ "$(real_logs "$CHAIN")" == "$REAL_LOGS" ]] || fail "a chain-$CHAIN forge log outside $FOUNDRY_BROADCAST and $FOUNDRY_CACHE_PATH changed"
 ok "no chain-$CHAIN forge log outside this run's directories changed"

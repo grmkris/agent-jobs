@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { BoardError } from './board-error.ts'
 
 /** What the caller should do next. `same-key` is safe: the operation journal resumes or reconciles it. */
@@ -62,8 +62,8 @@ export function failureFromReply(reply: { code: string; message: string; reason?
 
 /** The custom errors our contracts declare: the only revert names a reply may carry. */
 const KNOWN_REVERTS: ReadonlySet<string> = new Set(
-  [sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, sdk.factoryTokenAbi, sdk.faucetTokenAbi, sdk.jobPoolAbi, sdk.jobPoolFactoryAbi, sdk.hirelingHoldingAbi,
-    sdk.hirelingEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.miningReserveAbi, sdk.epochDistributorAbi]
+  [sdk.jobHoldingAbi, sdk.jobsEvaluatorAbi, sdk.coreAbi, sdk.factoryTokenAbi, sdk.faucetTokenAbi, sdk.jobPoolAbi, sdk.jobPoolFactoryAbi, sdk.sidequestHoldingAbi,
+    sdk.sidequestEvaluatorAbi, sdk.stakeVaultAbi, sdk.feeScheduleAbi, sdk.factoryV2Abi, sdk.miningReserveAbi, sdk.epochDistributorAbi]
     .flatMap(abi => (abi as readonly { type: string; name?: string }[]).filter(item => item.type === 'error' && item.name !== undefined).map(item => item.name!)),
 )
 

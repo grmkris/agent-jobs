@@ -40,7 +40,7 @@
   "cre": {
     "forwarder": "0x76c9cf548b4179F8901cda1f8623568b58215E62",
     "workflowOwner": null,
-    "workflowName": "agent-jobs-evidence"
+    "workflowName": "sidequest-evidence"
   },
   "liquidity": {
     "uniswapV4": {

@@ -3,13 +3,13 @@ import { writeFileSync } from 'node:fs';
 import { output, base, owner, agentWallet, contracts, errors, server, browser, fixture } from './stake-fixture.mjs';
 
 const results = [];
-const pointerKey = `hireling.delegation-op:10143:${contracts.vault}:${owner}`;
+const pointerKey = `sidequest.delegation-op:10143:${contracts.vault}:${owner}`;
 async function prepare(page) {
   await page.goto(`${base}/agents/new`);
   await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();
-  await page.getByRole('textbox', { name: 'FACTORY to delegate to agent' }).fill('100');
+  await page.getByRole('textbox', { name: 'SIDE to delegate to agent' }).fill('100');
   await page.getByRole('button', { name: 'Review delegation', exact: true }).click();
-  await page.getByText('Delegate 100 FACTORY to My worker', { exact: true }).waitFor();
+  await page.getByText('Delegate 100 SIDE to My worker', { exact: true }).waitFor();
 }
 try {
   for (const surface of ['setup', 'stake']) {
@@ -38,7 +38,7 @@ try {
     await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
     await page.getByText(/Not delegated: the receipt has no exact Delegated event/).waitFor();
     assert.equal(await page.getByRole('status').filter({ hasText: 'Delegated. You own the position.' }).count(), 0);
-    const saved = await page.evaluate(key => ({ intent: localStorage.getItem(key), journals: Object.entries(localStorage).filter(([k]) => k.startsWith('hireling.op:delegation:')).map(([, bytes]) => JSON.parse(bytes)) }), pointerKey);
+    const saved = await page.evaluate(key => ({ intent: localStorage.getItem(key), journals: Object.entries(localStorage).filter(([k]) => k.startsWith('sidequest.op:delegation:')).map(([, bytes]) => JSON.parse(bytes)) }), pointerKey);
     assert.ok(saved.intent);
     assert.equal(saved.journals[0].hashes[0], null);
     assert.equal(saved.journals[0].effectFailures.length, 1, 'successful no-effect hash is retained for audit');
@@ -46,7 +46,7 @@ try {
     if (surface === 'stake') {
       // A retained pre-fix journal may have marked this no-op receipt recorded. The flag is not effect proof.
       await page.evaluate(() => {
-        const [key, bytes] = Object.entries(localStorage).find(([entry]) => entry.startsWith('hireling.op:delegation:'));
+        const [key, bytes] = Object.entries(localStorage).find(([entry]) => entry.startsWith('sidequest.op:delegation:'));
         const journal = JSON.parse(bytes);
         journal.hashes = [journal.effectFailures[0].hash];
         journal.recorded = [true];

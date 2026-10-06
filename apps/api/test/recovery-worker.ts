@@ -2,8 +2,9 @@ import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import * as sdk from '@agent-jobs/sdk'
-import { contractsOf, DERIVED_TABLES, fromD1, migrate, resetIndex, runOnce, stmt, type IndexerConfig, type RawLog } from '@agent-jobs/indexer'
+import * as sdk from '@sidequest/sdk'
+import historicalConfig from '../../../packages/sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
+import { contractsFromDeployment, DERIVED_TABLES, fromD1, migrate, resetIndex, runOnce, stmt, type IndexerConfig, type RawLog } from '@sidequest/indexer'
 import fixture from '../../../packages/indexer/test/fixtures/testnet-logs.json' with { type: 'json' }
 
 const Source = Cloudflare.D1.Database('E38DrillSource')
@@ -26,9 +27,10 @@ export default class RecoveryDrill extends Cloudflare.Worker<RecoveryDrill>()('E
           stmt('CREATE TABLE IF NOT EXISTS e38_hosted_fixture (id TEXT PRIMARY KEY, body TEXT NOT NULL)'),
           stmt("INSERT OR REPLACE INTO e38_hosted_fixture VALUES ('retain', 'hosted-only')"),
         ])
-        const contracts = contractsOf('monad-testnet')
+        const deployment = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
+        const contracts = contractsFromDeployment(deployment)
         const config: IndexerConfig = {
-          contracts, deployBlock: Number(sdk.deployment('monad-testnet').deployBlock), runner: 'e38-d1-drill', maxPages: 1, backfillBlocks: 0,
+          contracts, deployBlock: Number(deployment.deployBlock), runner: 'e38-d1-drill', maxPages: 1, backfillBlocks: 0,
           source: { logs: async query => ({ nextBlock: fixture.toBlock, logs: (fixture.logs as RawLog[]).filter(log => log.block_number >= query.fromBlock && log.block_number < fixture.toBlock) }) },
           head: { finalizedBlock: async () => fixture.toBlock - 1, blockHash: async block => `0x${block.toString(16).padStart(64, '0')}` },
         }

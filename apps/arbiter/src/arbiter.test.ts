@@ -3,16 +3,18 @@
  * hosted board in packages/sdk/scripts/board-dispute.ts): it signs exactly the validated proposal, refuses a
  * proposal the gate forbids, and refuses a board that asks it to sign something else.
  */
-import type { DisputeBundle } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import type { DisputeBundle } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, type Address, type PublicClient, encodeFunctionData, verifyTypedData } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import historicalConfig from '../../../packages/sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 import { type BoardLike, arbitrateOnce } from './arbiter.ts'
 import { arbiterAccounts, cancellationSender } from './runtime.ts'
 
 const account = privateKeyToAccount(generatePrivateKey())
-const demo = sdk.deployment('monad-testnet').legacyStacks['demo-v2']!
+const deployed = sdk.deployment('monad-testnet')
+const demo = sdk.deploymentFromConfig('monad-testnet', historicalConfig).stacks.demo!
 const chainId = 10143
 const NOW = 1_000_100
 
@@ -34,6 +36,9 @@ const bundle: DisputeBundle = {
 }
 
 afterEach(() => vi.restoreAllMocks())
+beforeEach(() => {
+  vi.spyOn(sdk, 'deployment').mockReturnValue({ ...deployed, legacyStacks: { fixtureDemo: demo } })
+})
 
 function fakeBoard(opts: { tamper?: (td: any) => void; decision?: unknown; arbitrator?: Address; cancellation?: sdk.TxRequest; chainId?: number } = {}) {
   const disputeChainId = opts.chainId ?? chainId
@@ -50,11 +55,11 @@ function fakeBoard(opts: { tamper?: (td: any) => void; decision?: unknown; arbit
         case 'get_dispute_bundle':
           return { bundle: { ...bundle, chainId: disputeChainId, arbitrator: opts.arbitrator ?? bundle.arbitrator }, bundleHash: '0xbb' } as any
         case 'cancel_ruling':
-          return { resolved: false, nonce: '4', transactions: [opts.cancellation ?? { chainId: disputeChainId, to: demo.evaluator, value: '0', description: 'Cancel', data: encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }) }] } as any
+          return { resolved: false, nonce: '4', transactions: [opts.cancellation ?? { chainId: disputeChainId, to: demo.evaluator, value: '0', description: 'Cancel', data: encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }) }] } as any
         case 'prepare_ruling': {
           const td = {
             primaryType: 'Ruling',
-            domain: { name: 'AgentJobsEvaluator', version: '1', chainId: disputeChainId, verifyingContract: demo.evaluator },
+            domain: { name: 'SidequestEvaluator', version: '1', chainId: disputeChainId, verifyingContract: demo.evaluator },
             message: { jobId: '42', forWorker: args.forWorker, slashLoser: args.slashLoser, reasonHash: sdk.hashText(args.reason), deadline: String(bundle.arbitrationEndsAt), nonce: '5' },
           }
           opts.tamper?.(td)
@@ -151,12 +156,12 @@ describe('arbitrateOnce', () => {
 
   it('confirms v1 cancellation before preparing and signing a fresh authorization on retry', async () => {
     const d = sdk.deployment('monad-testnet')
-    vi.spyOn(sdk, 'deployment').mockReturnValue({ ...d, stacks: { ...d.stacks, demo: { ...demo, kind: 'hireling-v1' } } })
+    vi.spyOn(sdk, 'deployment').mockReturnValue({ ...d, stacks: { ...d.stacks, demo: { ...demo, kind: 'sidequest-v1' } } })
     const f = fakeBoard({ decision: { forWorker: false, slashLoser: false, reason, txHash: null } })
     const sendCancellation = vi.fn(async (tx: sdk.TxRequest) => {
       expect(f.calls.at(-1)!.tool).toBe('cancel_ruling')
       expect(tx.to).toBe(demo.evaluator)
-      expect(tx.data).toBe(encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }))
+      expect(tx.data).toBe(encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'cancelRuling', args: [4n] }))
     })
     const result = await arbitrateOnce({ ...deps(f.board, {}), sendCancellation })
     expect(result.outcomes[0]?.result).toBe('ruled')
@@ -166,7 +171,7 @@ describe('arbitrateOnce', () => {
 
   it('does not sign a replacement if cancellation fails or targets another contract', async () => {
     const d = sdk.deployment('monad-testnet')
-    vi.spyOn(sdk, 'deployment').mockReturnValue({ ...d, stacks: { ...d.stacks, demo: { ...demo, kind: 'hireling-v1' } } })
+    vi.spyOn(sdk, 'deployment').mockReturnValue({ ...d, stacks: { ...d.stacks, demo: { ...demo, kind: 'sidequest-v1' } } })
     for (const f of [fakeBoard({ decision: { forWorker: false, slashLoser: false, reason } }), fakeBoard({ decision: { forWorker: false, slashLoser: false, reason }, cancellation: { description: 'Bad', chainId, to: account.address, data: '0x', value: '0' } })]) {
       const result = await arbitrateOnce({ ...deps(f.board, {}), sendCancellation: async () => { throw new Error('cancel reverted') } })
       expect(result.outcomes[0]?.result).toBe('skipped')
@@ -176,11 +181,11 @@ describe('arbitrateOnce', () => {
   })
 
   it('v1-only mainnet recorded ruling uses the configured funded account and waits for cancellation', async () => {
-    const deployed = { ...sdk.deployment('monad-testnet'), network: 'monad-mainnet' as const, chainId: 143,
-      stacks: { main: { ...demo, kind: 'hireling-v1' as const } }, legacyStacks: {} }
-    vi.spyOn(sdk, 'deployment').mockReturnValue(deployed)
+    const mainnetDeployment = { ...sdk.deployment('monad-testnet'), network: 'monad-mainnet' as const, chainId: 143,
+      stacks: { main: { ...demo, kind: 'sidequest-v1' as const } }, legacyStacks: {} }
+    vi.spyOn(sdk, 'deployment').mockReturnValue(mainnetDeployment)
     const key = generatePrivateKey()
-    const selected = arbiterAccounts(deployed, { V1_ARBITRATOR_PRIVATE_KEY: key })[0]!
+    const selected = arbiterAccounts(mainnetDeployment, { V1_ARBITRATOR_PRIVATE_KEY: key })[0]!
     const f = fakeBoard({ chainId: 143, arbitrator: selected.address, decision: { forWorker: false, slashLoser: false, reason, txHash: null } })
     let balance = 240_000n, confirmed = false
     const send = vi.fn(async () => {
@@ -192,7 +197,7 @@ describe('arbitrateOnce', () => {
       estimateFeesPerGas: async () => ({ maxFeePerGas: 2n, maxPriorityFeePerGas: 1n }),
       waitForTransactionReceipt: async () => { confirmed = true; return { status: 'success' } } } as unknown as PublicClient
     const walletFactory = vi.spyOn(sdk, 'wallet').mockReturnValue(wallet)
-    vi.spyOn(sdk, 'context').mockReturnValue({ deployment: deployed, stack: deployed.stacks.main, publicClient: reads })
+    vi.spyOn(sdk, 'context').mockReturnValue({ deployment: mainnetDeployment, stack: mainnetDeployment.stacks.main, publicClient: reads })
     const sendCancellation = cancellationSender('monad-mainnet', selected, 'http://127.0.0.1:9')
     const result = await arbitrateOnce({ ...deps(f.board, {}), network: 'monad-mainnet', account: selected, sendCancellation })
     expect(walletFactory).toHaveBeenCalledWith('monad-mainnet', selected, 'http://127.0.0.1:9')

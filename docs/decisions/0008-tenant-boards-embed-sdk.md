@@ -1,6 +1,6 @@
 # ADR-0008: Tenant boards and the embeddable marketplace
 
-**V1 scope note (2 Oct):** tenant routing, origins and token policies remain; contests and pool examples below are legacy only. New hires use the per-offer windows/arbitrator and stake reservations in [ADR-0011](0011-hireling-v1.md). Mainnet admission is authenticated and rate-limited with an emergency drain, not an invitation allowlist.
+**V1 scope note (2 Oct):** tenant routing, origins and token policies remain; contests and pool examples below are legacy only. New hires use the per-offer windows/arbitrator and stake reservations in [ADR-0011](0011-sidequest-v1.md). Mainnet admission is authenticated and rate-limited with an emergency drain, not an invitation allowlist.
 
 Date: 2026-09-29. Status: **in progress (overnight run 29/30 Sep); tenant boards implemented and tested, the rest lands
 step by step in this run** (`docs/reality-check.md`).
@@ -38,7 +38,7 @@ that shape the code.
 - **The Worker owns the registry, the indexer owns its tables.** The API Worker creates and writes the registry and
   session tables; the indexer stays the only writer of chain facts.
 
-_(The `@agent-jobs/react` package, the hosted widget, webhooks, the agent directory and direct hire are added to
+_(The `@sidequest/react` package, the hosted widget, webhooks, the agent directory and direct hire are added to
 this ADR by their steps.)_
 
 ## Consequences

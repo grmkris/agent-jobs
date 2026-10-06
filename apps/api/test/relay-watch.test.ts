@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it, vi } from 'vitest'
-import { fromNodeSqlite, stmt } from '@agent-jobs/indexer'
+import { fromNodeSqlite, stmt } from '@sidequest/indexer'
 import { migrateTelegram } from '../src/telegram.ts'
 import { RELAY_ALERT, relayLevel, reportRelayWatchFailure, watchRelay } from '../src/relay-watch.ts'
 

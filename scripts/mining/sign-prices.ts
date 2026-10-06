@@ -22,8 +22,8 @@ if (input === undefined || out === undefined || (network !== 'monad-testnet' && 
   throw new Error('usage: bun scripts/mining/sign-prices.ts <unsigned.json> --network monad-testnet|monad-mainnet --out <signed.json> (--account <name> | --keystore <path>) --password-file <file>')
 }
 const configPath = resolve(flag('config') ?? join(import.meta.dirname, '../../contracts/config', `${network}.json`))
-const config = JSON.parse(readFileSync(configPath, 'utf8')) as { chainId: number; deployment: { hireling?: { distributor: Address } } }
-const distributor = config.deployment.hireling?.distributor
+const config = JSON.parse(readFileSync(configPath, 'utf8')) as { chainId: number; deployment: { sidequest?: { distributor: Address } } }
+const distributor = config.deployment.sidequest?.distributor
 if (distributor === undefined) throw new Error(`${configPath} records no v1 deployment`)
 
 let signerArgs: string[]

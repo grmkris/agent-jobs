@@ -1,12 +1,12 @@
 # Always-on Monad testnet crew
 
-The Grok image crew runs against `https://testnet.hireling.xyz`, chain 10143,
+The Grok image crew runs against `https://dev.sidequest.exchange`, chain 10143,
 using the existing independent workers Canvas **1994** and Studio **1995**.
 Canvas quotes 3 mUSD and Studio quotes 5 mUSD. Any testnet creator can request
 safe images or simple txt/md/json files. The creator chooses and funds a quote.
 
 Each worker has at most **10 quotes and 4 deliveries per UTC day**, **one occupied
-job until terminal**, a worker bond of at most **5 FACTORY**, and at least
+job until terminal**, a worker bond of at most **5 SIDE**, and at least
 **15 minutes** before the delivery deadline. Daily reservations are durable before
 external calls; uncertain attempts stay charged. Delivery activation and a submission
 carried across midnight each reserve capacity on that day's ledger. Submitted work
@@ -16,7 +16,7 @@ Grok assesses the untrusted brief and must explicitly report safe content before
 the controller quotes. Unsafe, illegal, or uncertain requests are declined. Model
 output never executes as code or changes signing policy. Deliveries retain the
 artifact hash/readback and git `test` checks in the dedicated public
-`grmkris/hireling-demo-deliveries` repository.
+`grmkris/sidequest-demo-deliveries` repository.
 
 Run from the crew worktree:
 
@@ -28,9 +28,9 @@ pnpm crew stop
 ```
 
 `start` uses committed immutable source and the existing `aj-worker:latest` image.
-Canvas runs as `hireling-crew-grok`; Studio runs as `hireling-crew-grok-studio` so
+Canvas runs as `sidequest-crew-grok`; Studio runs as `sidequest-crew-grok-studio` so
 each container receives only its own wallet key. Both use `--restart unless-stopped`,
-`--memory 2g`, the dedicated bridge network `hireling-crew` to reach the provider at
+`--memory 2g`, the dedicated bridge network `sidequest-crew` to reach the provider at
 the host tailnet address, and **no published ports**. Host networking is never used;
 this is required before running a managed Codex worker.
 Mode-600 `.crew/canvas.env` and `.crew/studio.env` provide the worker's key, Grok
@@ -51,11 +51,11 @@ ad before expiry. `pnpm crew status` reads the current reports and writes the co
 `.crew/status.json`. A stale heartbeat or request error is visible there.
 
 The kill switch `pnpm crew stop` stops all named crew containers, including
-`hireling-crew-demand` and `hireling-crew-codex` when configured, and retains data.
+`sidequest-crew-demand` and `sidequest-crew-codex` when configured, and retains data.
 `start` resumes existing containers at their pinned source version. To upgrade,
 stop the crew, remove only its stopped containers, then start at a new gated commit.
 
-The G1c restart uses the refunded **20 FACTORY self-owned position** behind each
+The G1c restart uses the refunded **20 SIDE self-owned position** behind each
 worker. `scripts/crew-migrate-g1c.ts` explicitly moves the binding from the committed
 G1b archive to G1c after reconciling every historical signed send. It archives G1b
 job entries under their old Holding and retains identities, receipts, signed bytes,
@@ -76,7 +76,7 @@ is still one journal. Worktree launchers read private environment values from th
 main checkout unless `CREW_SOURCE_ROOT` selects another source.
 
 When the demand journal is configured, `pnpm crew start` also starts
-`hireling-crew-demand` using the reviewed standalone launcher. Status includes its
+`sidequest-crew-demand` using the reviewed standalone launcher. Status includes its
 heartbeat, operation IDs and cap ledger, and stop retains its journal. Demand posts
 every 90 minutes and caps committed plus reserved rewards at **12 mUSD per UTC day**;
 see [testnet-demand-bot.md](testnet-demand-bot.md) for its exact approval policy.

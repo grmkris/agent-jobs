@@ -14,22 +14,22 @@ export function validateReady({ ready, config, configText, archive, address, row
   assert.match(ready.sendAuthorization, /\S/, 'record the later send authorization reference');
   assert.match(ready.announcement, /\S/, 'record the coordinator announcement reference');
   assert.equal(config.chainId, 10143, 'testnet only');
-  assert.equal(config.deployment.main.kind, 'hireling-v1');
+  assert.equal(config.deployment.main.kind, 'sidequest-v1');
   assert.equal(ready.configSha256, sha256(configText), 'promoted config changed');
   assert.match(ready.assetSha256, /^[0-9a-f]{64}$/, 'pin the released Privy asset hash');
   assert.ok(same(ready.wallet, address), 'readiness belongs to another wallet');
-  assert.ok(same(ready.factory, config.deployment.hireling.factory), 'new token changed');
+  assert.ok(same(ready.factory, config.deployment.sidequest.factory), 'new token changed');
   assert.ok(same(ready.holding, config.deployment.main.holding), 'Holding changed');
-  assert.equal(ready.block, config.deployment.hireling.block, 'deployment block changed');
+  assert.equal(ready.block, config.deployment.sidequest.block, 'deployment block changed');
   assert.ok(archive.archive && !same(archive.deployment.main.holding, config.deployment.main.holding), 'G1 archive and new Holding are required');
-  assert.ok(!same(archive.deployment.hireling.factory, config.deployment.hireling.factory), 'G1b must have new FACTORY v2');
-  assert.ok(config.deployment.hireling.clocks, 'promoted clock readback is missing');
+  assert.ok(!same(archive.deployment.sidequest.factory, config.deployment.sidequest.factory), 'G1b must have new SIDE v2');
+  assert.ok(config.deployment.sidequest.clocks, 'promoted clock readback is missing');
   assert.ok(ready.rows.includes(row), 'this row has not been authorized in the session card');
 }
 
 export async function verifyReadyChain({ reads, config, address, protocol, rewardToken }) {
   const d = config.deployment;
-  const h = d.hireling;
+  const h = d.sidequest;
   assert.ok(d.rewardTokens.some((token) => same(token, rewardToken)), 'reward token is not in the promoted config');
   assert.equal(await reads.getChainId(), 10143, 'RPC is not Monad testnet');
   assert.equal(protocol.network, 'monad-testnet');
@@ -58,7 +58,7 @@ export async function verifyReadyChain({ reads, config, address, protocol, rewar
     reads.readContract({ address: rewardToken, abi: erc20, functionName: 'balanceOf', args: [address] }),
   ]);
   assert.ok(mon > 0n, 'MON funding is missing');
-  assert.ok(factory + free >= 10n ** 18n, 'new FACTORY/stake funding is missing');
+  assert.ok(factory + free >= 10n ** 18n, 'new SIDE/stake funding is missing');
   assert.equal(symbol, 'mUSD');
   assert.equal(decimals, 6);
   assert.ok(reward >= 1_000_000n, 'mUSD funding is missing');

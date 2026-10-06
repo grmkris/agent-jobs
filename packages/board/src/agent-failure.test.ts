@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { ContractFunctionRevertedError, encodeErrorResult, parseAbi } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
 import { AgentFailure, agentFailureReply, errorDiagnostics, failureFromReply } from './agent-failure.ts'

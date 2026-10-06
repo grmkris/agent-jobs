@@ -14,9 +14,9 @@ import { parseAbi, type Hex } from '../../scripts/mining/viem.ts'
 async function main() {
   const rpc = process.env.MONAD_TESTNET_RPC_URL, key = process.env.SAFE_BACKUP_TESTNET_PRIVATE_KEY
   if (!rpc || !key) throw new Error('set the testnet RPC and backup-owner key by environment name')
-  const ctx = context('monad-testnet', 'main', rpc), h = ctx.deployment.hireling
+  const ctx = context('monad-testnet', 'main', rpc), h = ctx.deployment.sidequest
   if (!h || ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143) throw new Error('testnet only')
-  const repo = resolve(import.meta.dirname, '../..'), directory = mkdtempSync(join(tmpdir(), 'hireling-keystore-proof-'))
+  const repo = resolve(import.meta.dirname, '../..'), directory = mkdtempSync(join(tmpdir(), 'sidequest-keystore-proof-'))
   const cast = (args: string[], extraEnv = {}) => {
     const result = spawnSync('cast', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...extraEnv } })
     if (result.status !== 0) throw new Error('keystore command refused')

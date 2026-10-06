@@ -7,7 +7,7 @@ import { expect } from 'vitest'
 import TelegramDrill from './telegram-worker.ts'
 
 const { test, beforeAll, deploy } = Test.make({ providers: Cloudflare.providers(), state: Alchemy.localState(), dev: true })
-const Stack = Alchemy.Stack('HirelingTelegramLocalTest', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
+const Stack = Alchemy.Stack('SidequestTelegramLocalTest', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
   const worker = yield* TelegramDrill
   return { url: worker.url }
 }))

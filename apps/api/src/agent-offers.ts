@@ -1,7 +1,7 @@
 /** Publish a managed hire's frozen terms before the executor can escrow its reward. */
-import { BoardError, canonicalJson } from '@agent-jobs/board'
-import type { AgentPreparedCall } from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
+import { BoardError, canonicalJson } from '@sidequest/board'
+import type { AgentPreparedCall } from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
 import { keccak256, stringToHex } from 'viem'
 import { boardOfTerms, recordOffer } from './registry.ts'
 

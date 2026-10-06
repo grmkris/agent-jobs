@@ -74,11 +74,11 @@ export function toolResult(
         throw new Error("P8_CODEX_UNEXPECTED_TOOL");
       return event.item.type === "mcp_tool_call" ? [event.item] : [];
     });
-  const target = items.filter((item) => item.server === "hireling" && item.tool === name);
+  const target = items.filter((item) => item.server === "sidequest" && item.tool === name);
   if (
     items.some(
       (item) =>
-        item.server !== "hireling" || (item.tool !== name && item.tool !== "get_instructions"),
+        item.server !== "sidequest" || (item.tool !== name && item.tool !== "get_instructions"),
     )
   )
     throw new Error("P8_CODEX_UNEXPECTED_MCP_CALL");
@@ -118,7 +118,7 @@ export class CodingClient {
   ) {
     const saved = run.get<string>(`codex-home/${clientId}`);
     this.home =
-      saved ?? run.set(`codex-home/${clientId}`, mkdtempSync(join(tmpdir(), "hireling-p8-codex-")));
+      saved ?? run.set(`codex-home/${clientId}`, mkdtempSync(join(tmpdir(), "sidequest-p8-codex-")));
     if (!existsSync(this.home)) throw new Error("P8_CODEX_HOME_LOST_RECONCILE_BEFORE_RECONNECT");
     chmodSync(this.home, 0o700);
     this.workdir = join(this.home, "work");
@@ -215,7 +215,7 @@ export class CodingClient {
   async connect(browser: HostedBrowser, agent: ManagedAgent): Promise<void> {
     if (this.run.get(`codex-connected/${this.clientId}`) === true) return;
     if (this.run.get(`codex-added/${this.clientId}`) !== true) {
-      await this.#process(["mcp", "add", "hireling", "--url", `${ORIGIN}/mcp`], "add");
+      await this.#process(["mcp", "add", "sidequest", "--url", `${ORIGIN}/mcp`], "add");
       this.run.set(`codex-added/${this.clientId}`, true);
     }
     let opened = false;
@@ -224,15 +224,15 @@ export class CodingClient {
       [
         "mcp",
         "login",
-        "hireling",
+        "sidequest",
         "--no-browser",
         "--scopes",
-        "hireling:read,hireling:work,hireling:hire",
+        "sidequest:read,sidequest:work,sidequest:hire",
       ],
       "login",
       async (output, input) => {
         if (opened) return;
-        const candidate = output.match(/https:\/\/testnet\.hireling\.xyz\/[^\s]+/)?.[0];
+        const candidate = output.match(/https:\/\/testnet\.sidequest\.xyz\/[^\s]+/)?.[0];
         if (candidate === undefined) return;
         opened = true;
         const url = new URL(candidate);
@@ -261,7 +261,7 @@ export class CodingClient {
 
   async call(name: string, args: Record<string, unknown>, label: string): Promise<ToolResult> {
     this.run.freeze(`mcp-intent/${label}`, { name, args });
-    const prompt = `You are a bounded acceptance client. Call only the hireling MCP tool ${name} exactly once with these exact JSON arguments: ${JSON.stringify(args)}. Do not execute shell commands, search the web, edit files, schedule work, call other tools, or add arguments. Return the tool result; do not claim completion from your own prose. If the call fails, stop. Never alter a brief or spend to work around a refusal.`;
+    const prompt = `You are a bounded acceptance client. Call only the sidequest MCP tool ${name} exactly once with these exact JSON arguments: ${JSON.stringify(args)}. Do not execute shell commands, search the web, edit files, schedule work, call other tools, or add arguments. Return the tool result; do not claim completion from your own prose. If the call fails, stop. Never alter a brief or spend to work around a refusal.`;
     const output = await this.#process(
       ["exec", "--json", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only", prompt],
       label,
@@ -316,7 +316,7 @@ export class CodingClient {
           "--skip-git-repo-check",
           "--sandbox",
           "read-only",
-          `You are a bounded acceptance client. Call only the hireling MCP tool ${name} exactly once with these exact JSON arguments: ${JSON.stringify(args)}. Do not execute shell commands, search the web, edit files, schedule work, call other tools, or add arguments.`,
+          `You are a bounded acceptance client. Call only the sidequest MCP tool ${name} exactly once with these exact JSON arguments: ${JSON.stringify(args)}. Do not execute shell commands, search the web, edit files, schedule work, call other tools, or add arguments.`,
         ],
         `${label}-interrupted`,
         async (output, _input, kill) => {

@@ -82,7 +82,7 @@ const guardedBinding = (fn, origin) => async ({ frame }, args) => {
   catch (error) { throw Object.assign(new Error(`LIVE-UI wallet request stopped (${error.name}); reconcile its journal before retrying`), { code: 4100 }); }
 };
 
-export async function injectWallet(context, { address, request, authorize, origin = 'https://testnet.hireling.xyz' }) {
+export async function injectWallet(context, { address, request, authorize, origin = 'https://dev.sidequest.exchange' }) {
   await context.exposeBinding('__liveWalletRequest', guardedBinding(request, origin));
   await context.exposeBinding('__liveWalletAuthorize', guardedBinding(authorize, origin));
   await context.addInitScript((me) => {

@@ -4,9 +4,9 @@
  * the once-per-address MON drips. Lives in the API's D1 next to the indexer's chain facts; the API Worker is the only
  * writer of these tables, the indexer of its own.
  */
-import type { TenantConfig } from '@agent-jobs/board'
-import { type AsyncSql, type JobRow, configuredJobs, jobAvailability, jobDetail, stmt } from '@agent-jobs/indexer'
-import type { Deployment } from '@agent-jobs/sdk'
+import type { TenantConfig } from '@sidequest/board'
+import { type AsyncSql, type JobRow, configuredJobs, jobAvailability, jobDetail, stmt } from '@sidequest/indexer'
+import type { Deployment } from '@sidequest/sdk'
 
 export const REGISTRY_SCHEMA: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS boards (

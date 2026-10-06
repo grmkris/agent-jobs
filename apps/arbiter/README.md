@@ -7,7 +7,7 @@ environment loaded:
 NETWORK=monad-testnet bun apps/arbiter/src/main.ts --once
 ```
 
-`V1_ARBITRATOR_PRIVATE_KEY` is required only when that network has a Hireling v1
+`V1_ARBITRATOR_PRIVATE_KEY` is required only when that network has a Sidequest v1
 pair. `ARBITRATOR_PRIVATE_KEY` is required only when a current or archived legacy
 pair remains. A mixed testnet deployment needs both keys; a testnet with only
 legacy pairs needs only the legacy key. Mainnet with v1 only needs
@@ -28,6 +28,6 @@ skips the replacement ruling; it does not sign first or ask another account to
 pay. Replenish the reserve for later cancellations.
 
 The cancellation RPC is `MONAD_TESTNET_RPC_URL` on testnet and
-`HIRELING_PROD_MONAD_RPC_URL` on mainnet. A wrong RPC chain or missing configuration
+`SIDEQUEST_PROD_MONAD_RPC_URL` on mainnet. A wrong RPC chain or missing configuration
 refuses. Process secrets stay outside Workers. A mainnet invocation or funding
 transfer requires the coordinator's explicit launch authorization.

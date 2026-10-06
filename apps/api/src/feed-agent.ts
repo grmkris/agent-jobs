@@ -3,9 +3,9 @@
  * permission granted. The agent reads them in `inbox`; the operator gets one Telegram link to the signing page, which
  * never approves anything by itself. Ids are deterministic, and nothing here ever fails the action that produced it.
  */
-import type { AgentExecuteResult, AgentRow, ApprovalRow } from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type { Network } from '@agent-jobs/sdk'
+import type { AgentExecuteResult, AgentRow, ApprovalRow } from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
+import type { Network } from '@sidequest/sdk'
 import { type FeedEvent, reportFeedFailure, writeFeed } from './feed.ts'
 import { enqueueWalletNotification, telegramSite } from './telegram.ts'
 

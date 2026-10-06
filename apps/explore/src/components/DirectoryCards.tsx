@@ -1,4 +1,4 @@
-import type { DirectoryAgent, ServiceAdvertisement } from '@agent-jobs/sdk'
+import type { DirectoryAgent, ServiceAdvertisement } from '@sidequest/sdk'
 import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { ArrowUpRight, Radio, Sparkles } from 'lucide-react'
 import { Badge, EmptyState, ErrorText, LoadingRows, Section } from './ui.tsx'
@@ -43,12 +43,12 @@ export function ServiceShowcase() {
   const entries = (directory.data?.agents ?? []).flatMap((agent) => agent.ads.map((ad) => ({ agent, ad }))).slice(0, 6)
   return <Section title="Live now" note="Current signed service ads, separate from job history. Presence is freshness, not a promise to accept a task or proof of funds.">
     {directory.isLoading ? <LoadingRows rows={2} /> : directory.error !== null ? <ErrorText>The service showcase is unavailable. Job records remain independent.</ErrorText> : entries.length === 0 ? <EmptyState title="Be the first service on the board">An ERC-8004 worker can opt in and advertise before its first job.</EmptyState> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{entries.map(({ agent, ad }) => <ServiceCard key={`${agent.agentId}:${ad.serviceId}`} agent={agent} ad={ad} compact />)}</div>}
-    {directory.data !== undefined && <p className="mt-2 text-xs text-label-3">Observed {new Date(directory.data.observedAt * 1000).toLocaleTimeString()} · opted-in Hireling workers only, not the whole registry.</p>}
+    {directory.data !== undefined && <p className="mt-2 text-xs text-label-3">Observed {new Date(directory.data.observedAt * 1000).toLocaleTimeString()} · opted-in Sidequest workers only, not the whole registry.</p>}
   </Section>
 }
 
 export function DirectorySection({ agent }: { agent: DirectoryAgent }) {
-  return <Section title="Hireling services" note="Signed off-chain ads do not confer job admission, payment, approver, or spending authority. A free/testnet label cannot create a zero-reward job.">
+  return <Section title="Sidequest services" note="Signed off-chain ads do not confer job admission, payment, approver, or spending authority. A free/testnet label cannot create a zero-reward job.">
     <div className="mb-3 grid gap-1"><PresenceBadge agent={agent} /><p className="text-xs text-label-3">Opted in · {agent.profileSource} profile · wallet {agent.ownership}{agent.presence.lastSeenBucket === null ? ' · no heartbeat yet' : ` · last heartbeat around ${new Date(agent.presence.lastSeenBucket * 1000).toLocaleTimeString()}`}</p></div>
     {agent.ads.length === 0 ? <EmptyState title="No current service ads">Expired and revoked ads are not shown. Enrollment and on-chain job history are retained.</EmptyState> : <div className="grid gap-3 sm:grid-cols-2">{agent.ads.map((ad) => <ServiceCard key={ad.serviceId} agent={agent} ad={ad} />)}</div>}
   </Section>

@@ -7,7 +7,7 @@ const source = () => readFileSync(new URL('../../skill/start.md', import.meta.ur
 /** Emit the single repo document under both names; render its URLs at the serving origin. */
 export function startGuide(): Plugin {
   return {
-    name: 'hireling-start-guide',
+    name: 'sidequest-start-guide',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const pathname = (req.url ?? '').split('?')[0] ?? ''

@@ -5,9 +5,9 @@ import * as Test from 'alchemy/Test/Vitest'
 import * as Effect from 'effect/Effect'
 import { expect } from 'vitest'
 import { type LocalAccount, erc20Abi, keccak256, stringToHex } from 'viem'
-import * as sdk from '@agent-jobs/sdk'
-import { AgentExecutor, AgentSigning, AgentStore, Board, BoardError, GrantStore, canonicalJson, fromNodeSqlite, type AgentPreparedCall, type AgentToolRequest } from '@agent-jobs/board'
-import { forkEnabled, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
+import * as sdk from '@sidequest/sdk'
+import { AgentExecutor, AgentSigning, AgentStore, Board, BoardError, GrantStore, canonicalJson, fromNodeSqlite, type AgentPreparedCall, type AgentToolRequest } from '@sidequest/board'
+import { forkEnabled, startSidequestFork } from '../../../packages/sdk/test/sidequest-fixture.ts'
 import AgentOffersProbe from './agent-offers-worker.ts'
 
 const { test, beforeAll, deploy } = Test.make({ providers: Cloudflare.providers(), state: Alchemy.localState(), dev: true })
@@ -37,7 +37,7 @@ test('managed offer publication verifies real workerd R2 and D1, resumes idempot
 test.skipIf(!forkEnabled)('an approval-completed hire has public terms before escrow and needs no MCP retry', Effect.gen(function* () {
   const { url } = yield* stack
   yield* Effect.promise(async () => {
-    const fixture = await startHirelingFork()
+    const fixture = await startSidequestFork()
     const database = new DatabaseSync(':memory:')
     const tenantDatabase = new DatabaseSync(':memory:')
     try {
@@ -73,7 +73,7 @@ test.skipIf(!forkEnabled)('an approval-completed hire has public terms before es
         const preparedAction = prepared as unknown as AgentPreparedCall
         return preparedAction
       }
-      const sponsor = new (await import('@agent-jobs/board')).SponsorDesk({ sql, ctx, now: () => now,
+      const sponsor = new (await import('@sidequest/board')).SponsorDesk({ sql, ctx, now: () => now,
         relay: { account: fixture.admin.account as LocalAccount, rpcUrl: fixture.url }, fail: (code, message) => new BoardError(code, message) })
       const boot = (verify = true) => new AgentExecutor({ sql, context: ctx, now: () => now, sponsor, signing, prepareTool,
         ...(verify ? { verifyAction: async (action: AgentPreparedCall) => {

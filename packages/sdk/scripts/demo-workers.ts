@@ -21,17 +21,17 @@ const directory = process.env.DEMO_WORKER_STATE_DIR
   ? pathToFileURL(`${process.env.DEMO_WORKER_STATE_DIR.replace(/\/$/, '')}/`)
   : new URL('../../../.demo-workers/', import.meta.url)
 const command = process.argv[2] ?? 'status'
-const boardUrl = 'https://testnet.hireling.xyz'
+const boardUrl = 'https://dev.sidequest.exchange'
 const originalCreator = '0xB9970A6371358F6C74DFb15A7cB2653E3AE3E471' as Address
 const crewPolicy = reviewedCrewPolicy(policyConfig)
-const repository = envLocal('DEMO_ARTIFACT_REPO', 'grmkris/hireling-demo-deliveries')
+const repository = envLocal('DEMO_ARTIFACT_REPO', 'grmkris/sidequest-demo-deliveries')
 const proxyUrl = envLocal('DEMO_MODEL_BASE_URL', 'http://127.0.0.1:8317/v1')
 const chatModel = envLocal('DEMO_CHAT_MODEL', 'grok-4.7')
 const imageModel = envLocal('DEMO_IMAGE_MODEL', 'grok-imagine-image')
 const rpc = envLocal('MONAD_TESTNET_RPC_URL')
 const ctx = sdk.context('monad-testnet', 'main', rpc)
-const factory = config.deployment.hireling.factory as Address
-const vault = config.deployment.hireling.vault as Address
+const factory = config.deployment.sidequest.factory as Address
+const vault = config.deployment.sidequest.vault as Address
 const token = config.deployment.rewardTokens[0] as Address
 const allProfiles = [
   { slug: 'canvas', name: 'Grok Canvas', keyVar: 'DEMO_CANVAS_PRIVATE_KEY', price: '3', style: 'Bright, playful illustration and concise useful files' },
@@ -213,11 +213,11 @@ test('delivered files match pinned manifests and image headers', () => {
 const workflow = `name: Artifact validation\non: [push]\npermissions:\n  contents: read\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: '24'\n      - run: node --test validate.test.mjs\n`
 
 async function repositoryReady() {
-  if (!/^[a-zA-Z0-9_-]+\/hireling-demo-deliveries$/.test(repository)) throw new Error('Artifact repository must be a dedicated hireling-demo-deliveries repository')
+  if (!/^[a-zA-Z0-9_-]+\/sidequest-demo-deliveries$/.test(repository)) throw new Error('Artifact repository must be a dedicated sidequest-demo-deliveries repository')
   try { github(`repos/${repository}`) }
   catch {
-    const created = github<{ full_name: string }>('user/repos', { name: 'hireling-demo-deliveries', private: false, auto_init: true,
-      description: 'Real Grok worker deliveries for Hireling Monad testnet demos' })
+    const created = github<{ full_name: string }>('user/repos', { name: 'sidequest-demo-deliveries', private: false, auto_init: true,
+      description: 'Real Grok worker deliveries for Sidequest Monad testnet demos' })
     if (created.full_name !== repository) throw new Error('GitHub repository owner mismatch')
   }
   if (state.values['repository/base']) return state.values['repository/base'] as { sha: string; tree: string }
@@ -374,7 +374,7 @@ async function advance(worker: Runtime, entry: Entry) {
   if (entry.invite) {
     if (task.termsHash !== entry.invite.termsHash) throw new Error('Invited offer differs from the terms the bid was made on')
   } else verifyPickedTerms(entry.request, task.terms, token, parseUnits(worker.profile.price, 6))
-  if (task.kind !== 'hireling-v1' || task.chain.listingMatchesOffer !== true) throw new Error('Selected job does not match the current v1 listing')
+  if (task.kind !== 'sidequest-v1' || task.chain.listingMatchesOffer !== true) throw new Error('Selected job does not match the current v1 listing')
   if (task.chain.status === 'open') {
     if (Object.values(worker.entries).some(other => other !== entry && occupiesWorker(other.phase))) return
     if (task.deliveryDeadline - Math.floor(Date.now() / 1000) < crewPolicy.minimumDeliverySeconds) return
@@ -391,7 +391,7 @@ async function advance(worker: Runtime, entry: Entry) {
       state.values[`${key}/budget`] = { ...prep, budgetSignature }; save()
       activation = await worker.board.call('build_activation', { taskId: task.taskId, budgetSignature })
       if (!activation || activation.transactions.some(tx => tx.to.toLowerCase() !== ctx.stack.holding.toLowerCase()
-        || decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: tx.data }).functionName !== 'activate')) throw new Error('Unexpected activation destination or method')
+        || decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: tx.data }).functionName !== 'activate')) throw new Error('Unexpected activation destination or method')
       state.values[`${key}/activation`] = activation; save()
     }
     await sendTask(worker, task.taskId, `${entry.request.requestId}/activate`, activation.transactions)
@@ -481,7 +481,7 @@ async function tick(worker: Runtime, requests: DemoRequest[]) {
 }
 
 async function initialize(): Promise<Runtime[]> {
-  if (await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'hireling-v1') throw new Error('Only Monad testnet v1 is authorized')
+  if (await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'sidequest-v1') throw new Error('Only Monad testnet v1 is authorized')
   const workers: Runtime[] = []
   for (const profile of profiles) {
     const account = privateKeyToAccount(keyFor(profile.keyVar))
@@ -493,7 +493,7 @@ async function initialize(): Promise<Runtime[]> {
     if (!agentId && command !== 'setup') throw new Error('Run setup to register this worker')
     if (command === 'setup') {
       const deployer = sdk.wallet('monad-testnet', privateKeyToAccount(envLocal('DEPLOYER_PRIVATE_KEY') as Hex), rpc)
-      if (deployer.account.address.toLowerCase() !== config.hireling.allocation.ecosystem.toLowerCase()) throw new Error('Funding signer does not match ecosystem allocation')
+      if (deployer.account.address.toLowerCase() !== config.sidequest.allocation.ecosystem.toLowerCase()) throw new Error('Funding signer does not match ecosystem allocation')
       if (!state.sends[`${profile.slug}/gas`]) {
         const [latest, pending] = await Promise.all(['latest', 'pending'].map(blockTag => ctx.publicClient.getTransactionCount({ address: deployer.account.address, blockTag: blockTag as 'latest' | 'pending' })))
         if (latest !== pending) throw new Error('Funding wallet has pending transactions')
@@ -531,7 +531,7 @@ async function initialize(): Promise<Runtime[]> {
         return { record, signature: await account.signTypedData(sdk.directoryTypedData(record)) }
       })
       await board.call('enroll_directory', enrollment)
-      log(profile.name, 'registered', { agentId, wallet: account.address, stake: '20 FACTORY' })
+      log(profile.name, 'registered', { agentId, wallet: account.address, stake: '20 SIDE' })
     }
     workers.push(worker)
   }

@@ -1,9 +1,9 @@
 {
-  "schema": "hireling-live-ui-reviewed-phases/v1",
+  "schema": "sidequest-live-ui-reviewed-phases/v1",
   "row": "K6-A",
   "status": "source-reviewed; execution held for coordinator",
   "execution": {
-    "origin": "https://testnet.hireling.xyz",
+    "origin": "https://dev.sidequest.exchange",
     "chainId": 10143,
     "operator": "coordinator",
     "signingPerformed": false,
@@ -23,7 +23,7 @@
     "selectorEvidence": "current source at the released commit; no new live DOM or signing run",
     "configPath": "contracts/config/monad-testnet.json",
     "configSha256": "4f77f6299c621885bf50492c3d6dc176923af24c5a5697a0b56633ad56095151",
-    "readOnlyArtifact": "/tmp/hireling-live-ui/g1b-current-readonly-ui/results.json",
+    "readOnlyArtifact": "/tmp/sidequest-live-ui/g1b-current-readonly-ui/results.json",
     "hostedAsset": "/assets/index-Dy9NJawo.js",
     "hostedAssetSha256": "7e9f3ea68f29730f8453086e72d50be419e5e1a6b150bcf58dd7ffbd73f974a9",
     "readyEvidence": "Coordinator announced verified G1b staging release1317560 and new-token funding in this conversation. Revalidate deployment/asset and balances before each authorized phase."
@@ -97,7 +97,7 @@
     },
     {
       "code": "ARCHIVED-JOB-FALLBACK",
-      "evidence": "The artifact visits /job/65. G1 jobs 62-79 were archived; the harness falls back to /job/65 when its job list has no current hireling-v1 job and accepts unavailable/not-indexed copy.",
+      "evidence": "The artifact visits /job/65. G1 jobs 62-79 were archived; the harness falls back to /job/65 when its job list has no current sidequest-v1 job and accepts unavailable/not-indexed copy.",
       "required": "A current G1b job page is not proven by this artifact. Verify the newly published job through exact Holding/client and indexer readback."
     },
     {
@@ -127,12 +127,12 @@
     "apps/explore/src/components/Wallet.tsx"
   ],
   "parameters": {
-    "stakeFACTORY": "20",
+    "stakeSIDE": "20",
     "rewardMUSD": "1",
     "topupMUSD": "0.5",
-    "creatorBondFACTORY": "1",
-    "workerBondFACTORY": "1",
-    "funding": "Coordinator last reported UI=1.5 MON/200 new FACTORY; re-read mUSD >=2.5 for A+C together and current MON reserve. Staking 20 FACTORY does not cross the 10000 tier threshold.",
+    "creatorBondSIDE": "1",
+    "workerBondSIDE": "1",
+    "funding": "Coordinator last reported UI=1.5 MON/200 new SIDE; re-read mUSD >=2.5 for A+C together and current MON reserve. Staking 20 SIDE does not cross the 10000 tier threshold.",
     "placeholders": {
       "JOB_A_ID": null,
       "TASK_A_ID": null,
@@ -145,19 +145,19 @@
   "phases": [
     {
       "row": "K6-A-stake",
-      "coordinatorChecksBefore": ["Fresh UI FACTORY wallet balance >=20, new vault bootstrapped, sufficient MON, no unresolved stake operation; record starting wallet/stake/reserved/available."],
+      "coordinatorChecksBefore": ["Fresh UI SIDE wallet balance >=20, new vault bootstrapped, sufficient MON, no unresolved stake operation; record starting wallet/stake/reserved/available."],
       "steps": [
         {"action": "goto", "path": "/backing"},
         {"action": "wait", "id": "stake-amount"},
         {"action": "capture", "name": "k6-a-stake-before"},
         {"action": "fill", "id": "stake-amount", "value": "20"},
-        {"action": "click", "role": "button", "name": "Stake 20 FACTORY", "exact": true},
+        {"action": "click", "role": "button", "name": "Stake 20 SIDE", "exact": true},
         {"action": "click", "role": "button", "name": "Confirm in your wallet", "exact": true},
         {"action": "wait", "text": "Staked. Your fee tier counts it now.", "exact": false},
         {"action": "capture", "name": "k6-a-stake-after"}
       ],
-      "coordinatorChecksAfter": ["stakeOf and availableOf rise by 20 FACTORY; liquid FACTORY falls by 20; reserved unchanged. Record permit domain, spender=vault, value=20000000000000000000, nonce/deadline and successful stakeWithPermit receipt.", "Record TX testnet <hash> K6-A-stake. No fee tier decrease is expected from 20 FACTORY."],
-      "effects": ["One FACTORY Permit typed-data signature when Stake 20 FACTORY is clicked; one wallet-paid stakeWithPermit transaction."]
+      "coordinatorChecksAfter": ["stakeOf and availableOf rise by 20 SIDE; liquid SIDE falls by 20; reserved unchanged. Record permit domain, spender=vault, value=20000000000000000000, nonce/deadline and successful stakeWithPermit receipt.", "Record TX testnet <hash> K6-A-stake. No fee tier decrease is expected from 20 SIDE."],
+      "effects": ["One SIDE Permit typed-data signature when Stake 20 SIDE is clicked; one wallet-paid stakeWithPermit transaction."]
     },
     {
       "row": "K6-A-prepare",
@@ -165,7 +165,7 @@
         "Same creator wallet and the same durable browser/wallet state directory for every phase.",
         "Start with a new, unfrozen publish draft. If a previous operation is present, reconcile it; do not prepare another offer.",
         "Board SIWE session must be live for the creator. App navigation can automatically request the SIWE signature in a signing-enabled session.",
-        "Available new-vault stake >= 1 FACTORY; liquid mUSD >= 1; no active creator sponsorship.",
+        "Available new-vault stake >= 1 SIDE; liquid mUSD >= 1; no active creator sponsorship.",
         "Current Reward token control must expose the single mUSD radio. If token discovery changes it to a select, stop: drivePlan does not implement selectOption.",
         "Check Git commit is the only selected deliverable kind and Running-cost budget is off; the plan clears the default required GitHub check."
       ],
@@ -173,7 +173,7 @@
         {"action": "goto", "path": "/publish"},
         {"action": "wait", "role": "link", "name": "Your wallet", "exact": true},
         {"action": "fill", "id": "post-title", "value": "LIVE-UI G1b A - Pixel 1943"},
-        {"action": "fill", "id": "post-brief", "value": "Write a short Markdown first-use note for Hireling G1b at https://testnet.hireling.xyz. Cover chain 10143, FACTORY v2 transfers versus mUSD/mEUR faucets, creator selection and worker activation. Submit an accessible Git commit with the note; coordinate submission with the creator after activation and the 0.5 mUSD top-up. Do not claim real Privy login was verified."},
+        {"action": "fill", "id": "post-brief", "value": "Write a short Markdown first-use note for Sidequest G1b at https://dev.sidequest.exchange. Cover chain 10143, SIDE v2 transfers versus mUSD/mEUR faucets, creator selection and worker activation. Submit an accessible Git commit with the note; coordinate submission with the creator after activation and the 0.5 mUSD top-up. Do not claim real Privy login was verified."},
         {"action": "fill", "id": "post-criteria", "value": "The submitted Git commit contains a readable first-use note with the correct G1b network and token-funding distinction.\nIt explains that a named invite still needs creator selection and worker activation.\nIt does not claim Privy login was tested. No GitHub check run is required for this documentation delivery."},
         {"action": "click", "role": "button", "name": "Continue", "exact": true},
         {"action": "click", "role": "radio", "name": "Direct hire Name the agent you want, or let agents apply and pick one. The reward is locked in escrow when you publish; the agent starts once it activates and posts its bond, and is paid when you accept the work.", "exact": true},
@@ -182,7 +182,7 @@
         {"action": "click", "role": "radio", "name": "mUSD", "exact": true},
         {"action": "fill", "id": "post-reward", "value": "1"},
         {"action": "click", "role": "radio", "name": "Fast", "exact": true},
-        {"action": "click", "role": "radio", "name": "Hireling's arbiter", "exact": true},
+        {"action": "click", "role": "radio", "name": "Sidequest's arbiter", "exact": true},
         {"action": "fill", "id": "post-creator-bond", "value": "1"},
         {"action": "fill", "id": "post-worker-bond", "value": "1"},
         {"action": "click", "text": "Advanced", "exact": true},
@@ -263,7 +263,7 @@
         {"action": "wait", "text": "Selected — waiting for worker activation", "exact": true},
         {"action": "capture", "name": "k6-a-selection-after"}
       ],
-      "coordinatorChecksAfter": ["Record the signed Selection termsHash, worker, agentId, nonce and activateBy. get_task.selection state must be signed and chain must still be Open/provider unset.", "HANDOFF 1: Coordinator gives Pixel the exact task/job IDs, terms and cutoff. Pixel stakes enough fresh FACTORY, verifies fee_quote and signs/activates through its own worker tooling only after coordinator clearance. Pixel must wait before submitting."],
+      "coordinatorChecksAfter": ["Record the signed Selection termsHash, worker, agentId, nonce and activateBy. get_task.selection state must be signed and chain must still be Open/provider unset.", "HANDOFF 1: Coordinator gives Pixel the exact task/job IDs, terms and cutoff. Pixel stakes enough fresh SIDE, verifies fee_quote and signs/activates through its own worker tooling only after coordinator clearance. Pixel must wait before submitting."],
       "effects": ["One creator EIP-712 Selection signature; select_worker/submit_selection board records; no creator chain transaction."]
     },
     {

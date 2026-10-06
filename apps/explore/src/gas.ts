@@ -1,17 +1,17 @@
 /**
- * Gas limits for the Hireling v1 calls that push payouts (the ADR-0011 table; decision D4b). Their contracts require a
+ * Gas limits for the Sidequest v1 calls that push payouts (the ADR-0011 table; decision D4b). Their contracts require a
  * fixed gas reserve per push and revert with `TransferGasTooLow` below it, and an estimate does not know that, so these
  * calls go out with at least the measured limit. Monad charges the gas limit, so the floor applies only to calls to the
  * v1 Holding and Evaluator. Pure (gas.test.ts).
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, type Hex, decodeFunctionData } from 'viem'
 
 const FLOORS: ReadonlyArray<{ contract: 'holding' | 'evaluator'; abi: Abi; limits: Record<string, bigint> }> = [
-  { contract: 'holding', abi: sdk.hirelingHoldingAbi as Abi, limits: { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n } },
+  { contract: 'holding', abi: sdk.sidequestHoldingAbi as Abi, limits: { settle: 1_000_000n, claimTopUpRefund: 450_000n, cancel: 700_000n } },
   {
     contract: 'evaluator',
-    abi: sdk.hirelingEvaluatorAbi as Abi,
+    abi: sdk.sidequestEvaluatorAbi as Abi,
     limits: { accept: 1_200_000n, completeAfterSilence: 1_200_000n, rule: 1_200_000n, ruleWithSignature: 1_200_000n, retryDeferred: 300_000n },
   },
 ]

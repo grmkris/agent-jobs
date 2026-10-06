@@ -17,7 +17,7 @@ export function LandingShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 pr-[max(1.25rem,var(--safe-right))] pl-[max(1.25rem,var(--safe-left))]">
           <Link to="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight">
             <Mark />
-            Hireling
+            Sidequest
           </Link>
           <Link to="/jobs" className={buttonVariants({ variant: 'outline' })}>
             Open app
@@ -30,7 +30,7 @@ export function LandingShell({ children }: { children: ReactNode }) {
         <footer className="flex flex-wrap items-center justify-between gap-4 border-t pt-6 text-xs text-muted-foreground">
           <span>
             Rewards are escrowed on Monad; the protocol's admin keeps pause and upgrade powers.{' '}
-            <a className={textLinkClass} href="https://github.com/grmkris/agent-jobs#trust" target="_blank" rel="noreferrer">
+            <a className={textLinkClass} href="https://github.com/grmkris/sidequest#trust" target="_blank" rel="noreferrer">
               Protocol and admin powers
             </a>
           </span>

@@ -117,7 +117,7 @@ export class HostedBrowser {
       const storage = (
         globalThis as unknown as { localStorage: { getItem(key: string): string | null } }
       ).localStorage;
-      return JSON.parse(storage.getItem("agent-jobs.session-owner") ?? "null") as {
+      return JSON.parse(storage.getItem("sidequest.session-owner") ?? "null") as {
         address?: string;
       } | null;
     });
@@ -131,7 +131,7 @@ export class HostedBrowser {
     const session = await this.page.evaluate(() =>
       (
         globalThis as unknown as { localStorage: { getItem(key: string): string | null } }
-      ).localStorage.getItem("agent-jobs.session"),
+      ).localStorage.getItem("sidequest.session"),
     );
     if (session !== null) {
       // A persisted browser session is accepted only after real authenticated readback.
@@ -161,8 +161,8 @@ export class HostedBrowser {
                 /^Sign and continue$/.test(button.textContent?.trim() ?? ""),
             ) ||
             document.querySelector('input[type="email"]') !== null ||
-            (localStorage.getItem("agent-jobs.session") !== null &&
-              localStorage.getItem("agent-jobs.session-owner") !== null)
+            (localStorage.getItem("sidequest.session") !== null &&
+              localStorage.getItem("sidequest.session-owner") !== null)
           );
         },
         undefined,
@@ -174,8 +174,8 @@ export class HostedBrowser {
     const ready = await this.page.evaluate(() => {
       const { localStorage } = globalThis as unknown as LoginPageState;
       return (
-        localStorage.getItem("agent-jobs.session") !== null &&
-        localStorage.getItem("agent-jobs.session-owner") !== null
+        localStorage.getItem("sidequest.session") !== null &&
+        localStorage.getItem("sidequest.session-owner") !== null
       );
     });
     if (ready) {
@@ -231,8 +231,8 @@ export class HostedBrowser {
             Array.from(document.querySelectorAll("button")).some((button) =>
               /^Sign and continue$/.test(button.textContent?.trim() ?? ""),
             ) ||
-            (localStorage.getItem("agent-jobs.session") !== null &&
-              localStorage.getItem("agent-jobs.session-owner") !== null)
+            (localStorage.getItem("sidequest.session") !== null &&
+              localStorage.getItem("sidequest.session-owner") !== null)
           );
         },
         undefined,
@@ -245,7 +245,7 @@ export class HostedBrowser {
       const message = await this.page.locator("#privy-modal-content").innerText();
       if (
         !message.includes(
-          "testnet.hireling.xyz wants you to sign in with your Ethereum account:",
+          "dev.sidequest.exchange wants you to sign in with your Ethereum account:",
         ) ||
         !message.includes("Chain ID: 10143")
       )
@@ -261,8 +261,8 @@ export class HostedBrowser {
             globalThis as unknown as { localStorage: { getItem(key: string): string | null } }
           ).localStorage;
           return (
-            storage.getItem("agent-jobs.session") !== null &&
-            storage.getItem("agent-jobs.session-owner") !== null
+            storage.getItem("sidequest.session") !== null &&
+            storage.getItem("sidequest.session-owner") !== null
           );
         },
         undefined,
@@ -283,7 +283,7 @@ export class HostedBrowser {
         const storage = (
           globalThis as unknown as { localStorage: { getItem(key: string): string | null } }
         ).localStorage;
-        const token = storage.getItem("agent-jobs.session");
+        const token = storage.getItem("sidequest.session");
         const response = await fetch(endpoint, {
           method: payload === undefined ? "GET" : "POST",
           headers: {
@@ -328,7 +328,7 @@ export class HostedBrowser {
     const journals = await this.page.evaluate(() => {
       const storage = (globalThis as unknown as { localStorage: Storage }).localStorage;
       return Object.keys(storage)
-        .filter((key) => key.startsWith("hireling.op:"))
+        .filter((key) => key.startsWith("sidequest.op:"))
         .map((key) => JSON.parse(storage.getItem(key) ?? "null") as { hashes?: unknown[] });
     });
     for (const journal of journals) {

@@ -1,5 +1,5 @@
 /**
- * Acting as the Safe that owns Hireling v1 (threshold 1): an owner calls `execTransaction` itself with a pre-validated
+ * Acting as the Safe that owns Sidequest v1 (threshold 1): an owner calls `execTransaction` itself with a pre-validated
  * signature (`r` = the owner, `s` = 0, `v` = 1), which the Safe accepts because the caller is that owner. No Safe
  * transaction service. A pre-validated signature commits to nothing but the caller, so `MiningReserve.fund`, which is
  * additive, instead carries the owner's EIP-712 signature of the Safe transaction at one nonce (D18): any other Safe

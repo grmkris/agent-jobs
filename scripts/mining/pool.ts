@@ -1,5 +1,5 @@
 /** USD prices have 18 decimals; all ratios round up so truncation never increases emission. */
-export const FACTORY_PRICE_FLOOR = 10n ** 14n
+export const SIDE_PRICE_FLOOR = 10n ** 14n
 export const HOUR = 3600n
 
 export interface MidPrice {
@@ -17,7 +17,7 @@ function checkQuote(decimals: number, usdPrice: bigint): void {
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36 || usdPrice <= 0n) throw new Error('invalid pool quote price')
 }
 
-/** Constant-product raw reserves, FACTORY always 18 decimals. */
+/** Constant-product raw reserves, SIDE always 18 decimals. */
 export function reserveMidPrice(factoryReserve: bigint, quoteReserve: bigint, quoteDecimals: number, quoteUsdPrice: bigint): MidPrice {
   checkQuote(quoteDecimals, quoteUsdPrice)
   const factoryUsdPrice = ceilingRatio(quoteReserve * 10n ** 18n * quoteUsdPrice, factoryReserve * 10n ** BigInt(quoteDecimals))
@@ -56,13 +56,13 @@ export interface PriceSelection {
 /** Missing hours never replace existing samples. No samples require the immediately previous signed epoch price. */
 export function selectFactoryPrice(epoch: bigint, samples: readonly bigint[], previousSignedPrice?: bigint): PriceSelection {
   if (epoch < 0n || samples.some(price => price <= 0n)) throw new Error('invalid factory price inputs')
-  let highest = FACTORY_PRICE_FLOOR
+  let highest = SIDE_PRICE_FLOOR
   for (const price of samples) if (price > highest) highest = price
   if (samples.length > 0) return { factoryUsdPrice: highest, source: 'highest-hourly-sample' }
-  if (epoch === 0n) return { factoryUsdPrice: FACTORY_PRICE_FLOOR, source: 'epoch-zero-floor' }
+  if (epoch === 0n) return { factoryUsdPrice: SIDE_PRICE_FLOOR, source: 'epoch-zero-floor' }
   if (previousSignedPrice === undefined || previousSignedPrice <= 0n) throw new Error('no pool samples: previous epoch signed price is required')
   return {
-    factoryUsdPrice: previousSignedPrice > FACTORY_PRICE_FLOOR ? previousSignedPrice : FACTORY_PRICE_FLOOR,
+    factoryUsdPrice: previousSignedPrice > SIDE_PRICE_FLOOR ? previousSignedPrice : SIDE_PRICE_FLOOR,
     source: 'previous-signed-price',
   }
 }

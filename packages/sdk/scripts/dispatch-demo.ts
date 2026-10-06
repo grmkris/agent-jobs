@@ -1,6 +1,6 @@
 /**
  * Demo step 1 on testnet through the Dispatch adapter (`sdk.dispatchPublisher`): a Cloudflare OS Dispatch task is
- * published to agent-jobs as a quote request by the OS's wallet (the Privy server wallet: the OS holds no key), the
+ * published to sidequest as a quote request by the OS's wallet (the Privy server wallet: the OS holds no key), the
  * OS owner picks a bidder's quote, which publishes the escrowed hire and selects the bidder, and later decides after
  * its own review.
  *
@@ -8,7 +8,7 @@
  *   MODE=decide  BOARD_URL=… TASK_ID=… DECISION=accept|reject [VIOLATION=… REASON=…] bun packages/sdk/scripts/dispatch-demo.ts
  *
  * The Dispatch task below is the shape `DispatchSession.createTask` stores in Cloudflare OS; in the OS it comes from
- * the owner's chat, here it is inlined so the agent-jobs side runs without the OS checkout.
+ * the owner's chat, here it is inlined so the sidequest side runs without the OS checkout.
  */
 import type { Address } from 'viem'
 import * as sdk from '../src/index.ts'

@@ -38,14 +38,14 @@ const cw = sdk.boardClient(BOARD)
 const send = (client: ReturnType<typeof sdk.boardClient>, w: sdk.Wallet, taskId: string, txs: sdk.TxRequest[], who: string) =>
   sendReported(client, w, ctx.publicClient, taskId, txs, who, ctx.deployment.delegation.delegator)
 
-// The Privy wallet as an ERC-8004 agent holding FACTORY for its bond and the hold gate.
+// The Privy wallet as an ERC-8004 agent holding SIDE for its bond and the hold gate.
 const factory = ctx.deployment.factory
 if ((await sdk.balanceOf(ctx, factory, privy.account.address)) < 3n * 10n ** 18n) {
   const r = await sdk.faucet(ctx, privy, factory)
-  log('privy', `faucet FACTORY → https://testnet.monadscan.com/tx/${r.transactionHash}`)
+  log('privy', `faucet SIDE → https://testnet.monadscan.com/tx/${r.transactionHash}`)
 }
 if (state.privyAgentId === undefined) {
-  const id = await sdk.registerAgent(ctx, privy, 'https://github.com/grmkris/agent-jobs#testnet-privy-worker')
+  const id = await sdk.registerAgent(ctx, privy, 'https://github.com/grmkris/sidequest#testnet-privy-worker')
   state.privyAgentId = id.toString()
   writeFileSync(STATE, `${JSON.stringify(state, null, 2)}\n`)
   log('privy', `registered as ERC-8004 agent ${id}`)

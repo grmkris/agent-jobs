@@ -1,4 +1,4 @@
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { useState } from "react";
 import { type Address, decodeFunctionData } from "viem";
 import { useSignTypedData } from "wagmi";
@@ -64,7 +64,7 @@ function OperationApproval({
   async function prepare() {
     if (request.publish === undefined || request.token === undefined || agent.address === null)
       throw new Error("The exact hire request is incomplete");
-    const decoded = decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: request.publish });
+    const decoded = decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: request.publish });
     if (decoded.functionName !== "publish")
       throw new Error("This decision does not name a publish");
     const params = decoded.args[0];
@@ -91,7 +91,7 @@ function OperationApproval({
     if (approved && approval.kind === "unstake") {
       if (
         request.call === undefined ||
-        request.call.to.toLowerCase() !== deployment.hireling.vault.toLowerCase()
+        request.call.to.toLowerCase() !== deployment.sidequest.vault.toLowerCase()
       )
         throw new Error("The leaving target is not the vault");
       const decoded = decodeFunctionData({ abi: sdk.stakeVaultAbi, data: request.call.data });

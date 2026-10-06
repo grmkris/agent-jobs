@@ -1,7 +1,7 @@
 /**
  * Addresses come from `contracts/config/<network>.json`, the file the deployment recipe writes; never from code
- * (AGENTS.md). One network, one core and the current Hireling pair. Readers also retain every legacy pair and
- * its own FACTORY token; legacy jobs never switch contracts when a new pair deploys.
+ * (AGENTS.md). One network, one core and the current Sidequest pair. Readers also retain every legacy pair and
+ * its own SIDE token; legacy jobs never switch contracts when a new pair deploys.
  */
 import type { Address } from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
@@ -9,10 +9,10 @@ import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 
 
 export type Network = 'monad-testnet' | 'monad-mainnet'
 export type StackName = 'main' | 'demo' | 'fast'
-export type StackKind = 'legacy' | 'hireling-v1'
+export type StackKind = 'legacy' | 'sidequest-v1'
 
 /** Deploy-time protocol clocks. Values are seconds unless the field name says otherwise. */
-export interface HirelingClocks {
+export interface SidequestClocks {
   readonly minReviewWindow: number
   readonly minDisputeWindow: number
   readonly minArbitrationWindow: number
@@ -25,26 +25,26 @@ export interface HirelingClocks {
 }
 
 /** Production values used when an older deployment record has no clocks block. */
-export const PRODUCTION_CLOCKS: HirelingClocks = Object.freeze({
+export const PRODUCTION_CLOCKS: SidequestClocks = Object.freeze({
   minReviewWindow: 3600, minDisputeWindow: 3600, minArbitrationWindow: 43200,
   unstakeDelay: 604800, holdingDelay: 691200, feeDelay: 259200, proposalGrace: 604800,
   epochZeroDuration: 259200, epochDuration: 604800,
 })
 
 /** The 14-day window ceilings stay compiled constants (D24). */
-export const MAX_HIRELING_WINDOW = 14 * 86400
+export const MAX_SIDEQUEST_WINDOW = 14 * 86400
 
-export function clocksFromConfig(value: HirelingClocks | undefined, chainId: number): HirelingClocks {
-  if (value !== undefined && (value === null || typeof value !== 'object' || Array.isArray(value))) throw new Error('Invalid Hireling clocks block')
+export function clocksFromConfig(value: SidequestClocks | undefined, chainId: number): SidequestClocks {
+  if (value !== undefined && (value === null || typeof value !== 'object' || Array.isArray(value))) throw new Error('Invalid Sidequest clocks block')
   const clocks = { ...(value ?? PRODUCTION_CLOCKS) }
-  for (const key of Object.keys(PRODUCTION_CLOCKS) as Array<keyof HirelingClocks>) {
+  for (const key of Object.keys(PRODUCTION_CLOCKS) as Array<keyof SidequestClocks>) {
     const seconds = clocks[key]
     const minimum = key.startsWith('epoch') ? 600 : key.startsWith('min') ? 1 : 60
-    const maximum = key.startsWith('min') ? MAX_HIRELING_WINDOW : 2 ** 48 - 1
-    if (!Number.isSafeInteger(seconds) || seconds < minimum || seconds > maximum) throw new Error(`Invalid Hireling clock ${key}`)
+    const maximum = key.startsWith('min') ? MAX_SIDEQUEST_WINDOW : 2 ** 48 - 1
+    if (!Number.isSafeInteger(seconds) || seconds < minimum || seconds > maximum) throw new Error(`Invalid Sidequest clock ${key}`)
     if (chainId === 143 && seconds !== PRODUCTION_CLOCKS[key]) throw new Error(`Mainnet requires production clock ${key}`)
   }
-  if (clocks.holdingDelay <= clocks.unstakeDelay) throw new Error('Hireling holdingDelay must exceed unstakeDelay')
+  if (clocks.holdingDelay <= clocks.unstakeDelay) throw new Error('Sidequest holdingDelay must exceed unstakeDelay')
   return clocks
 }
 
@@ -60,7 +60,7 @@ export interface Stack {
   readonly openTokens: boolean
 }
 
-export interface HirelingDeployment {
+export interface SidequestDeployment {
   readonly block: bigint
   /** Owner Safe for every v1 contract and the core admin roles. */
   readonly safe: Address
@@ -72,7 +72,7 @@ export interface HirelingDeployment {
   readonly teamVesting: Address
   /** Launch time, in Unix seconds, used for the mining epochs. */
   readonly t0: number
-  readonly clocks?: HirelingClocks
+  readonly clocks?: SidequestClocks
 }
 
 /** The caveat enforcers an execution budget is built from (MetaMask's `…Enforcer` contracts, ADR-0009). */
@@ -99,7 +99,7 @@ export interface Deployment {
   readonly core: Address
   readonly factory: Address
   /** The v1 protocol contracts, or null before the v1 recipe has deployed. */
-  readonly hireling: HirelingDeployment | null
+  readonly sidequest: SidequestDeployment | null
   /**
    * Known reward tokens, which the apps list first: the faucet tokens and the config's `knownTokens` (testnet
    * `$CHOMP`, mainnet USDC). Not a gate: a reward may be any ERC-20 (ADR-0010).
@@ -147,7 +147,7 @@ export interface DeploymentConfig {
     block?: number
     core?: string
     factory?: string
-    hireling?: {
+    sidequest?: {
       block: number
       safe: string
       factory: string
@@ -157,7 +157,7 @@ export interface DeploymentConfig {
       miningReserve: string
       teamVesting: string
       t0: number
-      clocks?: HirelingClocks
+      clocks?: SidequestClocks
     }
     rewardTokens?: string[]
     poolFactory?: string
@@ -179,12 +179,12 @@ interface StackEntry {
 const validAddress = (value: unknown): value is Address => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 
 const stackOf = (s: StackEntry, fallbackFactory: string, mixed: boolean): Stack => {
-  if (mixed && s.kind === undefined) throw new Error('Hireling deployment requires an explicit kind on every pair')
+  if (mixed && s.kind === undefined) throw new Error('Sidequest deployment requires an explicit kind on every pair')
   const kind = s.kind === undefined ? 'legacy' : s.kind
-  if (kind !== 'legacy' && kind !== 'hireling-v1') throw new Error('Unknown deployment stack kind')
-  // Only pre-v1 legacy configurations may omit the per-pair FACTORY.
+  if (kind !== 'legacy' && kind !== 'sidequest-v1') throw new Error('Unknown deployment stack kind')
+  // Only pre-v1 legacy configurations may omit the per-pair SIDE.
   const factory = !mixed && s.factory === undefined && kind === 'legacy' ? fallbackFactory : s.factory
-  if (!validAddress(factory)) throw new Error('Deployment stack requires a FACTORY address')
+  if (!validAddress(factory)) throw new Error('Deployment stack requires a SIDE address')
   return { kind, factory, holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true }
 }
 
@@ -212,34 +212,34 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   if (c.network !== network) throw new Error('Deployment config network mismatch')
   const d = c.deployment
   if (d.core === undefined || d.factory === undefined || d.main === undefined) throw new NotDeployedError(network)
-  const mixed = d.hireling !== undefined
-  if (mixed && d.main.kind !== 'hireling-v1') throw new Error('Hireling deployment requires a hireling-v1 main pair')
+  const mixed = d.sidequest !== undefined
+  if (mixed && d.main.kind !== 'sidequest-v1') throw new Error('Sidequest deployment requires a sidequest-v1 main pair')
   const stacks: Partial<Record<StackName, Stack>> = { main: stackOf(d.main, d.factory, mixed) }
   if (d.demo != null) stacks.demo = stackOf(d.demo, d.factory, mixed)
   if (d.fast != null) stacks.fast = stackOf(d.fast, d.factory, mixed)
   const legacyStacks = Object.fromEntries(Object.entries(d.legacy ?? {}).map(([name, s]) => [name, stackOf(s, d.factory!, mixed)]))
-  let hireling: HirelingDeployment | null = null
-  if (d.hireling !== undefined) {
-    const h = d.hireling
+  let sidequest: SidequestDeployment | null = null
+  if (d.sidequest !== undefined) {
+    const h = d.sidequest
     for (const name of ['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
-      if (!validAddress(h[name])) throw new Error(`Hireling deployment requires ${name}`)
+      if (!validAddress(h[name])) throw new Error(`Sidequest deployment requires ${name}`)
     }
-    if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0) throw new Error('Hireling deployment requires block and launch time')
+    if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0) throw new Error('Sidequest deployment requires block and launch time')
     const clocks = h.clocks === undefined ? undefined : clocksFromConfig(h.clocks, c.chainId)
-    hireling = { block: BigInt(h.block), safe: h.safe as Address, factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
+    sidequest = { block: BigInt(h.block), safe: h.safe as Address, factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
       distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0,
       ...(clocks === undefined ? {} : { clocks }) }
   }
   for (const s of [...Object.values(stacks), ...Object.values(legacyStacks)]) {
-    if (s?.kind === 'hireling-v1' && (hireling === null || s.factory.toLowerCase() !== hireling.factory.toLowerCase())) throw new Error('Hireling stack requires its matching v1 deployment')
+    if (s?.kind === 'sidequest-v1' && (sidequest === null || s.factory.toLowerCase() !== sidequest.factory.toLowerCase())) throw new Error('Sidequest stack requires its matching v1 deployment')
   }
-  if (stacks.main?.kind === 'hireling-v1' && stacks.main.factory.toLowerCase() !== d.factory.toLowerCase()) throw new Error('Current Hireling FACTORY does not match deployment FACTORY')
+  if (stacks.main?.kind === 'sidequest-v1' && stacks.main.factory.toLowerCase() !== d.factory.toLowerCase()) throw new Error('Current Sidequest SIDE does not match deployment SIDE')
   return {
     network,
     chainId: c.chainId,
     core: d.core as Address,
     factory: d.factory as Address,
-    hireling,
+    sidequest,
     rewardTokens: (d.rewardTokens ?? []) as Address[],
     stacks,
     legacyStacks,

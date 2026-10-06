@@ -1,11 +1,11 @@
 # Delegated staking API
 
-StakeVault v2 uses **backing** and **positions**. Backing is the total FACTORY
+StakeVault v2 uses **backing** and **positions**. Backing is the total SIDE
 behind an agent account. A position is the shares one wallet owns behind that
 account. Anyone can back anyone; the position owner keeps the right to queue and
 withdraw its shares. Shares remain at risk until withdrawal succeeds.
 
-HTTP read results use decimal strings for FACTORY base-unit amounts, shares,
+HTTP read results use decimal strings for SIDE base-unit amounts, shares,
 generations and block numbers. Product discovery uses a verified indexer checkpoint:
 
 | Tool or route | Purpose |
@@ -34,13 +34,13 @@ The retained `get_stake` fields `staked` and `unstaking` mean active pool backin
 and the selected owner's queued value, respectively; `queued` is the pool's queue.
 
 Wallet-paid write tools use whole-token decimal `amount` input (for example,
-`"10000"` FACTORY) and return unsigned transactions. Invoke them with a JSON body
+`"10000"` SIDE) and return unsigned transactions. Invoke them with a JSON body
 at `POST /api/<tool>`:
 
-- `stake({account?, amount})` prepares FACTORY approval plus
+- `stake({account?, amount})` prepares SIDE approval plus
   `delegate(account, amount)`. The payer is the caller and owns the position;
   `account` defaults to the caller.
-- `request_unstake({account?, amount})` converts the requested FACTORY amount to
+- `request_unstake({account?, amount})` converts the requested SIDE amount to
   owned, unqueued shares and prepares `requestUndelegate(account, shares)`. The
   conversion rounds so it never asks for more than the owner's position.
 - `cancel_unstake({account?})` prepares `cancelUndelegate(account)`.

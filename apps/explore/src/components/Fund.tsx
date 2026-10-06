@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { useState } from 'react'
 import { formatEther, formatUnits } from 'viem'
 import { useBalance, useReadContracts } from 'wagmi'
@@ -46,14 +46,14 @@ function FundPanel({ address, onClose }: { address: `0x${string}`; onClose: () =
         <li className="flex justify-between"><span>{chain.nativeCurrency.symbol}</span><span>{mon.data === undefined ? '…' : Number(formatEther(mon.data.value)).toFixed(4)}</span></li>
         {tokens.map((t, i) => {
           const v = balances.data?.[i]?.result as bigint | undefined
-          const info = t === deployment.factory ? { symbol: 'FACTORY', decimals: 18 } : tokenInfo(t)
+          const info = t === deployment.factory ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
           return <li key={t} className="flex justify-between"><span>{info.symbol}</span><span>{v === undefined ? '…' : formatUnits(v, info.decimals)}</span></li>
         })}
       </ul>
       {!isMainnet && (
         <p className="text-xs text-label-2">
           Testnet: MON for gas from <a className="underline" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">faucet.monad.xyz</a>;
-          FACTORY v2 is transferred to your copied wallet address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain <code>faucet()</code>.
+          SIDE v2 is transferred to your copied wallet address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain <code>faucet()</code>.
         </p>
       )}
       <p className="mt-2 text-xs text-label-3">Explorer: <Address value={address} /></p>
@@ -73,7 +73,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
     [chain.nativeCurrency.symbol, 'Gas', mon.data === undefined ? undefined : formatNumber(mon.data.value, 18)],
     ...tokens.map((t, i): [string, string, string | undefined] => {
       const v = balances.data?.[i]?.result as bigint | undefined
-      const info = t === deployment.factory ? { symbol: 'FACTORY', decimals: 18 } : tokenInfo(t)
+      const info = t === deployment.factory ? { symbol: 'SIDE', decimals: 18 } : tokenInfo(t)
       return [info.symbol, t === deployment.factory ? 'For bonds' : 'Reward token', v === undefined ? undefined : formatNumber(v, info.decimals)]
     }),
   ]
@@ -89,7 +89,7 @@ export function WalletCard({ address }: { address: `0x${string}` }) {
             <a className="text-tint" href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">
               faucet.monad.xyz
             </a>
-            ; FACTORY v2 is transferred to this address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain faucet(). Test tokens have no value.
+            ; SIDE v2 is transferred to this address by the ecosystem/coordinator; mUSD and mEUR each have an on-chain faucet(). Test tokens have no value.
           </>
         )
       }

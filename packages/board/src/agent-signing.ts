@@ -1,5 +1,5 @@
 /** Persist each provider request before signing and recover its exact result after restarts. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, type SignedAuthorization, recoverTypedDataAddress } from 'viem'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { AgentStore } from './agents.ts'

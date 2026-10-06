@@ -18,8 +18,8 @@ export const PRICE_LIST_TYPES = {
   ],
 } as const
 
-/** Below this FACTORY price ($0.0001, 18 decimals) the mining tool counts the floor. */
-export const FACTORY_PRICE_FLOOR = 10n ** 14n
+/** Below this SIDE price ($0.0001, 18 decimals) the mining tool counts the floor. */
+export const SIDE_PRICE_FLOOR = 10n ** 14n
 
 export interface TokenPrice {
   token: Address
@@ -31,7 +31,7 @@ export interface TokenPrice {
 export interface PriceList {
   epoch: bigint
   tokens: TokenPrice[]
-  /** USD per whole FACTORY, 18 decimals. */
+  /** USD per whole SIDE, 18 decimals. */
   factoryUsdPrice: bigint
 }
 
@@ -43,7 +43,7 @@ export interface PriceDraft {
 }
 
 export const priceListDomain = (chainId: number, distributor: string) =>
-  ({ name: 'Hireling Mining Prices', version: '1', chainId, verifyingContract: getAddress(distributor) }) as const
+  ({ name: 'Sidequest Mining Prices', version: '1', chainId, verifyingContract: getAddress(distributor) }) as const
 
 const usd = (text: string): bigint | null => (/^\d+(\.\d{1,18})?$/.test(text.trim()) ? parseUnits(text.trim(), 18) : null)
 
@@ -63,7 +63,7 @@ export function priceListOf(d: PriceDraft): PriceList | string {
   }
   if (tokens.length === 0) return 'Price at least one token: fees in unpriced tokens do not count.'
   const factoryUsdPrice = usd(d.factoryUsd)
-  if (factoryUsdPrice === null || factoryUsdPrice === 0n) return 'Enter the FACTORY price in USD, above 0.'
+  if (factoryUsdPrice === null || factoryUsdPrice === 0n) return 'Enter the SIDE price in USD, above 0.'
   return { epoch: BigInt(d.epoch.trim()), tokens, factoryUsdPrice }
 }
 

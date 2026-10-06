@@ -11,7 +11,7 @@ REST and MCP expose `mining_proof({wallet, epoch})`, where `epoch` is a canonica
 { epoch, account, token, amount, proof, root, dataHash, eligible, claimed, transactions }
 ```
 
-Amounts are FACTORY base units. The reader uses `claims[wallet.toLowerCase()]` from the epoch artifact. It verifies
+Amounts are SIDE base units. The reader uses `claims[wallet.toLowerCase()]` from the epoch artifact. It verifies
 the OpenZeppelin double-hashed `(uint256 epoch, address account, uint256 amount)` leaf and sorted-pair proof with
 viem, checks the artifact's chain, epoch and input `dataHash`, and compares root, total and `dataHash` with the
 distributor's current `rootOf(epoch)`. No Merkle package dependency is needed. A malformed artifact, mismatched root,
@@ -23,9 +23,9 @@ allocation with `claimed: true` and no transaction. Otherwise the result include
 `delegateFor(account, account, amount)`: the leaf's named account owns the resulting
 self-position. The payer of the claim acquires no shares. It adds to that account's
 active backing; it does not fund an operator-owned position or transfer liquid
-FACTORY to either wallet. Claims remain wallet-paid.
+SIDE to either wallet. Claims remain wallet-paid.
 
-Backing is total FACTORY behind an account; a position is one owner's shares.
+Backing is total SIDE behind an account; a position is one owner's shares.
 Read `get_stake({account, wallet: account})` for backing and the mining self-position,
 or `list_delegations({wallet: account})` for indexed discovery. An operator's separate
 position behind that agent stays operator-owned. Positions do not follow an

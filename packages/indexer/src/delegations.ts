@@ -1,6 +1,6 @@
 /** Candidate owners from the existing event ledger. Values are always read from the canonical vault. */
 import { getAddress, type Address } from 'viem'
-import type { DelegationCandidate } from '@agent-jobs/sdk'
+import type { DelegationCandidate } from '@sidequest/sdk'
 import type { AsyncSql } from './store.ts'
 
 export interface DelegationFilters {

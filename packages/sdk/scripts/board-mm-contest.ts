@@ -41,7 +41,7 @@ const mmAddress = await metamaskAddress()
 // 1. An ERC-8004 agent owned by the cast worker, its agent wallet set to the MetaMask address by MetaMask's signature.
 const identity = ctx.deployment.identity
 if (state.metamaskAgentId === undefined) {
-  const id = await sdk.registerAgent(ctx, owner, 'https://github.com/grmkris/agent-jobs#testnet-metamask-agent')
+  const id = await sdk.registerAgent(ctx, owner, 'https://github.com/grmkris/sidequest#testnet-metamask-agent')
   state.metamaskAgentId = id.toString()
   writeFileSync(STATE, `${JSON.stringify(state, null, 2)}\n`)
   log('owner', `registered agent ${id}`)

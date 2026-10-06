@@ -7,7 +7,7 @@ import { assertDemandTransactions, demandAcceptTransaction, demandCanonicalJson,
 import { type DemandOperation, abandonDemandOperation, openDemandStore, persistDemandManifest } from './demand-bot-store.ts'
 import { collectDemandOperation } from './demand-bot-collect.ts'
 
-export const DEMAND_BOARD_URL = 'https://testnet.hireling.xyz'
+export const DEMAND_BOARD_URL = 'https://dev.sidequest.exchange'
 
 export function demandLog(event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ at: new Date().toISOString(), bot: 'demand', event, ...fields }))
@@ -38,7 +38,7 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
   const journal = new sdk.FlowJournal(ctx, store.state, store.save, (operation, hash) => demandLog('transaction', { operation, hash }))
 
   async function validateChain() {
-    if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'hireling-v1') throw new Error('only Monad testnet v1 is authorized')
+    if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || ctx.stack.kind !== 'sidequest-v1') throw new Error('only Monad testnet v1 is authorized')
     const [symbol, decimals] = await Promise.all([
       ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'symbol' }),
       ctx.publicClient.readContract({ address: token, abi: sdk.factoryTokenAbi, functionName: 'decimals' }),
@@ -86,7 +86,7 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
   async function newRequest(now: number) {
     const template = templateForSequence(store.bot.sequence)
     const bounds = await sdk.readWindowBounds(ctx)
-    const arbitrator = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.hirelingHoldingAbi, functionName: 'defaultArbitrator' })
+    const arbitrator = await ctx.publicClient.readContract({ address: ctx.stack.holding, abi: sdk.sidequestHoldingAbi, functionName: 'defaultArbitrator' })
     const id = `demand-${store.bot.sequence}`
     const window = demandQuoteWindow(now)
     const operation: DemandOperation = {
@@ -187,7 +187,7 @@ export function createDemandRuntime(key: Hex, rpc: string, directory: string) {
         for (const log of receipt.logs) {
           if (getAddress(log.address) !== getAddress(ctx.stack.holding)) continue
           try {
-            const event = decodeEventLog({ abi: sdk.hirelingHoldingAbi, topics: log.topics, data: log.data })
+            const event = decodeEventLog({ abi: sdk.sidequestHoldingAbi, topics: log.topics, data: log.data })
             if (event.eventName === 'Published' && getAddress(event.args.creator) === account.address && event.args.policyHash === prepared.termsHash) operation.jobId = event.args.jobId
           } catch { /* Other Holding events. */ }
         }

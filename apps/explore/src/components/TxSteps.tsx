@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { Check, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Hex, TransactionReceipt } from 'viem'
@@ -6,7 +6,7 @@ import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi'
 import { getBlock, getBlockNumber, getTransaction, getTransactionCount, waitForTransactionReceipt } from 'wagmi/actions'
 import { type TxRequest, boardApi } from '../api.ts'
 import { batchGasLimit, gasLimit } from '../gas.ts'
-import { hireling } from '../hireling.ts'
+import { sidequest } from '../sidequest.ts'
 import { type SponsorOperation, sponsorApi, sponsorCalls, sponsorKey, sponsorable, submitFailure, useLiveSponsorship } from '../sponsor.ts'
 import { friendlyError } from '../txErrors.ts'
 import { chain, wagmiConfig, writesOpen } from '../wallet.ts'
@@ -30,9 +30,9 @@ const RECHECK_MS = [1000, 2000, 3000, 4000, 5000]
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const SPONSORED = {
-  lost: 'Hireling’s relay did not answer, so whether it sent these steps is unknown. Check again: the relay never sends the same steps twice.',
-  checking: 'Hireling’s relay did not answer. Checking whether it sent these steps…',
-  slow: 'Hireling’s relay sent it and Monad has not mined it yet. Check again in a moment.',
+  lost: 'Sidequest’s relay did not answer, so whether it sent these steps is unknown. Check again: the relay never sends the same steps twice.',
+  checking: 'Sidequest’s relay did not answer. Checking whether it sent these steps…',
+  slow: 'Sidequest’s relay sent it and Monad has not mined it yet. Check again in a moment.',
 }
 
 const UNCERTAIN = {
@@ -46,9 +46,9 @@ const load = (key: string, required = false) => readTxJournal(localStorage, key,
 const save = (key: string, record: OpRecord | null) => writeTxJournal(localStorage, key, record)
 
 const SPONSORED_LABEL: Partial<Record<Status['at'], string>> = {
-  idle: 'Waiting · Hireling pays the gas',
-  signing: 'Sending through Hireling…',
-  sent: 'Sent by Hireling · waiting for Monad…',
+  idle: 'Waiting · Sidequest pays the gas',
+  signing: 'Sending through Sidequest…',
+  sent: 'Sent by Sidequest · waiting for Monad…',
 }
 
 const LABEL: Record<Status['at'], string> = {
@@ -63,7 +63,7 @@ const LABEL: Record<Status['at'], string> = {
 
 /**
  * The transactions a board tool returned (or the app built, `reportToBoard={false}`), from the wallet to the chain
- * and back to the board. When the signed-in wallet's gas sponsorship covers every step (U7b), Hireling's relay sends
+ * and back to the board. When the signed-in wallet's gas sponsorship covers every step (U7b), Sidequest's relay sends
  * them as one transaction with no wallet prompt, and anything it refuses goes from the wallet with the reason. From
  * the Privy wallet several go out as one transaction (EIP-7702 batch) with one confirmation; otherwise one at a
  * time. Each step shows where it is (confirm in wallet, sent, confirmed, recorded); failures say what happened in
@@ -159,7 +159,7 @@ export function TxSteps({
   )
   const [switching, setSwitching] = useState<string | null>(null)
   const [pendingHash, setPendingHash] = useState('')
-  // Why the steps went from the wallet after Hireling was going to pay; once set, the relay is not offered again.
+  // Why the steps went from the wallet after Sidequest was going to pay; once set, the relay is not offered again.
   const [notice, setNotice] = useState<{ text: string; hash?: Hex } | null>(null)
   const [sponsorOff, setSponsorOff] = useState(false)
   const sending = useRef(false)
@@ -275,7 +275,7 @@ export function TxSteps({
         timeout: 60_000,
       })
       if (receipt.status !== 'success') {
-        await toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
+        await toWallet('Sidequest sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', hash)
         return
       }
       const effectError = receiptGuard?.(receipt, txs)
@@ -293,12 +293,12 @@ export function TxSteps({
     // Reverted or dropped: nothing happened, and a retry with this key would only answer the same. The steps go to
     // the wallet with a record that has no key, so a later sponsored attempt is a new operation with a new key.
     if (op.status === 'reverted') {
-      await toWallet('Hireling sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', op.txHash)
+      await toWallet('Sidequest sent these steps and the transaction reverted, so nothing changed. You can send them from your wallet; you pay the gas.', op.txHash)
       return
     }
     if (op.status === 'dropped') {
       await toWallet(
-        'Hireling’s relay transaction was replaced before it was mined, so nothing happened. You can send these from your wallet; you pay the gas.',
+        'Sidequest’s relay transaction was replaced before it was mined, so nothing happened. You can send these from your wallet; you pay the gas.',
         op.txHash,
       )
       return
@@ -573,10 +573,10 @@ export function TxSteps({
     try {
       if (authoritative.batch) {
         if (batch === null) throw new Error('This wallet cannot send a batch; send them one at a time.')
-        hash = await batch(boardSteps, batchGasLimit(txs, hireling))
+        hash = await batch(boardSteps, batchGasLimit(txs, sidequest))
       } else {
         const tx = txs[i]!
-        const gas = gasLimit(tx, hireling)
+        const gas = gasLimit(tx, sidequest)
         hash = await sendTransactionAsync({
           ...walletStepRequest(tx, from, chain.id),
           ...(gas === undefined ? {} : { gas }),
@@ -623,7 +623,7 @@ export function TxSteps({
   const current = status[next]
   // `autoStart`: the tap that showed these steps was the decision, so the wallet opens at once for a fresh operation
   // (never for one restored from a reload, which reconciles instead).
-  // It waits for the sponsorship status, so a step Hireling pays for never opens the wallet first.
+  // It waits for the sponsorship status, so a step Sidequest pays for never opens the wallet first.
   const autoStarted = useRef(false)
   useEffect(() => {
     if (journalError !== null || !autoStart || autoStarted.current || !sponsorship.settled || started || hasSavedJournal()) return
@@ -750,7 +750,7 @@ export function TxSteps({
                         ? `Waiting · ${txs.length} steps as one transaction`
                         : s.at === 'uncertain' && s.checking === true
                           ? record.sponsored === true
-                            ? 'Checking with Hireling…'
+                            ? 'Checking with Sidequest…'
                             : 'Checking the chain…'
                           : LABEL[s.at]}
                     {'hash' in s && s.hash !== undefined && <TxLink hash={s.hash} />}
@@ -779,8 +779,8 @@ export function TxSteps({
               ? 'Try again'
               : record.sponsored === true
                 ? txs.length > 1
-                  ? `Send all ${txs.length} · Hireling pays the gas`
-                  : 'Send · Hireling pays the gas'
+                  ? `Send all ${txs.length} · Sidequest pays the gas`
+                  : 'Send · Sidequest pays the gas'
                 : record.batch
                   ? `Confirm ${txs.length > 1 ? `all ${txs.length} as one transaction` : ''}`.trim()
                   : txs.length > 1

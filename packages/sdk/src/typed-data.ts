@@ -33,10 +33,10 @@ export interface Authorization {
 }
 
 export const holdingDomain = (chainId: number, holding: Address) =>
-  ({ name: 'AgentJobsHolding', version: '1', chainId, verifyingContract: holding }) as const
+  ({ name: 'SidequestHolding', version: '1', chainId, verifyingContract: holding }) as const
 
 export const evaluatorDomain = (chainId: number, evaluator: Address) =>
-  ({ name: 'AgentJobsEvaluator', version: '1', chainId, verifyingContract: evaluator }) as const
+  ({ name: 'SidequestEvaluator', version: '1', chainId, verifyingContract: evaluator }) as const
 
 export const coreDomain = (chainId: number, core: Address) =>
   ({ name: 'ERC8183', version: '1', chainId, verifyingContract: core }) as const

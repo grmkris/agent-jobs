@@ -1,4 +1,4 @@
-import type { Phase } from '@agent-jobs/react'
+import type { Phase } from '@sidequest/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { BriefcaseBusiness, ChevronRight, Search, Tag as TagIcon } from 'lucide-react'

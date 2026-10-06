@@ -3,7 +3,7 @@ import {
   type Abi, type AbiFunction, type Address, type Hex, concat, encodeAbiParameters,
   encodeFunctionData, encodePacked, erc20Abi, isAddress, pad, toFunctionSelector,
 } from 'viem'
-import { coreAbi, hirelingEvaluatorAbi, hirelingHoldingAbi, identityAbi, stakeVaultAbi } from '../abi/index.ts'
+import { coreAbi, sidequestEvaluatorAbi, sidequestHoldingAbi, identityAbi, stakeVaultAbi } from '../abi/index.ts'
 import type { Deployment, Stack } from '../deployment.ts'
 import { type Caveat, type Delegation, ROOT_AUTHORITY, delegationHash, delegationManagerAbi } from './index.ts'
 import { type PermissionTerms, buildPermission } from './permissions.ts'
@@ -65,11 +65,11 @@ function functions(target: GrantTarget): readonly AbiFunction[] {
 /** D15, with each method bound to its own target in application validation as well as the on-chain lists. */
 export function workTargets(ctx: GrantContext): readonly GrantTarget[] {
   const { deployment: d, stack } = ctx
-  if (stack.kind !== 'hireling-v1' || d.hireling === null) throw new Error('Grants require a Hireling v1 deployment')
+  if (stack.kind !== 'sidequest-v1' || d.sidequest === null) throw new Error('Grants require a Sidequest v1 deployment')
   return [
-    { address: stack.holding, abi: hirelingHoldingAbi, methods: ['activate', 'cancel', 'cancelSelection', 'claimTopUpRefund', 'settle', 'withdraw'] },
-    { address: stack.evaluator, abi: hirelingEvaluatorAbi, methods: ['accept', 'reject', 'dispute', 'completeAfterSilence', 'rejectAfterDeliveryDeadline', 'rejectAfterWindow', 'refundAfterArbitrationTimeout', 'retryDeferred'] },
-    { address: d.hireling.vault, abi: stakeVaultAbi, methods: ['cancelUndelegate', 'withdraw'] },
+    { address: stack.holding, abi: sidequestHoldingAbi, methods: ['activate', 'cancel', 'cancelSelection', 'claimTopUpRefund', 'settle', 'withdraw'] },
+    { address: stack.evaluator, abi: sidequestEvaluatorAbi, methods: ['accept', 'reject', 'dispute', 'completeAfterSilence', 'rejectAfterDeliveryDeadline', 'rejectAfterWindow', 'refundAfterArbitrationTimeout', 'retryDeferred'] },
+    { address: d.sidequest.vault, abi: stakeVaultAbi, methods: ['cancelUndelegate', 'withdraw'] },
     { address: d.core, abi: coreAbi, methods: ['submit', 'submitClaim', 'claimRefund'] },
   ]
 }
@@ -95,11 +95,11 @@ export function grantTargets(ctx: GrantContext, spec: GrantSpec): readonly Grant
     case 'allowance-once':
       return [{ address: spec.token, abi: erc20Abi, methods: ['transfer'] }]
     case 'unstake':
-      if (d.hireling === null) throw new Error('Unstaking requires a Hireling v1 deployment')
-      return [{ address: d.hireling.vault, abi: stakeVaultAbi, methods: ['requestUndelegate'] }]
+      if (d.sidequest === null) throw new Error('Unstaking requires a Sidequest v1 deployment')
+      return [{ address: d.sidequest.vault, abi: stakeVaultAbi, methods: ['requestUndelegate'] }]
     case 'permission':
       // An exact call names its target only; checkPermissionExecution, not a method list, decides what it may do.
-      return spec.terms.type === 'hireling:contract-call' ? [{ address: spec.terms.target, abi: [], methods: [] }]
+      return spec.terms.type === 'sidequest:contract-call' ? [{ address: spec.terms.target, abi: [], methods: [] }]
         : [{ address: spec.terms.token, abi: erc20Abi, methods: ['transfer'] }]
   }
 }
@@ -120,13 +120,13 @@ export function grantExpiry(spec: GrantSpec): number {
 }
 
 export function grantCallLimit(spec: GrantSpec): number {
-  if (spec.kind === 'permission') return spec.terms.type === 'hireling:contract-call' ? 1 : GRANT_CALLS
+  if (spec.kind === 'permission') return spec.terms.type === 'sidequest:contract-call' ? 1 : GRANT_CALLS
   return spec.kind === 'registration' ? 2 : spec.kind === 'unstake' || spec.kind === 'allowance-once' || spec.kind === 'agent-approve-once' ? 1 : GRANT_CALLS
 }
 
 /** Whether the delegation carries a LimitedCalls caveat (token permissions are bounded by amount, not by calls). */
 export function grantHasCallLimit(spec: GrantSpec): boolean {
-  return spec.kind !== 'allowance' && (spec.kind !== 'permission' || spec.terms.type === 'hireling:contract-call')
+  return spec.kind !== 'allowance' && (spec.kind !== 'permission' || spec.terms.type === 'sidequest:contract-call')
 }
 
 export function buildGrant(ctx: GrantContext, spec: GrantSpec): Delegation {
@@ -185,7 +185,7 @@ export function describeGrant(ctx: GrantContext, spec: GrantSpec, grant: Delegat
   assertGrant(ctx, spec, grant)
   if (spec.kind === 'permission') {
     const t = spec.terms
-    const call = t.type === 'hireling:contract-call'
+    const call = t.type === 'sidequest:contract-call'
     return {
       kind: spec.kind,
       chainId: ctx.deployment.chainId,

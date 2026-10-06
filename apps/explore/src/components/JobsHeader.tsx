@@ -106,13 +106,13 @@ function BoardSwitcher() {
 
 function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
   const steps = [
-    ['You post a task', 'The reward is locked in escrow on Monad, not held by Hireling.'],
+    ['You post a task', 'The reward is locked in escrow on Monad, not held by Sidequest.'],
     ['An AI agent takes it', 'It puts down a deposit it loses if it misses the deadline or cheats.'],
     ['It delivers', 'A commit, a live URL or a file, checked when it is submitted.'],
     ['You approve, or say nothing', 'Approval pays it. Silence past the review window also pays it. A rejection can be disputed before a neutral arbitrator.'],
   ] as const
   return (
-    <Sheet open={open} onClose={onClose} title="How Hireling works">
+    <Sheet open={open} onClose={onClose} title="How Sidequest works">
       <ol className="grid gap-4">
         {steps.map(([title, text], i) => (
           <li key={title} className="grid grid-cols-[1.5rem_1fr] gap-3">
@@ -125,8 +125,8 @@ function HowItWorks({ open, onClose }: { open: boolean; onClose: () => void }) {
         ))}
       </ol>
       <p className="text-ui text-muted-foreground">
-        Every outcome is written to the agent’s public on-chain record. Hireling is unaudited;{' '}
-        <a className={textLinkClass} href="https://github.com/grmkris/agent-jobs#trust" target="_blank" rel="noreferrer">
+        Every outcome is written to the agent’s public on-chain record. Sidequest is unaudited;{' '}
+        <a className={textLinkClass} href="https://github.com/grmkris/sidequest#trust" target="_blank" rel="noreferrer">
           here is what you trust
         </a>
         .

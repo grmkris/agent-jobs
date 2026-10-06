@@ -1,7 +1,7 @@
 /** All-board Collect discovery. Normal cron lag is bounded; stale or divergent discovery refuses the whole read. */
-import { BoardError, type CollectSnapshot } from '@agent-jobs/board'
-import { type AsyncSql, indexStatus, delegationsOf } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { BoardError, type CollectSnapshot } from '@sidequest/board'
+import { type AsyncSql, indexStatus, delegationsOf } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
 import type { Address } from 'viem'
 
 /** Two cron intervals, also checked against the canonical block's timestamp. */
@@ -24,13 +24,13 @@ export async function collectSnapshot(sql: AsyncSql, ctx: sdk.Ctx, wallet: Addre
     `SELECT DISTINCT e.contract AS holding, p.token FROM payout_owed p JOIN events e
      ON e.chain_id=p.chain_id AND e.job_id=p.job_id AND e.block=p.block AND e.log_index=p.log_index
      WHERE p.chain_id=? AND lower(p.recipient)=lower(?)`, ctx.deployment.chainId, wallet)
-  const roots = ctx.deployment.hireling === null ? [] : await sql.all<{ args_json: string }>(
+  const roots = ctx.deployment.sidequest === null ? [] : await sql.all<{ args_json: string }>(
     "SELECT args_json FROM protocol_events WHERE chain_id=? AND lower(contract)=lower(?) AND name='RootSet' ORDER BY block,log_index",
-    ctx.deployment.chainId, ctx.deployment.hireling.distributor)
+    ctx.deployment.chainId, ctx.deployment.sidequest.distributor)
   const epochs = [...new Set(roots.map(r => String((JSON.parse(r.args_json) as { epoch: string }).epoch)))]
-  const positions = ctx.deployment.hireling === null ? [] : await delegationsOf(sql, ctx.deployment.chainId, ctx.deployment.hireling.vault, wallet, cp.next_block)
+  const positions = ctx.deployment.sidequest === null ? [] : await delegationsOf(sql, ctx.deployment.chainId, ctx.deployment.sidequest.vault, wallet, cp.next_block)
   const after = await indexStatus(sql, ctx.deployment.chainId)
   if (after === null || after.next_block !== cp.next_block || after.updated_at !== cp.updated_at) throw new BoardError('chain', 'the collect index changed during discovery; retry shortly')
   const configured = (holding: string) => sdk.stackByHolding(ctx.deployment, holding) !== undefined
-  return { jobs: jobs.filter(job => configured(job.holding)), tokens: tokens.filter(token => configured(token.holding)), ...(ctx.deployment.hireling === null ? {} : { epochs, positions }) }
+  return { jobs: jobs.filter(job => configured(job.holding)), tokens: tokens.filter(token => configured(token.holding)), ...(ctx.deployment.sidequest === null ? {} : { epochs, positions }) }
 }

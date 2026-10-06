@@ -27,7 +27,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     const p = await j.once(`${scope}/offer`, async () => {
       const t = await now()
       const deadline = t + (flow === 'missed' ? 120 : options.deliverySeconds ?? 6 * 3600)
-      const limits = pair.stack.kind === 'hireling-v1' ? sdk.minimumOfferWindows(await sdk.readWindowBounds(pair)) : null
+      const limits = pair.stack.kind === 'sidequest-v1' ? sdk.minimumOfferWindows(await sdk.readWindowBounds(pair)) : null
       const windows = limits === null ? { reviewWindow: 0, disputeWindow: 0, arbitrationWindow: 0 }
         : { reviewWindow: limits.reviewSeconds, disputeWindow: limits.disputeSeconds, arbitrationWindow: limits.arbitrationSeconds }
       return {
@@ -45,7 +45,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
       }
     })
     await approve('approve-reward', creator, p.token, pair.stack.holding, p.reward)
-    const request = pair.stack.kind === 'hireling-v1' ? p : {
+    const request = pair.stack.kind === 'sidequest-v1' ? p : {
       approver: p.approver,
       manifestHash: p.manifestHash,
       policyHash: p.policyHash,
@@ -58,7 +58,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
       mode: flow === 'legacy-contest' ? 1 : 0,
       selectionDeadline: flow === 'legacy-contest' ? p.deliveryDeadline - 60 : 0,
     }
-    const abi = pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi
+    const abi = pair.stack.kind === 'sidequest-v1' ? sdk.sidequestHoldingAbi : sdk.jobHoldingAbi
     const receipt = await call('publish', creator, pair.stack.holding, abi, 'publish', [request])
     let jobId: bigint | undefined
     for (const log of receipt.logs) {
@@ -76,7 +76,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
   async function activate(x: Awaited<ReturnType<typeof publish>>, pair = ctx) {
     const selectionData = await j.once(`${scope}/selection`, async () => {
       const listing = await sdk.getListing(pair, x.jobId)
-      if (pair.stack.kind === 'hireling-v1')
+      if (pair.stack.kind === 'sidequest-v1')
         sdk.assertActivationTerms(await sdk.getV1Listing(pair, x.jobId), { ...x.p, creator: creator.account.address })
       const selection = { jobId: x.jobId, worker: worker.account.address, agentId: d.agentId,
         termsHash: x.p.policyHash, activateBy: x.p.deliveryDeadline - 1, nonce: sdk.randomNonce() }
@@ -86,7 +86,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     // Requote an unsigned attempt. A saved send resumes its exact bytes and original authorization.
     let data: typeof selectionData & { auth: sdk.Authorization; net: bigint }
     if (j.state.sends[`${scope}/activate`] === undefined) {
-      const net = pair.stack.kind === 'hireling-v1'
+      const net = pair.stack.kind === 'sidequest-v1'
         ? (await sdk.quoteActivation(pair, x.jobId, worker.account.address))[2] : selectionData.reward
       const auth = await sdk.signBudget(pair, worker, {
         jobId: x.jobId, token: x.p.token, amount: net, deadline: BigInt(await now() + 3600),
@@ -97,7 +97,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     } else {
       data = j.state.values[`${scope}/activation`] as typeof data
     }
-    await call('activate', worker, pair.stack.holding, pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi,
+    await call('activate', worker, pair.stack.holding, pair.stack.kind === 'sidequest-v1' ? sdk.sidequestHoldingAbi : sdk.jobHoldingAbi,
       'activate', [data.selection, data.sig, data.auth])
     return data.net
   }
@@ -105,7 +105,7 @@ export function v1FlowActions(d: V1FlowDeps, flow: V1CoreFlow, scope: string) {
     return call('submit', worker, ctx.deployment.core, sdk.coreAbi, 'submit', [jobId, sdk.hashText(`deliverable:${flow}`), '0x'])
   }
   function settle(jobId: bigint, pair = ctx) {
-    return call('settle', relay, pair.stack.holding, pair.stack.kind === 'hireling-v1' ? sdk.hirelingHoldingAbi : sdk.jobHoldingAbi,
+    return call('settle', relay, pair.stack.holding, pair.stack.kind === 'sidequest-v1' ? sdk.sidequestHoldingAbi : sdk.jobHoldingAbi,
       'settle', [jobId], sdk.V1_GAS.settle)
   }
   return { now, receipts, call, approve, publish, activate, submit, settle }

@@ -25,10 +25,10 @@ export const migrationManifest = Object.freeze({
 })
 
 export const sourceHashes = Object.freeze({
-  'apps/api/src/directory-object.ts': '91f8561a5c6238fd8eaec78d3fa2824e7046925cea91f9575963771e78745ffb',
-  'apps/api/src/directory.ts': '885d42de81d740f1be5dabd121384622b53367c866a5004df28770db73da80fc',
-  'apps/api/src/directory-projection.ts': '0f0fdea6424480291fd6f80cfa19a7d1e2591a0c5e15146c1175414b364de430',
-  'packages/board/src/directory.ts': 'd1ddb3b19aa648565ddbc4cc007f0f60da9312ee8e5326bc5052ae71b1218802',
+  'apps/api/src/directory-object.ts': '5605a76b9ce16fe138dc1ef004a7fe927116771eb90a7c9b6367c903d68bd3eb',
+  'apps/api/src/directory.ts': '3dfb85950dc9b6876f3fbfdfdc5069d0f3e89074d78b9e337ba235c53d4ad544',
+  'apps/api/src/directory-projection.ts': '1a79e34edd996b6ae3cb076b06405d8034e3970c6673ea5b0e9d65f3e1420dff',
+  'packages/board/src/directory.ts': '3a87cf9c02f24712c2c9ec8f803c0e69bf42eb04ee9bdddbfe777f17e281b165',
 })
 
 export function loadPinnedDirectorySchema(repoRoot = pinnedSourceRoot) {

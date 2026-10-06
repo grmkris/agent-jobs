@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi, keccak256, parseTransaction } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -34,14 +34,14 @@ const dbs: DatabaseSync[] = []
 afterEach(() => dbs.splice(0).forEach((db) => db.close()))
 const addr = (n: string) => `0x${n.repeat(40)}` as Address
 
-/** A SponsorDesk on testnet's deployment with Hireling contracts at fixed addresses and a stubbed chain, as B6's own tests. */
+/** A SponsorDesk on testnet's deployment with Sidequest contracts at fixed addresses and a stubbed chain, as B6's own tests. */
 function board() {
   const owner = privateKeyToAccount(generatePrivateKey())
   const relay = privateKeyToAccount(generatePrivateKey())
   const base = sdk.context('monad-testnet', 'main', 'http://127.0.0.1:1')
-  const stack: sdk.Stack = { ...base.stack, kind: 'hireling-v1', holding: addr('1'), evaluator: addr('2') }
-  const hireling = { block: 0n, factory: stack.factory, safe: addr('4'), vault: addr('3'), feeSchedule: addr('5'), distributor: addr('6'), miningReserve: addr('7'), teamVesting: addr('8'), t0: 1 }
-  const deployment = { ...base.deployment, relay: relay.address, stacks: { main: stack }, hireling }
+  const stack: sdk.Stack = { ...base.stack, kind: 'sidequest-v1', holding: addr('1'), evaluator: addr('2') }
+  const sidequest = { block: 0n, factory: stack.factory, safe: addr('4'), vault: addr('3'), feeSchedule: addr('5'), distributor: addr('6'), miningReserve: addr('7'), teamVesting: addr('8'), t0: 1 }
+  const deployment = { ...base.deployment, relay: relay.address, stacks: { main: stack }, sidequest }
   const db = new DatabaseSync(':memory:')
   dbs.push(db)
   let used = 0n
@@ -75,9 +75,9 @@ function board() {
   const ctx = { ...base, deployment, stack, publicClient: client } as unknown as sdk.Ctx
   const desk = new SponsorDesk({ sql: fromNodeSqlite(db), ctx, relay: { account: relay, rpcUrl: 'http://127.0.0.1:1' }, now: () => 1_800_000_000, fail })
   const sign = (typedData: string) => sdk.signTypedDataJson({ account: owner, signTypedData: (args: Parameters<typeof owner.signTypedData>[0]) => owner.signTypedData(args) } as never, typedData)
-  const rules = sponsorRulesFor({ holding: stack.holding, evaluator: stack.evaluator, vault: hireling.vault }, deployment)
+  const rules = sponsorRulesFor({ holding: stack.holding, evaluator: stack.evaluator, vault: sidequest.vault }, deployment)
   const tx = (to: Address, data: Hex): TxRequest => ({ description: 'step', chainId: deployment.chainId, to, data, value: '0' })
-  return { desk, owner, relay, stack, hireling, deployment, rules, sign, tx, client, setBalance: (n: bigint) => (balance = n) }
+  return { desk, owner, relay, stack, sidequest, deployment, rules, sign, tx, client, setBalance: (n: bigint) => (balance = n) }
 }
 
 describe('Explore against the board’s real sponsorship desk', () => {
@@ -109,8 +109,8 @@ describe('Explore against the board’s real sponsorship desk', () => {
     expect(read).toMatchObject({ ok: true })
     if (!read.ok) return
     const live = { policy: read.policy, callsUsed: status.callsUsed }
-    const settle = b.tx(b.stack.holding, encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [1n] }))
-    const topUp = b.tx(b.stack.holding, encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'topUp', args: [1n, 1n] }))
+    const settle = b.tx(b.stack.holding, encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'settle', args: [1n] }))
+    const topUp = b.tx(b.stack.holding, encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'topUp', args: [1n, 1n] }))
     const approve = b.tx(b.deployment.rewardTokens[0] as Address, encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [b.stack.holding, 1n] }))
     expect(sponsorable([settle], live, b.deployment.chainId, 1_800_000_000)).toBe(true)
     expect(sponsorable([topUp], live, b.deployment.chainId, 1_800_000_000)).toBe(false)
@@ -121,7 +121,7 @@ describe('Explore against the board’s real sponsorship desk', () => {
     const b = board()
     const prep = await b.desk.prepare(b.owner.address)
     await b.desk.confirm(b.owner.address, await b.sign(prep.sign.typedData))
-    const call = { to: b.stack.holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [1n] }), value: '0' as const }
+    const call = { to: b.stack.holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'settle', args: [1n] }), value: '0' as const }
     const grant = (await b.desk.status(b.owner.address)).delegationHash!
     const key = sponsorKey()
     const op = await b.desk.submit(b.owner.address, [{ grant, calls: [call] }], key)

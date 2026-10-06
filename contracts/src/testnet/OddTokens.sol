@@ -6,7 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title BlocklistUSD
 /// @notice Testnet only (C11): a 6-decimal stablecoin stand-in whose owner can block an address, like USDC's
-///         blocklist. Live evidence for Hireling v1's M2 path: block the worker after activation and a payout is
+///         blocklist. Live evidence for Sidequest v1's M2 path: block the worker after activation and a payout is
 ///         deferred and then owed instead of blocking the decision. Not for mainnet; worth nothing.
 contract BlocklistUSD is ERC20, Ownable {
     mapping(address account => bool) public blocked;

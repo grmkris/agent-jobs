@@ -35,7 +35,7 @@ library Recipe {
         IERC8004Reputation reputation;
         bool factoryFaucet;
         address factoryMinter;
-        /// @dev An existing bond token (e.g. FACTORY launched elsewhere); zero deploys our `FactoryToken`.
+        /// @dev An existing bond token (e.g. SIDE launched elsewhere); zero deploys our `FactoryToken`.
         address factoryToken;
         uint256 minHoldToPublish;
         uint256 minHoldToClaim;
@@ -110,7 +110,7 @@ library Recipe {
             d.factory = IERC20(
                 address(
                     new FactoryToken(
-                        c.factoryFaucet ? "Factory (testnet)" : "Factory", "FACTORY", c.factoryFaucet, c.factoryMinter
+                        c.factoryFaucet ? "Factory (testnet)" : "Factory", "SIDE", c.factoryFaucet, c.factoryMinter
                     )
                 )
             );

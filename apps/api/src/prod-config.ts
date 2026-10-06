@@ -1,16 +1,16 @@
 import { decodeFunctionResult, encodeFunctionData, parseAbi, parseEther } from 'viem'
 
 export const prodSecretSources = {
-  MONAD_RPC_URL: 'HIRELING_PROD_MONAD_RPC_URL',
-  RELAY_PRIVATE_KEY: 'HIRELING_PROD_RELAY_PRIVATE_KEY',
-  ATTESTER_PRIVATE_KEY: 'HIRELING_PROD_ATTESTER_PRIVATE_KEY',
-  AI_GATEWAY_API_KEY: 'HIRELING_PROD_AI_GATEWAY_API_KEY',
-  GITHUB_APP_PRIVATE_KEY: 'HIRELING_PROD_GITHUB_APP_PRIVATE_KEY',
-  HYPERSYNC_API_TOKEN: 'HIRELING_PROD_HYPERSYNC_API_TOKEN',
-  TELEGRAM_BOT_TOKEN: 'HIRELING_PROD_TELEGRAM_BOT_TOKEN',
-  TELEGRAM_WEBHOOK_SECRET: 'HIRELING_PROD_TELEGRAM_WEBHOOK_SECRET',
-  PRIVY_APP_SECRET: 'HIRELING_PROD_PRIVY_APP_SECRET',
-  PRIVY_SIGNER_KEY: 'HIRELING_PROD_PRIVY_SIGNER_KEY',
+  MONAD_RPC_URL: 'SIDEQUEST_PROD_MONAD_RPC_URL',
+  RELAY_PRIVATE_KEY: 'SIDEQUEST_PROD_RELAY_PRIVATE_KEY',
+  ATTESTER_PRIVATE_KEY: 'SIDEQUEST_PROD_ATTESTER_PRIVATE_KEY',
+  AI_GATEWAY_API_KEY: 'SIDEQUEST_PROD_AI_GATEWAY_API_KEY',
+  GITHUB_APP_PRIVATE_KEY: 'SIDEQUEST_PROD_GITHUB_APP_PRIVATE_KEY',
+  HYPERSYNC_API_TOKEN: 'SIDEQUEST_PROD_HYPERSYNC_API_TOKEN',
+  TELEGRAM_BOT_TOKEN: 'SIDEQUEST_PROD_TELEGRAM_BOT_TOKEN',
+  TELEGRAM_WEBHOOK_SECRET: 'SIDEQUEST_PROD_TELEGRAM_WEBHOOK_SECRET',
+  PRIVY_APP_SECRET: 'SIDEQUEST_PROD_PRIVY_APP_SECRET',
+  PRIVY_SIGNER_KEY: 'SIDEQUEST_PROD_PRIVY_SIGNER_KEY',
 } as const
 
 export interface ProdStack {
@@ -23,7 +23,7 @@ export interface ProdStack {
   openTokens?: boolean | undefined
 }
 
-export interface ProdHireling {
+export interface ProdSidequest {
   block: number | null
   safe?: string | null | undefined
   /** Artifact only (LAUNCH-AUDIT-003): the reviewed Safe owners and threshold that D16 reads back live. */
@@ -54,7 +54,7 @@ export interface ProdArtifact {
   addresses: Record<string, string | null>
   deployment: {
     main: ProdStack
-    hireling: ProdHireling
+    sidequest: ProdSidequest
     legacy?: Record<string, ProdStack> | undefined
     /** LAUNCH-AUDIT-004: the promoted reward-token list, which must contain USDC. */
     rewardTokens?: string[] | undefined
@@ -90,15 +90,15 @@ export interface ChainConfig {
   faucetTokens: { names: string[]; symbols: string[] }
   knownTokens: string[]
   stacks: { names: string[] }
-  /** HirelingRecipe's input; the preflight reads the default arbitrator and clocks from it (LAUNCH-AUDIT-FIX-001). */
-  hireling?: { defaultArbitrator?: string | null; clocks?: LaunchClocks } | null
+  /** SidequestRecipe's input; the preflight reads the default arbitrator and clocks from it (LAUNCH-AUDIT-FIX-001). */
+  sidequest?: { defaultArbitrator?: string | null; clocks?: LaunchClocks } | null
   deployment: {
     network?: string
     block?: number
     core?: string
     factory?: string
     main?: ProdStack
-    hireling?: ProdHireling
+    sidequest?: ProdSidequest
     demo?: ProdStack
     fast?: ProdStack
     legacy?: Record<string, ProdStack>
@@ -137,7 +137,7 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   check(artifact.remoteState === true, 'remote state')
   check(typeof artifact.admission?.drain === 'boolean', 'admission mode')
   check(artifact.privy.approved === true && typeof artifact.privy.appId === 'string' && artifact.privy.appId.length > 0 &&
-    artifact.privy.origins.length > 0 && artifact.privy.origins.every(origin => origin === 'https://hireling.xyz'), 'Privy app/origin approval')
+    artifact.privy.origins.length > 0 && artifact.privy.origins.every(origin => origin === 'https://sidequest.exchange'), 'Privy app/origin approval')
   check(config.factory.faucet === false && config.faucetTokens.names.length === 0 && config.faucetTokens.symbols.length === 0, 'no mainnet faucet')
   check(config.holdGates.minHoldToPublish === 0 && config.holdGates.minHoldToClaim === 0, 'zero hold gates')
   check(config.knownTokens.length === 1 && config.knownTokens[0]?.toLowerCase() === config.x402.usdc.toLowerCase(), 'known USDC')
@@ -145,21 +145,21 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   check(deployed.network === artifact.network && Number.isSafeInteger(deployed.block) && (deployed.block ?? 0) > 0, 'deployment network/block')
   check(deployed.main?.openTokens === true, 'open-token main Holding metadata')
   check(config.stacks.names.length === 1 && config.stacks.names[0] === 'main' && deployed.demo === undefined && deployed.fast === undefined, 'single v1 stack')
-  check(deployed.main?.kind === 'hireling-v1' && artifact.deployment.main.kind === 'hireling-v1', 'main v1 kind')
+  check(deployed.main?.kind === 'sidequest-v1' && artifact.deployment.main.kind === 'sidequest-v1', 'main v1 kind')
   check(address(deployed.main?.factory) && deployed.main.factory.toLowerCase() === deployed.factory?.toLowerCase() &&
-    deployed.main.factory.toLowerCase() === deployed.hireling?.factory?.toLowerCase(), 'v1 factory consistency')
+    deployed.main.factory.toLowerCase() === deployed.sidequest?.factory?.toLowerCase(), 'v1 factory consistency')
   check(Object.keys(deployed.legacy ?? {}).length === 0 && Object.keys(artifact.deployment.legacy ?? {}).length === 0, 'no mainnet legacy pairs')
-  const hireling = deployed.hireling
-  check(hireling !== undefined && Number.isSafeInteger(hireling.block) && (hireling.block ?? 0) > 0 &&
-    Number.isSafeInteger(hireling.t0) && (hireling.t0 ?? 0) > 0 &&
-    artifact.deployment.hireling.block === hireling.block && artifact.deployment.hireling.t0 === hireling.t0, 'hireling block/T0')
+  const sidequest = deployed.sidequest
+  check(sidequest !== undefined && Number.isSafeInteger(sidequest.block) && (sidequest.block ?? 0) > 0 &&
+    Number.isSafeInteger(sidequest.t0) && (sidequest.t0 ?? 0) > 0 &&
+    artifact.deployment.sidequest.block === sidequest.block && artifact.deployment.sidequest.t0 === sidequest.t0, 'sidequest block/T0')
   // D16 / PROD-GATE-001: the Safe that must own everything is part of the reviewed record, in config and artifact.
   for (const name of ['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
-    const value = hireling?.[name]
-    check(address(value) && artifact.deployment.hireling[name]?.toLowerCase() === value.toLowerCase(), `hireling:${name}`)
+    const value = sidequest?.[name]
+    check(address(value) && artifact.deployment.sidequest[name]?.toLowerCase() === value.toLowerCase(), `sidequest:${name}`)
   }
   const pinned = safePolicy(artifact)
-  check(pinned !== undefined, 'hireling:safeOwners/safeThreshold')
+  check(pinned !== undefined, 'sidequest:safeOwners/safeThreshold')
   for (const name of ['factory', 'holding', 'evaluator'] as const) {
     const value = deployed.main?.[name]
     check(address(value) && artifact.deployment.main[name]?.toLowerCase() === value.toLowerCase(), `main:${name}`)
@@ -188,12 +188,12 @@ function validateCompleteProdConfig(config: ChainConfig, artifact: ProdArtifact)
   }
   for (const [name, value] of Object.entries(config.roles)) check(!retired(value), `role:${name} is a retired 1 Oct key`)
   for (const [name, value] of Object.entries(artifact.addresses)) check(!retired(value), `address:${name} is a retired 1 Oct key`)
-  // LAUNCH-AUDIT-FIX-001: the recipe deploys the v1 Holding with hireling.defaultArbitrator, and promotion checks the
+  // LAUNCH-AUDIT-FIX-001: the recipe deploys the v1 Holding with sidequest.defaultArbitrator, and promotion checks the
   // Holding's defaultArbitrator() against it; so it must be roles.arbitrator, and never a retired key.
-  const defaultArbitrator = config.hireling?.defaultArbitrator
+  const defaultArbitrator = config.sidequest?.defaultArbitrator
   check(address(defaultArbitrator) && address(config.roles.arbitrator) &&
-    defaultArbitrator.toLowerCase() === config.roles.arbitrator.toLowerCase(), 'hireling.defaultArbitrator is not roles.arbitrator')
-  check(!retired(defaultArbitrator), 'hireling.defaultArbitrator is a retired 1 Oct key')
+    defaultArbitrator.toLowerCase() === config.roles.arbitrator.toLowerCase(), 'sidequest.defaultArbitrator is not roles.arbitrator')
+  check(!retired(defaultArbitrator), 'sidequest.defaultArbitrator is a retired 1 Oct key')
   for (const [binding, source] of Object.entries(prodSecretSources)) {
     check(artifact.secretSources[binding] === source, `secret source:${binding}`)
   }
@@ -208,8 +208,8 @@ export interface SafePolicy {
 }
 
 export function safePolicy(artifact: Pick<ProdArtifact, 'deployment'>): SafePolicy | undefined {
-  const owners = artifact.deployment?.hireling?.safeOwners
-  const threshold = artifact.deployment?.hireling?.safeThreshold
+  const owners = artifact.deployment?.sidequest?.safeOwners
+  const threshold = artifact.deployment?.sidequest?.safeThreshold
   if (!Array.isArray(owners) || owners.length === 0 || !owners.every(address)) return undefined
   if (new Set(owners.map(owner => owner.toLowerCase())).size !== owners.length) return undefined
   if (typeof threshold !== 'number' || !Number.isSafeInteger(threshold) || threshold < 1 || threshold > owners.length) return undefined
@@ -225,7 +225,9 @@ export function validateProdConfig(config: ChainConfig, artifact: ProdArtifact):
 }
 
 export function runtimeSecret(name: keyof typeof prodSecretSources): string | undefined {
-  return process.env[process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? prodSecretSources[name] : name]
+  if (process.env.SIDEQUEST_STAGE === 'dev' && (name === 'RELAY_PRIVATE_KEY' || name === 'ATTESTER_PRIVATE_KEY')) return process.env[`SIDEQUEST_DEV_${name}`]
+  if (process.env.SIDEQUEST_STAGE === 'dev' && (name === 'TELEGRAM_BOT_TOKEN' || name === 'TELEGRAM_WEBHOOK_SECRET')) return undefined
+  return process.env[process.env.SIDEQUEST_NETWORK === 'monad-mainnet' ? prodSecretSources[name] : name]
 }
 
 // ---- D16: the live launch gate (PROD-GATE-001/002/003/004) ----
@@ -357,7 +359,7 @@ export function validateReleaseProbe(artifact: Pick<ProdArtifact, 'network' | 'e
 /**
  * Every predicate that must hold, read live, before production admission opens. Returns failure labels, no values;
  * a failed or malformed read is a failure. Pending ownership passes promotion, never this gate.
- *   1. `deployment.hireling.safe` is set and has code (it matching the artifact is the structural check), and it is the
+ *   1. `deployment.sidequest.safe` is set and has code (it matching the artifact is the structural check), and it is the
  *      reviewed Safe (LAUNCH-AUDIT-003): a proxy of the canonical SafeL2 singleton, VERSION 1.4.1, exactly the
  *      artifact's pinned owners and threshold, no module (getModulesPaginated(0x1, 10) is empty) and no guard. A module
  *      acts without advancing the nonce, which the mining fund's guard (D18) relies on; a guard can block execution;
@@ -371,7 +373,7 @@ export async function liveLaunchGate(
 ): Promise<string[]> {
   const failures: string[] = []
   const deployed = config.deployment
-  const safe = deployed.hireling?.safe
+  const safe = deployed.sidequest?.safe
   if (!address(safe)) return ['launch:safe unset']
   const read = async <T>(label: string, run: () => Promise<T>): Promise<T | undefined> => {
     try {
@@ -418,8 +420,8 @@ export async function liveLaunchGate(
   if (guard !== undefined && !(word(guard) && /^0x0{64}$/.test(guard))) failures.push('launch:safe has a guard set')
 
   const owned: Record<(typeof launchOwnedContracts)[number], unknown> = {
-    vault: deployed.hireling?.vault, feeSchedule: deployed.hireling?.feeSchedule, holding: deployed.main?.holding,
-    evaluator: deployed.main?.evaluator, distributor: deployed.hireling?.distributor, miningReserve: deployed.hireling?.miningReserve,
+    vault: deployed.sidequest?.vault, feeSchedule: deployed.sidequest?.feeSchedule, holding: deployed.main?.holding,
+    evaluator: deployed.main?.evaluator, distributor: deployed.sidequest?.distributor, miningReserve: deployed.sidequest?.miningReserve,
   }
   for (const name of launchOwnedContracts) {
     const owner = await read(`launch:owner:${name}`, () => view(owned[name], 'owner'))
@@ -428,7 +430,7 @@ export async function liveLaunchGate(
 
   // D24: no config override can relax chain 143. Missing testnet input means production.
   const clocks = { ...productionLaunchClocks }
-  const input = config.hireling?.clocks
+  const input = config.sidequest?.clocks
   if (input !== undefined) {
     for (const key of Object.keys(clocks) as (keyof LaunchClocks)[]) {
       const value = input?.[key]
@@ -467,7 +469,7 @@ export async function liveLaunchGate(
   const verifier = await read('launch:attester verifier', () => view(deployed.main?.evaluator, 'verifiers', [config.roles.attester]))
   if (verifier !== undefined && verifier !== true) failures.push('launch:attester is not a verifier on the v1 Evaluator')
 
-  if (relayFloor === undefined) failures.push('launch:relay floor undefined (RELAY_FLOOR_MAINNET, @agent-jobs/sdk)')
+  if (relayFloor === undefined) failures.push('launch:relay floor undefined (RELAY_FLOOR_MAINNET, @sidequest/sdk)')
   const relay = config.roles.relay
   const balance = await read('launch:relay balance', () => {
     if (!address(relay)) throw new Error('no address')

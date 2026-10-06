@@ -8,7 +8,7 @@ import { createServer } from 'vite';
 // agent with the same token, reward and terms; the agent is marked as hired before among the new job's applicants.
 // Mocked Chromium only: no live jobs, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-hire-again-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-hire-again-evidence';
 const base = 'http://127.0.0.1:5193';
 const creator = '0x1111111111111111111111111111111111111111';
 const stranger = '0x5555555555555555555555555555555555555555';
@@ -19,13 +19,13 @@ const token = config.deployment.rewardTokens[1].toLowerCase();
 const now = Math.floor(Date.now() / 1000);
 const created = now - 5 * 86400;
 const offer = (jobId, extra = {}) => ({
-  taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `Fix the flaky test (job ${jobId})`, brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'],
+  taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'sidequest-v1', title: `Fix the flaky test (job ${jobId})`, brief: 'It fails one run in ten. Find out why.', acceptanceCriteria: ['CI is green', 'No retries added'],
   mode: 'hire', token, reward: '12500000', creatorBond: '2000000000000000000', workerBond: '1500000000000000000', creator, approver: creator,
   deliveryDeadline: created + 72 * 3600, selectionDeadline: null, requiredChecks: ['ci'], quoted: false, executionBudget: null,
   deliverable: { accepts: ['git', 'url'], target: 'https://example.test' }, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`,
   screening: { verdict: 'clean', reasons: [] }, createdAt: created, status: 'completed', ...extra,
 });
-const chainJob = (jobId, status, agentId) => ({ job_id: jobId, status, mode: 'hire', board_id: 'public', stack: 'main', kind: 'hireling-v1', token, reward: '12500000', creator, approver: creator, worker: agentId === null ? null : worker, agent_id: agentId, delivery_deadline: created + 72 * 3600, creator_bond: '2000000000000000000', worker_bond: '1500000000000000000', violation: null, rejection_reason_hash: null });
+const chainJob = (jobId, status, agentId) => ({ job_id: jobId, status, mode: 'hire', board_id: 'public', stack: 'main', kind: 'sidequest-v1', token, reward: '12500000', creator, approver: creator, worker: agentId === null ? null : worker, agent_id: agentId, delivery_deadline: created + 72 * 3600, creator_bond: '2000000000000000000', worker_bond: '1500000000000000000', violation: null, rejection_reason_hash: null });
 const jobs = [chainJob('61', 'open', null), chainJob('58', 'completed', '7001'), chainJob('57', 'completed', '7001')];
 const tasks = [offer('61', { status: 'open', title: 'A new job for the same agent', deliveryDeadline: now + 86400 }), offer('58'), offer('57')];
 const applications = [{ id: 'app-2', worker: `0x${'4'.repeat(40)}`, agent_id: '7002', note: 'Mocked applicant' }, { id: 'app-1', worker, agent_id: '7001', note: 'Mocked applicant' }];
@@ -48,9 +48,9 @@ async function fixture(viewport, address = creator) {
   await context.addInitScript(({ owner, arbiter }) => {
     window.__v1 = { arbiter, free: 100n * 10n ** 18n };
     window.__wallet = { address: owner, connected: true, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { owner: address, arbiter: config.hireling.defaultArbitrator });
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: owner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { owner: address, arbiter: config.sidequest.defaultArbitrator });
   const state = { created: [] };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());

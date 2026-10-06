@@ -1,7 +1,6 @@
 /**
  * The Explore Worker: static assets for the SPA, and the board API proxied same-origin through the `API` service
- * binding (no CORS, no API URL baked into the build). A request to `REDIRECT_FROM` (the apex while only the testnet
- * stack exists) gets a 301 to the same path on `REDIRECT_TO`.
+ * binding (no CORS, no API URL baked into the build).
  *
  * Pages carry the security headers Privy asks for before production: a Content Security Policy built from Privy's
  * recommended policy (its iframe, WalletConnect, Cloudflare Turnstile) plus the Monad RPCs the app reads from, and no
@@ -14,8 +13,6 @@ import { renderStartGuide, startGuideType } from './start-guide.ts'
 interface Env {
   readonly API: { fetch(request: Request): Promise<Response> }
   readonly ASSETS: { fetch(request: Request): Promise<Response> }
-  readonly REDIRECT_FROM?: string
-  readonly REDIRECT_TO?: string
 }
 
 const PRIVY_FRAMES = ['https://auth.privy.io', 'https://verify.walletconnect.com', 'https://verify.walletconnect.org']
@@ -89,10 +86,7 @@ async function withHeaders(response: Response, env: Env, request: Request, pathn
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const { hostname, pathname, search } = new URL(request.url)
-    if (env.REDIRECT_FROM && env.REDIRECT_TO && hostname === env.REDIRECT_FROM) {
-      return Response.redirect(`${env.REDIRECT_TO}${pathname}${search}`, 301)
-    }
+    const { pathname } = new URL(request.url)
     if (isApiPath(pathname)) return env.API.fetch(request)
     const asset = await env.ASSETS.fetch(request)
     // The SPA fallback answers any unknown path with index.html; a missing file must be a 404, or iOS takes the page

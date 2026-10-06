@@ -25,7 +25,7 @@ const equal = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 /** One immutable draft and one outer signed transaction per operation; no nonce refresh on retry. */
 export async function safeEpochCall(ctx: Ctx, j: FlowJournal, owner: Wallet, signHash: (hash: Hex) => Promise<Hex>,
   name: 'fund' | 'setRoot', to: Address, data: Hex, expect?: NonNullable<EpochFile['calls']['fund']>['expect'], epoch = 0n) {
-  const h = ctx.deployment.hireling!
+  const h = ctx.deployment.sidequest!
   const key = `epoch${epoch}/${name}`
   const checkReceipt = (receipt: TransactionReceipt, hash: Hex) => {
     // Safe can emit ExecutionFailure in an outer transaction with status=1.
@@ -76,7 +76,7 @@ export async function safeEpochCall(ctx: Ctx, j: FlowJournal, owner: Wallet, sig
 
 /** Validate destinations/calldata independently of the file's claims proof validator. */
 export function epochCalls(ctx: Ctx, file: EpochFile, epoch = 0n) {
-  const h = ctx.deployment.hireling!
+  const h = ctx.deployment.sidequest!
   if (ctx.deployment.chainId !== 10143 || file.chainId !== 10143 || file.epoch !== epoch.toString()) throw new Error('selected epoch testnet only')
   const rootData = encodeFunctionData({ abi: epochDistributorAbi, functionName: 'setRoot', args: [epoch, file.root, BigInt(file.total), file.dataHash] })
   if (!equal(file.calls.setRoot.to, h.distributor) || !equal(file.calls.setRoot.data, rootData)) throw new Error('setRoot calldata mismatch')
@@ -92,7 +92,7 @@ export async function runEpoch(ctx: Ctx, j: FlowJournal, owner: Wallet, signHash
   file: EpochFile, publish: () => Promise<void>, claimant: Wallet, epoch = 0n) {
   epochCalls(ctx, file, epoch)
   if (await ctx.publicClient.getChainId() !== 10143) throw new Error('RPC is not Monad testnet')
-  const h = ctx.deployment.hireling!
+  const h = ctx.deployment.sidequest!
   if (file.calls.fund) {
     const f = file.calls.fund
     await safeEpochCall(ctx, j, owner, signHash, 'fund', f.to, f.data, f.expect, epoch)
@@ -124,7 +124,7 @@ export async function runEpoch(ctx: Ctx, j: FlowJournal, owner: Wallet, signHash
   await j.contract(claimKey, claimant, h.distributor, epochDistributorAbi, 'claim', [epoch, account, BigInt(claim.amount), claim.proof])
   const after = await ctx.publicClient.readContract({ address: h.vault, abi: stakeVaultAbi, functionName: 'stakeOf', args: [account] })
   if (!await claimed() || after !== staked + BigInt(claim.amount)) throw new Error('claim/stake readback mismatch')
-  console.log(`PASS claim stake increased by ${claim.amount} FACTORY wei for ${account}`)
+  console.log(`PASS claim stake increased by ${claim.amount} SIDE wei for ${account}`)
 }
 
 /** Compatibility entry point: existing epoch-0 callers keep their journal keys and calldata. */

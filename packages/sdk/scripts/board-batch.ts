@@ -3,7 +3,7 @@
  * out as one transaction through the MetaMask DeleGator (ERC-7579 `execute`), and the board confirms each operation from the
  * batch's receipt.
  *
- * 1. The testnet creator (cast key) publishes a hire: approve reward + approve FACTORY + publish in one transaction;
+ * 1. The testnet creator (cast key) publishes a hire: approve reward + approve SIDE + publish in one transaction;
  *    then cancels it: cancel + settle in one.
  * 2. The Privy server wallet does the same publish (its key is in Privy: Privy signs the authorization).
  * 3. A hire the testnet worker takes: it signs its budget authorization first, then sends approve + activate as one.

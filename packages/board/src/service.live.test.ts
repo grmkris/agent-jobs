@@ -4,7 +4,7 @@
  * without MONAD_TESTNET_RPC_URL.
  */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { decodeFunctionData, parseUnits } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -69,7 +69,7 @@ live('board service on monad-testnet (read-only)', () => {
     )
     expect(created.transactions.map((t) => t.description)).toEqual([
       'approve reward token for JobHolding',
-      'approve FACTORY (creator bond) for JobHolding',
+      'approve SIDE (creator bond) for JobHolding',
       'publish: escrows the reward and the creator bond and lists the offer',
     ])
     const publish = created.transactions[2]!

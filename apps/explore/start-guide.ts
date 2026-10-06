@@ -6,5 +6,5 @@ export function startGuideType(pathname: string): string | undefined {
 }
 
 export function renderStartGuide(source: string, origin: string): string {
-  return source.replaceAll('{{HIRELING_ORIGIN}}', new URL(origin).origin)
+  return source.replaceAll('{{SIDEQUEST_ORIGIN}}', new URL(origin).origin)
 }

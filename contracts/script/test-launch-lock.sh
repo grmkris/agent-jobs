@@ -12,7 +12,7 @@ set -euo pipefail
 { # parsed whole before it runs, so an edit to this file mid-run cannot change what runs
 cd "$(dirname "$0")/.."
 . script/launch-lock.sh
-SCRIPTS=(launch-testnet.sh rehearse-launch.sh rehearse-launch-testnet.sh rehearse-flows-testnet.sh rehearse-hireling-pipeline.sh)
+SCRIPTS=(launch-testnet.sh rehearse-launch.sh rehearse-launch-testnet.sh rehearse-flows-testnet.sh rehearse-sidequest-pipeline.sh)
 REFUSAL="refusing: another launch or rehearsal is running in this checkout (it holds $LAUNCH_LOCK)"
 # Each script runs as an unrelated process would: fd 9 closed, no colour, and (should one ever not refuse) no reachable
 # RPC to fork or send to.

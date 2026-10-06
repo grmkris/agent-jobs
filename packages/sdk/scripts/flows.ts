@@ -34,7 +34,7 @@ const relay = sdk.wallet(NETWORK, privateKeyToAccount(env('RELAY_PRIVATE_KEY') a
 const arbitrator = sdk.wallet(NETWORK, privateKeyToAccount(env('ARBITRATOR_PRIVATE_KEY') as Hex), rpc)
 
 const [mUSD, mEUR] = ctx.deployment.rewardTokens as [Address, Address]
-const FACTORY = ctx.deployment.factory
+const SIDE = ctx.deployment.factory
 const REWARD = 25_000_000n
 const CREATOR_BOND = 5n * 10n ** 18n
 const WORKER_BOND = 3n * 10n ** 18n
@@ -74,8 +74,8 @@ async function setup(): Promise<bigint> {
   if ((await ctx.publicClient.getChainId()) !== ctx.deployment.chainId) throw new Error('wrong chain')
   const state: State = existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : {}
   const need: Array<[sdk.Wallet, Address, bigint]> = [
-    [creator, FACTORY, 40n * 10n ** 18n],
-    [worker, FACTORY, 20n * 10n ** 18n],
+    [creator, SIDE, 40n * 10n ** 18n],
+    [worker, SIDE, 20n * 10n ** 18n],
     [creator, mUSD, 200_000_000n],
     [creator, mEUR, 200_000_000n],
   ]
@@ -86,7 +86,7 @@ async function setup(): Promise<bigint> {
   }
   let agentId = state.workerAgentId === undefined ? undefined : BigInt(state.workerAgentId)
   if (agentId === undefined || (await sdk.agentWallet(ctx, agentId)) !== worker.account.address) {
-    agentId = await sdk.registerAgent(ctx, worker, 'https://github.com/grmkris/agent-jobs#testnet-cast-worker')
+    agentId = await sdk.registerAgent(ctx, worker, 'https://github.com/grmkris/sidequest#testnet-cast-worker')
     state.workerAgentId = agentId.toString()
     writeFileSync(STATE, `${JSON.stringify(state, null, 2)}\n`)
     log('setup', `worker registered as ERC-8004 agent ${agentId}`)
@@ -128,9 +128,9 @@ async function balances() {
     sdk.balanceOf(ctx, mEUR, creator.account.address),
     sdk.balanceOf(ctx, mUSD, worker.account.address),
     sdk.balanceOf(ctx, mEUR, worker.account.address),
-    sdk.balanceOf(ctx, FACTORY, creator.account.address),
-    sdk.balanceOf(ctx, FACTORY, worker.account.address),
-    ctx.publicClient.readContract({ address: FACTORY, abi: sdk.factoryTokenAbi, functionName: 'totalSupply' }),
+    sdk.balanceOf(ctx, SIDE, creator.account.address),
+    sdk.balanceOf(ctx, SIDE, worker.account.address),
+    ctx.publicClient.readContract({ address: SIDE, abi: sdk.factoryTokenAbi, functionName: 'totalSupply' }),
   ])
   return { cPay, wPayUsd, wPayEur, cFac, wFac, supply }
 }
@@ -151,8 +151,8 @@ async function hire(agentId: bigint) {
   const after = await balances()
   check(f, 'worker paid in mEUR', after.wPayEur - before.wPayEur, REWARD)
   check(f, 'worker paid nothing in mUSD', after.wPayUsd - before.wPayUsd, 0n)
-  check(f, 'creator FACTORY back (bond returned)', after.cFac - before.cFac, 0n)
-  check(f, 'worker FACTORY back (bond returned)', after.wFac - before.wFac, 0n)
+  check(f, 'creator SIDE back (bond returned)', after.cFac - before.cFac, 0n)
+  check(f, 'worker SIDE back (bond returned)', after.wFac - before.wFac, 0n)
 }
 
 /** Timely submission, no decision within the 2m review window: anyone completes it; the worker is paid. */
@@ -200,7 +200,7 @@ async function dispute(agentId: bigint) {
   const after = await balances()
   check(f, 'worker paid', after.wPayEur - before.wPayEur, REWARD)
   check(f, 'creator bond burned', before.cFac - after.cFac, CREATOR_BOND)
-  check(f, 'FACTORY supply down by the creator bond', before.supply - after.supply, CREATOR_BOND)
+  check(f, 'SIDE supply down by the creator bond', before.supply - after.supply, CREATOR_BOND)
   check(f, 'worker bond back', after.wFac - before.wFac, 0n)
 }
 
@@ -241,7 +241,7 @@ async function noshow(agentId: bigint) {
   tx(f, 'relay settle (refund to the creator)', await sdk.settle(ctx, relay, jobId))
   const after = await balances()
   check(f, 'worker bond burned', before.wFac - after.wFac, WORKER_BOND)
-  check(f, 'FACTORY supply down by the worker bond', before.supply - after.supply, WORKER_BOND)
+  check(f, 'SIDE supply down by the worker bond', before.supply - after.supply, WORKER_BOND)
   check(f, 'creator refunded in full', after.cPay - before.cPay, 0n)
   check(f, 'creator bond back', after.cFac - before.cFac, 0n)
   check(f, 'worker unpaid', after.wPayEur - before.wPayEur, 0n)

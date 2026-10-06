@@ -1,19 +1,19 @@
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { formatUnits, parseEther } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite, type OperationRow } from './store.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('vault operation receipts against real delegated vault bytecode', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>
+  let f: Awaited<ReturnType<typeof startSidequestFork>>
   let agentId: bigint
   let seq = 0
   beforeAll(async () => {
-    f = await startHirelingFork()
-    agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/receipt-regression')
+    f = await startSidequestFork()
+    agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/receipt-regression')
     await sdk.delegate(f.ctx, f.creator, parseEther('100'))
     await sdk.delegate(f.ctx, f.creator, 10n, f.worker.account.address)
   }, forkSetupTimeout())

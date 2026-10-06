@@ -1,15 +1,15 @@
 /** Gas-only collection of the bot's own jobs, using the same durable send journal as publication. */
 import { type Address, encodeFunctionData, getAddress } from 'viem'
 import { type Ctx, V1_GAS } from '../src/actions.ts'
-import { hirelingHoldingAbi } from '../src/abi/index.ts'
+import { sidequestHoldingAbi } from '../src/abi/index.ts'
 import type { TxRequest, boardClient } from '../src/board-client.ts'
 import { assertDemandTransactions } from '../src/demand-bot-validation.ts'
-import { deferredCollectTransactions, hirelingState } from '../src/hireling.ts'
+import { deferredCollectTransactions, sidequestState } from '../src/sidequest.ts'
 import type { DemandOperation } from './demand-bot-store.ts'
 import type { FlowState } from '../src/flow-journal.ts'
 
-const terminal = (current: Awaited<ReturnType<typeof hirelingState>>) => ['Completed', 'Rejected', 'Expired'].includes(current.job.statusName)
-const settled = (current: Awaited<ReturnType<typeof hirelingState>>) => terminal(current) && !current.collectPending
+const terminal = (current: Awaited<ReturnType<typeof sidequestState>>) => ['Completed', 'Rejected', 'Expired'].includes(current.job.statusName)
+const settled = (current: Awaited<ReturnType<typeof sidequestState>>) => terminal(current) && !current.collectPending
 
 export async function collectDemandOperation(input: {
   ctx: Ctx
@@ -26,7 +26,7 @@ export async function collectDemandOperation(input: {
   const prepared = operation.prepared
   if (prepared === undefined || getAddress(operation.intent.creator) !== getAddress(creator)) throw new Error('collection has no matching saved creator or task')
   const read = async () => {
-    const current = await hirelingState(ctx, jobId)
+    const current = await sidequestState(ctx, jobId)
     if (getAddress(current.listing.creator) !== getAddress(creator) || getAddress(current.listing.token) !== getAddress(operation.intent.token) || current.listing.policyHash !== prepared.termsHash) throw new Error('collection listing differs from saved demand job')
     if (terminal(current) && operation.closed === undefined) {
       operation.closed = current.job.statusName.toLowerCase()
@@ -38,7 +38,7 @@ export async function collectDemandOperation(input: {
   const settle: TxRequest = {
     description: 'Settle the demand job reward and bonds', chainId: ctx.deployment.chainId,
     to: ctx.stack.holding, value: '0', gas: V1_GAS.settle.toString(),
-    data: encodeFunctionData({ abi: hirelingHoldingAbi, functionName: 'settle', args: [jobId] }),
+    data: encodeFunctionData({ abi: sidequestHoldingAbi, functionName: 'settle', args: [jobId] }),
   }
   const deferred = deferredCollectTransactions(ctx, jobId)
   if (operation.collection === undefined) {

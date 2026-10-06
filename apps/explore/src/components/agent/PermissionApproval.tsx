@@ -21,7 +21,7 @@ import { Badge, Button, ErrorText, Field, Input, Section } from "../ui.tsx";
 const TYPE_WORDS: Record<string, string> = {
   "erc20-token-periodic": "Recurring token payments",
   "erc20-token-allowance": "One token allowance",
-  "hireling:contract-call": "One exact contract call",
+  "sidequest:contract-call": "One exact contract call",
 };
 
 /** The one exact call, in full: decoded arguments when the method is known, and always the raw call data (VV2-022). */
@@ -72,7 +72,7 @@ export function PermissionApproval({
 }) {
   const request = permissionRequest(approval.request_json);
   const t = request.parsed;
-  const token = t.type === "hireling:contract-call" ? null : t.token;
+  const token = t.type === "sidequest:contract-call" ? null : t.token;
   const meta = token === null ? undefined : tokenMeta(token);
   useTokenList(token === null ? [] : [token]);
   const { signTypedDataAsync } = useSignTypedData();
@@ -140,7 +140,7 @@ export function PermissionApproval({
         <p className="text-xl font-semibold">{TYPE_WORDS[t.type] ?? t.type}</p>
         <Badge tone={approval.status === "pending" ? "warning" : "neutral"}>{approval.status}</Badge>
       </div>
-      {t.type === "hireling:contract-call" ? (
+      {t.type === "sidequest:contract-call" ? (
         <ExactCall target={t.target} value={t.value} callData={t.callData} />
       ) : (
         <p className="break-words text-sm leading-relaxed text-label-2">

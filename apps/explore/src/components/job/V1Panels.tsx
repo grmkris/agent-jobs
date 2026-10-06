@@ -1,9 +1,9 @@
 /**
- * What a Hireling v1 job adds to its page (ADR-0011): before activation, the fee a worker would pay and what it would
+ * What a Sidequest v1 job adds to its page (ADR-0011): before activation, the fee a worker would pay and what it would
  * receive, from `quoteActivation`; after activation, a top-up anyone can add to the reward. Both read and write the v1
  * Holding directly, in this file only, until the board's `fee_quote` and `top_up` tools land.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -21,7 +21,7 @@ import { Button, ErrorText, Group, Input, ListRow, Section } from '../ui.tsx'
 /** Before activation: the viewer's fee tier and net payout if they activate now. */
 export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; holding: Address; viewer: Address; token: string | null }) {
   const quote = useReadContracts({
-    contracts: [{ address: holding, abi: sdk.hirelingHoldingAbi, functionName: 'quoteActivation', args: [BigInt(jobId), viewer], chainId: chain.id }],
+    contracts: [{ address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'quoteActivation', args: [BigInt(jobId), viewer], chainId: chain.id }],
     query: { refetchInterval: 30_000 },
   })
   const r = quote.data?.[0]
@@ -34,7 +34,7 @@ export function FeeQuote({ jobId, holding, viewer, token }: { jobId: string; hol
         <Group>
           <ListRow>
             <span className="flex-1">
-              <span className="block">Hireling’s fee{bps === undefined ? '' : ` · ${percent(Number(bps))}`}</span>
+              <span className="block">Sidequest’s fee{bps === undefined ? '' : ` · ${percent(Number(bps))}`}</span>
               <span className="block text-xs leading-snug text-label-3">Your rate, set by total backing</span>
             </span>
             {/* min-w-24: the value's room is kept while it loads, so the label does not rewrap when it lands. */}
@@ -59,8 +59,8 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
   const toast = useToast()
   const reads = useReadContracts({
     contracts: [
-      { address: holding, abi: sdk.hirelingHoldingAbi, functionName: 'getListing', args: [BigInt(jobId)], chainId: chain.id },
-      { address: holding, abi: sdk.hirelingHoldingAbi, functionName: 'topUpOf', args: [BigInt(jobId), viewer], chainId: chain.id },
+      { address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'getListing', args: [BigInt(jobId)], chainId: chain.id },
+      { address: holding, abi: sdk.sidequestHoldingAbi, functionName: 'topUpOf', args: [BigInt(jobId), viewer], chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
@@ -74,7 +74,7 @@ export function TopUp({ jobId, holding, token, viewer }: { jobId: string; holdin
     if (!valid || value === null) return
     setTxs([
       { description: `Approve ${amount(value.toString(), token)} for the job`, chainId: chain.id, to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [holding, value] }), value: '0' },
-      { description: `Add ${amount(value.toString(), token)} to job #${jobId}`, chainId: chain.id, to: holding, data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'topUp', args: [BigInt(jobId), value] }), value: '0' },
+      { description: `Add ${amount(value.toString(), token)} to job #${jobId}`, chainId: chain.id, to: holding, data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'topUp', args: [BigInt(jobId), value] }), value: '0' },
     ])
     setText('')
   }

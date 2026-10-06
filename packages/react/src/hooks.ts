@@ -7,20 +7,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Hex } from 'viem'
 import { signTypedDataWith } from './client.ts'
-import { useAgentJobs } from './provider.tsx'
+import { useSidequest } from './provider.tsx'
 import type { SendProgress } from './send.ts'
 import type { BoardInfo, ChainJob, CreatedTask, DeliverableSpec, SignRequest, TaskIndexEntry, TxRequest } from './types.ts'
 
-const KEY = 'agent-jobs'
+const KEY = 'sidequest'
 
 export function useBoard() {
-  const { api } = useAgentJobs()
+  const { api } = useSidequest()
   return useQuery({ queryKey: [KEY, api.boardId, 'board'], queryFn: async () => (await api.tool<{ board: BoardInfo }>('get_board')).board, staleTime: 60_000 })
 }
 
 /** SIWE sign-in with the host's wallet; the token lives in the client's storage and is valid on every board. */
 export function useSession() {
-  const { api, provider, address } = useAgentJobs()
+  const { api, provider, address } = useSidequest()
   const [token, setToken] = useState<string | null>(() => api.session())
   useEffect(() => setToken(api.session()), [api])
   const signIn = useCallback(async () => {
@@ -44,7 +44,7 @@ export interface TaskListItem {
 
 /** The board's tasks: the board's records merged with the indexed chain facts (drafts and not-yet-indexed jobs included). */
 export function useTasks(refetchInterval = 20_000) {
-  const { api } = useAgentJobs()
+  const { api } = useSidequest()
   const tasks = useQuery({ queryKey: [KEY, api.boardId, 'task_index'], queryFn: () => api.tool<TaskIndexEntry[]>('task_index'), refetchInterval })
   const chain = useQuery({
     queryKey: [KEY, api.boardId, 'jobs'],
@@ -65,23 +65,23 @@ export function useTasks(refetchInterval = 20_000) {
 }
 
 export function useTask<T = Record<string, unknown>>(taskId: string | undefined, refetchInterval = 15_000) {
-  const { api } = useAgentJobs()
+  const { api } = useSidequest()
   return useQuery({ queryKey: [KEY, api.boardId, 'task', taskId], queryFn: () => api.tool<T>('get_task', { taskId }), enabled: taskId !== undefined, refetchInterval })
 }
 
 export function useApplications<T = Array<{ id: string; worker: string; agentId: string; note: string }>>(taskId: string | undefined) {
-  const { api } = useAgentJobs()
+  const { api } = useSidequest()
   return useQuery({ queryKey: [KEY, api.boardId, 'applications', taskId], queryFn: () => api.tool<T>('list_applications', { taskId }), enabled: taskId !== undefined, refetchInterval: 15_000 })
 }
 
 /** The sender for this wallet, or null until one is connected. */
 export function useTxSender() {
-  return useAgentJobs().sender
+  return useSidequest().sender
 }
 
 function useInvalidate() {
   const qc = useQueryClient()
-  const { api } = useAgentJobs()
+  const { api } = useSidequest()
   return () => qc.invalidateQueries({ queryKey: [KEY, api.boardId] })
 }
 
@@ -98,7 +98,7 @@ export interface PublishInput {
   approver?: string
   /** The offer's review, dispute and arbitration windows, in seconds (ADR-0011). */
   windows?: { reviewSeconds: number; disputeSeconds: number; arbitrationSeconds: number }
-  /** A named arbitrator; omitted, Hireling's arbiter. */
+  /** A named arbitrator; omitted, Sidequest's arbiter. */
   arbitrator?: string
   requiredChecks?: string[]
   deliverable?: DeliverableSpec
@@ -114,7 +114,7 @@ export interface PublishOutcome extends CreatedTask {
 
 /** Freeze an offer, send its approvals and publish, report, and (for a direct hire) sign the selection. */
 export function usePublish() {
-  const { api, sender, provider, address } = useAgentJobs()
+  const { api, sender, provider, address } = useSidequest()
   const invalidate = useInvalidate()
   const publish = useCallback((input: PublishInput) => api.tool<CreatedTask>('create_task', { ...input }), [api])
   const publishAndSend = useCallback(
@@ -138,7 +138,7 @@ export function usePublish() {
 
 /** A tool that returns transactions, sent and reported for the task. */
 function useTxAction(tool: string) {
-  const { api, sender } = useAgentJobs()
+  const { api, sender } = useSidequest()
   const invalidate = useInvalidate()
   return useCallback(
     async (args: { taskId: string } & Record<string, unknown>, onProgress?: (p: SendProgress) => void) => {
@@ -169,7 +169,7 @@ export function useCancel() {
 
 /** Hire creator: pick an applicant by signing the Selection (nothing on-chain until the worker activates). */
 export function useSelect() {
-  const { api, provider, address } = useAgentJobs()
+  const { api, provider, address } = useSidequest()
   const invalidate = useInvalidate()
   return useCallback(
     async (input: { taskId: string; applicationId: string; activateBy?: number }) => {

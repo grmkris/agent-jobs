@@ -1,4 +1,4 @@
-import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, WRITE_LIMITS } from '@agent-jobs/board'
+import { ADMISSION_OBJECT_NAME, SPONSOR_OBJECT_NAME, WRITE_LIMITS } from '@sidequest/board'
 import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Test from 'alchemy/Test/Vitest'

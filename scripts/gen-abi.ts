@@ -11,7 +11,7 @@ const root = join(import.meta.dirname, '..')
 const out = join(root, 'contracts/out')
 const target = join(root, 'packages/sdk/src/abi')
 
-/** The Hireling v1 entries (ADR-0011) come from the implementations in `contracts/src/hireling/`. */
+/** The Sidequest v1 entries (ADR-0011) come from the implementations in `contracts/src/sidequest/`. */
 const contracts: Array<[file: string, name: string, module: string, exportName: string]> = [
   ['JobHolding.sol', 'JobHolding', 'holding', 'jobHoldingAbi'],
   ['JobsEvaluator.sol', 'JobsEvaluator', 'evaluator', 'jobsEvaluatorAbi'],
@@ -22,8 +22,8 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
   ['IERC8004.sol', 'IERC8004Reputation', 'reputation', 'reputationAbi'],
   ['JobPool.sol', 'JobPool', 'pool', 'jobPoolAbi'],
   ['JobPoolFactory.sol', 'JobPoolFactory', 'poolFactory', 'jobPoolFactoryAbi'],
-  ['HirelingHolding.sol', 'HirelingHolding', 'hirelingHolding', 'hirelingHoldingAbi'],
-  ['HirelingEvaluator.sol', 'HirelingEvaluator', 'hirelingEvaluator', 'hirelingEvaluatorAbi'],
+  ['SidequestHolding.sol', 'SidequestHolding', 'sidequestHolding', 'sidequestHoldingAbi'],
+  ['SidequestEvaluator.sol', 'SidequestEvaluator', 'sidequestEvaluator', 'sidequestEvaluatorAbi'],
   ['StakeVault.sol', 'StakeVault', 'stakeVault', 'stakeVaultAbi'],
   ['FeeSchedule.sol', 'FeeSchedule', 'feeSchedule', 'feeScheduleAbi'],
   ['Factory.sol', 'Factory', 'factoryV2', 'factoryV2Abi'],
@@ -34,7 +34,7 @@ const contracts: Array<[file: string, name: string, module: string, exportName: 
 const index: string[] = []
 for (const [file, name, module, exportName] of contracts) {
   // Registry wallet consent is an external interface, already verified in the retained ERC-8004 ABI.
-  // Keep the SDK subset generated from that source; no deployed Hireling interface changes.
+  // Keep the SDK subset generated from that source; no deployed Sidequest interface changes.
   const registryMethods = new Set(['register', 'ownerOf', 'getAgentWallet', 'isAuthorizedOrOwner', 'setMetadata', 'getMetadata', 'setAgentWallet', 'unsetAgentWallet', 'Registered'])
   const artifact = module === 'identity'
     ? { abi: (JSON.parse(readFileSync(join(root, 'contracts/abi/erc8004/IdentityRegistry.json'), 'utf8')) as Array<{ name?: string }>).filter(item => registryMethods.has(item.name ?? '')) }

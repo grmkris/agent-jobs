@@ -4,11 +4,11 @@ import * as Test from 'alchemy/Test/Vitest'
 import * as Effect from 'effect/Effect'
 import * as HttpBody from 'effect/unstable/http/HttpBody'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
-import { WRITE_LIMITS } from '@agent-jobs/board'
+import { WRITE_LIMITS } from '@sidequest/board'
 import { afterAll, beforeAll as hookBeforeAll, expect } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { zeroAddress, type Hex } from 'viem'
-import { forkEnabled, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
+import { forkEnabled, startSidequestFork } from '../../../packages/sdk/test/sidequest-fixture.ts'
 import { directoryObjectName } from '../src/directory-object.ts'
 import DirectoryMainnetProbe from './directory-worker.ts'
 import DirectoryDrainedProbe from './directory-drained-worker.ts'
@@ -16,7 +16,7 @@ import DirectoryTestnetProbe from './directory-testnet-worker.ts'
 import type { DirectoryCall } from '../src/directory-object.ts'
 
 const { test, beforeAll, deploy } = Test.make({ providers: Cloudflare.providers(), state: Alchemy.localState(), dev: true })
-const Stack = Alchemy.Stack('HirelingDirectoryLocalDrill', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
+const Stack = Alchemy.Stack('SidequestDirectoryLocalDrill', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
   const open = yield* DirectoryMainnetProbe, drained = yield* DirectoryDrainedProbe, testnet = yield* DirectoryTestnetProbe
   return { open: open.url!, drained: drained.url!, testnet: testnet.url! }
 }))
@@ -74,14 +74,14 @@ test('direct directory RPC canonicalizes host origins and refuses alternate obje
   expect(yield* post(testnet, { name, call: { ...call, action: 'submit', record, signature: '0x00' } })).toMatchObject({ ok: false, code: 'forbidden', message: 'wrong chain, registry, audience, or agent' })
 }))
 
-let fork: Awaited<ReturnType<typeof startHirelingFork>> | undefined
-hookBeforeAll(async () => { if (forkEnabled) fork = await startHirelingFork() }, 180_000)
+let fork: Awaited<ReturnType<typeof startSidequestFork>> | undefined
+hookBeforeAll(async () => { if (forkEnabled) fork = await startSidequestFork() }, 180_000)
 afterAll(() => fork?.close())
 
 test.skipIf(!forkEnabled)('real directory object verifies the registry wallet and signature, replays enrollment once, and rejects aliased owners', Effect.gen(function* () {
   const { testnet } = yield* stack
   const f = fork!
-  const agentId = (yield* Effect.promise(() => sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/directory-fork'))).toString()
+  const agentId = (yield* Effect.promise(() => sdk.registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/directory-fork'))).toString()
   const audience = `https://${crypto.randomUUID()}.test.invalid`
   const name = directoryObjectName(10143, f.ctx.deployment.identity, audience, agentId)
   const call = request({ network: 'monad-testnet', agentId, audience, rpcUrl: f.url, payload: { profile: { name: 'Local fork worker', description: '', services: ['Research'] }, enrolled: true, delegate: zeroAddress, adDelegate: false, grantExpiresAt: 0 } })

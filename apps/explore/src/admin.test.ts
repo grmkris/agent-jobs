@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, encodeFunctionData } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { type AdminContext, bpsOf, fundProblem, readAdminOp, readAdminTx, readEpochFile, resizeProblem, scheduleProposal } from './admin.ts'
@@ -100,11 +100,11 @@ describe('reading an admin transaction back from its calldata', () => {
     targets: {
       [fees]: { name: 'FeeSchedule', abi: sdk.feeScheduleAbi as Abi, safe: ['acceptOwnership', 'cancel'], direct: ['execute'] },
       [core]: { name: 'Core', abi: sdk.coreAbi as unknown as Abi, safe: ['pause', 'unpause'], direct: [] },
-      [evaluator]: { name: 'HirelingEvaluator', abi: sdk.hirelingEvaluatorAbi as Abi, safe: ['acceptOwnership', 'notePause'], direct: ['notePause'] },
+      [evaluator]: { name: 'SidequestEvaluator', abi: sdk.sidequestEvaluatorAbi as Abi, safe: ['acceptOwnership', 'notePause'], direct: ['notePause'] },
     },
   }
   const pause = fn(core, sdk.coreAbi as unknown as Abi, 'pause')
-  const note = fn(evaluator, sdk.hirelingEvaluatorAbi as Abi, 'notePause')
+  const note = fn(evaluator, sdk.sidequestEvaluatorAbi as Abi, 'notePause')
   const raw = (to: string, data: `0x${string}`, operation: number, signer = owner, refund = '0x0000000000000000000000000000000000000000') =>
     encodeFunctionData({ abi: safeAbi, functionName: 'execTransaction', args: [to as `0x${string}`, 0n, data, operation, 0n, 0n, 0n, '0x0000000000000000000000000000000000000000', refund as `0x${string}`, preValidated(signer as `0x${string}`)] })
 
@@ -112,7 +112,7 @@ describe('reading an admin transaction back from its calldata', () => {
     const one = readAdminTx(tx(safe, execTransaction(owner, { to: fees, data: fn(fees, sdk.feeScheduleAbi as Abi, 'acceptOwnership') })), ctx)
     expect(one).toMatchObject({ ok: true, via: 'safe', calls: [{ contract: 'FeeSchedule', functionName: 'acceptOwnership' }] })
     const pair = readAdminTx(tx(safe, atomically(owner, [{ to: core, data: pause }, { to: evaluator, data: note }])), ctx)
-    expect(pair).toMatchObject({ ok: true, via: 'atomic', calls: [{ contract: 'Core', functionName: 'pause' }, { contract: 'HirelingEvaluator', functionName: 'notePause' }] })
+    expect(pair).toMatchObject({ ok: true, via: 'atomic', calls: [{ contract: 'Core', functionName: 'pause' }, { contract: 'SidequestEvaluator', functionName: 'notePause' }] })
     expect(readAdminTx(tx(fees, fn(fees, sdk.feeScheduleAbi as Abi, 'execute')), ctx)).toMatchObject({ ok: true, via: 'direct' })
   })
 
@@ -126,7 +126,7 @@ describe('reading an admin transaction back from its calldata', () => {
     expect(problem(tx(safe, execTransaction(owner, { to: fees, data: accept }), { value: '1' }))).toMatch(/sends value/)
     expect(problem(tx(safe, raw(fees, accept, 0, other)))).toMatch(/not signed as you/)
     expect(problem(tx(safe, raw(fees, accept, 0, owner, other)))).toMatch(/refund/)
-    expect(problem(tx(safe, execTransaction(owner, { to: token, data: '0xa9059cbb' })))).toMatch(/not a Hireling contract/)
+    expect(problem(tx(safe, execTransaction(owner, { to: token, data: '0xa9059cbb' })))).toMatch(/not a Sidequest contract/)
     expect(problem(tx(safe, execTransaction(owner, { to: fees, data: fn(fees, sdk.feeScheduleAbi as Abi, 'execute') })))).toMatch(/not something this console sends as the Safe/)
     expect(problem(tx(fees, accept))).toMatch(/not something this console sends directly/)
     expect(problem(tx(safe, raw(fees, accept, 1)))).toMatch(/not to MultiSendCallOnly/)
@@ -180,7 +180,7 @@ describe('a funding signed for one Safe nonce', () => {
   it('stands only while the nonce, the reserve total and the signer are what it was signed against', () => {
     expect(fundProblem(guard, live, me, me, '1')).toBeNull()
     expect(fundProblem(guard, { ...live, nonce: 8n }, me, me, '1')).toMatch(/Safe nonce 7, now 8\), so the Safe would refuse it\. Run pnpm mining:epoch 1 again/)
-    expect(fundProblem(guard, { ...live, totalFunded: 2500n * W }, me, me, '1')).toMatch(/funded 2,500 FACTORY in all; this funding was signed when it had funded 2,000/)
+    expect(fundProblem(guard, { ...live, totalFunded: 2500n * W }, me, me, '1')).toMatch(/funded 2,500 SIDE in all; this funding was signed when it had funded 2,000/)
     expect(fundProblem(guard, live, '0x2222222222222222222222222222222222222222', me, '1')).toMatch(/not signed as you for the Safe’s nonce 7/)
     expect(fundProblem(undefined, live, me, me, '1')).toMatch(/saved without the Safe nonce/)
     expect(fundProblem({ nonce: 'x', totalFunded: '0' }, live, me, me, '1')).toMatch(/saved without the Safe nonce/)

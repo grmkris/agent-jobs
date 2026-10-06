@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# G1: the Hireling v1 launch on Monad testnet (core reused), the docs/mainnet-runbook.md sequence without the seed, for
+# G1: the Sidequest v1 launch on Monad testnet (core reused), the docs/mainnet-runbook.md sequence without the seed, for
 # the coordinator to run once the wallets hold MON. Refuses chain 143. From the repo root, with keystores (below):
 #   bash -c 'set -a; . ./.env.local; set +a; DEPLOYER_ACCOUNT=<name> DEPLOYER_PASSWORD_FILE=<file> \
 #     SAFE_OWNER_ACCOUNT=<name> SAFE_OWNER_PASSWORD_FILE=<file> bash contracts/script/launch-testnet.sh [flags]'
@@ -10,9 +10,9 @@
 #      oddTokens config
 #      exists; with the core reused, the deployer may grant its ADMIN_ROLE; both senders hold enough MON for the gas
 #      limits at twice the current gas price;
-#   1. DeployHireling dry run (no --broadcast);
-#   2. DeployHireling --broadcast --slow, from the deployer;
-#   3. PromoteHireling (reads only; writes config/<network>.json, which the coordinator commits);
+#   1. DeploySidequest dry run (no --broadcast);
+#   2. DeploySidequest --broadcast --slow, from the deployer;
+#   3. PromoteSidequest (reads only; writes config/<network>.json, which the coordinator commits);
 #   4. SafeAccept (six execTransactions from the Safe owner), then its check();
 #   5. pauser, with the core reused (testnet): the deployer grants the Safe the core's ADMIN_ROLE, which pause() and
 #      unpause() require, so /admin's pause (core pause + evaluator notePause in one MultiSend from the Safe) works.
@@ -21,12 +21,12 @@
 #   6. readback: owner() == Safe and pendingOwner() == 0 on vault, feeSchedule, holding, evaluator, distributor and
 #      miningReserve; the Safe holds the core's ADMIN_ROLE, and still has no modules and no guard (the mining fund's
 #      nonce guard, D18, holds only while execTransaction is the Safe's one way to act);
-#   7. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a hireling-v1 main pair under this Safe);
+#   7. the SDK loads the promoted deployment (`deployment('monad-testnet')`: a sidequest-v1 main pair under this Safe);
 #   8. DeployOddTokens, from the deployer.
 # Flags:
 #   --fee-proposal   the Safe proposes a fee schedule through execTransaction: FEE_PROPOSAL, as JSON
-#                    {"thresholds":[…],"bps":[…],"treasury":"0x…"} with thresholds in whole FACTORY like the config;
-#                    default the config's hireling.schedule. Anyone can `execute()` at FeeSchedule.DELAY later,
+#                    {"thresholds":[…],"bps":[…],"treasury":"0x…"} with thresholds in whole SIDE like the config;
+#                    default the config's sidequest.schedule. Anyone can `execute()` at FeeSchedule.DELAY later,
 #                    within PROPOSAL_GRACE; an early execute is shown to refuse (eth_call, nothing sent).
 #   --holding-probe  the Safe proposes HOLDING_PROBE (default 0x…dEaD, which nobody controls) as a vault Holding, and an
 #                    early acceptHolding is shown to refuse (eth_call). It stays pending; anyone may accept it from
@@ -69,7 +69,7 @@ ZERO=0x0000000000000000000000000000000000000000
 SIX=(vault feeSchedule holding evaluator distributor miningReserve)
 STEPS=(deploy promote accept pauser readback sdk odd flags)
 # Gas limits from the fork rehearsal (Monad charges the limit), with headroom.
-GAS_DEPLOYER=$((24 * 1000000)) # DeployHireling (reused core) + DeployOddTokens + the core's grantRole
+GAS_DEPLOYER=$((24 * 1000000)) # DeploySidequest (reused core) + DeployOddTokens + the core's grantRole
 GAS_SAFE_OWNER=$((2 * 1000000)) # SafeAccept + the two proposals
 
 FEE_PROPOSAL_FLAG=0 HOLDING_PROBE_FLAG=0 DRY_RUN=0 YES=0 FROM=deploy TO=flags PRIVATE_KEYS=0
@@ -200,10 +200,10 @@ CHAIN=$(cast chain-id --rpc-url "$RPC" 2>/dev/null) || fail "the RPC in $RPC_ENV
 [[ "$CHAIN" == "$(json .chainId)" ]] || fail "the RPC is chain $CHAIN, $CONFIG is chain $(json .chainId)"
 DEPLOYER=$(cast wallet address "${DEPLOYER_SIGNER[@]}" 2>/dev/null) || fail "the deployer keystore does not unlock"
 SAFE_OWNER=$(cast wallet address "${SAFE_OWNER_SIGNER[@]}" 2>/dev/null) || fail "the Safe-owner keystore does not unlock"
-SAFE=$(json .hireling.safe)
+SAFE=$(json .sidequest.safe)
 echo "network $NETWORK (chain $CHAIN); deployer $DEPLOYER; Safe $SAFE, sent by owner $SAFE_OWNER; logs $LOGS"
 if runs deploy; then
-  [[ "$(json '.deployment.hireling // empty')" == "" ]] || fail "$CONFIG already records a v1 deployment (use --from)"
+  [[ "$(json '.deployment.sidequest // empty')" == "" ]] || fail "$CONFIG already records a v1 deployment (use --from)"
   [[ "${DEPLOYER,,}" == "$(json .roles.admin | tr 'A-F' 'a-f')" ]] || fail "the deployer key is not roles.admin"
 fi
 if runs odd; then
@@ -211,7 +211,7 @@ if runs odd; then
     >/dev/null || fail "$CONFIG needs oddTokens = { wallets: [...], mint: <whole tokens> } for DeployOddTokens"
 fi
 CORE=$(json .deployment.core)
-if [[ "$(json .hireling.reuseCore)" == true ]] && runs pauser; then
+if [[ "$(json .sidequest.reuseCore)" == true ]] && runs pauser; then
   ADMIN_ROLE=$(call "$CORE" "ADMIN_ROLE()(bytes32)") || fail "core $CORE: no ADMIN_ROLE()"
   if [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE")" != true ]]; then
     granter=$(call "$CORE" "getRoleAdmin(bytes32)(bytes32)" "$ADMIN_ROLE")
@@ -233,33 +233,33 @@ for who in DEPLOYER SAFE_OWNER; do
 done
 ok "checks passed"
 
-# 1–2. DeployHireling.
+# 1–2. DeploySidequest.
 if runs deploy; then
-  log 1-dry-run.log forge script script/DeployHireling.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
-    || fail "DeployHireling dry run"
+  log 1-dry-run.log forge script script/DeploySidequest.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
+    || fail "DeploySidequest dry run"
   grep -E "Estimated" "$LOGS/1-dry-run.log" | sed 's/^ */  /' || true
   ok "dry run (nothing sent; log $LOGS/1-dry-run.log)"
   [[ $DRY_RUN -eq 0 ]] || exit 0
   if [[ $YES -eq 0 && -t 0 ]]; then
-    read -r -p "broadcast DeployHireling to chain $CHAIN? [y/N] " answer
+    read -r -p "broadcast DeploySidequest to chain $CHAIN? [y/N] " answer
     [[ "$answer" == y || "$answer" == Y ]] || { echo "stopped before broadcasting"; exit 0; }
   fi
-  log 2-deploy.log forge script script/DeployHireling.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
-    --broadcast --slow || fail "DeployHireling broadcast (finish it with --resume, then --from promote)"
-  forge_hashes DeployHireling
-  ok "DeployHireling broadcast"
+  log 2-deploy.log forge script script/DeploySidequest.s.sol --rpc-url "$RPC" "${DEPLOYER_SIGNER[@]}" \
+    --broadcast --slow || fail "DeploySidequest broadcast (finish it with --resume, then --from promote)"
+  forge_hashes DeploySidequest
+  ok "DeploySidequest broadcast"
 fi
 
-# 3. PromoteHireling.
+# 3. PromoteSidequest.
 if runs promote; then
-  log 3-promote.log forge script script/PromoteHireling.s.sol --rpc-url "$RPC" || fail "PromoteHireling"
-  [[ "$(json .deployment.hireling.safe | tr 'A-F' 'a-f')" == "${SAFE,,}" ]] || fail "promotion did not record the Safe"
-  ok "promoted: $CONFIG records the v1 deployment (hireling.block $(json .deployment.hireling.block)); the coordinator commits it"
+  log 3-promote.log forge script script/PromoteSidequest.s.sol --rpc-url "$RPC" || fail "PromoteSidequest"
+  [[ "$(json .deployment.sidequest.safe | tr 'A-F' 'a-f')" == "${SAFE,,}" ]] || fail "promotion did not record the Safe"
+  ok "promoted: $CONFIG records the v1 deployment (sidequest.block $(json .deployment.sidequest.block)); the coordinator commits it"
 fi
 address_of() {
   case "$1" in
     holding | evaluator) json ".deployment.main.$1" ;;
-    *) json ".deployment.hireling.$1" ;;
+    *) json ".deployment.sidequest.$1" ;;
   esac
 }
 
@@ -273,7 +273,7 @@ if runs accept; then
 fi
 
 # 5. The reused core's ADMIN_ROLE for the Safe (testnet only; see the header).
-if [[ "$(json .hireling.reuseCore)" == true ]] && runs pauser; then
+if [[ "$(json .sidequest.reuseCore)" == true ]] && runs pauser; then
   if [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$ADMIN_ROLE" "$SAFE")" == true ]]; then
     ok "the Safe already holds the core's ADMIN_ROLE"
   else
@@ -298,7 +298,7 @@ if runs readback; then
     [[ "$(call "$a" "pendingOwner()(address)")" == "$ZERO" ]] || fail "$name $a: a handover is still pending"
     echo "  $name $a owner = Safe"
   done
-  if [[ "$(json .hireling.reuseCore)" == true ]]; then
+  if [[ "$(json .sidequest.reuseCore)" == true ]]; then
     [[ "$(call "$CORE" "hasRole(bytes32,address)(bool)" "$(call "$CORE" "ADMIN_ROLE()(bytes32)")" "$SAFE")" == true ]] \
       || fail "the Safe does not hold the reused core's ADMIN_ROLE (step pauser)"
     echo "  core $CORE ADMIN_ROLE: Safe"
@@ -320,12 +320,12 @@ const d = process.argv[2] === 'monad-testnet'
   : deploymentFromConfig('monad-testnet', JSON.parse(readFileSync(process.argv[3], 'utf8')))
 const main = d.stacks.main
 const same = (a: string | undefined, b: string) => a?.toLowerCase() === b.toLowerCase()
-if (d.chainId !== $CHAIN || d.hireling === null || !same(d.hireling.safe, process.argv[4]) || main?.kind !== 'hireling-v1'
-  || !same(main.factory, d.hireling.factory) || !same(main.holding, process.argv[5])) {
-  console.error('the SDK does not load the promoted v1 deployment', JSON.stringify({ chainId: d.chainId, main, hireling: d.hireling }))
+if (d.chainId !== $CHAIN || d.sidequest === null || !same(d.sidequest.safe, process.argv[4]) || main?.kind !== 'sidequest-v1'
+  || !same(main.factory, d.sidequest.factory) || !same(main.holding, process.argv[5])) {
+  console.error('the SDK does not load the promoted v1 deployment', JSON.stringify({ chainId: d.chainId, main, sidequest: d.sidequest }))
   process.exit(1)
 }
-console.log('sdk: monad-testnet main = hireling-v1, holding ' + main.holding + ', evaluator ' + main.evaluator + ', Safe ' + d.hireling.safe)
+console.log('sdk: monad-testnet main = sidequest-v1, holding ' + main.holding + ', evaluator ' + main.evaluator + ', Safe ' + d.sidequest.safe)
 EOF
   bun "$SDK_TS" "$NETWORK" "$PWD/$CONFIG" "$SAFE" "$(address_of holding)" || fail "SDK load check"
   ok "the SDK loads the promoted deployment"
@@ -343,7 +343,7 @@ fi
 # Flags.
 if [[ $FEE_PROPOSAL_FLAG -eq 1 ]] && runs flags; then
   FEES=$(address_of feeSchedule)
-  SCHEDULE="${FEE_PROPOSAL:-$(jq -c .hireling.schedule "$CONFIG")}"
+  SCHEDULE="${FEE_PROPOSAL:-$(jq -c .sidequest.schedule "$CONFIG")}"
   T=$(jq -r '[.thresholds[] | if . == 0 then "0" else tostring + "000000000000000000" end] | join(",")' <<<"$SCHEDULE")
   B=$(jq -r '.bps | join(",")' <<<"$SCHEDULE")
   TREASURY=$(jq -r .treasury <<<"$SCHEDULE")
@@ -354,7 +354,7 @@ if [[ $FEE_PROPOSAL_FLAG -eq 1 ]] && runs flags; then
   ETA=$(call "$FEES" "pending()((uint256[4],uint16[4],address),uint48)" | tail -1 | awk '{print $1}')
   GRACE=$(call "$FEES" "PROPOSAL_GRACE()(uint48)" | awk '{print $1}')
   refuses "an early FeeSchedule.execute()" "ScheduleTimelocked(uint48)" "$FEES" "execute()"
-  ok "fee schedule proposed (thresholds $(jq -c .thresholds <<<"$SCHEDULE") FACTORY, bps $B, treasury $TREASURY); anyone can execute it from $(date -u -d "@$ETA" '+%Y-%m-%d %H:%M:%S UTC') for $GRACE seconds: cast send $FEES 'execute()'"
+  ok "fee schedule proposed (thresholds $(jq -c .thresholds <<<"$SCHEDULE") SIDE, bps $B, treasury $TREASURY); anyone can execute it from $(date -u -d "@$ETA" '+%Y-%m-%d %H:%M:%S UTC') for $GRACE seconds: cast send $FEES 'execute()'"
 fi
 if [[ $HOLDING_PROBE_FLAG -eq 1 ]] && runs flags; then
   VAULT=$(address_of vault)

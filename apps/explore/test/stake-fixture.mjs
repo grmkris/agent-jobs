@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 // Mocked Chromium only: the real SDK reads encoded responses from a test-only RPC transport.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-delegation-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-delegation-evidence';
 const port = Number(process.env.STAKE_FIXTURE_PORT ?? 5194);
 const base = `http://127.0.0.1:${port}`;
 const owner = '0x1111111111111111111111111111111111111111';
@@ -26,7 +26,7 @@ const server = await createServer({ envDir: false, server: { host: '127.0.0.1', 
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
   if (id.endsWith('/src/main.tsx')) return source.replace('const queryClient = new QueryClient()', 'const queryClient = new QueryClient(); window.__stakingQueryClient = queryClient');
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -36,7 +36,7 @@ async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
   await context.addInitScript(({ owner: fixtureOwner, delegator: fixtureDelegator, agentWallet: fixtureAgentWallet, other: fixtureOther, contracts: fixtureContracts, agent: fixtureAgent, options: fixtureOptions }) => {
     const E = 10n ** 18n;
-    window.__hireling = fixtureContracts;
+    window.__sidequest = fixtureContracts;
     window.__agents = [fixtureAgent];
     window.__wallet = { address: fixtureOwner, connected: fixtureOptions.connected ?? true, signatures: [], sends: JSON.parse(localStorage.getItem('fixture-wallet-sends') ?? '[]') };
     window.__balances = { native: 5n * 10n ** 17n };
@@ -58,8 +58,8 @@ async function fixture(viewport, options = {}) {
       pool.positions[fixtureOwner].shares = 4n;
       pool.positions[fixtureOther].shares = 6n;
     }
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: fixtureOwner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: fixtureOwner, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { owner, delegator, agentWallet, other, contracts, agent, options });
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());

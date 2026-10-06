@@ -40,7 +40,7 @@ export function SignInToPublish({ auth, label = 'Sign in to publish', className 
   }
   if (privyAppId === '') {
     return (
-      <Button size="lg" disabled className={className} title="Sign-in is not set up on this copy of Hireling, so it is read-only.">
+      <Button size="lg" disabled className={className} title="Sign-in is not set up on this copy of Sidequest, so it is read-only.">
         {label}
       </Button>
     )

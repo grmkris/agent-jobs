@@ -4,10 +4,10 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC8183} from "../../src/vendor/erc8183/ERC8183.sol";
-import {IHirelingEvaluator} from "../../src/hireling/interfaces/IHirelingEvaluator.sol";
+import {ISidequestEvaluator} from "../../src/sidequest/interfaces/ISidequestEvaluator.sol";
 import {BlocklistUSD, GasBurnerUSD} from "../../src/testnet/OddTokens.sol";
 import {OddTokensRecipe} from "../../script/OddTokensRecipe.sol";
-import {BaseV1} from "../hireling/BaseV1.t.sol";
+import {BaseV1} from "../sidequest/BaseV1.t.sol";
 
 /// @dev C11: the testnet odd tokens, and the v1 paths they are meant to show live (M2 deferral, C9-001).
 contract OddTokensTest is BaseV1 {
@@ -73,13 +73,13 @@ contract OddTokensTest is BaseV1 {
     ///      (C9-001); the payout is deferred and owed.
     function test_gasBurner_showsC9001() public {
         uint256 jobId = _job(IERC20(address(odd.gasBurner)));
-        rejectAs(jobId, IHirelingEvaluator.Violation.Quality);
+        rejectAs(jobId, ISidequestEvaluator.Violation.Quality);
         vm.prank(worker);
         evaluator.dispute(jobId);
         odd.gasBurner.setHungry(worker, type(uint256).max);
         vm.prank(arbitrator);
         evaluator.rule{gas: 1_200_000}(jobId, true, false, REASON);
-        assertEq(uint8(evaluator.outcome(jobId)), uint8(IHirelingEvaluator.Outcome.RuledForWorker));
+        assertEq(uint8(evaluator.outcome(jobId)), uint8(ISidequestEvaluator.Outcome.RuledForWorker));
         assertTrue(evaluator.payoutDeferred(jobId));
         if (status(jobId) == ERC8183.JobStatus.Submitted) evaluator.retryDeferred(jobId);
         holding.settle{gas: 1_000_000}(jobId);

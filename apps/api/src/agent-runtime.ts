@@ -1,6 +1,6 @@
 /** The reserved management object's MCP and operator action runtime. */
-import { AgentDirectory, AgentStore, AgentSigning, AgentExecutor, AgentLifecycle, AgentPermissions, BoardError, SponsorDesk, failureFromReply, migrateAgentSchema, SPONSOR_OBJECT_NAME, type Sql } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { AgentDirectory, AgentStore, AgentSigning, AgentExecutor, AgentLifecycle, AgentPermissions, BoardError, SponsorDesk, failureFromReply, migrateAgentSchema, SPONSOR_OBJECT_NAME, type Sql } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import type { BoardCall, BoardReply } from './board.ts'
@@ -8,7 +8,7 @@ import { resolveOAuth } from './oauth.ts'
 import { networkTool, permittedTool, requiredToolScope } from './mcp-policy.ts'
 import { resourceBoard } from './oauth-validation.ts'
 import { toJson } from './tools.ts'
-import { fromD1 } from '@agent-jobs/indexer'
+import { fromD1 } from '@sidequest/indexer'
 import { publishAgentOffer, type OfferBucket } from './agent-offers.ts'
 import { tenantAgentRequest } from './agent-requests.ts'
 import { reportRelayWatchFailure, watchRelay } from './relay-watch.ts'
@@ -42,7 +42,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   const agent = req.operator === undefined ? agents.get(req.agentId) : agents.owned(req.agentId, req.operator)
   agents.touch(agent.id)
   const { operationKey, managedAgentId: _managedAgentId, ...args } = req.args
-  if (requiredToolScope(req.tool) !== 'hireling:read' && typeof operationKey !== 'string') throw new BoardError('invalid', 'Every write requires a stable operationKey; retry with the same key')
+  if (requiredToolScope(req.tool) !== 'sidequest:read' && typeof operationKey !== 'string') throw new BoardError('invalid', 'Every write requires a stable operationKey; retry with the same key')
   if (req.tool === 'apply' || req.tool === 'submit_quote') {
     if (args.agentId !== undefined && args.agentId !== agent.agent_id) throw new BoardError('forbidden', 'Use this connection\'s registered agentId')
     args.agentId = agent.agent_id
@@ -64,7 +64,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   }
   const prepare = (tool: string, input: Record<string, unknown>): BoardCall => tenantAgentRequest(req, agent.address!, tool, input)
   const tenant = namespace.get(namespace.idFromName(req.env.boardId))
-  if (requiredToolScope(req.tool) === 'hireling:read') return tenant.call(prepare(req.tool, args))
+  if (requiredToolScope(req.tool) === 'sidequest:read') return tenant.call(prepare(req.tool, args))
   const signerKey = typeof bindings.PRIVY_SIGNER_KEY === 'string' ? bindings.PRIVY_SIGNER_KEY : ''
   const appSecret = typeof bindings.PRIVY_APP_SECRET === 'string' ? bindings.PRIVY_APP_SECRET : ''
   const provider = new sdk.PrivyServer({ appId: String(bindings.PRIVY_APP_ID ?? ''), appSecret, sign: async payload => {
@@ -101,7 +101,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
       }
       const reply = JSON.parse(await tenant.call(prepare(input.tool, input.args))) as BoardReply
       if (!reply.ok) throw failureFromReply(reply)
-      const action = reply.result as import('@agent-jobs/board').AgentPreparedCall
+      const action = reply.result as import('@sidequest/board').AgentPreparedCall
       return action
     },
     verifyToolSigning: input => tenant.verifyAgentSigning({ ...prepare(input.tool, input.args), typedData: input.typedData }),

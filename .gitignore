@@ -15,6 +15,7 @@ packages/sdk/scripts/.v1-flows/
 .demo-workers/
 .crew/
 .g1c-refunds/
+.sidequest/
 packages/sdk/scripts/privy/.local/
 packages/sdk/scripts/live/.local/
 

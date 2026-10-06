@@ -1,4 +1,5 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
+import historicalConfig from '../../../packages/sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { type PublicClient } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
@@ -7,8 +8,9 @@ import { arbiterAccounts, sendFundedCancellation } from './runtime.ts'
 const oldKey = generatePrivateKey(), v1Key = generatePrivateKey()
 const old = privateKeyToAccount(oldKey), v1 = privateKeyToAccount(v1Key)
 const d = sdk.deployment('monad-testnet')
-const legacyOnly: sdk.Deployment = { ...d, stacks: { main: d.legacyStacks['main-v3']! }, legacyStacks: {}, hireling: null }
-const v1Only: sdk.Deployment = { ...d, network: 'monad-mainnet', chainId: 143, stacks: { main: { ...d.stacks.main!, kind: 'hireling-v1' } }, legacyStacks: {} }
+const historical = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
+const legacyOnly: sdk.Deployment = { ...historical, stacks: { main: historical.stacks.main! }, legacyStacks: {}, sidequest: null }
+const v1Only: sdk.Deployment = { ...d, network: 'monad-mainnet', chainId: 143, stacks: { main: { ...d.stacks.main!, kind: 'sidequest-v1' } }, legacyStacks: {} }
 const cancellationFixture = (account: typeof v1, chainId: number, balance = 240_000n) => {
   const send = vi.fn(async () => sdk.hashText('cancellation'))
   const wallet = { account, chain: { id: chainId }, sendTransaction: send } as unknown as sdk.Wallet

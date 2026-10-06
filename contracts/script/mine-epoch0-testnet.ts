@@ -29,8 +29,8 @@ const env = (name: string) => {
 async function main() {
   const { inputArg, outArg, claimKeyEnv, epoch } = miningOptions(process.argv.slice(2))
   if (!existsSync('/proc/self/fd/9')) throw new Error('use the launch-lock shell wrapper')
-  const rpc = env('MONAD_TESTNET_RPC_URL'), ctx = context('monad-testnet', 'main', rpc), h = ctx.deployment.hireling
-  if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || !h || ctx.stack.kind !== 'hireling-v1') {
+  const rpc = env('MONAD_TESTNET_RPC_URL'), ctx = context('monad-testnet', 'main', rpc), h = ctx.deployment.sidequest
+  if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || !h || ctx.stack.kind !== 'sidequest-v1') {
     throw new Error('testnet only: refuses chain 143 regardless of MAINNET_GO')
   }
   await requireEndedEpoch(ctx.publicClient, h.miningReserve, epoch)

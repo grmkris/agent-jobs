@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {HirelingRecipe} from "./HirelingRecipe.sol";
+import {SidequestRecipe} from "./SidequestRecipe.sol";
 import {OddTokensRecipe} from "./OddTokensRecipe.sol";
 
 /// @notice NETWORK=monad-testnet forge script script/DeployOddTokens.s.sol --rpc-url $MONAD_TESTNET_RPC_URL \
@@ -11,8 +11,8 @@ import {OddTokensRecipe} from "./OddTokensRecipe.sol";
 ///         `setHungry(worker, type(uint256).max)` on gUSD.
 contract DeployOddTokens is Script {
     function run() external {
-        string memory json = vm.readFile(HirelingRecipe.path(vm, vm.envString("NETWORK")));
-        HirelingRecipe.guardChain(vm, json, true);
+        string memory json = vm.readFile(SidequestRecipe.path(vm, vm.envString("NETWORK")));
+        SidequestRecipe.guardChain(vm, json, true);
         (address[] memory wallets, uint256 amount) = OddTokensRecipe.load(vm, json);
         vm.startBroadcast();
         OddTokensRecipe.Deployed memory d = OddTokensRecipe.deploy(msg.sender, wallets, amount);

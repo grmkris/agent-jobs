@@ -85,12 +85,12 @@ describe('demand bot policy', () => {
   })
 
   it('refuses private hosts, moving branches and credential-bearing artifact URLs', () => {
-    for (const url of ['https://localhost/a.png', 'https://127.0.0.1/a.png', 'https://raw.githubusercontent.com/grmkris/hireling-demo-deliveries/main/a.png', `https://user:password@raw.githubusercontent.com/grmkris/hireling-demo-deliveries/${'a'.repeat(40)}/a.png`]) expect(() => demandArtifactUrl(url)).toThrow()
-    expect(demandArtifactUrl(`https://raw.githubusercontent.com/grmkris/hireling-demo-deliveries/${'a'.repeat(40)}/a.png`).host).toBe('raw.githubusercontent.com')
+    for (const url of ['https://localhost/a.png', 'https://127.0.0.1/a.png', 'https://raw.githubusercontent.com/grmkris/sidequest-demo-deliveries/main/a.png', `https://user:password@raw.githubusercontent.com/grmkris/sidequest-demo-deliveries/${'a'.repeat(40)}/a.png`]) expect(() => demandArtifactUrl(url)).toThrow()
+    expect(demandArtifactUrl(`https://raw.githubusercontent.com/grmkris/sidequest-demo-deliveries/${'a'.repeat(40)}/a.png`).host).toBe('raw.githubusercontent.com')
   })
 
   it('binds an artifact URL and exact commit into the submission hash', () => {
-    const descriptor = { kind: 'git' as const, url: 'https://github.com/grmkris/hireling-demo-deliveries', ref: 'demo', sha: 'a'.repeat(40) }
+    const descriptor = { kind: 'git' as const, url: 'https://github.com/grmkris/sidequest-demo-deliveries', ref: 'demo', sha: 'a'.repeat(40) }
     expect(demandDescriptorHash(descriptor)).not.toBe(demandDescriptorHash({ ...descriptor, sha: 'b'.repeat(40) }))
   })
 

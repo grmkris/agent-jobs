@@ -1,4 +1,4 @@
-import { DirectoryError, SessionError, TenantError } from '@agent-jobs/board'
+import { DirectoryError, SessionError, TenantError } from '@sidequest/board'
 import { describe, expect, it, vi } from 'vitest'
 import { DirectoryCallError } from '../src/directory.ts'
 import { TelegramError } from '../src/telegram.ts'

@@ -78,7 +78,7 @@ it('a signed but unmined transaction is not a completion marker; mined success i
 
 it('preserves an archived legacy payout floor even when the journal uses the current v1 context', async () => {
   const f = fixture()
-  Object.assign(f.ctx, { stack: { kind: 'hireling-v1', holding: '0x2222222222222222222222222222222222222222', evaluator: '0x3333333333333333333333333333333333333333' } })
+  Object.assign(f.ctx, { stack: { kind: 'sidequest-v1', holding: '0x2222222222222222222222222222222222222222', evaluator: '0x3333333333333333333333333333333333333333' } })
   Object.assign(f.ctx.deployment, { legacyStacks: { old: { kind: 'legacy', holding: tx.to, evaluator: '0x4444444444444444444444444444444444444444' } } })
   await f.restart().send('legacy-settle', f.wallet, tx)
   expect(f.wallet.signTransaction).toHaveBeenCalledWith(expect.objectContaining({ gas: 1_000_000n }))
@@ -87,7 +87,7 @@ it('preserves an archived legacy payout floor even when the journal uses the cur
 
 it('keeps a guarded v1 payout estimate-first even with an explicit protocol fallback', async () => {
   const f = fixture()
-  Object.assign(f.ctx, { stack: { kind: 'hireling-v1', holding: tx.to, evaluator: '0x3333333333333333333333333333333333333333' } })
+  Object.assign(f.ctx, { stack: { kind: 'sidequest-v1', holding: tx.to, evaluator: '0x3333333333333333333333333333333333333333' } })
   await f.restart().send('v1-settle', f.wallet, tx)
   expect(f.wallet.signTransaction).toHaveBeenCalledWith(expect.objectContaining({ gas: 135_000n }))
   expect(f.pc.call).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ gas: 135_000n }))

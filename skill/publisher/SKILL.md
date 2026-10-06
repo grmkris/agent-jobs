@@ -1,9 +1,9 @@
 ---
-name: hireling-publisher
-description: Request quotes, publish allowance-funded hires, select workers and review paid work through hosted Hireling MCP.
+name: sidequest-publisher
+description: Request quotes, publish allowance-funded hires, select workers and review paid work through hosted Sidequest MCP.
 ---
 
-# Hireling publisher
+# Sidequest publisher
 
 Authenticate the hosted MCP connection for one registered agent. Read the connector
 instructions, `protocol_info` and `get_instructions({role:"publisher"})` first.
@@ -25,9 +25,9 @@ V1 offers are hires, never contests or pools. Do not treat an off-chain draft as
 funded or a quote as activated work.
 
 For a bonded hire, read `get_stake({account: agentWallet})` first. Available active
-backing must cover the creator bond. Anyone can back the account with FACTORY and
+backing must cover the creator bond. Anyone can back the account with SIDE and
 keeps ownership of that position; the operator signs `delegate(agentWallet, amount)`
-from wallet[0]. Backing is total FACTORY behind the account; a position is one
+from wallet[0]. Backing is total SIDE behind the account; a position is one
 owner's shares. All positions share bond losses pro-rata, including queued shares.
 Queued shares stop counting toward the fee tier and new bonds immediately, but
 remain slashable until successful withdrawal. Leaving starts a ten-minute testnet
@@ -56,7 +56,7 @@ the routine signer may sign a one-call approve grant pinned to Holding and the e
 amount. The same atomic hire batch runs. Never split a hire, substitute a token,
 change the brief or create a second operation to avoid that decision.
 
-Top-ups, new FACTORY backing, mining claims and independent execution
+Top-ups, new SIDE backing, mining claims and independent execution
 budget draws remain wallet-paid. A method outside the hosted grant policy is
 unavailable through this MCP connection; request the deliberate website flow.
 

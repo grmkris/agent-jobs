@@ -42,7 +42,7 @@ contract AdmissionForkTest is Test {
         (creator, creatorPk) = makeAddrAndKey("fork-creator");
         (worker, workerPk) = makeAddrAndKey("fork-worker");
 
-        factory = new FactoryToken("Factory (testnet)", "FACTORY", true, address(0));
+        factory = new FactoryToken("Factory (testnet)", "SIDE", true, address(0));
         pay = new MockPaymentToken("Mock USD (testnet)", "mUSD");
         ERC8183WithAuthorization impl = new ERC8183WithAuthorization();
         core = ERC8183WithAuthorization(

@@ -16,7 +16,7 @@ export interface StepLocks {
 /** The lock spans journal reread, wallet confirmation and hash persistence. No unsafe fallback. */
 export async function withWalletStepLock<T>(locks: StepLocks | undefined, key: string, operation: () => Promise<T>): Promise<T> {
   if (locks === undefined) throw new Error('This browser cannot safely coordinate wallet operations across tabs. Use a browser with Web Locks.')
-  return locks.request(`hireling.wallet-step:${key}`, operation)
+  return locks.request(`sidequest.wallet-step:${key}`, operation)
 }
 
 export type TxStatus =

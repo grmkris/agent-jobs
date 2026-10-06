@@ -1,7 +1,7 @@
 import { type Hex, type TransactionReceipt, BaseError, ContractFunctionRevertedError, TransactionReceiptNotFoundError, decodeFunctionData, encodeErrorResult, keccak256, slice, zeroAddress } from 'viem'
 import { expect, it, vi } from 'vitest'
 import * as sdk from './index.ts'
-import { coreAbi, hirelingEvaluatorAbi, stakeVaultAbi } from './abi/index.ts'
+import { coreAbi, sidequestEvaluatorAbi, stakeVaultAbi } from './abi/index.ts'
 import { context } from './client.ts'
 import { flowPauseBatch, isHoldingTimelockRevert } from './v1-admin-flows.ts'
 
@@ -28,13 +28,13 @@ it('pause and notePause are one MultiSendCallOnly payload containing exactly two
     expect(decodeFunctionData({ abi: coreAbi, data: slice(packed, 85, 89) }).functionName).toBe(pause ? 'pause' : 'unpause')
     expect(slice(packed, 89, 90)).toBe('0x00')
     expect(slice(packed, 90, 110).toLowerCase()).toBe(ctx.stack.evaluator.toLowerCase())
-    expect(decodeFunctionData({ abi: hirelingEvaluatorAbi, data: slice(packed, 174, 178) }).functionName).toBe('notePause')
+    expect(decodeFunctionData({ abi: sidequestEvaluatorAbi, data: slice(packed, 174, 178) }).functionName).toBe('notePause')
   }
 })
 
 it.each(['admin-pause', 'admin-vault-refusal'] as const)('%s resumes after its final receipt before done, with no new signature or broadcast', async flow => {
   const base = context('monad-testnet', 'main', 'http://127.0.0.1:1')
-  const h = { safe: base.stack.holding, vault: base.stack.evaluator } as NonNullable<sdk.Deployment['hireling']>
+  const h = { safe: base.stack.holding, vault: base.stack.evaluator } as NonNullable<sdk.Deployment['sidequest']>
   let paused = false, cancelled = false, nonce = 0, interrupt = true
   let durable: sdk.FlowState = { binding: 'admin', values: {}, sends: {} }
   const receipts = new Map<Hex, TransactionReceipt>()
@@ -65,7 +65,7 @@ it.each(['admin-pause', 'admin-vault-refusal'] as const)('%s resumes after its f
     }),
     waitForTransactionReceipt: vi.fn(async ({ hash }: { hash: Hex }) => receipts.get(hash)!),
   }
-  const ctx = { ...base, stack: { ...base.stack, kind: 'hireling-v1' }, deployment: { ...base.deployment, hireling: h }, publicClient: pc } as unknown as sdk.Ctx
+  const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, deployment: { ...base.deployment, sidequest: h }, publicClient: pc } as unknown as sdk.Ctx
   const wallet = { account: { address: base.stack.holding }, signTransaction: vi.fn(async () => `0x${nonce.toString(16).padStart(8, '0')}`) } as unknown as sdk.Wallet
   const final = `${flow}/${flow === 'admin-pause' ? 'unpause-note' : 'cancel-probe'}`
   const boot = () => new sdk.FlowJournal(ctx, sdk.parseFlowJson(sdk.flowJson(durable)), state => {

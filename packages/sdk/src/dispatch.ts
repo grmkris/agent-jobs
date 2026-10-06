@@ -1,6 +1,6 @@
 /**
  * The Dispatch adapter (CP5, demo step 1): a Cloudflare OS instance's Dispatch board publishes one of its tasks to
- * agent-jobs as a quote request, through this SDK and the board's REST API. The OS holds no key: it signs through a
+ * sidequest as a quote request, through this SDK and the board's REST API. The OS holds no key: it signs through a
  * wallet the caller passes (a Privy server wallet in the demo), so "no secrets on the OS side" still holds.
  *
  * A Dispatch task (the `DispatchSession.createTask` shape: title, description, repo with its base commit, optional
@@ -14,7 +14,7 @@ import { type TxRequest, boardClient, sendAll, signTypedDataJson } from './board
 import type { Wallet } from './actions.ts'
 import { signerOf } from './privy.ts'
 
-/** The part of a Dispatch task agent-jobs needs (Cloudflare OS `DispatchSession.createTask`). */
+/** The part of a Dispatch task sidequest needs (Cloudflare OS `DispatchSession.createTask`). */
 export interface DispatchTask {
   readonly id: string
   readonly title: string
@@ -62,7 +62,7 @@ export function quoteRequestFromDispatch(task: DispatchTask, policy: DispatchPol
 type Reads = Parameters<typeof sendBatch>[1]
 
 /**
- * A Dispatch board's connection to agent-jobs: one signed-in board client acting for the OS's wallet. With
+ * A Dispatch board's connection to sidequest: one signed-in board client acting for the OS's wallet. With
  * `delegator` (the deployment's EIP-7702 DeleGator), each step's transactions go out as one batch.
  */
 export async function dispatchPublisher(boardUrl: string, wallet: Wallet, publicClient: Reads, opts: { delegator?: Address } = {}) {

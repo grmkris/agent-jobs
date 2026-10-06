@@ -3,7 +3,7 @@
  * a zone. Resolution happens once, when the board prepares the call; a hosted retry replays the frozen preparation
  * and the REST idempotency key returns the first result, so a retry never moves the deadline.
  */
-import { BoardError } from '@agent-jobs/board'
+import { BoardError } from '@sidequest/board'
 
 const UNIT_SECONDS: Readonly<Record<string, number>> = { s: 1, m: 60, h: 3600, d: 86_400, w: 604_800 }
 const MAX_RELATIVE_SECONDS = 366 * 86_400

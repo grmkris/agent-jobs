@@ -1,4 +1,4 @@
-import { type JobAction, type LifecycleInput, type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@agent-jobs/react'
+import { type JobAction, type LifecycleInput, type Phase, lifecycle, lifecycleFromIndexed, lifecycleFromTask } from '@sidequest/react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, CircleAlert, Clock, Lock, ReceiptText } from 'lucide-react'
@@ -18,7 +18,7 @@ import { useNow } from '../components/Time.tsx'
 import { Address, Badge, Button, Group, ListRow, Row, Section, Skeleton, TxLink, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { amount, bond, budgetCap, span, tokenInfo } from '../format.ts'
-import { hireling } from '../hireling.ts'
+import { sidequest } from '../sidequest.ts'
 import { percent } from '../stake.ts'
 import { useToken } from '../useTokens.ts'
 import { writesOpen } from '../wallet.ts'
@@ -29,7 +29,7 @@ export type { JobEvent }
 interface Detail {
   job: {
     status: string
-    kind: 'legacy' | 'hireling-v1' | null
+    kind: 'legacy' | 'sidequest-v1' | null
     mode: string | null
     stack: string | null
     worker: string | null
@@ -167,13 +167,13 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
   const otherBoard = d?.board != null && d.board.boardId !== currentBoardId() && d.board.boardId !== 'public'
 
   if (chain.isLoading && listed === undefined) return <JobSkeleton />
-  if (d !== undefined && d.job.kind !== 'hireling-v1') {
+  if (d !== undefined && d.job.kind !== 'sidequest-v1') {
     return (
       <>
         <Back />
         <div className="grid gap-2 rounded-2xl bg-surface p-6 text-center">
           <p className="font-semibold">Job #{jobId} is on an earlier contract</p>
-          <p className="text-sm text-label-2">Hireling shows jobs on its v1 contracts only.</p>
+          <p className="text-sm text-label-2">Sidequest shows jobs on its v1 contracts only.</p>
         </div>
       </>
     )
@@ -252,10 +252,10 @@ export function JobPage({ auth, jobId: given, onEvent }: { auth: Auth; jobId?: s
       )}
 
       {writesOpen && phase?.key === 'hire-open' && auth.signedIn && auth.address !== undefined && !roles.includes('creator') && (
-        <FeeQuote jobId={jobId} holding={hireling.holding} viewer={auth.address as Account} token={token} />
+        <FeeQuote jobId={jobId} holding={sidequest.holding} viewer={auth.address as Account} token={token} />
       )}
       {writesOpen && token !== null && auth.signedIn && auth.address !== undefined && phase !== null && !phase.terminal && ['active', 'submitted'].includes(t?.chain.status ?? '') && (
-        <TopUp jobId={jobId} holding={hireling.holding} token={token as Account} viewer={auth.address as Account} />
+        <TopUp jobId={jobId} holding={sidequest.holding} token={token as Account} viewer={auth.address as Account} />
       )}
 
       {d !== undefined && (d.timeline?.length ?? 0) > 0 && (
@@ -333,7 +333,7 @@ const chargeOf = (d: Detail | undefined): Charge =>
   d?.job.fee_bps == null || d.job.fee == null || d.job.net == null ? null : { bps: d.job.fee_bps, fee: d.job.fee, net: d.job.net }
 
 /**
- * Where the reward is: locked in escrow, paid, or back with the creator. The agent is paid the reward less Hireling's
+ * Where the reward is: locked in escrow, paid, or back with the creator. The agent is paid the reward less Sidequest's
  * fee (D11), so once the fee is fixed the paid amount is that net, never the reward.
  */
 function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null; reward: string; token: string | null; agentId: string | null; charge: Charge }) {
@@ -341,7 +341,7 @@ function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null;
   const draft = phase?.key === 'draft' || phase?.key === 'draft-stale'
   const paid = phase?.key === 'completed'
   const agent = agentId !== null ? `Agent #${agentId}` : 'the agent'
-  const afterFee = charge === null ? '' : ` less Hireling’s ${percent(charge.bps)} fee`
+  const afterFee = charge === null ? '' : ` less Sidequest’s ${percent(charge.bps)} fee`
   const where = draft
     ? 'Not locked yet: publishing locks it in escrow'
     : paid
@@ -352,7 +352,7 @@ function Money({ phase, reward, token, agentId, charge }: { phase: Phase | null;
           ? 'Chain payment status unavailable'
           : charge === null
             ? `Locked in escrow · paid to ${agent} when the work is accepted`
-            : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Hireling’s ${percent(charge.bps)} fee`
+            : `Locked in escrow · ${agent} gets ${amount(charge.net, token)} when the work is accepted, after Sidequest’s ${percent(charge.bps)} fee`
   return (
     <div className="flex items-center gap-3.5 rounded-2xl bg-surface p-4">
       <span className={cn('grid size-10 shrink-0 place-items-center rounded-xl', !terminal && !draft ? 'bg-tint/14 text-tint' : paid ? 'bg-ok-bg text-ok' : 'bg-fill text-label-2')}>

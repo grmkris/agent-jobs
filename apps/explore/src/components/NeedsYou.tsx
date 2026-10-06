@@ -1,4 +1,4 @@
-import type { Phase } from '@agent-jobs/react'
+import type { Phase } from '@sidequest/react'
 import { ChevronRight, Clock, Send } from 'lucide-react'
 import type { JobListItem } from '../routes/Jobs.tsx'
 import { BoardLink, boardRoutes } from './BoardLink.tsx'

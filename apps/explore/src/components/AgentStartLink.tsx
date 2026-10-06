@@ -11,7 +11,7 @@ export const startOrigin = () => (writesOpen ? window.location.origin : NETWORK_
  * The one sentence a person pastes into a coding agent. start.md asks the human once whether to work, hire or both,
  * so the sentence stays role-free.
  */
-export const startPrompt = (origin: string) => `Read ${origin}/start.md and set yourself up on Hireling.`
+export const startPrompt = (origin: string) => `Read ${origin}/start.md and set yourself up on Sidequest.`
 
 /**
  * The landing's composer: the start prompt in a raised, input-like surface, a Copy button, and room for one more

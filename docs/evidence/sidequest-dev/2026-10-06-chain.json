@@ -1,0 +1,222 @@
+{
+  "date": "2026-10-06",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "deployment": {
+    "block": 68581020,
+    "core": "0x9D3B88bc525E7A363F099332E6F4b5A7af1FcC32",
+    "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+    "main": {
+      "evaluator": "0x999576200d2216591bDb8c3Fb662b48F1109414b",
+      "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+      "holding": "0xfa52B3d905346c53436B6F4824A7c6F0439A0614",
+      "kind": "sidequest-v1",
+      "openTokens": true
+    },
+    "network": "monad-testnet",
+    "rewardTokens": [
+      "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+      "0x7523106F742B1445b14b0992eE2eA41A3691dc24"
+    ],
+    "sidequest": {
+      "block": 68581014,
+      "clocks": {
+        "epochDuration": 3600,
+        "epochZeroDuration": 1800,
+        "feeDelay": 300,
+        "holdingDelay": 900,
+        "minArbitrationWindow": 300,
+        "minDisputeWindow": 120,
+        "minReviewWindow": 120,
+        "proposalGrace": 1800,
+        "unstakeDelay": 600
+      },
+      "distributor": "0xD54ab32a456878e1Ad3a346d537Ea569602F425e",
+      "factory": "0x7572f3Eb31C5bd3E5809F20d221603C2E31f170d",
+      "feeSchedule": "0x6b3946408838CFd43eb28024Bc11B5C0b119DfAC",
+      "miningReserve": "0x2610f52Ff9e18B7108a0d6EcAd28243c680A7BC0",
+      "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+      "t0": 1791257814,
+      "teamVesting": "0x754662106Bf8305b33999aB37C1CC4F9ad6f9f46",
+      "vault": "0x48aB9ec1d37818293Ba1F9e63a4f01C8e4a05C76"
+    }
+  },
+  "safe": {
+    "safe": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+    "owners": [
+      "0xd3392156861c922675d4859BB9C32d8ad2BaD956",
+      "0xf031DbaE78DFAc1Ea4255d9D8252417ED90784Ab"
+    ],
+    "threshold": 1,
+    "version": "1.4.1",
+    "hash": "0xc39d085bdb42fce69538256f6190afcaaca2bc842b59eec678894f3baac3a1c4",
+    "block": "68579913"
+  },
+  "deploymentReceipts": [
+    {
+      "hash": "0xf63de3d1d05bc6e6d3d591330d426e12858cafd39ec7a7af759c18d5ef9f9c4f",
+      "block": 68581014,
+      "status": "success"
+    },
+    {
+      "hash": "0xe5bd2422eca84f426a1bfca511f294cc34589c9b80e551467942d54ee12e1b93",
+      "block": 68581020,
+      "status": "success"
+    },
+    {
+      "hash": "0xeeea63ebced4f907c104f3eb8d05dcb38ec68777c93c79b7ac4a12029cd5239b",
+      "block": 68581026,
+      "status": "success"
+    },
+    {
+      "hash": "0x6c2eb44f2454d1acc1a2175e88bcaed645018d3c3bef9797f43f9e31e5e593cd",
+      "block": 68581027,
+      "status": "success"
+    },
+    {
+      "hash": "0x676a0b7c12bb1d6be222a68424807e786e55e99370fcc15e4a64c4971b0d0ed2",
+      "block": 68581030,
+      "status": "success"
+    },
+    {
+      "hash": "0xd03ec04b0abfbaa2b4242bbc24fecd286718e4ce1bb140eec85049f9dd0b9368",
+      "block": 68581036,
+      "status": "success"
+    },
+    {
+      "hash": "0x58c8ad95b43cff8b2f5f3da53c06ee4eddc3887ca4d01bc7f62f83cc226d6455",
+      "block": 68581043,
+      "status": "success"
+    },
+    {
+      "hash": "0x9eb74eda3e207934519bff342c3511daae3604a7b2628349df5ac8bb73ba5052",
+      "block": 68581048,
+      "status": "success"
+    },
+    {
+      "hash": "0x4d6f050b5912feb6fb5f33a8cdc1e91199cf70413144e9fbfb9a0fc94525323e",
+      "block": 68581054,
+      "status": "success"
+    },
+    {
+      "hash": "0x5fb36308045b400e6dae216fa6dc5d6866e920c5fcf2c5b46846dee4e94823a9",
+      "block": 68581060,
+      "status": "success"
+    },
+    {
+      "hash": "0xd17bfbc116cf36dfb15644fd3e0104db70e50748d74150854f970503068309de",
+      "block": 68581066,
+      "status": "success"
+    },
+    {
+      "hash": "0xdda9287b5f4fb5fb4a577c0a877c6dd3784231bfcd15ff347879d083f46beffc",
+      "block": 68581072,
+      "status": "success"
+    },
+    {
+      "hash": "0x15284a446725995663c07239681311471193635232d3b0abc846c499ed41395c",
+      "block": 68581078,
+      "status": "success"
+    },
+    {
+      "hash": "0x620bcc8dabc39adc824d61f7e5d80fed466cfc029f3690ebf651c59c39876323",
+      "block": 68581084,
+      "status": "success"
+    },
+    {
+      "hash": "0xd9fe222773e2feaa08724d83e4bdc14c9349fcc27ada03505bd0415819e8823a",
+      "block": 68581090,
+      "status": "success"
+    },
+    {
+      "hash": "0xd684e46a5d7ed765bba9cc57e3106a67e4a9e439725e7cc2a9db4e76f211bbfa",
+      "block": 68581096,
+      "status": "success"
+    },
+    {
+      "hash": "0x665a25c37843da6e23c7f333c08a1ae3184f0cdbb997f5164775d0f78950c62d",
+      "block": 68581102,
+      "status": "success"
+    },
+    {
+      "hash": "0x6627d4c20123ae9645a4bc63f86b462db131bf25d31a071ee3d6013612add438",
+      "block": 68581108,
+      "status": "success"
+    },
+    {
+      "hash": "0x8b1704c8ac8fd9b25b197303eaa0a60c85e4ed8b096d7d05193d72381cadacb0",
+      "block": 68581114,
+      "status": "success"
+    },
+    {
+      "hash": "0xa170d0a3ac0ec0c600a28bd55c67bb46f15ef6d2079be1a86d07fd1cff24e54c",
+      "block": 68581120,
+      "status": "success"
+    },
+    {
+      "hash": "0xc9b61d9e613709880bc531af686e689f74af0f296c56e49bf957b4b7db7fa199",
+      "block": 68581126,
+      "status": "success"
+    },
+    {
+      "hash": "0x37a4ddabc25c7062b18b1922441f95087aef83fa0e7645f309b8776e1eb4b97b",
+      "block": 68581132,
+      "status": "success"
+    },
+    {
+      "hash": "0x429b114d3bb40a6eb3f27ff8316a778d6391e0905b62512b8f7445437eda5c70",
+      "block": 68581138,
+      "status": "success"
+    },
+    {
+      "hash": "0x66362e8db9205c4cf549f48d9d654f53644dc9a7d9f3eae2575ffc28f8c47a7c",
+      "block": 68581145,
+      "status": "success"
+    },
+    {
+      "hash": "0xa62347eb003d5880bf09dcc285b2d963f10535c2bf746c5ac8d0f4a10d3ea24d",
+      "block": 68581150,
+      "status": "success"
+    },
+    {
+      "hash": "0xf812d0c5cab00b0ab231f92e67d4e868b63d6a9fde97e04060b9df0ea195c29e",
+      "block": 68581156,
+      "status": "success"
+    }
+  ],
+  "ownershipAcceptanceReceipts": [
+    {
+      "hash": "0xd1720c12c1a44273bde67cf2822fb0de9dd30723173a1094d29235ea5c5046e5",
+      "block": 68581385,
+      "status": "success"
+    },
+    {
+      "hash": "0xeef0574ecffca8b329d62ad9e4d685269dfe88c5d507d43d9ab4554112adadc8",
+      "block": 68581391,
+      "status": "success"
+    },
+    {
+      "hash": "0x37bcdd9b1ed8fdfd0a3078baa9e79f73b84816b85bee350dd6564942a929e423",
+      "block": 68581398,
+      "status": "success"
+    },
+    {
+      "hash": "0x229e0a051818e8440a5e3657a6744220201a458b532247f2521c954534ba877e",
+      "block": 68581403,
+      "status": "success"
+    },
+    {
+      "hash": "0x21698374cf7c14dc0d2f73de324087642b25b32cee33a2aa7bcd9ccf5b7f78cc",
+      "block": 68581404,
+      "status": "success"
+    },
+    {
+      "hash": "0x2f23fffb4ed173e33a8cbbdae31f6d1c167a4150f61f48e4e911b32717afdb36",
+      "block": 68581409,
+      "status": "success"
+    }
+  ],
+  "limits": [
+    "Testnet deployment receipts only; no mainnet deployment or paid-job acceptance is implied."
+  ]
+}

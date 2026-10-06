@@ -32,11 +32,11 @@ def fixture(from_name='g1'):
         set_at(config, dotted, value)
     config['chainId'] = 10143
     config['network'] = 'monad-testnet'
-    config['deployment']['main']['kind'] = 'hireling-v1'
-    config['deployment']['hireling']['block'] = identity['hirelingBlock']
-    config['deployment']['hireling']['t0'] = identity['t0']
-    config['hireling']['clocks'] = identity['clocks']
-    config['hireling']['reuseCore'] = True
+    config['deployment']['main']['kind'] = 'sidequest-v1'
+    config['deployment']['sidequest']['block'] = identity['sidequestBlock']
+    config['deployment']['sidequest']['t0'] = identity['t0']
+    config['sidequest']['clocks'] = identity['clocks']
+    config['sidequest']['reuseCore'] = True
     return config
 
 
@@ -61,7 +61,7 @@ class PrepareTest(unittest.TestCase):
         self.assertTrue(metadata['date'])
         self.assertEqual(metadata['reason'], prep.IDENTITIES[self.from_name]['reason'])
         expected = copy.deepcopy(self.record)
-        for key in ('hireling', 'main', 'oddTokens'):
+        for key in ('sidequest', 'main', 'oddTokens'):
             expected['deployment'].pop(key, None)
         self.assertEqual(json.loads(self.config.read_text()), expected)
 
@@ -156,9 +156,9 @@ class PrepareG1bTest(PrepareTest):
 
     def test_reviewed_identity_pins_g1b_metadata_and_new_addresses(self):
         identity = prep.IDENTITIES[self.from_name]
-        self.assertEqual(identity['hirelingBlock'], 67856884)
+        self.assertEqual(identity['sidequestBlock'], 67856884)
         self.assertEqual(identity['t0'], 1791038852)
-        for dotted in ['erc8004.identity', 'erc8004.reputation', 'deployment.oddTokens.blocklist', 'deployment.oddTokens.gasBurner', 'deployment.hireling.vault', 'deployment.main.holding']:
+        for dotted in ['erc8004.identity', 'erc8004.reputation', 'deployment.oddTokens.blocklist', 'deployment.oddTokens.gasBurner', 'deployment.sidequest.vault', 'deployment.main.holding']:
             self.assertIn(dotted, identity['addresses'])
         self.assertEqual(identity['reason'], 'G1b archived for the G1c delegated-stake redeploy (ADR-0014)')
 

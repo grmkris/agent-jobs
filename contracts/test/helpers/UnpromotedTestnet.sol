@@ -16,8 +16,12 @@ library UnpromotedTestnet {
         vm.serializeUint(object, "block", vm.parseJsonUint(shipped, ".deployment.block"));
         vm.serializeString(object, "network", "monad-testnet");
         vm.serializeAddress(object, "factory", address(0x101));
-        vm.serializeAddress(object, "poolFactory", vm.parseJsonAddress(shipped, ".deployment.poolFactory"));
-        vm.serializeUint(object, "stacksBlock", vm.parseJsonUint(shipped, ".deployment.stacksBlock"));
+        if (vm.keyExistsJson(shipped, ".deployment.poolFactory")) {
+            vm.serializeAddress(object, "poolFactory", vm.parseJsonAddress(shipped, ".deployment.poolFactory"));
+        }
+        if (vm.keyExistsJson(shipped, ".deployment.stacksBlock")) {
+            vm.serializeUint(object, "stacksBlock", vm.parseJsonUint(shipped, ".deployment.stacksBlock"));
+        }
         vm.serializeAddress(object, "rewardTokens", vm.parseJsonAddressArray(shipped, ".deployment.rewardTokens"));
         vm.serializeString(
             object,
@@ -36,6 +40,6 @@ library UnpromotedTestnet {
         );
         vm.writeJson(deployment, path, ".deployment");
         fixture = vm.readFile(path);
-        require(!vm.keyExistsJson(fixture, ".deployment.hireling"), "fixture still promoted");
+        require(!vm.keyExistsJson(fixture, ".deployment.sidequest"), "fixture still promoted");
     }
 }

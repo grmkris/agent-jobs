@@ -4,7 +4,7 @@ import type { DirectoryCall } from '../src/directory-object.ts'
 import type { AdmissionCall, AdmissionReply } from '../src/admission-rate.ts'
 
 const wallet = '0x1111111111111111111111111111111111111111'
-const request = (patch: Partial<DirectoryCall> = {}): DirectoryCall => ({ network: 'monad-mainnet', rpcUrl: '', audience: 'https://hireling.xyz', agentId: '7', action: 'prepare', kind: 'Enrollment', payload: {}, admission: { boardId: 'public', bearer: 'session', caller: wallet, ip: '203.0.113.7' }, ...patch })
+const request = (patch: Partial<DirectoryCall> = {}): DirectoryCall => ({ network: 'monad-mainnet', rpcUrl: '', audience: 'https://sidequest.exchange', agentId: '7', action: 'prepare', kind: 'Enrollment', payload: {}, admission: { boardId: 'public', bearer: 'session', caller: wallet, ip: '203.0.113.7' }, ...patch })
 function fixture(reply: AdmissionReply = { ok: true }) {
   const admit = vi.fn(async (_input: AdmissionCall) => JSON.stringify(reply))
   const bindings = { NETWORK: 'monad-mainnet', Board: { idFromName: vi.fn(() => ({ toString: () => 'admission' })), get: () => ({ admit }) } }

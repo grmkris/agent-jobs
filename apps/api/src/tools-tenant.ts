@@ -11,9 +11,9 @@ import {
   tenantDefaults,
   tenantRefusal,
   validateBoardInput,
-} from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type * as sdk from '@agent-jobs/sdk'
+} from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
+import type * as sdk from '@sidequest/sdk'
 import type { Address } from 'viem'
 import { createBoard, getBoard, listBoards, updateBoard } from './registry.ts'
 

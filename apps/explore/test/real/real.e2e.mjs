@@ -6,7 +6,7 @@ import { chromium } from 'playwright-core';
 import { concat, decodeFunctionResult, encodeFunctionData, pad, parseAbi } from 'viem';
 import { createServer } from 'vite';
 
-// U-REAL: Explore's chain pages against a real chain: an anvil fork of Monad testnet with Hireling v1 deployed by
+// U-REAL: Explore's chain pages against a real chain: an anvil fork of Monad testnet with Sidequest v1 deployed by
 // contracts' own launch-testnet.sh and one hire settled (test/real/fork.sh up). Every chain read and write goes to the
 // fork through Explore's real wagmi config; the wallet is an injected dev-key wallet that anvil signs for. Only the
 // board's tools (sponsorship status, transaction reports) stay fixtures. Pages:
@@ -14,20 +14,20 @@ import { createServer } from 'vite';
 //   /admin  fee proposal review and execute after 3 days, pause + notePause as one MultiSend, the epoch price list,
 //           `pnpm mining:epoch 0` on the fork's hire, funding signed for the live Safe nonce (refused once another Safe
 //           transaction goes first, and refused by the Safe itself), and setRoot from the file.
-// Off unless HIRELING_REAL=1, so pnpm check never runs it:
-//   bash apps/explore/test/real/fork.sh up && (cd apps/explore && HIRELING_REAL=1 node test/real/real.e2e.mjs) ; bash apps/explore/test/real/fork.sh down
-if (process.env.HIRELING_REAL !== '1') {
-  console.log('SKIP: real-chain e2e (run test/real/fork.sh up, then HIRELING_REAL=1)');
+// Off unless SIDEQUEST_REAL=1, so pnpm check never runs it:
+//   bash apps/explore/test/real/fork.sh up && (cd apps/explore && SIDEQUEST_REAL=1 node test/real/real.e2e.mjs) ; bash apps/explore/test/real/fork.sh down
+if (process.env.SIDEQUEST_REAL !== '1') {
+  console.log('SKIP: real-chain e2e (run test/real/fork.sh up, then SIDEQUEST_REAL=1)');
   process.exit(0);
 }
 
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
-const stateDir = process.env.STATE_DIR ?? '/tmp/hireling-real';
+const stateDir = process.env.STATE_DIR ?? '/tmp/sidequest-real';
 const output = process.argv[2] ?? `${stateDir}/evidence`;
 const state = JSON.parse(readFileSync(`${stateDir}/state.json`, 'utf8'));
 const config = JSON.parse(readFileSync(state.config, 'utf8'));
-const h = config.deployment.hireling;
+const h = config.deployment.sidequest;
 const base = 'http://127.0.0.1:5210';
 const W = 10n ** 18n;
 const { owner1, owner2, staker } = state.accounts;
@@ -82,7 +82,7 @@ async function fresh() {
 const nonceOf = async (account) => Number(BigInt(await rpc('eth_getTransactionCount', [account, 'latest'])));
 
 process.env.PRIVY_APP_ID = 'real-e2e-devwallet';
-process.env.AGENT_JOBS_NETWORK = 'monad-testnet';
+process.env.SIDEQUEST_NETWORK = 'monad-testnet';
 const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port: 5210, strictPort: true }, plugins: [{ name: 'real-chain', enforce: 'pre', resolveId(source) {
   if (source.endsWith('/Privy.tsx')) return `${directory}devwallet.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}../privy-react-auth.mjs`;
@@ -166,17 +166,17 @@ async function stakePage() {
   const vault = h.vault;
   await page.goto(`${base}/stake`);
   await page.getByRole('heading', { name: 'Stake', level: 1 }).waitFor();
-  await page.getByText('50,000 FACTORY', { exact: true }).first().waitFor({ timeout: 30_000 });
+  await page.getByText('50,000 SIDE', { exact: true }).first().waitFor({ timeout: 30_000 });
   await capture(page, 'stake-start');
 
   // Stake with a permit: one signature (eth_signTypedData_v4 by anvil), then stakeWithPermit.
   await page.locator('#stake-amount').fill('20000');
-  await page.getByRole('button', { name: 'Stake 20,000 FACTORY', exact: true }).click();
+  await page.getByRole('button', { name: 'Stake 20,000 SIDE', exact: true }).click();
   await confirm(page, 'Staked. Your fee tier counts it now.');
   assert.equal(await read(vault, 'function stakeOf(address) view returns (uint256)', [staker]), 20_000n * W);
   const methods = await page.evaluate(() => window.__devwallet.log.filter((m) => m.startsWith('eth_sign') || m === 'eth_sendTransaction'));
   assert.deepEqual(methods, ['eth_signTypedData_v4', 'eth_sendTransaction']);
-  await page.getByText('20,000 FACTORY', { exact: true }).first().waitFor();
+  await page.getByText('20,000 SIDE', { exact: true }).first().waitFor();
 
   // A reservation, as a Holding makes one for a bond (the Holding impersonated on the fork).
   const holding = config.deployment.main.holding;
@@ -185,16 +185,16 @@ async function stakePage() {
   await send(holding, vault, encodeFunctionData({ abi: parseAbi(['function reserve(address account, uint256 amount)']), functionName: 'reserve', args: [staker, 5n * W] }));
   await rpc('anvil_stopImpersonatingAccount', [holding]);
   await page.reload();
-  await page.getByText('5 FACTORY', { exact: true }).first().waitFor();
+  await page.getByText('5 SIDE', { exact: true }).first().waitFor();
   await page.getByRole('radio', { name: 'Unstake' }).click();
   await page.locator('#stake-amount').fill('20000');
   await page.getByText(/reserved stake stays until its jobs settle/).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Unstake 20,000 FACTORY' }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Unstake 20,000 SIDE' }).isDisabled(), true);
   await capture(page, 'stake-reserved');
 
   // Unstake: the cooldown starts, with the countdown from the vault's unlock time.
   await page.locator('#stake-amount').fill('1000');
-  await page.getByRole('button', { name: 'Unstake 1,000 FACTORY' }).click();
+  await page.getByRole('button', { name: 'Unstake 1,000 SIDE' }).click();
   await confirm(page, 'Unstaking started. The cooldown is running.');
   await page.getByText(/Withdrawable in 6 d 23 h/).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Withdraw', exact: true }).isDisabled(), true);
@@ -209,7 +209,7 @@ async function stakePage() {
   // After the cooldown, on chain time, withdraw.
   await page.getByRole('radio', { name: 'Unstake' }).click();
   await page.locator('#stake-amount').fill('1000');
-  await page.getByRole('button', { name: 'Unstake 1,000 FACTORY' }).click();
+  await page.getByRole('button', { name: 'Unstake 1,000 SIDE' }).click();
   await confirm(page, 'Unstaking started. The cooldown is running.');
   // The first unstake's toast may still be up, so wait for this request on chain before moving time past its cooldown.
   await page.getByText(/Withdrawable in 6 d 23 h/).waitFor({ timeout: 30_000 });
@@ -227,7 +227,7 @@ async function stakePage() {
 
 async function adminPage() {
   const { context, page } = await open(owner1);
-  const opKey = `hireling.admin-op:${owner1.toLowerCase()}`;
+  const opKey = `sidequest.admin-op:${owner1.toLowerCase()}`;
   await page.goto(`${base}/admin`);
   await page.getByText(/As the Safe/).waitFor({ timeout: 30_000 });
   const ownership = section(page, 'Ownership');
@@ -279,7 +279,7 @@ async function adminPage() {
   const prices = section(page, 'Mining prices');
   assert.equal(await prices.getByRole('textbox', { name: 'Price list epoch' }).inputValue(), '0');
   await prices.getByRole('textbox', { name: 'USD price of mUSD' }).fill('1');
-  await prices.getByRole('textbox', { name: 'FACTORY price in USD' }).fill('0.0001');
+  await prices.getByRole('textbox', { name: 'SIDE price in USD' }).fill('0.0001');
   await prices.getByRole('button', { name: 'Sign the price list' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), prices.getByRole('link', { name: 'Download prices-epoch-0.json' }).click()]);
   const pricesFile = `${stateDir}/prices-epoch-0.json`;

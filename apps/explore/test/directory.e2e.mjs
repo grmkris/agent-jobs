@@ -5,11 +5,11 @@ import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-directory-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-directory-evidence';
 const base = 'http://127.0.0.1:5191';
 const owner = '0x1111111111111111111111111111111111111111';
-// AGENT_JOBS_NETWORK=monad-mainnet runs the same checks on the mainnet config: its chain and ERC-8004 registry.
-const network = process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet';
+// SIDEQUEST_NETWORK=monad-mainnet runs the same checks on the mainnet config: its chain and ERC-8004 registry.
+const network = process.env.SIDEQUEST_NETWORK ?? 'monad-testnet';
 const readConfig = (name) => JSON.parse(readFileSync(new URL(`../../../contracts/config/${name}.json`, import.meta.url), 'utf8'));
 const config = readConfig(network);
 const registry = config.erc8004.identity;
@@ -49,7 +49,7 @@ async function fixture(viewport) {
       if (state.failDirectory) return reply({ ok: false, message: 'Directory unavailable' }, 503);
       const after = url.searchParams.get('after');
       state.pageAfter.push(after);
-      return reply({ ok: true, agents: after === null ? [agent('7001'), agent('7002', false)] : [agent('7003')], nextCursor: after === null ? '7002' : null, observedAt: now, chainId, identityRegistry: registry, scope: 'opted-in Hireling directory' });
+      return reply({ ok: true, agents: after === null ? [agent('7001'), agent('7002', false)] : [agent('7003')], nextCursor: after === null ? '7002' : null, observedAt: now, chainId, identityRegistry: registry, scope: 'opted-in Sidequest directory' });
     }
     if (url.pathname.startsWith('/data/directory/')) return reply({ ok: true, agent: agent(url.pathname.split('/').at(-1)) });
     if (url.pathname.startsWith('/data/agents/')) return reply({ ok: false, code: 'not-found', message: 'fixture has no job history' }, 404);

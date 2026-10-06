@@ -33,7 +33,7 @@ contract FeeToken is ERC20 {
     }
 }
 
-/// @dev The bond token may be any plain ERC-20 (a FACTORY launched elsewhere): slashing needs no `burn`, and a
+/// @dev The bond token may be any plain ERC-20 (a SIDE launched elsewhere): slashing needs no `burn`, and a
 ///      fee-on-transfer token is refused at the first bond so settlements are never short.
 contract BondTokenTest is Base {
     function _redeploy(IERC20 bond) internal {

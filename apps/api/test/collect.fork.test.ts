@@ -1,22 +1,22 @@
 /** Board tools + SQLite index + real local Monad v1/legacy contracts. No remote sends. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
-import { Board, fromNodeSqlite as boardSql } from '@agent-jobs/board'
-import { contractsFromDeployment, decode, foldJob, fromNodeSqlite, migrate, stmt, type IndexedEvent } from '@agent-jobs/indexer'
+import * as sdk from '@sidequest/sdk'
+import { Board, fromNodeSqlite as boardSql } from '@sidequest/board'
+import { contractsFromDeployment, decode, foldJob, fromNodeSqlite, migrate, stmt, type IndexedEvent } from '@sidequest/indexer'
 import { type Address, decodeFunctionData, encodeFunctionData, encodeAbiParameters, concat, keccak256, stringToHex, parseAbi, parseEther } from 'viem'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { MiningSource } from '@agent-jobs/board'
+import type { MiningSource } from '@sidequest/board'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../../packages/sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../../packages/sdk/test/sidequest-fixture.ts'
 import { collectSnapshot } from '../src/collect-index.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 const actor = (w: sdk.Wallet) => ({ address: w.account.address })
 const miningLeaf = (account: Address, value: bigint) => keccak256(keccak256(encodeAbiParameters([{ type: 'uint256' }, { type: 'address' }, { type: 'uint256' }], [0n, account, value])))
 fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>, board: Board, db: DatabaseSync, index: DatabaseSync, start: bigint, agentId: bigint
+  let f: Awaited<ReturnType<typeof startSidequestFork>>, board: Board, db: DatabaseSync, index: DatabaseSync, start: bigint, agentId: bigint
   let ctx: sdk.Ctx
   let boardNow: number
   let miningSource: MiningSource | undefined
@@ -24,9 +24,9 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     collectSnapshot: async wallet => collectSnapshot(fromNodeSqlite(index), ctx, wallet, Number((await ctx.publicClient.getBlock()).timestamp)),
     ...(miningSource === undefined ? {} : { miningSource }) })
   beforeAll(async () => {
-    f = await startHirelingFork(); ctx = f.ctx; db = new DatabaseSync(':memory:'); index = new DatabaseSync(':memory:'); start = await ctx.publicClient.getBlockNumber()
+    f = await startSidequestFork(); ctx = f.ctx; db = new DatabaseSync(':memory:'); index = new DatabaseSync(':memory:'); start = await ctx.publicClient.getBlockNumber()
     boardNow = Number((await ctx.publicClient.getBlock()).timestamp)
-    board = boot(); await migrate(fromNodeSqlite(index)); agentId = await sdk.registerAgent(ctx, f.worker, 'https://hireling.xyz/b4-fork')
+    board = boot(); await migrate(fromNodeSqlite(index)); agentId = await sdk.registerAgent(ctx, f.worker, 'https://sidequest.exchange/b4-fork')
   }, forkSetupTimeout())
   afterAll(() => { db?.close(); index?.close(); f?.close() })
   async function indexNow() {
@@ -62,7 +62,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
       const prep = await board.stake(actor(wallet), { amount: '100' })
       expect(prep.amount).toBe(parseEther('100').toString())
       const args = decodeFunctionData({ abi: sdk.factoryV2Abi, data: prep.transactions[0]!.data }).args as readonly [string, bigint]
-      expect([args[0]!.toLowerCase(), args[1]]).toEqual([ctx.deployment.hireling!.vault.toLowerCase(), parseEther('100')])
+      expect([args[0]!.toLowerCase(), args[1]]).toEqual([ctx.deployment.sidequest!.vault.toLowerCase(), parseEther('100')])
       const stakeHashes = await sdk.sendAll(wallet, ctx.publicClient, prep.transactions)
       const stakeReport = await board.reportOperation(actor(wallet), { operationId: prep.operationId, txHash: stakeHashes.at(-1)! })
       expect(stakeReport).toMatchObject({ operationId: prep.operationId, kind: 'stake', status: 'confirmed', txHash: stakeHashes.at(-1)! })
@@ -118,11 +118,11 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     await sdk.sendAll(f.contributor, ctx.publicClient, (await board.topUp(actor(f.contributor), { taskId: y.taskId, amount: '0.4' })).transactions)
     await sdk.submit(ctx, f.worker, y.jobId, sdk.hashText('refund'))
     await sdk.reject(ctx, f.creator, y.jobId, 'None', sdk.hashText('not accepted'))
-    const rejectedAt = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'rejectedAt', args: [y.jobId] }))
+    const rejectedAt = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'rejectedAt', args: [y.jobId] }))
     await f.rpc('evm_setNextBlockTimestamp', [rejectedAt + 3601]); await f.rpc('evm_mine')
     await sdk.rejectAfterWindow(ctx, f.creator, y.jobId); await indexNow()
     const contributorSettlement = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'settle' && a.jobId === y.jobId.toString())!
-    expect(contributorSettlement.transactions.map(t => t.data.slice(0, 10))).toEqual([encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [y.jobId] }).slice(0, 10)])
+    expect(contributorSettlement.transactions.map(t => t.data.slice(0, 10))).toEqual([encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'settle', args: [y.jobId] }).slice(0, 10)])
     await sdk.sendAll(f.contributor, ctx.publicClient, contributorSettlement.transactions); await indexNow()
     const refund = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'claimTopUpRefund' && a.jobId === y.jobId.toString())!
     expect(refund.amount).toBe(parseEther('0.4').toString()); expect(refund.transactions[0]!.gas).toBe('450000')
@@ -149,7 +149,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     await sdk.sendAll(f.contributor, ctx.publicClient, (await board.topUp(actor(f.contributor), { taskId: x.taskId, amount: '0.3' })).transactions)
     await sdk.submit(ctx, f.worker, x.jobId, sdk.hashText(path))
     await sdk.reject(ctx, f.creator, x.jobId, 'None', sdk.hashText('refund'))
-    const rejectedAt = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'rejectedAt', args: [x.jobId] }))
+    const rejectedAt = Number(await ctx.publicClient.readContract({ address: ctx.stack.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'rejectedAt', args: [x.jobId] }))
     await f.rpc('evm_setNextBlockTimestamp', [rejectedAt + 3601]); await f.rpc('evm_mine')
     if (path === 'deferred-refund') {
       await f.send(ctx.deployment.core, sdk.coreAbi, 'pause')
@@ -158,9 +158,9 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     }
     await indexNow()
     const prerequisite = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'settle' && a.jobId === x.jobId.toString())!
-    const first = decodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, data: prerequisite.transactions[0]!.data })
+    const first = decodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, data: prerequisite.transactions[0]!.data })
     expect(first.functionName).toBe(path === 'elapsed-rejection' ? 'rejectAfterWindow' : 'retryDeferred')
-    expect(decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: prerequisite.transactions[1]!.data }).functionName).toBe('settle')
+    expect(decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: prerequisite.transactions[1]!.data }).functionName).toBe('settle')
     await sdk.sendAll(f.contributor, ctx.publicClient, prerequisite.transactions); await indexNow()
     const refund = (await board.collectActions({}, { wallet: f.contributor.account.address })).find(a => a.kind === 'claimTopUpRefund' && a.jobId === x.jobId.toString())!
     expect(refund.amount).toBe(parseEther('0.3').toString())
@@ -190,7 +190,7 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
     index.prepare('DELETE FROM checkpoint').run()
     await expect(board.collectActions({}, { wallet: f.worker.account.address })).rejects.toThrow('unavailable')
   })
-  it('loads the epoch file, discovers its indexed root and claims real FACTORY directly into the account’s stake', async () => {
+  it('loads the epoch file, discovers its indexed root and claims real SIDE directly into the account’s stake', async () => {
     const epoch = '0', amount = parseEther('2'), creatorAmount = parseEther('1')
     const workerLeaf = miningLeaf(f.worker.account.address, amount), creatorLeaf = miningLeaf(f.creator.account.address, creatorAmount)
     const root = keccak256(workerLeaf < creatorLeaf ? concat([workerLeaf, creatorLeaf]) : concat([creatorLeaf, workerLeaf]))
@@ -200,11 +200,11 @@ fork('B4 wallet tools and all-pair Collect on a real local Monad fork', () => {
       [f.worker.account.address.toLowerCase()]: { amount: amount.toString(), proof: [creatorLeaf] },
       [f.creator.account.address.toLowerCase()]: { amount: creatorAmount.toString(), proof: [workerLeaf] },
     } }
-    const path = await mkdtemp(join(tmpdir(), 'hireling-epoch-fork-'))
+    const path = await mkdtemp(join(tmpdir(), 'sidequest-epoch-fork-'))
     try {
       await writeFile(join(path, 'epoch-0.json'), JSON.stringify(file))
       miningSource = { load: async n => JSON.parse(await readFile(join(path, `epoch-${n}.json`), 'utf8')) as unknown }; board = boot()
-      const h = ctx.deployment.hireling!
+      const h = ctx.deployment.sidequest!
       await f.send(h.factory, sdk.factoryV2Abi, 'transfer', [h.distributor, total])
       await f.send(h.distributor, sdk.epochDistributorAbi, 'setRoot', [0n, file.root, total, dataHash]); await indexNow()
       const proof = await board.miningProof({}, { wallet: f.worker.account.address, epoch })

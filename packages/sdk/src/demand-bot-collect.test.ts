@@ -6,25 +6,25 @@ import { type TransactionReceipt, TransactionReceiptNotFoundError, encodeFunctio
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDemandRuntime } from '../scripts/demand-bot-runtime.ts'
 import { type DemandOperation, openDemandStore } from '../scripts/demand-bot-store.ts'
-import { hirelingHoldingAbi } from './abi/index.ts'
+import { sidequestHoldingAbi } from './abi/index.ts'
 import { V1_GAS } from './actions.ts'
 import { type TxRequest } from './board-client.ts'
 import { commitSpend, reserveSpend, templateForSequence, utcDay } from './demand-bot.ts'
 import { demandAcceptTransaction } from './demand-bot-validation.ts'
 import { flowJson } from './flow-journal.ts'
-import { deferredCollectTransactions, hirelingState } from './hireling.ts'
+import { deferredCollectTransactions, sidequestState } from './sidequest.ts'
 
-vi.mock('./hireling.ts', async original => ({ ...await original<typeof import('./hireling.ts')>(), hirelingState: vi.fn() }))
+vi.mock('./sidequest.ts', async original => ({ ...await original<typeof import('./sidequest.ts')>(), sidequestState: vi.fn() }))
 
 const paths: string[] = []
 afterEach(() => { vi.restoreAllMocks(); for (const path of paths.splice(0)) rmSync(path, { recursive: true }) })
 const raw = '0x021234' as const
 const hash = keccak256(raw)
 const receipt = { transactionHash: hash, status: 'success', logs: [], blockNumber: 100n } as unknown as TransactionReceipt
-type ChainState = Awaited<ReturnType<typeof hirelingState>>
+type ChainState = Awaited<ReturnType<typeof sidequestState>>
 
 function fixture() {
-  const path = mkdtempSync(join(tmpdir(), 'hireling-demand-collect-'))
+  const path = mkdtempSync(join(tmpdir(), 'sidequest-demand-collect-'))
   paths.push(path)
   // Deterministic test-only identity. No env files or live credentials are loaded.
   const boot = () => createDemandRuntime(`0x${'1'.repeat(64)}`, 'http://127.0.0.1:1', path)
@@ -49,9 +49,9 @@ function fixture() {
     listing: { creator: runtime.account.address, token: runtime.token, policyHash: operation.prepared!.termsHash },
     collectPending: true, deferredDecision: false, paused: false,
   } as ChainState
-  vi.mocked(hirelingState).mockImplementation(async () => chain)
+  vi.mocked(sidequestState).mockImplementation(async () => chain)
   const tx: TxRequest = {
-    description: 'settle', chainId: 10143, to: runtime.ctx.stack.holding, data: encodeFunctionData({ abi: hirelingHoldingAbi, functionName: 'settle', args: [130n] }), value: '0', gas: V1_GAS.settle.toString(),
+    description: 'settle', chainId: 10143, to: runtime.ctx.stack.holding, data: encodeFunctionData({ abi: sidequestHoldingAbi, functionName: 'settle', args: [130n] }), value: '0', gas: V1_GAS.settle.toString(),
   }
   const actions = vi.fn(async () => ({ transactions: [tx] }))
   const configure = (r: ReturnType<typeof createDemandRuntime>) => {
@@ -240,7 +240,7 @@ describe('demand terminal collection', () => {
     const f = fixture()
     const changed = { ...f.tx }
     if (mutation === 'target') changed.to = f.runtime.ctx.stack.evaluator
-    if (mutation === 'job') changed.data = encodeFunctionData({ abi: hirelingHoldingAbi, functionName: 'settle', args: [131n] })
+    if (mutation === 'job') changed.data = encodeFunctionData({ abi: sidequestHoldingAbi, functionName: 'settle', args: [131n] })
     if (mutation === 'value') changed.value = '1'
     if (mutation === 'chain') changed.chainId = 143
     if (mutation === 'creator' || mutation === 'policy') {

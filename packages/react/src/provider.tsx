@@ -4,7 +4,7 @@ import type { BoardApi, Eip1193Provider } from './client.ts'
 import { type TxSender, createTxSender } from './send.ts'
 import type { TxRequest } from './types.ts'
 
-export interface AgentJobsContextValue {
+export interface SidequestContextValue {
   readonly api: BoardApi
   readonly chain: Chain
   readonly rpcUrl?: string
@@ -15,13 +15,13 @@ export interface AgentJobsContextValue {
   readonly sender: TxSender | null
 }
 
-const Ctx = createContext<AgentJobsContextValue | null>(null)
+const Ctx = createContext<SidequestContextValue | null>(null)
 
 /**
  * Wraps a host's tree with one board client and its wallet. The host brings any EIP-1193 provider and the address it
  * is connected as (wagmi, Privy, `window.ethereum`); the hooks never open a wallet themselves.
  */
-export function AgentJobsProvider({
+export function SidequestProvider({
   api,
   chain,
   rpcUrl,
@@ -38,7 +38,7 @@ export function AgentJobsProvider({
   sendBatch?: (txs: TxRequest[]) => Promise<Hex>
   children: ReactNode
 }) {
-  const value = useMemo<AgentJobsContextValue>(() => {
+  const value = useMemo<SidequestContextValue>(() => {
     const p = provider ?? null
     const a = address ?? null
     return {
@@ -54,8 +54,8 @@ export function AgentJobsProvider({
   return <Ctx value={value}>{children}</Ctx>
 }
 
-export function useAgentJobs(): AgentJobsContextValue {
+export function useSidequest(): SidequestContextValue {
   const v = useContext(Ctx)
-  if (v === null) throw new Error('useAgentJobs outside <AgentJobsProvider>')
+  if (v === null) throw new Error('useSidequest outside <SidequestProvider>')
   return v
 }

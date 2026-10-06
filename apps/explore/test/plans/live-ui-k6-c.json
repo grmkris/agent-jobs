@@ -1,9 +1,9 @@
 {
-  "schema": "hireling-live-ui-reviewed-phases/v1",
+  "schema": "sidequest-live-ui-reviewed-phases/v1",
   "row": "K6-C",
   "status": "source-reviewed; execution held for coordinator",
   "execution": {
-    "origin": "https://testnet.hireling.xyz",
+    "origin": "https://dev.sidequest.exchange",
     "chainId": 10143,
     "operator": "coordinator",
     "signingPerformed": false,
@@ -23,7 +23,7 @@
     "selectorEvidence": "current source at the released commit; no new live DOM or signing run",
     "configPath": "contracts/config/monad-testnet.json",
     "configSha256": "4f77f6299c621885bf50492c3d6dc176923af24c5a5697a0b56633ad56095151",
-    "readOnlyArtifact": "/tmp/hireling-live-ui/g1b-current-readonly-ui/results.json",
+    "readOnlyArtifact": "/tmp/sidequest-live-ui/g1b-current-readonly-ui/results.json",
     "hostedAsset": "/assets/index-Dy9NJawo.js",
     "hostedAssetSha256": "7e9f3ea68f29730f8453086e72d50be419e5e1a6b150bcf58dd7ffbd73f974a9",
     "readyEvidence": "Coordinator announced verified G1b staging release1317560 and new-token funding in this conversation. Revalidate deployment/asset and balances before each authorized phase."
@@ -97,7 +97,7 @@
     },
     {
       "code": "ARCHIVED-JOB-FALLBACK",
-      "evidence": "The artifact visits /job/65. G1 jobs 62-79 were archived; the harness falls back to /job/65 when its job list has no current hireling-v1 job and accepts unavailable/not-indexed copy.",
+      "evidence": "The artifact visits /job/65. G1 jobs 62-79 were archived; the harness falls back to /job/65 when its job list has no current sidequest-v1 job and accepts unavailable/not-indexed copy.",
       "required": "A current G1b job page is not proven by this artifact. Verify the newly published job through exact Holding/client and indexer readback."
     },
     {
@@ -128,8 +128,8 @@
   ],
   "parameters": {
     "rewardMUSD": "1",
-    "creatorBondFACTORY": "1",
-    "workerBondFACTORY": "1",
+    "creatorBondSIDE": "1",
+    "workerBondSIDE": "1",
     "topupMUSD": "0",
     "placeholders": {
       "JOB_C_ID": null,
@@ -144,7 +144,7 @@
         "Same creator wallet and the same durable browser/wallet state directory for every phase.",
         "Start with a new, unfrozen publish draft. If a previous operation is present, reconcile it; do not prepare another offer.",
         "Board SIWE session must be live for the creator. App navigation can automatically request the SIWE signature in a signing-enabled session.",
-        "Available new-vault stake >= 1 FACTORY; liquid mUSD >= 1; no active creator sponsorship.",
+        "Available new-vault stake >= 1 SIDE; liquid mUSD >= 1; no active creator sponsorship.",
         "Current Reward token control must expose the single mUSD radio. If token discovery changes it to a select, stop: drivePlan does not implement selectOption.",
         "Check Git commit is the only selected deliverable kind and Running-cost budget is off; the plan clears the default required GitHub check."
       ],
@@ -167,7 +167,7 @@
         {
           "action": "fill",
           "id": "post-brief",
-          "value": "Write a short Markdown first-use note for Hireling G1b at https://testnet.hireling.xyz covering chain 10143 and FACTORY v2 transfers versus mUSD/mEUR faucets. This is the separate cancellation rehearsal: Pixel 1943 must not activate or submit this offer; the coordinator will cancel it while unactivated."
+          "value": "Write a short Markdown first-use note for Sidequest G1b at https://dev.sidequest.exchange covering chain 10143 and SIDE v2 transfers versus mUSD/mEUR faucets. This is the separate cancellation rehearsal: Pixel 1943 must not activate or submit this offer; the coordinator will cancel it while unactivated."
         },
         {
           "action": "fill",
@@ -217,7 +217,7 @@
         {
           "action": "click",
           "role": "radio",
-          "name": "Hireling's arbiter",
+          "name": "Sidequest's arbiter",
           "exact": true
         },
         {
@@ -387,7 +387,7 @@
       "row": "K6-C-cancel",
       "coordinatorChecksBefore": [
         "Fill JOB_C_ID/TASK_C_ID from the fresh G1b publish receipt and readback. Explicit Pixel/coordinator handoff: do not activate C; do not sign its selection.",
-        "Live getListing funded=false, worker unset, reward=1000000 and creator bond 1 FACTORY reserved. UI creator is permitted to cancel and no unresolved cancel operation exists. Record pre-cancel liquid mUSD, stake and reserved.",
+        "Live getListing funded=false, worker unset, reward=1000000 and creator bond 1 SIDE reserved. UI creator is permitted to cancel and no unresolved cancel operation exists. Record pre-cancel liquid mUSD, stake and reserved.",
         "No top-up on C: topUp needs funded=true, while cancel requires funded=false. No sponsorship; only the creator wallet may cancel."
       ],
       "steps": [
@@ -458,8 +458,8 @@
         }
       ],
       "coordinatorChecksAfter": [
-        "Record TX testnet <hash> K6-C-cancel. Verify Cancelled and RewardSettled refunded events, rewardSettled/creatorBondSettled=true, 1000000 mUSD back to UI and reserved lower by 1 FACTORY.",
-        "Creator bond is released to available stake, not transferred to the FACTORY wallet. stakeOf remains unchanged by cancellation; availableOf rises by the released reservation.",
+        "Record TX testnet <hash> K6-C-cancel. Verify Cancelled and RewardSettled refunded events, rewardSettled/creatorBondSettled=true, 1000000 mUSD back to UI and reserved lower by 1 SIDE.",
+        "Creator bond is released to available stake, not transferred to the SIDE wallet. stakeOf remains unchanged by cancellation; availableOf rises by the released reservation.",
         "Read core terminal status, unset worker/provider, no worker activation and no fee charge. Refused reward payout would become owed rather than proof of a liquid refund; stop and review any such mismatch."
       ],
       "effects": [

@@ -271,13 +271,13 @@ contract Handler is Test {
 }
 
 /// @dev Balance equations over both assets. Together they state: every unit of payment token deposited is in
-///      exactly one of the creator's wallet, the worker's wallet, Holding or the core; every unit of FACTORY
+///      exactly one of the creator's wallet, the worker's wallet, Holding or the core; every unit of SIDE
 ///      bonded is in its owner's wallet, in Holding, or burned; the reward reaches the worker only through
 ///      `complete`; a bond is burned only by a ruling that found a violation; nothing pays twice.
 contract InvariantsTest is Base {
     Handler internal handler;
 
-    /// @dev FACTORY the setUp drained to the burn address before any job; slashes add to it.
+    /// @dev SIDE the setUp drained to the burn address before any job; slashes add to it.
     uint256 internal drainedFactory;
 
     function setUp() public override {
@@ -285,7 +285,7 @@ contract InvariantsTest is Base {
         handler = new Handler(factory, pay, core, holding, evaluator, creator, worker, arbitrator, creatorPk, workerPk);
         identity.setAgentWallet(1, worker);
         // The handler mints per publish; drain the setUp balances so the equations are exact. Both wallets
-        // keep exactly MIN_HOLD of FACTORY, which the hold gate reads and the equations exclude.
+        // keep exactly MIN_HOLD of SIDE, which the hold gate reads and the equations exclude.
         uint256 c = pay.balanceOf(creator);
         vm.prank(creator);
         pay.transfer(address(0xdead), c);

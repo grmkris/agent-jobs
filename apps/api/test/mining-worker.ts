@@ -3,13 +3,13 @@ import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
-import { verifyMiningClaim } from '@agent-jobs/board'
+import { verifyMiningClaim } from '@sidequest/board'
 import type { Hex } from 'viem'
 import artifact from '../../../packages/board/test/fixtures/mining-epoch.json'
 import { miningArtifactKey, r2MiningSource, type EpochBucket } from '../src/mining.ts'
 
 const Manifests = Cloudflare.R2.Bucket('Manifests')
-export default class MiningDrill extends Cloudflare.Worker<MiningDrill>()('HirelingMiningLocalDrill', {
+export default class MiningDrill extends Cloudflare.Worker<MiningDrill>()('SidequestMiningLocalDrill', {
   main: import.meta.url, compatibility: { date: '2026-09-01', flags: ['nodejs_compat'] },
 }, Effect.gen(function* () {
   const bucket = yield* Cloudflare.R2.ReadWriteBucket(Manifests)

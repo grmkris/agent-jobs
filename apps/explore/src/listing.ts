@@ -4,7 +4,7 @@
  */
 type KeyStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
-const keyName = (agentId: string, serviceId: string | null) => `hireling.listing-op:${agentId}:${serviceId ?? '*'}`
+const keyName = (agentId: string, serviceId: string | null) => `sidequest.listing-op:${agentId}:${serviceId ?? '*'}`
 
 export function listingOperationKey(storage: KeyStorage, agentId: string, serviceId: string | null, fresh: () => string = () => crypto.randomUUID()): string {
   const name = keyName(agentId, serviceId)

@@ -4,9 +4,9 @@
  * row is reserved before the transfer (R114-07); a reserved row without a hash is reconciled by the recipient's
  * balance before anything is resent. Never on mainnet.
  */
-import { errorDiagnostics } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
-import type { AsyncSql } from '@agent-jobs/indexer'
+import { errorDiagnostics } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
+import type { AsyncSql } from '@sidequest/indexer'
 import { type Address, type Hex, formatEther, parseEther } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { dripFinish, dripReserve, dripState } from './registry.ts'

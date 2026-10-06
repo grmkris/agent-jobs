@@ -26,7 +26,7 @@ const periodic: PermissionRequest = { chainId: '0x279f', from: operator, to: age
 } }
 const transfer = (to: Address, value: bigint) => encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [to, value] })
 const exactCall = transfer(recipient, 5n)
-const call: PermissionRequest = { chainId: d.chainId, to: agent, rules: expiry(3600), permission: { type: 'hireling:contract-call', data: { target: token, calldata: exactCall } } }
+const call: PermissionRequest = { chainId: d.chainId, to: agent, rules: expiry(3600), permission: { type: 'sidequest:contract-call', data: { target: token, calldata: exactCall } } }
 const spec = (terms: PermissionSpec['terms'], seconds = 86_400): PermissionSpec => ({ kind: 'permission', delegator: operator, agent, salt: 7n, start: now, expiry: now + seconds, terms })
 
 describe('parsePermissionRequest', () => {
@@ -35,7 +35,7 @@ describe('parsePermissionRequest', () => {
       terms: { type: 'erc20-token-periodic', token, periodAmount: 10_000_000n, periodDuration: 86_400, recipient } })
     expect(parsePermissionRequest({ ...periodic, permission: { type: 'erc20-token-allowance', data: { tokenAddress: token, allowanceAmount: '25', recipient } } }, scope).terms)
       .toEqual({ type: 'erc20-token-allowance', token, amount: 25n, recipient })
-    expect(parsePermissionRequest(call, scope)).toMatchObject({ adjustable: false, terms: { type: 'hireling:contract-call', target: token, value: 0n, callData: exactCall } })
+    expect(parsePermissionRequest(call, scope)).toMatchObject({ adjustable: false, terms: { type: 'sidequest:contract-call', target: token, value: 0n, callData: exactCall } })
   })
 
   it.each([
@@ -58,7 +58,7 @@ describe('parsePermissionRequest', () => {
 
   it('caps an exact call at a day and needs its full calldata', () => {
     expect(() => parsePermissionRequest({ ...call, rules: expiry(86_401) }, scope)).toThrow(/24 hours/)
-    expect(() => parsePermissionRequest({ ...call, permission: { type: 'hireling:contract-call', data: { target: token, calldata: '0xa905' } } }, scope)).toThrow(/calldata/)
+    expect(() => parsePermissionRequest({ ...call, permission: { type: 'sidequest:contract-call', data: { target: token, calldata: '0xa905' } } }, scope)).toThrow(/calldata/)
   })
 })
 
@@ -77,7 +77,7 @@ describe('adjustPermission', () => {
 describe('buildPermission', () => {
   it('uses the canonical v1.3.0 enforcers, which mainnet has at the same addresses', () => {
     expect(permissionEnforcers(d).exactExecution).toBe('0x146713078D39eCC1F5338309c28405ccf85Abfbb')
-    expect(supportedPermissions(d)).toEqual(Object.fromEntries(['erc20-token-periodic', 'erc20-token-allowance', 'hireling:contract-call'].map(type => [type, { chainIds: ['0x279f'], ruleTypes: ['expiry'] }])))
+    expect(supportedPermissions(d)).toEqual(Object.fromEntries(['erc20-token-periodic', 'erc20-token-allowance', 'sidequest:contract-call'].map(type => [type, { chainIds: ['0x279f'], ruleTypes: ['expiry'] }])))
     // Mainnet has no recorded deployment before launch; its canonical table must still carry every enforcer used here.
     const main = (DELEGATOR_CONTRACTS as Record<string, Record<number, Record<string, string>>>)['1.3.0']![143]!
     expect(main.ExactExecutionEnforcer).toBe('0x146713078D39eCC1F5338309c28405ccf85Abfbb')
@@ -102,11 +102,11 @@ describe('buildPermission', () => {
     const e = permissionEnforcers(d)
     const allowance = buildPermission(d, spec({ type: 'erc20-token-allowance', token, amount: 25n, recipient }))
     expect(decodeERC20TransferAmountTerms(allowance.caveats.find(item => item.enforcer.toLowerCase() === e.erc20TransferAmount.toLowerCase())!.terms)).toMatchObject({ maxAmount: 25n })
-    const exact = buildPermission(d, spec({ type: 'hireling:contract-call', target: token, value: 0n, callData: exactCall }, 3600))
+    const exact = buildPermission(d, spec({ type: 'sidequest:contract-call', target: token, value: 0n, callData: exactCall }, 3600))
     const by = (enforcer: Address) => exact.caveats.find(item => item.enforcer.toLowerCase() === enforcer.toLowerCase())!.terms
     expect(decodeExactExecutionTerms(by(e.exactExecution))).toMatchObject({ execution: { value: 0n, callData: exactCall } })
     expect(decodeLimitedCallsTerms(by(e.limitedCalls))).toEqual({ limit: 1 })
-    expect(() => buildPermission(d, spec({ type: 'hireling:contract-call', target: token, value: 0n, callData: exactCall }, 86_401))).toThrow()
+    expect(() => buildPermission(d, spec({ type: 'sidequest:contract-call', target: token, value: 0n, callData: exactCall }, 86_401))).toThrow()
   })
 
   it('has a stable hash, survives storage and refuses any mutated or extra caveat', () => {
@@ -124,7 +124,7 @@ describe('buildPermission', () => {
 
 describe('checkPermissionExecution', () => {
   const periodicSpec = spec({ type: 'erc20-token-periodic', token, periodAmount: 10n, periodDuration: 86_400, recipient })
-  const exactSpec = spec({ type: 'hireling:contract-call', target: token, value: 0n, callData: exactCall }, 3600)
+  const exactSpec = spec({ type: 'sidequest:contract-call', target: token, value: 0n, callData: exactCall }, 3600)
   it('allows a transfer to the pinned recipient within the amount, and the exact call', () => {
     expect(() => checkPermissionExecution(periodicSpec, { target: token, value: 0n, callData: transfer(recipient, 10n) }, now)).not.toThrow()
     expect(() => checkPermissionExecution(exactSpec, { target: token, value: 0n, callData: exactCall }, now)).not.toThrow()
@@ -156,7 +156,7 @@ describe('describe and risks', () => {
     expect(codes(spec({ type: 'erc20-token-periodic', token, periodAmount: 10n, periodDuration: 86_400, recipient }, 8 * 86_400), { now, balance: 15n, addressBook: [] }))
       .toEqual(['large-share', 'unknown-recipient', 'long-expiry'])
     const approve = encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [recipient, 1n] })
-    expect(codes(spec({ type: 'hireling:contract-call', target: d.delegation.manager, value: 1n, callData: approve }, 3600), { now, knownTargets: [token], simulationReverted: true, adjusted: true }))
+    expect(codes(spec({ type: 'sidequest:contract-call', target: d.delegation.manager, value: 1n, callData: approve }, 3600), { now, knownTargets: [token], simulationReverted: true, adjusted: true }))
       .toEqual(['native-value', 'dangerous-method', 'delegation-manager', 'unknown-target', 'simulation-reverted', 'adjusted'])
     expect(codes(spec({ type: 'erc20-token-allowance', token, amount: 1n, recipient }), { now, balance: 100n, addressBook: [recipient] })).toEqual([])
   })

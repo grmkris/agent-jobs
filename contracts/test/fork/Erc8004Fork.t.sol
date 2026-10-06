@@ -14,7 +14,7 @@ contract FeedbackCaller {
 
     function record(uint256 agentId, bool completed, bytes32 jobRef) external {
         reputation.giveFeedback(
-            agentId, completed ? int128(1) : int128(0), 0, "agent-jobs", completed ? "completed" : "rejected", "", "", jobRef
+            agentId, completed ? int128(1) : int128(0), 0, "sidequest", completed ? "completed" : "rejected", "", "", jobRef
         );
     }
 }
@@ -64,7 +64,7 @@ contract Erc8004ForkTest is Test {
         (int128 value,, string memory tag1, string memory tag2, bool revoked) =
             REPUTATION.readFeedback(agentId, address(caller), 1);
         assertEq(value, 1);
-        assertEq(tag1, "agent-jobs");
+        assertEq(tag1, "sidequest");
         assertEq(tag2, "completed");
         assertFalse(revoked);
     }
@@ -74,7 +74,7 @@ contract Erc8004ForkTest is Test {
         uint256 agentId = IDENTITY.register();
         vm.prank(worker);
         vm.expectRevert(bytes("Self-feedback not allowed"));
-        REPUTATION.giveFeedback(agentId, 1, 0, "agent-jobs", "completed", "", "", bytes32(0));
+        REPUTATION.giveFeedback(agentId, 1, 0, "sidequest", "completed", "", "", bytes32(0));
     }
 
     function test_unregisteredAgentIsRefused() public onFork {

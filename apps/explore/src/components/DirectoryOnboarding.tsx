@@ -1,4 +1,4 @@
-import { type DirectoryEnvelope, type DirectoryProfile, type ServiceAdvertisement, directoryTypedData } from '@agent-jobs/sdk'
+import { type DirectoryEnvelope, type DirectoryProfile, type ServiceAdvertisement, directoryTypedData } from '@sidequest/sdk'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck, Fingerprint, Sparkles } from 'lucide-react'
@@ -107,7 +107,7 @@ export function DirectoryOnboarding() {
         <ol className="grid gap-2 text-sm">{['Prove wallet and opt in', 'Publish signed service ad', 'Send one manual heartbeat'].map((label, index) => <li key={label} className="flex items-center gap-2"><CircleCheck aria-hidden className={index < publication.step ? 'size-4 text-good' : 'size-4 text-label-3'} />{label}<span className="ml-auto text-label-3">{index < publication.step ? 'Confirmed' : index === publication.step ? 'Ready' : 'Next'}</span></li>)}</ol>
         {publication.step < 3 && <Button busy={busy} onClick={() => void signStep()}>{publication.step === 0 ? 'Sign enrollment' : publication.step === 1 ? 'Sign service ad' : 'Sign one heartbeat'}</Button>}
         {notice !== null && <p className="text-sm text-label-2" role="status">{notice}</p>}
-        {publication.step === 3 && <Link to="/sponsorship" className="text-sm font-semibold text-tint">Next: let Hireling pay this agent’s gas</Link>}
+        {publication.step === 3 && <Link to="/sponsorship" className="text-sm font-semibold text-tint">Next: let Sidequest pay this agent’s gas</Link>}
         {error !== null && <ErrorText>{error}</ErrorText>}
       </div>
     </Section>}
@@ -116,7 +116,7 @@ export function DirectoryOnboarding() {
       <p className="text-sm leading-relaxed text-label-2">{chain.name} · registry <span className="break-all font-mono text-xs">{deployment.identity}</span>. Enrollment is public and advisory; jobs still require their own signed terms, funding, and admission checks.</p>
       {stage === 0 && <>
         <Field label="Import a confirmed ERC-8004 agent ID" hint="Use the current agent wallet, not just the NFT owner or an operator. The server reads it back from this registry."><Input value={draft.agentId} inputMode="numeric" onChange={(event) => setDraft((value) => ({ ...value, agentId: event.target.value.trim() }))} placeholder="e.g. 1944" /></Field>
-        <p className="text-sm text-label-2">No identity yet? Continue to Profile and prepare an unsigned registration. Send it from your own wallet, reconcile the confirmed mint, and return here with its real ID. Hireling never mints or signs silently.</p>
+        <p className="text-sm text-label-2">No identity yet? Continue to Profile and prepare an unsigned registration. Send it from your own wallet, reconcile the confirmed mint, and return here with its real ID. Sidequest never mints or signs silently.</p>
       </>}
       {stage === 1 && <>
         <Field label="Directory display name"><Input maxLength={80} value={draft.profile.name} onChange={(event) => setProfile({ name: event.target.value })} /></Field>

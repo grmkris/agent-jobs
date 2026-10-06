@@ -10,7 +10,7 @@ import { PRODUCTION_CLOCKS } from '../../../packages/sdk/src/deployment.ts';
 // page, the board is asked only read tools, and /release.json reports the pinned value. With MAINNET_LIVE true the
 // same pages open, and a testnet build links to mainnet instead of "soon". Mocked Chromium only: no board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-launch-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-launch-evidence';
 const me = '0x1111111111111111111111111111111111111111';
 const READ_TOOLS = new Set(['get_task', 'task_index', 'get_board', 'list_boards', 'list_quote_requests', 'list_quotes', 'list_directory', 'get_directory_agent', 'collect_actions', 'sponsor_status', 'telegram_status', 'auth_challenge', 'auth_login', 'whoami', 'list_tasks']);
 // Until mainnet is deployed its config has no deployment block and Explore cannot load; like the directory e2e, the
@@ -25,7 +25,7 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 
 /** An Explore dev server for `network`, with MAINNET_LIVE as built (false) or forced true for the launch-day build. */
 async function serve(port, network, live) {
-  process.env.AGENT_JOBS_NETWORK = network;
+  process.env.SIDEQUEST_NETWORK = network;
   const server = await createServer({ envFile: false, server: { host: '127.0.0.1', port, strictPort: true }, plugins: [{ name: 'launch-fixtures', enforce: 'pre', resolveId(source) {
     if (source === 'wagmi') return `${directory}wagmi.mjs`;
     if (source === 'wagmi/actions') return `${directory}wagmi-actions.mjs`;
@@ -35,7 +35,7 @@ async function serve(port, network, live) {
     if (live && id.endsWith('/src/release.ts')) return source.replace('export const MAINNET_LIVE = false', 'export const MAINNET_LIVE = true');
     if (borrowed && id.endsWith('/contracts/config/monad-mainnet.json')) {
       const deployment = readConfig('monad-testnet').deployment;
-      return JSON.stringify({ ...JSON.parse(source), deployment: { ...deployment, hireling: { ...deployment.hireling, clocks: PRODUCTION_CLOCKS } } });
+      return JSON.stringify({ ...JSON.parse(source), deployment: { ...deployment, sidequest: { ...deployment.sidequest, clocks: PRODUCTION_CLOCKS } } });
     }
   } }] });
   await server.listen();
@@ -46,8 +46,8 @@ async function open(base, chainId, viewport = { width: 390, height: 844 }) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
   await context.addInitScript(({ account, chain }) => {
     window.__wallet = { address: account, connected: true, chainId: chain, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
   }, { account: me, chain: chainId });
   const tools = [];
   await context.route('**/*', async (route) => {
@@ -97,7 +97,7 @@ try {
 
   for (const [path, title] of WRITE_ROUTES) {
     await page.goto(`${base}${path}`);
-    await page.getByRole('status').filter({ hasText: 'Hireling on mainnet opens soon' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Sidequest on mainnet opens soon' }).waitFor();
     if (!path.startsWith('/embed')) await page.getByRole('heading', { name: title, level: 1 }).waitFor();
     // Nothing on the page offers to write: no form fields, no review, stake, collect or confirm button.
     assert.equal(await page.getByRole('textbox').count(), 0, `${path}: a form field`);
@@ -120,11 +120,11 @@ try {
   const { context, page } = await open(base, 143);
   await page.goto(`${base}/publish`);
   await page.getByRole('heading', { name: 'Post a job', level: 1 }).waitFor();
-  assert.equal(await page.getByText('Hireling on mainnet opens soon').count(), 0);
+  assert.equal(await page.getByText('Sidequest on mainnet opens soon').count(), 0);
   assert.equal(await page.getByRole('note').filter({ hasText: 'Launching soon.' }).count(), 0);
   await page.goto(`${base}/backing`);
   await page.getByRole('heading', { name: 'Back an agent', level: 1 }).waitFor();
-  assert.equal(await page.getByText('Hireling on mainnet opens soon').count(), 0);
+  assert.equal(await page.getByText('Sidequest on mainnet opens soon').count(), 0);
   results.push({ build: 'mainnet, MAINNET_LIVE true', checks: ['write pages open', 'no banner'], passed: true });
   await context.close();
 } finally {
@@ -137,8 +137,8 @@ try {
   const { context, page } = await open(base, 10143);
   await page.goto(base);
   const mainnet = page.getByRole('group', { name: 'Network' }).first().getByRole('link', { name: 'Mainnet' });
-  assert.equal(await mainnet.getAttribute('href'), 'https://hireling.xyz/');
-  results.push({ build: 'testnet, MAINNET_LIVE true', checks: ['Mainnet is a live link to https://hireling.xyz/'], passed: true });
+  assert.equal(await mainnet.getAttribute('href'), 'https://sidequest.exchange/');
+  results.push({ build: 'testnet, MAINNET_LIVE true', checks: ['Mainnet is a live link to https://sidequest.exchange/'], passed: true });
   await context.close();
 } finally {
   await testnet.close();

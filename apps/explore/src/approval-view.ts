@@ -3,7 +3,7 @@
  * one-line rows — what was asked, how much, the answer and when — with an executed hire linked to the job it published.
  * Pure, so the summaries are tested apart from the cards.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, decodeFunctionData } from 'viem'
 import type { AgentApproval } from './agent-api.ts'
 import { span } from './format.ts'
@@ -33,7 +33,7 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
 export function publishedPolicyHash(publish: Hex | undefined): string | null {
   if (publish === undefined) return null
   try {
-    const decoded = decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: publish })
+    const decoded = decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: publish })
     return decoded.functionName === 'publish' ? decoded.args[0].policyHash.toLowerCase() : null
   } catch {
     return null

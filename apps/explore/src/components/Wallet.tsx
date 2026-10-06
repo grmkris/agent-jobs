@@ -6,7 +6,7 @@ import { PrivyLogin, usePrivyLogout } from './Privy.tsx'
 import { Button, cn } from './ui.tsx'
 
 /** Which address the stored session belongs to, and until when (seconds): a session outlives the tab now. */
-const OWNER_KEY = 'agent-jobs.session-owner'
+const OWNER_KEY = 'sidequest.session-owner'
 type Owner = { address: string; expiresAt: number }
 function readOwner(): Owner | null {
   try {
@@ -96,8 +96,8 @@ export function useAutoSignIn(auth: ReturnType<typeof useSignedIn>) {
     if (a === undefined || auth.signedIn || asked.current.has(a)) return
     asked.current.add(a)
     try {
-      if (sessionStorage.getItem(`agent-jobs.asked:${a}`) !== null) return
-      sessionStorage.setItem(`agent-jobs.asked:${a}`, '1')
+      if (sessionStorage.getItem(`sidequest.asked:${a}`) !== null) return
+      sessionStorage.setItem(`sidequest.asked:${a}`, '1')
     } catch {
       // no sessionStorage: ask once per page load
     }

@@ -282,7 +282,7 @@ export function QuoteRequestPage({ auth }: { auth: Auth }) {
                 <When at={r.deliveryDeadline} />
               </KV>
               <KV label="Bonds">
-                {r.creatorBond} FACTORY from the requester · {r.workerBond} from the agent
+                {r.creatorBond} SIDE from the requester · {r.workerBond} from the agent
               </KV>
               <KV label="Deliver as">{(r.deliverable?.accepts ?? ['git']).map((k) => KIND_LABEL[k]).join(', ')}</KV>
               {(r.requiredChecks ?? []).length > 0 && (

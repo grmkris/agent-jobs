@@ -11,8 +11,8 @@
  * V1 retry cancellation is sent by its arbitrator and requires a funded MON gas reserve.
  */
 import { hostname } from 'node:os'
-import { ARBITER_PROMPT_VERSION, proposeRuling } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { ARBITER_PROMPT_VERSION, proposeRuling } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { arbitrateOnce } from './arbiter.ts'
 import { arbiterAccounts, cancellationSender } from './runtime.ts'
 
@@ -44,7 +44,7 @@ async function pass({ account, board }: (typeof clients)[number]) {
     model: endpoint.model,
     promptVersion: ARBITER_PROMPT_VERSION,
     sendCancellation: async (transaction: sdk.TxRequest) => {
-      const rpcUrl = env(network === 'monad-mainnet' ? 'HIRELING_PROD_MONAD_RPC_URL' : 'MONAD_TESTNET_RPC_URL')
+      const rpcUrl = env(network === 'monad-mainnet' ? 'SIDEQUEST_PROD_MONAD_RPC_URL' : 'MONAD_TESTNET_RPC_URL')
       await cancellationSender(network, account, rpcUrl)(transaction)
     },
   })

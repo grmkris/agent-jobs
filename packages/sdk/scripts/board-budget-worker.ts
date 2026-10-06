@@ -6,7 +6,7 @@
  *
  *   CREATOR=0x… bun packages/sdk/scripts/board-budget-worker.ts   (from the repo root; .env.local is read)
  *
- * BOARD_URL defaults to https://testnet.hireling.xyz; WAIT_MINUTES (default 120) bounds each wait.
+ * BOARD_URL defaults to https://dev.sidequest.exchange; WAIT_MINUTES (default 120) bounds each wait.
  * Key: CAMPAIGN_CLAUDE_PRIVATE_KEY, agent CAMPAIGN_CLAUDE_AGENT_ID.
  */
 import { type AbiFunction, type Address, type Hex, formatUnits, parseAbiItem, parseUnits, toFunctionSelector } from 'viem'
@@ -14,7 +14,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import { envLocal, log as stamp, sendReported, sleep } from './lib/common.ts'
 
-const BOARD = envLocal('BOARD_URL', 'https://testnet.hireling.xyz')
+const BOARD = envLocal('BOARD_URL', 'https://dev.sidequest.exchange')
 const RPC = envLocal('MONAD_TESTNET_RPC_URL')
 const CREATOR = envLocal('CREATOR').toLowerCase()
 const WAIT_S = Number(envLocal('WAIT_MINUTES', '120')) * 60

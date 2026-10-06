@@ -13,14 +13,14 @@ import type { Deployment } from '../deployment.ts'
 import type { GrantSpec } from './grants.ts'
 import { type Caveat, type Delegation, type Execution, ROOT_AUTHORITY, delegationHash } from './index.ts'
 
-export const PERMISSION_TYPES = ['erc20-token-periodic', 'erc20-token-allowance', 'hireling:contract-call'] as const
+export const PERMISSION_TYPES = ['erc20-token-periodic', 'erc20-token-allowance', 'sidequest:contract-call'] as const
 export type PermissionType = (typeof PERMISSION_TYPES)[number]
 
 /** The longest expiry an agent may propose; the operator may shorten it, never extend it past this. */
 export const PERMISSION_MAX_EXPIRY: Readonly<Record<PermissionType, number>> = {
   'erc20-token-periodic': 30 * 86_400,
   'erc20-token-allowance': 30 * 86_400,
-  'hireling:contract-call': 86_400,
+  'sidequest:contract-call': 86_400,
 }
 export const PERMISSION_MIN_PERIOD = 3600
 
@@ -36,7 +36,7 @@ export interface PermissionRequest {
 export type PermissionTerms =
   | { readonly type: 'erc20-token-periodic'; readonly token: Address; readonly periodAmount: bigint; readonly periodDuration: number; readonly recipient: Address }
   | { readonly type: 'erc20-token-allowance'; readonly token: Address; readonly amount: bigint; readonly recipient: Address }
-  | { readonly type: 'hireling:contract-call'; readonly target: Address; readonly value: bigint; readonly callData: Hex }
+  | { readonly type: 'sidequest:contract-call'; readonly target: Address; readonly value: bigint; readonly callData: Hex }
 
 /**
  * A permission frozen for signing (a GrantSpec kind, so grants and permissions share one build/assert/store path):
@@ -132,7 +132,7 @@ export function parsePermissionRequest(request: PermissionRequest, scope: { chai
       throw new PermissionError('calldata must be the exact hex call, selector included')
     }
     const value = data.value === undefined || data.value === '0' || data.value === '0x0' ? 0n : amount(data.value, 'value')
-    terms = { type: 'hireling:contract-call', target: address(data.target, 'target'), value, callData: callData.toLowerCase() as Hex }
+    terms = { type: 'sidequest:contract-call', target: address(data.target, 'target'), value, callData: callData.toLowerCase() as Hex }
   }
   return { terms, expiry, adjustable: request.permission.isAdjustmentAllowed === true, justification }
 }
@@ -180,7 +180,7 @@ export function buildPermission(d: Deployment, spec: PermissionSpec): Delegation
   const e = permissionEnforcers(d)
   const t = spec.terms
   const caveats: Caveat[] = [caveat(e.timestamp, encodePacked(['uint128', 'uint128'], [0n, BigInt(spec.expiry)]))]
-  if (t.type === 'hireling:contract-call') {
+  if (t.type === 'sidequest:contract-call') {
     caveats.push(caveat(e.exactExecution, encodePacked(['address', 'uint256', 'bytes'], [t.target, t.value, t.callData])))
     caveats.push(caveat(e.limitedCalls, uint(1n)))
   } else {
@@ -211,7 +211,7 @@ export function assertPermission(d: Deployment, spec: PermissionSpec, delegation
 export function checkPermissionExecution(spec: PermissionSpec, execution: Execution, now?: number): void {
   if (now !== undefined && now >= spec.expiry) throw new PermissionError('the permission has expired')
   const t = spec.terms
-  if (t.type === 'hireling:contract-call') {
+  if (t.type === 'sidequest:contract-call') {
     if (execution.target.toLowerCase() !== t.target.toLowerCase() || execution.value !== t.value || execution.callData.toLowerCase() !== t.callData) {
       throw new PermissionError('the call differs from the exact approved call')
     }
@@ -241,7 +241,7 @@ export function describePermission(spec: PermissionSpec) {
     to: spec.agent,
     validAfter: spec.start,
     expiresAt: spec.expiry,
-    ...(t.type === 'hireling:contract-call'
+    ...(t.type === 'sidequest:contract-call'
       ? { target: t.target, value: t.value.toString(), callData: t.callData, calls: 1 }
       : { token: t.token, recipient: t.recipient, amount: (t.type === 'erc20-token-periodic' ? t.periodAmount : t.amount).toString(),
         periodSeconds: t.type === 'erc20-token-periodic' ? t.periodDuration : null }),
@@ -277,7 +277,7 @@ export function permissionRisks(d: Deployment, spec: PermissionSpec, facts: {
 } ): PermissionRisk[] {
   const risks: PermissionRisk[] = []
   const t = spec.terms
-  if (t.type === 'hireling:contract-call') {
+  if (t.type === 'sidequest:contract-call') {
     if (t.value > 0n) risks.push({ level: 'high', code: 'native-value', message: 'The call sends native MON from your account.' })
     const dangerous = DANGEROUS_SELECTORS[t.callData.slice(0, 10)]
     if (dangerous !== undefined) risks.push({ level: 'high', code: 'dangerous-method', message: `The call is ${dangerous}, which hands control of assets or contracts to someone.` })
@@ -307,7 +307,7 @@ export function parsePermissionSpec(json: string): PermissionSpec {
     ? { type: t.type, token: getAddress(String(t.token)), periodAmount: BigInt(String(t.periodAmount)), periodDuration: Number(t.periodDuration), recipient: getAddress(String(t.recipient)) }
     : t.type === 'erc20-token-allowance'
       ? { type: t.type, token: getAddress(String(t.token)), amount: BigInt(String(t.amount)), recipient: getAddress(String(t.recipient)) }
-      : t.type === 'hireling:contract-call'
+      : t.type === 'sidequest:contract-call'
         ? { type: t.type, target: getAddress(String(t.target)), value: BigInt(String(t.value)), callData: String(t.callData).toLowerCase() as Hex }
         : (() => { throw new PermissionError('Unknown stored permission type') })()
   if (raw.kind !== 'permission') throw new PermissionError('Not a permission spec')

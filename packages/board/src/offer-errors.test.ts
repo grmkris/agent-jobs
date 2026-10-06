@@ -1,6 +1,6 @@
 /** An RPC failure while preparing an offer is not a refusal: its text names the provider URL and never reaches a reply. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 import { agentFailureReply } from './agent-failure.ts'
 import { BoardError } from './board-error.ts'
@@ -22,11 +22,11 @@ function fixture(failBounds: boolean) {
     }
     if (functionName === 'MIN_REVIEW_WINDOW' || functionName === 'MIN_DISPUTE_WINDOW') return 120
     if (functionName === 'MIN_ARBITRATION_WINDOW') return 300
-    if (functionName.startsWith('MAX_')) return sdk.MAX_HIRELING_WINDOW
+    if (functionName.startsWith('MAX_')) return sdk.MAX_SIDEQUEST_WINDOW
     throw new Error(`unexpected chain read: ${functionName}`)
   })
   const client = { ...base.publicClient, readContract: read, getBlockNumber: vi.fn(async () => 100n) }
-  const ctx = { ...base, stack: { ...base.stack, kind: 'hireling-v1' }, publicClient: client } as unknown as sdk.Ctx
+  const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, publicClient: client } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: ctx }, domain: 'offer.test', uri: 'https://offer.test', manifestBaseUrl: 'https://offer.test/offers', now: () => 1000 })
   const input = { title: 'Offer', brief: 'Brief', acceptanceCriteria: ['works'], mode: 'hire' as const, token: base.deployment.rewardTokens[0]!, reward: '1',

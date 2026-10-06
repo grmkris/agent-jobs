@@ -1,7 +1,7 @@
 /**
  * An amount in a token, as one chip used everywhere amounts appear: the token's icon, then "4.5 mUSD" as ONE text node
  * in its own span (tests and the live harness read amounts by exact text), and on press — or hover, where there is
- * one — a popover with what the token is: name, address, whether Hireling lists it, and a link to Monadscan.
+ * one — a popover with what the token is: name, address, whether Sidequest lists it, and a link to Monadscan.
  *
  * Inside a link or a button (a whole-row link, a "Pay 5 mUSD" button) a second interactive element would be invalid,
  * so there the chip is static: wrap such places in `<StaticTokens>`. The popover is not in the DOM until opened.
@@ -28,7 +28,7 @@ export function StaticTokens({ children }: { children: ReactNode }) {
 export const tokenExplorer = (address: string) => `${chain.blockExplorers?.default.url ?? ''}/token/${address}`
 
 const SOURCE: Record<ReturnType<typeof tokenSource>, string> = {
-  hireling: 'Listed by Hireling',
+  sidequest: 'Listed by Sidequest',
   'monad-list': "On Monad's token list",
   web3icons: 'Known to web3icons',
   unlisted: 'Not listed: anyone can name a token anything. Check the address.',

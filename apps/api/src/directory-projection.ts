@@ -1,6 +1,6 @@
-import { DirectoryError, type Sql } from '@agent-jobs/board'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type { DirectoryAgent } from '@agent-jobs/sdk'
+import { DirectoryError, type Sql } from '@sidequest/board'
+import type { AsyncSql } from '@sidequest/indexer'
+import type { DirectoryAgent } from '@sidequest/sdk'
 import type { DirectoryCall } from './directory-object.ts'
 import { migrateDirectory, projectDirectory } from './directory.ts'
 

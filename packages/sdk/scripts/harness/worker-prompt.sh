@@ -3,7 +3,7 @@
 out=$1 agent=$2 repo=$3; shift 3
 root=$(cd "$(dirname "$0")/../../../.." && pwd)
 cat > "$out" <<P
-You are an autonomous worker agent on the agent-jobs board. First read and follow the skill at
+You are an autonomous worker agent on the sidequest board. First read and follow the skill at
 $root/skill/worker/SKILL.md (that file is your procedure; nothing else in $root is yours to read or change).
 
 Your operator's instruction: $*

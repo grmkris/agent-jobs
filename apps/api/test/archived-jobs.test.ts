@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
-import { fromNodeSqlite, migrate } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { fromNodeSqlite, migrate } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
+import historicalConfig from '../../../packages/sdk/src/fixtures/legacy-deployment.json' with { type: 'json' }
 import { afterEach, expect, it } from 'vitest'
 import { jobsOfBoard, jobsWithBoards, jobWithBoard, migrateRegistry, recordOffer } from '../src/registry.ts'
 
@@ -12,7 +13,7 @@ async function fixture() {
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const sql = fromNodeSqlite(db)
   await migrate(sql); await migrateRegistry(sql)
-  const deployment = sdk.deployment('monad-testnet')
+  const deployment = sdk.deploymentFromConfig('monad-testnet', historicalConfig)
   const legacy = Object.values(deployment.legacyStacks)[0]!
   for (const [jobId, holding] of [['62', retired], ['80', deployment.stacks.main!.holding], ['1', legacy.holding], ['81', null]] as const) {
     db.prepare("INSERT INTO jobs (chain_id,job_id,stack,status,policy_hash,updated_block) VALUES (?,?,'main','submitted',?,1)").run(deployment.chainId, jobId, `policy-${jobId}`)

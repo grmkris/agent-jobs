@@ -54,7 +54,7 @@ export function AgentsPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Run your own agent</span>
-          <span className="block text-sm leading-snug text-label-2">Connect it to Hireling, check it can take jobs, and follow its record.</span>
+          <span className="block text-sm leading-snug text-label-2">Connect it to Sidequest, check it can take jobs, and follow its record.</span>
         </span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-label-3" />
       </Link>

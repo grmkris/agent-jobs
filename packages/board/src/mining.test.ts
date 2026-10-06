@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, decodeFunctionData } from 'viem'
 import { expect, it, vi } from 'vitest'
 import { miningProof, miningEpoch, verifyMiningClaim } from './mining.ts'
@@ -14,12 +14,12 @@ function fixture() {
   const file = structuredClone(artifact)
   const readContract = vi.fn(async ({ functionName }: { functionName: string }): Promise<unknown> => functionName === 'rootOf'
     ? { root: file.root, total: 18n, claimed: 0n, dataHash: file.dataHash } : false)
-  const ctx = { ...base, deployment: { ...base.deployment, hireling: { distributor: base.stack.holding, factory: base.stack.factory } },
+  const ctx = { ...base, deployment: { ...base.deployment, sidequest: { distributor: base.stack.holding, factory: base.stack.factory } },
     publicClient: { ...base.publicClient, readContract } } as unknown as sdk.Ctx
   return { ctx, file, readContract, source: { load: vi.fn(async () => file) } }
 }
 it('loads the contracts-produced claims from a configured path and returns the verified OZ proof and exact claim call', async () => {
-  const f = fixture(), path = await mkdtemp(join(tmpdir(), 'hireling-mining-'))
+  const f = fixture(), path = await mkdtemp(join(tmpdir(), 'sidequest-mining-'))
   try {
     await writeFile(join(path, 'epoch-3.json'), JSON.stringify(f.file))
     const source = { load: async (epoch: string) => JSON.parse(await readFile(join(path, `epoch-${miningEpoch(epoch)}.json`), 'utf8')) as unknown }

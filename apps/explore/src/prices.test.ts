@@ -1,7 +1,7 @@
 import { type Hex, getAddress } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { describe, expect, it } from 'vitest'
-import { FACTORY_PRICE_FLOOR, type PriceDraft, priceListFile, priceListOf, priceTypedData } from './prices.ts'
+import { SIDE_PRICE_FLOOR, type PriceDraft, priceListFile, priceListOf, priceTypedData } from './prices.ts'
 
 /**
  * The mining tool's own price-list code (scripts/mining/prices.ts, B8): what Explore signs must be exactly what it
@@ -37,7 +37,7 @@ describe('the price list Explore signs', () => {
     expect(typed.message).toEqual({
       epoch: 0n,
       tokens: [{ token: getAddress(usdc), decimals: 6, usdPrice: 10n ** 18n }, { token: getAddress(eur), decimals: 6, usdPrice: 108n * 10n ** 16n }],
-      factoryUsdPrice: FACTORY_PRICE_FLOOR,
+      factoryUsdPrice: SIDE_PRICE_FLOOR,
     })
   })
 
@@ -63,6 +63,6 @@ describe('the price list Explore signs', () => {
     expect(priceListOf({ ...draft, tokens: [{ token: usdc, decimals: 6, usd: '1' }, { token: usdc.toUpperCase().replace('0X', '0x'), decimals: 6, usd: '1' }] })).toMatch(/twice/)
     expect(priceListOf({ ...draft, tokens: [{ token: usdc, decimals: null, usd: '1' }] })).toMatch(/decimals/)
     expect(priceListOf({ ...draft, tokens: [{ token: '0x12', decimals: 6, usd: '1' }] })).toMatch(/not a token address/)
-    expect(priceListOf({ ...draft, factoryUsd: '0' })).toMatch(/FACTORY price/)
+    expect(priceListOf({ ...draft, factoryUsd: '0' })).toMatch(/SIDE price/)
   })
 })

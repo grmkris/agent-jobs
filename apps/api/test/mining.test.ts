@@ -7,7 +7,7 @@ import { expect } from 'vitest'
 import MiningDrill from './mining-worker.ts'
 
 const { test, beforeAll, deploy } = Test.make({ providers: Cloudflare.providers(), state: Alchemy.localState(), dev: true })
-const Stack = Alchemy.Stack('HirelingMiningLocalTest', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
+const Stack = Alchemy.Stack('SidequestMiningLocalTest', { providers: Cloudflare.providers(), state: Alchemy.localState() }, Effect.gen(function* () {
   const worker = yield* MiningDrill
   return { url: worker.url }
 }))

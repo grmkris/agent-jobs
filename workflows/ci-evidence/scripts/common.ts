@@ -62,7 +62,7 @@ export async function preflight() {
   if (submissionReceipt.status !== 'success' || !submission || submission.eventName !== 'JobSubmitted' || submission.args.deliverable !== input.submissionHash) throw new Error('request differs from real JobSubmitted')
   const policy = await rpc.readContract({ address: sim.holding, abi, functionName: 'policyHashOf', args: [BigInt(input.jobId)] })
   if (policy !== input.policyHash) throw new Error('request policy differs from real listing')
-  const response = await fetch(checkRunsUrl(input), { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-jobs-cre-preflight' } })
+  const response = await fetch(checkRunsUrl(input), { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'sidequest-cre-preflight' } })
   if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
   const body = await response.json()
   const built = buildEvidence(input, body, Math.floor(Date.now() / 1000))

@@ -36,7 +36,7 @@ async function main() {
   if (config.network !== 'monad-testnet' || config.chainId !== 10143 || Number(await request('eth_chainId', [])) !== 10143) {
     throw new Error('testnet chain/config mismatch; refuses chain 143')
   }
-  if (config.deployment.hireling?.safe?.toLowerCase() !== policy.safe.toLowerCase()) throw new Error('Safe differs from the reviewed testnet policy')
+  if (config.deployment.sidequest?.safe?.toLowerCase() !== policy.safe.toLowerCase()) throw new Error('Safe differs from the reviewed testnet policy')
   const block = await request('eth_blockNumber', [])
   const reader: LaunchReader = {
     code: to => request('eth_getCode', [to, block]),
@@ -57,8 +57,8 @@ async function main() {
   for (const label of failures) console.log(`${expected.includes(label) ? 'EXPECTED TESTNET DIFFERENCE' : 'FAIL'} ${label}`)
   for (const label of missing) console.log(`FAIL expected reused-core difference changed: ${label}`)
   const abi = parseAbi(['function pendingOwner() view returns (address)', 'function epochEnd(uint256) view returns (uint256)'])
-  const owned = [config.deployment.hireling!.vault, config.deployment.hireling!.feeSchedule, config.deployment.main!.holding,
-    config.deployment.main!.evaluator, config.deployment.hireling!.distributor, config.deployment.hireling!.miningReserve]
+  const owned = [config.deployment.sidequest!.vault, config.deployment.sidequest!.feeSchedule, config.deployment.main!.holding,
+    config.deployment.main!.evaluator, config.deployment.sidequest!.distributor, config.deployment.sidequest!.miningReserve]
   for (const to of owned) {
     const data = encodeFunctionData({ abi, functionName: 'pendingOwner' })
     const pending = decodeFunctionResult({ abi, functionName: 'pendingOwner', data: await reader.call(to!, data) })

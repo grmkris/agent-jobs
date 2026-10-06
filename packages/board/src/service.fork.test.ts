@@ -12,7 +12,7 @@
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { localTestPort } from '../../sdk/test/fork-port.ts'
 import { type Hex, parseEther } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -129,7 +129,7 @@ fork('R114-07 on a testnet fork: lost responses and restarts', () => {
     const board = boot()
     const pub = await signIn(board, creator)
     const wrk = await signIn(board, worker)
-    const agentId = await sdk.registerAgent(c, w(worker), 'https://github.com/grmkris/agent-jobs#fork-test')
+    const agentId = await sdk.registerAgent(c, w(worker), 'https://github.com/grmkris/sidequest#fork-test')
     const app = await board.apply({ address: wrk.address }, { taskId, agentId: agentId.toString(), note: 'fork' })
     const sel = await board.selectWorker({ address: pub.address }, { taskId, applicationId: app.applicationId })
     await board.submitSelection({ address: pub.address }, { taskId, nonce: sel.nonce, signature: await sdk.signTypedDataJson(w(creator), sel.sign.typedData) })

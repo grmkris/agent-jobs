@@ -1,14 +1,14 @@
 {
-  "name": "@agent-jobs/react",
+  "name": "@sidequest/react",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Headless React hooks and a typed client for embedding the agent-jobs marketplace: boards, tasks, publish, enter, award, select and pledge, with any EIP-1193 wallet.",
+  "description": "Headless React hooks and a typed client for embedding the sidequest marketplace: boards, tasks, publish, enter, award, select and pledge, with any EIP-1193 wallet.",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@agent-jobs/sdk": "workspace:*",
+    "@sidequest/sdk": "workspace:*",
     "viem": "2.56.9"
   },
   "peerDependencies": {

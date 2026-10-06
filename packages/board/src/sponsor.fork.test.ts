@@ -1,19 +1,19 @@
 /** Real v1 bytecode and deployed DelegationManager/enforcers on a local Monad fork; no remote broadcasts. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, decodeFunctionData, encodeFunctionData, parseEther, parseTransaction } from 'viem'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
 import { SPONSOR_LIMITS } from './sponsor.ts'
-import { type Delegation, parseDelegation, redeemCallsCalldata } from '@agent-jobs/sdk'
+import { type Delegation, parseDelegation, redeemCallsCalldata } from '@sidequest/sdk'
 
 const caller = (wallet: sdk.Wallet) => ({ address: wallet.account.address })
 
 const fork = forkEnabled ? describe : describe.skip
 fork('sponsorship against the real Monad Delegation Framework', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>, board: Board, db: DatabaseSync, now: number, agentId: bigint
+  let f: Awaited<ReturnType<typeof startSidequestFork>>, board: Board, db: DatabaseSync, now: number, agentId: bigint
   const boot = () => new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: { ...f.ctx, deployment: { ...f.ctx.deployment, relay: f.admin.account.address } } },
     relay: { account: f.admin.account as import('viem').LocalAccount, rpcUrl: f.url }, domain: 'fork.test', uri: 'https://fork.test', manifestBaseUrl: 'https://fork.test/offers', now: () => now })
   async function enable(wallet: sdk.Wallet) {
@@ -30,8 +30,8 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     return board.sponsorSubmit(caller(wallet), { wallet: wallet.account.address, key, entries: status.delegationHash === null ? [] : [{ grant: status.delegationHash, calls }] })
   }
   beforeAll(async () => {
-    f = await startHirelingFork(); db = new DatabaseSync(':memory:'); now = Number((await f.ctx.publicClient.getBlock()).timestamp); board = boot()
-    agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/sponsor-fork')
+    f = await startSidequestFork(); db = new DatabaseSync(':memory:'); now = Number((await f.ctx.publicClient.getBlock()).timestamp); board = boot()
+    agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/sponsor-fork')
     await sdk.delegate(f.ctx, f.creator, parseEther('100')); await sdk.delegate(f.ctx, f.worker, parseEther('100'))
   }, forkSetupTimeout())
   afterAll(() => { db?.close(); f?.close() })
@@ -66,7 +66,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     expect(deliveredReport.onchainSubmission?.deliverable_hash).toBe(delivery.deliverableHash)
     const accepted = await board.approveWork(caller(f.creator), { taskId: created.taskId })
     const settlement: sdk.TxRequest = { description: 'Settle fees', chainId: f.ctx.deployment.chainId, to: f.ctx.stack.holding, value: '0',
-      data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'settle', args: [BigInt(task.jobId!)] }) }
+      data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'settle', args: [BigInt(task.jobId!)] }) }
     const paid = await submit(f.creator, 'accept-settle', [...accepted.transactions, settlement])
     expect(paid).toMatchObject({ status: 'confirmed', callsUsed: 2 })
     expect(db.prepare("SELECT status FROM operations WHERE task_id=? AND kind='accept'").get(created.taskId)).toEqual({ status: 'prepared' })
@@ -116,7 +116,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })
     const authorization = await f.contributor.signAuthorization({ account: f.contributor.account, contractAddress: f.ctx.deployment.delegation.delegator, executor: f.admin.account.address })
     const calls: sdk.TxRequest[] = [{ description: 'Invalidate an unused selection', chainId: 10143, to: f.ctx.stack.holding, value: '0',
-      data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [987654n] }) }]
+      data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [987654n] }) }]
     const [upgrade, sponsored] = await Promise.all([
       board.upgradeAccount(caller(f.contributor), { authorization: { ...authorization } }), submit(f.worker, 'concurrent-upgrade', calls),
     ])
@@ -135,8 +135,8 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
     const signed: Delegation = { ...parseDelegation(row.delegation_json), signature: row.signature }
     const data = encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'requestUndelegate', args: [f.creator.account.address, parseEther('1')] })
     await expect(f.ctx.publicClient.call({ account: f.admin.account, to: f.ctx.deployment.delegation.manager,
-      data: redeemCallsCalldata(signed, [{ target: f.ctx.deployment.hireling!.vault, callData: data, value: 0n }]) })).rejects.toThrow()
-    const call = { target: f.ctx.stack.holding, callData: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [987n] }), value: 0n }
+      data: redeemCallsCalldata(signed, [{ target: f.ctx.deployment.sidequest!.vault, callData: data, value: 0n }]) })).rejects.toThrow()
+    const call = { target: f.ctx.stack.holding, callData: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [987n] }), value: 0n }
     for (const invalid of [{ ...call, target: f.ctx.stack.factory }, { ...call, value: 1n }]) {
       await expect(f.ctx.publicClient.call({ account: f.admin.account, to: f.ctx.deployment.delegation.manager, data: redeemCallsCalldata(signed, [invalid]) })).rejects.toThrow()
     }
@@ -148,7 +148,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
 
   it('revocation stops board sends and disables the root on-chain; expired delegations refuse', async () => {
     const revoked = await board.sponsorRevoke(caller(f.worker), { wallet: f.worker.account.address })
-    expect(decodeFunctionData({ abi: (await import('@agent-jobs/sdk')).delegationManagerAbi, data: revoked.transactions[0]!.data }).functionName).toBe('disableDelegation')
+    expect(decodeFunctionData({ abi: (await import('@sidequest/sdk')).delegationManagerAbi, data: revoked.transactions[0]!.data }).functionName).toBe('disableDelegation')
     expect((await board.sponsorStatus(caller(f.worker), { wallet: f.worker.account.address })).status).toBe('revoked')
     await sdk.sendAll(f.worker, f.ctx.publicClient, revoked.transactions)
     expect((await board.sponsorStatus(caller(f.worker), { wallet: f.worker.account.address })).status).toBe('revoked')
@@ -159,7 +159,7 @@ fork('sponsorship against the real Monad Delegation Framework', () => {
   it.each(['live', 'revoked', 'expired', 'original-wins'])('recovers a persisted sponsorship crash (%s) before another relay send on real bytecode', async state => {
     await enable(f.contributor)
     const calls: sdk.TxRequest[] = [{ description: 'Invalidate an unused selection', chainId: 10143, to: f.ctx.stack.holding, value: '0',
-      data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [888888n + BigInt(['live', 'revoked', 'expired', 'original-wins'].indexOf(state))] }) }]
+      data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [888888n + BigInt(['live', 'revoked', 'expired', 'original-wins'].indexOf(state))] }) }]
     const nonce = await f.ctx.publicClient.getTransactionCount({ address: f.admin.account.address })
     const failedSend = vi.spyOn(f.ctx.publicClient, 'sendRawTransaction').mockRejectedValueOnce(new Error('process stopped after insert'))
     const failedWait = vi.spyOn(f.ctx.publicClient, 'waitForTransactionReceipt').mockRejectedValueOnce(new Error('not broadcast'))

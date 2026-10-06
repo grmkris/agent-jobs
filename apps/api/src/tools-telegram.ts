@@ -1,7 +1,7 @@
 import type { Address, Hex } from 'viem'
 import { isAddress } from 'viem'
-import type { AsyncSql } from '@agent-jobs/indexer'
-import type { Network } from '@agent-jobs/sdk'
+import type { AsyncSql } from '@sidequest/indexer'
+import type { Network } from '@sidequest/sdk'
 import { TelegramError, telegramLinkConfirm, telegramLinkPrepare, telegramStatus, telegramUnlink } from './telegram.ts'
 
 export interface TelegramToolDeps {

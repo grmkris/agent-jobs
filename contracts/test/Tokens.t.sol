@@ -5,13 +5,13 @@ import {Test} from "forge-std/Test.sol";
 import {FactoryToken} from "../src/FactoryToken.sol";
 import {MockPaymentToken} from "../src/MockPaymentToken.sol";
 
-/// @dev R114-09: the production FACTORY cannot enable a faucet; the testnet reward token is parameterised.
+/// @dev R114-09: the production SIDE cannot enable a faucet; the testnet reward token is parameterised.
 contract TokensTest is Test {
     address internal minter = makeAddr("minter");
     address internal anyone = makeAddr("anyone");
 
     function test_production_factoryHasNoFaucetAndCannotEnableOne() public {
-        FactoryToken prod = new FactoryToken("Factory", "FACTORY", false, minter);
+        FactoryToken prod = new FactoryToken("Factory", "SIDE", false, minter);
         assertFalse(prod.faucetEnabled());
         vm.prank(anyone);
         vm.expectRevert(FactoryToken.FaucetDisabled.selector);
@@ -28,7 +28,7 @@ contract TokensTest is Test {
     }
 
     function test_testnet_factoryFaucet() public {
-        FactoryToken test = new FactoryToken("Factory (testnet)", "FACTORY", true, address(0));
+        FactoryToken test = new FactoryToken("Factory (testnet)", "SIDE", true, address(0));
         vm.prank(anyone);
         test.faucet();
         assertEq(test.balanceOf(anyone), test.FAUCET_AMOUNT());

@@ -78,7 +78,7 @@ async function prove(): Promise<void> {
     const boot = () => new AgentExecutor({ sql, context: ctx, now, signing,
       sponsor: new SponsorDesk({ sql, ctx, now, relay: { account: relay, rpcUrl: required(env, 'MONAD_TESTNET_RPC_URL') }, fail: (_code, message) => new Error(message) }),
       prepareTool: async () => ({ transactions: [{ description: 'Cancel one unused fixture Selection nonce', chainId: 10143, to: ctx.stack.holding, value: '0',
-        data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [BigInt(keccak256(stringToHex(`p3:${id}`)))] }) }] }),
+        data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [BigInt(keccak256(stringToHex(`p3:${id}`)))] }) }] }),
       verifyToolSigning: async () => { throw new Error('This fixture requests grant signatures only') },
     })
     const input = { agentId: id, boardId: 'p3-live-fixture', operationKey: 'p3-live-executor', tool: 'fixture_cancel_selection', args: {} }

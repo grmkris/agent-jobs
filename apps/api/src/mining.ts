@@ -1,4 +1,4 @@
-import { miningEpoch, type MiningSource } from '@agent-jobs/board'
+import { miningEpoch, type MiningSource } from '@sidequest/board'
 
 export interface EpochBucket { get(key: string): Promise<{ text(): Promise<string> } | null> }
 export const miningArtifactKey = (epoch: string) => `mining/epoch-${miningEpoch(epoch)}.json`

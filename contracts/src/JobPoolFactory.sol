@@ -8,7 +8,7 @@ import {JobPool} from "./JobPool.sol";
 
 /// @title JobPoolFactory
 /// @notice Clones `JobPool` at an address anyone can predict from the creator and a salt, pulls the Holding's
-///         FACTORY hold from the creator into the pool (so the pool may publish), and initialises it. Permissionless.
+///         SIDE hold from the creator into the pool (so the pool may publish), and initialises it. Permissionless.
 contract JobPoolFactory {
     using SafeERC20 for IERC20;
 
@@ -35,7 +35,7 @@ contract JobPoolFactory {
         return Clones.predictDeterministicAddress(address(implementation), _salt(creator, userSalt), address(this));
     }
 
-    /// @notice Creates the pool. The creator must hold `holding.minHoldToPublish()` FACTORY and have approved it to
+    /// @notice Creates the pool. The creator must hold `holding.minHoldToPublish()` SIDE and have approved it to
     ///         this factory; it moves into the pool and returns to the creator (or `holdProvider`) via `reclaimHold`.
     function create(bytes32 userSalt, JobPool.Params calldata p) external returns (address pool) {
         pool = Clones.cloneDeterministic(address(implementation), _salt(msg.sender, userSalt));

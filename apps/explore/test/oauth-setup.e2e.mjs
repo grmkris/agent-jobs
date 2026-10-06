@@ -18,7 +18,7 @@ try {
         return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, result: { redirectUrl: `${base}/__test/oauth-complete` } }) });
       }
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, result: {
-        request: { clientId: 'fixture', clientName: 'Fixture coding client', redirectUri: `${base}/callback`, resource: `${base}/mcp`, scopes: ['hireling:read', 'hireling:work', 'hireling:hire'], expiresAt: Math.floor(Date.now() / 1000) + 600 }, agents: [],
+        request: { clientId: 'fixture', clientName: 'Fixture coding client', redirectUri: `${base}/callback`, resource: `${base}/mcp`, scopes: ['sidequest:read', 'sidequest:work', 'sidequest:hire'], expiresAt: Math.floor(Date.now() / 1000) + 600 }, agents: [],
       } }) });
     });
     await context.route('**/__test/oauth-complete', route => route.fulfill({ contentType: 'text/html', body: '<p>Connected fixture</p>' }));
@@ -29,9 +29,9 @@ try {
     const use = page.getByRole('button', { name: 'Use this agent for this connection', exact: true });
     assert.equal(await use.isDisabled(), false, 'OAuth setup does not require funding permissions');
     assert.equal(await page.getByText('Optional weekly spending allowance', { exact: true }).count(), 1);
-    assert.equal(await page.getByText('Optional FACTORY backing', { exact: true }).count(), 1);
+    assert.equal(await page.getByText('Optional SIDE backing', { exact: true }).count(), 1);
     assert.equal(await page.getByRole('textbox', { name: 'Weekly amount', exact: true }).isVisible(), false, 'optional allowance starts collapsed');
-    assert.equal(await page.getByRole('textbox', { name: 'FACTORY to delegate to agent', exact: true }).isVisible(), false, 'optional backing starts collapsed');
+    assert.equal(await page.getByRole('textbox', { name: 'SIDE to delegate to agent', exact: true }).isVisible(), false, 'optional backing starts collapsed');
     await page.getByText('Optional weekly spending allowance', { exact: true }).click();
     await page.getByRole('textbox', { name: 'Weekly amount', exact: true }).waitFor();
     await page.getByText('Optional weekly spending allowance', { exact: true }).click();
@@ -42,12 +42,12 @@ try {
     await page.getByRole('heading', { name: 'Connection permissions', exact: true }).waitFor();
     assert.equal(await use.isDisabled(), false, 'selected agent with no allowance can connect');
     assert.equal(await page.getByRole('textbox', { name: 'Weekly amount', exact: true }).isVisible(), false);
-    assert.equal(await page.getByRole('textbox', { name: 'FACTORY to delegate to agent', exact: true }).isVisible(), false);
+    assert.equal(await page.getByRole('textbox', { name: 'SIDE to delegate to agent', exact: true }).isVisible(), false);
     if (viewport.width === 1440) await page.getByRole('checkbox', { name: 'Hire · post, select, accept and reject' }).uncheck();
     assert.equal(await page.evaluate(() => window.__wallet.signatures.length + window.__wallet.sends.length), 0, 'connection without funding needs no wallet action');
     await use.click();
     await page.waitForURL('**/__test/oauth-complete');
-    assert.deepEqual(decisions, [{ decision: 'approve', agentIds: ['managed'], scopes: viewport.width === 1440 ? ['hireling:read', 'hireling:work'] : ['hireling:read', 'hireling:work', 'hireling:hire'] }]);
+    assert.deepEqual(decisions, [{ decision: 'approve', agentIds: ['managed'], scopes: viewport.width === 1440 ? ['sidequest:read', 'sidequest:work'] : ['sidequest:read', 'sidequest:work', 'sidequest:hire'] }]);
     assert.deepEqual(permissionCalls, [], 'skipping optional sections requests no funding permissions');
     await page.goto(`${base}/agents/new`);
     await page.getByRole('button', { name: 'Create agent wallet', exact: true }).click();

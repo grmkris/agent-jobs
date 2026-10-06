@@ -68,13 +68,13 @@ importers:
 
   apps/api:
     dependencies:
-      '@agent-jobs/board':
+      '@sidequest/board':
         specifier: workspace:*
         version: link:../../packages/board
-      '@agent-jobs/indexer':
+      '@sidequest/indexer':
         specifier: workspace:*
         version: link:../../packages/indexer
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       alchemy:
@@ -102,10 +102,10 @@ importers:
 
   apps/arbiter:
     dependencies:
-      '@agent-jobs/board':
+      '@sidequest/board':
         specifier: workspace:*
         version: link:../../packages/board
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       viem:
@@ -127,10 +127,10 @@ importers:
 
   apps/explore:
     dependencies:
-      '@agent-jobs/react':
+      '@sidequest/react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       '@base-ui/react':
@@ -218,13 +218,13 @@ importers:
 
   apps/indexer:
     dependencies:
-      '@agent-jobs/board':
+      '@sidequest/board':
         specifier: workspace:*
         version: link:../../packages/board
-      '@agent-jobs/indexer':
+      '@sidequest/indexer':
         specifier: workspace:*
         version: link:../../packages/indexer
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       alchemy:
@@ -255,7 +255,7 @@ importers:
 
   packages/board:
     dependencies:
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../sdk
       viem:
@@ -277,7 +277,7 @@ importers:
 
   packages/indexer:
     dependencies:
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../sdk
       viem:
@@ -299,7 +299,7 @@ importers:
 
   packages/react:
     dependencies:
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../sdk
       viem:
@@ -368,10 +368,10 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
     devDependencies:
-      '@agent-jobs/board':
+      '@sidequest/board':
         specifier: workspace:*
         version: link:../../packages/board
-      '@agent-jobs/sdk':
+      '@sidequest/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       '@types/node':

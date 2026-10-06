@@ -333,7 +333,7 @@ async function githubApp(): Promise<Omit<Row, 'name'>> {
   const now = Math.floor(Date.now() / 1000)
   const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: env('GITHUB_APP_ID')! }))}`
   const signature = createSign('RSA-SHA256').update(unsigned).sign(env('GITHUB_APP_PRIVATE_KEY')!.replace(/\\n/g, '\n'))
-  const headers = { accept: 'application/vnd.github+json', 'user-agent': 'agent-jobs-reality-check', 'x-github-api-version': '2022-11-28' }
+  const headers = { accept: 'application/vnd.github+json', 'user-agent': 'sidequest-reality-check', 'x-github-api-version': '2022-11-28' }
   const app = await http('https://api.github.com/app', { headers: { ...headers, authorization: `Bearer ${unsigned}.${b64url(signature)}` } })
   if (!app.ok) return { tier: 'failed', evidence: `JWT → GET /app: HTTP ${app.status}`, next: 'a valid app id and private key' }
   // Minting a short-lived installation token is the read path the attester uses; it changes no state.

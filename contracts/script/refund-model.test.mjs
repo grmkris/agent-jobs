@@ -11,7 +11,7 @@ const snapshot = JSON.parse(readFileSync(new URL('../../docs/evidence/testnet-g1
 const manifest = JSON.parse(readFileSync(new URL('../../docs/evidence/testnet-g1c/refund-manifest.json', import.meta.url)))
 const events = decodeVaultLogs(snapshot.vaultLogs)
 
-test('full real G1b replay reconciles 26,836 FACTORY, self-stake, mining and withdrawals', () => {
+test('full real G1b replay reconciles 26,836 SIDE, self-stake, mining and withdrawals', () => {
   assert.deepEqual(makeManifest(snapshot), manifest)
   assert.equal(manifest.positions.length, 10)
   assert.equal(manifest.totals.positions, '26836000000000000000000')
@@ -64,8 +64,8 @@ test('missing/duplicate logs, balance disagreement, and mixed-owner debits fail 
 
 function planFixture(funding) {
   return refundPlan(manifest, { network: 'monad-testnet', chainId: 10143, roles: { admin: funding },
-    hireling: { allocation: { ecosystem: funding } }, deployment: {
-      hireling: { block: snapshot.block + 100, vault: '0x1111111111111111111111111111111111111111', factory: '0x2222222222222222222222222222222222222222' },
+    sidequest: { allocation: { ecosystem: funding } }, deployment: {
+      sidequest: { block: snapshot.block + 100, vault: '0x1111111111111111111111111111111111111111', factory: '0x2222222222222222222222222222222222222222' },
       main: { holding: '0x3333333333333333333333333333333333333333' },
     } })
 }

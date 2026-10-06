@@ -1,9 +1,9 @@
 /**
- * Where a job stands, as the shared lifecycle model (`@agent-jobs/react` → SDK `lifecycle`) says: a pill, and the
+ * Where a job stands, as the shared lifecycle model (`@sidequest/react` → SDK `lifecycle`) says: a pill, and the
  * "what happens next" sentence with its deadline as a live time. List rows use the indexer's facts; a job page adds
  * the board's windows (review, dispute, arbitration) for exact deadlines.
  */
-import { type LifecycleInput, type Phase, type Segment, lifecycle, lifecycleFromIndexed } from '@agent-jobs/react'
+import { type LifecycleInput, type Phase, type Segment, lifecycle, lifecycleFromIndexed } from '@sidequest/react'
 import type { ChainJob, TaskIndexEntry } from '../api.ts'
 import { When } from './Time.tsx'
 import { Badge } from './ui.tsx'

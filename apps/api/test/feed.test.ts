@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { fromNodeSqlite, migrate, stmt, type AsyncSql } from '@agent-jobs/indexer'
+import { fromNodeSqlite, migrate, stmt, type AsyncSql } from '@sidequest/indexer'
 import { FEED_RETENTION_SECONDS, feedFromChain, pruneFeed, readInbox, writeFeed } from '../src/feed.ts'
 import { migrateRegistry } from '../src/registry.ts'
 
@@ -16,7 +16,7 @@ async function setup() {
   await migrateRegistry(sql)
   await sql.batch([
     stmt('INSERT INTO checkpoint VALUES (?, 100, NULL, ?)', chain, now),
-    stmt("INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, policy_hash, updated_block) VALUES (?, '7', ?, ?, ?, 'hireling-v1', 'submitted', ?, 20)", chain, creator, creator, worker, termsHash),
+    stmt("INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, policy_hash, updated_block) VALUES (?, '7', ?, ?, ?, 'sidequest-v1', 'submitted', ?, 20)", chain, creator, creator, worker, termsHash),
     stmt("INSERT INTO board_offers VALUES (?, 'public', 'task-7', ?)", termsHash, now),
   ])
   return sql
@@ -37,7 +37,7 @@ describe('feed from finalized chain events', () => {
     expect(await feedFromChain(sql, 'monad-testnet', now, { caughtUp: true })).toEqual({ processed: 5, stale: false, waiting: false })
     const mine = await read(sql, worker, { includePublic: false })
     expect(mine.events.map(e => [e.kind, e.role])).toEqual([['job.activated', 'worker'], ['job.rejected', 'worker'], ['payout.owed', 'recipient']])
-    expect(mine.events[1]).toMatchObject({ taskId: 'task-7', boardId: 'public', jobId: '7', next: { tool: 'get_task', args: { taskId: 'task-7' } }, url: 'https://testnet.hireling.xyz/job/7' })
+    expect(mine.events[1]).toMatchObject({ taskId: 'task-7', boardId: 'public', jobId: '7', next: { tool: 'get_task', args: { taskId: 'task-7' } }, url: 'https://dev.sidequest.exchange/job/7' })
     expect(mine.events[2]!.next).toEqual({ tool: 'settlement_actions', args: { taskId: 'task-7' } })
     const theirs = await read(sql, creator)
     expect(theirs.events.map(e => e.kind)).toEqual(['job.published', 'job.published', 'job.activated', 'job.submitted', 'job.rejected'])

@@ -32,7 +32,7 @@ export interface BoardApiOptions {
   readonly fetch?: typeof fetch
 }
 
-export const SESSION_KEY = 'agent-jobs.session'
+export const SESSION_KEY = 'sidequest.session'
 export const PUBLIC_BOARD_ID = 'public'
 
 /** Any EIP-1193 provider: a browser wallet, Privy's embedded wallet, a wagmi connector's provider. */

@@ -7,14 +7,14 @@
  *   TOKEN=0x… bun packages/sdk/scripts/board-any-token.ts   (from the repo root; .env.local is read)
  *
  * TOKEN must answer symbol() and decimals(); if it has a `faucet()` (e.g. a MockPaymentToken) the creator taps it when
- * short. BOARD_URL defaults to https://testnet.hireling.xyz; REWARD (default 5) in token units. Bonds are 0.
+ * short. BOARD_URL defaults to https://dev.sidequest.exchange; REWARD (default 5) in token units. Bonds are 0.
  */
 import { type Address, type Hex, formatUnits, getAddress, parseAbi, parseUnits } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
 import { check, checks, envLocal, log, sendReported, txUrl } from './lib/common.ts'
 
-const BOARD = envLocal('BOARD_URL', 'https://testnet.hireling.xyz')
+const BOARD = envLocal('BOARD_URL', 'https://dev.sidequest.exchange')
 const RPC = envLocal('MONAD_TESTNET_RPC_URL')
 const TOKEN = getAddress(envLocal('TOKEN'))
 const REWARD = envLocal('REWARD', '5')
@@ -76,7 +76,7 @@ const prep = await asWorker.call<{ transactions: sdk.TxRequest[]; sign: { typedD
 await sendReported(asWorker, worker, ctx.publicClient, taskId, prep.transactions, 'worker')
 const act = await asWorker.call<{ transactions: sdk.TxRequest[] }>('build_activation', { taskId, budgetSignature: await sdk.signTypedDataJson(worker, prep.sign.typedData as never) })
 await sendReported(asWorker, worker, ctx.publicClient, taskId, act.transactions, 'worker')
-const sub = await asWorker.call<{ transactions: sdk.TxRequest[] }>('submit_work', { taskId, deliverable: { kind: 'url', url: 'https://github.com/grmkris/agent-jobs/blob/main/docs/decisions/0010-permissionless-tokens.md' } })
+const sub = await asWorker.call<{ transactions: sdk.TxRequest[] }>('submit_work', { taskId, deliverable: { kind: 'url', url: 'https://github.com/grmkris/sidequest/blob/main/docs/decisions/0010-permissionless-tokens.md' } })
 await sendReported(asWorker, worker, ctx.publicClient, taskId, sub.transactions, 'worker')
 
 const before = await read<bigint>('balanceOf', [workerAccount.address])

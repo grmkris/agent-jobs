@@ -1,9 +1,9 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { Link } from '@tanstack/react-router'
 import { erc20Abi, zeroAddress } from 'viem'
 import { useBalance, useReadContract } from 'wagmi'
 import { amount, formatNumber, tokenInfo } from '../../format.ts'
-import { hireling } from '../../hireling.ts'
+import { sidequest } from '../../sidequest.ts'
 import { useToken } from '../../useTokens.ts'
 import { chain, isMainnet } from '../../wallet.ts'
 import { Group, ListRow, Section } from '../ui.tsx'
@@ -35,7 +35,7 @@ export function Preflight({
   const who = address ?? zeroAddress
   const q = { refetchInterval: 15_000 }
   const mon = useBalance({ address: who, chainId: chain.id, query: { ...q, enabled: on } })
-  const free = useReadContract({ address: hireling.vault, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [who], chainId: chain.id, query: { ...q, enabled: on } })
+  const free = useReadContract({ address: sidequest.vault, abi: sdk.stakeVaultAbi, functionName: 'availableOf', args: [who], chainId: chain.id, query: { ...q, enabled: on } })
   const held = useReadContract({
     address: (token ?? zeroAddress) as Hex,
     abi: erc20Abi,
@@ -47,7 +47,7 @@ export function Preflight({
 
   const note = isMainnet
     ? 'Read live from your wallet.'
-    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; FACTORY is transferred by the ecosystem/coordinator, and mUSD/mEUR each have an on-chain faucet().'
+    : 'Read live from your wallet. Testnet MON comes from faucet.monad.xyz; SIDE is transferred by the ecosystem/coordinator, and mUSD/mEUR each have an on-chain faucet().'
   if (!on) {
     return (
       <Section title="Ready to publish" note={token === undefined ? 'Sign in, and this checks your wallet has the gas and the bond.' : 'Sign in, and this checks your wallet has the gas, the reward and the bond.'}>
@@ -103,11 +103,11 @@ function StakeRow({ prefix, need, free, unavailable }: { prefix: string; need: b
       <span className="min-w-0 flex-1">
         <span className="block">
           {prefix}
-          {need > 0n ? `Your bond · ${formatNumber(need, 18)} FACTORY from backing` : 'No bond from you'}
+          {need > 0n ? `Your bond · ${formatNumber(need, 18)} SIDE from backing` : 'No bond from you'}
         </span>
         {free !== undefined && free < need && (
           <span className="block text-ui text-warn">
-            Delegate {formatNumber(need - free, 18)} FACTORY more.{' '}
+            Delegate {formatNumber(need - free, 18)} SIDE more.{' '}
             <Link to="/backing" className="font-semibold text-tint">
               Back an agent
             </Link>

@@ -11,7 +11,7 @@ import { SessionDesk } from '../packages/board/src/index.ts'
 const args = process.argv.slice(2)
 if (args.some(arg => arg !== '--live-testnet')) throw new Error('drill permits only local cassette or --live-testnet read-only RPC; no remote D1 flags')
 const live = args.includes('--live-testnet')
-const root = mkdtempSync(join(tmpdir(), 'hireling-e38-recovery-'))
+const root = mkdtempSync(join(tmpdir(), 'sidequest-e38-recovery-'))
 const started = Date.now()
 let sourceDb: DatabaseSync | undefined
 let restoredDb: DatabaseSync | undefined

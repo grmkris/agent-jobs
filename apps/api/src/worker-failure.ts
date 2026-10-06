@@ -1,4 +1,4 @@
-import { agentFailureReply, DirectoryError, SessionError, TenantError } from '@agent-jobs/board'
+import { agentFailureReply, DirectoryError, SessionError, TenantError } from '@sidequest/board'
 import type { BoardReply } from './board.ts'
 import { DirectoryCallError } from './directory.ts'
 import { TelegramError } from './telegram.ts'

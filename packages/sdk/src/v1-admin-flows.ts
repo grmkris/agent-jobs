@@ -18,13 +18,13 @@ export const FLOW_MULTISEND: Address = '0x9641d764fc13c8B624c04430C7356C1C7C8102
 export function flowPauseBatch(ctx: sdk.Ctx, paused: boolean): Hex {
   const data = concat([
     encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, ctx.deployment.core, 0n, 4n, encodeFunctionData({ abi: sdk.coreAbi, functionName: paused ? 'pause' : 'unpause' })]),
-    encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, ctx.stack.evaluator, 0n, 4n, encodeFunctionData({ abi: sdk.hirelingEvaluatorAbi, functionName: 'notePause' })]),
+    encodePacked(['uint8', 'address', 'uint256', 'uint256', 'bytes'], [0, ctx.stack.evaluator, 0n, 4n, encodeFunctionData({ abi: sdk.sidequestEvaluatorAbi, functionName: 'notePause' })]),
   ])
   return encodeFunctionData({ abi: parseAbi(['function multiSend(bytes)']), functionName: 'multiSend', args: [data] })
 }
 export async function runV1AdminFlow(d: V1FlowDeps & { safeOwner: sdk.Wallet }, flow: V1AdminFlow) {
-  const { ctx, journal: j, safeOwner } = d, h = ctx.deployment.hireling
-  if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || h === null || ctx.stack.kind !== 'hireling-v1') throw new Error('Admin flows are testnet v1 only')
+  const { ctx, journal: j, safeOwner } = d, h = ctx.deployment.sidequest
+  if (ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143 || h === null || ctx.stack.kind !== 'sidequest-v1') throw new Error('Admin flows are testnet v1 only')
   if (j.state.values[`${flow}/done`] === true) return
   if (!await ctx.publicClient.readContract({ address: h.safe, abi: flowSafeAbi, functionName: 'isOwner', args: [safeOwner.account.address] }) ||
     await ctx.publicClient.readContract({ address: h.safe, abi: flowSafeAbi, functionName: 'getThreshold' }) !== 1n) throw new Error('This runner needs an owner of the threshold-1 testnet Safe')

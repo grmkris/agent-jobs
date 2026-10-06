@@ -1,15 +1,15 @@
 import { parseEther, parseSignature } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../test/sidequest-fixture.ts'
 import { balanceOf, cancelUndelegate, delegate, delegatePermit, delegateWithPermit, requestUndelegate, withdraw } from './actions.ts'
 import { getBacking, getPosition, listDelegations } from './staking.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('delegated staking SDK against real vault bytecode on a Monad fork', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>
+  let f: Awaited<ReturnType<typeof startSidequestFork>>
   let fromBlock: bigint
   beforeAll(async () => {
-    f = await startHirelingFork()
+    f = await startSidequestFork()
     fromBlock = await f.ctx.publicClient.getBlockNumber()
   }, forkSetupTimeout())
   afterAll(() => f?.close())

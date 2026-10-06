@@ -2,14 +2,14 @@
 
 This repository builds an open job protocol on Monad plus a hosted board service. The spec that
 wins every v1 disagreement lives in the team's myplan note 17 (`doc_eea3BzAG1fugdaPf`), reflected in
-`docs/decisions/0011-hireling-v1.md`. Note 12 and ADR-0004 describe the legacy protocol.
+`docs/decisions/0011-sidequest-v1.md`. Note 12 and ADR-0004 describe the legacy protocol.
 
 ## Invariants (never trade these for a shortcut)
 
-- Money moves only through the chain. `HirelingHolding` (v1), or `JobHolding` on a legacy pair, is the ERC-8183 client
+- Money moves only through the chain. `SidequestHolding` (v1), or `JobHolding` on a legacy pair, is the ERC-8183 client
   of every listed job; the reward is escrowed at publish. A board-service receipt never overrides chain state and never
   counts as funding.
-- `HirelingEvaluator` records the outcome and makes the core's terminal calls (`complete`, `reject`);
+- `SidequestEvaluator` records the outcome and makes the core's terminal calls (`complete`, `reject`);
   a failed payout never turns earned worker pay into a refund. An approver's rejection is
   recorded on-chain and opens a dispute window; nothing refunds before it ends.
 - Silence after a timely finalized submission is acceptance. Every timeout is permissionless.
@@ -31,7 +31,7 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
   budget, reserves the worker bond and funds the core. No delivery liability before activation.
 - Review/dispute windows (1 h–14 d), arbitration (12 h–14 d), and the arbitrator are fixed per v1 offer.
   Publish resolves the default arbitrator into an explicit address. The worker verifies those terms before activation.
-- Bonds are reservations of available FACTORY v2 stake in `StakeVault`, for both creator and worker. Release
+- Bonds are reservations of available SIDE v2 stake in `StakeVault`, for both creator and worker. Release
   unlocks stake; slash burns the reservation with `Factory.burn`. Unstaking free stake starts a seven-day cooldown.
 - Slashable: funded no-show, poor work against published criteria, falsified evidence. A rejection penalty
   needs an undisputed window or a ruling; missing delivery can settle permissionlessly after its deadline.
@@ -60,7 +60,7 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
 - Any ERC-20 can be a reward. `knownTokens` only orders discovery; tenant policies may narrow it. Exact inflows,
   non-reentrancy and bounded pushes isolate hostile rewards; refused payouts become `owed` without trapping bonds.
   Only stacks marked `openTokens` accept unknown tokens through the board.
-- FACTORY v2 is fixed at 1 billion, with no mint/admin hook. Mining counts paid treasury fees in signed priced
+- SIDE v2 is fixed at 1 billion, with no mint/admin hook. Mining counts paid treasury fees in signed priced
   tokens, aggregates one leaf per account/epoch, and claims stake directly into the vault. A posted root and valid
   proof are required; the computation is not a promise of earnings.
 - The owner Safe controls v1 fees (three-day notice), Holding admission (eight-day notice, instant revoke),

@@ -92,7 +92,7 @@ function AgentSetup({
     if (initial !== undefined) return { id: initial.id, name: initial.name };
     try {
       const saved = JSON.parse(
-        localStorage.getItem(`hireling.agent-draft:${operator}`) ?? "null",
+        localStorage.getItem(`sidequest.agent-draft:${operator}`) ?? "null",
       ) as { id: string; name: string } | null;
       if (saved !== null) return saved;
     } catch {
@@ -123,7 +123,7 @@ function AgentSetup({
   async function create() {
     if (draft.name === "") draft.name = name.trim() || "My coding agent";
     try {
-      localStorage.setItem(`hireling.agent-draft:${operator}`, JSON.stringify(draft));
+      localStorage.setItem(`sidequest.agent-draft:${operator}`, JSON.stringify(draft));
     } catch {
       /* The in-memory identity still survives retries. */
     }
@@ -138,7 +138,7 @@ function AgentSetup({
   }
   async function register() {
     if (agent === undefined || review === null) return;
-    const signatureKey = `hireling.registration-signature:${operator}:${agent.id}`;
+    const signatureKey = `sidequest.registration-signature:${operator}:${agent.id}`;
     const saved = JSON.parse(localStorage.getItem(signatureKey) ?? "null") as {
       hash: string;
       signature: string;
@@ -161,7 +161,7 @@ function AgentSetup({
     setReview(null);
     await queryClient.invalidateQueries({ queryKey: ["managed-agents", operator] });
     try {
-      localStorage.removeItem(`hireling.agent-draft:${operator}`);
+      localStorage.removeItem(`sidequest.agent-draft:${operator}`);
     } catch {
       /* Setup is already durably stored. */
     }
@@ -183,7 +183,7 @@ function AgentSetup({
               />
             </label>
             <p className="text-ui text-muted-foreground">
-              Hireling creates a separate wallet for it, owned by your account, and registers its Agent ID to your
+              Sidequest creates a separate wallet for it, owned by your account, and registers its Agent ID to your
               wallet.
             </p>
             <Button busy={busy} onClick={() => void run(create)}>
@@ -224,12 +224,12 @@ function AgentSetup({
         ) : (
           <p className="text-ui text-muted-foreground">
             Agent ID {agent.agent_id} is registered to your wallet. The agent&apos;s own wallet holds its earnings and
-            job obligations; anyone who backs it keeps ownership of their FACTORY.
+            job obligations; anyone who backs it keeps ownership of their SIDE.
           </p>
         )}
       </Step>
       {active && agent !== undefined && context === "standalone" && (
-        <Step n={2} of={steps} title="Connect" summary="Paste this into your coding agent, or add Hireling to its MCP settings. It asks you once whether to work, hire or both.">
+        <Step n={2} of={steps} title="Connect" summary="Paste this into your coding agent, or add Sidequest to its MCP settings. It asks you once whether to work, hire or both.">
           <StartPrompt />
           <ConnectionCard />
         </Step>
@@ -262,10 +262,10 @@ function AgentSetup({
             </Part>
           )}
           {role !== "hire" && (
-            <Part title="Get hired · backing" note="A worker's deposit comes from the FACTORY behind it, and bad work can lose it. Back your agent now or later.">
+            <Part title="Get hired · backing" note="A worker's deposit comes from the SIDE behind it, and bad work can lose it. Back your agent now or later.">
               {context === "oauth" ? (
                 <details>
-                  <summary className="cursor-pointer text-sm font-medium">Optional FACTORY backing</summary>
+                  <summary className="cursor-pointer text-sm font-medium">Optional SIDE backing</summary>
                   <div className="pt-3"><AgentStake agent={agent} operator={operator} /></div>
                 </details>
               ) : (

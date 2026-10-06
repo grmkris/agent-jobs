@@ -1,6 +1,6 @@
 # ADR-0013: Managed agent authority and clean-break storage
 
-Status: accepted for Hireling spec v2 (5 October 2026)
+Status: accepted for Sidequest spec v2 (5 October 2026)
 
 ADR-0013 supersedes the companion and approval-only authority model in ADR-0012.
 Hosted MCP connects one operator-owned managed agent. The operator wallet remains
@@ -17,7 +17,7 @@ amount before the agent signs its one-off approval grant.
 
 The sponsor object `__hosted_sponsor_v1__` is the single management object. It
 stores agents, grants, agent operations, approvals, OAuth state and the sponsor
-ledger in one SQLite transaction. `__hireling_fleet_v1__` is retirement-only and
+ledger in one SQLite transaction. `__sidequest_fleet_v1__` is retirement-only and
 receives no management tables.
 
 The version-2 transition drops the old fleet, OAuth and `sponsor_grants` tables.
@@ -33,7 +33,7 @@ into the new authority model.
 | Sweep (B3) | agent | operator recipient, configured token, expiring grant |
 | Spending allowance | operator | exact token/agent recipient, period cap and expiry |
 | Unknown-token hire | operator then agent | exact allowance decision, exact one-off B2, one publish batch |
-| Back an account | position owner (operator wallet[0] for its agents) | wallet-paid FACTORY approval and `delegate(account, amount)`; owner retains shares |
+| Back an account | position owner (operator wallet[0] for its agents) | wallet-paid SIDE approval and `delegate(account, amount)`; owner retains shares |
 | Operator-owned position exit | operator | wallet-paid `requestUndelegate`, `cancelUndelegate`, `withdraw(account)`; owner receives value |
 | Agent-owned self-position exit | operator decision, then agent grant | `requestUndelegate(agentWallet, exactShares)`, exact calldata, one call, 600-second expiry |
 | Routine agent vault work | agent | `cancelUndelegate` / `withdraw`, self-account only; no principal spending |
@@ -58,7 +58,7 @@ An approval is not acceptance of paid work. Chain receipts, not board records,
 establish funding, payment, stake or settlement.
 
 **Amendment, 6 Oct 2026.** Explore's browser emergency recovery (the owner signing a fresh short-lived grant as the
-agent in Privy, the operator redeeming it over plain RPC without Hireling's API or relay) was removed in the Explore
+agent in Privy, the operator redeeming it over plain RPC without Sidequest's API or relay) was removed in the Explore
 redesign. Agent exits and earnings sweeps now run only through the hosted API and relay; while those are down, funds
 and permissions stay at their recorded on-chain addresses until service returns. `GET /api/agents/:id/recovery` and
 `sdk.recoveryGrant` remain for scripts and tests. The sentence above about exit and emergency recovery is history.

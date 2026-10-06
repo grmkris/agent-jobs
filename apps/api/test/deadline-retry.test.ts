@@ -1,7 +1,7 @@
 /** Relative deadlines through the real tools and Board: a retry echoes what was saved, and budgets freeze as integers. */
 import { DatabaseSync } from 'node:sqlite'
-import { Board, fromNodeSqlite } from '@agent-jobs/board'
-import * as sdk from '@agent-jobs/sdk'
+import { Board, fromNodeSqlite } from '@sidequest/board'
+import * as sdk from '@sidequest/sdk'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { tools } from '../src/tools.ts'
 
@@ -24,11 +24,11 @@ function fixture() {
     if (functionName === 'margin') return 120
     if (functionName === 'MIN_REVIEW_WINDOW' || functionName === 'MIN_DISPUTE_WINDOW') return 120
     if (functionName === 'MIN_ARBITRATION_WINDOW') return 300
-    if (functionName.startsWith('MAX_')) return sdk.MAX_HIRELING_WINDOW
+    if (functionName.startsWith('MAX_')) return sdk.MAX_SIDEQUEST_WINDOW
     throw new Error(`unexpected chain read: ${functionName}`)
   })
   const client = { ...base.publicClient, readContract: read, getBlockNumber: vi.fn(async () => 100n) }
-  const ctx = { ...base, stack: { ...base.stack, kind: 'hireling-v1' }, publicClient: client } as unknown as sdk.Ctx
+  const ctx = { ...base, stack: { ...base.stack, kind: 'sidequest-v1' }, publicClient: client } as unknown as sdk.Ctx
   const db = new DatabaseSync(':memory:'); databases.push(db)
   const board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: ctx }, domain: 'deadline.test', uri: 'https://deadline.test', manifestBaseUrl: 'https://deadline.test/offers', now: () => boardNow })
   const run = (tool: string, args: Record<string, unknown>, address: `0x${string}` = creator) =>

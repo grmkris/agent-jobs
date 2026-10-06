@@ -1,5 +1,5 @@
 /** Atomic S1 hire: redeem the operator allowance, approve Holding, then publish. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, encodePacked, erc20Abi, getAddress } from 'viem'
 
 export interface HireBatchEntry {
@@ -83,7 +83,7 @@ export interface HireBatchInput {
 
 /** The allowance redemption is the first inner call, so a failed publish reverts the pull and approval too. */
 export function buildHireBatch(input: HireBatchInput): Hex {
-  const decoded = decodeFunctionData({ abi: sdk.hirelingHoldingAbi, data: input.publish })
+  const decoded = decodeFunctionData({ abi: sdk.sidequestHoldingAbi, data: input.publish })
   if (decoded.functionName !== 'publish' || decoded.args[0].token.toLowerCase() !== input.token.toLowerCase() || decoded.args[0].reward !== input.amount || input.amount <= 0n) throw new Error('Hire funding must match the exact published reward and token')
   if (input.allowance.delegate.toLowerCase() !== input.agent.toLowerCase() || input.work.delegator.toLowerCase() !== input.agent.toLowerCase() || input.approval.delegator.toLowerCase() !== input.agent.toLowerCase()) throw new Error('Hire grants must name the same agent')
   const pull = sdk.redeemCallsCalldata(input.allowance, [sdk.advanceExecution(input.token, input.agent, input.amount)])

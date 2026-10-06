@@ -1,13 +1,13 @@
-/** Actual ordered redemptions against deployed MetaMask contracts and real Hireling bytecode on a local Monad fork. */
+/** Actual ordered redemptions against deployed MetaMask contracts and real Sidequest bytecode on a local Monad fork. */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Hex, encodeFunctionData, erc20Abi, keccak256, stringToHex } from 'viem'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../../sdk/test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../../sdk/test/sidequest-fixture.ts'
 import { buildHireBatch, decodeGrantBatch } from './hire-batch.ts'
 import { checkGrantCall, checkHireFunding } from './grant-calls.ts'
 
 describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers', () => {
-  let fixture: Awaited<ReturnType<typeof startHirelingFork>>
+  let fixture: Awaited<ReturnType<typeof startSidequestFork>>
   let ctx: sdk.Ctx
   let start: number
   let allowance: sdk.Delegation
@@ -26,7 +26,7 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   }
 
   function publish(index: number, invalid = false): Hex {
-    return encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'publish', args: [{
+    return encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
       approver: fixture.worker.account.address, arbitrator: fixture.arbitrator.account.address,
       manifestHash: keccak256(stringToHex(`manifest-${index}`)), policyHash: keccak256(stringToHex(`policy-${index}`)),
       token, reward: amount, creatorBond: 0n, workerBond: 0n,
@@ -46,7 +46,7 @@ describe.skipIf(!forkEnabled)('atomic S1 hire against real delegation enforcers'
   }
 
   beforeAll(async () => {
-    fixture = await startHirelingFork()
+    fixture = await startSidequestFork()
     ctx = { ...fixture.ctx, deployment: { ...fixture.ctx.deployment, relay: fixture.admin.account.address } }
     for (const wallet of [fixture.creator, fixture.contributor]) {
       const authorization = await wallet.signAuthorization({ contractAddress: ctx.deployment.delegation.delegator, executor: fixture.admin.account.address })

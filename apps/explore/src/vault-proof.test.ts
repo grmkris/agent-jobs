@@ -1,4 +1,4 @@
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { type Address, type Hex, type TransactionReceipt, createPublicClient, custom, encodeAbiParameters, encodeEventTopics, encodeFunctionData } from "viem";
 import { describe, expect, it } from "vitest";
 import { vaultOperationGuards } from "./vault-proof.ts";
@@ -8,9 +8,9 @@ const owner = "0x1111111111111111111111111111111111111111";
 const account = "0x2222222222222222222222222222222222222222";
 const other = "0x3333333333333333333333333333333333333333";
 const deployment = sdk.deployment("monad-testnet");
-const vault = deployment.hireling!.vault;
+const vault = deployment.sidequest!.vault;
 const units = 100n * 10n ** 18n;
-const approval = { chainId: deployment.chainId, to: deployment.hireling!.factory, data: encodeFunctionData({ abi: sdk.factoryV2Abi, functionName: "approve", args: [vault, units] }), value: "0" as const, description: "Approve" };
+const approval = { chainId: deployment.chainId, to: deployment.sidequest!.factory, data: encodeFunctionData({ abi: sdk.factoryV2Abi, functionName: "approve", args: [vault, units] }), value: "0" as const, description: "Approve" };
 const delegate = { ...approval, to: vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: "delegate", args: [account, units] }), description: "Delegate" };
 const tx = { ...delegate, to: owner as Address, data: sdk.batchCalldata([approval, delegate]) };
 const hash = `0x${"ab".repeat(32)}` as const;

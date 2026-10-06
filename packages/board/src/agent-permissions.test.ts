@@ -1,6 +1,6 @@
 /** Permissions on demand end to end on real storage: request, operator review and signature, grant, standing reuse, use. */
 import { DatabaseSync } from 'node:sqlite'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, decodeFunctionData, erc20Abi } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { afterEach, expect, it } from 'vitest'

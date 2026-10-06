@@ -1,4 +1,4 @@
-# Hireling v1 live matrix
+# Sidequest v1 live matrix
 
 `pnpm testnet:v1:flows --list` lists the implemented cases without keys or RPC calls.
 `pnpm testnet:v1:flows hire,cancel,topup-paid` runs the short money paths. Pass a comma-separated list;
@@ -8,23 +8,23 @@ a promoted v1 `main` pair. The runner never deploys or edits the deployment conf
 Run from the backend worktree. Bun loads its testnet-only `.env.local`. Required names:
 `MONAD_TESTNET_RPC_URL`, `TESTNET_CREATOR_PRIVATE_KEY`, `TESTNET_WORKER_PRIVATE_KEY`, `RELAY_PRIVATE_KEY`,
 `V1_ARBITRATOR_PRIVATE_KEY`. `ARBITRATOR_PRIVATE_KEY` is a fallback for the v1 signer only when that is the
-configured v1 key (`hireling.defaultArbitrator`, not the legacy `roles.arbitrator`). `legacy-dispute` uses
+configured v1 key (`sidequest.defaultArbitrator`, not the legacy `roles.arbitrator`). `legacy-dispute` uses
 `LEGACY_ARBITRATOR_PRIVATE_KEY` or the legacy `ARBITRATOR_PRIVATE_KEY`; its address is checked against the
 legacy evaluator before activation. The named arbitrator is
 passed explicitly at publish; the worker checks the listing and signs a fresh net quote before activation.
 
 Optional `TESTNET_AGENT_ID` reuses a registered worker identity. Otherwise registration is journaled.
-`V1_FLOW_REWARD` (default 1 token), `V1_FLOW_BOND` (default 10 FACTORY), and `V1_STAKE_TARGET` (default
-100 FACTORY) are whole-token decimal amounts. Decimals are read on chain. Fund these wallets with testnet
-MON, FACTORY v2 and the configured reward token before running; v2 FACTORY has no faucet. The `legacy-contest`
-case also requires the creator to hold at least 1 FACTORY v1 from the legacy open-token Holding's `factory()`
+`V1_FLOW_REWARD` (default 1 token), `V1_FLOW_BOND` (default 10 SIDE), and `V1_STAKE_TARGET` (default
+100 SIDE) are whole-token decimal amounts. Decimals are read on chain. Fund these wallets with testnet
+MON, SIDE v2 and the configured reward token before running; v2 SIDE has no faucet. The `legacy-contest`
+case also requires the creator to hold at least 1 SIDE v1 from the legacy open-token Holding's `factory()`
 address. The runner reads that address and balance before any setup or flow send and stops with a clear prerequisite
-message when it is missing; do not assume the v2 FACTORY balance satisfies it.
+message when it is missing; do not assume the v2 SIDE balance satisfies it.
 
 The three delegated cases reuse the creator as an outside owner and, for `slash-pro-rata`, the relay as
-another outside owner. The creator journals the relay's FACTORY funding; no extra keys are needed. Start with
+another outside owner. The creator journals the relay's SIDE funding; no extra keys are needed. Start with
 no open worker bonds, no queued worker shares, and no existing creator/relay positions in that worker pool.
-`delegate` needs enough liquid creator FACTORY to reach the worker's next fee tier and reserves more than
+`delegate` needs enough liquid creator SIDE to reach the worker's next fee tier and reserves more than
 the worker's own position can cover. Each case exits its outside positions after the deployed cooldown,
 so the following `fees` case still begins below the second tier. `undelegate-pending-slash` keeps a second
 job active across the first ruling, checks `StillBonded` on both sides of the slash, then releases that bond
@@ -56,7 +56,7 @@ journal keeps its original terms and signed bytes through a code update; a redep
 | Owned delegated backing and snapshotted fee tier | `delegate` |
 | Two outside owners plus self stake, ruled pro-rata burn | `slash-pro-rata` |
 | Slash queued shares, retain a second bond, then withdraw | `undelegate-pending-slash` |
-| Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid FACTORY to reach it) |
+| Two fee tiers | `fees` (worker must begin below tier 2 and have enough liquid SIDE to reach it) |
 | Real refusing tokens → owed → withdrawal | `owed-blocklist`, `owed-gas` |
 | Legacy contracts and immutable key | `legacy-contest`, `legacy-dispute` |
 | Direct hire with sponsored activation/decisions | `direct-hire` |

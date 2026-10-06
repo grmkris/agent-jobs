@@ -13,8 +13,8 @@ test('durable journal reload retains exact bytes, binding, hash and nonce withou
   const manifest = JSON.parse(readFileSync(new URL('../../docs/evidence/testnet-g1c/refund-manifest.json', import.meta.url), 'utf8'))
   const account = privateKeyToAccount(`0x${'01'.padStart(64, '0')}`)
   const plan = refundPlan(manifest, { network: 'monad-testnet', chainId: 10143, roles: { admin: account.address },
-    hireling: { allocation: { ecosystem: account.address } }, deployment: {
-      hireling: { block: manifest.snapshot.block + 100, vault: '0x1111111111111111111111111111111111111111', factory: '0x2222222222222222222222222222222222222222' },
+    sidequest: { allocation: { ecosystem: account.address } }, deployment: {
+      sidequest: { block: manifest.snapshot.block + 100, vault: '0x1111111111111111111111111111111111111111', factory: '0x2222222222222222222222222222222222222222' },
       main: { holding: '0x3333333333333333333333333333333333333333' },
     } })
   const operation = plan.operations[0]

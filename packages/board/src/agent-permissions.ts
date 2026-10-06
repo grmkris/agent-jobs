@@ -4,7 +4,7 @@
  * decisions live in `approvals` (kind 'permission'); the frozen template and signature live in `grants`, so a
  * permission is built, asserted, stored, sponsored and revoked like any other grant.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, encodeFunctionData, erc20Abi, keccak256, stringToHex } from 'viem'
 import { AgentFailure } from './agent-failure.ts'
 import { AgentStore, type AgentRow, type ApprovalRow } from './agents.ts'
@@ -38,7 +38,7 @@ function parseTerms(json: string): sdk.PermissionTerms {
 /** Whether a live standing permission already allows everything the request asks for. */
 function covers(have: sdk.PermissionTerms, want: sdk.PermissionTerms): boolean {
   if (have.type !== want.type) return false
-  if (have.type === 'hireling:contract-call' && want.type === 'hireling:contract-call') {
+  if (have.type === 'sidequest:contract-call' && want.type === 'sidequest:contract-call') {
     return have.target.toLowerCase() === want.target.toLowerCase() && have.value === want.value && have.callData === want.callData
   }
   if (have.type === 'erc20-token-periodic' && want.type === 'erc20-token-periodic') {
@@ -186,7 +186,7 @@ export class AgentPermissions {
     const spec = this.grants.spec(row.delegation_hash) as sdk.PermissionSpec
     const t = spec.terms
     let execution: sdk.Execution
-    if (t.type === 'hireling:contract-call') {
+    if (t.type === 'sidequest:contract-call') {
       if (input.transfer !== undefined) throw new AgentFailure('invalid', 'An exact-call permission runs its approved call only', 'permission-request', 'new-key')
       execution = { target: t.target, value: t.value, callData: t.callData }
     } else {

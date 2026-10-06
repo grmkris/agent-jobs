@@ -1,5 +1,5 @@
 /** One proof policy for fresh and resumed vault actions on either delegation screen. */
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { type Address, type TransactionReceipt, decodeAbiParameters, decodeEventLog, decodeFunctionData, encodeEventTopics } from "viem";
 import type { WalletStep } from "./components/txOperation.ts";
 import { type VaultIntent, type VaultIntentCheckpoint, browserVaultIntentCheckpoint, readVaultIntentDurable } from "./vault-lock.ts";
@@ -29,7 +29,7 @@ function delegationAmounts(txs: readonly WalletStep[], vault: Address, owner: Ad
 }
 
 export function vaultOperationGuards(ctx: sdk.Ctx, storage: Pick<Storage, "getItem">, key: string, intent: VaultIntent, owner: Address, checkpoint: VaultIntentCheckpoint = browserVaultIntentCheckpoint) {
-  const vault = ctx.deployment.hireling!.vault;
+  const vault = ctx.deployment.sidequest!.vault;
   return {
     durableJournal: true,
     sendGuard: async (): Promise<string | null> => {

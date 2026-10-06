@@ -36,8 +36,8 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
 ```
 
 - **RPC.** `--rpc`, else `MONAD_TESTNET_RPC_URL` or `MONAD_MAINNET_RPC_URL`. It reads only and is never printed.
-- **Config.** `--config` defaults to `contracts/config/<network>.json`; its `deployment.hireling` and every
-  `hireling-v1` pair are used. The fork rehearsal passes a scratch config.
+- **Config.** `--config` defaults to `contracts/config/<network>.json`; its `deployment.sidequest` and every
+  `sidequest-v1` pair are used. The fork rehearsal passes a scratch config.
 - **Paging.** Logs are read with `eth_getLogs` in pages of `--page` blocks (default 1000; it must be a positive integer). A page the RPC refuses is
   halved and retried.
 - **Tests.** `bun test scripts/mining` runs the fixture tests. The anvil fork run is step 7 of
@@ -51,7 +51,7 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
    - Everything is read up to the **finalized** head, which must be past the window's end, so a reorg cannot change
      what was counted.
    - The window's last block hash is in `inputs.window.toBlockHash`.
-2. **Events.** `FeeCharged`, `PayoutOwed` and `OwedWithdrawn` from every `hireling-v1` Holding in the config, over the
+2. **Events.** `FeeCharged`, `PayoutOwed` and `OwedWithdrawn` from every `sidequest-v1` Holding in the config, over the
    window's blocks.
 3. **Priced tokens only.** A fee counts only if its token is on the epoch's signed price list.
 4. **Received fees only.** A fee counts only once the treasury holds it.
@@ -63,7 +63,7 @@ pnpm mining:epoch <n> [--network monad-testnet|monad-mainnet] --prices <signed p
    - Such a fee counts only if the treasury withdrew that token later in the window. `withdraw` takes the whole owed
      balance, so any later `OwedWithdrawn` to the same address and token clears it.
 5. **Fee value.** `fee USD = amount × usdPrice ÷ 10^decimals`, 18 decimals, rounded down.
-6. **Emission.** `min(budget, 0.5 × Σ fee USD ÷ max(factoryUsdPrice, 10^14))`, in FACTORY wei. `10^14` is $0.0001.
+6. **Emission.** `min(budget, 0.5 × Σ fee USD ÷ max(factoryUsdPrice, 10^14))`, in SIDE wei. `10^14` is $0.0001.
 7. **Budget.** Each scheduled epoch budget is one lot. Replay `EpochFunded(epoch < n)` oldest-first against the
    unspent lots of that epoch and its four predecessors. Only lots `n-4..n` remain usable; older balances expire
    permanently in the reserve and never become a new lot. Epoch 0 gets `3W/7`, epochs 1–26 get `W`, and epoch 27
@@ -97,13 +97,13 @@ A current Safe owner signs it. The tool recovers the signer and refuses unless i
 live) and the list is for this chain, distributor and epoch. Every listed token's `decimals` must match the token on
 chain. Only EOA signatures (ECDSA) are accepted.
 
-FACTORY uses the highest available hourly mid price of `mining.officialPool` in the network config, floored at
+SIDE uses the highest available hourly mid price of `mining.officialPool` in the network config, floored at
 $0.0001. The first block at/after each UTC hour in the epoch supplies the reserves. The artifact retains every
 hour's block/hash, raw reserves (constant-product) or virtual active-liquidity reserves plus sqrt price and liquidity
 (Uniswap v4), and missing-hour reasons. The quote token must be priced by the signed list. Missing reads use the
 highest available sample; with none, epoch 0 uses the floor and later epochs require the immediately preceding
 signed price list (`--previous-prices`, default `<out>/epoch-<n-1>.json`). Its signature is checked against current
-Safe owners too. A signed FACTORY price that differs from this rule refuses the run.
+Safe owners too. A signed SIDE price that differs from this rule refuses the run.
 
 The official venue remains unset in the checked-in configs; this is recorded as `official-pool-unconfigured` and
 uses the documented no-sample fallback. Before launch the coordinator must name the official pool. Supported shapes:
@@ -122,17 +122,17 @@ it. There is no TWAP.
 
 ```ts
 domain = {
-  name: 'Hireling Mining Prices',
+  name: 'Sidequest Mining Prices',
   version: '1',
   chainId,                              // 10143 testnet, 143 mainnet
-  verifyingContract: <EpochDistributor>, // deployment.hireling.distributor
+  verifyingContract: <EpochDistributor>, // deployment.sidequest.distributor
 }
 primaryType = 'PriceList'
 types = {
   PriceList: [
     { name: 'epoch', type: 'uint256' },
     { name: 'tokens', type: 'TokenPrice[]' },
-    { name: 'factoryUsdPrice', type: 'uint256' }, // USD per whole FACTORY, 18 decimals; below 1e14 counts as 1e14
+    { name: 'factoryUsdPrice', type: 'uint256' }, // USD per whole SIDE, 18 decimals; below 1e14 counts as 1e14
   ],
   TokenPrice: [
     { name: 'token', type: 'address' },

@@ -192,7 +192,7 @@ export async function policyDenials(runtime: Runtime): Promise<Proof> {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${storage.getItem("agent-jobs.session")}`,
+          authorization: `Bearer ${storage.getItem("sidequest.session")}`,
         },
         body: JSON.stringify({
           tool: "sign_grant",

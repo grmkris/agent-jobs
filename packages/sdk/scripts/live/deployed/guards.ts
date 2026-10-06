@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseEther } from "viem";
 
-export const ORIGIN = "https://testnet.hireling.xyz";
+export const ORIGIN = "https://dev.sidequest.exchange";
 export const CAP_WEI = parseEther("2");
 export const IDS = ["A01f", "A02f", "A03f", "A04f", "A05f", "A06f", "A07f", "A08f"] as const;
 export type CaseId = (typeof IDS)[number];

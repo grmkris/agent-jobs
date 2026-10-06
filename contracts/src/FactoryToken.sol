@@ -5,7 +5,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 /// @title FactoryToken
-/// @notice `$FACTORY`, 18 decimals: collateral only, never a reward, never in the ERC-8183 core. Holding burns a bond
+/// @notice `$SIDE`, 18 decimals: collateral only, never a reward, never in the ERC-8183 core. Holding burns a bond
 ///         only when its penalty is final. Two configurations, fixed at deploy and never switchable (R114-09):
 ///         testnet, with an open faucet and open mint; production, with no faucet and minting only by `minter`
 ///         (supply and mint authority are decided before mainnet).

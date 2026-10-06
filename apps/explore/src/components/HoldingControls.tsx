@@ -1,8 +1,8 @@
 /** Holding vetoes belong to the account itself, never to an external delegator. */
-import * as sdk from "@agent-jobs/sdk";
+import * as sdk from "@sidequest/sdk";
 import { type Address, zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
-import { type HirelingContracts } from "../hireling.ts";
+import { type SidequestContracts } from "../sidequest.ts";
 import { proposalState } from "../stake.ts";
 import { chain } from "../wallet.ts";
 import { Countdown, When, useNow } from "./Time.tsx";
@@ -22,7 +22,7 @@ export function HoldingControls({
   disabled,
   onVeto,
 }: {
-  contracts: HirelingContracts;
+  contracts: SidequestContracts;
   account: Address;
   disabled: boolean;
   onVeto: (holding: Address, denied: boolean) => void;

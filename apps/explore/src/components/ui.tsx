@@ -1,5 +1,5 @@
 /**
- * Hireling's primitives, drawn with the base-nova components in ./ui/ (shadcn on Base UI) and the tokens in
+ * Sidequest's primitives, drawn with the base-nova components in ./ui/ (shadcn on Base UI) and the tokens in
  * styles.css. Pages compose these; they carry no colours of their own. The props are the ones pages have always used
  * (a Button `variant` of primary/tinted/gray…, Badge tones), mapped onto base-nova's variants here, so a page moves to
  * the new look without edits.

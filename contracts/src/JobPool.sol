@@ -42,7 +42,7 @@ contract JobPool is IERC1271, ReentrancyGuard {
         JobHolding.PublishParams publish;
         /// @dev Reserved: 0 = the curator decides. Anything else reverts.
         uint8 governance;
-        /// @dev Receives the FACTORY hold back once the pool is over (defaults to the pool's creator).
+        /// @dev Receives the SIDE hold back once the pool is over (defaults to the pool's creator).
         address holdProvider;
     }
 
@@ -66,7 +66,7 @@ contract JobPool is IERC1271, ReentrancyGuard {
     uint256 public jobId;
     uint48 public launchedAt;
     uint48 public cancelledAt;
-    /// @notice FACTORY the factory placed here so `publish` passes the hold gate; never spent.
+    /// @notice SIDE the factory placed here so `publish` passes the hold gate; never spent.
     uint256 public holdAmount;
     bool public holdReclaimed;
     bool private _initialized;
@@ -206,7 +206,7 @@ contract JobPool is IERC1271, ReentrancyGuard {
         emit Launched(id, p.policyHash);
     }
 
-    /// @notice Returns the FACTORY hold to its provider once the pool is over.
+    /// @notice Returns the SIDE hold to its provider once the pool is over.
     function reclaimHold() external nonReentrant {
         if (holdReclaimed) revert HoldNotReclaimable();
         bool over = cancelledAt != 0 || (launchedAt == 0 && block.timestamp > _p.pledgeDeadline + LAUNCH_GRACE)

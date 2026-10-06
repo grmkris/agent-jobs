@@ -70,7 +70,7 @@ contract ActivationTest is Base {
         _activate(p, worker);
     }
 
-    /// @dev A creator's selection plus the worker's standing FACTORY allowance and a leaked budget authorization is
+    /// @dev A creator's selection plus the worker's standing SIDE allowance and a leaked budget authorization is
     ///      still not activation: only the worker's own transaction binds it.
     function test_activation_creatorCannotActivateOnTheWorkersBehalf() public {
         uint256 jobId = publish();

@@ -40,11 +40,11 @@ def plan(source, identity):
         if not isinstance(value, str) or value.lower() != expected.lower():
             refuse('Reviewed identity mismatch: ' + dotted)
     deployment = config['deployment']
-    if (deployment['hireling'].get('block') != identity['hirelingBlock'] or
-            deployment['hireling'].get('t0') != identity['t0'] or
-            deployment['main'].get('kind') != 'hireling-v1'):
+    if (deployment['sidequest'].get('block') != identity['sidequestBlock'] or
+            deployment['sidequest'].get('t0') != identity['t0'] or
+            deployment['main'].get('kind') != 'sidequest-v1'):
         refuse('Reviewed deployment metadata mismatch')
-    if config['hireling'].get('clocks') != identity['clocks'] or config['hireling'].get('reuseCore') is not True:
+    if config['sidequest'].get('clocks') != identity['clocks'] or config['sidequest'].get('reuseCore') is not True:
         refuse('approved fast clocks and reused core are required')
     legacy = deployment.get('legacy', {})
     required = {'main-v1', 'main-v2', 'main-v3', 'demo-v1', 'demo-v2'}
@@ -52,11 +52,11 @@ def plan(source, identity):
     if (not isinstance(legacy, dict) or not required.issubset(legacy) or
             any(not isinstance(v, dict) or v.get('kind') != 'legacy' or not v.get('factory') or
                 not set(v).issubset(pair_keys) for v in legacy.values())):
-        refuse('expected legacy pairs with explicit legacy kind/FACTORY are required')
-    # Odd-token receipts belong to the retiring generation; the input stays. HirelingOutput rejects this deployment key, and
+        refuse('expected legacy pairs with explicit legacy kind/SIDE are required')
+    # Odd-token receipts belong to the retiring generation; the input stays. SidequestOutput rejects this deployment key, and
     # launch-testnet deploys new odd tokens. Keep the old addresses in the archive, never silently lose them.
     prepared = copy.deepcopy(config)
-    for key in ('hireling', 'main', 'oddTokens'):
+    for key in ('sidequest', 'main', 'oddTokens'):
         prepared['deployment'].pop(key, None)
     accepted = {'block', 'core', 'network', 'factory', 'poolFactory', 'rewardTokens', 'stacksBlock', 'legacy'}
     if not set(prepared['deployment']).issubset(accepted):
@@ -84,7 +84,7 @@ def prepare(config_path, archive_path, *, from_name, check=False):
     source = config_path.read_bytes()
     prepared = plan(source, identity)
     if check:
-        print(f'PREP CHECK PASS: archive {from_name}; remove deployment.hireling/main/oddTokens; preserve all other inputs and legacy pairs')
+        print(f'PREP CHECK PASS: archive {from_name}; remove deployment.sidequest/main/oddTokens; preserve all other inputs and legacy pairs')
         return
     metadata = {'reason': identity['reason'], 'date': datetime.now(timezone.utc).isoformat(),
                 'sourceSha256': hashlib.sha256(source).hexdigest()}

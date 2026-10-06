@@ -1,7 +1,7 @@
 /** Operation reconciliation uses verified contract events, including calls relayed through a DeleGator. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Abi, type TransactionReceipt, decodeEventLog, isAddress } from 'viem'
-import { evaluatorAbi, holdingAbi } from './hireling.ts'
+import { evaluatorAbi, holdingAbi } from './sidequest.ts'
 import type { OperationRow } from './store.ts'
 
 const same = (a: unknown, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
@@ -16,9 +16,9 @@ export interface VaultOperationResult {
 
 /** Match fixed ownership, deposit assets and exit shares. The event supplies exit assets and minted shares. */
 export function vaultOperationResult(ctx: sdk.Ctx, receipt: TransactionReceipt, op: OperationRow): VaultOperationResult | null {
-  if (receipt.status !== 'success' || ctx.deployment.hireling === null || op.detail === null) return null
+  if (receipt.status !== 'success' || ctx.deployment.sidequest === null || op.detail === null) return null
   const detail = JSON.parse(op.detail) as { vault?: string; token?: string; account?: string; delegator?: string; payer?: string; shares?: string; amount?: string }
-  if (!same(detail.vault, ctx.deployment.hireling.vault) || !same(detail.token, ctx.deployment.hireling.factory)
+  if (!same(detail.vault, ctx.deployment.sidequest.vault) || !same(detail.token, ctx.deployment.sidequest.factory)
     || !isAddress(detail.account ?? '') || !same(detail.delegator, op.actor)) return null
   if (op.kind === 'stake' ? !same(detail.payer, op.actor) || !/^[1-9]\d*$/.test(detail.amount ?? '') : !/^[1-9]\d*$/.test(detail.shares ?? '')) return null
   for (const log of receipt.logs) {

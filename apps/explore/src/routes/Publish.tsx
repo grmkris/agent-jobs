@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { type Address, isAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
@@ -49,7 +49,7 @@ import { TxSteps } from '../components/TxSteps.tsx'
 import { Button, CopyButton, ErrorText, Group, Input, ListRow, PageTitle, Section, Segmented, Select, Skeleton, TextArea, cn, rowClass } from '../components/ui.tsx'
 import { Monogram, type useSignedIn } from '../components/Wallet.tsx'
 import { rewardTokenList, span, tokenInfo } from '../format.ts'
-import { hireling } from '../hireling.ts'
+import { sidequest } from '../sidequest.ts'
 import { useToken } from '../useTokens.ts'
 import { chain, deployment, isMainnet } from '../wallet.ts'
 import { duration } from '../duration.ts'
@@ -632,11 +632,11 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
                   {f.mode === 'hire' ? (
                     <>
                       <KV label="Windows">{windowsText(f)}</KV>
-                      <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Hireling's arbiter" : <span className="font-mono text-ui [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
-                      <KV label="Bonds">{`${f.creatorBond} FACTORY reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
+                      <KV label="Arbitrator">{f.arbitrator.trim() === '' ? "Sidequest's arbiter" : <span className="font-mono text-ui [overflow-wrap:anywhere]">{f.arbitrator.trim()} · yours</span>}</KV>
+                      <KV label="Bonds">{`${f.creatorBond} SIDE reserved from your stake · at least ${f.workerBond} from the agent's`}</KV>
                     </>
                   ) : (
-                    <KV label="Bonds">{`${f.creatorBond} FACTORY from you · ${f.workerBond} from the agent`}</KV>
+                    <KV label="Bonds">{`${f.creatorBond} SIDE from you · ${f.workerBond} from the agent`}</KV>
                   )}
                   {f.mode === 'hire' && f.budgetOn && (
                     <KV label="Running-cost budget">{f.budgetKind === 'call' ? `Up to ${f.callCap} MON for one contract call` : `Up to ${f.budgetCap} ${tokenInfo(f.budgetToken).symbol}`}</KV>
@@ -780,11 +780,11 @@ function PostFlow({ auth, prefill, onPublished }: { auth: Auth; prefill: Record<
   )
 }
 
-/** The Holding's window bounds and its default arbitrator (Hireling's arbiter), read once from the chain. */
+/** The Holding's window bounds and its default arbitrator (Sidequest's arbiter), read once from the chain. */
 function useHireTerms(): { bounds: WindowBounds | null; defaultArbitrator: Address | null } {
   const reads = useReadContracts({
     contracts: (['MIN_REVIEW_WINDOW', 'MAX_REVIEW_WINDOW', 'MIN_DISPUTE_WINDOW', 'MAX_DISPUTE_WINDOW', 'MIN_ARBITRATION_WINDOW', 'MAX_ARBITRATION_WINDOW', 'defaultArbitrator'] as const).map(
-      (functionName) => ({ address: hireling.holding, abi: sdk.hirelingHoldingAbi, functionName, chainId: chain.id }) as const,
+      (functionName) => ({ address: sidequest.holding, abi: sdk.sidequestHoldingAbi, functionName, chainId: chain.id }) as const,
     ),
     query: { staleTime: 300_000 },
   })
@@ -805,7 +805,7 @@ const windowsText = (f: PostForm) => {
 
 /**
  * A hire's terms (ADR-0011): how long the approver has to review, the agent to dispute and the arbitrator to rule;
- * who arbitrates (Hireling's arbiter by default, by name); and the bonds, reserved from stake.
+ * who arbitrates (Sidequest's arbiter by default, by name); and the bonds, reserved from stake.
  */
 function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p: Partial<PostForm>) => void; bounds: WindowBounds | null; defaultArbitrator: Address | null }) {
   const [customArbiter, setCustomArbiter] = useState(f.arbitrator !== '')
@@ -840,11 +840,11 @@ function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p
           <LineRow label="Who rules on a dispute" stack>
             <Segmented
               label="Arbitrator"
-              value={customArbiter ? 'custom' : 'hireling'}
-              options={[['hireling', "Hireling's arbiter"], ['custom', 'Someone else']] as const}
+              value={customArbiter ? 'custom' : 'sidequest'}
+              options={[['sidequest', "Sidequest's arbiter"], ['custom', 'Someone else']] as const}
               onChange={(v) => {
                 setCustomArbiter(v === 'custom')
-                if (v === 'hireling') set({ arbitrator: '' })
+                if (v === 'sidequest') set({ arbitrator: '' })
               }}
               className="sm:min-w-[19rem]"
             />
@@ -855,14 +855,14 @@ function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p
             </FieldRow>
           ) : (
             <div className={cn(rowClass(), 'flex-col items-start gap-0.5')}>
-              <span>Hireling's arbiter</span>
+              <span>Sidequest's arbiter</span>
               {defaultArbitrator === null ? <span className="text-label-3">Reading…</span> : <span className="font-mono text-xs text-label-2 [overflow-wrap:anywhere]">{defaultArbitrator}</span>}
             </div>
           )}
         </Group>
         {customArbiter && (
           <p role="alert" className="mx-1 mt-2 rounded-xl bg-warn-bg px-4 py-3 text-sm leading-snug text-warn">
-            A custom arbitrator rules on disputes instead of Hireling's arbiter: their ruling decides who is paid and can burn a bond. Choose someone you and the agent both trust. It cannot be you.
+            A custom arbitrator rules on disputes instead of Sidequest's arbiter: their ruling decides who is paid and can burn a bond. Choose someone you and the agent both trust. It cannot be you.
           </p>
         )}
       </Section>
@@ -871,11 +871,11 @@ function HireTerms({ f, set, bounds, defaultArbitrator }: { f: PostForm; set: (p
         <Group>
           <LineRow label="Your bond" note="Reserved from your stake when you publish." htmlFor="post-creator-bond">
             <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+            <span className="w-16 shrink-0 text-label-2">SIDE</span>
           </LineRow>
           <LineRow label="Agent's bond, at least" note="The agent must have this much stake free to activate the job." htmlFor="post-worker-bond">
             <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-            <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+            <span className="w-16 shrink-0 text-label-2">SIDE</span>
           </LineRow>
         </Group>
       </Section>
@@ -915,21 +915,21 @@ function Advanced({ f, set }: { f: PostForm; set: (p: Partial<PostForm>) => void
   const hire = f.mode === 'hire'
   const summary: ReactNode = hire ? `Delivery${f.budgetOn ? ', budget' : ''}` : 'Bonds, delivery'
   return (
-    <Section note={hire ? undefined : 'Bonds are in FACTORY. Both are held by the contracts, never by Hireling.'}>
+    <Section note={hire ? undefined : 'Bonds are in SIDE. Both are held by the contracts, never by Sidequest.'}>
       <Disclosure title="Advanced" summary={summary}>
         {!hire && (
           <>
             <LineRow label="Your bond" note="Returned unless a ruling finds you acted in bad faith." htmlFor="post-creator-bond">
               <Input id="post-creator-bond" value={f.creatorBond} onChange={(e) => set({ creatorBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-              <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+              <span className="w-16 shrink-0 text-label-2">SIDE</span>
             </LineRow>
             <LineRow label="Agent's bond" note="Burned if the agent misses the deadline or cheats; returned otherwise." htmlFor="post-worker-bond">
               <Input id="post-worker-bond" value={f.workerBond} onChange={(e) => set({ workerBond: e.target.value })} inputMode="decimal" className="tabular w-20 text-right" />
-              <span className="w-16 shrink-0 text-label-2">FACTORY</span>
+              <span className="w-16 shrink-0 text-label-2">SIDE</span>
             </LineRow>
           </>
         )}
-        <LineRow label="Deliver as" note="Agents host the work themselves (a fork on any git host, IPFS, a server, the chain); Hireling records where it is and checks it once." stack>
+        <LineRow label="Deliver as" note="Agents host the work themselves (a fork on any git host, IPFS, a server, the chain); Sidequest records where it is and checks it once." stack>
           <span className="flex flex-wrap gap-2 sm:max-w-[19rem] sm:justify-end">
             {DELIVERABLE_KINDS.map(({ kind }) => (
               <Chip

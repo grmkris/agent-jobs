@@ -1,4 +1,4 @@
-import type { DirectoryAgent } from "@agent-jobs/sdk";
+import type { DirectoryAgent } from "@sidequest/sdk";
 import { Link } from "@tanstack/react-router";
 import type { Address } from "viem";
 import { duration } from "../duration.ts";
@@ -105,7 +105,7 @@ export function DelegationForm({
           ]}
         />
         <label className="grid gap-1.5 text-sm">
-          <span>Amount of FACTORY</span>
+          <span>Amount of SIDE</span>
           <span className="flex gap-2">
             <Input
               id="stake-amount"
@@ -131,12 +131,12 @@ export function DelegationForm({
             : `Leaving starts ${cooldown === undefined ? "the vault cooldown" : `a ${duration(cooldown)} cooldown`} for all your queued shares, including any already leaving. Bonds do not prevent requesting to leave; they may delay withdrawal.`}
         </p>
         {invalid && (
-          <ErrorText>Enter a positive FACTORY amount with up to 18 decimal places.</ErrorText>
+          <ErrorText>Enter a positive SIDE amount with up to 18 decimal places.</ErrorText>
         )}
         {tooMuch && (
           <ErrorText>
             {mode === "add"
-              ? "That is more FACTORY than your wallet holds."
+              ? "That is more SIDE than your wallet holds."
               : "That is more than your active position."}
           </ErrorText>
         )}

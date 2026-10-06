@@ -15,7 +15,7 @@ export interface VaultIntentCheckpoint {
   read(key: string): Promise<string | null | undefined>;
   write(key: string, value: string | null): Promise<void>;
 }
-const INTENT_DB = "hireling-vault-intents";
+const INTENT_DB = "sidequest-vault-intents";
 const INTENT_STORE = "pointers";
 
 function intentDb(): Promise<IDBDatabase> {
@@ -26,7 +26,7 @@ function intentDb(): Promise<IDBDatabase> {
     request.addEventListener("upgradeneeded", () => request.result.createObjectStore(INTENT_STORE));
     request.addEventListener("success", () => resolve(request.result));
     request.addEventListener("error", () => reject(request.error ?? new Error("vault intent database unavailable")));
-    request.addEventListener("blocked", () => reject(new Error("Vault action coordination is unavailable. Close other Hireling tabs and retry.")));
+    request.addEventListener("blocked", () => reject(new Error("Vault action coordination is unavailable. Close other Sidequest tabs and retry.")));
   });
 }
 
@@ -92,7 +92,7 @@ export async function discardVaultPreparation(storage: Pick<Storage, "getItem">,
 
 /** Both delegation screens share one recovery pointer per vault and delegator. */
 export const vaultIntentKey = (chainId: number, vault: string, delegator: string) =>
-  `hireling.delegation-op:${chainId}:${vault.toLowerCase()}:${delegator.toLowerCase()}`;
+  `sidequest.delegation-op:${chainId}:${vault.toLowerCase()}:${delegator.toLowerCase()}`;
 
 export function readVaultIntent(
   storage: Pick<Storage, "getItem">,

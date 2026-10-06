@@ -9,7 +9,7 @@ import { Button, EmptyState, Group, ListRow, LoadingRows, PageTitle } from '../c
 import { useAuth } from '../components/Wallet.tsx'
 import { type CollectAction, type CollectKind, readMiningClaim, useCollectActions } from '../collect.ts'
 import { amount, formatNumber } from '../format.ts'
-import { hireling } from '../hireling.ts'
+import { sidequest } from '../sidequest.ts'
 import { chain } from '../wallet.ts'
 
 const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) => string; done: string }> = {
@@ -17,7 +17,7 @@ const KIND: Record<CollectKind, { icon: LucideIcon; title: (a: CollectAction) =>
   claimTopUpRefund: { icon: RotateCcw, title: (a) => `Your top-up back from job #${a.jobId ?? '?'}`, done: 'Top-up refunded' },
   withdraw: { icon: Coins, title: () => 'A payment held for you', done: 'Withdrawn to your wallet' },
   claimRefund: { icon: ReceiptText, title: (a) => `Refund from job #${a.jobId ?? '?'}`, done: 'Refunded' },
-  stakeWithdraw: { icon: Hourglass, title: () => 'Unstaked FACTORY', done: 'Withdrawn to your wallet' },
+  stakeWithdraw: { icon: Hourglass, title: () => 'Unstaked SIDE', done: 'Withdrawn to your wallet' },
   miningClaim: { icon: Gem, title: (a) => `Mining reward${a.epoch == null ? '' : `, epoch ${a.epoch}`}`, done: 'Claimed into your stake' },
 }
 
@@ -25,7 +25,7 @@ const keyOf = (a: CollectAction) => `${a.kind}:${a.jobId ?? ''}:${a.epoch ?? ''}
 
 /**
  * Collect (U3): everything the signed-in wallet can close or claim, one tap each (the tap opens the wallet, or sends it
- * through Hireling's relay when the wallet's gas sponsorship covers it). Read from the board's `collect_actions`; when
+ * through Sidequest's relay when the wallet's gas sponsorship covers it). Read from the board's `collect_actions`; when
  * the board cannot answer, the page says so rather than guessing an empty list.
  */
 export function CollectPage() {
@@ -59,7 +59,7 @@ export function CollectPage() {
           <Button variant="tinted" onClick={() => void actions.refetch()}>Retry</Button>
         </div>
       ) : list.length === 0 ? (
-        <EmptyState title="Nothing to collect">Settlements, refunds, unstaked FACTORY and mining rewards show up here when they are yours to claim.</EmptyState>
+        <EmptyState title="Nothing to collect">Settlements, refunds, unstaked SIDE and mining rewards show up here when they are yours to claim.</EmptyState>
       ) : (
         <Group>
           {list.map((a) => {
@@ -67,7 +67,7 @@ export function CollectPage() {
             const Icon = k?.icon ?? Coins
             const key = keyOf(a)
             // A mining claim is read back from its calldata (B8b): offered only as the distributor's claim for this wallet.
-            const mining = a.kind === 'miningClaim' ? readMiningClaim(a, { chainId: chain.id, distributor: hireling.distributor, wallet }) : null
+            const mining = a.kind === 'miningClaim' ? readMiningClaim(a, { chainId: chain.id, distributor: sidequest.distributor, wallet }) : null
             const refused = mining !== null && !mining.ok ? mining.problem : null
             return (
               // Siblings in the Group, so its hairlines fall between the rows.
@@ -79,7 +79,7 @@ export function CollectPage() {
                   <span className="min-w-0 flex-1">
                     {mining?.ok === true ? (
                       <span className="block font-medium">
-                        Mining reward, epoch {String(mining.epoch)} · <span className="tabular font-semibold">{formatNumber(mining.amount, 18)} FACTORY</span>, staked when collected
+                        Mining reward, epoch {String(mining.epoch)} · <span className="tabular font-semibold">{formatNumber(mining.amount, 18)} SIDE</span>, staked when collected
                       </span>
                     ) : (
                       <>

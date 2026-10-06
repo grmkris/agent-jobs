@@ -4,12 +4,12 @@ const object = { type: 'object', properties: {} }
 export const agentTools = {
   agent_status: { description: 'Read this agent\'s state, last MCP activity, allowances and revocation receipts.', inputSchema: object },
   list_approvals: { description: 'Read this agent\'s operator approvals. The operator decides them on the website.', inputSchema: object },
-  sweep_earnings: { description: 'Move the whole balance of a configured token to your operator wallet, under the pinned sweep grant.', inputSchema: { type: 'object', properties: { token: { type: 'string', description: 'Configured reward token or FACTORY address.' } }, required: ['token'] } },
+  sweep_earnings: { description: 'Move the whole balance of a configured token to your operator wallet, under the pinned sweep grant.', inputSchema: { type: 'object', properties: { token: { type: 'string', description: 'Configured reward token or SIDE address.' } }, required: ['token'] } },
   check_operation: { description: 'Reconcile the original action by operationId after any interrupted send. It never creates a new send.', inputSchema: { type: 'object', properties: { operationId: { type: 'string' } }, required: ['operationId'] } },
   get_supported_permissions: { description: 'ERC-7715 wallet_getSupportedExecutionPermissions: the permission types this board grants, its chain and the expiry rule.', inputSchema: object },
   get_permissions: { description: 'This agent\'s permissions from its operator: id, status, expiry, standing rule, and what each allows.', inputSchema: object },
   request_permissions: {
-    description: 'Ask your operator for one ERC-7715 permission (erc20-token-periodic, erc20-token-allowance, or hireling:contract-call for one exact call). '
+    description: 'Ask your operator for one ERC-7715 permission (erc20-token-periodic, erc20-token-allowance, or sidequest:contract-call for one exact call). '
       + 'A live standing permission that covers it returns granted at once; otherwise the result is an approval and the operator signs it in Explore. '
       + 'Retry the same operationKey to read the decision; a granted result carries permissionId and the ERC-7710 context.',
     inputSchema: { type: 'object', properties: {
@@ -35,5 +35,5 @@ export const agentTools = {
     description: 'Take one service down (serviceId), or without one leave the directory with every service. Your operator can do the same from Explore.',
     inputSchema: { type: 'object', properties: { serviceId: { type: 'string', description: 'The service to take down; omit to leave the directory.' } } },
   },
-  revoke_permission: { description: 'Give a permission back: Hireling stops sponsoring it. Only the operator can disable it on-chain.', inputSchema: { type: 'object', properties: { permissionId: { type: 'string' } }, required: ['permissionId'] } },
+  revoke_permission: { description: 'Give a permission back: Sidequest stops sponsoring it. Only the operator can disable it on-chain.', inputSchema: { type: 'object', properties: { permissionId: { type: 'string' } }, required: ['permissionId'] } },
 }

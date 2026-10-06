@@ -42,10 +42,10 @@ const lower = (a: string) => a.toLowerCase() as Address
 async function main() {
   const config = JSON.parse(readFileSync(configPath, 'utf8')) as DeploymentConfig & { mining?: { officialPool?: unknown } }
   const d = deploymentFromConfig(network, config)
-  if (d.hireling === null) throw new Error(`${configPath} records no v1 deployment`)
-  const h = d.hireling
+  if (d.sidequest === null) throw new Error(`${configPath} records no v1 deployment`)
+  const h = d.sidequest
   const holdings = [...Object.values(d.stacks), ...Object.values(d.legacyStacks)]
-    .filter(st => st?.kind === 'hireling-v1').map(st => lower(st!.holding))
+    .filter(st => st?.kind === 'sidequest-v1').map(st => lower(st!.holding))
   const uniqueHoldings = [...new Set(holdings)].toSorted()
   const c = client(rpc!)
 
@@ -85,7 +85,7 @@ async function main() {
     previousPrice = await verifiedPriceList(previousFile, { epoch: epoch - 1n, chainId, distributor: h.distributor, owners })
   }
   const selectedPrice = selectFactoryPrice(epoch, sampledPrices, previousPrice?.prices.factoryUsdPrice)
-  if (prices.factoryUsdPrice !== selectedPrice.factoryUsdPrice) throw new Error('signed FACTORY price differs from the conservative-high hourly rule')
+  if (prices.factoryUsdPrice !== selectedPrice.factoryUsdPrice) throw new Error('signed SIDE price differs from the conservative-high hourly rule')
   const logs = fromBlock <= toBlock ? await holdingLogs(c, uniqueHoldings, fromBlock, toBlock, page) : { fees: [], owed: [], withdrawals: [] }
   const topUps = await topUpLogs(c, logs.fees, d.deployBlock < h.block ? d.deployBlock : h.block, toBlock, page)
   const budget = await budgetOf(c, h.miningReserve, epoch, h.block, head.number, page)
@@ -156,7 +156,7 @@ async function main() {
   const counted = r.fees.filter(f => f.status === 'counted').length
   console.log(`epoch ${epoch} on chain ${chainId}: blocks ${fromBlock}–${toBlock} (${start}–${end}), ${r.fees.length} fees, ${counted} counted`)
   console.log(`  price list signed by Safe owner ${getAddress(signer)}`)
-  console.log(`  fee USD ${r.feeUsd} (18 dec), FACTORY price ${r.factoryUsdPrice}, demand ${r.demand}, budget ${budget.available}`)
+  console.log(`  fee USD ${r.feeUsd} (18 dec), SIDE price ${r.factoryUsdPrice}, demand ${r.demand}, budget ${budget.available}`)
   console.log(`  emission ${r.emission}, total ${r.total} over ${r.leaves.length} leaves`)
   console.log(`  root ${root ?? '(none: nothing to distribute)'}`)
   console.log(`  dataHash ${dataHash}`)

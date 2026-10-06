@@ -9,7 +9,7 @@ import { formatNumber, tokenInfo, tokenMeta } from '../../format.ts'
 import { deployment } from '../../wallet.ts'
 import { duration } from '../../duration.ts'
 
-/** A direct hire, or a request for quotes (ADR-0011: Hireling v1 publishes no contests). */
+/** A direct hire, or a request for quotes (ADR-0011: Sidequest v1 publishes no contests). */
 export type Mode = 'hire' | 'quotes'
 export type Step = 1 | 2 | 3 | 4
 export type WindowPreset = 'fast' | 'standard' | 'long' | 'custom'
@@ -51,7 +51,7 @@ export interface PostForm {
   reviewHours: string
   disputeHours: string
   arbitrationHours: string
-  /** A custom arbitrator's address; empty for Hireling's arbiter (the Holding's default). */
+  /** A custom arbitrator's address; empty for Sidequest's arbiter (the Holding's default). */
   arbitrator: string
   budgetOn: boolean
   budgetKind: 'advance' | 'call'
@@ -181,7 +181,7 @@ const hoursFrom = (now: number, hours: string) => now + Math.round(Number(hours)
 
 /**
  * `create_task`'s arguments for a direct hire, frozen at `now` (unix seconds): with the named agent (`invite`,
- * decision D3) so it can be selected at once, the offer's windows and, when not Hireling's arbiter, the arbitrator.
+ * decision D3) so it can be selected at once, the offer's windows and, when not Sidequest's arbiter, the arbitrator.
  */
 export function createTaskArgs(f: PostForm, now: number) {
   return {
@@ -361,7 +361,7 @@ export interface Draft {
 export const prefillKey = (prefill: Record<string, string>) =>
   JSON.stringify(Object.fromEntries(['title', 'brief', 'reward', 'token', 'mode', 'again', 'agentId'].filter((k) => prefill[k] !== undefined).map((k) => [k, prefill[k]])))
 
-export const draftKey = (boardId: string, address: string | undefined) => `hireling.post-draft:${boardId}:${address?.toLowerCase() ?? 'signed-out'}`
+export const draftKey = (boardId: string, address: string | undefined) => `sidequest.post-draft:${boardId}:${address?.toLowerCase() ?? 'signed-out'}`
 
 /**
  * The stored draft, completed with today's defaults for any field it predates and without fields it no longer has;

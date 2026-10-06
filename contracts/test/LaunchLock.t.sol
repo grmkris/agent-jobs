@@ -16,7 +16,7 @@ contract LaunchLockTest is Test {
         s[1] = "rehearse-launch.sh";
         s[2] = "rehearse-launch-testnet.sh";
         s[3] = "rehearse-flows-testnet.sh";
-        s[4] = "rehearse-hireling-pipeline.sh";
+        s[4] = "rehearse-sidequest-pipeline.sh";
     }
 
     function _read(string memory name) internal view returns (string memory) {

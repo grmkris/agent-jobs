@@ -3,7 +3,7 @@
  * and what comes next (from the shared lifecycle model, with its deadline). Protocol bookkeeping events are folded
  * away; what remains is what a person would tell another: posted, started, delivered, approved, paid.
  */
-import type { Phase } from '@agent-jobs/react'
+import type { Phase } from '@sidequest/react'
 import { AlertTriangle, Check, X } from 'lucide-react'
 import { type Hex, hexToString } from 'viem'
 import { amount, bond } from '../../format.ts'
@@ -114,7 +114,7 @@ export function pastSteps(events: TimelineEvent[], job: TimelineJob): Step[] {
         steps.push({ mark: 'done', title: Number(a.outcome) === PAID ? `${amount(String(a.amount), job.token)} paid to ${agent}` : `${amount(String(a.amount), job.token)} returned to the creator`, at, tx })
         break
       case 'FeeCharged':
-        steps.push({ mark: 'done', title: `Hireling's fee: ${amount(String(a.amount), job.token)}`, at, tx })
+        steps.push({ mark: 'done', title: `Sidequest's fee: ${amount(String(a.amount), job.token)}`, at, tx })
         break
       case 'TopUpRefunded':
         steps.push({ mark: 'done', title: `${amount(String(a.amount), job.token)} top-up refunded to its contributor`, at, tx })

@@ -4,25 +4,25 @@ import { type Address, encodeFunctionData, parseAbi } from 'viem'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Board } from '../../board/src/service.ts'
 import { fromNodeSqlite } from '../../board/src/store.ts'
-import { forkEnabled, forkSetupTimeout, startHirelingFork } from '../test/hireling-fixture.ts'
+import { forkEnabled, forkSetupTimeout, startSidequestFork } from '../test/sidequest-fixture.ts'
 import * as sdk from './index.ts'
 import { type DemandQuote, chooseCheapestQuote, carryReservations, commitSpend, createDailySpend, reserveSpend, templateForSequence, utcDay } from './demand-bot.ts'
 import { type DemandIntent, assertDemandTransactions, demandAcceptTransaction, validateDemandPreparation, validateDemandSelection } from './demand-bot-validation.ts'
 
 const fork = forkEnabled ? describe : describe.skip
 fork('demand creator with real board SQLite and v1 bytecode', () => {
-  let f: Awaited<ReturnType<typeof startHirelingFork>>
+  let f: Awaited<ReturnType<typeof startSidequestFork>>
   let db: DatabaseSync
   let board: Board
   let agentId: bigint
   let token: Address
   let now: number
   beforeAll(async () => {
-    f = await startHirelingFork()
+    f = await startSidequestFork()
     db = new DatabaseSync(':memory:')
     now = Number((await f.ctx.publicClient.getBlock()).timestamp)
     board = new Board(fromNodeSqlite(db), { network: 'monad-testnet', contexts: { main: f.ctx }, domain: 'fork.test', uri: 'https://fork.test', manifestBaseUrl: 'https://fork.test/offers', now: () => now })
-    agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://hireling.xyz/demand-fork-worker')
+    agentId = await sdk.registerAgent(f.ctx, f.worker, 'https://sidequest.exchange/demand-fork-worker')
     token = await f.deploy('MockPaymentToken', ['Mock USD', 'mUSD'])
     await f.send(token, parseAbi(['function mint(address,uint256)']), 'mint', [f.creator.account.address, 50_000_000n])
   }, forkSetupTimeout())

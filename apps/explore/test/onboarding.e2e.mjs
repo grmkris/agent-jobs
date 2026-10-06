@@ -8,9 +8,9 @@ import { sponsorshipGrantTerms } from './grant-fixture.mjs';
 
 // U7: the Telegram link page (board code, signed text naming the wallet, t.me deep link, waiting for the bot, unlink)
 // and gas-sponsorship onboarding (the ERC-7710 delegation to the relay, read from its caveats before signing, refused
-// when it reaches past Hireling's contracts; turn off). Mocked Chromium only: no live board, bot, signing or sends.
+// when it reaches past Sidequest's contracts; turn off). Mocked Chromium only: no live board, bot, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-onboarding-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-onboarding-evidence';
 const base = 'http://127.0.0.1:5199';
 const me = '0x1111111111111111111111111111111111111111';
 const config = JSON.parse(readFileSync(new URL('../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'));
@@ -19,7 +19,7 @@ const { manager, enforcers } = config.delegation;
 const contracts = { factory: '0xf000000000000000000000000000000000000001', vault: '0xf000000000000000000000000000000000000002', feeSchedule: '0xf000000000000000000000000000000000000003', distributor: '0xf000000000000000000000000000000000000004', miningReserve: '0xf000000000000000000000000000000000000005', holding: '0xf000000000000000000000000000000000000006', evaluator: '0xf000000000000000000000000000000000000007', safe: '0xf000000000000000000000000000000000000008' };
 const grantTerms = sponsorshipGrantTerms(contracts);
 const NONCE = 'tg_fixture_123';
-const textFor = (wallet) => `Link this wallet to Telegram on Hireling.\nWallet: ${wallet}\nCode: ${NONCE}`;
+const textFor = (wallet) => `Link this wallet to Telegram on Sidequest.\nWallet: ${wallet}\nCode: ${NONCE}`;
 const until = Math.floor(Date.now() / 1000) + 30 * 86400;
 
 const delegation = (targets = grantTerms.targets) => JSON.stringify({
@@ -50,7 +50,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}onboarding-privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -58,12 +58,12 @@ mkdirSync(output, { recursive: true });
 
 async function fixture(viewport, options = {}) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ account, hireling }) => {
-    window.__hireling = hireling;
+  await context.addInitScript(({ account, sidequest }) => {
+    window.__sidequest = sidequest;
     window.__wallet = { address: account, connected: true, signatures: [], messages: [], sends: [], upgrades: 0 };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { account: me, hireling: contracts });
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: account, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { account: me, sidequest: contracts });
   const state = {
     telegram: { linked: false, username: null, linkedAt: null },
     telegramDown: options.telegramDown ?? false,
@@ -176,9 +176,9 @@ try {
       }
       await prompt.getByRole('button', { name: 'Sign fixture' }).click({ timeout: 5000 });
       await page.evaluate(() => { window.__wallet.signPrompt = false; });
-      const open = page.getByRole('link', { name: 'Open @hireling_xyz_bot' });
+      const open = page.getByRole('link', { name: 'Open @sidequest_xyz_bot' });
       await open.waitFor();
-      assert.equal(await open.getAttribute('href'), `https://t.me/hireling_xyz_bot?start=${NONCE}`);
+      assert.equal(await open.getAttribute('href'), `https://t.me/sidequest_xyz_bot?start=${NONCE}`);
       assert.equal(await open.getAttribute('target'), '_blank');
       assert.deepEqual((await wallet(page)).messages, [textFor(me)]);
       assert.deepEqual(state.confirmed, [{ nonce: NONCE, signature: `0x${'33'.repeat(65)}` }]);
@@ -202,7 +202,7 @@ try {
       await page.getByRole('button', { name: 'Link Telegram' }).waitFor();
 
       // A text that does not name this wallet is refused before the wallet opens; a declined signature links nothing.
-      state.message = `Link a wallet to Telegram on Hireling.\nCode: ${NONCE}`;
+      state.message = `Link a wallet to Telegram on Sidequest.\nCode: ${NONCE}`;
       await page.getByRole('button', { name: 'Link Telegram' }).click();
       await page.getByText('The text to sign does not name your wallet. Nothing was signed.', { exact: true }).waitFor();
       state.message = textFor(me);
@@ -224,7 +224,7 @@ try {
       await page.getByRole('link', { name: /Gas sponsorship/ }).click();
       await page.waitForURL('**/sponsorship');
       await page.getByRole('button', { name: 'Turn on' }).click();
-      const sheet = page.getByRole('dialog', { name: 'Let Hireling pay your gas?' });
+      const sheet = page.getByRole('dialog', { name: 'Let Sidequest pay your gas?' });
       await sheet.getByText('Call Holding', { exact: true }).waitFor();
       await sheet.getByText('Call Stake vault', { exact: true }).waitFor();
       await sheet.getByText(grantTerms.methodNames, { exact: true }).waitFor();
@@ -232,7 +232,7 @@ try {
       await sheet.getByText('First your wallet points at the delegation contract. The relay sends that for you.', { exact: true }).waitFor();
       await capture(page, `${device}-sponsor-sign`);
       await sheet.getByRole('button', { name: 'Sign the permission' }).click();
-      await page.getByRole('status').filter({ hasText: 'Hireling now pays your gas' }).waitFor();
+      await page.getByRole('status').filter({ hasText: 'Sidequest now pays your gas' }).waitFor();
       const signed = await wallet(page);
       assert.equal(signed.upgrades, 1);
       assert.equal(signed.signatures.length, 1);
@@ -252,11 +252,11 @@ try {
       await page.getByText('You turned it off. Turn it on again for a new one.', { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__wallet.sends.at(-1).to.toLowerCase()), manager.toLowerCase());
 
-      // A permission that reaches past Hireling's contracts is refused before the wallet opens.
+      // A permission that reaches past Sidequest's contracts is refused before the wallet opens.
       state.prepared = delegation([contracts.holding, config.deployment.rewardTokens[0]]);
       await page.getByRole('button', { name: 'Turn on' }).click();
-      await page.getByText(/which is not a Hireling contract\. Nothing was signed\./).waitFor();
-      assert.equal(await page.getByRole('dialog', { name: 'Let Hireling pay your gas?' }).count(), 0);
+      await page.getByText(/which is not a Sidequest contract\. Nothing was signed\./).waitFor();
+      assert.equal(await page.getByRole('dialog', { name: 'Let Sidequest pay your gas?' }).count(), 0);
       assert.equal((await wallet(page)).signatures.length, 0);
       results.push({ device, flow: 'sponsorship', checks: ['Me row', 'limits read from caveats', 'upgrade then sign', 'delegate is the relay', 'on with calls used', 'Me badge', 'turn off sends disableDelegation', 'foreign target refused'], passed: true });
       await context.close();
@@ -270,7 +270,7 @@ try {
     await page.getByText('Whether Telegram is linked cannot be read right now.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Link Telegram' }).count(), 0);
     await page.goto(`${base}/sponsorship`);
-    await page.getByText('Whether Hireling pays your gas cannot be read right now.', { exact: true }).waitFor();
+    await page.getByText('Whether Sidequest pays your gas cannot be read right now.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Turn on' }).count(), 0);
     await capture(page, 'sponsor-unavailable');
     await context.close();

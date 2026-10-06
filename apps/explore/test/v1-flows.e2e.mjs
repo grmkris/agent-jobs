@@ -9,7 +9,7 @@ import { createServer } from 'vite';
 // publishing to payment, request → quote → hire, a ruling for the worker with and without the creator's bond burned,
 // and the fee an agent sees before activating in each fee tier. Mocked Chromium only: no live board, signing or sends.
 const directory = fileURLToPath(new URL('.', import.meta.url));
-const output = process.argv[2] ?? '/tmp/hireling-v1-flows-evidence';
+const output = process.argv[2] ?? '/tmp/sidequest-v1-flows-evidence';
 const base = 'http://127.0.0.1:5201';
 const creator = '0x1111111111111111111111111111111111111111';
 const agentWallet = '0x6666666666666666666666666666666666666666';
@@ -31,7 +31,7 @@ const server = await createServer({ envFile: false, server: { host: '127.0.0.1',
   if (source.endsWith('/Privy.tsx')) return `${directory}privy.mjs`;
   if (source === '@privy-io/react-auth') return `${directory}privy-react-auth.mjs`;
 }, transform(source, id) {
-  if (id.endsWith('/src/hireling.ts')) return source.replace(/export const hireling: HirelingContracts =[\s\S]*?(\n\n|\n?$)/, 'export const hireling: HirelingContracts = (window as { __hireling: HirelingContracts }).__hireling$1');
+  if (id.endsWith('/src/sidequest.ts')) return source.replace(/export const sidequest: SidequestContracts =[\s\S]*?(\n\n|\n?$)/, 'export const sidequest: SidequestContracts = (window as { __sidequest: SidequestContracts }).__sidequest$1');
 } }] });
 await server.listen();
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? '/home/kristjan/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome' });
@@ -43,13 +43,13 @@ mkdirSync(output, { recursive: true });
  */
 async function fixture(viewport, account = creator) {
   const context = await browser.newContext({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
-  await context.addInitScript(({ viewer, hireling, defaultArbiter }) => {
-    window.__hireling = hireling;
+  await context.addInitScript(({ viewer, sidequest, defaultArbiter }) => {
+    window.__sidequest = sidequest;
     window.__v1 = { arbiter: defaultArbiter, free: 10n ** 22n, quote: [1000, 500000n, 4500000n], topUp: 0n, bonus: 0n };
     window.__wallet = { address: viewer, connected: true, signatures: [], sends: [] };
-    localStorage.setItem('agent-jobs.session', 'fixture-only-not-a-real-session');
-    localStorage.setItem('agent-jobs.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
-  }, { viewer: account, hireling: contracts, defaultArbiter: arbiter });
+    localStorage.setItem('sidequest.session', 'fixture-only-not-a-real-session');
+    localStorage.setItem('sidequest.session-owner', JSON.stringify({ address: viewer, expiresAt: Math.floor(Date.now() / 1000) + 86400 }));
+  }, { viewer: account, sidequest: contracts, defaultArbiter: arbiter });
   const state = {
     jobs: {
       95: { status: 'completed', violation: 'Quality', ruling: { for_worker: 1, slash_loser: 1, tx_hash: `0x${'95'.repeat(32)}` } },
@@ -62,11 +62,11 @@ async function fixture(viewport, account = creator) {
     // offer has no job, as on the chain.
     publishing: null, receipts: 0,
   };
-  const offer = (jobId) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'hireling-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status: state.jobs[jobId].status });
+  const offer = (jobId) => ({ taskId: `task-${jobId}`, jobId, stack: 'main', kind: 'sidequest-v1', title: `v1 job ${jobId}`, brief: 'A v1 hire.', acceptanceCriteria: ['Done'], mode: 'hire', token, reward: '5000000', creatorBond: '0', workerBond: '0', creator, approver: creator, deliveryDeadline: now + 86400, selectionDeadline: null, requiredChecks: [], quoted: false, executionBudget: null, termsHash: `0x${jobId.padStart(64, '0')}`, manifestUrl: `/offers/${jobId}.json`, screening: { verdict: 'clean', reasons: [] }, createdAt: now - 3600, status: state.jobs[jobId].status });
   const chainJob = (id) => {
     const j = state.jobs[id];
     const started = j.status !== 'open';
-    return { job_id: id, status: j.status, mode: 'hire', stack: 'main', kind: 'hireling-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: started ? agentWallet : null, agent_id: started ? '7001' : null, delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: j.violation ?? null, rejection_reason_hash: j.violation === undefined ? null : `0x${'ee'.repeat(32)}` };
+    return { job_id: id, status: j.status, mode: 'hire', stack: 'main', kind: 'sidequest-v1', board_id: 'public', token, reward: '5000000', creator, approver: creator, worker: started ? agentWallet : null, agent_id: started ? '7001' : null, delivery_deadline: now + 86400, creator_bond: '0', worker_bond: '0', violation: j.violation ?? null, rejection_reason_hash: j.violation === undefined ? null : `0x${'ee'.repeat(32)}` };
   };
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
@@ -242,7 +242,7 @@ try {
     for (const [bps, fee, net, pct] of [[3000, 1500000n, 3500000n, '30 %'], [1000, 500000n, 4500000n, '10 %'], [300, 150000n, 4850000n, '3 %'], [100, 50000n, 4950000n, '1 %']]) {
       await page.evaluate((q) => { window.__v1.quote = [q[0], BigInt(q[1]), BigInt(q[2])]; }, [bps, String(fee), String(net)]);
       await refetch(page);
-      await page.getByText(`Hireling’s fee · ${pct}`, { exact: true }).waitFor();
+      await page.getByText(`Sidequest’s fee · ${pct}`, { exact: true }).waitFor();
       await page.getByText(`− ${Number(fee) / 1e6} mUSD`, { exact: true }).waitFor();
       await page.getByText(`${Number(net) / 1e6} mUSD`, { exact: true }).first().waitFor();
     }

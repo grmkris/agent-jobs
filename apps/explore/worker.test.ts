@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isApiPath } from './routing.ts'
 import worker from './worker.ts'
 
-const INDEX = '<!doctype html><title>Hireling</title>'
+const INDEX = '<!doctype html><title>Sidequest</title>'
 
 function env(files: Record<string, string> = {}) {
   const api: string[] = []
@@ -29,7 +29,7 @@ function env(files: Record<string, string> = {}) {
   }
 }
 
-const get = (path: string, e: ReturnType<typeof env>) => worker.fetch(new Request(`https://testnet.hireling.xyz${path}`), e.env)
+const get = (path: string, e: ReturnType<typeof env>) => worker.fetch(new Request(`https://dev.sidequest.exchange${path}`), e.env)
 
 describe('explore worker routing', () => {
   it('sends the board API to the API, under a board prefix too', () => {

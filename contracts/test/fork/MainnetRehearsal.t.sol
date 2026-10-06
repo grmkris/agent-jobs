@@ -12,16 +12,16 @@ import {JobHolding} from "../../src/JobHolding.sol";
 import {JobsEvaluator} from "../../src/JobsEvaluator.sol";
 import {Recipe} from "../../script/Recipe.sol";
 
-/// @dev A FACTORY launched outside this repo (a token launcher): a plain ERC-20 with no `burn` and no minter here.
+/// @dev A SIDE launched outside this repo (a token launcher): a plain ERC-20 with no `burn` and no minter here.
 contract LaunchedFactory is ERC20 {
-    constructor(address holder) ERC20("Factory", "FACTORY") {
+    constructor(address holder) ERC20("Factory", "SIDE") {
         _mint(holder, 1_000_000e18);
     }
 }
 
 /// @dev The B7 rehearsal on a local fork of Monad mainnet (nothing is sent): the committed mainnet recipe, then real
 ///      Circle USDC jobs against the real ERC-8004 registries, with the arbitrator's key signing a ruling as the board
-///      relays it. FACTORY is minted on the fork only where a test needs bonds, the way the minter would on mainnet.
+///      relays it. SIDE is minted on the fork only where a test needs bonds, the way the minter would on mainnet.
 ///      Skipped unless MONAD_MAINNET_RPC_URL is set.
 contract MainnetRehearsalForkTest is Test {
     uint256 internal constant REWARD = 5e6; // 5 USDC
@@ -192,7 +192,7 @@ contract MainnetRehearsalForkTest is Test {
     }
 
     function test_fork_mainnet_withoutMintedFactoryOnlyBondlessJobsPublish() public onFork {
-        // With the minter holding back supply, a listing asking for a bond cannot be published: the one FACTORY
+        // With the minter holding back supply, a listing asking for a bond cannot be published: the one SIDE
         // decision that changes what mainnet users can do on day one.
         JobHolding.PublishParams memory p = JobHolding.PublishParams({
             approver: address(0),

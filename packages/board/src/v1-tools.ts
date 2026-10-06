@@ -1,12 +1,12 @@
 /** Unsigned v1 wallet actions. Amounts enter in token units and leave as base-unit strings. */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { type Address, encodeFunctionData, parseUnits, maxUint256 } from 'viem'
-import { transaction } from './hireling.ts'
+import { transaction } from './sidequest.ts'
 
 type Fail = (code: 'invalid' | 'conflict', message: string) => Error
 export function requireV1(ctx: sdk.Ctx, fail: Fail) {
-  if (ctx.stack.kind !== 'hireling-v1' || ctx.deployment.hireling === null) throw fail('conflict', 'this action requires a deployed Hireling v1 stack')
-  return ctx.deployment.hireling
+  if (ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.sidequest === null) throw fail('conflict', 'this action requires a deployed Sidequest v1 stack')
+  return ctx.deployment.sidequest
 }
 export function positiveAmount(text: string, decimals: number, fail: Fail): bigint {
   if (typeof text !== 'string' || !/^\d+(?:\.\d+)?$/.test(text) || (text.split('.')[1]?.length ?? 0) > decimals) throw fail('invalid', `amount must be a positive decimal with at most ${decimals} fractional digits`)
@@ -30,7 +30,7 @@ export async function prepareTopUp(ctx: sdk.Ctx, wallet: Address, jobId: bigint,
   const amount = positiveAmount(text, decimals, fail)
   return { token: listing.token, amount: amount.toString(), transactions: [
     ...await approved(ctx, wallet, listing.token, ctx.stack.holding, amount, fail),
-    transaction(ctx, 'Add to the agreed reward', ctx.stack.holding, encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'topUp', args: [jobId, amount] })),
+    transaction(ctx, 'Add to the agreed reward', ctx.stack.holding, encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'topUp', args: [jobId, amount] })),
   ] }
 }
 export async function prepareStake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail, account: Address = wallet) {
@@ -41,7 +41,7 @@ export async function prepareStake(ctx: sdk.Ctx, wallet: Address, text: string, 
   if (shares === 0n) throw fail('conflict', 'this amount rounds to zero shares')
   return { account, delegator: wallet, payer: wallet, token: h.factory, amount: amount.toString(), shares: shares.toString(), transactions: [
     ...await approved(ctx, wallet, h.factory, h.vault, amount, fail),
-    transaction(ctx, 'Back the agent with wallet-owned FACTORY', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [account, amount] })),
+    transaction(ctx, 'Back the agent with wallet-owned SIDE', h.vault, encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName: 'delegate', args: [account, amount] })),
   ] }
 }
 export async function prepareUnstake(ctx: sdk.Ctx, wallet: Address, text: string, fail: Fail, account: Address = wallet) {

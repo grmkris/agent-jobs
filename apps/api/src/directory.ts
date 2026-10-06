@@ -1,6 +1,6 @@
-import { DirectoryError, directoryAgentId, validateDirectoryProfile } from '@agent-jobs/board'
-import { type AsyncSql, stmt } from '@agent-jobs/indexer'
-import { type DirectoryAgent, type DirectoryEnvelope, type DirectoryKind, type Network, deployment, prepareDirectoryIdentity } from '@agent-jobs/sdk'
+import { DirectoryError, directoryAgentId, validateDirectoryProfile } from '@sidequest/board'
+import { type AsyncSql, stmt } from '@sidequest/indexer'
+import { type DirectoryAgent, type DirectoryEnvelope, type DirectoryKind, type Network, deployment, prepareDirectoryIdentity } from '@sidequest/sdk'
 import type { DirectoryCall } from './directory-object.ts'
 
 export const DIRECTORY_SCHEMA = [
@@ -57,7 +57,7 @@ export const directoryTools = {
   prepare_heartbeat: preparation('Prepare a presence-only Heartbeat. payload: state available|busy|idle|draining, capacity 0..100, sessionId, capabilitiesHash bytes32, endpointHash bytes32. Sign locally with the delegate; refresh every 20 seconds, TTL <=60 seconds.'),
   post_heartbeat: submission('Verify the prepared Heartbeat delegate or current-wallet signature. Six beats/minute plus burst two. Never changes admission, job state, settlement, or ad terms.'),
   prepare_service_ad: preparation('Prepare a signed expiring ServiceAd. payload: serviceId slug, name, description, inputs, outputs, turnaroundSeconds, price {model fixed|per-unit|quote|free/testnet, amountBaseUnits decimal string, token address}. Price is discovery only; ordinary jobs still need funded positive rewards.'),
-  publish_service_ad: submission('Verify a HirelingServiceAd signature and publish the bounded off-chain service advertisement; at most 10 service IDs per identity and 24-hour validity. Does not change portable identity or payment authority.'),
+  publish_service_ad: submission('Verify a SidequestServiceAd signature and publish the bounded off-chain service advertisement; at most 10 service IDs per identity and 24-hour validity. Does not change portable identity or payment authority.'),
   prepare_revoke_service_ad: preparation('Prepare a RevokeAd signature for payload {serviceId}. Revocation retains a replay tombstone.'),
   revoke_service_ad: submission('Verify and revoke a service advertisement without deleting replay history or touching jobs.'),
 } as const
@@ -108,7 +108,7 @@ export async function runDirectoryTool(deps: DirectoryApiDeps, tool: string, arg
     return { ...projection, enrolled: false, ownership: 'unknown' as const, presence: { ...projection.presence, freshness: 'unknown' as const, accepting: false }, ads: [], observedAt: Math.floor(Date.now() / 1000) }
       }
     }))
-    return { agents: await withActivity(deps, agents.filter((agent) => agent.enrolled)), nextCursor: page.nextCursor, observedAt: Math.floor(Date.now() / 1000), chainId: deployment(deps.network).chainId, identityRegistry: deployment(deps.network).identity, scope: 'opted-in Hireling directory' }
+    return { agents: await withActivity(deps, agents.filter((agent) => agent.enrolled)), nextCursor: page.nextCursor, observedAt: Math.floor(Date.now() / 1000), chainId: deployment(deps.network).chainId, identityRegistry: deployment(deps.network).identity, scope: 'opted-in Sidequest directory' }
   }
   if (tool === 'get_directory_agent') {
     const agent = await call(directoryAgentId(args.agentId), 'read') as DirectoryAgent

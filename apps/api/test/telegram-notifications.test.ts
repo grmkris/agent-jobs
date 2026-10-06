@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { fromNodeSqlite, migrate, stmt, type AsyncSql } from '@agent-jobs/indexer'
+import { fromNodeSqlite, migrate, stmt, type AsyncSql } from '@sidequest/indexer'
 import { drainTelegramOutbox, migrateTelegram } from '../src/telegram.ts'
 import { queueTelegramNotifications } from '../src/telegram-notifications.ts'
 
@@ -14,7 +14,7 @@ async function setup() {
   await migrateTelegram(sql)
   await sql.batch([
     stmt("INSERT INTO checkpoint VALUES (?, 100, NULL, ?)", chain, now),
-    stmt("INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, outcome, settlement_outcome, review_window, updated_block) VALUES (?, '1', ?, ?, ?, 'hireling-v1', 'submitted', 'None', 'None', 172800, 20)", chain, creator, creator, worker),
+    stmt("INSERT INTO jobs (chain_id, job_id, creator, approver, worker, kind, status, outcome, settlement_outcome, review_window, updated_block) VALUES (?, '1', ?, ?, ?, 'sidequest-v1', 'submitted', 'None', 'None', 172800, 20)", chain, creator, creator, worker),
     ...[creator, worker, donor].map((wallet, index) => stmt('INSERT INTO telegram_links VALUES (?, ?, ?, NULL, ?)', String(index + 1), chain, wallet, now - 100000)),
   ])
   return sql

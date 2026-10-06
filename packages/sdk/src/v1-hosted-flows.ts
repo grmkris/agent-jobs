@@ -15,7 +15,7 @@ const check = (test: boolean, what: string) => { if (!test) throw new Error(what
 
 export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
   const { ctx, journal: j, creator, worker } = d
-  if (ctx.stack.kind !== 'hireling-v1' || ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143)
+  if (ctx.stack.kind !== 'sidequest-v1' || ctx.deployment.chainId !== 10143 || await ctx.publicClient.getChainId() !== 10143)
     throw new Error('Hosted live flows require the configured testnet v1 deployment')
   if (j.state.values[`${flow}/done`] === true) { d.log(`${flow}: already verified`); return }
   const once = <T>(step: string, make: () => Promise<T>) => j.once(`${flow}/${step}`, make)
@@ -79,7 +79,7 @@ export async function runV1HostedFlow(d: V1HostedDeps, flow: V1HostedFlow) {
     for (let i = status.callsUsed; i <= 100; i++) {
       const key = `${await once('run-key', async () => sdk.randomNonce().toString())}-cap-${i}`
       const nonce = await once(`selection-${i}`, async () => sdk.randomNonce())
-      const calls = [{ to: ctx.stack.holding, value: '0', data: encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'cancelSelection', args: [nonce] }) }]
+      const calls = [{ to: ctx.stack.holding, value: '0', data: encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'cancelSelection', args: [nonce] }) }]
       try {
         const op = await d.call<{ status: string; txHash: Hex }>(worker, 'sponsor_submit', { wallet: worker.account.address, key, entries: [{ grant: status.delegationHash, calls }] })
         check(op.status === 'confirmed', 'cap fill transaction did not confirm'); j.log(`sponsor-caps/${i}`, op.txHash)

@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { encodeAbiParameters, encodeEventTopics } from 'viem'
 import { delegationsOf, delegatorsOf, indexedDelegations } from './delegations.ts'
 import { contractsFromDeployment, decode } from './events.ts'
@@ -11,7 +11,7 @@ const other = '0x2222222222222222222222222222222222222222'
 const wallet = '0x3333333333333333333333333333333333333333'
 const second = '0x4444444444444444444444444444444444444444'
 const d = sdk.deployment('monad-testnet')
-const vault = d.hireling!.vault
+const vault = d.sidequest!.vault
 
 describe('delegation discovery in the existing protocol ledger', () => {
   it('filters by vault, chain, account, owner and exclusive checkpoint, preserving same-block generation order', async () => {

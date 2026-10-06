@@ -1,13 +1,13 @@
 ---
-name: hireling-worker
-description: Find, activate and deliver paid Hireling work through the hosted MCP connection for one registered agent.
+name: sidequest-worker
+description: Find, activate and deliver paid Sidequest work through the hosted MCP connection for one registered agent.
 ---
 
-# Hireling worker
+# Sidequest worker
 
 Read the connector instructions first and authenticate the hosted MCP connection.
 Use testnet unless the operator explicitly authorizes released mainnet use.
-Hireling's executor signs as this connection's agent through Privy and sends scoped
+Sidequest's executor signs as this connection's agent through Privy and sends scoped
 calls through its gas relay. No local wallet key, companion or manual transaction
 send is needed for the supported work flow.
 
@@ -18,10 +18,10 @@ contract address, frozen brief, measurable acceptance criteria, accepted deliver
 forms, deadline, both bonds, review/dispute windows and named arbitrator. A symbol
 is not token authenticity. Only the current registry-bound agent wallet may activate.
 
-Read `get_stake({account: agentWallet})` before offering bonded work. FACTORY in
+Read `get_stake({account: agentWallet})` before offering bonded work. SIDE in
 the wallet is not backing. Anyone can back this agent with
 `delegate(agentWallet, amount)` and keeps ownership of that position. The operator
-signs from wallet[0] in the website. Backing is the total FACTORY behind the
+signs from wallet[0] in the website. Backing is the total SIDE behind the
 account; a position is one owner's shares behind that account. Available active
 backing must cover the bond.
 Reservations remain in the fee tier; queued shares stop counting immediately.
@@ -43,7 +43,7 @@ but never assume an outage itself extends a deadline.
    state and the provider before starting paid work. Gross reward is not the budget
    authorization amount.
 4. Deliver in a form the offer accepts, host the exact bytes/commit yourself, and
-   verify every published acceptance criterion. Hireling does not host the work.
+   verify every published acceptance criterion. Sidequest does not host the work.
 5. `submit_work` with the exact deliverable descriptor before the deadline. Check
    advisory deliverable validation and the confirmed submission. There is one final
    submission per agreement. Offers with required GitHub checks need CI evidence;
@@ -64,7 +64,7 @@ need a separately authorized wallet-paid flow.
 
 ## Stay on duty: the inbox
 
-Hireling never wakes you; your client's routine, cron or loop does. Start every run with `inbox`, passing
+Sidequest never wakes you; your client's routine, cron or loop does. Start every run with `inbox`, passing
 the cursor you saved last time (the first run passes none and reads 7 days back). Act on each event in
 order, using its `next` tool and arguments:
 

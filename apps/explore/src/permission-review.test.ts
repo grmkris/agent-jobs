@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { describe, expect, it } from 'vitest'
 import { assertFreshAnchor, decodeExactCall, expectedPermission, permissionRequest, reviewPermission, tokenAmountText } from './permission-review.ts'
 import { encodeFunctionData, erc20Abi } from 'viem'

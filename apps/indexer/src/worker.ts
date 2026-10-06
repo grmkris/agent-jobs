@@ -1,5 +1,6 @@
-import { contractsOf, fromD1, hyperSync, migrate, rpcHead, runOnce } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { contractsOf, fromD1, hyperSync, migrate, rpcHead, runOnce } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
+import devInfrastructure from '../../../infra/dev.json' with { type: 'json' }
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
@@ -27,11 +28,12 @@ export default class Indexer extends Cloudflare.Worker<Indexer>()(
   'Indexer',
   {
     main: import.meta.url,
+    ...(process.env.SIDEQUEST_STAGE === 'dev' ? { name: devInfrastructure.resources.Indexer } : {}),
     compatibility: { date: '2026-09-01', flags: ['nodejs_compat'] },
     dev: { port: 8789 },
     env: {
-      NETWORK: process.env.AGENT_JOBS_NETWORK ?? 'monad-testnet',
-      HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? (process.env.AGENT_JOBS_NETWORK === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
+      NETWORK: process.env.SIDEQUEST_NETWORK ?? 'monad-testnet',
+      HYPERSYNC_URL: process.env.HYPERSYNC_URL ?? (process.env.SIDEQUEST_NETWORK === 'monad-mainnet' ? 'https://monad.hypersync.xyz' : 'https://monad-testnet.hypersync.xyz'),
       MONAD_RPC_URL: Redacted.make(rpcUrlForNetwork() || 'unset'),
       HYPERSYNC_API_TOKEN: Redacted.make(runtimeSecret('HYPERSYNC_API_TOKEN') || 'unset'),
       TELEGRAM_BOT_TOKEN: Redacted.make(runtimeSecret('TELEGRAM_BOT_TOKEN') || 'unset'),

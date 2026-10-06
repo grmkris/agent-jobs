@@ -9,7 +9,7 @@
  * Task text via TASK_TITLE / TASK_BRIEF / TASK_CRITERIA (JSON array) / TASK_CHECK (the check name the approver
  * requires); STACK (default demo), TASK_TOKEN / TASK_REWARD, DELIVERY_MINUTES. REVIEW=manual stops after the
  * submission and its check for the approver to decide by hand (`board-review.ts`). TASK_CREATOR_BOND /
- * TASK_WORKER_BOND (FACTORY, default 2 / 1); APPLICANT selects only that worker address. MODE=contest publishes a
+ * TASK_WORKER_BOND (SIDE, default 2 / 1); APPLICANT selects only that worker address. MODE=contest publishes a
  * contest and stops (SELECTION_MINUTES); MODE=quote requests quotes (TASK_TOKENS, QUOTE_MINUTES), picks APPLICANT's
  * and continues as a hire.
  */
@@ -44,7 +44,7 @@ async function until<T>(what: string, timeoutS: number, probe: () => Promise<T |
 async function checkPassed(repo: string, sha: string): Promise<{ ok: boolean; detail: string }> {
   const slug = repo.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '')
   const res = await fetch(`https://api.github.com/repos/${slug}/commits/${sha}/check-runs`, {
-    headers: { accept: 'application/vnd.github+json', 'user-agent': 'agent-jobs-approver' },
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'sidequest-approver' },
   })
   const body = (await res.json()) as { check_runs?: Array<{ name: string; status: string; conclusion: string | null }> }
   const runs = body.check_runs ?? []

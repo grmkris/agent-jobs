@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { encodeFunctionData, erc20Abi } from 'viem'
 import { checkGrantCall, checkHireFunding } from './grant-calls.ts'
 import { buildHireBatch, decodeGrantBatch, redeemGrantBatch } from './hire-batch.ts'
@@ -14,7 +14,7 @@ const workSpec: sdk.GrantSpec = { kind: 'agent-work', delegator: agent, salt: 1n
 const approvalSpec: sdk.GrantSpec = { kind: 'agent-approve', delegator: agent, salt: 2n, start }
 const allowanceSpec: sdk.GrantSpec = { kind: 'allowance-once', delegator: operator, agent, token, amount: 100n, salt: 3n, start }
 const allowance = sdk.buildGrant(ctx, allowanceSpec)
-const publish = encodeFunctionData({ abi: sdk.hirelingHoldingAbi, functionName: 'publish', args: [{
+const publish = encodeFunctionData({ abi: sdk.sidequestHoldingAbi, functionName: 'publish', args: [{
   approver: agent, arbitrator: operator, manifestHash: sdk.EMPTY_HASH, policyHash: sdk.EMPTY_HASH,
   token, reward: 100n, creatorBond: 0n, workerBond: 0n, deliveryDeadline: start + 3600, expiredAt: start + 7200,
   reviewWindow: 3600, disputeWindow: 3600, arbitrationWindow: 43200,
@@ -37,7 +37,7 @@ const lookup = () => ({ spec: allowanceSpec, grant: allowance })
 
 describe('per-grant calls', () => {
   it('pins routine vault recovery to self and one-off undelegation to the approved shares', () => {
-    const vault = d.hireling!.vault
+    const vault = d.sidequest!.vault
     for (const functionName of ['cancelUndelegate', 'withdraw'] as const) {
       const call = { to: vault, data: encodeFunctionData({ abi: sdk.stakeVaultAbi, functionName, args: [agent] }) }
       expect(checkGrantCall(ctx, workSpec, call).method).toBe(functionName)

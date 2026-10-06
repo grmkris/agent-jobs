@@ -42,7 +42,7 @@ export function AgentBalances({
   const [unstake, setUnstake] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const journalKey = `hireling.agent-action:${agent.id}`;
+  const journalKey = `sidequest.agent-action:${agent.id}`;
   const [pending, setPending] = useState<{
     tool: string;
     args: Record<string, unknown>;
@@ -190,7 +190,7 @@ export function AgentBalances({
               <Input
                 value={unstake}
                 onChange={(event) => setUnstake(event.target.value)}
-                placeholder="FACTORY amount"
+                placeholder="SIDE amount"
                 aria-label="Agent-owned amount to leave"
                 inputMode="decimal"
               />

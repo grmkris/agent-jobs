@@ -1,4 +1,4 @@
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type Abi, type Address, type Hex, erc20Abi, isAddress, recoverTypedDataAddress, zeroAddress } from 'viem'
@@ -14,7 +14,7 @@ import { Address as AddressText, Badge, Button, EmptyState, ErrorText, Group, In
 import { useAuth } from '../components/Wallet.tsx'
 import { formatNumber, rewardTokenList, subscribeTokens, tokenMeta, tokenRegistryVersion } from '../format.ts'
 import { type AdminContext, type AdminTx, type EpochFile, type FundGuard, fundProblem, readAdminOp, readEpochFile, resizeProblem, scheduleProposal } from '../admin.ts'
-import { type HirelingContracts, hireling } from '../hireling.ts'
+import { type SidequestContracts, sidequest } from '../sidequest.ts'
 import { type PriceDraft, priceListFile, priceListOf, priceTypedData } from '../prices.ts'
 import { MULTI_SEND_CALL_ONLY, type Call, atomically, calldata, execSigned, execTransaction, safeAbi, safeTxTypedData, walletSignature } from '../safe.ts'
 import { factoryAmount, percent, proposalState } from '../stake.ts'
@@ -22,17 +22,17 @@ import { friendlyError } from '../txErrors.ts'
 import { chain, deployed, deployment, wagmiConfig } from '../wallet.ts'
 import { duration } from '../duration.ts'
 
-const fmt = (wei: bigint) => `${formatNumber(wei, 18)} FACTORY`
+const fmt = (wei: bigint) => `${formatNumber(wei, 18)} SIDE`
 const same = (a: string | undefined, b: string | undefined) => a !== undefined && b !== undefined && a.toLowerCase() === b.toLowerCase()
 const result = <T,>(data: ReadonlyArray<{ status: string; result?: unknown }> | undefined, i: number): T | undefined => (data?.[i]?.status === 'success' ? (data[i]?.result as T) : undefined)
 
 /**
- * Whether `address` owns the Safe that owns Hireling v1: null while unknown (not deployed, loading or unreadable), so
+ * Whether `address` owns the Safe that owns Sidequest v1: null while unknown (not deployed, loading or unreadable), so
  * a caller shows nothing rather than guessing.
  */
 export function useSafeOwner(address: string | undefined): boolean | null {
   const owners = useReadContracts({
-    contracts: [{ address: hireling.safe, abi: safeAbi, functionName: 'getOwners', chainId: chain.id }],
+    contracts: [{ address: sidequest.safe, abi: safeAbi, functionName: 'getOwners', chainId: chain.id }],
     query: { enabled: deployed && address !== undefined, staleTime: 60_000 },
   })
   const list = result<readonly Address[]>(owners.data, 0)
@@ -51,7 +51,7 @@ interface Op {
   txs: TxRequest[]
   guard?: FundGuard
 }
-const opKey = (me: string) => `hireling.admin-op:${me.toLowerCase()}`
+const opKey = (me: string) => `sidequest.admin-op:${me.toLowerCase()}`
 function loadOp(me: string): Omit<Op, 'title'> | null {
   try {
     const saved = JSON.parse(localStorage.getItem(opKey(me)) ?? 'null') as { txs?: unknown; guard?: unknown } | null
@@ -77,7 +77,7 @@ function saveOp(me: string, op: Op | null) {
  * sends directly (permissionless). Every transaction is held to this before it is shown or sent.
  */
 const target = (name: string, abi: unknown, asSafe: string[], direct: string[] = []) => ({ name, abi: abi as Abi, safe: ['acceptOwnership', ...asSafe], direct })
-function adminContext(c: HirelingContracts, safe: Address, me: Address): AdminContext {
+function adminContext(c: SidequestContracts, safe: Address, me: Address): AdminContext {
   return {
     chainId: chain.id,
     safe,
@@ -85,8 +85,8 @@ function adminContext(c: HirelingContracts, safe: Address, me: Address): AdminCo
     targets: {
       [c.feeSchedule.toLowerCase()]: target('FeeSchedule', sdk.feeScheduleAbi, ['propose', 'cancel'], ['execute']),
       [c.vault.toLowerCase()]: target('StakeVault', sdk.stakeVaultAbi, ['proposeHolding', 'cancelHoldingProposal', 'revokeHolding'], ['acceptHolding']),
-      [c.holding.toLowerCase()]: target('HirelingHolding', sdk.hirelingHoldingAbi, []),
-      [c.evaluator.toLowerCase()]: target('HirelingEvaluator', sdk.hirelingEvaluatorAbi, ['notePause'], ['notePause']),
+      [c.holding.toLowerCase()]: target('SidequestHolding', sdk.sidequestHoldingAbi, []),
+      [c.evaluator.toLowerCase()]: target('SidequestEvaluator', sdk.sidequestEvaluatorAbi, ['notePause'], ['notePause']),
       [c.miningReserve.toLowerCase()]: target('MiningReserve', sdk.miningReserveAbi, ['fund']),
       [c.distributor.toLowerCase()]: target('EpochDistributor', sdk.epochDistributorAbi, ['setRoot', 'resizeRoot']),
       [deployment.core.toLowerCase()]: { name: 'Core', abi: sdk.coreAbi as unknown as Abi, safe: ['pause', 'unpause'], direct: [] },
@@ -112,7 +112,7 @@ type Act = (title: string, call: Call | readonly Call[], via: Via) => void
 type Fund = (epoch: bigint, amount: bigint, expectTotalFunded: bigint) => Promise<string | null>
 
 /**
- * The Safe's console (ADR-0011). Shown only to an owner of the Safe that owns Hireling v1; the Safe's threshold is 1,
+ * The Safe's console (ADR-0011). Shown only to an owner of the Safe that owns Sidequest v1; the Safe's threshold is 1,
  * so the owner's wallet calls `execTransaction` itself with a pre-validated signature, or, to fund an epoch, with its
  * signature of that Safe transaction at the current nonce (D18). Every action shows the exact
  * call, decoded from the calldata that will be sent, before the wallet opens. Permissionless steps (executing a fee
@@ -133,10 +133,10 @@ export function AdminPage() {
       </>
     )
   }
-  return <Gate c={hireling} safe={hireling.safe} me={auth.address as Address} />
+  return <Gate c={sidequest} safe={sidequest.safe} me={auth.address as Address} />
 }
 
-function Gate({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Address }) {
+function Gate({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Address }) {
   const reads = useReadContracts({
     contracts: [
       { address: safe, abi: safeAbi, functionName: 'getOwners', chainId: chain.id },
@@ -162,7 +162,7 @@ function Gate({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addres
     return (
       <>
         <PageTitle>Admin</PageTitle>
-        <EmptyState title="Only the Safe's owners see this">This wallet is not an owner of the Safe that owns Hireling v1.</EmptyState>
+        <EmptyState title="Only the Safe's owners see this">This wallet is not an owner of the Safe that owns Sidequest v1.</EmptyState>
       </>
     )
   }
@@ -177,7 +177,7 @@ function Gate({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Addres
   return <Admin c={c} safe={safe} me={me} />
 }
 
-function Admin({ c, safe, me }: { c: HirelingContracts; safe: Address; me: Address }) {
+function Admin({ c, safe, me }: { c: SidequestContracts; safe: Address; me: Address }) {
   const qc = useQueryClient()
   const toast = useToast()
   const ctx = useMemo(() => adminContext(c, safe, me), [c, safe, me])
@@ -429,12 +429,12 @@ function Unavailable({ retry }: { retry: () => void }) {
 // accepts. The first admin smoke test.
 // ---------------------------------------------------------------------------------------------------------------
 
-function Ownership({ c, safe, act, busy }: { c: HirelingContracts; safe: Address; act: Act; busy: boolean }) {
+function Ownership({ c, safe, act, busy }: { c: SidequestContracts; safe: Address; act: Act; busy: boolean }) {
   const owned: Array<[string, Address, Abi]> = [
     ['FeeSchedule', c.feeSchedule, sdk.feeScheduleAbi],
     ['StakeVault', c.vault, sdk.stakeVaultAbi],
-    ['HirelingHolding', c.holding, sdk.hirelingHoldingAbi],
-    ['HirelingEvaluator', c.evaluator, sdk.hirelingEvaluatorAbi],
+    ['SidequestHolding', c.holding, sdk.sidequestHoldingAbi],
+    ['SidequestEvaluator', c.evaluator, sdk.sidequestEvaluatorAbi],
     ['MiningReserve', c.miningReserve, sdk.miningReserveAbi],
     ['EpochDistributor', c.distributor, sdk.epochDistributorAbi],
   ]
@@ -487,13 +487,13 @@ function Ownership({ c, safe, act, busy }: { c: HirelingContracts; safe: Address
 // Core: pause and unpause (ADMIN_ROLE). On testnet the core is reused and its admin may not be the Safe.
 // ---------------------------------------------------------------------------------------------------------------
 
-function Core({ c, safe, act, busy, atomicReady }: { c: HirelingContracts; safe: Address; act: Act; busy: boolean; atomicReady: boolean }) {
+function Core({ c, safe, act, busy, atomicReady }: { c: SidequestContracts; safe: Address; act: Act; busy: boolean; atomicReady: boolean }) {
   const core = deployment.core
   const base = useReadContracts({
     contracts: [
       { address: core, abi: sdk.coreAbi, functionName: 'paused', chainId: chain.id },
       { address: core, abi: sdk.coreAbi, functionName: 'ADMIN_ROLE', chainId: chain.id },
-      { address: c.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'pauseCount', chainId: chain.id },
+      { address: c.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'pauseCount', chainId: chain.id },
     ],
     query: { refetchInterval: 30_000 },
   })
@@ -502,7 +502,7 @@ function Core({ c, safe, act, busy, atomicReady }: { c: HirelingContracts; safe:
   const count = result<bigint>(base.data, 2)
   // The Evaluator's pause history is append-only (C9-007): the latest interval is open while its end is 0.
   const latest = useReadContracts({
-    contracts: [{ address: c.evaluator, abi: sdk.hirelingEvaluatorAbi, functionName: 'pauseAt', args: [count !== undefined && count > 0n ? count - 1n : 0n], chainId: chain.id }],
+    contracts: [{ address: c.evaluator, abi: sdk.sidequestEvaluatorAbi, functionName: 'pauseAt', args: [count !== undefined && count > 0n ? count - 1n : 0n], chainId: chain.id }],
     query: { enabled: count !== undefined && count > 0n, refetchInterval: 30_000 },
   })
   const interval = result<{ start: number; end: number }>(latest.data, 0)
@@ -514,7 +514,7 @@ function Core({ c, safe, act, busy, atomicReady }: { c: HirelingContracts; safe:
   const call = (functionName: 'pause' | 'unpause'): Call => ({ contract: 'Core', to: core, abi: sdk.coreAbi as unknown as Abi, functionName })
   // D4b: the Evaluator records the pause, so a delivery deadline that falls inside it is never slashed. It goes in the
   // same send as the pause or unpause; anyone may also send it alone when the two have drifted apart.
-  const note: Call = { contract: 'HirelingEvaluator', to: c.evaluator, abi: sdk.hirelingEvaluatorAbi as unknown as Abi, functionName: 'notePause' }
+  const note: Call = { contract: 'SidequestEvaluator', to: c.evaluator, abi: sdk.sidequestEvaluatorAbi as unknown as Abi, functionName: 'notePause' }
   const noted = count === undefined ? undefined : count === 0n ? false : interval === undefined ? undefined : Number(interval.end) === 0
   const drift = paused !== undefined && noted !== undefined && paused !== noted
   return (
@@ -565,7 +565,7 @@ function Core({ c, safe, act, busy, atomicReady }: { c: HirelingContracts; safe:
 
 type Schedule = { thresholds: readonly bigint[]; bps: readonly number[]; treasury: Address }
 
-function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean }) {
+function Fees({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean }) {
   const now = useNow()
   const reads = useReadContracts({
     contracts: [
@@ -629,7 +629,7 @@ function Fees({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean 
               {form.thresholds.map((t, i) => (
                 <div key={i} className="grid grid-cols-[1fr_6rem] items-end gap-2">
                   <label className="grid gap-1">
-                    <span className="text-ui text-label-2">Tier {i + 1} from (FACTORY)</span>
+                    <span className="text-ui text-label-2">Tier {i + 1} from (SIDE)</span>
                     <Input aria-label={`Tier ${i + 1} threshold`} value={t} inputMode="decimal" className="tabular" onChange={(e) => setDraft({ ...form, thresholds: form.thresholds.map((x, j) => (j === i ? e.target.value : x)) })} />
                   </label>
                   <label className="grid gap-1">
@@ -697,7 +697,7 @@ function ScheduleTable({ title, schedule }: { title: string; schedule: Schedule 
 // revokes instantly.
 // ---------------------------------------------------------------------------------------------------------------
 
-function Holdings({ c, act, busy }: { c: HirelingContracts; act: Act; busy: boolean }) {
+function Holdings({ c, act, busy }: { c: SidequestContracts; act: Act; busy: boolean }) {
   const now = useNow()
   const reads = useReadContracts({
     contracts: [
@@ -801,7 +801,7 @@ type EpochRoot = { root: Hex; total: bigint; claimed: bigint; dataHash: Hex }
  * as the tool checks them; a signature is offered only once it recovers to this owner, since the tool takes only an
  * EOA signature from a Safe owner.
  */
-function Prices({ c, me }: { c: HirelingContracts; me: Address }) {
+function Prices({ c, me }: { c: SidequestContracts; me: Address }) {
   useSyncExternalStore(subscribeTokens, tokenRegistryVersion, tokenRegistryVersion)
   const reserve = useReadContracts({ contracts: [{ address: c.miningReserve, abi: sdk.miningReserveAbi, functionName: 'currentEpoch', chainId: chain.id }] })
   const currentEpoch = result<bigint>(reserve.data, 0)
@@ -895,8 +895,8 @@ function Prices({ c, me }: { c: HirelingContracts; me: Address }) {
             {addProblem !== null && <ErrorText>{addProblem}</ErrorText>}
           </div>
           <label className="grid gap-1">
-            <span className="text-ui font-semibold">FACTORY, USD</span>
-            <Input aria-label="FACTORY price in USD" value={factoryUsd} placeholder="0.0001" inputMode="decimal" className="tabular w-40" onChange={(e) => setFactoryUsd(e.target.value)} />
+            <span className="text-ui font-semibold">SIDE, USD</span>
+            <Input aria-label="SIDE price in USD" value={factoryUsd} placeholder="0.0001" inputMode="decimal" className="tabular w-40" onChange={(e) => setFactoryUsd(e.target.value)} />
             <span className="text-xs text-label-3">Below $0.0001 the tool counts $0.0001.</span>
           </label>
           {typeof list === 'string' && (picked !== null || factoryUsd !== '' || Object.values(usd).some((v) => v !== '')) && <ErrorText>{list}</ErrorText>}
@@ -923,7 +923,7 @@ function Prices({ c, me }: { c: HirelingContracts; me: Address }) {
   )
 }
 
-function Mining({ c, act, fund, busy }: { c: HirelingContracts; act: Act; fund: Fund; busy: boolean }) {
+function Mining({ c, act, fund, busy }: { c: SidequestContracts; act: Act; fund: Fund; busy: boolean }) {
   const now = useNow()
   const base = useReadContracts({
     contracts: [
@@ -1016,7 +1016,7 @@ function Mining({ c, act, fund, busy }: { c: HirelingContracts; act: Act; fund: 
                 <p className="text-ui text-label-2">
                   If the posted total is more than the root’s leaves add up to, the difference stays locked. Shrink it to the leaf sum from the epoch’s data; it can never go below what is already claimed.
                 </p>
-                <Input aria-label="New epoch total" value={form.resize} placeholder="Leaf sum, FACTORY" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, resize: e.target.value })} />
+                <Input aria-label="New epoch total" value={form.resize} placeholder="Leaf sum, SIDE" inputMode="decimal" className="tabular" onChange={(e) => setForm({ ...form, resize: e.target.value })} />
                 {form.resize !== '' && resizeProblem(form.resize, root) !== null && <ErrorText>{resizeProblem(form.resize, root)}</ErrorText>}
                 <Button
                   variant="tinted"

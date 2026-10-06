@@ -45,7 +45,7 @@ export async function restart(runtime: Runtime): Promise<Proof> {
   const verified = await verifyAtomic(runtime, recovered);
   const logs = await chain.ctx.publicClient.getContractEvents({
     address: chain.ctx.stack.holding,
-    abi: sdk.hirelingHoldingAbi,
+    abi: sdk.sidequestHoldingAbi,
     eventName: "Published",
     fromBlock: run.get<bigint>("firstBlock")!,
     toBlock: "latest",

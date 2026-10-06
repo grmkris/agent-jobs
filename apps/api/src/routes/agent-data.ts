@@ -3,8 +3,8 @@
  * money both ways and its timings — with each job's board. The agent's current wallet is read from the identity
  * registry so the jobs it posted from it count even before it took one.
  */
-import { type AsyncSql, agentDetail } from '@agent-jobs/indexer'
-import * as sdk from '@agent-jobs/sdk'
+import { type AsyncSql, agentDetail } from '@sidequest/indexer'
+import * as sdk from '@sidequest/sdk'
 import { type Address, BaseError, ContractFunctionRevertedError, type PublicClient, zeroAddress } from 'viem'
 import { boardsOfTerms } from '../registry.ts'
 

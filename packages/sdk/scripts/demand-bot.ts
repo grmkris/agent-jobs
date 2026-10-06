@@ -79,7 +79,7 @@ async function main() {
 
   if (command === 'setup') {
     const deployer = sdk.wallet('monad-testnet', privateKeyToAccount(envLocal('DEPLOYER_PRIVATE_KEY') as Hex), rpc)
-    if (getAddress(deployer.account.address) !== getAddress(config.hireling.allocation.ecosystem) || getAddress(deployer.account.address) === account.address) throw new Error('demand setup requires the configured ecosystem deployer and a distinct creator')
+    if (getAddress(deployer.account.address) !== getAddress(config.sidequest.allocation.ecosystem) || getAddress(deployer.account.address) === account.address) throw new Error('demand setup requires the configured ecosystem deployer and a distinct creator')
     const code = await ctx.publicClient.getCode({ address: account.address })
     if (code !== undefined && code !== '0x') throw new Error('demand creator must be a fresh independent EOA')
     const nativeAmount = await journal.once('setup/native-amount', async () => {

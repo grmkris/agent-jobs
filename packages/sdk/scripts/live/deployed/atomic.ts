@@ -26,7 +26,7 @@ export async function verifyAtomic(runtime: Runtime, hash: Hex) {
   const transfer = decodeFunctionData({ abi: erc20Abi, data: inner[0]!.execution.callData });
   const approve = decodeFunctionData({ abi: erc20Abi, data: approval!.execution.callData });
   const published = decodeFunctionData({
-    abi: sdk.hirelingHoldingAbi,
+    abi: sdk.sidequestHoldingAbi,
     data: publish!.execution.callData,
   });
   if (
@@ -64,7 +64,7 @@ export async function verifyAtomic(runtime: Runtime, hash: Hex) {
         log.args.value === params.reward,
     ).length === 1;
   const logs = parseEventLogs({
-    abi: sdk.hirelingHoldingAbi,
+    abi: sdk.sidequestHoldingAbi,
     logs: receipt.logs,
     eventName: "Published",
   }).filter(
@@ -130,7 +130,7 @@ async function rollback(runtime: Runtime, transaction: Hex, blockNumber: bigint)
             execution: {
               ...entry.execution,
               callData: encodeFunctionData({
-                abi: sdk.hirelingHoldingAbi,
+                abi: sdk.sidequestHoldingAbi,
                 functionName: "publish",
                 args: [{ ...params, deliveryDeadline: 0 }],
               }),

@@ -54,7 +54,7 @@ describe("deployed fixture boundaries", () => {
       type: "item.completed",
       item: {
         type: "mcp_tool_call",
-        server: "hireling",
+        server: "sidequest",
         tool: "apply",
         arguments: { taskId: "fixture-job", operationKey: "fixture-key" },
         result: { content: [{ type: "text", text: '{"ok":true}' }] },

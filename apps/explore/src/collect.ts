@@ -1,9 +1,9 @@
 /**
  * What a wallet can close or claim (U3), from the board's `collect_actions(wallet)` (B4): settlements, top-up refunds,
- * payments held as `owed`, core refunds, unstaked FACTORY and mining rewards, each with the transactions that collect
+ * payments held as `owed`, core refunds, unstaked SIDE and mining rewards, each with the transactions that collect
  * it. Read here only, so the page and the tab badge share one query.
  */
-import * as sdk from '@agent-jobs/sdk'
+import * as sdk from '@sidequest/sdk'
 import { useQuery } from '@tanstack/react-query'
 import { type Abi, decodeFunctionData } from 'viem'
 import { type TxRequest, tool } from './api.ts'
