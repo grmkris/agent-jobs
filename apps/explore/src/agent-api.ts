@@ -2,6 +2,8 @@ import { agentEndpoint, type ManagedAgent } from "./api.ts";
 import type { PreparedGrant } from "./agent-grant.ts";
 
 export interface AgentStatus {
+  /** A live OAuth family proves the coding agent has connected; activity is only presence data. */
+  connected: boolean;
   agent: ManagedAgent;
   allowances: Array<{
     hash: string;

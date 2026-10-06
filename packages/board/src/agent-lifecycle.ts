@@ -36,16 +36,25 @@ export class AgentLifecycle {
 
   async status(id: string, operator: Address) {
     const agent = this.agents.owned(id, operator)
+    const now = this.deps.now()
+    const connected = agent.state === 'active' && this.deps.sql.all<{ connected: number }>(
+      `SELECT 1 connected FROM agent_oauth_families f
+       JOIN agent_oauth_tokens t ON t.family_id=f.id
+       WHERE f.agent_id=? AND f.revoked_at IS NULL AND t.expires_at>?
+         AND (t.kind='access' OR (t.kind='refresh' AND t.consumed_at IS NULL))
+       LIMIT 1`,
+      agent.id, now,
+    ).length > 0
     const allowances = this.#allowances(agent).filter(row => row.status === 'live' && row.kind === 'allowance')
     const usage = await Promise.all(allowances.map(async row => {
       const spec = this.grants.spec(row.delegation_hash)
       if (spec.kind !== 'allowance') throw new Error('Not a periodic allowance')
-      const left = row.expires_at <= this.deps.now() ? 0n : await allowanceAvailable(this.deps.context, this.grants, row)
-      const period = Math.max(0, Math.floor((this.deps.now() - spec.start) / sdk.ALLOWANCE_PERIOD))
+      const left = row.expires_at <= now ? 0n : await allowanceAvailable(this.deps.context, this.grants, row)
+      const period = Math.max(0, Math.floor((now - spec.start) / sdk.ALLOWANCE_PERIOD))
       return { hash: row.delegation_hash, token: spec.token, limit: spec.amount.toString(), left: left.toString(), used: (spec.amount - left).toString(),
         periodStart: spec.start + period * sdk.ALLOWANCE_PERIOD, periodEnd: spec.start + (period + 1) * sdk.ALLOWANCE_PERIOD, expiresAt: row.expires_at }
     }))
-    return { agent, allowances: usage, grants: this.grants.list(agent.address ?? operator).map(row => ({ hash: row.delegation_hash, kind: row.kind, status: row.status, expiresAt: row.expires_at })),
+    return { connected, agent, allowances: usage, grants: this.grants.list(agent.address ?? operator).map(row => ({ hash: row.delegation_hash, kind: row.kind, status: row.status, expiresAt: row.expires_at })),
       revocation: { ...JSON.parse(agent.revoke_json), receipts: this.deps.sql.all<{ tx_hash: Hex; status: string }>('SELECT tx_hash,status FROM sponsor_operations WHERE action_key LIKE ? ORDER BY created_at', `revoke-${id.slice(0, 60)}-%`) } as Record<string, unknown> }
   }
 
