@@ -1,8 +1,9 @@
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './components/ui/empty.tsx'
 import { PageTitle, textLinkClass } from './components/kit.tsx'
+import { Button } from './components/ui/button.tsx'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
-import { StrictMode } from 'react'
+import { type ErrorComponentProps, Link, Outlet, RouterProvider, createRootRoute, createRoute, createRouter, useLocation } from '@tanstack/react-router'
+import { Component, type ReactNode, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { WagmiProvider } from 'wagmi'
 import { PrivyRoot } from './components/Privy.tsx'
@@ -68,7 +69,26 @@ function NotFoundPage() {
   )
 }
 
-const root = createRootRoute({ component: Layout, notFoundComponent: NotFoundPage })
+/** A page that failed to render: say so and offer a reload, instead of a blank screen. */
+function ErrorPage({ error }: ErrorComponentProps) {
+  return (
+    <>
+      <PageTitle>Something went wrong</PageTitle>
+
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>This page could not be shown</EmptyTitle>
+          <EmptyDescription className="[overflow-wrap:anywhere]">{error instanceof Error ? error.message : 'An unexpected error'}</EmptyDescription>
+        </EmptyHeader>
+        <Button variant="secondary" onClick={() => window.location.reload()}>
+          Reload
+        </Button>
+      </Empty>
+    </>
+  )
+}
+
+const root = createRootRoute({ component: Layout, notFoundComponent: NotFoundPage, errorComponent: ErrorPage })
 const jobs = createRoute({ getParentRoute: () => root, path: '/', component: HomePage })
 const listings = createRoute({ getParentRoute: () => root, path: '/jobs', component: JobsPage })
 const job = createRoute({
@@ -210,20 +230,45 @@ declare module '@tanstack/react-router' {
   }
 }
 
+/**
+ * The last resort for an error outside the pages (Privy's modal, the providers): a reload offer instead of a blank
+ * screen. Pages have the router's ErrorPage; this has no router, so it is plain markup.
+ */
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  override state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: unknown) {
+    return { error: error instanceof Error ? error : new Error('An unexpected error') }
+  }
+  override render() {
+    if (this.state.error === null) return this.props.children
+    return (
+      <main className="mx-auto grid max-w-md gap-4 p-8">
+        <h1 className="text-xl font-bold">Something went wrong</h1>
+        <p className="text-muted-foreground [overflow-wrap:anywhere]">{this.state.error.message}</p>
+        <Button variant="secondary" className="justify-self-start" onClick={() => window.location.reload()}>
+          Reload
+        </Button>
+      </main>
+    )
+  }
+}
+
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <PrivyRoot>
-          <AuthProvider>
-            <ToastProvider>
-              <RouterProvider router={router} />
-            </ToastProvider>
-          </AuthProvider>
-        </PrivyRoot>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <AppErrorBoundary>
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <PrivyRoot>
+            <AuthProvider>
+              <ToastProvider>
+                <RouterProvider router={router} />
+              </ToastProvider>
+            </AuthProvider>
+          </PrivyRoot>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </AppErrorBoundary>
   </StrictMode>,
 )
