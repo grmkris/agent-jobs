@@ -312,3 +312,53 @@ The independent review pane has explicitly ACKed Sidequest and owns its
 append-only review artifacts; its prior `c7de03e` release signoff does not cover
 Sidequest. Sidequest retains ownership of the next dev cut after current source
 SIGNOFF, final integrated gates and the provider approval/readback boundary.
+
+## Supervisor continuation — 05:28 UTC
+
+The current source head is `ce231ed65a5c842857a6739a973baeb5918511fb`;
+published main remains `55c9282c050627f6a7ea8dcfc0eb66ed0180f4fc`, and
+deployed source remains `e6aeb3b95f80f65fc781b54809aa757c6ad06995`.
+No additional push or dev apply has occurred. Names, domains, fresh testnet
+addresses and deployment ownership in this handoff remain the integration base.
+
+Independent review now records **VV2-030 Medium**, blocking the V1.1 release:
+webhook teardown failure can prevent hosted access revocation, and an in-flight
+subscription can insert after teardown. V1.1 owns the repair: revoke access
+authoritatively before best-effort teardown, and prevent insertion/delivery
+after revocation through a serialized authority check or durable tombstone.
+Include meaningful regression coverage of both reproduced cases; request
+independent re-review of the exact fix commit before the candidate gate.
+The current 122-test WS5, 56-test indexer and 65-test x402 review runs are
+local evidence, with no release SIGNOFF or live acceptance implied.
+
+The authoritative source hashes read directly from Git are:
+
+| Change | Exact source commit |
+| --- | --- |
+| Indexer progression/feed cap | `fd76d04485cd7945fc670577b8f6a41d3c6cd982` |
+| WS5 events/webhooks | `abe06ec6b720e692e784b1a172f31b4e7d59a0ee` |
+| WS7 x402 | `ef8512cb2ba75cba84e5da460c17831904e8a3b2` |
+| WS10 integration docs | `95cb047d1ff8e908a114079a5d46cbbf4a908a8c` |
+
+The review artifact's indexer and x402 full-SHA suffixes do not match Git;
+the reviewer must append corrected bindings before final SIGNOFF. Preserve
+the dated original entries rather than rewriting them.
+
+Read-only pane observations at 05:24 UTC show FINALIZE-UI still running rebase
+gates and keeping S5 drafts outside its worktree. Explore owns its P1b work,
+FINALIZE-UI integration and the eventual profile base-ready signal. Profile has
+begun its own Sidequest rebase and terminology work; it is no longer merely
+waiting. This does not establish base-ready or authorize overlapping integration.
+Its owner must coordinate the resulting rewritten profile files with Explore.
+All worktree/pane paths and pending edits remain intact.
+
+No occupied coordinator input was cleared or submitted. Stored notice operations
+remain uncertain independently of later explicit acknowledgements. The shared
+triage log and this committed handoff are the durable coordination route.
+Read-only legacy contract reconciliation continues; no transaction, provider
+retirement, key rotation or recovery-journal rewrite is performed by it.
+
+The next dev cut remains Sidequest-owned and waits for reviewed UI/V1.1 ranges,
+correct SHA-bound SIGNOFF, the final candidate gates, and the pending provider
+approval/readback. Real Privy login, authenticated MCP and managed signing
+remain separate unverified acceptance gates.

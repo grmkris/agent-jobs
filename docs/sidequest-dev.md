@@ -81,7 +81,9 @@ acknowledged the rename after resuming. The verified local
 [agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
 track heads, ownership and pending gates. GitHub is `grmkris/sidequest`, companion
 deliveries are `grmkris/sidequest-demo-deliveries`, and the shared origin points to
-the new repository. Local reset commits await the checked push candidate.
+the new repository. The reset and tested policy planner are published through
+`55c9282`; later local V1.1 commits await independent review and final integrated
+gates before publication or release.
 Physical checkout/worktree/tmux paths stay stable while their owners integrate.
 
 The read-only policy planner is
