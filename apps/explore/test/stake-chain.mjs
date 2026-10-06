@@ -1,6 +1,6 @@
 // Browser-only RPC double. The real SDK reads, conversions and ABI decoding run against this transport.
 import * as sdk from '@sidequest/sdk';
-import { createPublicClient, custom, erc20Abi, decodeFunctionData, toFunctionSelector, parseAbi, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
+import { createPublicClient, custom, erc20Abi, decodeFunctionData, toFunctionSelector, parseAbi, parseAbiParameters, decodeAbiParameters, encodeFunctionResult, encodeEventTopics, encodeAbiParameters } from 'viem';
 import { chainLatency } from './wagmi.mjs';
 import { chain, deployment } from '../src/wallet.ts';
 
@@ -43,8 +43,8 @@ export function answer({ functionName, address, args = [] }, historical = false)
     case 'nextDripAt': return s.faucetNext ?? 0n;
     // The SIDE/mUSD market at $0.0001 per SIDE (10,000 SIDE per mUSD), less the 0.3% pool fee.
     case 'getSlot0': return [7922816251426433759354395033600000000n, 0, 0, 3000];
-    case 'quoteExactIn': return args[1] ? [args[2], args[2] * 10n ** 16n * 997n / 1000n] : [args[2], args[2] / 10n ** 16n * 997n / 1000n];
-    case 'allowance': return s.marketAllowance ?? 0n;
+    case 'quoteExactInputSingle': return [marketOut(args[0].zeroForOne, args[0].exactAmount), 120_000n];
+    case 'allowance': return args.length === 3 ? [s.permit2Amount ?? 0n, s.permit2Expiration ?? 0, 0] : s.marketAllowance ?? 0n;
     case 'stakeAmount': return 1000n * 10n ** 18n;
     case 'paymentAmount': return 1000n * 10n ** 6n;
     case 'tokenURI': return 'data:application/json,' + encodeURIComponent(JSON.stringify({ name: window.__agents.find(agent => agent.agentId === String(args[0]))?.profile.name }));
@@ -53,9 +53,13 @@ export function answer({ functionName, address, args = [] }, historical = false)
 }
 const hash = '0x' + 'ab'.repeat(32);
 const dripSelector = toFunctionSelector('function drip(address)');
-const swapSelector = toFunctionSelector(sdk.v4SwapHelperAbi.find(item => item.type === 'function' && item.name === 'swapExactIn'));
+const executeSelector = toFunctionSelector('function execute(bytes,bytes[],uint256)');
+const permit2ApproveSelector = toFunctionSelector('function approve(address,address,uint160,uint48)');
 const stateViewAbi = parseAbi(['function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)']);
-const abis = [sdk.stakeVaultAbi, sdk.factoryV2Abi, sdk.feeScheduleAbi, sdk.identityAbi, sdk.testnetFaucetAbi, sdk.v4SwapHelperAbi, stateViewAbi, erc20Abi];
+const abis = [sdk.stakeVaultAbi, sdk.factoryV2Abi, sdk.feeScheduleAbi, sdk.identityAbi, sdk.testnetFaucetAbi, sdk.v4QuoterAbi, sdk.permit2Abi, stateViewAbi, erc20Abi];
+// mUSD sorts first on testnet: zero-for-one spends mUSD for SIDE at 10,000 SIDE per mUSD, less the 0.3% fee.
+const marketOut = (zeroForOne, amountIn) => zeroForOne ? amountIn * 10n ** 16n * 997n / 1000n : amountIn / 10n ** 16n * 997n / 1000n;
+const minHopSingle = parseAbiParameters('((address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) poolKey, bool zeroForOne, uint128 amountIn, uint128 amountOutMinimum, uint256 minHopPriceX36, bytes hookData)');
 function decode(data) {
   for (const abi of abis) {
     try { return { ...decodeFunctionData({ abi, data }), abi }; } catch { /* next ABI */ }
@@ -105,14 +109,23 @@ export function apply({ data }, logs = []) {
     for (const call of calls) apply({ data: call.callData }, logs);
     return;
   }
-  if (data.startsWith(swapSelector)) {
-    const { args } = decodeFunctionData({ abi: sdk.v4SwapHelperAbi, data });
-    const [, zeroForOne, amountIn, minOut] = args;
-    const out = answer({ functionName: 'quoteExactIn', args: [null, zeroForOne, amountIn] })[1];
-    if (out < minOut) throw new Error('TooLittleReceived');
-    // mUSD sorts first on testnet: zero-for-one spends mUSD for SIDE.
+  if (data.startsWith(executeSelector)) {
+    const { args } = decodeFunctionData({ abi: sdk.universalRouterAbi, data });
+    if (args[0] !== '0x10') throw new Error('Fixture router runs V4_SWAP only');
+    const [actions, params] = decodeAbiParameters([{ type: 'bytes' }, { type: 'bytes[]' }], args[1][0]);
+    if (actions !== '0x060c0f') throw new Error('Fixture router expects SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL');
+    const [{ zeroForOne, amountIn, amountOutMinimum }] = decodeAbiParameters(minHopSingle, params[0]);
+    if ((s.permit2Amount ?? 0n) < amountIn) throw new Error('Permit2 allowance too low');
+    const out = marketOut(zeroForOne, amountIn);
+    if (out < amountOutMinimum) throw new Error('V4TooLittleReceived');
     if (zeroForOne) { s.reward = (s.reward ?? 25_000_000n) - amountIn; s.wallet += out; } else { s.wallet -= amountIn; s.reward = (s.reward ?? 25_000_000n) + out; }
-    s.calls.push({ functionName: 'swapExactIn', args: [String(zeroForOne), String(amountIn), String(minOut)] });
+    s.calls.push({ functionName: 'swap', args: [String(zeroForOne), String(amountIn), String(amountOutMinimum)] });
+    return;
+  }
+  if (data.startsWith(permit2ApproveSelector)) {
+    const { args } = decodeFunctionData({ abi: sdk.permit2Abi, data });
+    s.permit2Amount = args[2]; s.permit2Expiration = args[3];
+    (s.permit2Calls ??= []).push({ token: args[0], spender: args[1], amount: String(args[2]) });
     return;
   }
   if (data.startsWith(dripSelector)) {

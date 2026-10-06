@@ -52,19 +52,6 @@ try {
     console.log(JSON.stringify({ funded: '10000000 SIDE', hash: funded.hash, block: funded.block }))
     config.deployment.testnetFaucet = getAddress(faucet)
     writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
-  } else if (process.argv[2] === 'swap-helper') {
-    // Explore's testnet Buy: Monad testnet has no Uniswap UniversalRouter or V4Quoter, so a small exact-input helper
-    // swaps against the seeded SIDE/mUSD v4 pool (script/SeedPool.s.sol). It holds nothing and has no owner.
-    const config = JSON.parse(readFileSync('contracts/config/monad-testnet.json', 'utf8'))
-    const poolManager = config.liquidity.uniswapV4.poolManager
-    const artifact = JSON.parse(readFileSync('contracts/out/V4SwapHelper.sol/V4SwapHelper.json', 'utf8'))
-    const data = concatHex([artifact.bytecode.object, encodeAbiParameters(parseAbiParameters('address'), [poolManager])])
-    const deployed = await testnetOperation({ id: 'swap-helper-deploy-20261006', key: 'SIDEQUEST_DEV_CREATOR_PRIVATE_KEY', data, gas: 950_000n, env })
-    const helper = deployed.receipt.contractAddress
-    if (!helper || await client.readContract({ address: helper, abi: parseAbi(['function poolManager() view returns (address)']), functionName: 'poolManager' }) !== poolManager) throw new Error('swap-helper-readback-mismatch')
-    console.log(JSON.stringify({ helper, hash: deployed.hash, block: deployed.block }))
-    config.liquidity.swapHelper = getAddress(helper)
-    writeFileSync('contracts/config/monad-testnet.json', JSON.stringify(config, null, 2) + '\n')
   } else if (process.argv[2] === 'safe') {
     for (const target of Object.values(infra.safeInfrastructure)) {
       if (!await client.getCode({ address: target })) throw new Error('safe-infrastructure-missing')
@@ -86,7 +73,7 @@ try {
     const record = { chainId: 10143, safe, owners, threshold: 1, version, hash: result.hash, block: result.block }
     writeFileSync('.sidequest/safe.json', JSON.stringify(record, null, 2) + '\n', { mode: 0o600 })
     console.log(JSON.stringify(record))
-  } else throw new Error('use-fund-safe-rewards-faucet-or-swap-helper')
+  } else throw new Error('use-fund-safe-rewards-or-faucet')
 } catch (error) {
   console.error(error instanceof Error && /^[a-z0-9-]+$/.test(error.message) ? error.message : 'testnet-setup-failed-inspect-private-journal')
   process.exitCode = 1

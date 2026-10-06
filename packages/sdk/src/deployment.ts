@@ -139,8 +139,7 @@ export interface Deployment {
   readonly testnetFaucet: Address | null
   /**
    * The SIDE market Explore's Buy swaps through: the Uniswap v4 SIDE/quote pool the liquidity seed created (config
-   * `liquidity`), and what swaps on it — `V4SwapHelper` on testnet, Uniswap's UniversalRouter and V4Quoter on mainnet.
-   * Null where no pool or no swapper is configured.
+   * `liquidity`), traded through Uniswap's UniversalRouter and V4Quoter. Null until the config names both.
    */
   readonly market: Market | null
   /** The block the recipe deployed at: where an indexer starts and a rebuild restarts. */
@@ -164,17 +163,20 @@ export interface Market {
   readonly poolManager: Address
   readonly stateView: Address
   readonly permit2: Address
-  readonly swapper:
-    | { readonly kind: 'helper'; readonly helper: Address }
-    | { readonly kind: 'router'; readonly universalRouter: Address; readonly quoter: Address }
+  readonly universalRouter: Address
+  readonly quoter: Address
+  /**
+   * Whether the router's ExactInputSingleParams has `minHopPriceX36` before `hookData` (newer v4-periphery; Monad
+   * testnet's router). Config `liquidity.uniswapV4.minHopPrice`.
+   */
+  readonly minHopPrice: boolean
 }
 
 interface LiquidityConfig {
-  uniswapV4: { poolManager: string; positionManager: string; permit2: string; stateView: string; universalRouter?: string; quoter?: string }
+  uniswapV4: { poolManager: string; positionManager: string; permit2: string; stateView: string; universalRouter?: string; quoter?: string; minHopPrice?: boolean }
   quote: string
   fee: number
   tickSpacing: number
-  swapHelper?: string
 }
 
 export interface DeploymentConfig {
@@ -300,7 +302,7 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
     relay: c.roles.relay as Address,
     x402: c.x402 === undefined ? null : { usdc: c.x402.usdc as Address, facilitator: c.x402.facilitator },
     testnetFaucet: d.testnetFaucet === undefined || c.chainId === 143 ? null : (d.testnetFaucet as Address),
-    market: marketFromConfig(d.factory as Address, c.chainId, c.liquidity),
+    market: marketFromConfig(d.factory as Address, c.liquidity),
     deployBlock: BigInt(d.block ?? 0),
   }
 }
@@ -310,21 +312,16 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
  * @param name The window set.
  * @throws Error when that stack is not deployed on this network (mainnet has no "demo").
  */
-function marketFromConfig(side: Address, chainId: number, l: LiquidityConfig | undefined): Market | null {
+function marketFromConfig(side: Address, l: LiquidityConfig | undefined): Market | null {
   if (l === undefined || !validAddress(l.quote)) return null
   const v4 = l.uniswapV4
-  const swapper: Market['swapper'] | null =
-    l.swapHelper !== undefined && chainId !== 143
-      ? { kind: 'helper', helper: l.swapHelper as Address }
-      : v4.universalRouter !== undefined && v4.quoter !== undefined
-        ? { kind: 'router', universalRouter: v4.universalRouter as Address, quoter: v4.quoter as Address }
-        : null
-  if (swapper === null) return null
+  if (!validAddress(v4.universalRouter) || !validAddress(v4.quoter)) return null
   const quote = l.quote as Address
   const [currency0, currency1] = side.toLowerCase() < quote.toLowerCase() ? [side, quote] : [quote, side]
   const key: PoolKey = { currency0, currency1, fee: l.fee, tickSpacing: l.tickSpacing, hooks: zeroAddress }
   const poolId = keccak256(encodeAbiParameters(parseAbiParameters('address, address, uint24, int24, address'), [currency0, currency1, l.fee, l.tickSpacing, zeroAddress]))
-  return { key, poolId, side, quote, poolManager: v4.poolManager as Address, stateView: v4.stateView as Address, permit2: v4.permit2 as Address, swapper }
+  return { key, poolId, side, quote, poolManager: v4.poolManager as Address, stateView: v4.stateView as Address, permit2: v4.permit2 as Address,
+    universalRouter: v4.universalRouter, quoter: v4.quoter, minHopPrice: v4.minHopPrice === true }
 }
 
 export function stack(d: Deployment, name: StackName): Stack {

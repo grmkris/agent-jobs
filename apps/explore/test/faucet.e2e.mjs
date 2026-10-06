@@ -43,12 +43,15 @@ try {
     await page.screenshot({ path: `${output}/${name}-buy-side.png`, fullPage: true });
     await page.getByRole('button', { name: 'Review swap', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
-    await page.getByRole('button', { name: 'Confirm step 2 of 2', exact: true }).click();
-    await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
+    for (const step of ['Confirm step 2 of 3', 'Confirm step 3 of 3']) {
+      await page.getByRole('button', { name: step, exact: true }).click();
+      await page.getByRole('button', { name: 'Confirm fixture', exact: true }).click();
+    }
     await status(page, 'Bought SIDE');
-    const [approval, swap] = await page.evaluate(() => [window.__stake.approvalCalls.at(-1), window.__stake.calls.at(-1)]);
+    const [approval, permit, swap] = await page.evaluate(() => [window.__stake.approvalCalls.at(-1), window.__stake.permit2Calls.at(-1), window.__stake.calls.at(-1)]);
     assert.equal(approval.amount, '10000000');
-    assert.deepEqual(swap, { functionName: 'swapExactIn', args: ['true', '10000000', String(99_700n * 10n ** 18n * 99n / 100n)] });
+    assert.equal(permit.amount, '10000000');
+    assert.deepEqual(swap, { functionName: 'swap', args: ['true', '10000000', String(99_700n * 10n ** 18n * 99n / 100n)] });
     assert.equal(await page.evaluate(() => String(window.__stake.reward)), '15000000');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name}: horizontal overflow`);
     await context.close();
