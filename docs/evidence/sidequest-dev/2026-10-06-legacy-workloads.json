@@ -1,0 +1,303 @@
+{
+  "observedAt": "2026-10-06T04:35:19.318927Z",
+  "tier": "live-verified-local-docker-and-monad-testnet-readback",
+  "scope": "Reversible stop of old Hireling local workers during Sidequest dev cutover; all containers, journals, state, artifacts, and frozen source mounts retained.",
+  "stopCommand": "docker stop --time 45 hireling-crew-grok hireling-crew-grok-studio hireling-crew-demand",
+  "stopExitCode": 0,
+  "dockerReadbackAt": "2026-10-06T04:35:02Z",
+  "containers": [
+    {
+      "name": "hireling-crew-grok",
+      "containerId": "977fbfe40e600b32ffa343ab155c83de822adc7c2a5454d8f6783a5e88e83451",
+      "image": "aj-worker:latest",
+      "beforeStatus": "running",
+      "afterStatus": "exited",
+      "exitCode": 0,
+      "startedAt": "2026-10-06T01:24:31.813278295Z",
+      "finishedAt": "2026-10-06T04:34:38.365407751Z",
+      "restartPolicy": "unless-stopped",
+      "containerRetained": true,
+      "sourceMount": {
+        "source": "/home/kristjan/code/agent-jobs.wt/harness/.crew/source/217b30993b5f7798ebb49badb2044f70dda2bf48",
+        "destination": "/workspace",
+        "readOnly": true
+      },
+      "stateMount": {
+        "source": "/home/kristjan/code/agent-jobs.wt/harness/.crew/canvas",
+        "destination": "/state",
+        "readOnly": false
+      },
+      "journal": {
+        "path": "/home/kristjan/code/agent-jobs.wt/harness/.crew/canvas/journal.json",
+        "retained": true,
+        "sha256": "6c9b638b0f34438f1924a3490ef14d0209bd59f6611cc7788095d6d022cd6ec1",
+        "recordedSends": 18,
+        "recordedReceipts": 18,
+        "unmatchedSends": []
+      },
+      "statusUpdatedAt": "2026-10-06T04:34:38.349Z",
+      "workers": [
+        {
+          "name": "Grok Canvas",
+          "agentId": "1994",
+          "utcDay": "2026-10-06",
+          "dailyReservations": {
+            "quotes": [],
+            "deliveries": []
+          },
+          "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+          "lastHeartbeat": 1791261278338,
+          "requests": [
+            {
+              "requestId": "fbf0e1288716ad34",
+              "phase": "lost",
+              "taskId": null,
+              "quoteId": "008f2a7d776e1a97",
+              "error": null
+            },
+            {
+              "requestId": "cd18461fbaf7719c",
+              "phase": "completed",
+              "taskId": "725fb5012a7048d2",
+              "quoteId": "f8f6484bcc5b75c2",
+              "error": null
+            },
+            {
+              "requestId": "43682d0b4306da33",
+              "phase": "completed",
+              "taskId": "696836e5c2feab86",
+              "quoteId": "3d70718abf077123",
+              "error": null
+            },
+            {
+              "requestId": "7b1c0ea597a43e9e",
+              "phase": "completed",
+              "taskId": "998c762b40386cf2",
+              "quoteId": "7c9b9053be4f8562",
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hireling-crew-grok-studio",
+      "containerId": "a3662371cb9a041a6436e17a35504f081d3649815cab08b4176f96de851ae814",
+      "image": "aj-worker:latest",
+      "beforeStatus": "running",
+      "afterStatus": "exited",
+      "exitCode": 0,
+      "startedAt": "2026-10-06T01:24:32.14663687Z",
+      "finishedAt": "2026-10-06T04:34:38.283543815Z",
+      "restartPolicy": "unless-stopped",
+      "containerRetained": true,
+      "sourceMount": {
+        "source": "/home/kristjan/code/agent-jobs.wt/harness/.crew/source/217b30993b5f7798ebb49badb2044f70dda2bf48",
+        "destination": "/workspace",
+        "readOnly": true
+      },
+      "stateMount": {
+        "source": "/home/kristjan/code/agent-jobs.wt/harness/.crew/studio",
+        "destination": "/state",
+        "readOnly": false
+      },
+      "journal": {
+        "path": "/home/kristjan/code/agent-jobs.wt/harness/.crew/studio/journal.json",
+        "retained": true,
+        "sha256": "8ebd53715e72e61ad1c6b784f3071cda208fa55217bc9a5961d77d284185ccb6",
+        "recordedSends": 12,
+        "recordedReceipts": 12,
+        "unmatchedSends": []
+      },
+      "statusUpdatedAt": "2026-10-06T04:34:38.271Z",
+      "workers": [
+        {
+          "name": "Grok Studio",
+          "agentId": "1995",
+          "utcDay": "2026-10-06",
+          "dailyReservations": {
+            "quotes": [],
+            "deliveries": []
+          },
+          "wallet": "0x61feBCF3ef02c3B1D643cf6A1915155a773F7878",
+          "lastHeartbeat": 1791261278265,
+          "requests": [
+            {
+              "requestId": "fbf0e1288716ad34",
+              "phase": "lost",
+              "taskId": null,
+              "quoteId": "2fe3863a1374250d",
+              "error": null
+            },
+            {
+              "requestId": "cd18461fbaf7719c",
+              "phase": "lost",
+              "taskId": "725fb5012a7048d2",
+              "quoteId": "7adbf03a5bdc3158",
+              "error": null
+            },
+            {
+              "requestId": "43682d0b4306da33",
+              "phase": "lost",
+              "taskId": "696836e5c2feab86",
+              "quoteId": "d52015fad2e65fc5",
+              "error": null
+            },
+            {
+              "requestId": "7b1c0ea597a43e9e",
+              "phase": "lost",
+              "taskId": "998c762b40386cf2",
+              "quoteId": "94d2780bd775d3bd",
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hireling-crew-demand",
+      "containerId": "5c8e4f322e4691673fa8c532ade9cc660282dd6a5fe93f5739e4e824a80f3b26",
+      "image": "aj-worker:latest",
+      "beforeStatus": "running",
+      "afterStatus": "exited",
+      "exitCode": 0,
+      "startedAt": "2026-10-05T22:55:32.484149382Z",
+      "finishedAt": "2026-10-06T04:34:54.809237119Z",
+      "restartPolicy": "unless-stopped",
+      "containerRetained": true,
+      "sourceMount": {
+        "source": "/home/kristjan/code/agent-jobs/.crew/demand-source/884d030ceeb19d4f80f8fa2e7e0b988626f8d36d",
+        "destination": "/workspace",
+        "readOnly": true
+      },
+      "stateMount": {
+        "source": "/home/kristjan/code/agent-jobs/.crew/demand",
+        "destination": "/state",
+        "readOnly": false
+      },
+      "journal": {
+        "path": "/home/kristjan/code/agent-jobs/.crew/demand/journal.json",
+        "retained": true,
+        "sha256": "f52c95324d2487461e971ecb167a1cd0b54d13ecb25f7b1e27a387b80a18f0bc",
+        "recordedSends": 10,
+        "recordedReceipts": 9,
+        "unmatchedSends": [
+          {
+            "operation": "demand-4/collect/0",
+            "hash": "0x282b1e4ce139d871aafecdad1125df7e7fe2b5283361114a952895612298b3c3",
+            "nonce": 7,
+            "wallet": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae"
+          }
+        ]
+      },
+      "statusUpdatedAt": "2026-10-06T04:34:47.350Z",
+      "running": false,
+      "operations": [
+        {
+          "id": "demand-0",
+          "kind": "image",
+          "requestId": "fbf0e1288716ad34",
+          "taskId": "5b6bb5e461f9e85f",
+          "reward": "3",
+          "selected": false,
+          "closed": "abandoned",
+          "review": "C2-LIVE-FIX: expired quote, verified no chain effect; never republish"
+        },
+        {
+          "id": "demand-1",
+          "kind": "code",
+          "requestId": "e003ecef5cf66ce5",
+          "selected": false,
+          "closed": "no-valid-quotes"
+        },
+        {
+          "id": "demand-2",
+          "kind": "image",
+          "requestId": "43682d0b4306da33",
+          "taskId": "696836e5c2feab86",
+          "jobId": "130",
+          "reward": "3",
+          "selected": true,
+          "closed": "approved",
+          "review": "automated-check-passed"
+        },
+        {
+          "id": "demand-3",
+          "kind": "code",
+          "requestId": "d423b08d258de03f",
+          "selected": false,
+          "closed": "no-valid-quotes"
+        },
+        {
+          "id": "demand-4",
+          "kind": "image",
+          "requestId": "7b1c0ea597a43e9e",
+          "taskId": "998c762b40386cf2",
+          "jobId": "131",
+          "reward": "3",
+          "selected": true,
+          "closed": "approved",
+          "review": "automated-check-passed"
+        }
+      ],
+      "committedMUsd": "0",
+      "reservedMUsd": "0"
+    }
+  ],
+  "legacyBinding": {
+    "boardUrl": "https://testnet.hireling.xyz",
+    "chainId": 10143,
+    "core": "0x8BFFD7CCB6435b95f7c50ec451a024127b73be9D",
+    "holding": "0xA3C73f08de9EDB25D9b79623BbE6C824F1DDc667",
+    "evaluator": "0x593D5AbB4E8Bd7244078f655d964089931BF0f1F"
+  },
+  "chainReadback": {
+    "rpc": "https://testnet-rpc.monad.xyz",
+    "observedAt": "2026-10-06T04:35:19.318927Z",
+    "chainId": 10143,
+    "blockNumber": "68592448",
+    "transactionHash": "0x282b1e4ce139d871aafecdad1125df7e7fe2b5283361114a952895612298b3c3",
+    "receipt": null,
+    "transaction": null,
+    "nonces": [
+      {
+        "wallet": "0x2a90CA4fF318CDDa5e740678e7cC21e943fCA4ae",
+        "latest": 7,
+        "pending": 7
+      },
+      {
+        "wallet": "0x4d858f77F6C9065fFBcF129aC631b190f41feFC2",
+        "latest": 11,
+        "pending": 11
+      },
+      {
+        "wallet": "0x61feBCF3ef02c3B1D643cf6A1915155a773F7878",
+        "latest": 3,
+        "pending": 3
+      }
+    ]
+  },
+  "unresolved": {
+    "operation": "demand-4/collect/0",
+    "taskId": "998c762b40386cf2",
+    "jobId": "131",
+    "journalRecordedState": "approved",
+    "signedIntentRetained": true,
+    "signedBytesPublished": false,
+    "receiptRecorded": false,
+    "settledAtRecorded": false,
+    "latestRetryObservedAt": "2026-10-06T04:33:47.086Z",
+    "retryError": "demand_step_failed",
+    "assessment": "Signed nonce 7 collect intent remains unresolved. This RPC currently reports neither transaction nor receipt and latest equals pending equals 7; this proves no visible pending transaction here, not global absence or safe deletion. Do not remove the demand container or journal, re-sign, revoke keys, or claim full economic retirement."
+  },
+  "followUp": "Existing crew owner must reconcile the exact saved collect hash, nonce, legacy job #131 and Holding state before any rebroadcast or replacement. Keep all three containers stopped during the Sidequest dev cutover.",
+  "actionsNotPerformed": [
+    "container removal",
+    "journal or artifact deletion",
+    "key revocation",
+    "transaction signing",
+    "transaction broadcast",
+    "Sidequest crew restart",
+    "mainnet action"
+  ]
+}

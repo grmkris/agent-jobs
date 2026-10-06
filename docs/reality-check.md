@@ -1246,3 +1246,20 @@ provider setting was changed by these attempts.
 [Sanitized live evidence](evidence/sidequest-dev/2026-10-06-live.json) and
 [the dev runbook](sidequest-dev.md) capture these boundaries. No browser wallet
 transaction, paid-work acceptance or mainnet operation is claimed.
+
+**04:35 UTC continuation:** canonical public health, release, jobs, directory,
+OAuth discovery, setup and assets were rechecked successfully. The indexer
+checkpoint advanced to `68592054`; the fresh index remains empty. See
+[the public recheck](evidence/sidequest-dev/2026-10-06-public-recheck.json).
+
+The old local crew containers `hireling-crew-grok`, `hireling-crew-grok-studio`
+and `hireling-crew-demand` were deliberately stopped with exit code 0. Containers,
+journals, artifacts and frozen sources remain intact. Demand's legacy job 131
+still has an unresolved signed Collect intent (`demand-4/collect/0`, nonce 7).
+At block 68592448 the public Monad testnet RPC returned null transaction/receipt
+for its saved hash and latest/pending nonce 7. No rebroadcast, replacement,
+signature, key revocation or container removal occurred. This establishes a
+reversible workload stop, not complete economic retirement; the crew owner must
+reconcile the original intent and chain settlement before proceeding.
+[Workload evidence](evidence/sidequest-dev/2026-10-06-legacy-workloads.json)
+records journal hashes, mounts, stop timestamps and the unresolved operation.

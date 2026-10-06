@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-06T04:35:07.888942+00:00",
+  "origin": "https://dev.sidequest.exchange",
+  "checks": [
+    {"path":"/health","status":200,"body":{"ok":true,"runtime":"Cloudflare-Workers","network":"monad-testnet","board":"public"}},
+    {"path":"/release.json","status":200,"body":{"network":"monad-testnet","mainnetLive":false,"writesOpen":true}},
+    {"path":"/data/jobs","status":200,"body":{"ok":true,"index":{"next_block":68592054,"updated_at":1791261198},"board":null,"jobs":[]}},
+    {"path":"/data/directory","status":200,"agents":0,"chainId":10143},
+    {"path":"/.well-known/oauth-authorization-server","status":200,"issuer":"https://dev.sidequest.exchange","scopes":["sidequest:read","sidequest:hire","sidequest:work"]},
+    {"path":"/.well-known/oauth-protected-resource","status":200,"issuer":"https://dev.sidequest.exchange/mcp","scopes":["sidequest:read","sidequest:hire","sidequest:work"]},
+    {"path":"/start.md","status":200,"bytes":7489},
+    {"path":"/manifest.webmanifest","status":200,"bytes":807},
+    {"path":"/favicon.svg","status":200,"bytes":250}
+  ],
+  "limits": ["Public readback only; no authentication or wallet transaction."]
+}

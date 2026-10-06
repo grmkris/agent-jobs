@@ -125,6 +125,29 @@ local handoff for the supervisor/coordinators to read after quota returns.
 Record an explicit acknowledgement with owned paths, pending integration and
 economic sends before repository moves or old-resource retirement.
 
+## Overnight supervisor readback — 06 October 2026, 04:35 UTC
+
+The canonical public development URL was rechecked after the initial release. `/health`,
+`/release.json`, `/data/jobs`, `/data/directory`, both OAuth discovery documents,
+`/start.md`, `manifest.webmanifest` and `favicon.svg` returned successfully. The
+indexer checkpoint advanced to `68592054`; the fresh index remains empty. The
+sanitized receipt is [the public recheck](evidence/sidequest-dev/2026-10-06-public-recheck.json).
+
+The three old local crew containers were stopped cleanly with exit code 0 and retained
+with their journals, source mounts and artifacts. Canvas and Studio have no unmatched
+sends. Demand retains the unresolved `demand-4/collect/0` signed intent for legacy job
+131 (nonce 7, saved hash prefix `0x282b…b3c3`); the testnet RPC readback still shows no
+transaction or receipt and latest/pending nonce 7. This is a hold on removal or any
+rebroadcast, not proof of full economic retirement. See [legacy workload evidence](evidence/sidequest-dev/2026-10-06-legacy-workloads.json).
+
+Privy was not changed: the dashboard still shows the old app identity and the
+shared-browser tab did not reach a settings form. The recorded origin blocker
+remains open. Real login and
+authenticated MCP remain unverified. The `%14`, `%13`, `%20` notice operations remain
+`delivery: unknown`; `%35` remains `notDispatched`. The committed handoff is therefore
+the verified local coordination record, with no acknowledgement claimed. No pane was restarted, interrupted or
+cleared. FINALIZE-UI S4, profile and V1.1 worktrees remain under their existing owners.
+
 ## Remaining gates and release procedure
 
 1. **Privy:** app `cmui9skoc01zr0dl03tyahirs` still has the prior name/origins;
@@ -140,11 +163,13 @@ economic sends before repository moves or old-resource retirement.
    `pnpm db:generate --check`; review `dev-release.mjs plan` before applying.
    The runner deploys committed exports and excludes the four known foreign
    dirty paths. Do not update the historical staging stack or transplant state.
-4. **Retirement:** inventory old crew/workloads and reconcile original
+4. **Retirement:** the three old local crew containers are now stopped and retained.
+   The crew owner must reconcile legacy job 131's saved Collect intent before any
+   rebroadcast or removal. Continue inventorying old provider workloads and reconcile original
    operation journals, pending transactions, jobs, reservations, deferred
    settlements, owed payments and grants. Then stop/revoke/remove the reviewed
-   old workloads; preserve dated chain/provider receipts. Retirement is pending,
-   not complete. Do not re-enable old workers against the fresh Sidequest keys.
+   old provider workloads; preserve dated chain/provider receipts. Full economic
+   retirement remains pending. Do not re-enable old workers against the fresh Sidequest keys.
 5. **Repository move:** coordinate worktree owners first, then rename the
    GitHub repository and physical checkout/tmux mapping, with a verified
    readback. No path move or remote rename is claimed here.

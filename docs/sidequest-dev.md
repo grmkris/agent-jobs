@@ -66,6 +66,12 @@ Existing testnet keys exposed in an earlier diagnostic are treated as compromise
 new Sidequest uses fresh keys, and old keys are retained solely for deliberate
 reconciliation until their authorities can be removed safely.
 
+The three old local crew containers were stopped at 04:34 UTC on 6 October,
+with containers and journals retained. Legacy demand job 131 has an unresolved
+saved Collect intent; its owner must reconcile it before broadcasting or removing
+state. [Stop evidence](evidence/sidequest-dev/2026-10-06-legacy-workloads.json)
+records the exact boundary. Old provider-resource retirement remains pending.
+
 Rename notices were attempted before overlapping edits; the stored mytmux
 receipts do not prove delivery or acknowledgement. The verified local
 [agent handoff](sidequest-agent-handoff-2026-10-06.md) records exact operations,
