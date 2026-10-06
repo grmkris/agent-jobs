@@ -1,0 +1,55 @@
+{
+  "observedAt": "2026-10-06T06:06:31.093536+00:00",
+  "origin": "https://dev.sidequest.exchange",
+  "evidenceTier": "anonymous-public-readback",
+  "checks": [
+    {
+      "path": "/health",
+      "passed": true,
+      "readback": {
+        "ok": true,
+        "network": "monad-testnet"
+      }
+    },
+    {
+      "path": "/release.json",
+      "passed": true,
+      "readback": {
+        "network": "monad-testnet",
+        "mainnetLive": false,
+        "writesOpen": true
+      }
+    },
+    {
+      "path": "/data/jobs",
+      "passed": true,
+      "readback": {
+        "keys": [
+          "board",
+          "index",
+          "jobs",
+          "ok"
+        ],
+        "jobsCount": 0
+      }
+    },
+    {
+      "path": "/.well-known/oauth-protected-resource",
+      "passed": true,
+      "readback": {
+        "resource": "https://dev.sidequest.exchange/mcp",
+        "authorization_servers": [
+          "https://dev.sidequest.exchange"
+        ],
+        "scopes_supported": [
+          "sidequest:read",
+          "sidequest:hire",
+          "sidequest:work"
+        ]
+      }
+    }
+  ],
+  "noProviderMutation": true,
+  "noAuthentication": true,
+  "noEconomicOperation": true
+}
