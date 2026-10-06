@@ -1,0 +1,117 @@
+{
+ "observedAt": "2026-10-06T20:13:55.989648+00:00",
+ "sourceCommit": "c7da8ba443c7fdd92c00b8eb3ab81a3cc4727b38",
+ "sourceTree": "60626dd11733dea77451d96667995d9b31b7c1e3",
+ "deployedAt": "2026-10-06T20:12:35.009Z",
+ "finishedAt": "2026-10-06T20:13:33.912Z",
+ "origin": "https://dev.sidequest.exchange",
+ "chainId": 10143,
+ "evidenceTier": "live-dev-guarded-runner-and-anonymous-readback",
+ "runner": {
+  "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
+  "planPassed": true,
+  "exitCode": 0,
+  "operation": "update",
+  "status": "deployed"
+ },
+ "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
+ "newMigration": false,
+ "gates": {
+  "heavy pnpm check": "passed on c7da8ba by V11 (/tmp/v11-gates/like-check.log, 0 fail, 22:11 CEST)",
+  "heavy pnpm sidequest:test": "9 passed",
+  "heavy pnpm db:generate --check": "passed"
+ },
+ "contents": "root cause of the approved-hire retry failure: Cloudflare SQLite refuses LIKE patterns over 50 bytes; step-prefix lookups now use substr(name,1,?)=? (agent-executor, agent-grant-renewal, agent-lifecycle) with a regression test",
+ "publicReadback": {
+  "observedAt": "2026-10-06T20:13:55.989648+00:00",
+  "origin": "https://dev.sidequest.exchange",
+  "evidenceTier": "live-dev-anonymous-readback",
+  "publicChecks": [
+   {
+    "path": "/health",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/release.json",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/.well-known/oauth-protected-resource",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/.well-known/oauth-authorization-server",
+    "method": "GET",
+    "status": 200,
+    "anonymous": true
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "initialize"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "server/discover"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "resources/read"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "skills/list"
+   },
+   {
+    "path": "/mcp",
+    "method": "POST",
+    "status": 401,
+    "anonymous": true,
+    "rpcMethod": "tools/list"
+   }
+  ],
+  "health": {
+   "ok": true,
+   "runtime": "Cloudflare-Workers",
+   "network": "monad-testnet",
+   "board": "public"
+  },
+  "release": {
+   "network": "monad-testnet",
+   "mainnetLive": false,
+   "writesOpen": true
+  },
+  "oauth": {
+   "issuer": "https://dev.sidequest.exchange",
+   "resource": "https://dev.sidequest.exchange/mcp",
+   "scopes": [
+    "sidequest:read",
+    "sidequest:hire",
+    "sidequest:work"
+   ]
+  },
+  "authenticatedCapabilities": "not-verified; discovery requires OAuth",
+  "hostAcceptance": "not-verified"
+ },
+ "noAuthentication": true,
+ "noHostConnection": true,
+ "noTransactions": true,
+ "releasedBy": "Claude coordinator pane agent-jobs:0.1 at V11's READY-FOR-DEV-CUT request"
+}
