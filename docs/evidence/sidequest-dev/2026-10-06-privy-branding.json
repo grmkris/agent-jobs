@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-06T06:15:00Z",
+  "provider": "Privy dashboard",
+  "applicationId": "cmui9skoc01zr0dl03tyahirs",
+  "surface": "UI components / Branding",
+  "operation": "narrow branding update",
+  "before": {
+    "displayName": "monad-hack-agent-job",
+    "color": "#696FFD",
+    "logo": "not configured"
+  },
+  "after": {
+    "displayName": "Sidequest",
+    "color": "#124230",
+    "logo": "https://dev.sidequest.exchange/icons/icon-512.png"
+  },
+  "readback": {
+    "snapshotTitle": "UI components · Sidequest",
+    "logoPreview": "visible",
+    "iconSha256": "80598df77483a51794972c63b94331d2a6fcd221094295e6291010ec5172ef6e"
+  },
+  "scope": "Branding only; no credentials, policies, keys, wallets, origins, redirects or authority changed.",
+  "evidenceTier": "authenticated provider UI save plus immediate snapshot readback",
+  "notes": [
+    "The exact icon bytes matched apps/explore/public/icons/icon-512.png.",
+    "A redundant browser reload afterwards hit an extension-offline error; it is not used as save evidence."
+  ]
+}

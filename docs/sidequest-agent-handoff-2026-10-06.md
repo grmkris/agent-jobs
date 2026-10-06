@@ -548,3 +548,21 @@ release SIGNOFF is claimed. The supervisor will manually check coordination.
 Profile's owner posted the `2cc69b6` full `heavy pnpm check` exit 0 at 06:06 UTC.
 Explore posted P1b scoped gates passing and retains its S5-first landing order.
 Do not bypass its explicit base-ready signal or submit any occupied composer.
+
+## Privy branding readback — 06 October 2026, 06:15 UTC
+
+The authorized narrow branding update was saved in the existing Privy app
+`cmui9skoc01zr0dl03tyahirs`: display name `Sidequest`, color `#124230`, and
+logo `https://dev.sidequest.exchange/icons/icon-512.png`. The immediate dashboard
+snapshot changed the page title to `UI components · Sidequest`, displayed the
+Sidequest name and evergreen color, and showed the logo preview. The URL's PNG
+matched `apps/explore/public/icons/icon-512.png` byte-for-byte
+(`80598df77483a51794972c63b94331d2a6fcd221094295e6291010ec5172ef6e`).
+Sanitized evidence is
+[`2026-10-06-privy-branding.json`](evidence/sidequest-dev/2026-10-06-privy-branding.json).
+
+This was branding only. No credentials, policies, keys, wallets, origins,
+redirects or authority changed. A redundant browser reload later reported an
+extension-offline error; that failed observation does not override the
+successful post-save snapshot readback. Real OAuth login, authenticated MCP,
+managed signing, credential rotation and isolated policy authority remain open.

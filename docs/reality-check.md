@@ -1361,3 +1361,10 @@ three Sidequest scopes were advertised. The sanitized receipt is
 This is public read-only evidence only. The Node 24 `dev:preflight` also passed
 in `update` mode for committed tree `22776f1`; no apply, provider mutation,
 authentication, signing or economic operation followed.
+
+**6 October 2026, 06:15 UTC Privy branding:** the existing dev app's branding
+was updated through the authenticated dashboard to display `Sidequest`, use
+evergreen `#124230`, and load the deployed Sidequest icon. The immediate
+snapshot readback showed the new title and logo preview; no credentials,
+policies, keys, wallets, origins, redirects or authority were changed.
+[Sanitized receipt](evidence/sidequest-dev/2026-10-06-privy-branding.json).
