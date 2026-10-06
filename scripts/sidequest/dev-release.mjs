@@ -111,7 +111,7 @@ async function main() {
   const verifiedLocalEnv = parseEnv(readFileSync(resolve(repo, '.env.local'), 'utf8'))
   const verifiedAuthority = loadDevAuthority(repo, verifiedLocalEnv)
   if (hash(localEnv.PRIVY_APP_SECRET ?? '') !== hash(verifiedLocalEnv.PRIVY_APP_SECRET ?? '') || JSON.stringify(devAuthority) !== JSON.stringify(verifiedAuthority)) throw new Error('sidequest-dev-authority-changed-during-readback')
-  for (const source of [process.env, localEnv]) {
+  for (const source of [process.env, verifiedLocalEnv]) {
     if (Object.keys(source).some(name => name.startsWith('DISTILLED_DEBUG'))) throw new Error('provider-debug-env-refused')
     if (source.ALCHEMY_REMOTE_STATE === '1' || source.ALCHEMY_STATE_MODE === 'remote') throw new Error('remote-state-refused')
   }

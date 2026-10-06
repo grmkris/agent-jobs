@@ -622,7 +622,7 @@ The legacy policy `s06i5eramn0plwdunkvxf8aj`, legacy routine quorum
 `qetyy57hy4cc69q8xjonwlc3`, and policy-admin quorum
 `q4bhp78wp2ialt6ffv2pv3mg` were read back unchanged. A private journal freezes
 the admin public key, legacy policy fingerprint, routine public key and
-replacement-secret fingerprint; creation intent is persisted before each
+original-secret fingerprint; creation intent is persisted before each
 provider POST and ambiguous responses hold without replay. The dev overlay is
 ignored and contains only the fresh app ID, routine ID, policy ID and routine
 key. It has not been deployed yet. See the
