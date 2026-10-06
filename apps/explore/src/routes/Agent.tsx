@@ -1,55 +1,31 @@
-import { Skeleton } from '../components/ui/skeleton.tsx'
-import { cn } from '../lib/cn.ts'
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '../components/ui/empty.tsx'
-import { Alert, AlertDescription } from '../components/ui/alert.tsx'
-import { Item, ItemGroup, ItemContent, ItemTitle, ItemDescription, ItemActions } from '../components/ui/item.tsx'
-import { Address, Amount, LoadingRows, PageTitle, Section, textLinkClass } from '../components/kit.tsx'
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { ChevronRight, CircleCheck, CircleX, Flame, RotateCcw, TriangleAlert } from 'lucide-react'
-import { type ReactNode, useMemo } from 'react'
 import { BaseError, ContractFunctionRevertedError, maxUint256, zeroAddress } from 'viem'
 import { useReadContracts } from 'wagmi'
-import { type BoardInfo, type ChainJob, type TaskIndexEntry, chainJobs, data, fetchDirectoryAgent, taskIndex } from '../api.ts'
-import { BoardLink, boardRoutes } from '../components/BoardLink.tsx'
-import { DirectorySection } from '../components/DirectoryCards.tsx'
-import { StartPrompt } from '../components/AgentStartLink.tsx'
+import { isNew } from '../agent-stats.ts'
+import { type ChainJob, fetchDirectoryAgent } from '../api.ts'
+import { AgentJobs } from '../components/agent/AgentJobs.tsx'
 import { BackingStrip } from '../components/agent/BackingStrip.tsx'
+import { HeroStats } from '../components/agent/HeroStats.tsx'
+import { NewAgentCard } from '../components/agent/NewAgentCard.tsx'
 import { OwnerTabs } from '../components/agent/OwnerTabs.tsx'
+import { ProfileHeader } from '../components/agent/ProfileHeader.tsx'
+import { DirectorySection } from '../components/DirectoryCards.tsx'
 import { HireAgainLink, lastPaidJob } from '../components/job/HireAgain.tsx'
-import { PhaseBadge, phaseOf } from '../components/Phase.tsx'
+import { Address, Details, PageTitle } from '../components/kit.tsx'
 import { useNow } from '../components/Time.tsx'
-
-import { Monogram, useAuth } from '../components/Wallet.tsx'
-import { amount } from '../format.ts'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../components/ui/empty.tsx'
+import { Skeleton } from '../components/ui/skeleton.tsx'
+import { useAuth } from '../components/Wallet.tsx'
 import { useOwnedAgent } from '../managed.ts'
-import { useTokenList } from '../useTokens.ts'
 import { chain, deployment } from '../wallet.ts'
 import type { AgentSummary } from './Agents.tsx'
 
 /** The ERC-8004 identity registry's reads the operator console needs (the SDK's ABI has no `tokenURI`). */
 export const identityAbi = [
-  {
-    type: 'function',
-    name: 'ownerOf',
-    stateMutability: 'view',
-    inputs: [{ name: 'agentId', type: 'uint256' }],
-    outputs: [{ type: 'address' }],
-  },
-  {
-    type: 'function',
-    name: 'getAgentWallet',
-    stateMutability: 'view',
-    inputs: [{ name: 'agentId', type: 'uint256' }],
-    outputs: [{ type: 'address' }],
-  },
-  {
-    type: 'function',
-    name: 'tokenURI',
-    stateMutability: 'view',
-    inputs: [{ name: 'tokenId', type: 'uint256' }],
-    outputs: [{ type: 'string' }],
-  },
+  { type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'getAgentWallet', stateMutability: 'view', inputs: [{ name: 'agentId', type: 'uint256' }], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ name: 'tokenId', type: 'uint256' }], outputs: [{ type: 'string' }] },
 ] as const
 
 /** An agent number as the registry numbers them: digits only, without leading zeros; null for anything else. */
@@ -168,14 +144,14 @@ export interface AgentRecord {
   wallets: string[]
   bonds: { returned?: number; burned?: number }
   /** The jobs it took. */
-  jobs: ChainJob[]
+  jobs: RecordJob[]
   feedback: Array<{ job_id: string; value: string; tag: string; recorded: number; tx_hash: string | null }>
   // Since the profile release; optional so an older API (and older fixtures) still read.
   /** Whether the identity registry knows the agent; null when it did not answer. */
   registered?: boolean | null
   currentWallet?: string | null
   /** The jobs its wallets posted, newest first (at most 200). */
-  posted?: ChainJob[]
+  posted?: RecordJob[]
   work?: { earned: Record<string, MoneyTotals> }
   hiring?: { posted: number; open: number; paidOut: Record<string, MoneyTotals> }
   time?: AgentTime
@@ -215,28 +191,11 @@ export function ratings(feedback: Record<string, number>): Array<{ tag: string; 
     .toSorted((a, b) => Number(b.good) - Number(a.good) || b.count - a.count)
 }
 
-/** The agent's picture when its profile carries one inline, else its monogram (the same one the directory shows). */
-export function AgentAvatar({ id, image, size = 'md' }: { id: string; image?: string | null | undefined; size?: 'md' | 'lg' }) {
-  if (image !== null && image !== undefined) {
-    return <img src={image} alt="" className={cn('shrink-0 rounded-full bg-muted object-cover', size === 'lg' ? 'size-16' : 'size-9')} />
-  }
-  return <Monogram seed={`agent-${id}`} label={id.slice(-2)} size={size} />
-}
-
-function Tile({ value, label, className }: { value: ReactNode; label: ReactNode; className?: string | undefined }) {
-  return (
-    <div className="grid content-start gap-0.5 rounded-xl bg-card px-3.5 py-3">
-      <b className={cn('tabular-nums text-xl leading-tight font-bold tracking-tight', className)}>{value}</b>
-      <span className="text-xs text-muted-foreground">{label}</span>
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------------------------------------------
 // The page
 // ---------------------------------------------------------------------------------------------------------------
 
-/** A worker's public profile: its ERC-8004 identity, its record across every board, and every job it took. */
+/** An agent's public profile: its ERC-8004 identity, its record across every board, what it took and what it posted. */
 export function AgentPage() {
   const { agentId } = useParams({ strict: false }) as { agentId: string }
   const id = agentNumber(agentId)
@@ -244,11 +203,10 @@ export function AgentPage() {
     return (
       <>
         <PageTitle>Agent</PageTitle>
-
-        <Empty>
+        <Empty className="border border-dashed">
           <EmptyHeader>
-            <EmptyTitle>{'That is not an agent number'}</EmptyTitle>
-            <EmptyDescription>Agents are numbered by the ERC-8004 identity registry, like 1942.</EmptyDescription>
+            <EmptyTitle>That is not an Agent ID</EmptyTitle>
+            <EmptyDescription>The ERC-8004 identity registry numbers agents, like 1942.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </>
@@ -261,306 +219,111 @@ function Profile({ id }: { id: string }) {
   const identity = useAgentIdentity(id)
   const record = useAgentRecord(id)
   const directory = useQuery({ queryKey: ['directory-agent', id], queryFn: () => fetchDirectoryAgent(id), refetchInterval: 20_000 })
-  const profile = identity.profile?.kind === 'json' ? identity.profile : null
-  const wallet = identity.wallet ?? record.data?.wallets[0]
+  const wallet = (identity.wallet ?? record.data?.currentWallet ?? record.data?.wallets[0]) as `0x${string}` | undefined
   const { address } = useAuth()
+  const now = useNow()
   const again = lastPaidJob(record.data?.jobs ?? [], address, id)
   // The signed-in operator's own agent gets its owner tabs; everyone else, the public profile alone.
   const managed = useOwnedAgent(id)
-  const header = (
-    <>
-      <header className="flex items-center gap-4">
-        <AgentAvatar id={id} image={profile?.image} size="lg" />
-        <div className="grid min-w-0 gap-1">
-          <h1 className="text-3xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">{profile?.name ?? `Agent #${id}`}</h1>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
-            {profile?.name !== null && profile?.name !== undefined && <span>Agent #{id} ·</span>}
-            {identity.exists === true && (
-              <span>
-                On-chain agent <span className="text-muted-foreground">(ERC-8004)</span>
-              </span>
-            )}
-            {identity.exists === null && <span>Identity check unavailable</span>}
-            {wallet !== undefined && <Address value={wallet} />}
-          </div>
-        </div>
-      </header>
-
-      {profile?.description !== null && profile?.description !== undefined && (
-        <p className="-mt-2 leading-relaxed text-muted-foreground">{profile.description}</p>
-      )}
-    </>
-  )
   const overview = (
     <>
       {again !== undefined && (
         <div className="grid gap-1.5">
           <HireAgainLink jobId={again.job_id} />
-          <p className="px-4 text-ui text-muted-foreground">
-            You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.
-          </p>
+          <p className="px-4 text-ui text-muted-foreground">You paid this agent for job #{again.job_id}. Hire again prefills a direct hire with that job's token, reward and terms.</p>
         </div>
       )}
-
-      {managed === undefined && <StartPrompt />}
-
-      {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
-
-      {wallet !== undefined && <BackingStrip wallet={wallet as `0x${string}`} viewer={address} />}
-
       {record.isLoading ? (
-        <>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="grid gap-2 rounded-xl bg-card px-3.5 py-3">
-                <Skeleton className="h-6 w-2/3" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-            ))}
-          </div>
-
-          <LoadingRows rows={4} />
-        </>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
       ) : record.error !== null ? (
-        <Alert variant="destructive">
-          <AlertDescription>This agent&apos;s record is unavailable right now. Its identity below is read from the chain.</AlertDescription>
-        </Alert>
-      ) : record.data === null || record.data === undefined ? (
-        identity.exists === false ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>{`No agent #${id}`}</EmptyTitle>
-              <EmptyDescription>
-                Nothing is registered under this number on the ERC-8004 identity registry.{' '}
-                <Link to="/connect" className={textLinkClass}>
-                  Register an agent
-                </Link>
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>{'This agent has not taken a job here yet'}</EmptyTitle>
-              <EmptyDescription>Its record starts with its first job: jobs paid, ratings and earnings show up here.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )
+        <p className="text-ui text-destructive-text">This agent&apos;s record is unavailable right now. Its identity is read from the chain.</p>
+      ) : record.data === null && identity.exists === false ? (
+        <Empty className="border border-dashed">
+          <EmptyHeader>
+            <EmptyTitle>No Agent ID {id}</EmptyTitle>
+            <EmptyDescription>
+              Nothing is registered under this number on the ERC-8004 identity registry.{' '}
+              <Link to="/connect" className="text-foreground underline decoration-foreground/30 underline-offset-4">
+                Register an agent
+              </Link>
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : isNew(record.data) ? (
+        <NewAgentCard wallet={wallet} />
       ) : (
-        <Record record={record.data} />
+        <>
+          <HeroStats record={record.data!} now={now} owner={managed !== undefined} />
+          <AgentJobs record={record.data!} />
+        </>
       )}
-
+      {wallet !== undefined && identity.exists !== false && <BackingStrip wallet={wallet} viewer={address} />}
+      {directory.data?.agent !== undefined && <DirectorySection agent={directory.data.agent} />}
       {identity.exists !== false && <Registration id={id} identity={identity} />}
-
-      {record.data !== null && record.data !== undefined && <Jobs record={record.data} />}
+      {managed === undefined && identity.exists !== false && (
+        <Link to="/connect" className="justify-self-start px-1 text-ui text-muted-foreground underline decoration-current/30 underline-offset-4 hover:text-foreground">
+          Is this your agent? Connect it
+        </Link>
+      )}
     </>
   )
   return (
     <>
-      {header}
-
+      <ProfileHeader id={id} identity={identity} wallet={wallet} directory={directory.data?.agent} owner={managed !== undefined} />
       {managed === undefined ? overview : <OwnerTabs managed={managed} overview={overview} posted={record.data?.posted} taken={record.data?.jobs} />}
     </>
   )
 }
 
-function Record({ record }: { record: AgentRecord }) {
-  const now = useNow()
-  const minute = Math.floor(now / 60) * 60
-  const a = record.agent
-  useTokenList(Object.keys(a.earned))
-  // Open and past the delivery deadline: nothing was submitted, so anyone can close it (refund, and any bond burns).
-  const overdue = useMemo(
-    () => record.jobs.filter((j) => j.status === 'active' && j.delivery_deadline !== null && j.delivery_deadline < minute),
-    [record.jobs, minute],
-  )
-  const bondAtStake = overdue.some((j) => j.worker_bond !== null && j.worker_bond !== '0')
-  const earned = Object.entries(a.earned).map(([token, v]) => amount(v, token))
-  const rated = ratings(a.feedback)
-  const bonds = record.bonds
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <Tile value={`${a.completed} of ${a.jobs}`} label="jobs paid" />
-        <Tile value={a.lost} label="refunded or rejected" />
-        <Tile value={a.inProgress} label="open now" className={overdue.length > 0 ? 'text-warning-text' : undefined} />
-        <Tile
-          value={
-            earned.length === 0 ? (
-              '—'
-            ) : (
-              <span className="grid text-base leading-snug">
-                {earned.map((e) => (
-                  <span key={e}>{e}</span>
-                ))}
-              </span>
-            )
-          }
-          label="earned"
-        />
-      </div>
-
-      {overdue.length > 0 && (
-        <div role="status" className="flex items-start gap-3 rounded-2xl bg-warning/14 px-4 py-3.5 leading-snug">
-          <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-warning-text" />
-          <p className="text-sm">
-            <span className="font-semibold">Needs attention:</span>{' '}
-            {overdue.length === 1 ? 'one of its open jobs is' : `${overdue.length} of its open jobs are`} past the delivery deadline with
-            nothing delivered. Anyone can close {overdue.length === 1 ? 'it' : 'them'}; the creator gets the reward back
-            {bondAtStake ? ' and the posted bond burns' : ''}.
-          </p>
-        </div>
-      )}
-
-      <Section
-        title="Ratings"
-        note="Each job's evaluator writes a rating to the ERC-8004 reputation registry when the job settles; bonds are counted as the chain settled them."
-      >
-        <ItemGroup>
-          {rated.length === 0 && (bonds.returned ?? 0) === 0 && (bonds.burned ?? 0) === 0 && (
-            <Item>
-              <ItemContent className="text-muted-foreground">No ratings yet: they are written when a job settles.</ItemContent>
-            </Item>
-          )}
-          {rated.map((r) => (
-            <Item key={r.tag}>
-              {r.good ? (
-                <CircleCheck aria-hidden className="size-5 shrink-0 text-success-text" />
-              ) : (
-                <CircleX aria-hidden className="size-5 shrink-0 text-destructive-text" />
-              )}
-              <ItemContent className="flex-1">
-                <ItemTitle className="tabular-nums font-semibold">{r.count}</ItemTitle> {r.words}
-              </ItemContent>
-            </Item>
-          ))}
-          {(bonds.returned ?? 0) > 0 && (
-            <Item>
-              <RotateCcw aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-              <ItemContent className="flex-1">Bond returned {times(bonds.returned ?? 0)}</ItemContent>
-            </Item>
-          )}
-          {(bonds.burned ?? 0) > 0 && (
-            <Item>
-              <Flame aria-hidden className="size-5 shrink-0 text-destructive-text" />
-              <ItemContent className="flex-1">Bond burned {times(bonds.burned ?? 0)}</ItemContent>
-            </Item>
-          )}
-        </ItemGroup>
-      </Section>
-    </>
-  )
-}
-
+/** What the agent registered on-chain, folded away: owner, agent wallet and profile. */
 function Registration({ id, identity }: { id: string; identity: AgentIdentity }) {
   const p = identity.profile
   return (
-    <Section
-      title="Registration"
-      note={
-        p?.kind === 'link' ? (
-          <>This agent registered a web link, not a profile, so Sidequest can&apos;t show a name, picture or description.</>
-        ) : p?.kind === 'json' ? (
-          'The name and description come from the profile the agent registered on-chain.'
-        ) : undefined
-      }
-    >
-      <ItemGroup>
-        {identity.loading ? (
-          <Item>
-            <ItemContent className="grid flex-1 gap-2 py-1">
-              <Skeleton className="h-4 w-2/5" />
-              <Skeleton className="h-3 w-3/5" />
-            </ItemContent>
-          </Item>
-        ) : identity.exists === null ? (
-          <Item>
-            <ItemContent className="text-muted-foreground">The identity registry did not answer. Retry in a moment.</ItemContent>
-          </Item>
-        ) : (
-          <>
-            <Item>
-              <ItemContent className="flex-1">Owner</ItemContent>
-              <Address value={identity.owner} />
-            </Item>
-
-            <Item>
-              <ItemContent className="flex-1">
-                Agent wallet
-                <ItemDescription className="block text-xs text-muted-foreground">Signs its applications and transactions</ItemDescription>
-              </ItemContent>
-              <Address value={identity.wallet} />
-            </Item>
-
-            <Item>
-              <span className="shrink-0">{p?.kind === 'json' ? 'Profile' : 'Profile link'}</span>
-              <ItemActions className="min-w-0 flex-1 truncate flex-col items-end text-right text-sm text-muted-foreground">
-                {p === null ? (
-                  'None'
-                ) : p.kind === 'json' ? (
-                  'JSON profile, on-chain'
-                ) : p.href !== null ? (
-                  <a href={p.href} target="_blank" rel="noreferrer noopener" className={textLinkClass}>
-                    {p.url.replace(/^https:\/\//, '')}
-                  </a>
-                ) : (
-                  p.url
-                )}
-              </ItemActions>
-            </Item>
-          </>
-        )}
-      </ItemGroup>
-    </Section>
-  )
-}
-
-/** Every job the agent took, on every board, newest first, linked on the board it was posted on. */
-function Jobs({ record }: { record: AgentRecord }) {
-  const { address } = useAuth()
-  const now = useNow()
-  const minute = Math.floor(now / 60) * 60
-  // Which board each job was posted on, and the boards' names and titles (the same queries the job list uses).
-  const all = useQuery({ queryKey: ['chain-jobs', 'public'], queryFn: () => chainJobs('public'), refetchInterval: 60_000 })
-  const boards = useQuery({ queryKey: ['data-boards'], queryFn: () => data<{ boards: BoardInfo[] }>('boards'), staleTime: 300_000 })
-  const boardOf = useMemo(() => new Map((all.data?.jobs ?? []).map((j) => [j.job_id, j.board_id ?? 'public'])), [all.data])
-  const boardIds = useMemo(
-    () => [...new Set(['public', ...record.jobs.map((j) => boardOf.get(j.job_id) ?? 'public')])],
-    [record.jobs, boardOf],
-  )
-  const indexes = useQueries({
-    queries: boardIds.map((b) => ({ queryKey: ['task_index', b], queryFn: () => taskIndex(b), staleTime: 60_000 })),
-  })
-  const tasks = new Map<string, TaskIndexEntry>()
-  for (const q of indexes) for (const t of q.data ?? []) if (t.jobId !== null) tasks.set(t.jobId, t)
-  const names = new Map((boards.data?.boards ?? []).map((b) => [b.id, b.name]))
-  const jobs = record.jobs.toSorted((a, b) => Number(b.job_id) - Number(a.job_id))
-  return (
-    <Section title={`Jobs · ${jobs.length}`} note="Every job this agent took, on every board, from chain records.">
-      <ItemGroup>
-        {jobs.map((j) => {
-          const b = boardOf.get(j.job_id) ?? 'public'
-          const task = tasks.get(j.job_id)
-          const phase = phaseOf(j, task, address, minute)
-          return (
-            <Item key={j.job_id} render={<BoardLink target={boardRoutes(b).job(j.job_id)} />}>
-              <ItemContent className="min-w-0 flex-1">
-                <ItemTitle className="block truncate font-medium">{task?.title ?? `Job #${j.job_id}`}</ItemTitle>
-                <ItemDescription className="block truncate text-ui text-muted-foreground">
-                  #{j.job_id} · {b === 'public' ? 'Public board' : (names.get(b) ?? b)} · {j.mode === 'contest' ? 'Contest' : 'Hire'}
-                </ItemDescription>
-              </ItemContent>
-              <span className="grid shrink-0 justify-items-end gap-1">
-                <Amount value={j.reward} token={j.token} />
-                <PhaseBadge phase={phase} />
-              </span>
-              <ItemActions>
-                <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              </ItemActions>
-            </Item>
-          )
-        })}
-      </ItemGroup>
-    </Section>
+    <Details summary="Registration">
+      {identity.loading ? (
+        <Skeleton className="h-4 w-2/5" />
+      ) : identity.exists === null ? (
+        <p className="text-sm text-muted-foreground">The identity registry did not answer. Retry in a moment.</p>
+      ) : (
+        <div className="grid text-sm">
+          <div className="flex min-h-10 items-center justify-between gap-4">
+            <span>Owner</span>
+            <Address value={identity.owner} />
+          </div>
+          <div className="flex min-h-10 items-center justify-between gap-4 border-t border-border/70">
+            <span>
+              Agent wallet
+              <span className="block text-xs text-muted-foreground">Signs its applications and transactions</span>
+            </span>
+            <Address value={identity.wallet} />
+          </div>
+          <div className="flex min-h-10 items-center justify-between gap-4 border-t border-border/70">
+            <span className="shrink-0">{p?.kind === 'json' ? 'Profile' : 'Profile link'}</span>
+            <span className="min-w-0 truncate text-right text-muted-foreground">
+              {p === null ? (
+                'None'
+              ) : p.kind === 'json' ? (
+                'JSON profile, on-chain'
+              ) : p.href !== null ? (
+                <a href={p.href} target="_blank" rel="noreferrer noopener" className="text-foreground underline decoration-foreground/30 underline-offset-4">
+                  {p.url.replace(/^https:\/\//, '')}
+                </a>
+              ) : (
+                p.url
+              )}
+            </span>
+          </div>
+          {p?.kind === 'link' && (
+            <p className="pt-2 text-xs text-muted-foreground">
+              This agent registered a web link, not a profile, so Sidequest can&apos;t show a name, picture or description.
+            </p>
+          )}
+        </div>
+      )}
+    </Details>
   )
 }

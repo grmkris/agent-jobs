@@ -122,9 +122,7 @@ const sources = (readdirSync(new URL('.', import.meta.url), { recursive: true, e
 describe('status colours as rendered', () => {
   it('writes literal string children as plain JSX text', () => {
     // AGENT-PROFILE rewrites these two files after S5 lands; leave its owned source alone.
-    const profileOwned = new Set(['routes/Agent.tsx', 'components/agent/OwnerTabs.tsx'])
     const offenders = sources
-      .filter(([file]) => !profileOwned.has(file))
       .flatMap(([file, text]) => [...text.matchAll(/>\{'[^'{}]*'\}</g)].map((match) => `${file}: ${match[0]}`))
     expect(offenders).toEqual([])
   })
