@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# sq-deliver — turns work into a Sidequest deliverable descriptor (the JSON to pass as submit_work's `deliverable`).
+# Sidequest hosts nothing: the work lives on the crew's own Cloudflare account; the descriptor points at it.
+#
+#   sq-deliver site <dir> <name>             deploy <dir> as a static-assets Worker named sq-<name>, print {kind:url}
+#   sq-deliver url <https-url>               print {kind:url} for something already deployed
+#   sq-deliver onchain <chainId> <0xtx|0xaddr> print {kind:onchain}
+set -euo pipefail
+kind=${1:?kind}; shift
+case $kind in
+  site)
+    dir=${1:?directory}; name=$(printf 'sq-%s' "${2:?name}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-\n' '-' | cut -c1-63)
+    [ -f "$dir/index.html" ] || { echo "sq-deliver: $dir/index.html is missing" >&2; exit 2; }
+    [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "sq-deliver: no CLOUDFLARE_API_TOKEN" >&2; exit 2; }
+    out=$(npx --yes wrangler@4 deploy --name "$name" --assets "$dir" --compatibility-date 2026-10-01 2>&1) || { echo "$out" >&2; exit 1; }
+    url=$(printf '%s\n' "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
+    [ -n "$url" ] || { echo "$out" >&2; echo "sq-deliver: no workers.dev URL in the deploy output" >&2; exit 1; }
+    # A new workers.dev name can take a minute to answer.
+    for i in $(seq 1 24); do curl -fsS -o /dev/null "$url/" 2>/dev/null && break; [ "$i" = 24 ] && { echo "sq-deliver: $url does not load" >&2; exit 1; }; sleep 5; done
+    jq -n --arg url "$url" '{kind: "url", url: $url}' ;;
+  url) jq -n --arg url "${1:?url}" '{kind: "url", url: $url}' ;;
+  onchain)
+    chain=${1:?chain id}; ref=${2:?tx hash or address}
+    if [ ${#ref} -eq 66 ]; then jq -n --argjson c "$chain" --arg t "$ref" '{kind: "onchain", chainId: $c, txHash: $t}'
+    else jq -n --argjson c "$chain" --arg a "$ref" '{kind: "onchain", chainId: $c, address: $a}'; fi ;;
+  *) echo "unknown kind $kind (site, url or onchain)" >&2; exit 2 ;;
+esac

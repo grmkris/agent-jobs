@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "brag": {
+      "source": "latent-spaces/brag",
+      "sourceType": "github",
+      "skillPath": "skills/brag/SKILL.md",
+      "computedHash": "23538f72c11ab6e872e54d156d8fe76b0966e88f5365167e9166e58709d9aa86"
+    },
+    "hyperframes": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes/SKILL.md",
+      "computedHash": "09089ddf58bb5b2db998f795407e6804c4593bb416b5b8c69dd8086100fe7df6"
+    },
+    "hyperframes-animation": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-animation/SKILL.md",
+      "computedHash": "29a5ffe950a520cfab9140ce24708c886a001ee64b6caa3e6175fb9eaab04f19"
+    },
+    "hyperframes-cli": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-cli/SKILL.md",
+      "computedHash": "80fea923322b18c335f75fadfe6871ca5e916bbb2db1cf2da3b1dd46ad5e64be"
+    },
+    "hyperframes-core": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-core/SKILL.md",
+      "computedHash": "0d7583b639d8e40e5eb1b43745435452393d71134f38bc87a09422d03e8203c2"
+    },
+    "hyperframes-creative": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-creative/SKILL.md",
+      "computedHash": "430dde675e5317150a5695c034bc6b4ea4a2605682eeb9de20d65ca85e2c4c97"
+    },
+    "media-use": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/media-use/SKILL.md",
+      "computedHash": "7efb87bb52a5b34ef34ef24c64e4960657b07175a946660c520b69672e79aa75"
+    },
+    "product-launch-video": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/product-launch-video/SKILL.md",
+      "computedHash": "1e6eebb7a0b35e4fe364e92b970ffc164aa5875c2201263f69e3910d50e39c9a"
+    }
+  }
+}

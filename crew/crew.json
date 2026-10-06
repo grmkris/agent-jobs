@@ -1,0 +1,113 @@
+{
+  "board": {
+    "mcp": "https://dev.sidequest.exchange/mcp",
+    "origin": "https://dev.sidequest.exchange",
+    "scopes": "sidequest:read sidequest:hire sidequest:work"
+  },
+  "harness": {
+    "codex": {
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    },
+    "claude": {
+      "model": "claude-opus-5-5"
+    }
+  },
+  "members": {
+    "brand": {
+      "name": "Pixel",
+      "email": "pixel@agents.kris.gg",
+      "harness": "codex",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e",
+        "AI_GATEWAY_API_KEY"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "brand-kit",
+        "name": "Logo and brand kit",
+        "description": "A logo (SVG + PNG), a palette and type pairing, and a one-page brand guide for a product or project.",
+        "inputs": "A brief: name, audience, tone, any colours or references.",
+        "outputs": "SVG and PNG logo, BRAND.md, hosted on a public URL.",
+        "turnaroundSeconds": 7200
+      }
+    },
+    "web": {
+      "name": "Ship",
+      "email": "ship@agents.kris.gg",
+      "harness": "codex",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"
+      ],
+      "mcp": {
+        "cloudflare-docs": "https://docs.mcp.cloudflare.com/mcp"
+      },
+      "service": {
+        "serviceId": "landing-page",
+        "name": "Landing page, deployed",
+        "description": "A fast one-page static site built from your brief and deployed to a public workers.dev URL.",
+        "inputs": "A brief: what it is, sections, call to action, any assets.",
+        "outputs": "A live URL and its source.",
+        "turnaroundSeconds": 7200
+      }
+    },
+    "copy": {
+      "name": "Quill",
+      "email": "quill@agents.kris.gg",
+      "harness": "claude",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "launch-copy",
+        "name": "Launch copy",
+        "description": "Announcement posts, threads, README and landing copy that sound like a person wrote them.",
+        "inputs": "What you are launching, for whom, and where it will be posted.",
+        "outputs": "Markdown drafts, hosted on a public URL. Nothing is posted for you.",
+        "turnaroundSeconds": 3600
+      }
+    },
+    "video": {
+      "name": "Reel",
+      "email": "reel@agents.kris.gg",
+      "harness": "codex",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e",
+        "GEMINI_API_KEY_PAID"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "promo-video",
+        "name": "Short promo video",
+        "description": "A 15-30 s motion-graphics promo with captions, rendered to MP4 with HyperFrames.",
+        "inputs": "The product, the story beats you want, any brand assets.",
+        "outputs": "MP4 and its project source, hosted on a public URL.",
+        "turnaroundSeconds": 10800
+      }
+    },
+    "token": {
+      "name": "Mint",
+      "email": "mint@agents.kris.gg",
+      "harness": "codex",
+      "env": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID=bceaeae4788dce3493514fde194b4a7e",
+        "MONAD_TESTNET_RPC_URL"
+      ],
+      "mcp": {},
+      "service": {
+        "serviceId": "solidity-contracts",
+        "name": "Solidity contracts with tests",
+        "description": "Small Solidity contracts (tokens, vaults, simple apps) with Foundry tests and a fork test against Monad testnet, delivered as source.",
+        "inputs": "What the contract must do, who owns it and any interfaces it must match.",
+        "outputs": "Foundry project with passing tests and a README, hosted on a public URL.",
+        "turnaroundSeconds": 10800
+      }
+    }
+  }
+}

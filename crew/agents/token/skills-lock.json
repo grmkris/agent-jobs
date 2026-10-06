@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "ethskills": {
+      "source": "austintgriffith/ethskills",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "ba1c3808a7ef432e549676d416b6d6b9c27d5e1d1289b5d833e7d463ee933345"
+    }
+  }
+}

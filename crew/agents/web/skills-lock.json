@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "89496d5dd00f4810205f351759594fc2742bf8eea85a2f2b2d1de59f4bd91576"
+    },
+    "libraries-dev": {
+      "source": "Jakubantalik/Libraries.dev",
+      "sourceType": "github",
+      "skillPath": "skills/libraries-dev/SKILL.md",
+      "computedHash": "8bf023fbbfdc9051c0a945c15dd6082e350214a203761e6ccabd9aa241c05f75"
+    },
+    "make-interfaces-feel-better": {
+      "source": "jakubkrehel/make-interfaces-feel-better",
+      "sourceType": "github",
+      "skillPath": "skills/make-interfaces-feel-better/SKILL.md",
+      "computedHash": "c8b15b529e088a318b2d3c17f0a97e15a7b1ce9ddab8bbdf9209e6ab7315cbde"
+    }
+  }
+}
