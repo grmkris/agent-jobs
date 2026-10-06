@@ -16,6 +16,7 @@ import Board, { type BoardCall, type BoardReply } from './board.ts'
 import { corsHeaders } from './cors.ts'
 import { Database } from './database.ts'
 import { dripOnce } from './drip.ts'
+import { claimFaucet, faucetChain } from './faucet.ts'
 import { Manifests } from './manifests.ts'
 import { rpcUrlForNetwork } from './network.ts'
 import { dripState, getBoard, jobsOfBoard, jobsWithBoards, jobWithBoard, listBoards, migrateRegistry, recordOffer } from './registry.ts'
@@ -261,7 +262,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
                 const session = oauthCaller === undefined ? await desk.resolve({ bearer, mcpSession }) : { address: oauthCaller as Address, origin: url.origin, boardId: tenant.id }
                 // Board tools are limited inside the DO, so direct RPC cannot bypass the counters.
                 // Worker-local tools, including sign-in, use exactly the same reserved object.
-                if (tool === 'auth_challenge' || tool === 'auth_login' || tool === 'prepare_agent_profile' || Object.hasOwn(tenantTools, tool) || Object.hasOwn(telegramTools, tool)) {
+                if (tool === 'auth_challenge' || tool === 'auth_login' || tool === 'prepare_agent_profile' || tool === 'testnet_faucet' || Object.hasOwn(tenantTools, tool) || Object.hasOwn(telegramTools, tool)) {
                   const rate = await enforceHostedRate(runtimeEnv as Record<string, unknown>, { network, tool, boardId: tenant.id, bearer, mcpSession, caller: session?.address, ip })
                   if (!rate.ok) return { reply: rate }
                 }
@@ -273,6 +274,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
                   if (mcpSession !== undefined) await desk.bindMcp(mcpSession, r.session)
                   const drip = network === 'monad-testnet' && tenant.drip ? await dripOnce({ sql, network, rpcUrl, relayKey, now }, { boardId: tenant.id, address: r.address }) : undefined
                   return { reply: { ok: true, result: { ...r, boardId: tenant.id, ...(drip === undefined ? {} : { drip }) } } }
+                }
+                if (tool === 'testnet_faucet') {
+                  if (session === undefined) return { reply: { ok: false, code: 'unauthenticated', message: 'Sign in to claim test tokens' } }
+                  return { reply: { ok: true, result: await claimFaucet({ sql, network, now, chain: faucetChain({ sql, network, rpcUrl, relayKey, now }) }, { address: session.address }) } }
                 }
                 if (tool === 'whoami' && session !== undefined) {
                   const drip = await dripState(sql, tenant.id, session.address)

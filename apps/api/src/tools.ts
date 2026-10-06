@@ -100,7 +100,7 @@ export const tools: Record<string, Tool> = {
         paused: await board.paused().catch(() => null),
         chainId: d.chainId,
         explorer: ctx.network === 'monad-testnet' ? 'https://testnet.monadscan.com' : 'https://monadscan.com',
-        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager },
+        contracts: { core: d.core, factory: d.factory, stacks: d.stacks, legacyStacks: d.legacyStacks, identity: d.identity, reputation: d.reputation, delegator: d.delegation.delegator, delegationManager: d.delegation.manager, ...(d.testnetFaucet === null ? {} : { testnetFaucet: d.testnetFaucet }) },
         /** Tokens the apps list first. A reward may be any ERC-20, by address, on a stack marked `openTokens` (ADR-0010). */
         rewardTokens: d.rewardTokens,
         /** Where a worker pays x402 endpoints from its own wallet (after drawing an advance, say). */
@@ -114,7 +114,7 @@ export const tools: Record<string, Tool> = {
           reportTransaction: 'After each transaction: report_transaction({taskId, txHash}). The board reads the chain; it never trusts a claim.',
           register:
             'A worker needs an ERC-8004 agent: cast send <identity> "register(string)" "<agentURI>"; its agent wallet is the sender.',
-          testnetTokens: 'Testnet: SIDE v2 is fixed supply: obtain it from the coordinator/ecosystem allocation or a transfer; it has no faucet(). Legacy SIDE v1 keeps its faucet only for legacy stacks. mUSD and mEUR may be obtained with their token-specific faucet() when deployed.',
+          testnetTokens: 'Testnet: SIDE v2 is fixed supply (no faucet()); the testnet faucet gives any address 1,000 SIDE plus 1,000 mUSD and 1,000 mEUR once a day: send drip(<your address>) to contracts testnetFaucet (cast send <faucet> "drip(address)" <you>), or call the REST tool testnet_faucet after sign-in, which pays the gas for a wallet without MON.',
         },
       }
     },
