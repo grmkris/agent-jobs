@@ -40,6 +40,7 @@ import { managementRequest } from './agent-requests.ts'
 import { isStakingDataPath, stakingDataRoute } from './routes/staking.ts'
 import { agentDataBody, identityReads } from './routes/agent-data.ts'
 import { workerFailure as failure } from './worker-failure.ts'
+import { x402Demo } from './x402-demo.ts'
 
 const STATUS: Record<string, number> = {
   unauthenticated: 401,
@@ -126,6 +127,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
         if (network === 'monad-mainnet' && stage !== 'prod') return HttpServerResponse.jsonUnsafe({ ok: false, code: 'unavailable', message: 'production stage mismatch' }, { status: 503 })
         const rpcUrl = yield* secret('MONAD_RPC_URL')
         const relayKey = yield* secret('RELAY_PRIVATE_KEY')
+        if (url.pathname === '/x402/demo' && request.method === 'GET') {
+          if (network !== 'monad-testnet') return HttpServerResponse.text('not found', { status: 404 })
+          const reply = yield* Effect.promise(() => x402Demo(url.href, request.headers['payment-signature'], { deployment: sdk.deployment(network) }))
+          return HttpServerResponse.jsonUnsafe(reply.body, { status: reply.status, headers: reply.headers })
+        }
         const deployment = sdk.deployment(network)
         const chainId = deployment.chainId
         const raw = yield* facts.raw

@@ -8,6 +8,8 @@ import * as HttpClient from 'effect/unstable/http/HttpClient'
 import * as HttpClientRequest from 'effect/unstable/http/HttpClientRequest'
 import { expect } from 'vitest'
 import Stack from '../../../alchemy.run.ts'
+import { decodeX402Header } from '@sidequest/board'
+import { deployment } from '@sidequest/sdk'
 
 /**
  * Deploys the stack into local workerd (`dev: true`) and probes every binding through the Worker.
@@ -28,6 +30,18 @@ const rpcSet = (process.env.MONAD_TESTNET_RPC_URL ?? '') !== ''
 
 const postJson = (url: string, body: unknown, headers: Record<string, string> = {}) =>
   HttpClient.post(url, { body: HttpBody.text(JSON.stringify(body), 'application/json'), headers })
+
+test('the real local Worker serves the testnet x402 proof challenge without calling the facilitator',
+  Effect.gen(function* () {
+    const { apiUrl } = yield* stack
+    const response = yield* HttpClient.get(`${apiUrl}/x402/demo`)
+    expect(response.status).toBe(402)
+    const header = response.headers['payment-required']
+    expect(header).toBeDefined()
+    const required = decodeX402Header(header!)
+    expect(yield* response.json).toEqual(required)
+    expect(required).toMatchObject({ x402Version: 2, accepts: [{ amount: '10000', payTo: deployment('monad-testnet').sidequest!.safe, network: 'eip155:10143' }] })
+  }))
 
 test('the worker answers from workerd',
   Effect.gen(function* () {

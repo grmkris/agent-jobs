@@ -11,6 +11,8 @@ import { SponsorDesk, type NamedSponsorEntry, type SponsorResult } from './spons
 import type { Sql } from './store.ts'
 import { AgentLifecycle } from './agent-lifecycle.ts'
 import { AgentFailure, agentFailureReply } from './agent-failure.ts'
+import { AgentX402 } from './agent-x402.ts'
+import { x402Deployment } from './x402.ts'
 
 export interface AgentPreparedCall {
   readonly transactions?: readonly sdk.TxRequest[]
@@ -214,6 +216,7 @@ export class AgentExecutor {
   }
 
   async #execute(input: AgentExecuteInput): Promise<AgentExecuteResult> {
+    if (input.tool === 'x402_pay') x402Deployment(this.deps.context.deployment)
     const agent = this.agents.get(input.agentId)
     if (agent.address === null || agent.privy_wallet_id === null || agent.state !== 'active' || agent.chain_id !== this.deps.context.deployment.chainId) throw new AgentFailure('forbidden', 'Agent is not active on this chain', 'agent-unavailable', 'none')
     if (['stake', 'request_unstake', 'cancel_unstake', 'withdraw_stake'].includes(input.tool) && input.args.account !== undefined
@@ -228,6 +231,16 @@ export class AgentExecutor {
       return this.#finish(operation, agent.address, sent)
     }
     if (operation.stage === 'failed') throw new AgentFailure('conflict', 'This operation is terminal; inspect it with check_operation, or start a new action with a new operationKey', 'operation-terminal', 'new-key')
+    if (input.tool === 'x402_pay') {
+      const saved = this.agents.step<Awaited<ReturnType<AgentX402['pay']>>>(operation.id, 'x402-result')
+      const result = saved ?? this.agents.freezeStep(operation.id, 'x402-result', await new AgentX402(this.deps).pay(operation))
+      if (operation.stage !== 'sending') {
+        this.agents.saveOperation(operation.id, 'signed', { signatures: { primary: result.payload.payload.signature } })
+        this.agents.saveOperation(operation.id, 'sending')
+      }
+      this.agents.saveOperation(operation.id, 'confirmed', { result })
+      return { status: 'confirmed', operationId: operation.id, result }
+    }
     if (operation.stage === 'sending') {
       const action = this.agents.step<AgentPreparedCall>(operation.id, 'action')
       if (action === undefined || (action.transactions?.length ?? 0) !== 0) throw new Error('Sending operation is missing its relay link')

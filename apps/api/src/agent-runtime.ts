@@ -32,6 +32,7 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   const { req, bindings, sql } = runtime
   const namespace = bindings.Board as { idFromName(name: string): { toString(): string }; get(id: unknown): { call(req: BoardCall): Promise<string>; verifyAgentSigning(req: BoardCall & { typedData: string }): Promise<string> } }
   if (namespace.idFromName(SPONSOR_OBJECT_NAME).toString() !== runtime.stateId || req.env.network !== bindings.NETWORK) throw new BoardError('forbidden', 'management object identity mismatch')
+  if (!networkTool(req.env.network, req.tool)) throw new BoardError('forbidden', 'This tool is not available on this network yet')
   migrateAgentSchema(sql)
   if (req.operator === undefined) {
     const grant = await resolveOAuth(sql, req.bearer, req.resource, Math.floor(Date.now() / 1000))
@@ -51,7 +52,6 @@ export async function runAgent(runtime: { req: AgentExecuteRequest; bindings: Re
   const sponsor = new SponsorDesk({ sql, ctx, now: () => Math.floor(Date.now() / 1000), ...(key32(req.env.relayKey) ? { relay: { account: privateKeyToAccount(req.env.relayKey as Hex), rpcUrl: req.env.rpcUrl } } : {}), fail: (code, message) => new BoardError(code, message) })
   if (req.tool === 'agent_status') return toJson({ ok: true, result: await new AgentLifecycle({ sql, context: ctx, now: () => Math.floor(Date.now() / 1000), sponsor }).status(agent.id, agent.operator) })
   if (req.tool === 'list_approvals') return toJson({ ok: true, result: { approvals: agents.approvals(agent.operator).filter(row => row.agent_id === agent.id) } })
-  if (!networkTool(req.env.network, req.tool)) throw new BoardError('forbidden', 'This tool is not available on this network yet')
   const permissions = new AgentPermissions({ sql, context: ctx, now: () => Math.floor(Date.now() / 1000) })
   if (req.tool === 'get_supported_permissions') return toJson({ ok: true, result: sdk.supportedPermissions(ctx.deployment) })
   if (req.tool === 'get_permissions') return toJson({ ok: true, result: { permissions: permissions.list(agent) } })

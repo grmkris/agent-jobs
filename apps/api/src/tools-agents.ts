@@ -2,6 +2,13 @@
 const object = { type: 'object', properties: {} }
 
 export const agentTools = {
+  x402_pay: {
+    description: 'Sign an x402 v2 exact USDC payment from this agent wallet on testnet (5 USDC per payment, 20 USDC per rolling day). Send the returned PAYMENT-SIGNATURE header to the resource yourself. Retry the same operationKey for the same nonce and signature.',
+    inputSchema: { type: 'object', properties: {
+      paymentRequired: { anyOf: [{ type: 'object' }, { type: 'string' }], description: 'Decoded PAYMENT-REQUIRED object or its base64 header.' },
+      resource: { type: 'string', description: 'Optional resource URL; must match PAYMENT-REQUIRED.' },
+    }, required: ['paymentRequired'] },
+  },
   agent_status: { description: 'Read this agent\'s state, last MCP activity, allowances and revocation receipts.', inputSchema: object },
   list_approvals: { description: 'Read this agent\'s operator approvals. The operator decides them on the website.', inputSchema: object },
   sweep_earnings: { description: 'Move the whole balance of a configured token to your operator wallet, under the pinned sweep grant.', inputSchema: { type: 'object', properties: { token: { type: 'string', description: 'Configured reward token or SIDE address.' } }, required: ['token'] } },

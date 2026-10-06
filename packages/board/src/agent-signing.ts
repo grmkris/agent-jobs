@@ -7,6 +7,7 @@ import { type DirectoryBinding, assertAgentEnvelope, assertExactAgentTypedData }
 import { GrantStore } from './grants.ts'
 import type { Sql } from './store.ts'
 import { prepareAgentSignRequest, finishAgentSignRequest, type AgentSignRequest } from './agent-signing-store.ts'
+import { x402TypedData, type X402Authorization } from './x402.ts'
 
 export interface RoutineSigner {
   signTypedData(walletId: string, typedData: string, operationKey: string): Promise<Hex>
@@ -58,6 +59,33 @@ export class AgentSigning {
     const type = assertAgentEnvelope(this.context, typedData, this.#agent(id).address).primaryType
     if (!['Selection', 'SetBudgetAuthorization', 'SubmitAuthorization'].includes(type)) throw new Error('Not a routine tool signature')
     return this.#typed(id, `tool:${operationId}`, typedData, verify)
+  }
+
+  /** Freeze one EIP-3009 authorization per payment operation before asking the provider. */
+  async signX402(id: string, operationId: Hex, typedData: string): Promise<Hex> {
+    const agent = this.#agent(id)
+    const operation = this.agents.operation(operationId)
+    if (operation.agent_id !== id || operation.tool !== 'x402_pay' || agent.state !== 'active') throw new Error('Not this agent payment operation')
+    const authorized = this.agents.step<X402Authorization>(operationId, 'x402-authorization')
+    if (authorized === undefined) throw new Error('Missing frozen x402 authorization')
+    assertExactAgentTypedData(typedData, x402TypedData(this.context.deployment, authorized))
+    const frozen = this.agents.freezeStep(operationId, 'x402-typed-data', typedData)
+    const row = this.#request(id, `x402:${operationId}`, { method: 'eth_signTypedData_v4', typedData: frozen })
+    if (row.result_json !== null) return JSON.parse(row.result_json) as Hex
+    if (assertAgentEnvelope(this.context, frozen, agent.address, undefined, this.now()).primaryType !== 'TransferWithAuthorization') throw new Error('Not an x402 authorization')
+    const payment = this.sql.all<{ nonce: string; asset: string; pay_to: string; value: string; valid_before: number }>('SELECT * FROM x402_payments WHERE operation_id=? AND agent_id=?', operationId, id)[0]
+    if (payment?.nonce !== authorized.nonce || payment.asset.toLowerCase() !== this.context.deployment.x402!.usdc.toLowerCase()
+      || payment.pay_to !== authorized.to || payment.value !== authorized.value || payment.valid_before !== Number(authorized.validBefore)) throw new Error('x402 authorization has no matching ledger reservation')
+    this.#agent(id)
+    const signature = await this.provider.signTypedData(agent.privy_wallet_id, frozen, row.id)
+    const typed = JSON.parse(frozen) as Parameters<typeof recoverTypedDataAddress>[0]
+    if ((await recoverTypedDataAddress({ ...typed, signature })).toLowerCase() !== agent.address.toLowerCase()) throw new Error('Routine signature does not recover to the bound agent')
+    if (this.sql.atomic === undefined) throw new Error('x402 signing requires atomic storage')
+    this.sql.atomic(() => {
+      this.#save(row, signature)
+      this.sql.run('UPDATE x402_payments SET created_at=? WHERE operation_id=?', this.now(), operationId)
+    })
+    return signature
   }
 
   /**

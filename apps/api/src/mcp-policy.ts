@@ -6,7 +6,7 @@ const READ_TOOLS = new Set([
   'list_quotes', 'get_budget', 'list_applications', 'get_stake', 'list_delegations', 'fee_quote', 'mining_proof', 'list_boards',
   'get_board', 'list_directory', 'get_directory_agent', 'list_approvals', 'agent_status', 'get_supported_permissions', 'get_permissions', 'inbox',
 ])
-const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work'])
+const HIRE_TOOLS = new Set(['create_task', 'request_quotes', 'pick_quote', 'select_worker', 'cancel_task', 'approve_work', 'reject_work', 'x402_pay'])
 const WORK_TOOLS = new Set(['apply', 'submit_quote', 'prepare_activation', 'submit_work', 'dispute', 'add_statement', 'advertise_service', 'withdraw_service'])
 const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_unstake', 'withdraw_stake', 'sweep_earnings', 'check_operation',
   'request_permissions', 'use_permission', 'revoke_permission'])
@@ -14,9 +14,11 @@ const SHARED_TOOLS = new Set(['settlement_actions', 'request_unstake', 'cancel_u
 export const PERMISSION_TOOLS = new Set(['get_supported_permissions', 'get_permissions', 'request_permissions', 'use_permission', 'revoke_permission'])
 /** A hosted agent's own directory listing (WS8) stays testnet-only until its signer rules reach mainnet. */
 export const LISTING_TOOLS = new Set(['advertise_service', 'withdraw_service'])
+/** x402 waits for the testnet routine signer policy; mainnet remains hidden. */
+export const X402_TOOLS = new Set(['x402_pay'])
 
 export function networkTool(network: string, name: string): boolean {
-  return network !== 'monad-mainnet' || (!PERMISSION_TOOLS.has(name) && !LISTING_TOOLS.has(name))
+  return network !== 'monad-mainnet' || (!PERMISSION_TOOLS.has(name) && !LISTING_TOOLS.has(name) && !X402_TOOLS.has(name))
 }
 const CONTINUATIONS = new Set(['submit_selection', 'build_activation', 'report_transaction', 'report_operation'])
 

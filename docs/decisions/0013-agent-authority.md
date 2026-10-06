@@ -69,3 +69,31 @@ pins the directory domain for this origin (zero verifying contract, origin salt)
 ID, registry and version, and a validity of at most 300 seconds (24 hours for a `ServiceAd`). A listing conveys no job,
 payment or settlement authority. The operator can withdraw it. Testnet only until the Privy directory rules are
 promoted on mainnet.
+
+## x402 payments (6 Oct 2026)
+
+Testnet `x402_pay` signs only EIP-3009 `TransferWithAuthorization` from the managed
+agent wallet against the deployment's USDC domain (`USDC`, version `2`, configured
+chain and token). No receive or cancel authorization is allowed. The exact payment,
+32-byte nonce and signature request are frozen under an operationKey before Privy;
+retrying it returns the same signature. Validity lasts at most ten minutes.
+
+The Privy policy caps each payment at 5 USDC (5,000,000 atomic units). Separately,
+the management object's SQLite ledger caps each agent at 20 USDC per rolling
+24 hours. This is a hosted limit, not an on-chain constraint. It counts every
+signed payment, with a reservation before signing so an uncertain provider result
+also consumes capacity. Retries reuse that reservation; it ages out after 24 hours.
+
+Payments use the agent's own USDC balance. The operator can fund it directly or
+grant an `erc20-token-periodic` permission paying the agent, then let it redeem
+that permission. Sidequest returns the x402 v2 PAYMENT-SIGNATURE header; the agent
+sends it to the resource. Sidequest never fetches the paid resource. The testnet
+`GET /x402/demo` charges 0.01 USDC to the deployment's owner Safe and verifies and
+settles through its configured facilitator.
+
+The Privy rule (`Allow TransferWithAuthorization`: chain, USDC contract, `from` =
+the signing wallet, value at most 5 USDC) was applied to the legacy testnet policy on
+6 Oct 2026 with Kris's go-ahead (`packages/sdk/scripts/privy/update-agent-rules.ts`).
+The separate Sidequest testnet policy carries the same rules with fresh pins; until it
+is bound to the dev stack, `x402_pay` cannot sign there. The tool, signing path and
+demo remain unavailable on mainnet.

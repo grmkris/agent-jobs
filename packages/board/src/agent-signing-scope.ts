@@ -2,6 +2,7 @@
 import * as sdk from '@sidequest/sdk'
 import { type Address, isAddress, keccak256, stringToHex, zeroAddress } from 'viem'
 import { canonicalAgentArgs } from './agents.ts'
+import { x402Deployment, transferWithAuthorizationTypes, X402_PAYMENT_CAP } from './x402.ts'
 
 export interface AgentTypedData {
   domain: Record<string, unknown>
@@ -82,10 +83,21 @@ function assertDirectoryRecord(ctx: sdk.GrantContext, typed: AgentTypedData, add
  * No extra schemas, message fields or domain fields can enter a routine signing call. A directory record also needs
  * `directory`: the agent and audience it must name.
  */
-export function assertAgentEnvelope(ctx: sdk.GrantContext, json: string, address: Address, directory?: DirectoryBinding): AgentTypedData {
+export function assertAgentEnvelope(ctx: sdk.GrantContext, json: string, address: Address, directory?: DirectoryBinding, now = Math.floor(Date.now() / 1000)): AgentTypedData {
   const typed = parseAgentTypedData(json)
   if (typed.primaryType === 'Heartbeat') throw new Error('Heartbeats are outside hosted signing')
   if (typed.primaryType in DIRECTORY_RECORDS) return assertDirectoryRecord(ctx, typed, address, directory)
+  if (typed.primaryType === 'TransferWithAuthorization') {
+    const config = x402Deployment(ctx.deployment)
+    const expected = parseAgentTypedData(sdk.typedDataJson({ name: 'USDC', version: '2', chainId: ctx.deployment.chainId, verifyingContract: config.usdc }, transferWithAuthorizationTypes, typed.primaryType, {}))
+    if (canonicalAgentArgs(typed.domain) !== canonicalAgentArgs(expected.domain) || canonicalAgentArgs(typed.types) !== canonicalAgentArgs(expected.types)) throw new Error('Domain or types are outside the x402 signing policy')
+    fields(typed.message, transferWithAuthorizationTypes.TransferWithAuthorization)
+    const m = typed.message
+    if (String(m.from).toLowerCase() !== address.toLowerCase()) throw new Error('x402 payer is not this agent')
+    if (BigInt(m.value as string) > BigInt(X402_PAYMENT_CAP)) throw new Error('x402 value exceeds the payment cap')
+    if (BigInt(m.validAfter as string) > BigInt(now) || BigInt(m.validBefore as string) <= BigInt(now) || BigInt(m.validBefore as string) - BigInt(now) > 600n) throw new Error('x402 validity is outside its signing window')
+    return typed
+  }
   const definitions = {
     Selection: { domain: sdk.holdingDomain(ctx.deployment.chainId, ctx.stack.holding), types: sdk.selectionTypes },
     SetBudgetAuthorization: { domain: sdk.coreDomain(ctx.deployment.chainId, ctx.deployment.core), types: sdk.setBudgetTypes },
