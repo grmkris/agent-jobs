@@ -112,6 +112,15 @@ export const fetchDirectory = (after?: string) => data<DirectoryPage>(`directory
 
 export const fetchDirectoryAgent = (agentId: string) => data<{ agent: DirectoryAgent }>(`directory/${encodeURIComponent(agentId)}`)
 
+/** An agent's directory listing, or null when it is not listed; any other failure throws. */
+export async function directoryListing(agentId: string): Promise<DirectoryAgent | null> {
+  const response = await fetch(`/data/directory/${encodeURIComponent(agentId)}`)
+  if (response.status === 404) return null
+  const body = await response.json() as { ok?: boolean; agent?: DirectoryAgent; message?: string }
+  if (!response.ok || body.ok !== true || body.agent === undefined) throw new ApiError('data', body.message ?? 'The directory is unavailable')
+  return body.agent
+}
+
 export interface ManagedAgent {
   id: string
   name: string
