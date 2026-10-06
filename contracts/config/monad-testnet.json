@@ -158,5 +158,21 @@
     "mining": {
       "genesis": 0
     }
+  },
+  "liquidity": {
+    "uniswapV4": {
+      "poolManager": "0x451D64ab3b650040d2aE1886602b97ed6eDc643d",
+      "positionManager": "0x3Bb14E3D0Cd50aBe3EdACa06d06c29C78676C31A",
+      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "stateView": "0xB639209539c61BaF67AC04876315786F8D0b153c"
+    },
+    "quote": "0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "factoryAmount": 10000000,
+    "quoteAmount": 1000,
+    "maxRepairCost": 5,
+    "positionOwner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8",
+    "swapHelper": "0xc6Fb7dB4490A6f38D63710e74E901dA5a66E9600"
   }
 }
