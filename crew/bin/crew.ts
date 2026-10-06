@@ -9,7 +9,8 @@
  *   bun crew/bin/crew.ts login <member>            print the consent link (sign in, pick the member's agent, approve)
  *   bun crew/bin/crew.ts login <member> '<url>'    finish with the page address the browser landed on
  *   bun crew/bin/crew.ts run <member> [note]       one routine pass (inbox, listing, work), then stop
- *   bun crew/bin/crew.ts loop [minutes]            every enabled, connected member on its own schedule, in parallel
+ *   bun crew/bin/crew.ts loop [minutes]            check every enabled, connected member each interval; start a run
+ *                                                  (in parallel) only when it has inbox events, held work or a listing due
  *   bun crew/bin/crew.ts status
  */
 import { spawn, spawnSync } from 'node:child_process'
@@ -200,6 +201,40 @@ async function run(id: string, note = '') {
   console.log(`${m.name}: exit ${code}`)
 }
 
+/** One MCP tool call as the member (JSON-RPC over the board's /mcp; no session needed). */
+async function mcpCall<T = unknown>(token: string, name: string, args: Record<string, unknown> = {}): Promise<T> {
+  const res = await fetch(crew.board.mcp, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+  })
+  const body = (await res.json()) as { result?: { content?: Array<{ text?: string }>; isError?: boolean } }
+  const text = body.result?.content?.[0]?.text ?? ''
+  if (body.result?.isError === true || !res.ok) throw new Error(`${name}: ${text.slice(0, 200) || res.status}`)
+  const parsed = JSON.parse(text) as { ok?: boolean; result?: T }
+  return (parsed.result ?? parsed) as T
+}
+
+const TERMINAL = new Set(['completed', 'cancelled', 'expired', 'closed', 'settled', 'ruled'])
+
+/**
+ * Whether a member has anything to do, read without starting a model: new inbox events past its saved cursor, held
+ * work that is not finished, or a directory listing due for renewal (20 h). Idle members cost no model tokens.
+ */
+async function wakeReason(id: string): Promise<string | null> {
+  const state = join(home(id), 'agent', 'state')
+  const advertised = existsSync(join(state, 'advertised')) ? Date.parse(readFileSync(join(state, 'advertised'), 'utf8').trim()) : Number.NaN
+  if (!(Date.now() - advertised < 20 * 3600_000)) return 'listing due'
+  const token = (await freshToken(id)).access_token
+  const cursor = existsSync(join(state, 'cursor')) ? readFileSync(join(state, 'cursor'), 'utf8').trim() : ''
+  const inbox = await mcpCall<{ events?: unknown[] }>(token, 'inbox', cursor === '' ? {} : { cursor })
+  if ((inbox.events?.length ?? 0) > 0) return `${inbox.events!.length} inbox event(s)`
+  const held = await mcpCall<Array<{ status?: string }>>(token, 'list_tasks', { role: 'worker', limit: 20 })
+  const open = (Array.isArray(held) ? held : []).filter((t) => !TERMINAL.has(String(t.status ?? '')))
+  if (open.length > 0) return `${open.length} held task(s)`
+  return null
+}
+
 let info: { rewardTokens?: string[] } | undefined
 async function protocolInfo() {
   info ??= (await (await fetch(`${crew.board.origin}/api/protocol_info`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).json() as { result: { rewardTokens?: string[] } }).result
@@ -223,6 +258,7 @@ const [command, a, b] = process.argv.slice(2)
 if (command === 'login') await login(a!, b)
 else if (command === 'run') await run(memberOf(a)[0], b)
 else if (command === 'status') status()
+else if (command === 'wake') console.log(await wakeReason(memberOf(a)[0]) ?? 'idle')
 else if (command === 'loop') {
   // Each enabled, connected member loops on its own (start staggered), at most maxParallel containers at once.
   const minutes = Number(a ?? 15)
@@ -236,8 +272,14 @@ else if (command === 'loop') {
   await Promise.all(members.map(async ([id], i) => {
     await Bun.sleep(i * 30_000)
     for (;;) {
-      await slot()
-      try { await run(id) } catch (error) { console.error(`${id}: ${(error as Error).message}`) } finally { running-- }
+      let reason: string | null = null
+      try { reason = await wakeReason(id) } catch (error) { reason = `check failed (${(error as Error).message.slice(0, 80)})` }
+      if (reason === null) console.log(`${crew.members[id]!.name}: idle`)
+      else {
+        await slot()
+        console.log(`${crew.members[id]!.name}: waking, ${reason}`)
+        try { await run(id) } catch (error) { console.error(`${id}: ${(error as Error).message}`) } finally { running-- }
+      }
       await Bun.sleep(minutes * 60_000)
     }
   }))

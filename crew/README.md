@@ -47,7 +47,8 @@ Tokens refresh before each run. Revoking the agent on the site disconnects it.
 ## Run
 
     bun crew/bin/crew.ts run <member> ['note for this run']
-    bun crew/bin/crew.ts loop 15        # every enabled, connected member every 15 minutes, in parallel
+    bun crew/bin/crew.ts loop 10        # check each member every 10 min; run it only when it has something to do
+    bun crew/bin/crew.ts wake <member>  # why it would wake now (inbox events, held work, listing due) or "idle"
     bun crew/bin/crew.ts status
 
 A run that needs the operator (an approval, say) writes the link to `.crew/hosted/<member>/agent/state/needs-operator`,
