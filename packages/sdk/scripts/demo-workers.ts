@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { type Address, type Hex, decodeEventLog, decodeFunctionData, parseAbi, parseUnits } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import * as sdk from '../src/index.ts'
-import { type DemoBid, type DemoRequest, assertSavedDemoArtifact, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from '../src/demo-worker.ts'
+import { type DemoBid, type DemoRequest, assertSavedDemoArtifact, inviteProblem, inviteRequest, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from '../src/demo-worker.ts'
 import { ensureFlowDirectory, saveFlowState } from './flow-persistence.ts'
 import { envLocal } from './lib/common.ts'
 import { reportCliFailure, safeCliClass } from './lib/cli-errors.mjs'
@@ -51,6 +51,8 @@ interface Entry {
   phase: Phase
   taskId?: string
   quoteId?: string
+  /** A direct invitation: the frozen terms the bid was made on; there is no quote. */
+  invite?: { termsHash: string }
   error?: string
 }
 interface Runtime {
@@ -65,7 +67,7 @@ interface Runtime {
   presencePending?: Promise<void>
 }
 interface Task {
-  taskId: string; jobId: string | null; creator: string; token: Address; reward: string; workerBond: string
+  taskId: string; stack: string; jobId: string | null; creator: string; token: Address; reward: string; workerBond: string
   deliveryDeadline: number; kind: string; termsHash: Hex; terms: Record<string, unknown>
   mine: { selected: boolean; application: { worker: string } | null }
   chain: { status: string; provider?: string; listingMatchesOffer?: boolean }
@@ -364,9 +366,14 @@ async function advance(worker: Runtime, entry: Entry) {
     if (entry.phase === 'completed') log(worker.profile.name, 'paid', { taskId: task.taskId, jobId: task.jobId })
     return
   }
+  // An invitation this worker never activated ends quietly; it holds no stake or delivery of ours.
+  if (entry.invite && task.chain.provider?.toLowerCase() !== worker.account.address.toLowerCase()
+    && ['lapsed', 'selection-closed', 'expired', 'cancelled'].includes(task.chain.status)) { entry.phase = 'lost'; save(); return }
   if (['rejected', 'disputed', 'expired', 'cancelled'].includes(task.chain.status)) { entry.phase = 'attention'; save(); return }
   if (!task.jobId || !task.mine.selected) return
-  verifyPickedTerms(entry.request, task.terms, token, parseUnits(worker.profile.price, 6))
+  if (entry.invite) {
+    if (task.termsHash !== entry.invite.termsHash) throw new Error('Invited offer differs from the terms the bid was made on')
+  } else verifyPickedTerms(entry.request, task.terms, token, parseUnits(worker.profile.price, 6))
   if (task.kind !== 'hireling-v1' || task.chain.listingMatchesOffer !== true) throw new Error('Selected job does not match the current v1 listing')
   if (task.chain.status === 'open') {
     if (Object.values(worker.entries).some(other => other !== entry && occupiesWorker(other.phase))) return
@@ -416,6 +423,33 @@ async function advance(worker: Runtime, entry: Entry) {
   log(worker.profile.name, 'submitted', { taskId: task.taskId, jobId: task.jobId, artifactUrl: published.url })
 }
 
+/**
+ * Direct invitations to this worker: bid on the frozen terms (the same model check as a quote request), then wait in
+ * waiting-selection for the creator's Selection; advance() activates and delivers as for a picked quote.
+ */
+async function discoverInvites(worker: Runtime) {
+  const listed = await worker.board.call<Array<{ taskId: string }>>('list_tasks', { role: 'invited', status: ['open'], limit: 10 })
+  for (const { taskId } of listed) {
+    const id = `task-${taskId}`
+    if (worker.entries[id] || Object.values(worker.entries).some(entry => entry.taskId === taskId)) continue
+    if (Object.values(worker.entries).some(entry => occupiesWorker(entry.phase))) break
+    if (dailyRemaining(daily(worker), 'quotes', crewPolicy.maxQuotesPerDay, Date.now()) === 0
+      || dailyRemaining(daily(worker), 'deliveries', crewPolicy.maxDeliveriesPerDay, Date.now()) === 0) break
+    const task = await worker.board.call<Task>('get_task', { taskId })
+    const problem = inviteProblem(task, policy, parseUnits(worker.profile.price, 6), Math.floor(Date.now() / 1000))
+    if (problem) {
+      worker.entries[id] = { request: inviteRequest(task), bid: null, phase: 'declined', taskId, invite: { termsHash: task.termsHash }, error: problem }; save()
+      log(worker.profile.name, 'invite-declined', { taskId, reason: problem })
+      continue
+    }
+    if (!reserve(worker, 'quotes', id)) break
+    const request = inviteRequest(task)
+    const bid = await journal.once(`${worker.profile.slug}/${id}/bid`, async () => bidFor(worker, request))
+    worker.entries[id] = { request, bid, phase: bid ? 'waiting-selection' : 'declined', taskId, quoteId: 'invite', invite: { termsHash: task.termsHash } }; save()
+    log(worker.profile.name, bid ? 'invite-accepted' : 'invite-declined', { taskId, ...(bid ? { approach: bid.note } : {}) })
+  }
+}
+
 async function tick(worker: Runtime, requests: DemoRequest[]) {
   if (Date.now() - worker.lastSignIn > 60 * 60 * 1000) {
     await worker.board.signIn(worker.account)
@@ -428,6 +462,8 @@ async function tick(worker: Runtime, requests: DemoRequest[]) {
   }
   await presence(worker)
   if (!running || Object.values(worker.entries).some(entry => occupiesWorker(entry.phase))) return
+  try { await discoverInvites(worker) }
+  catch (error) { log(worker.profile.name, 'invites-unavailable', { reason: safeError(error) }) }
   for (const request of requests) {
     if (Object.values(worker.entries).some(entry => occupiesWorker(entry.phase))) break
     if (!running || dailyRemaining(daily(worker), 'quotes', crewPolicy.maxQuotesPerDay, Date.now()) === 0

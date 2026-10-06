@@ -1,5 +1,5 @@
 /** Bounded testnet worker policy. Model output is data; this module grants no signing authority. */
-import { type Address, parseUnits, sha256 } from 'viem'
+import { type Address, formatUnits, parseUnits, sha256 } from 'viem'
 import outputFormats from './demo-worker-formats.json' with { type: 'json' }
 
 export interface DemoRequest {
@@ -57,6 +57,44 @@ export function requestProblem(request: DemoRequest, policy: DemoPolicy, now: nu
   if ((request.requiredChecks?.length ?? 0) > 0 && !accepts.includes('git')) return 'CI requirements need a git deliverable'
   if (request.deliverable?.target?.trim()) return 'A named delivery target needs an operator-configured adapter'
   return undefined
+}
+
+/** What a worker reads of an invited task (`get_task`): its frozen terms and where they live. */
+export interface DemoInvite {
+  taskId: string
+  stack: string
+  kind: string
+  termsHash: string
+  terms: Record<string, unknown>
+}
+
+/**
+ * A direct invitation's frozen terms in the request shape the worker bids on and delivers against. It has no quote:
+ * requestHash is empty and the quote deadline is the delivery deadline.
+ */
+export function inviteRequest(invite: DemoInvite): DemoRequest {
+  const t = invite.terms
+  const deployment = t.deployment as { chainId?: number } | undefined
+  const evidence = t.evidencePolicy as { checks?: string[] } | null | undefined
+  let workerBond = ''
+  try { workerBond = formatUnits(BigInt(String(t.workerBond)), 18) } catch { workerBond = 'invalid' }
+  return {
+    requestId: `task-${invite.taskId}`, requestHash: '', chainId: deployment?.chainId ?? 0, stack: invite.stack, creator: String(t.creator),
+    title: String(t.title), brief: String(t.brief), acceptanceCriteria: Array.isArray(t.acceptanceCriteria) ? t.acceptanceCriteria.map(String) : [],
+    tokens: [String(t.token)], workerBond, deliveryDeadline: Number(t.deliveryDeadline), quoteDeadline: Number(t.deliveryDeadline),
+    requiredChecks: evidence?.checks ?? [], windows: t.windows as DemoRequest['windows'], arbitrator: String(t.arbitrator),
+    ...(t.deliverable === undefined ? {} : { deliverable: t.deliverable as NonNullable<DemoRequest['deliverable']> }),
+  }
+}
+
+/** The request policy plus what only an invitation decides: a v1 hire with no quote, paying at least the worker's price. */
+export function inviteProblem(invite: DemoInvite, policy: DemoPolicy, minimumReward: bigint, now: number): string | undefined {
+  const t = invite.terms
+  if (invite.kind !== 'hireling-v1' || t.mode !== 'hire') return 'Only the current Monad testnet v1 stack is supported'
+  if (t.quote !== null && t.quote !== undefined) return 'A picked quote follows the quote flow'
+  try { if (BigInt(String(t.reward)) < minimumReward) return 'The reward is below this worker\'s price' }
+  catch { return 'Invalid reward' }
+  return requestProblem(inviteRequest(invite), policy, now)
 }
 
 export function parseDemoBid(value: unknown): DemoBid | null {

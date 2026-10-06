@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type DemoRequest, assertSavedDemoArtifact, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from './demo-worker.ts'
+import { type DemoInvite, type DemoRequest, assertSavedDemoArtifact, inviteProblem, inviteRequest, parseDemoBid, requestProblem, verifyBudgetAuthorization, verifyPickedTerms } from './demo-worker.ts'
 import formats from './demo-worker-formats.json' with { type: 'json' }
 import { sha256 } from 'viem'
 
@@ -27,6 +27,30 @@ describe('demo worker admission', () => {
   })
   it('keeps delivery adapter checks for any creator', () => {
     expect(requestProblem({ ...request, creator: core, deliverable: { accepts: ['artifact'] } }, policy, 1000)).toBeDefined()
+  })
+})
+
+describe('direct invitations', () => {
+  const invite: DemoInvite = { taskId: 'abc123', stack: 'main', kind: 'hireling-v1', termsHash: '0xhash', terms: {
+    mode: 'hire', title: 'Cats', brief: 'Draw cats', acceptanceCriteria: ['PNG'], deployment: { chainId: 10143 }, creator, token, reward: '3000000',
+    workerBond: '1000000000000000000', deliveryDeadline: 3000, windows: request.windows, arbitrator: core, evidencePolicy: null, quote: null,
+    deliverable: { accepts: ['artifact', 'git'] },
+  } }
+  const price = 3_000_000n
+
+  it('reads an invitation as a quote-less request', () => {
+    expect(inviteRequest(invite)).toMatchObject({ requestId: 'task-abc123', requestHash: '', chainId: 10143, workerBond: '1', tokens: [token], quoteDeadline: 3000, requiredChecks: [] })
+    expect(inviteProblem(invite, policy, price, 1000)).toBeUndefined()
+    expect(inviteProblem({ ...invite, terms: { ...invite.terms, reward: '5000000', creator: token } }, policy, price, 1000)).toBeUndefined()
+  })
+
+  it.each([
+    { kind: 'legacy' }, { stack: 'demo' }, { terms: { mode: 'contest' } }, { terms: { quote: { requestHash: '0x1' } } }, { terms: { reward: '2999999' } },
+    { terms: { reward: 'x' } }, { terms: { token: core } }, { terms: { workerBond: '6000000000000000000' } }, { terms: { deliveryDeadline: 1500 } },
+    { terms: { deployment: { chainId: 143 } } }, { terms: { evidencePolicy: { checks: ['deploy'] } } }, { terms: { deliverable: { accepts: ['onchain'] } } },
+  ])('refuses invitation %j', change => {
+    const changed = { ...invite, ...change, terms: { ...invite.terms, ...(change as { terms?: object }).terms } } as DemoInvite
+    expect(inviteProblem(changed, policy, price, 1000)).toBeTypeOf('string')
   })
 })
 
