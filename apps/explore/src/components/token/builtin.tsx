@@ -12,8 +12,9 @@ const svg = (props: IconProps) => ({ viewBox: '0 0 32 32', 'aria-hidden': true, 
 export function FactoryIcon(props: IconProps) {
   return (
     <svg {...svg(props)}>
-      <circle cx="16" cy="16" r="16" fill="#5452d4" />
-      <path d="M11 9v14M21 9v14M11 16h10" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+      {/* The Hireling mark in the page's ink: near-black on light, inverted on dark, like the favicon. */}
+      <circle cx="16" cy="16" r="16" className="fill-foreground" />
+      <path d="M11 9v14M21 9v14M11 16h10" className="stroke-background" strokeWidth="3.2" strokeLinecap="round" fill="none" />
     </svg>
   )
 }
