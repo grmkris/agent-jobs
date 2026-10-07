@@ -1,8 +1,8 @@
-/** Isolated Sidequest dev authority. Never PATCH, DELETE or replace legacy authority. */
+/** Isolated Sidequest routine authority. Policy updates touch only the verified routine policy. */
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { generateAuthorizationKey } from '../../src/p256.ts'
+import { generateAuthorizationKey, p256AuthorizationSigner } from '../../src/p256.ts'
 import { PrivyApi } from './client.ts'
 import { adminEnv, localEnv, required } from './env.ts'
 import { authorityPolicy, config } from './policy.ts'
@@ -29,8 +29,9 @@ export interface CutoverState {
   routine?: Creation
   policy?: Creation
   verifiedAt?: string
+  policyUpdate?: { beforeSha256: string; targetSha256: string }
 }
-interface Api { checked(method: string, route: string, body?: Json, sign?: undefined, idempotencyKey?: string): Promise<Json> }
+interface Api { checked(method: string, route: string, body?: Json, sign?: (payload: string) => Promise<string>, idempotencyKey?: string): Promise<Json> }
 const fingerprint = (value: string) => createHash('sha256').update(value).digest('hex')
 export function publicKey(privateKey: string): string {
   const key = createPrivateKey({ key: Buffer.from(privateKey.replace(/^wallet-auth:/, ''), 'base64'), format: 'der', type: 'pkcs8' })
@@ -126,7 +127,60 @@ function safeSummary(state: CutoverState) {
     signerId: state.routine?.id ?? null, policyId: state.policy?.id ?? null, verifiedAt: state.verifiedAt ?? null,
     devEnvWritten: existsSync(envPath), legacyAuthorityPreserved: true }
 }
-export async function runCutover(mode: 'prepare' | 'apply' | 'verify') {
+/** Update only the existing routine policy; persist its desired hash before PATCH and reconcile via GET on retry. */
+export async function updateRoutinePolicy(input: {
+  api: Api; state: CutoverState; adminId: string; adminPublicKey: string; sign: (payload: string) => Promise<string>
+  persist: (state: CutoverState) => void
+}) {
+  const { api, state, adminId, adminPublicKey, sign, persist } = input
+  if (state.version !== 2 || !state.verifiedAt || !state.policy?.id || !state.routine?.id || state.adminId !== adminId || state.adminPublicKey !== adminPublicKey) {
+    throw new SidequestCutoverError('Verified routine authority and matching admin required')
+  }
+  await assertQuorum(await api.checked('GET', `/key_quorums/${adminId}`), adminId, adminPublicKey)
+  await assertQuorum(await api.checked('GET', `/key_quorums/${state.routine.id}`), state.routine.id, state.routinePublicKey)
+  const desired = authorityPolicy(adminId)
+  const live = await api.checked('GET', `/policies/${state.policy.id}`)
+  if (live.id !== state.policy.id) throw new SidequestCutoverError('Routine policy readback ID differs')
+  const oldHash = fingerprint(canonical(writablePolicy(live)))
+  const newHash = fingerprint(canonical(desired))
+  if (oldHash !== state.desiredPolicySha256 && oldHash !== newHash && oldHash !== state.policyUpdate?.beforeSha256) throw new SidequestCutoverError('Routine policy drift; reconcile before update')
+  state.policyUpdate = { beforeSha256: oldHash, targetSha256: newHash }
+  persist(state)
+  if (oldHash !== newHash) await api.checked('PATCH', `/policies/${state.policy.id}`, { rules: desired.rules }, sign)
+  const updated = await api.checked('GET', `/policies/${state.policy.id}`)
+  if (canonical(writablePolicy(updated)) !== canonical(desired)) throw new SidequestCutoverError('Routine policy update readback differs')
+  state.desiredPolicySha256 = newHash
+  delete state.policyUpdate
+  state.verifiedAt = new Date().toISOString()
+  persist(state)
+  return { name: desired.name, appId: state.appId, adminId, signerId: state.routine.id, policyId: state.policy.id }
+}
+
+async function runPolicyUpdate() {
+  const env = process.env as Record<string, string>
+  const appId = required(env, 'PRIVY_APP_ID'), adminId = required(env, 'PRIVY_POLICY_ADMIN_ID')
+  const adminKey = required(env, 'PRIVY_POLICY_ADMIN_KEY')
+  const lock = resolve(root, 'privy-cutover.lock'), descriptor = openSync(lock, 'wx', 0o600)
+  try {
+    const state = JSON.parse(readFileSync(statePath, 'utf8')) as CutoverState
+    if (state.appId !== appId || state.policy?.id !== required(env, 'PRIVY_POLICY_ID') || state.routine?.id !== required(env, 'PRIVY_SIGNER_ID')) throw new SidequestCutoverError('Stage authority differs from cutover journal')
+    return await updateRoutinePolicy({ api: new PrivyApi(appId, required(env, 'PRIVY_APP_SECRET')), state, adminId,
+      adminPublicKey: publicKey(adminKey), sign: await p256AuthorizationSigner(adminKey), persist: saveCutoverState })
+  } finally { closeSync(descriptor); unlinkSync(lock) }
+}
+
+export async function runCutover(mode: 'prepare' | 'apply' | 'verify' | 'update-policy') {
+  if (mode === 'update-policy') return runPolicyUpdate()
+  if (mode === 'verify' && process.env.PRIVY_POLICY_ID !== undefined && process.env.PRIVY_APP_SECRET !== undefined) {
+    const state = JSON.parse(readFileSync(statePath, 'utf8')) as CutoverState
+    const env = process.env as Record<string, string>
+    if (state.appId !== required(env, 'PRIVY_APP_ID') || state.policy?.id !== required(env, 'PRIVY_POLICY_ID') || state.routine?.id !== required(env, 'PRIVY_SIGNER_ID') || fingerprint(canonical(authorityPolicy(state.adminId))) !== state.desiredPolicySha256) throw new SidequestCutoverError('Stage routine authority differs from journal')
+    const api = new PrivyApi(state.appId, required(env, 'PRIVY_APP_SECRET'))
+    const live = await api.checked('GET', `/policies/${state.policy.id}`)
+    if (canonical(writablePolicy(live)) !== canonical(authorityPolicy(state.adminId))) throw new SidequestCutoverError('Routine policy readback differs')
+    assertQuorum(await api.checked('GET', `/key_quorums/${state.routine.id}`), state.routine.id, state.routinePublicKey)
+    return { name: 'Sidequest routine authority', appId: state.appId, policyId: state.policy.id, signerId: state.routine.id }
+  }
   if (config.chainId !== 10143 || config.deployment?.main?.kind !== 'sidequest-v1' || config.sidequest?.reuseCore === true) {
     throw new SidequestCutoverError('Fresh Sidequest testnet deployment required')
   }
@@ -182,8 +236,8 @@ export async function runCutover(mode: 'prepare' | 'apply' | 'verify') {
 if (import.meta.main) {
   try {
     const mode = process.argv[2]
-    if (process.argv.length !== 3 || !['prepare', 'apply', 'verify'].includes(mode ?? '')) throw new SidequestCutoverError('Use prepare, apply or verify')
-    console.log(JSON.stringify(await runCutover(mode as 'prepare' | 'apply' | 'verify'), null, 2))
+    if (process.argv.length !== 3 || !['prepare', 'apply', 'verify', 'update-policy'].includes(mode ?? '')) throw new SidequestCutoverError('Use prepare, apply, verify or update-policy')
+    console.log(JSON.stringify(await runCutover(mode as 'prepare' | 'apply' | 'verify' | 'update-policy'), null, 2))
   } catch (error) {
     console.error(error instanceof SidequestCutoverError ? error.message : 'Sidequest authority refused; credentials and provider response suppressed')
     process.exitCode = 1

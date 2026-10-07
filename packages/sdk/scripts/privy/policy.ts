@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { zeroAddress } from 'viem'
 import { DELEGATION_TYPES } from '../../src/delegation/index.ts'
 import { directoryDomainFields, directoryDomainName, directoryRecordFields } from '../../src/directory.ts'
+import { stageProfile } from '../../../../infra/stage.ts'
 import { selectionTypes, setBudgetTypes, submitTypes } from '../../src/typed-data.ts'
 
 export const config = JSON.parse(readFileSync(new URL('../../../../contracts/config/monad-testnet.json', import.meta.url), 'utf8'))
@@ -37,6 +38,7 @@ export const transferWithAuthorizationTypes = {
 
 /** The most one x402 payment may move, in USDC base units (6 decimals). The hosted ledger caps each day below it. */
 export const X402_PAYMENT_CAP = '5000000'
+export const RELAY_ADDRESSES = [stageProfile('dev')!.relay, stageProfile('prod')!.relay] as const
 
 /** Directory records a hosted agent may sign (V1.1 WS8); Heartbeat stays refused by hosted signing. */
 export const DIRECTORY_RECORD_KINDS = ['Enrollment', 'ServiceAd', 'RevokeAd'] as const
@@ -90,7 +92,8 @@ export function authorityPolicy(ownerId: string) {
       { field_source: 'ethereum_typed_data_domain', field: 'chainId', operator: 'eq', value: '10143' },
       { field_source: 'ethereum_typed_data_domain', field: 'verifyingContract', operator: 'eq', value: shape.contract },
       { field_source: 'ethereum_typed_data_message', typed_data: schema(shape), field: shape.field,
-        operator: shape.operator, value: shape.value },
+        operator: shape.primaryType === 'Delegation' && shape.field === 'delegate' ? 'in' : shape.operator,
+        value: shape.primaryType === 'Delegation' && shape.field === 'delegate' ? [...RELAY_ADDRESSES] : shape.value },
       ...(shape.also ?? []).map(condition => ({ field_source: 'ethereum_typed_data_message', typed_data: schema(shape), ...condition })),
     ],
   }))

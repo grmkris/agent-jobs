@@ -30,7 +30,7 @@ function pinned(policy: JsonRecord, ruleName: string, source: string, field: str
   }
   const conditions = rules[0]!.conditions.map(record).filter(condition =>
     condition.field_source === source && condition.field === field)
-  if (conditions.length !== 1 || conditions[0]!.operator !== 'eq') {
+  if (conditions.length !== 1 || !['eq', 'in'].includes(String(conditions[0]!.operator))) {
     throw new SidequestPolicyPlanError('Expected one equality pin; refusing plan')
   }
   return conditions[0]!
@@ -54,12 +54,15 @@ export function sidequestPolicyPlan(live: JsonRecord, desired: AuthorityPolicy, 
     const old = address(oldValue)
     const current = pinned(before, rule!, source!, field!)
     const next = pinned(expected, rule!, source!, field!)
-    const promoted = address(next.value)
+    const promoted = address(Array.isArray(next.value) ? next.value[0] : next.value)
     if (old.toLowerCase() === promoted.toLowerCase()) throw new SidequestPolicyPlanError('Expected fresh deployment pins; refusing plan')
-    if (address(current.value).toLowerCase() !== old.toLowerCase()) {
+    const currentValues = current.operator === 'in' && Array.isArray(current.value) ? current.value : [current.value]
+    if (!currentValues.some(value => address(value).toLowerCase() === old.toLowerCase())) {
       throw new SidequestPolicyPlanError('Live policy is not the archived deployment; refusing plan')
     }
+    current.operator = 'eq'
     current.value = old
+    next.operator = 'eq'
     next.value = old
     changes.push({ rule: rule!, field: field!, before: old, after: promoted })
   }
