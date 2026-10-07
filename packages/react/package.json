@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Headless React hooks and a typed client for embedding the sidequest marketplace: boards, tasks, publish, enter, award, select and pledge, with any EIP-1193 wallet.",
+  "description": "Headless React hooks and a typed client for embedding the sidequest marketplace: boards, tasks, publish and select, with any EIP-1193 wallet.",
   "exports": {
     ".": "./src/index.ts"
   },

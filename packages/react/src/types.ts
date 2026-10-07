@@ -60,13 +60,13 @@ export interface TaskIndexEntry {
   taskId: string
   jobId: string | null
   stack: string
-  /** The contracts the offer is frozen on: the current Sidequest v1 pair, or a pre-v1 one. */
-  kind: 'legacy' | 'sidequest-v1'
+  /** The contracts the offer is frozen on: the current Sidequest v1 pair. */
+  kind: 'sidequest-v1'
   title: string
   brief: string
   acceptanceCriteria: string[]
   tags?: readonly JobTag[]
-  mode: 'hire' | 'contest'
+  mode: 'hire'
   token: `0x${string}`
   reward: string
   creatorBond: string
@@ -74,7 +74,6 @@ export interface TaskIndexEntry {
   creator: `0x${string}`
   approver: `0x${string}`
   deliveryDeadline: number
-  selectionDeadline: number | null
   requiredChecks: string[]
   quoted: boolean
   /** ADR-0009: base units of `token` (a call budget: wei of native value); null when the offer has none. */
@@ -90,8 +89,8 @@ export interface TaskIndexEntry {
 export interface ChainJob {
   job_id: string
   stack: string | null
-  /** The contracts the job was published on: Sidequest v1, or a pre-v1 pair; null for a row indexed before kinds. */
-  kind: 'legacy' | 'sidequest-v1' | null
+  /** The contracts the job was published on: Sidequest v1; null until the listing is indexed. */
+  kind: 'sidequest-v1' | null
   mode: string | null
   status: string
   creator: string | null
