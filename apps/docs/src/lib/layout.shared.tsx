@@ -1,4 +1,5 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
+import { OpenApp } from '@/components/open-app'
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
@@ -9,6 +10,13 @@ export function baseOptions(): BaseLayoutProps {
         </span>
       ),
       url: '/',
+      // Fumadocs also renders nav children in the desktop sidebar header; show this copy below md only, where the
+      // page row and the table-of-contents column do not.
+      children: (
+        <div className="flex justify-end pe-1 md:hidden">
+          <OpenApp />
+        </div>
+      ),
     },
     themeSwitch: { enabled: false },
   }

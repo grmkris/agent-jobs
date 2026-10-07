@@ -8,6 +8,7 @@ import { source, docs } from '@/lib/source'
 import { baseOptions } from '@/lib/layout.shared'
 import { getPageMarkdownUrl } from '@/lib/shared'
 import { useMDXComponents } from '@/components/mdx'
+import { OpenApp } from '@/components/open-app'
 import { useFumadocsLoader } from 'fumadocs-core/source/client'
 
 const loadPage = createServerFn({ method: 'GET' })
@@ -51,11 +52,16 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
   const { toc } = use(page.load())
   const MDX = page.body
   return (
-    <DocsPage toc={toc}>
+    // "Open app": top right of the table-of-contents column from xl, in this row between md and xl, and in the
+    // mobile header (layout.shared.tsx) below md, so exactly one shows at any width.
+    <DocsPage toc={toc} tableOfContent={{ header: <OpenApp className="mb-4 self-start" /> }}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
       <div className="-mt-4 mb-6 flex items-center border-b pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
+        <span className="ms-auto hidden md:block xl:hidden">
+          <OpenApp />
+        </span>
       </div>
       <DocsBody>
         <MDX components={useMDXComponents()} />
