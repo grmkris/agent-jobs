@@ -6,6 +6,12 @@ import type { OperationRow } from './store.ts'
 
 const same = (a: unknown, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase()
 
+function availableLogs(receipt: TransactionReceipt, consumed: ReadonlySet<number>) {
+  return receipt.logs.filter(
+    (log) => Number.isSafeInteger(log.logIndex) && log.logIndex >= 0 && !consumed.has(log.logIndex),
+  )
+}
+
 export interface VaultOperationResult {
   account: string
   delegator: string
@@ -14,12 +20,30 @@ export interface VaultOperationResult {
   assets: string
 }
 
+export interface OperationEvent {
+  operationId: string
+  logIndex: number
+}
+export interface VaultOperationEvent {
+  logIndex: number
+  result: VaultOperationResult
+}
+
 /** Match fixed ownership, deposit assets and exit shares. The event supplies exit assets and minted shares. */
 export function vaultOperationResult(
   ctx: sdk.Ctx,
   receipt: TransactionReceipt,
   op: OperationRow,
 ): VaultOperationResult | null {
+  return vaultOperationEvent(ctx, receipt, op)?.result ?? null
+}
+
+export function vaultOperationEvent(
+  ctx: sdk.Ctx,
+  receipt: TransactionReceipt,
+  op: OperationRow,
+  consumed: ReadonlySet<number> = new Set(),
+): VaultOperationEvent | null {
   if (receipt.status !== 'success' || ctx.deployment.sidequest === null || op.detail === null) return null
   const detail = JSON.parse(op.detail) as {
     vault?: string
@@ -43,7 +67,8 @@ export function vaultOperationResult(
       : !/^[1-9]\d*$/.test(detail.shares ?? '')
   )
     return null
-  for (const log of receipt.logs) {
+  for (const log of availableLogs(receipt, consumed)) {
+    const logIndex = log.logIndex
     if (!same(log.address, detail.vault!)) continue
     try {
       const e = decodeEventLog({ abi: sdk.stakeVaultAbi, data: log.data, topics: log.topics, strict: true })
@@ -68,11 +93,14 @@ export function vaultOperationResult(
       )
         continue
       return {
-        account: args.account,
-        delegator: args.delegator,
-        ...(args.payer === undefined ? {} : { payer: args.payer }),
-        shares: args.shares.toString(),
-        assets: args.assets.toString(),
+        logIndex,
+        result: {
+          account: args.account,
+          delegator: args.delegator,
+          ...(args.payer === undefined ? {} : { payer: args.payer }),
+          shares: args.shares.toString(),
+          assets: args.assets.toString(),
+        },
       }
     } catch {
       /* An unrelated or malformed log cannot confirm this operation. */
@@ -91,31 +119,54 @@ export async function confirmedOperationIds(
   receipt: TransactionReceipt,
   operations: readonly OperationRow[],
 ): Promise<string[]> {
-  if (receipt.status !== 'success') return []
-  const confirmed = new Set<string>()
-  let listing: Awaited<ReturnType<typeof sdk.getListing>> | undefined
-  const mark = (kind: string, actor: unknown, details: Array<[string, unknown]> = []) => {
-    for (const op of operations) {
-      if (op.kind !== kind || !same(actor, op.actor)) continue
-      const prepared = op.detail === null ? {} : (JSON.parse(op.detail) as Record<string, unknown>)
-      if (
-        details.some(([key, value]) => {
-          const expected =
-            key === 'violation' && typeof prepared[key] === 'string'
-              ? sdk.Violation[prepared[key] as sdk.ViolationName]
-              : prepared[key]
-          return (
-            expected === undefined ||
-            expected === null ||
-            String(expected).toLowerCase() !== String(value).toLowerCase()
-          )
-        })
-      )
-        continue
-      confirmed.add(op.id)
-    }
+  return (await confirmedOperationEvents(ctx, jobId, receipt, operations)).map((event) => event.operationId)
+}
+
+function markOperation(
+  operations: readonly OperationRow[],
+  confirmed: Map<string, number>,
+  event: {
+    logIndex: number
+    kind: string
+    actor: unknown
+    details: Array<[string, unknown]>
+  },
+): void {
+  const { logIndex, kind, actor, details } = event
+  for (const op of operations) {
+    if (confirmed.has(op.id) || op.kind !== kind || !same(actor, op.actor)) continue
+    const prepared = op.detail === null ? {} : (JSON.parse(op.detail) as Record<string, unknown>)
+    if (
+      details.some(([key, value]) => {
+        const expected =
+          key === 'violation' && typeof prepared[key] === 'string'
+            ? sdk.Violation[prepared[key] as sdk.ViolationName]
+            : prepared[key]
+        return (
+          expected === undefined || expected === null || String(expected).toLowerCase() !== String(value).toLowerCase()
+        )
+      })
+    )
+      continue
+    confirmed.set(op.id, logIndex)
+    break
   }
-  for (const log of receipt.logs) {
+}
+
+export async function confirmedOperationEvents(
+  ctx: sdk.Ctx,
+  jobId: bigint,
+  receipt: TransactionReceipt,
+  operations: readonly OperationRow[],
+  consumed: ReadonlySet<number> = new Set(),
+): Promise<OperationEvent[]> {
+  if (receipt.status !== 'success') return []
+  const confirmed = new Map<string, number>()
+  let listing: Awaited<ReturnType<typeof sdk.getListing>> | undefined
+  const mark = (logIndex: number, kind: string, actor: unknown, details: Array<[string, unknown]> = []) =>
+    markOperation(operations, confirmed, { logIndex, kind, actor, details })
+  for (const log of availableLogs(receipt, consumed)) {
+    const logIndex = log.logIndex
     let abi: Abi
     if (same(log.address, ctx.stack.holding)) abi = holdingAbi(ctx)
     else if (same(log.address, ctx.stack.evaluator)) abi = evaluatorAbi(ctx)
@@ -131,29 +182,29 @@ export async function confirmedOperationIds(
     if (a.jobId !== jobId) continue
     switch (event.eventName) {
       case 'Activated':
-        mark('activate', a.worker, [['selectionNonce', a.selectionNonce]])
+        mark(logIndex, 'activate', a.worker, [['selectionNonce', a.selectionNonce]])
         break
       case 'ToppedUp':
-        mark('top-up', a.contributor, [['amount', a.amount]])
+        mark(logIndex, 'top-up', a.contributor, [['amount', a.amount]])
         break
       case 'JobSubmitted':
-        mark('submit', a.provider, [['deliverableHash', a.deliverable]])
+        mark(logIndex, 'submit', a.provider, [['deliverableHash', a.deliverable]])
         break
       case 'Accepted':
-        mark('accept', a.approver)
+        mark(logIndex, 'accept', a.approver)
         break
       case 'Rejected':
-        mark('reject', a.approver, [
+        mark(logIndex, 'reject', a.approver, [
           ['reasonHash', a.reasonHash],
           ['violation', a.violation],
         ])
         break
       case 'Disputed':
-        mark('dispute', a.worker)
+        mark(logIndex, 'dispute', a.worker)
         break
       case 'Ruled': {
         const actor = a.arbitrator
-        mark('rule', actor, [
+        mark(logIndex, 'rule', actor, [
           ['reasonHash', a.reasonHash],
           ['forWorker', a.forWorker],
           ['slashLoser', a.slashLoser],
@@ -162,10 +213,10 @@ export async function confirmedOperationIds(
       }
       case 'Cancelled': {
         listing ??= await sdk.getListing(ctx, jobId)
-        mark('cancel', listing.creator)
+        mark(logIndex, 'cancel', listing.creator)
         break
       }
     }
   }
-  return [...confirmed]
+  return [...confirmed].map(([operationId, logIndex]) => ({ operationId, logIndex }))
 }

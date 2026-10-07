@@ -139,6 +139,13 @@ const SCHEMA = [
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS operation_receipts (
+    chain_id INTEGER NOT NULL,
+    tx_hash TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
+    operation_id TEXT NOT NULL UNIQUE,
+    PRIMARY KEY (chain_id, tx_hash, log_index)
+  )`,
   `CREATE TABLE IF NOT EXISTS siwe_nonces (
     nonce TEXT PRIMARY KEY,
     address TEXT NOT NULL,

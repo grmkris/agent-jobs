@@ -1,11 +1,18 @@
 import * as sdk from '@sidequest/sdk'
 import { type Address, type Hex, type TransactionReceipt, encodeAbiParameters, encodeEventTopics, parseAbi } from 'viem'
 import { expect, it, vi } from 'vitest'
-import { confirmedOperationIds, confirmsVaultOperation, vaultOperationResult } from './receipts.ts'
+import {
+  confirmedOperationEvents,
+  confirmedOperationIds,
+  confirmsVaultOperation,
+  vaultOperationResult,
+} from './receipts.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { Board } from './service.ts'
 import { fromNodeSqlite } from './store.ts'
-import type { OperationRow } from './store.ts'
+import type { OperationRow, Sql } from './store.ts'
+import { confirmOperationEvent } from './operation-receipts.ts'
+import { canonicalJson, termsHash, type OfferTerms } from './terms.ts'
 
 const wallet = `0x${'1'.repeat(40)}` as Address,
   relay = `0x${'2'.repeat(40)}` as Address,
@@ -27,8 +34,16 @@ const op = (kind: string, actor: string = wallet, detail?: object): OperationRow
   created_at: 0,
   updated_at: 0,
 })
-const receipt = (logs: unknown[]): TransactionReceipt =>
-  ({ status: 'success', from: relay, to: ctx.deployment.delegation.manager, logs }) as TransactionReceipt
+// SAFETY: unit receipts contain canonical transaction metadata and ABI-encoded logs; unused RPC fields are omitted.
+const receipt = (logs: object[]): TransactionReceipt =>
+  ({
+    status: 'success',
+    transactionHash: sdk.hashText('vault receipt'),
+    blockNumber: 100n,
+    from: relay,
+    to: ctx.deployment.delegation.manager,
+    logs: logs.map((log, logIndex) => ({ ...log, logIndex })),
+  }) as TransactionReceipt
 function accepted(approver: Address = wallet, address = ctx.stack.evaluator, jobId = 1n) {
   return {
     address,
@@ -275,9 +290,16 @@ it('a saved wallet-operation hash survives a lost receipt response and polls the
     .fn()
     .mockRejectedValueOnce(new Error('lost response'))
     .mockResolvedValue(receipt([vaultLog('stake')]))
+  // SAFETY: only block timestamp is used for these operations; the remaining real client fields are preserved.
+  const getBlock = vi
+    .fn<sdk.Ctx['publicClient']['getBlock']>()
+    .mockResolvedValue({ timestamp: 1000n } as Awaited<ReturnType<sdk.Ctx['publicClient']['getBlock']>>)
+  // SAFETY: Vitest erases getBlock's generic block-tag signature; this fixture only queries mined blocks.
   const config = {
     network: 'monad-testnet' as const,
-    contexts: { main: { ...vaultCtx, publicClient: { ...vaultCtx.publicClient, getTransactionReceipt } } as sdk.Ctx },
+    contexts: {
+      main: { ...vaultCtx, publicClient: { ...vaultCtx.publicClient, getTransactionReceipt, getBlock } } as sdk.Ctx,
+    },
     domain: 'test',
     uri: 'https://test',
     manifestBaseUrl: '',
@@ -345,3 +367,210 @@ it('VV2-002 confirms the A=6/S=10 request by its three exact shares, not its two
     vaultOperationResult(vaultCtx, receipt([vaultLog('request-unstake', mallory, wallet, 1n, vault, 2n)]), operation),
   ).toBeNull()
 })
+
+function replayFixture(logs: object[], timestamp = 1000n) {
+  const db = new DatabaseSync(':memory:'),
+    sql = fromNodeSqlite(db)
+  const r = receipt(logs),
+    getTransactionReceipt = vi.fn(async () => r)
+  // SAFETY: the matcher uses only timestamp from getBlock; all other chain context fields are retained.
+  const getBlock = vi
+    .fn<sdk.Ctx['publicClient']['getBlock']>()
+    .mockResolvedValue({ timestamp } as Awaited<ReturnType<sdk.Ctx['publicClient']['getBlock']>>)
+  // SAFETY: the matcher queries mined blocks only; the mock's erased generic block-tag signature is sufficient.
+  const chain = { ...vaultCtx, publicClient: { ...vaultCtx.publicClient, getTransactionReceipt, getBlock } } as sdk.Ctx
+  const config = {
+    network: 'monad-testnet' as const,
+    contexts: { main: chain },
+    domain: 'test',
+    uri: 'https://test',
+    manifestBaseUrl: '',
+  }
+  const boot = () => new Board(sql, config),
+    board = boot()
+  const save = (operation: OperationRow) =>
+    sql.run(
+      'INSERT INTO operations VALUES (?,?,?,?,?,?,?,?,?)',
+      operation.id,
+      operation.task_id,
+      operation.kind,
+      operation.actor,
+      operation.status,
+      operation.tx_hash,
+      operation.detail,
+      operation.created_at,
+      operation.updated_at,
+    )
+  const poll = (id: string, instance = board) =>
+    instance.reportOperation({ address: wallet }, { operationId: id, txHash: r.transactionHash })
+  return { db, sql, save, poll, r, boot, board, chain }
+}
+
+it.each(['stake', 'request-unstake', 'cancel-unstake', 'withdraw-stake'] as const)(
+  'consumes one %s event once across concurrent operations and survives a restart',
+  async (kind) => {
+    const f = replayFixture([vaultLog(kind)])
+    try {
+      f.save({ ...vaultOp(kind), id: 'first' })
+      f.save({ ...vaultOp(kind), id: 'second' })
+      const results = await Promise.all([f.poll('first'), f.poll('second')])
+      expect(results.filter((result) => result.status === 'confirmed')).toHaveLength(1)
+      const winner = results.find((result) => result.status === 'confirmed')!,
+        loser = results.find((result) => result.status === 'prepared')!
+      expect(await f.poll(winner.operationId, f.boot())).toMatchObject(winner)
+      expect(await f.poll(loser.operationId, f.boot())).toMatchObject({ status: 'prepared', result: null })
+      expect(f.sql.all('SELECT * FROM operation_receipts')).toHaveLength(1)
+    } finally {
+      f.db.close()
+    }
+  },
+)
+
+it('distinct withdrawal logs in one transaction can confirm distinct operations', async () => {
+  const f = replayFixture([vaultLog('withdraw-stake'), vaultLog('withdraw-stake')])
+  try {
+    for (const id of ['first', 'second', 'third']) f.save({ ...vaultOp('withdraw-stake'), id })
+    expect(await f.poll('first')).toMatchObject({ status: 'confirmed' })
+    expect(await f.poll('second')).toMatchObject({ status: 'confirmed' })
+    expect(await f.poll('third')).toMatchObject({ status: 'prepared' })
+    expect(f.sql.all('SELECT log_index FROM operation_receipts ORDER BY log_index')).toEqual([
+      { log_index: 0 },
+      { log_index: 1 },
+    ])
+  } finally {
+    f.db.close()
+  }
+})
+
+it.each(['stake', 'withdraw-stake'] as const)('refuses a %s receipt from a block before preparation', async (kind) => {
+  const f = replayFixture([vaultLog(kind)], 999n)
+  try {
+    f.save({ ...vaultOp(kind), id: 'later', created_at: 1000 })
+    await expect(f.poll('later')).rejects.toThrow('predates this operation')
+    expect(f.sql.all('SELECT status FROM operations')).toEqual([{ status: 'prepared' }])
+    expect(f.sql.all('SELECT * FROM operation_receipts')).toHaveLength(0)
+  } finally {
+    f.db.close()
+  }
+})
+
+it('fails closed for previously confirmed receipts without a recorded log index', async () => {
+  const f = replayFixture([vaultLog('withdraw-stake')])
+  try {
+    f.save({ ...vaultOp('withdraw-stake'), id: 'old', status: 'confirmed', tx_hash: f.r.transactionHash })
+    f.save({ ...vaultOp('withdraw-stake'), id: 'new' })
+    expect(await f.poll('new')).toMatchObject({ status: 'prepared' })
+    expect(await f.poll('old')).toMatchObject({ status: 'confirmed' })
+  } finally {
+    f.db.close()
+  }
+})
+
+it('rolls event ownership back when confirming the operation fails', () => {
+  const f = replayFixture([vaultLog('withdraw-stake')])
+  try {
+    const operation = { ...vaultOp('withdraw-stake'), id: 'first' }
+    f.save(operation)
+    const failing: Sql = {
+      ...f.sql,
+      run: (query, ...bindings) => {
+        if (query.startsWith('UPDATE operations')) throw new Error('write failed')
+        f.sql.run(query, ...bindings)
+      },
+    }
+    const event = {
+      chainId: f.chain.deployment.chainId,
+      hash: f.r.transactionHash,
+      logIndex: 0,
+      op: operation,
+      now: 1000,
+    }
+    expect(() => confirmOperationEvent(failing, event)).toThrow('write failed')
+    expect(f.sql.all('SELECT * FROM operation_receipts')).toHaveLength(0)
+    expect(f.sql.all('SELECT status FROM operations')).toEqual([{ status: 'prepared' }])
+    confirmOperationEvent(f.sql, event)
+    expect(f.sql.all('SELECT status FROM operations')).toEqual([{ status: 'confirmed' }])
+  } finally {
+    f.db.close()
+  }
+})
+
+function topUpLog() {
+  return {
+    address: ctx.stack.holding,
+    topics: encodeEventTopics({
+      abi: sdk.sidequestHoldingAbi,
+      eventName: 'ToppedUp',
+      args: { jobId: 1n, contributor: wallet },
+    }),
+    data: encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [7n, 7n]),
+  }
+}
+
+it('a top-up event confirms only one matching task operation, and consumed events stay unavailable', async () => {
+  const log = topUpLog()
+  const first = { ...op('top-up', wallet, { amount: '7' }), id: 'first' },
+    second = { ...first, id: 'second' }
+  expect(await confirmedOperationIds(ctx, 1n, receipt([log]), [first, second])).toEqual(['first'])
+  expect(await confirmedOperationIds(ctx, 1n, receipt([log, log]), [first, second])).toEqual(['first', 'second'])
+  expect(await confirmedOperationEvents(ctx, 1n, receipt([log]), [second], new Set([0]))).toEqual([])
+})
+
+it.each([999n, 1000n])(
+  'report_transaction binds top-up receipt events durably and excludes preparations after block %s',
+  async (timestamp) => {
+    const f = replayFixture([topUpLog()], timestamp)
+    try {
+      const terms: OfferTerms = {
+        v: 2,
+        taskId: 'task',
+        projectId: null,
+        policyVersion: null,
+        mode: 'hire',
+        title: 'Receipt fixture',
+        brief: 'Unit test',
+        acceptanceCriteria: [],
+        deployment: {
+          chainId: f.chain.deployment.chainId,
+          core: f.chain.deployment.core,
+          holding: f.chain.stack.holding,
+          evaluator: f.chain.stack.evaluator,
+          identity: f.chain.deployment.identity,
+        },
+        creator: wallet,
+        approver: wallet,
+        arbitrator: f.chain.deployment.arbitrator,
+        token: f.chain.deployment.rewardTokens[0]!,
+        reward: 7n,
+        creatorBond: 0n,
+        workerBond: 0n,
+        deliveryDeadline: 100000,
+        windows: { reviewSeconds: 3600, disputeSeconds: 3600, arbitrationSeconds: 43200 },
+        eligibility: null,
+        evidencePolicy: null,
+        quote: null,
+        salt: sdk.EMPTY_HASH,
+      }
+      f.sql.run(
+        'INSERT INTO tasks (id,creator,stack,terms_json,terms_hash,job_id,from_block,created_at) VALUES (?,?,?,?,?,?,?,?)',
+        'task',
+        wallet,
+        'main',
+        canonicalJson(terms),
+        termsHash(terms),
+        '1',
+        0,
+        0,
+      )
+      for (const id of ['first', 'second']) f.save({ ...op('top-up', wallet, { amount: '7' }), id, created_at: 1000 })
+      // SAFETY: this test exercises durable receipt reconciliation; the unrelated task projection is intentionally omitted.
+      vi.spyOn(f.board, 'getTask').mockResolvedValue({} as Awaited<ReturnType<Board['getTask']>>)
+      await f.board.reportTransaction({ address: wallet }, { taskId: 'task', txHash: f.r.transactionHash })
+      await f.board.reportTransaction({ address: wallet }, { taskId: 'task', txHash: f.r.transactionHash })
+      expect(f.sql.all("SELECT * FROM operations WHERE status='confirmed'")).toHaveLength(timestamp === 1000n ? 1 : 0)
+      expect(f.sql.all('SELECT * FROM operation_receipts')).toHaveLength(timestamp === 1000n ? 1 : 0)
+    } finally {
+      f.db.close()
+    }
+  },
+)

@@ -32,7 +32,8 @@ import { recoverAuthorizationAddress } from 'viem/utils'
 import { BudgetDesk, nativeSymbol } from './budget.ts'
 import { type NamedSponsorEntry, SponsorDesk } from './sponsor.ts'
 import * as sidequest from './sidequest.ts'
-import { confirmedOperationIds, vaultOperationResult } from './receipts.ts'
+import { confirmedOperationEvents, vaultOperationEvent } from './receipts.ts'
+import { confirmOperationEvent, consumedOperationEvents, receiptTimestamp } from './operation-receipts.ts'
 import { RelaySender, type RelayRequest } from './relay.ts'
 import { collectActions, type CollectSnapshot } from './collect.ts'
 import * as v1Tools from './v1-tools.ts'
@@ -1178,15 +1179,29 @@ export class Board {
         const receipt = await ctx.publicClient.getTransactionReceipt({ hash: hash as Hex }).catch(() => undefined)
         if (receipt === undefined)
           throw new BoardError('chain', 'no receipt yet for the reported wallet operation; retry shortly')
-        const result = vaultOperationResult(ctx, receipt, op)
-        if (result !== null)
-          this.#sql.run(
-            "UPDATE operations SET status='confirmed',tx_hash=?,detail=?,updated_at=? WHERE id=? AND status='prepared'",
-            hash,
-            JSON.stringify({ ...JSON.parse(op.detail!), result }),
-            this.#now(),
-            op.id,
+        if (receipt.status === 'success') {
+          const timestamp = await receiptTimestamp(ctx, receipt, hash)
+          if (timestamp < op.created_at)
+            throw new BoardError(
+              'chain',
+              'the reported receipt predates this operation; reconcile the original operation',
+            )
+          const event = vaultOperationEvent(
+            ctx,
+            receipt,
+            op,
+            consumedOperationEvents(this.#sql, ctx.deployment.chainId, receipt),
           )
+          if (event !== null)
+            confirmOperationEvent(this.#sql, {
+              chainId: ctx.deployment.chainId,
+              hash,
+              logIndex: event.logIndex,
+              op,
+              now: this.#now(),
+              result: event.result,
+            })
+        }
       }
     }
     const [saved] = this.#sql.all<OperationRow>('SELECT * FROM operations WHERE id=?', op.id)
@@ -1214,13 +1229,20 @@ export class Board {
         "SELECT * FROM operations WHERE task_id=? AND status='prepared'",
         task.id,
       )
-      for (const id of await confirmedOperationIds(ctx, BigInt(task.job_id), receipt, prepared)) {
-        this.#sql.run(
-          "UPDATE operations SET status = 'confirmed', tx_hash = ?, updated_at = ? WHERE id = ? AND status='prepared'",
-          input.txHash,
-          this.#now(),
-          id,
-        )
+      if (receipt.status === 'success' && prepared.length > 0) {
+        const timestamp = await receiptTimestamp(ctx, receipt, input.txHash)
+        const eligible = prepared.filter((op) => op.created_at <= timestamp)
+        const consumed = consumedOperationEvents(this.#sql, ctx.deployment.chainId, receipt)
+        for (const event of await confirmedOperationEvents(ctx, BigInt(task.job_id), receipt, eligible, consumed)) {
+          const op = eligible.find((row) => row.id === event.operationId)!
+          confirmOperationEvent(this.#sql, {
+            chainId: ctx.deployment.chainId,
+            hash: input.txHash,
+            logIndex: event.logIndex,
+            op,
+            now: this.#now(),
+          })
+        }
       }
     }
     // The core's JobSubmitted is the one deliverable that counts; record it for the evidence labels.
