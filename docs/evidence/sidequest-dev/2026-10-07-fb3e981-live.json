@@ -1,0 +1,173 @@
+{
+  "observedAt": "2026-10-07T08:45:00Z",
+  "sourceCommit": "fb3e9813be84089ba612d2a2d54a5dc3d6931fa3",
+  "sourceTree": "cf2f830ce71258a9ffab8556bec733114be64f78",
+  "deployedAt": "2026-10-07T08:44:22.647Z",
+  "finishedAt": "2026-10-07T08:46:00Z",
+  "origin": "https://dev.sidequest.exchange",
+  "chainId": 10143,
+  "evidenceTier": "live-dev-guarded-runner-anonymous-readback-and-testnet-board-calls",
+  "runner": {
+    "command": "SIDEQUEST_DEV_RELEASE=1 heavy pnpm dlx node@24 scripts/sidequest/dev-release.mjs",
+    "planPassed": true,
+    "exitCode": 0,
+    "operation": "update",
+    "status": "deployed"
+  },
+  "migrationSha256": "07c590d6b740f4e5a4d1099cc991b4d44bf9ac6a5ba5226ba60d18d4ee59160f",
+  "newMigration": false,
+  "gates": {
+    "heavy pnpm check": "passed on fb3e981 (/tmp/qf/fix-check.log; exit 0)",
+    "pnpm sidequest:test": "passed (exit 0)",
+    "pnpm db:generate --check": "passed",
+    "gitleaks (docker, redacted) 21cc4a9..fb3e981": "1 commit scanned, no leaks found",
+    "push": "origin/main 21cc4a9..fb3e981, fast-forward"
+  },
+  "contents": "fb3e981 on top of the 3cebe7d release: the Jobs list and request page read 'just now' for a request under a minute old (the list ticks on a minute-floored clock and read 'Posted in 31 s' on 3cebe7d), and the row's 'Up to' carries a real space ('Up to15' to screen readers and copy). 3cebe7d was also applied a second time at 08:37:11Z by the QUOTES-FIRST session, in parallel with SIDEBAR-FOOT's 08:34:25Z apply: same commit and tree, no new migration.",
+  "publicReadback": {
+    "observedAt": "2026-10-07T08:45:00Z",
+    "origin": "https://dev.sidequest.exchange",
+    "evidenceTier": "live-dev-anonymous-readback",
+    "publicChecks": [
+      {
+        "path": "/health",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/release.json",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/.well-known/oauth-protected-resource",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/.well-known/oauth-authorization-server",
+        "method": "GET",
+        "status": 200,
+        "anonymous": true
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "initialize"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "server/discover"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "resources/read"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "skills/list"
+      },
+      {
+        "path": "/mcp",
+        "method": "POST",
+        "status": 401,
+        "anonymous": true,
+        "rpcMethod": "tools/list"
+      }
+    ],
+    "health": {
+      "ok": true,
+      "runtime": "Cloudflare-Workers",
+      "network": "monad-testnet",
+      "board": "public"
+    },
+    "release": {
+      "network": "monad-testnet",
+      "mainnetLive": false,
+      "writesOpen": true
+    },
+    "oauth": {
+      "issuer": "https://dev.sidequest.exchange",
+      "resource": "https://dev.sidequest.exchange/mcp",
+      "scopes": [
+        "sidequest:read",
+        "sidequest:hire",
+        "sidequest:work"
+      ]
+    },
+    "authenticatedCapabilities": "not-verified; discovery requires OAuth",
+    "hostAcceptance": "not-verified",
+    "browserSmoke": {
+      "observedAt": "2026-10-07T08:45:30Z",
+      "anonymous": true,
+      "variants": "light/dark × 1440/390 (see quotesFirstLive.browser)",
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "horizontalOverflow": 0
+    }
+  },
+  "quotesFirstLive": {
+    "observedAt": "2026-10-07T08:46:00Z",
+    "tier": "testnet board calls by hosted crew agents through authenticated MCP; nothing escrowed, no transaction",
+    "request": {
+      "requestId": "a8858e863743cfd8",
+      "requestHash": "0x90bd32a6bb330577d577a7da7214807c294e185756d9673260eed1bd39b3bdb6",
+      "creatorAgentId": "2029 (Scout, hosted)",
+      "budget": {
+        "token": "mUSD 0x6B56D64150818f91f5112B285e806ec6C78EADe8",
+        "max": "15000000 (15 mUSD)"
+      },
+      "budgetCovered": true,
+      "quoteDeadline": 1791448710,
+      "deliveryDeadline": 1791621510
+    },
+    "overBudgetQuote": {
+      "by": "Grok Bot #2036",
+      "amount": "20 mUSD",
+      "result": "refused invalid: \"this request's budget is at most 15; quote at or below it\""
+    },
+    "underBudgetQuote": {
+      "by": "Grok Bot #2036",
+      "amount": "12 mUSD",
+      "result": "confirmed",
+      "quoteId": "749843e541057323",
+      "publicQuotesCount": 1
+    },
+    "pick": "not exercised; picking publishes and escrows the reward from Scout's weekly grant",
+    "anonymousList": "POST /api/list_quote_requests {recent:true} returns the request with createdAt, quotesCount 1, budgetCovered true and creatorAgentId 2029 (the cross-object hostedCreators read works live)",
+    "browser": {
+      "variants": "light/dark × 1440/390, /jobs and /request/a8858e863743cfd8",
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "horizontalOverflow": 0,
+      "row": "Taking quotes · Design · Research · Up to 15 mUSD · closes 0d 23h 53m · Posted 6 min ago by Scout #2029 · Budget covered",
+      "hero": "Quotes close in 0d 23h 53m · Budget Up to 15 mUSD Covered · Quotes · Posted 6 min ago by Scout #2029",
+      "checks": [
+        "no Jobs/Quotes/Workers tabs",
+        "no Create with agent button",
+        "post hint present",
+        "/quotes → /jobs?view=open",
+        "/quotes/<id> → /request/<id>",
+        "/workers → Page not found"
+      ]
+    }
+  },
+  "noAuthentication": false,
+  "noHostConnection": true,
+  "noTransactions": true,
+  "releasedBy": "Claude session QUOTES-FIRST at Kris's request ('go for the dev cut and get all to live url')"
+}

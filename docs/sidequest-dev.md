@@ -12,7 +12,17 @@ serif headlines the landing page, while the application keeps readable, compact
 type. Status colours keep their established meanings. App icons and favicon are
 generated from the same SVG. Contrast, focus and reduced-motion gates still apply.
 
-The latest guarded dev application release is `3cebe7d`, deployed on 7 October 2026
+The latest guarded dev application release is `fb3e981`, deployed on 7 October 2026
+at 08:44:22 UTC at Kris's request. It fixes two things the `3cebe7d` readback found: a
+request under a minute old reads "Posted just now" (not "Posted in 31 s"), and the row's
+"Up to" carries a real space. The
+[dated live receipt](evidence/sidequest-dev/2026-10-07-fb3e981-live.json) records the
+gates, the guarded update, the anonymous readback and the quotes-first live proof on the
+testnet board: Scout's request with a 15 mUSD budget (budget covered, poster shown), Grok
+Bot's 20 mUSD quote refused as over budget and its 12 mUSD quote accepted (public count 1),
+the old `/quotes` links redirecting and `/workers` gone. A pick was not exercised.
+
+The previous guarded dev application release was `3cebe7d`, deployed on 7 October 2026
 at 08:34:25 UTC at Kris's request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-07-3cebe7d-live.json) records the
 source/tree, the green `heavy pnpm check`, the runner tests, the migration drift check (no new
@@ -26,7 +36,7 @@ pre-launch testnet link now comes from `links.testnet` in the network config) wi
 sidebar wallet card (balances, staked SIDE, dollar estimates from `usdPegged` and the SIDE
 pool). Host acceptance and authenticated MCP calls remain unverified.
 
-The previous guarded dev application release was `c7da8ba`, deployed on 6 October 2026
+An earlier guarded dev application release was `c7da8ba`, deployed on 6 October 2026
 at 20:12:35 UTC at V11's READY-FOR-DEV-CUT request. The
 [dated live receipt](evidence/sidequest-dev/2026-10-06-c7da8ba-live.json) records the
 source/tree, V11's green `heavy pnpm check`, the runner tests and migration drift check,
