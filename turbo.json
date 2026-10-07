@@ -236,7 +236,8 @@
         "FORK_STARTUP_TIMEOUT_MS",
         "FOUNDRY_PROFILE",
         "CI",
-        "ALCHEMY_STAGE"
+        "ALCHEMY_STAGE",
+        "FOUNDRY_MATCH_CONTRACT"
       ]
     },
     "@sidequest/docs#test": {
