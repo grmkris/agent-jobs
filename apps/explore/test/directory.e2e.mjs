@@ -91,85 +91,32 @@ async function screenshot(page, name) {
   results.push({ name, ...metrics });
 }
 
-async function prepareForm(page) {
-  await page.goto(`${base}/workers`);
-  await page.getByRole('button', { name: 'Join worker directory' }).click();
-  await page.getByLabel('Import a confirmed ERC-8004 agent ID', { exact: false }).fill('7001');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByLabel('Directory display name').fill('Test-only operator');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByLabel('Stable service ID').fill('code-review');
-  await page.getByLabel('Service name').fill('Code review');
-  await page.getByLabel('Inputs required').fill('Source repository');
-  await page.getByLabel('Outputs delivered').fill('Ranked findings');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Review wallet signatures' }).click();
-  await page.waitForFunction(() => document.querySelectorAll('dialog[open]').length === 0);
-}
-
 try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     const device = viewport.width === 390 ? 'mobile' : 'desktop';
-    const { context, page, state } = await fixture(viewport);
-    // Live service ads open the Workers tab of the Jobs area (the landing no longer shows them).
+    const { context, page } = await fixture(viewport);
+    // There is no directory page (7 Oct 2026): an agent's current service ads live on its own profile.
     await page.goto(`${base}/workers`);
-    await page.getByText('Independent code review', { exact: true }).first().waitFor();
-    await screenshot(page, `${device}-showcase`);
-    await page.goto(`${base}/workers`);
-    await page.getByText('Fixture worker 7001', { exact: true }).first().waitFor();
-    await page.getByText('Heartbeat expired', { exact: true }).first().waitFor();
-    await screenshot(page, `${device}-directory-zero-jobs`);
-    await page.getByRole('button', { name: /more workers/i }).click();
-    await page.getByText('Fixture worker 7003', { exact: true }).first().waitFor();
-    // A hosted agent sends no heartbeat; the directory shows its last MCP call instead (WS8 W3).
-    await page.getByText(/Active via MCP · \d+ min ago/).first().waitFor();
-    assert.ok(state.pageAfter.includes('7002'));
+    await page.getByRole('heading', { name: 'Page not found', level: 1 }).waitFor();
     await page.goto(`${base}/agent/7001`);
     await page.getByText('Independent code review', { exact: true }).waitFor();
     await page.getByText('This agent has not taken a job here yet', { exact: true }).waitFor();
     await screenshot(page, `${device}-profile-ad`);
-    await prepareForm(page);
-    state.loseEnrollmentReply = true;
-    await page.getByRole('button', { name: 'Sign enrollment', exact: true }).click();
-    await page.getByText('Fixture response lost after commit', { exact: true }).first().waitFor();
-    await page.getByRole('button', { name: 'Sign enrollment', exact: true }).click();
-    await page.getByRole('button', { name: 'Sign service ad', exact: true }).waitFor();
-    assert.deepEqual(state.submitted[0], state.submitted[1]);
-    assert.equal(state.calls.filter((name) => name === 'prepare_directory_enrollment').length, 1);
-    await page.getByRole('button', { name: 'Sign service ad', exact: true }).click();
-    await page.getByRole('button', { name: 'Sign one heartbeat', exact: true }).click();
-    await page.getByText(/Heartbeat confirmed for up to 60 seconds/).waitFor();
-    assert.deepEqual(await page.evaluate(() => window.__wallet.signatures), ['Enrollment', 'ServiceAd', 'Heartbeat']);
-    assert.equal(await page.evaluate(() => window.__wallet.sends.length), 0);
-    await screenshot(page, `${device}-onboarding-signed`);
-    results.push({ device, test: 'onboarding signatures and same-record uncertain retry', passed: true });
+    results.push({ device, test: 'service ads on the profile; no directory page', passed: true });
     await context.close();
   }
   {
-    // VV2-012: on a tenant board every worker profile link (service card, job history, directory) keeps /b/<slug>,
-    // so the profile's setup and Hire again stay on that board.
+    // VV2-012: on a tenant board every profile link (service card, job history) keeps /b/<slug>, so the profile's
+    // setup and Hire again stay on that board.
     const { context, page, state } = await fixture({ width: 1440, height: 900 });
     state.history = true;
-    await page.goto(`${base}/b/acme/workers`);
-    await page.getByText('Fixture worker 7001', { exact: true }).first().waitFor();
-    // Agent labels are the registered name with the Agent ID beside it, as on the profile.
-    await page.getByText('Fixture worker 7002 #7002', { exact: true }).waitFor();
-    const profiles = await page.getByRole('main').locator('a[href*="/agent/"]').evaluateAll((links) => links.map((link) => new URL(link.href).pathname));
-    assert.ok(profiles.includes('/b/acme/agent/7001') && profiles.includes('/b/acme/agent/7002'), JSON.stringify(profiles));
-    assert.deepEqual(profiles.filter((path) => !path.startsWith('/b/acme/agent/')), [], 'a profile link left the tenant board');
-    await page.getByRole('main').getByRole('link', { name: /Fixture worker 7002 #7002/ }).click();
-    await page.waitForURL('**/b/acme/agent/7002');
-    results.push({ test: 'tenant Workers profile links keep the board prefix', passed: true, profiles });
+    await page.goto(`${base}/b/acme/agent/7001`);
+    await page.getByText('Independent code review', { exact: true }).waitFor();
+    const links = await page.getByRole('main').locator('a[href*="/agent/"], a[href*="/job/"]').evaluateAll((items) => items.map((link) => new URL(link.href).pathname));
+    assert.deepEqual(links.filter((path) => !path.startsWith('/b/acme/')), [], 'a profile link left the tenant board');
+    results.push({ test: 'tenant profile links keep the board prefix', passed: true, links });
     await context.close();
   }
-  const rotated = await fixture({ width: 390, height: 844 });
-  await prepareForm(rotated.page);
-  await rotated.page.evaluate(() => { window.__wallet.rotate = true; });
-  await rotated.page.getByRole('button', { name: 'Sign enrollment', exact: true }).click();
-  await rotated.page.getByText('Wallet changed during signing. No signed record was submitted.', { exact: true }).first().waitFor();
-  assert.equal(rotated.state.submitted.length, 0);
-  results.push({ test: 'wallet rotation during signing prevents submit', passed: true });
-  await rotated.context.close();
   assert.deepEqual(errors, []);
   writeFileSync(`${output}/results.json`, JSON.stringify({ tier: 'mocked Chromium only; no real wallets or live registration', network, chainId, registry, borrowedDeployment: borrowed, results, errors }, null, 2));
   console.log(`PASS: ${results.length} browser checks/captures on ${network}${borrowed ? ' (deployment block borrowed from testnet)' : ''}; no real signing or sends`);

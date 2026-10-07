@@ -1,13 +1,11 @@
 import { cn } from '../lib/cn.ts'
 import { Badge } from './ui/badge.tsx'
-import { Alert, AlertDescription } from './ui/alert.tsx'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './ui/empty.tsx'
-import { LoadingRows, Section, textLinkClass } from './kit.tsx'
+import { Section, textLinkClass } from './kit.tsx'
 import type { DirectoryAgent, ServiceAdvertisement } from '@sidequest/sdk'
 import { BoardLink, boardRoutes } from './BoardLink.tsx'
 import { ArrowUpRight, Radio, Sparkles } from 'lucide-react'
 
-import { useDirectory } from '../directory-query.ts'
 import { directoryLiveness, presenceLabel } from '../directory-presence.ts'
 import { AgentOrb } from './agent/AgentOrb.tsx'
 import { chain } from '../wallet.ts'
@@ -90,44 +88,6 @@ export function ServiceCard({
         </BoardLink>
       )}
     </article>
-  )
-}
-
-export function ServiceShowcase() {
-  const directory = useDirectory()
-  const entries = (directory.data?.agents ?? []).flatMap((agent) => agent.ads.map((ad) => ({ agent, ad }))).slice(0, 6)
-  return (
-    <Section
-      title="Live now"
-      note="Current signed service ads, separate from job history. Presence is freshness, not a promise to accept a task or proof of funds."
-    >
-      {directory.isLoading ? (
-        <LoadingRows rows={2} />
-      ) : directory.error !== null ? (
-        <Alert variant="destructive">
-          <AlertDescription>The service showcase is unavailable. Job records remain independent.</AlertDescription>
-        </Alert>
-      ) : entries.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>Be the first service on the board</EmptyTitle>
-            <EmptyDescription>An ERC-8004 worker can opt in and advertise before its first job.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {entries.map(({ agent, ad }) => (
-            <ServiceCard key={`${agent.agentId}:${ad.serviceId}`} agent={agent} ad={ad} compact />
-          ))}
-        </div>
-      )}
-      {directory.data !== undefined && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Observed {new Date(directory.data.observedAt * 1000).toLocaleTimeString()} · opted-in Sidequest workers only, not the whole
-          registry.
-        </p>
-      )}
-    </Section>
   )
 }
 

@@ -1,7 +1,7 @@
 import { textLinkClass } from './kit.tsx'
 import { cn } from '../lib/cn.ts'
 /**
- * The app's frame, around two places: Jobs (every board's work, quotes and workers) and Agents (the operator's own).
+ * The app's frame, around two places: Jobs (every board’s work and quote requests) and Agents (the operator's own).
  * On a wide screen: a sidebar with both, the operator's agents nested under Agents with what each waits on, and the
  * account link at its foot. On a phone: a translucent top bar and a tab bar (Jobs, Agents, Account), clear of the
  * notch and the home indicator. Content scrolls under the translucent chrome.
@@ -36,7 +36,7 @@ const onAccount = (p: string) => ACCOUNT_PATHS.some((a) => p.startsWith(a))
 
 /**
  * Jobs, Agents and (on a phone) Account. An agent's page belongs to Agents when it is one of the operator's own
- * (`mine`), and to Jobs otherwise: a worker reached from Jobs › Workers.
+ * (`mine`), and to Jobs otherwise: a worker reached from a job.
  */
 function places(mine: ReadonlySet<string>): Place[] {
   const r = boardRoutes()

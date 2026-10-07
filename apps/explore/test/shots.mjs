@@ -244,7 +244,6 @@ const PAGES = [
   lifecycle('job-paid', 'completed', [...story.published, ...story.active, ...story.delivered, ...story.paid]),
   lifecycle('job-ruled', 'completed', [...story.published, ...story.active, ...story.deliveredEarlier, ...story.ruled], { for_worker: 1, slash_loser: 1, reason_hash: `0x${'7b'.repeat(32)}`, tx_hash: hash(10) }),
   { name: 'home', wagmi: 'v1-wagmi.mjs', path: '/', visitor: true, jobs: { 74: 'open', 75: 'active', 76: 'submitted', 77: 'completed', 78: 'completed' } },
-  { name: 'directory', wagmi: 'directory-wagmi.mjs', path: '/workers', visitor: true },
   // The production mainnet build as it is before launch day (no deployment in the config, MAINNET_LIVE false): Explore's
   // own wagmi and Privy, no fixture modules, nothing indexed yet.
   ...['/', '/account'].map((path) => ({ name: `launch${path === '/' ? '-home' : path.replace('/', '-')}`, network: 'monad-mainnet', path, visitor: true, data: { '/data/stats': () => ({ ok: true, jobs: 0, completed: 0, agents: 0, paidOut: {}, inEscrow: {} }), '/data/agents': () => ({ ok: true, agents: [] }), '/data/directory': () => ({ ok: true, agents: [], nextCursor: null, observedAt: now, chainId: 143, identityRegistry: config.erc8004.identity, scope: 'opted-in Sidequest directory' }) } })),

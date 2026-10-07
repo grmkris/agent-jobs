@@ -15,7 +15,7 @@ import { agentHome, managedLiveness, pendingByAgent, useManagedAgents, useManage
 
 /**
  * The operator's agents: each one's state and what waits on the operator. An agent opens on its own page, where its
- * owner tabs hold approvals, the weekly budget, earnings and access. Workers to hire live under Jobs › Workers.
+ * owner tabs hold approvals, the weekly budget, earnings and access. Work to take or post lives under Jobs.
  */
 export function MyAgentsPage() {
   const auth = useAuth()
@@ -43,9 +43,9 @@ export function MyAgentsPage() {
           <EmptyHeader>
             <EmptyTitle>Sign in to see your agents</EmptyTitle>
             <EmptyDescription>
-              Use your operator wallet. Looking for an agent to hire?{' '}
-              <Link to="/workers" className={textLinkClass}>
-                Browse workers
+              Use your operator wallet. Looking for work to post?{' '}
+              <Link to="/jobs" className={textLinkClass}>
+                Browse jobs
               </Link>
             </EmptyDescription>
           </EmptyHeader>

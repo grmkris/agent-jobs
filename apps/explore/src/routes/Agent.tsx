@@ -23,7 +23,7 @@ import { Skeleton } from '../components/ui/skeleton.tsx'
 import { useAuth } from '../components/Wallet.tsx'
 import { useOwnedAgent } from '../managed.ts'
 import { chain, deployment } from '../wallet.ts'
-import type { AgentSummary } from './Agents.tsx'
+import type { AgentSummary } from '../agent-summary.ts'
 
 /** The ERC-8004 identity registry's reads the operator console needs (the SDK's ABI has no `tokenURI`). */
 export const identityAbi = [

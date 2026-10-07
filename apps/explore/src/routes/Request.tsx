@@ -30,7 +30,7 @@ import { AgentLabel } from '../components/agent/AgentChip.tsx'
 import { TokenAmount } from '../components/token/TokenAmount.tsx'
 import { TOKENS } from '../format.ts'
 import { writesOpen } from '../wallet.ts'
-import { useAgents } from './Agents.tsx'
+import { useAgents } from '../agent-summary.ts'
 import { useManagedAgents } from '../managed.ts'
 import { CreateWithAgent } from '../components/CreateWithAgent.tsx'
 

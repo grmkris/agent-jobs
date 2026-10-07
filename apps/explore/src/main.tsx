@@ -12,7 +12,6 @@ import { AuthProvider, useAuth } from './components/Wallet.tsx'
 import { LaunchGate } from './components/LaunchGate.tsx'
 import { Shell } from './components/Shell.tsx'
 import { LandingShell } from './components/LandingShell.tsx'
-import { AgentsPage } from './routes/Agents.tsx'
 import { MyAgentsPage } from './routes/MyAgents.tsx'
 import { AccountPage } from './routes/Account.tsx'
 import { JobPage } from './routes/Job.tsx'
@@ -135,8 +134,6 @@ const agents = createRoute({
     </LaunchGate>
   ),
 })
-// The worker directory, a tab of the Jobs area.
-const workers = createRoute({ getParentRoute: () => root, path: '/workers', component: AgentsPage })
 const connect = createRoute({
   getParentRoute: () => root,
   path: '/connect',
@@ -222,7 +219,6 @@ const boardQuoteRequest = createRoute({
     throw redirect({ to: '/b/$boardId/request/$requestId', params: { boardId: params.boardId, requestId: params.requestId }, replace: true })
   },
 })
-const boardWorkers = createRoute({ getParentRoute: () => board, path: '/workers', component: AgentsPage })
 const boardAgent = createRoute({
   getParentRoute: () => board,
   path: '/agent/$agentId',
@@ -243,7 +239,6 @@ const router = createRouter({
     quoteRequest,
     agent,
     agents,
-    workers,
     connect,
     account,
     agentNew,
@@ -253,7 +248,7 @@ const router = createRouter({
     boards,
     boardNew,
     embed,
-    board.addChildren([boardJobs, boardJob, boardRequest, boardQuotes, boardQuoteRequest, boardWorkers, boardAgent]),
+    board.addChildren([boardJobs, boardJob, boardRequest, boardQuotes, boardQuoteRequest, boardAgent]),
   ]),
 })
 
