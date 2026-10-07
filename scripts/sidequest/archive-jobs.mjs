@@ -31,6 +31,12 @@ const validators = {
     ),
   ),
   jobs: ajv.compile(object({ ok: { const: true }, jobs: array(jobSchema), index: { type: ['object', 'null'] } })),
+  boards: ajv.compile(
+    object({
+      ok: { const: true },
+      boards: array(object({ id: { type: 'string', pattern: '^(public|[a-z0-9-]{3,32})$' } })),
+    }),
+  ),
   tasks: ajv.compile(envelope(array(object({ taskId: id, jobId: { type: ['string', 'null'] } })))),
   requests: ajv.compile(envelope(array(object({ requestId: id, taskId: { type: ['string', 'null'] }, status: id })))),
 }
@@ -108,9 +114,9 @@ function coverage(jobs, offers, requests) {
     )
   return {
     jobs: 'all configured indexed jobs returned by /data/jobs; index progress recorded separately',
-    offers: 'all task_index rows returned on the public board, including drafts',
+    offers: 'all task_index rows returned on this board, including drafts',
     quoteRequests: {
-      scope: 'public board open requests plus requests closed or picked within seven days',
+      scope: "this board's anonymous open requests plus requests closed or picked within seven days",
       historicalComplete: false,
       reason: 'Older closed requests and private bids are not exposed by the anonymous API.',
       openLimit: 50,
@@ -119,21 +125,36 @@ function coverage(jobs, offers, requests) {
   }
 }
 
+async function readBoard(fetcher, origin, board) {
+  const prefix = board.id === 'public' ? '' : `/b/${board.id}`
+  const [tasksBody, requestsBody] = await Promise.all([
+    readJson(fetcher, origin, `${prefix}/api/task_index`, validators.tasks, {}),
+    readJson(fetcher, origin, `${prefix}/api/list_quote_requests`, validators.requests, { recent: true }),
+  ])
+  const offers = unique(tasksBody.result, 'taskId', 'task id').map((row) => ({ ...row, boardId: board.id }))
+  const requests = unique(requestsBody.result, 'requestId', 'request id').map((row) => ({ ...row, boardId: board.id }))
+  return { board, taskIndex: offers, quoteRequests: requests, coverage: coverage([], offers, requests), prefix }
+}
+
 /** Same reads as Explore, plus runtime contract identities. All methods here are anonymous reads. */
 export async function readStage(stage, { fetcher = globalThis.fetch, observedAt = new Date().toISOString() } = {}) {
   if (!Object.hasOwn(ORIGINS, stage)) throw new Error('archive: stage must be dev or prod')
   const origin = ORIGINS[stage]
   const protocol = (await readJson(fetcher, origin, '/api/protocol_info', validators.protocol, {})).result
   const facts = stageFacts(protocol)
-  const [jobsBody, tasksBody, requestsBody] = await Promise.all([
+  const [jobsBody, boardsBody] = await Promise.all([
     readJson(fetcher, origin, '/data/jobs', validators.jobs),
-    readJson(fetcher, origin, '/api/task_index', validators.tasks, {}),
-    readJson(fetcher, origin, '/api/list_quote_requests', validators.requests, { recent: true }),
+    readJson(fetcher, origin, '/data/boards', validators.boards),
   ])
   const jobs = unique(jobsBody.jobs, 'job_id', 'job id')
-  const offers = unique(tasksBody.result, 'taskId', 'task id')
-  const quoteRequests = unique(requestsBody.result, 'requestId', 'request id')
-  const scope = coverage(jobs, offers, quoteRequests)
+  const listed = unique(boardsBody.boards, 'id', 'board id')
+  if (!listed.some((board) => board.id === 'public'))
+    throw new Error('archive: board directory is missing the public board')
+  const jobScope = coverage(jobs, [], []).jobs
+  const boards = []
+  for (const board of listed) boards.push(await readBoard(fetcher, origin, board))
+  const offers = boards.flatMap((board) => board.taskIndex)
+  const quoteRequests = boards.flatMap((board) => board.quoteRequests)
   const after = stageFacts((await readJson(fetcher, origin, '/api/protocol_info', validators.protocol, {})).result)
   if (JSON.stringify(facts) !== JSON.stringify(after))
     throw new Error('archive: deployment changed during capture; retry before cutover')
@@ -146,7 +167,15 @@ export async function readStage(stage, { fetcher = globalThis.fetch, observedAt 
     origin,
     ...facts,
     index: jobsBody.index,
-    coverage: scope,
+    coverage: {
+      jobs: jobScope,
+      quoteRequests: {
+        historicalComplete: false,
+        reason:
+          'Anonymous lists omit older closed requests and private bids. Per-board limits and scope are recorded below.',
+      },
+    },
+    boards: boards.map(({ prefix: _prefix, ...board }) => board),
     jobs: jobs.map((job) => ({
       ...job,
       chainId: facts.chain.chainId,
@@ -159,8 +188,11 @@ export async function readStage(stage, { fetcher = globalThis.fetch, observedAt 
     reads: [
       { method: 'POST', path: '/api/protocol_info', arguments: {}, repeatedAfterCapture: true },
       { method: 'GET', path: '/data/jobs' },
-      { method: 'POST', path: '/api/task_index', arguments: {} },
-      { method: 'POST', path: '/api/list_quote_requests', arguments: { recent: true } },
+      { method: 'GET', path: '/data/boards' },
+      ...boards.flatMap(({ prefix }) => [
+        { method: 'POST', path: `${prefix}/api/task_index`, arguments: {} },
+        { method: 'POST', path: `${prefix}/api/list_quote_requests`, arguments: { recent: true } },
+      ]),
     ],
   }
 }

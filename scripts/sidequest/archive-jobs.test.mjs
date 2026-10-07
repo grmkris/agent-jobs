@@ -7,6 +7,7 @@ import { outputPath, parseArchiveArgs, readStage, writeArchive } from './archive
 
 const CORE = '0x1111111111111111111111111111111111111111'
 const HOLDING = '0x2222222222222222222222222222222222222222'
+const fixtureResponse = (body) => ({ ok: true, status: 200, json: async () => body })
 
 function fixtureFetch(calls) {
   return async (url, init = {}) => {
@@ -21,6 +22,7 @@ function fixtureFetch(calls) {
       body: init.body === undefined ? undefined : JSON.parse(init.body),
     })
     const bodies = {
+      '/data/boards': { ok: true, boards: [{ id: 'public', name: 'Public' }] },
       '/data/jobs': {
         ok: true,
         index: { next_block: 69037583, updated_at: 1791300000 },
@@ -67,6 +69,7 @@ test('public archive reads Explore jobs, offers and recent quote requests withou
   assert.deepEqual(calls, [
     { path: '/api/protocol_info', method: 'POST', body: {} },
     { path: '/data/jobs', method: 'GET', body: undefined },
+    { path: '/data/boards', method: 'GET', body: undefined },
     { path: '/api/task_index', method: 'POST', body: {} },
     { path: '/api/list_quote_requests', method: 'POST', body: { recent: true } },
     { path: '/api/protocol_info', method: 'POST', body: {} },
@@ -77,7 +80,7 @@ test('public archive reads Explore jobs, offers and recent quote requests withou
   assert.equal(archive.jobs[0].offer.title, 'archive me')
   assert.equal(archive.taskIndex.length, 2)
   assert.equal(archive.quoteRequests[0].requestId, 'request-1')
-  assert.equal(archive.coverage.quoteRequests.openLimit, 50)
+  assert.equal(archive.boards[0].coverage.quoteRequests.openLimit, 50)
   assert.equal(archive.coverage.quoteRequests.historicalComplete, false)
 })
 
@@ -105,6 +108,41 @@ test('prod reads the production stage public origin', async () => {
     },
   })
   assert.deepEqual([...origins], ['https://sidequest.exchange'])
+})
+
+test('tenant offers and quote requests are captured through public board-prefixed reads', async () => {
+  const calls = []
+  const reader = fixtureFetch(calls)
+  const archive = await readStage('dev', {
+    fetcher: async (url, init) => {
+      const path = new URL(url).pathname
+      if (path === '/data/boards')
+        return fixtureResponse({ ok: true, boards: [{ id: 'public' }, { id: 'tenant-one' }] })
+      if (path.startsWith('/b/tenant-one/')) {
+        assert.equal(init.credentials, 'omit')
+        assert.equal(Object.hasOwn(init.headers, 'authorization'), false)
+        calls.push({ path, method: init.method, body: JSON.parse(init.body) })
+        return path.endsWith('task_index')
+          ? fixtureResponse({ ok: true, result: [{ taskId: 'tenant-task', jobId: null, title: 'tenant draft' }] })
+          : fixtureResponse({
+              ok: true,
+              result: [{ requestId: 'request-1', taskId: null, status: 'Accepting quotes', title: 'tenant request' }],
+            })
+      }
+      return reader(url, init)
+    },
+  })
+  assert.equal(archive.boards.length, 2)
+  assert.deepEqual(
+    archive.quoteRequests.map((row) => [row.boardId, row.requestId]),
+    [
+      ['public', 'request-1'],
+      ['tenant-one', 'request-1'],
+    ],
+  )
+  assert.equal(archive.taskIndex.find((row) => row.boardId === 'tenant-one').title, 'tenant draft')
+  assert.ok(archive.reads.some((read) => read.path === '/b/tenant-one/api/list_quote_requests'))
+  assert.ok(calls.some((call) => call.path === '/b/tenant-one/api/list_quote_requests' && call.body.recent === true))
 })
 
 test('deployment drift and a public service failure refuse capture', async () => {
