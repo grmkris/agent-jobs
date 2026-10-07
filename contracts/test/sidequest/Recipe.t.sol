@@ -337,6 +337,31 @@ contract RecipeTest is Test {
         driver.configure(bad);
     }
 
+    /// @dev Horizon review HR-002: windows and margin that fill the unstake delay leave no bonded hire possible.
+    function test_recipe_checkRefusesClocksWithNoBondedHire() public {
+        SidequestRecipe.Config memory bad = c;
+        uint256 floor = uint256(c.clocks.minReviewWindow) + c.clocks.minDisputeWindow + c.clocks.minArbitrationWindow
+            + c.margin + 1 hours;
+        bad.clocks.unstakeDelay = uint48(floor - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SidequestRecipe.BadConfig.selector, "clocks leave no bonded hire inside the unstake delay"
+            )
+        );
+        driver.configure(bad);
+        bad = c;
+        bad.margin = uint48(c.clocks.unstakeDelay);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SidequestRecipe.BadConfig.selector, "clocks leave no bonded hire inside the unstake delay"
+            )
+        );
+        driver.configure(bad);
+        bad = c;
+        bad.clocks.unstakeDelay = uint48(floor);
+        driver.configure(bad);
+    }
+
     /// @dev LAUNCH-AUDIT-FIX-001: on chain 143 the v1 default arbitrator is `roles.arbitrator` and no retired 1 Oct key;
     ///      a fresh pair deploys a Holding whose default arbitrator is that role.
     function test_recipe_mainnetDefaultArbitratorIsTheFreshRole() public {

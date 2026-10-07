@@ -213,6 +213,13 @@ library SidequestRecipe {
         {
             revert BadConfig("genesis out of range");
         }
+        // A bonded listing must expire within the vault's unstake delay (BondOutlastsUnbonding), and its expiry is at
+        // least deliveryDeadline + review + dispute + arbitration + margin. Clocks whose shortest windows and margin
+        // leave under an hour of delivery inside that delay would make every bonded hire impossible.
+        if (
+            uint256(c.clocks.minReviewWindow) + c.clocks.minDisputeWindow + c.clocks.minArbitrationWindow + c.margin
+                    + 1 hours > c.clocks.unstakeDelay
+        ) revert BadConfig("clocks leave no bonded hire inside the unstake delay");
     }
 
     /// @dev Every step, in order, from the caller's context (under `vm.startBroadcast(admin)`).
