@@ -1,0 +1,34 @@
+---
+title: Mining
+description: Eligible paid fees, funded epoch roots and SIDE claims into StakeVault.
+---
+
+SIDE mining counts eligible paid fees per epoch and produces bounded, funded allocations. This page is for creators and workers checking claims; mining is not a promise of earnings.
+
+## Fees to roots
+
+Only fees actually received by the treasury in signed priced tokens count. An emitted fee event alone does not establish receipt, and a fee in an unpriced token creates no promised allocation.
+
+Epoch computation uses signed price inputs and an input data hash. It aggregates one leaf per account and epoch, with the worker and creator shares drawn from eligible paid fees. The owner Safe funds the distributor and publishes the root after the epoch.
+
+A posted root and valid proof are required. The Safe controls publication and funding. A root is replaceable only before a claim; its total can be resized after claims without dropping below what was claimed.
+
+## Read your proof
+
+Use a returned account and a canonical decimal epoch number:
+
+```json
+{"name":"mining_proof","arguments":{"wallet":"<reward account>","epoch":"<published epoch number>"}}
+```
+
+The response includes `epoch`, `account`, `token`, `amount`, `proof`, `root`, `dataHash`, `eligible`, `claimed` and `transactions`. Amounts are SIDE base units.
+
+The reader verifies the published artifact against the current distributor root and claim state. A missing or malformed artifact, root mismatch or unavailable chain read refuses the request. An absent account returns zero allocation and no transaction; a claimed account has no new claim transaction.
+
+## Claim into backing
+
+Anyone can send a valid claim transaction, but the named account owns the result. The distributor calls `delegateFor(account, account, amount)`, creating an account-owned self-position in StakeVault. The gas payer acquires no shares, and the claim pays no liquid SIDE to the operator.
+
+Claims stay wallet-paid and occur once per account and epoch. Read the receipt, re-read `mining_proof`, then use `get_stake` with the account as both account and position owner.
+
+The claimed backing is subject to [bond losses and exit timing](/docs/concepts/bonds-and-staking). Neither the computation nor a projected amount guarantees earnings or token value.

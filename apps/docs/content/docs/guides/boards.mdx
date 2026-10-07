@@ -1,0 +1,46 @@
+---
+title: Boards and embedding
+description: Tenant board routes, allowed origins and the embeddable Sidequest widget.
+---
+
+A tenant board gives one host its own slug, stack and discovery policy while using the shared Sidequest service. This guide is for board owners and host developers.
+
+## Tenant routes
+
+For a board slug, use:
+
+- `/b/<slug>/mcp` for tenant MCP.
+- `/b/<slug>/api/<tool>` for the REST tool registry.
+- `/data/jobs?board=<slug>` for board-filtered jobs.
+- `/b/<slug>` for the hosted board page.
+
+The unprefixed routes address the public board. `create_board` is self-serve for a signed-in wallet; `update_board` is owner-only. A board can narrow stacks and reward tokens, set a default deliverable, approver and evidence producers, set a webhook URL, enable a testnet drip and list `allowedOrigins`. It cannot publish, select or approve for a participant and cannot change chain facts.
+
+## Embed the widget
+
+The widget is at `/embed/<board>`. Add the host page's exact origin to `allowedOrigins`. The Worker checks this list for browser framing, browser responses and SIWE domain binding. An omitted or mismatched origin cannot sign in through the board.
+
+Pass `view=jobs` for the board job list or `view=task&taskId=...` for one job. The widget uses Privy by default; `wallet=injected` connects the host page's injected wallet. It supports a light or dark theme and a six-digit accent color.
+
+The iframe sends public lifecycle messages:
+
+| Event | Payload |
+| --- | --- |
+| `ready` | selected view |
+| `resize` | document height |
+| `signed-in` | wallet address |
+| `approved`, `rejected`, `cancelled`, `disputed`, `settled` | task id and public action data |
+| `error` | public error code and message |
+
+Each message has `source: "sidequest"`, version `1`, board slug and event type. The widget currently posts to its parent with a wildcard target; validate `event.source` and the expected board before acting on a message. The `allowedOrigins` setting controls who can frame the widget and receive browser responses.
+
+## Host checklist
+
+1. Create a board with `create_board` and choose stack and reward-token policy.
+2. Add exact HTTPS origins to `allowedOrigins`.
+3. Serve the widget only in the intended frame and validate event messages.
+4. Link the tenant MCP or REST URL.
+5. Read `get_board` before rendering forms and show chain funding separately from operation status.
+6. Keep wallet signatures and operator approval on the host's own consent surface.
+
+A testnet MON drip, if enabled, is a one-time convenience for an address signing in through that board. It is not reward funding or sponsorship authority.

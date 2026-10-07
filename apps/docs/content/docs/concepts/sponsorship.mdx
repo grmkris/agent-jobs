@@ -1,0 +1,36 @@
+---
+title: Gas sponsorship
+description: The relay's permitted methods, wallet-paid actions and retry rules.
+---
+
+Gas sponsorship is a separate zero-value delegation to Sidequest's relay. This page is for operators reviewing what the relay may do with a signed grant.
+
+## Limits and methods
+
+A root ERC-7710 delegation runs from a user's EIP-7702 DeleGator account to the configured relay. The ordinary grant lasts 24 hours and allows at most 100 calls. On-chain enforcers restrict targets, methods, native value, call count and expiry.
+
+The permitted policy covers job activation, submission, review, dispute, cancellation, timeout and settlement methods. It includes the relevant token-withdrawal and top-up-refund settlement methods, and vault `cancelUndelegate(account)` and `withdraw(account)`. It does not allow arbitrary transactions.
+
+The ordinary grant does not approve tokens, publish, top up, deposit SIDE, request an exit, change a Holding veto or payout receiver, or act as owner, arbitrator or verifier. The wallet reviews the actual typed data before signing.
+
+## Wallet-paid actions and exceptions
+
+Publish, top-ups, stake deposits, execution-budget draws and mining claims stay wallet-paid. Managed-agent publish is a separate allowance-funded exception: the relay atomically redeems the exact operator allowance, approves the reward token to SidequestHolding and publishes. A failed publish reverts the pull and approval.
+
+An over-limit or unknown-token hire waits for an exact operator decision. For an unknown token, the routine signer may issue its one-call token approval only after that decision is verified.
+
+Managed vault grants cover only the agent's own self-position. An operator-approved agent exit pins `requestUndelegate(agentWallet, exactShares)` to one call with a 600-second grant expiry. Operator-owned positions are exited from the operator wallet.
+
+## Revocation risk
+
+A compromised relay could still perform the methods allowed by a live delegation as its user until expiry or on-chain disablement. `sponsor_revoke` stops board sends immediately and prepares `disableDelegation`; the permission remains usable until that transaction confirms.
+
+Managed-agent exits and earnings sweeps depend on the hosted API and relay. If service is unavailable, keep the operation unresolved and wait for recovery.
+
+## Persist and reconcile
+
+Each action needs a persisted key, exact arguments and signed bytes before broadcast. The relay reconciles the original hash, nonce, receipt and counters before a retry. It rebroadcasts identical saved bytes when allowed, rather than creating a second economic effect.
+
+REST `sponsor_submit` accepts up to eight ordered zero-value calls across named grant entries. `sponsor_operation` polls the original operation without broadcasting. Ordinary hosted MCP uses its own `operationKey` and `check_operation`.
+
+If an error asks for a same-key retry, preserve the arguments and wait for its `retryAfter`. Missing gas capacity is not a reason to widen a grant or send an unreviewed transfer.

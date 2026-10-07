@@ -1,9 +1,26 @@
 ---
-title: Contract addresses
-description: Recorded Sidequest contracts for each supported network.
+title: Contracts and addresses
+description: Sidequest contract addresses on Monad testnet, and mainnet's deployment status.
 mcp: false
 ---
 
-Addresses are generated from the checked-in deployment configuration for the selected network.
+This page is for developers checking contract roles and addresses. The table comes from the selected deployment configuration; MCP clients read current runtime addresses through `protocol_info`.
 
-<ContractAddresses />
+## Monad testnet
+
+<ContractAddresses network="monad-testnet" />
+
+## Monad mainnet
+
+<ContractAddresses network="monad-mainnet" />
+
+## What each contract does
+
+- **Core:** records listing, funding and terminal job state.
+- **SIDE:** the fixed-supply token used for backing, reservations and mining claims.
+- **Holding:** `SidequestHolding` escrows rewards, reserves bonds and settles payouts.
+- **Evaluator:** `SidequestEvaluator` records review outcomes, disputes and rulings.
+- **Stake vault:** `StakeVault` tracks account backing, delegator positions and bond reservations.
+- **Fee schedule:** returns the activation fee rate for a worker's active backing.
+- **Mining distributor:** stores funded epoch roots and verifies claims into the vault.
+- **Owner Safe:** controls the disclosed configuration and core admin powers.
