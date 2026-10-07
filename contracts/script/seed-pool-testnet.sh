@@ -13,13 +13,17 @@ if [[ $# -eq 1 && "$1" == --dry-run ]]; then DRY_RUN=1
 elif [[ $# -ne 0 ]]; then echo "usage: seed-pool-testnet.sh [--dry-run]" >&2; exit 2; fi
 NETWORK="monad-testnet"
 export NETWORK
-RPC_ENV="${RPC_ENV:-MONAD_TESTNET_RPC_URL}"
+RPC_ENV="${RPC_ENV:-MONAD_RPC_URL}"
+if [[ -z "${!RPC_ENV:-}" && "$RPC_ENV" == MONAD_RPC_URL && -n "${MONAD_TESTNET_RPC_URL:-}" ]]; then RPC_ENV="MONAD_TESTNET_RPC_URL"; fi
 RPC="${!RPC_ENV:-}"
 KEY_ENV="${KEY_ENV:-DEPLOYER_PRIVATE_KEY}"
 KEY="${!KEY_ENV:-}"
 [[ -n "$RPC" && -n "$KEY" ]] || { echo "refusing: set $RPC_ENV and $KEY_ENV (values are never printed)" >&2; exit 2; }
 CONFIG="config/monad-testnet.json"
-QUOTE="$(jq -r .liquidity.quote "$CONFIG")"
+CONFIG_QUOTE="$(jq -r .liquidity.quote "$CONFIG")"
+# mUSD is the first configured reward token (the setup script writes mUSD before mEUR); knownTokens is the
+# compatibility fallback for archived configs where deployment.rewardTokens is absent.
+QUOTE="$(jq -er '.deployment.rewardTokens[0] // .knownTokens[0]' "$CONFIG")"
 POOL_MANAGER="$(jq -r .liquidity.uniswapV4.poolManager "$CONFIG")"
 POSITION_MANAGER="$(jq -r .liquidity.uniswapV4.positionManager "$CONFIG")"
 PERMIT2="$(jq -r .liquidity.uniswapV4.permit2 "$CONFIG")"
@@ -33,7 +37,7 @@ REPAIR_QUOTE="$(jq -r .liquidity.maxRepairCost "$CONFIG")"
 
 [[ "$(cast chain-id --rpc-url "$RPC")" == 10143 ]] || { echo "refusing: RPC is not Monad testnet" >&2; exit 2; }
 [[ "${DEPLOYER,,}" == "$(jq -r '.sidequest.allocation.liquidity | ascii_downcase' "$CONFIG")" ]] || { echo "refusing: signer is not the liquidity holder" >&2; exit 2; }
-[[ "${QUOTE,,}" == 0xabd60a1e40519e3609c4f9ebb551fcf242a8ad8f ]] || { echo "refusing: quote is not testnet mUSD" >&2; exit 2; }
+[[ "${QUOTE,,}" == "${CONFIG_QUOTE,,}" ]] || { echo "refusing: liquidity quote differs from configured mUSD" >&2; exit 2; }
 ge_dec() {
   local left=$1 right=$2
   [[ "$left" =~ ^(0|[1-9][0-9]*)$ && "$right" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
