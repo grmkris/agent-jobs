@@ -29,6 +29,9 @@ test('updates require exact state, storage, Worker tags and canonical domain own
   const state = Object.fromEntries(Object.keys(infra.resources).map(id => [id, { logicalId: id, providerMode: 'live', status: 'created', attr: { accountId: infra.cloudflare.accountId, workerName: infra.resources[id], databaseName: infra.resources[id], bucketName: infra.resources[id], databaseId: 'db-id' } }]))
   const census = { ...fresh(), workers: ['Api', 'Indexer', 'Explore'].map(id => ({ id: infra.resources[id], tags: ['alchemy:stack:Sidequest', 'alchemy:stage:dev'] })), databases: [{ name: infra.resources.Database, uuid: 'db-id' }], buckets: [{ name: infra.resources.Manifests }], domains: [{ hostname: new URL(infra.origin).hostname, service: infra.resources.Explore, zone_id: infra.cloudflare.zoneId }] }
   assert.equal(validateCensus(infra, census, state), 'update')
+  assert.equal(validateCensus(infra, census, { ...state, Explore: { ...state.Explore, status: 'updating' } }), 'update')
+  assert.throws(() => validateCensus(infra, census, { ...state, Explore: { ...state.Explore, status: 'creating' } }))
+  assert.throws(() => validateCensus(infra, census, { ...state, Explore: { ...state.Explore, status: 'updating', attr: { ...state.Explore.attr, workerName: 'foreign' } } }))
   assert.throws(() => validateCensus(infra, census, { ...state, Api: undefined }))
   assert.throws(() => validateCensus(infra, { ...census, workers: census.workers.map(worker => ({ ...worker, tags: [] })) }, state))
   assert.throws(() => validateCensus(infra, { ...census, domains: [{ ...census.domains[0], service: 'foreign-worker' }] }, state))

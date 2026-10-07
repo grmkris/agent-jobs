@@ -29,11 +29,13 @@ export function validateCensus(infra, census, state) {
     if (Object.values(workers).some(Boolean) || database || bucket || domains.length) throw new Error('fresh-resource-already-exists')
     return 'create'
   }
+  // 'updating' is an interrupted update Alchemy resumes on the next apply (Plan: "finish the interrupted update");
+  // its attr is still the live resource's, so the ownership checks below apply unchanged.
   for (const id of ['Api', 'Indexer', 'Explore', 'Database', 'Manifests']) {
     const record = state[id]
     const attr = record?.attr
     const name = id === 'Database' ? attr?.databaseName : id === 'Manifests' ? attr?.bucketName : attr?.workerName
-    if (record?.logicalId !== id || record.providerMode !== 'live' || !['created', 'updated'].includes(record.status) || attr?.accountId !== infra.cloudflare.accountId || name !== infra.resources[id]) throw new Error('dev-state-ownership-mismatch')
+    if (record?.logicalId !== id || record.providerMode !== 'live' || !['created', 'updated', 'updating'].includes(record.status) || attr?.accountId !== infra.cloudflare.accountId || name !== infra.resources[id]) throw new Error('dev-state-ownership-mismatch')
   }
   for (const worker of Object.values(workers)) {
     if (!worker || !worker.tags?.includes('alchemy:stack:Sidequest') || !worker.tags?.includes('alchemy:stage:dev')) throw new Error('dev-worker-ownership-mismatch')
