@@ -1,5 +1,0 @@
-# This project intentionally has only a local-simulation testnet target.
-simulation:
-  rpcs:
-    - chain-name: monad-testnet
-      url: https://testnet-rpc.monad.xyz

@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "include": [
-    "evidence.ts",
-    "evidence.test.ts",
-    "scripts/*.ts",
-    "vite.config.ts"
-  ]
-}

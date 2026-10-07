@@ -10,18 +10,7 @@ dist/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
-packages/sdk/scripts/.state.json
 packages/sdk/scripts/.v1-flows/
-.demo-workers/
-.crew/
-.g1c-refunds/
 .sidequest/
 packages/sdk/scripts/privy/.local/
 packages/sdk/scripts/live/.local/
-
-# CRE compiler output and local transaction journals
-workflows/ci-evidence/.local/
-workflows/ci-evidence/*.wasm
-workflows/ci-evidence/*.wasm.br
-workflows/ci-evidence/binary.wasm*
-workflows/ci-evidence/.cre_build_tmp.js
