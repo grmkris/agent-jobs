@@ -58,6 +58,18 @@ function places(mine: ReadonlySet<string>): Place[] {
 }
 
 /** The brand mark (src/brand/mark.svg), in the tint so it follows light, dark and a tint change. */
+/** The one disclosure Sidequest shows: unaudited contracts, at the user's own risk, with the source a click away. */
+export function RiskNote({ className }: { className?: string }) {
+  return (
+    <p className={cn('text-xs text-muted-foreground', className)}>
+      Unaudited contracts. Use at your own risk.{' '}
+      <a className="underline" href="https://github.com/grmkris/sidequest" target="_blank" rel="noreferrer">
+        Source
+      </a>
+    </p>
+  )
+}
+
 export function Mark() {
   return (
     <svg aria-hidden viewBox="0 0 32 32" className="size-6 shrink-0">
@@ -161,6 +173,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <AccountControl auth={auth} account={account} full />
             </div>
           )}
+          <RiskNote className="px-1" />
         </div>
       </aside>
 

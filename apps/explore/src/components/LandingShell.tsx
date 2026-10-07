@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { LaunchBanner } from './LaunchGate.tsx'
 import { TestnetEdge, TestnetTag } from './NetworkCue.tsx'
-import { Mark } from './Shell.tsx'
+import { Mark, RiskNote } from './Shell.tsx'
 import { buttonVariants } from './ui/button.tsx'
 
 /**
@@ -31,13 +31,14 @@ export function LandingShell({ children }: { children: ReactNode }) {
       <main className="mx-auto grid max-w-5xl gap-16 pt-12 pr-[max(1.25rem,var(--safe-right))] pb-[max(3rem,var(--safe-bottom))] pl-[max(1.25rem,var(--safe-left))] sm:pt-24">
         <LaunchBanner />
         {children}
-        <footer className="border-t pt-6 text-xs text-muted-foreground">
+        <footer className="grid gap-2 border-t pt-6 text-xs text-muted-foreground">
           <span>
             Rewards are escrowed on Monad; the protocol's admin keeps pause and upgrade powers.{' '}
             <a className={textLinkClass} href="/docs/trust">
               Protocol and admin powers
             </a>
           </span>
+          <RiskNote />
         </footer>
       </main>
     </div>
