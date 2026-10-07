@@ -72,6 +72,15 @@ test('journal binds manifest, funding and deployment and rejects unknown signed 
   assert.equal(checksum(snapshot), manifest.snapshot.checksum)
 })
 
+test('the snapshot cutoff is the new deployment block minus one, never the archived deployment block', () => {
+  const config = configFixture(addr('1'))
+  assert.equal(config.deployment.sidequest.block, snapshot.block + 1)
+  assert.ok(snapshot.old.block < snapshot.block)
+  assert.doesNotThrow(() => refundPlan(manifest, config))
+  config.deployment.sidequest.block++
+  assert.throws(() => refundPlan(manifest, config), /snapshot must precede the new deployment by one block/u)
+})
+
 test('signed resume retains exact bytes; nonce consumption without a successful matching receipt refuses', async () => {
   const signer = privateKeyToAccount(`0x${'01'.padStart(64, '0')}`) // public test key; offline only
   const plan = refundPlan(manifest, configFixture(signer.address)), operation = plan.operations[1]

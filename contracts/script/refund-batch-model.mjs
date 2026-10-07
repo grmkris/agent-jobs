@@ -13,6 +13,7 @@ export function refundPlan(manifest, config) {
   if (config.chainId !== 10143 || config.network !== 'monad-testnet' || !Number.isSafeInteger(h?.block)
     || h.block <= manifest.snapshot.block || address(h.vault) === address(manifest.old.vault)
     || address(h.factory) === address(manifest.old.factory)) throw new Error('refund: requires promoted G1d testnet contracts')
+  if (h.block !== manifest.snapshot.block + 1) throw new Error('refund: snapshot must precede the new deployment by one block')
   const funding = address(config.sidequest.allocation.ecosystem)
   const totalPositions = manifest.positions.reduce((n, row) => n + BigInt(row.amount), 0n)
   const operations = [
