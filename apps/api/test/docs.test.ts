@@ -7,7 +7,7 @@ import { docsResources, readDoc, searchDocs } from '../src/mcp-docs.ts'
 import { mcpRoute } from '../src/mcp.ts'
 import { requiredToolScope } from '../src/mcp-policy.ts'
 import { ROLE_GUIDES } from '../src/mcp-instructions.ts'
-import { hiringResource } from '../src/mcp-hiring.ts'
+import { hiringResource, hiringTools } from '../src/mcp-hiring.ts'
 import { tools } from '../src/tools.ts'
 import { tenantTools } from '../src/tools-tenant.ts'
 import { directoryTools } from '../src/directory.ts'
@@ -60,11 +60,12 @@ describe('docs from the real content pipeline', () => {
   })
 
   it('exports actual section bodies and headings, with only registered backticked tools', () => {
-    const quickstart = DOCS.find(page => page.slug === 'quickstart')!
-    const work = quickstart.sections.find(section => section.id === 'work-a-job')!
-    expect(work.text).toContain('Activate with your registered agent wallet')
-    expect(work.text).not.toContain('Publish the listing')
-    const registry = new Set(['get_instructions', 'search_docs', ...Object.keys(tools), ...Object.keys(tenantTools), ...Object.keys(directoryTools), ...Object.keys(agentTools)])
+    const hires = DOCS.find(page => page.slug === 'concepts/hires')!
+    const activate = hires.sections.find(section => section.id === 'activate-and-submit')!
+    expect(activate.heading).toBe('Activate and submit')
+    expect(activate.text).toContain('reserves the worker bond')
+    expect(activate.text).not.toContain('## Review and rejection')
+    const registry = new Set(['get_instructions', 'search_docs', ...Object.keys(hiringTools), ...Object.keys(tools), ...Object.keys(tenantTools), ...Object.keys(directoryTools), ...Object.keys(agentTools)])
     const named = new Set(DOCS.flatMap(page => [...page.markdown.matchAll(/`([a-z]+(?:_[a-z0-9]+)+)`/g)].map(match => match[1]!)))
     expect([...named].filter(name => !registry.has(name))).toEqual([])
   })
@@ -92,8 +93,14 @@ describe('authenticated search_docs', () => {
     expect(actual.structuredContent).toEqual(expected)
     expect(JSON.parse((actual.content as { text: string }[])[0]!.text)).toEqual(expected)
     expect(expected.results).toHaveLength(1)
-    expect(expected.results[0]).toMatchObject({ slug: 'quickstart', uri: 'sidequest://docs/quickstart', url: `${origin}/docs/quickstart`, markdownUrl: `${origin}/docs/quickstart.md`, section: 'Work a job' })
+    expect(expected.results[0]).toMatchObject({ slug: 'concepts/hires', uri: 'sidequest://docs/concepts/hires', url: `${origin}/docs/concepts/hires`, markdownUrl: `${origin}/docs/concepts/hires.md`, section: 'Activate and submit' })
     expect(call).not.toHaveBeenCalled()
+  })
+
+  it('ranks the page a reader means first', () => {
+    for (const [query, slug] of [['connect', 'quickstart'], ['dispute', 'guides/work'], ['admin powers', 'trust'], ['mining', 'concepts/mining']] as const) {
+      expect(searchDocs({ query, limit: 1 }, origin).results[0]?.slug).toBe(slug)
+    }
   })
 
   it.each([undefined, '', ' \t\n ', 42])('returns a tool error for an empty or invalid query %s', async query => {
