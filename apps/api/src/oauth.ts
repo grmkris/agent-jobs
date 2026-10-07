@@ -2,17 +2,8 @@ import { AgentStore, migrateAgentSchema, type Sql } from '@sidequest/board'
 import type { Statement } from '@sidequest/indexer'
 import { parseScopes, pkceChallenge, randomToken, resourceBoard, tokenHash, validRedirect, OAUTH_SCOPES } from './oauth-validation.ts'
 
-export interface OAuthGrant {
-  readonly owner: string
-  readonly scopes: readonly string[]
-  readonly agentIds: readonly string[]
-  readonly resource: string
-  readonly clientId: string
-  readonly address: string
-  readonly registryAgentId: string | null
-  readonly chainId: number
-  readonly grantId?: string
-}
+import type { OAuthGrant } from '@sidequest/indexer/oauth-types'
+export type { OAuthGrant } from '@sidequest/indexer/oauth-types'
 
 export interface OAuthReply {
   readonly status: number

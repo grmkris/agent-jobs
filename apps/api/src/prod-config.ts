@@ -1,17 +1,7 @@
 import { decodeFunctionResult, encodeFunctionData, parseAbi, parseEther } from 'viem'
 
-export const prodSecretSources = {
-  MONAD_RPC_URL: 'SIDEQUEST_PROD_MONAD_RPC_URL',
-  RELAY_PRIVATE_KEY: 'SIDEQUEST_PROD_RELAY_PRIVATE_KEY',
-  ATTESTER_PRIVATE_KEY: 'SIDEQUEST_PROD_ATTESTER_PRIVATE_KEY',
-  AI_GATEWAY_API_KEY: 'SIDEQUEST_PROD_AI_GATEWAY_API_KEY',
-  GITHUB_APP_PRIVATE_KEY: 'SIDEQUEST_PROD_GITHUB_APP_PRIVATE_KEY',
-  HYPERSYNC_API_TOKEN: 'SIDEQUEST_PROD_HYPERSYNC_API_TOKEN',
-  TELEGRAM_BOT_TOKEN: 'SIDEQUEST_PROD_TELEGRAM_BOT_TOKEN',
-  TELEGRAM_WEBHOOK_SECRET: 'SIDEQUEST_PROD_TELEGRAM_WEBHOOK_SECRET',
-  PRIVY_APP_SECRET: 'SIDEQUEST_PROD_PRIVY_APP_SECRET',
-  PRIVY_SIGNER_KEY: 'SIDEQUEST_PROD_PRIVY_SIGNER_KEY',
-} as const
+import { prodSecretSources } from '@sidequest/board/runtime'
+export { prodSecretSources, runtimeSecret } from '@sidequest/board/runtime'
 
 export interface ProdStack {
   // JSON artifacts are validated at runtime below; keep this broad enough for
@@ -218,11 +208,6 @@ export function validateProdConfig(config: ChainConfig, artifact: ProdArtifact):
   }
 }
 
-export function runtimeSecret(name: keyof typeof prodSecretSources): string | undefined {
-  if (process.env.SIDEQUEST_STAGE === 'dev' && (name === 'RELAY_PRIVATE_KEY' || name === 'ATTESTER_PRIVATE_KEY')) return process.env[`SIDEQUEST_DEV_${name}`]
-  if (process.env.SIDEQUEST_STAGE === 'dev' && (name === 'TELEGRAM_BOT_TOKEN' || name === 'TELEGRAM_WEBHOOK_SECRET')) return undefined
-  return process.env[process.env.SIDEQUEST_NETWORK === 'monad-mainnet' ? prodSecretSources[name] : name]
-}
 
 // ---- D16: the live launch gate (PROD-GATE-001/002/003/004) ----
 

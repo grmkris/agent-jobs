@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { RELAY_FLOOR_MAINNET } from '@sidequest/sdk'
 import { privateKeyToAccount } from 'viem/accounts'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
-import { MAINNET_LIVE } from '../../explore/src/release.ts'
+import { MAINNET_LIVE } from '@sidequest/sdk'
 import { liveLaunchGate, opensAdmission, prodSecretSources, relayFloorWei, safePolicy, validateAdmissionMode, validateExploreRelease, validateProdConfig, validateReleaseProbe, type ChainConfig, type LaunchReader, type ProdArtifact, type SafePolicy } from './prod-config.ts'
 
 /** JSON-RPC reads only (eth_getCode, eth_call, eth_getBalance, eth_getStorageAt at latest). Any transport, HTTP or RPC
@@ -90,7 +90,8 @@ export async function probeRelease(artifact: Pick<ProdArtifact, 'network' | 'exp
   }
   let served: unknown
   try {
-    const response = await fetcher(url, { headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) })
+    const request = { headers: { accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) } as const
+    const response = await fetcher(url, request)
     if (!response.ok) return ['release.json unreachable']
     served = await response.json()
   } catch {

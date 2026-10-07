@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 import proposed from '../../../docs/p0-prod-artifact.json' with { type: 'json' }
-import { MAINNET_LIVE } from '../../explore/src/release.ts'
+import { MAINNET_LIVE } from '@sidequest/sdk'
 import { probeRelease } from '../src/deploy-preflight.ts'
 import { validateExploreRelease, validateReleaseProbe, type ProdArtifact } from '../src/prod-config.ts'
 import { preLaunch } from './pre-launch.ts'
