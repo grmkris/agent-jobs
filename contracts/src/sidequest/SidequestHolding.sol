@@ -413,14 +413,13 @@ contract SidequestHolding is ISidequestHolding, EIP712, Ownable2Step, Reentrancy
     }
 
     function _settleBond(uint256 jobId, Listing storage l, Side side, bool slash) private {
-        address account;
-        uint256 amount;
+        (address account, uint256 amount) = side == Side.Creator ? (l.creator, l.creatorBond) : (l.worker, l.workerBond);
+        // Equality closes penalties before any same-timestamp exit; zero-amount bookkeeping stays unchanged.
+        if (amount != 0 && block.timestamp >= l.expiredAt) slash = false;
         if (side == Side.Creator) {
-            (account, amount) = (l.creator, l.creatorBond);
             l.creatorBondSettled = true;
             if (slash) l.creatorBondBurned = true;
         } else {
-            (account, amount) = (l.worker, l.workerBond);
             l.workerBondSettled = true;
             if (slash) l.workerBondBurned = true;
         }

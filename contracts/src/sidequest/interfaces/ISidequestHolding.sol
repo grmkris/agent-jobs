@@ -26,7 +26,8 @@ import {IFeeSchedule} from "./IFeeSchedule.sol";
 ///
 ///         Bonds are reservations in the `IStakeVault`: a bond is slashed (burned) when the evaluator says its penalty
 ///         is due, and released otherwise. `burnBond` and `returnBonds` are the evaluator's; `settle` handles whatever
-///         the evaluator did not.
+///         the evaluator did not. A nonzero bond's slash requested at or after the listing's `expiredAt` instead
+///         releases it, leaves its `*BondBurned` flag false, and emits `BondReleased`.
 ///
 ///         Fixes against the 2 Oct review: M3 (a `policyHash` is unique per creator, so copying someone's offer hash
 ///         cannot block their publish); M1 and M2 live in the evaluator. Hostile tokens (ADR-0010): the reward and every
@@ -39,6 +40,7 @@ import {IFeeSchedule} from "./IFeeSchedule.sol";
 interface ISidequestHolding {
     /// @dev A bonded listing cannot outlive the unstaking cooldown that protects its backers.
     error BondOutlastsUnbonding(uint256 expiredAt, uint256 latest);
+
     // ---------------------------------------------------------------------------------------------
     // Types
     // ---------------------------------------------------------------------------------------------
@@ -295,8 +297,8 @@ interface ISidequestHolding {
     function claimTopUpRefund(uint256 jobId, address contributor) external;
 
     /// @notice Settles whatever of a terminal job is still here, each amount once, per the money table. Bonds the
-    ///         evaluator did not settle are slashed if their penalty is due and released otherwise. Anyone may call;
-    ///         the effect is fixed.
+    ///         evaluator did not settle are slashed if their penalty is due before expiry and released otherwise.
+    ///         Anyone may call; the effect is fixed.
     function settle(uint256 jobId) external;
 
     /// @notice Sends the caller everything in `token` that an earlier transfer could not.
@@ -307,7 +309,8 @@ interface ISidequestHolding {
     // ---------------------------------------------------------------------------------------------
 
     /// @notice Slashes one side's bond on a finding the evaluator made final: a ruling, an undisputed violation, a
-    ///         missed delivery. A side already settled is left alone.
+    ///         missed delivery. At or after `expiredAt`, a nonzero bond is released instead. A side already settled
+    ///         is left alone.
     function burnBond(uint256 jobId, Side side) external;
 
     /// @notice Releases every bond not yet settled. Idempotent.

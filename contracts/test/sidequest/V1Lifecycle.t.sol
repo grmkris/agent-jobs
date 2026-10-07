@@ -85,14 +85,15 @@ contract V1LifecycleTest is BaseV1 {
         assertEq(vault.totalReserved(), 0);
     }
 
-    function test_moneyPath_thirdPartyClaimRefund_noShowStillBurns() public {
+    function test_moneyPath_thirdPartyClaimRefund_noShowBondExpires() public {
         uint256 jobId = fundedJob();
         vm.warp(core.getJob(jobId).expiredAt);
         vm.prank(stranger);
         core.claimRefund(jobId);
         assertTrue(evaluator.workerPenaltyDue(jobId));
         holding.settle(jobId);
-        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND, "a terminal status never frees a due penalty");
+        assertEq(vault.stakeOf(worker), WORKER_STAKE, "expiry ends the due penalty's burn window");
+        assertFalse(listing(jobId).workerBondBurned);
         assertEq(pay.balanceOf(creator), 10 * REWARD);
     }
 
@@ -145,7 +146,8 @@ contract V1LifecycleTest is BaseV1 {
         core.claimRefund(jobId);
         evaluator.rejectAfterDeliveryDeadline(jobId);
         assertEq(core.pendingClaimHash(jobId), bytes32(0));
-        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        assertFalse(listing(jobId).workerBondBurned);
     }
 
     /// @dev The listing's expiry covers its own windows: the slowest legal path still ends before `claimRefund`.
@@ -273,7 +275,8 @@ contract V1LifecycleTest is BaseV1 {
         core.claimRefund(jobId);
         holding.settle(jobId);
         assertEq(pay.balanceOf(creator), 10 * REWARD);
-        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND, "the named violation still burns");
+        assertEq(vault.stakeOf(worker), WORKER_STAKE, "the named violation cannot burn after expiry");
+        assertFalse(listing(jobId).workerBondBurned);
     }
 
     function test_R114_03_arbitrationTimeoutAfterExpiryRefundsCreatorBurnsNothing() public {

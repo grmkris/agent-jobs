@@ -122,12 +122,13 @@ contract V1SlashingTest is BaseV1 {
         evaluator.rejectAfterDeliveryDeadline(jobId);
     }
 
-    function test_guard_claimRefundThenSettleBurnsNoShow() public {
+    function test_guard_claimRefundThenSettleReleasesExpiredNoShow() public {
         uint256 jobId = fundedJob();
         vm.warp(core.getJob(jobId).expiredAt);
         core.claimRefund(jobId);
         holding.settle(jobId);
-        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        assertFalse(listing(jobId).workerBondBurned);
     }
 
     function test_guard_burnThenClaimRefundRefused() public {
@@ -139,14 +140,15 @@ contract V1SlashingTest is BaseV1 {
         core.claimRefund(jobId);
     }
 
-    function test_guard_lateSubmissionThenClaimRefundStillBurns() public {
+    function test_guard_lateSubmissionThenClaimRefundReleasesExpiredBond() public {
         uint256 jobId = fundedJob();
         vm.warp(listing(jobId).deliveryDeadline + 1);
         submit(jobId);
         vm.warp(core.getJob(jobId).expiredAt + 1 hours);
         core.claimRefund(jobId);
         holding.settle(jobId);
-        assertEq(vault.stakeOf(worker), WORKER_STAKE - WORKER_BOND);
+        assertEq(vault.stakeOf(worker), WORKER_STAKE);
+        assertFalse(listing(jobId).workerBondBurned);
         assertEq(pay.balanceOf(creator), 10 * REWARD);
     }
 

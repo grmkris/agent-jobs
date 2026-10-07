@@ -32,13 +32,15 @@ Source, unit tests and local Monad fork rehearsals establish implemented behavio
   unlocks stake; slash burns the reservation with `Factory.burn`. Unstaking starts a fourteen-day production cooldown.
   A nonzero creator bond at publish or worker bond at activation requires expiry within that cooldown from reservation,
   including delivery, all windows and the core margin; longer jobs run unbonded.
+  A slash requested at or after the listing's `expiredAt` releases its nonzero bond instead, leaves the burn flag false,
+  and emits `BondReleased`; penalties must execute strictly before expiry.
 - Slashable: funded no-show, poor work against published criteria, falsified evidence. A rejection penalty
   needs an undisputed window or a ruling; missing delivery can settle permissionlessly after its deadline.
   Silence and arbitrator inactivity never burn. A v1 deadline inside a recorded core pause excuses the no-show burn;
   the Safe must pair `pause` with evaluator `notePause` atomically.
 - The per-offer approver judges work; the creator pays and selects. The approver gains no spending authority.
   Creator, approver, worker and arbitrator must satisfy the contract's conflict checks.
-- A terminal core status alone never releases a bond whose penalty is due. Deferred decisions retain the
+- Before expiry, a terminal core status alone never releases a bond whose penalty is due. Deferred decisions retain the
   outcome; Collect offers `retryDeferred` followed by `settle` as one ordered step. `owed` is withdrawn separately.
 - Activation quotes `feeBps`, rounded-up `fee`, and `net`; the worker signs the core budget authorization for
   freshly quoted `net`, never gross reward. The activation rate also applies to top-ups. Fees belong to the treasury
