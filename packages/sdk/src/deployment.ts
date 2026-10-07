@@ -2,7 +2,15 @@
  * Addresses come from `contracts/config/<network>.json`, the file the deployment recipe writes; never from code
  * (AGENTS.md). One network, one core and the current Sidequest v1 pair.
  */
-import { type Address, type Hex, encodeAbiParameters, isAddress, keccak256, parseAbiParameters, zeroAddress } from 'viem'
+import {
+  type Address,
+  type Hex,
+  encodeAbiParameters,
+  isAddress,
+  keccak256,
+  parseAbiParameters,
+  zeroAddress,
+} from 'viem'
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 
@@ -25,23 +33,32 @@ export interface SidequestClocks {
 
 /** Production values used when an older deployment record has no clocks block. */
 export const PRODUCTION_CLOCKS: SidequestClocks = Object.freeze({
-  minReviewWindow: 3600, minDisputeWindow: 3600, minArbitrationWindow: 43200,
-  unstakeDelay: 604800, holdingDelay: 691200, feeDelay: 259200, proposalGrace: 604800,
-  epochZeroDuration: 259200, epochDuration: 604800,
+  minReviewWindow: 3600,
+  minDisputeWindow: 3600,
+  minArbitrationWindow: 43200,
+  unstakeDelay: 604800,
+  holdingDelay: 691200,
+  feeDelay: 259200,
+  proposalGrace: 604800,
+  epochZeroDuration: 259200,
+  epochDuration: 604800,
 })
 
 /** The 14-day window ceilings stay compiled constants (D24). */
 export const MAX_SIDEQUEST_WINDOW = 14 * 86400
 
 export function clocksFromConfig(value: SidequestClocks | undefined, chainId: number): SidequestClocks {
-  if (value !== undefined && (value === null || typeof value !== 'object' || Array.isArray(value))) throw new Error('Invalid Sidequest clocks block')
+  if (value !== undefined && (value === null || typeof value !== 'object' || Array.isArray(value)))
+    throw new Error('Invalid Sidequest clocks block')
   const clocks = { ...(value ?? PRODUCTION_CLOCKS) }
   for (const key of Object.keys(PRODUCTION_CLOCKS) as Array<keyof SidequestClocks>) {
     const seconds = clocks[key]
     const minimum = key.startsWith('epoch') ? 600 : key.startsWith('min') ? 1 : 60
     const maximum = key.startsWith('min') ? MAX_SIDEQUEST_WINDOW : 2 ** 48 - 1
-    if (!Number.isSafeInteger(seconds) || seconds < minimum || seconds > maximum) throw new Error(`Invalid Sidequest clock ${key}`)
-    if (chainId === 143 && seconds !== PRODUCTION_CLOCKS[key]) throw new Error(`Mainnet requires production clock ${key}`)
+    if (!Number.isSafeInteger(seconds) || seconds < minimum || seconds > maximum)
+      throw new Error(`Invalid Sidequest clock ${key}`)
+    if (chainId === 143 && seconds !== PRODUCTION_CLOCKS[key])
+      throw new Error(`Mainnet requires production clock ${key}`)
   }
   if (clocks.holdingDelay <= clocks.unstakeDelay) throw new Error('Sidequest holdingDelay must exceed unstakeDelay')
   return clocks
@@ -95,6 +112,8 @@ export interface DelegationDeployment {
 export interface Deployment {
   readonly network: Network
   readonly chainId: number
+  /** Origins serving content-addressed frozen offers, in discovery order. */
+  readonly boards: readonly string[]
   readonly core: Address
   readonly factory: Address
   /** The v1 protocol contracts, or null before the v1 recipe has deployed. */
@@ -165,7 +184,15 @@ export interface Market {
 }
 
 interface LiquidityConfig {
-  uniswapV4: { poolManager: string; positionManager: string; permit2: string; stateView: string; universalRouter?: string; quoter?: string; minHopPrice?: boolean }
+  uniswapV4: {
+    poolManager: string
+    positionManager: string
+    permit2: string
+    stateView: string
+    universalRouter?: string
+    quoter?: string
+    minHopPrice?: boolean
+  }
   quote: string
   fee: number
   tickSpacing: number
@@ -175,6 +202,7 @@ export interface DeploymentConfig {
   network: string
   liquidity?: LiquidityConfig
   chainId: number
+  boards?: string[]
   roles: { admin: string; relay: string; attester: string; arbitrator: string }
   erc8004: { identity: string; reputation: string }
   delegation: { manager: string; delegator: string; enforcers: Record<keyof DelegationEnforcers, string> }
@@ -212,14 +240,21 @@ interface StackEntry {
   openTokens?: boolean
 }
 
-const validAddress = (value: unknown): value is Address => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
+const validAddress = (value: unknown): value is Address =>
+  typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/.test(value)
 
 const stackOf = (s: StackEntry): Stack => {
   const kind = s.kind
   if (kind !== 'sidequest-v1') throw new Error('Unknown deployment stack kind')
   const factory = s.factory
   if (!validAddress(factory)) throw new Error('Deployment stack requires a SIDE address')
-  return { kind, factory, holding: s.holding as Address, evaluator: s.evaluator as Address, openTokens: s.openTokens === true }
+  return {
+    kind,
+    factory,
+    holding: s.holding as Address,
+    evaluator: s.evaluator as Address,
+    openTokens: s.openTokens === true,
+  }
 }
 
 const files: Record<Network, DeploymentConfig> = {
@@ -267,10 +302,23 @@ export function networkMeta(network: Network): NetworkMeta {
 
 export function networkMetaFromConfig(c: DeploymentConfig): NetworkMeta {
   const testnetOrigin = c.links?.testnet
-  if (testnetOrigin !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(testnetOrigin)) throw new Error('Network config links.testnet must be an https origin')
+  if (testnetOrigin !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(testnetOrigin))
+    throw new Error('Network config links.testnet must be an https origin')
   const usdPegged = c.usdPegged ?? []
   if (!usdPegged.every(validAddress)) throw new Error('Network config usdPegged must list token addresses')
   return { links: testnetOrigin === undefined ? {} : { testnet: testnetOrigin }, usdPegged }
+}
+
+/** Only explicit HTTPS origins may supply offers; paths and credentials are never discovery targets. */
+function boardsFromConfig(c: DeploymentConfig): readonly string[] {
+  const boards = c.boards ?? []
+  for (const origin of boards) {
+    const url = new URL(origin)
+    if (url.protocol !== 'https:' || url.origin !== origin || url.username !== '' || url.password !== '') {
+      throw new Error('Network config boards must list https origins')
+    }
+  }
+  return [...new Set(boards)]
 }
 
 /** Parse a recorded network config. This also lets offline readers use an archived config without changing it. */
@@ -283,19 +331,39 @@ export function deploymentFromConfig(network: Network, c: DeploymentConfig): Dep
   let sidequest: SidequestDeployment | null = null
   if (d.sidequest !== undefined) {
     const h = d.sidequest
-    for (const name of ['safe', 'factory', 'vault', 'feeSchedule', 'distributor', 'miningReserve', 'teamVesting'] as const) {
+    for (const name of [
+      'safe',
+      'factory',
+      'vault',
+      'feeSchedule',
+      'distributor',
+      'miningReserve',
+      'teamVesting',
+    ] as const) {
       if (!validAddress(h[name])) throw new Error(`Sidequest deployment requires ${name}`)
     }
-    if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0) throw new Error('Sidequest deployment requires block and launch time')
+    if (!Number.isSafeInteger(h.block) || h.block < 0 || !Number.isSafeInteger(h.t0) || h.t0 <= 0)
+      throw new Error('Sidequest deployment requires block and launch time')
     const clocks = h.clocks === undefined ? undefined : clocksFromConfig(h.clocks, c.chainId)
-    sidequest = { block: BigInt(h.block), safe: h.safe as Address, factory: h.factory as Address, vault: h.vault as Address, feeSchedule: h.feeSchedule as Address,
-      distributor: h.distributor as Address, miningReserve: h.miningReserve as Address, teamVesting: h.teamVesting as Address, t0: h.t0,
-      ...(clocks === undefined ? {} : { clocks }) }
+    sidequest = {
+      block: BigInt(h.block),
+      safe: h.safe as Address,
+      factory: h.factory as Address,
+      vault: h.vault as Address,
+      feeSchedule: h.feeSchedule as Address,
+      distributor: h.distributor as Address,
+      miningReserve: h.miningReserve as Address,
+      teamVesting: h.teamVesting as Address,
+      t0: h.t0,
+      ...(clocks === undefined ? {} : { clocks }),
+    }
   }
-  if (sidequest !== null && stacks.main?.factory.toLowerCase() !== sidequest.factory.toLowerCase()) throw new Error('Current Sidequest SIDE does not match deployment SIDE')
+  if (sidequest !== null && stacks.main?.factory.toLowerCase() !== sidequest.factory.toLowerCase())
+    throw new Error('Current Sidequest SIDE does not match deployment SIDE')
   return {
     network,
     chainId: c.chainId,
+    boards: boardsFromConfig(c),
     core: d.core as Address,
     factory: d.factory as Address,
     sidequest,
@@ -326,9 +394,27 @@ function marketFromConfig(side: Address, l: LiquidityConfig | undefined): Market
   const quote = l.quote as Address
   const [currency0, currency1] = side.toLowerCase() < quote.toLowerCase() ? [side, quote] : [quote, side]
   const key: PoolKey = { currency0, currency1, fee: l.fee, tickSpacing: l.tickSpacing, hooks: zeroAddress }
-  const poolId = keccak256(encodeAbiParameters(parseAbiParameters('address, address, uint24, int24, address'), [currency0, currency1, l.fee, l.tickSpacing, zeroAddress]))
-  return { key, poolId, side, quote, poolManager: v4.poolManager as Address, stateView: v4.stateView as Address, permit2: v4.permit2 as Address,
-    universalRouter: v4.universalRouter, quoter: v4.quoter, minHopPrice: v4.minHopPrice === true }
+  const poolId = keccak256(
+    encodeAbiParameters(parseAbiParameters('address, address, uint24, int24, address'), [
+      currency0,
+      currency1,
+      l.fee,
+      l.tickSpacing,
+      zeroAddress,
+    ]),
+  )
+  return {
+    key,
+    poolId,
+    side,
+    quote,
+    poolManager: v4.poolManager as Address,
+    stateView: v4.stateView as Address,
+    permit2: v4.permit2 as Address,
+    universalRouter: v4.universalRouter,
+    quoter: v4.quoter,
+    minHopPrice: v4.minHopPrice === true,
+  }
 }
 
 export function stack(d: Deployment, name: StackName): Stack {

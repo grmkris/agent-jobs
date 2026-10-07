@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import mainnet from '../../../contracts/config/monad-mainnet.json' with { type: 'json' }
 import testnet from '../../../contracts/config/monad-testnet.json' with { type: 'json' }
-import { type DeploymentConfig, NotDeployedError, PRODUCTION_CLOCKS, allStacks, deployment, deploymentFromConfig, networkMeta, networkMetaFromConfig, stackByHolding } from './deployment.ts'
+import {
+  type DeploymentConfig,
+  NotDeployedError,
+  PRODUCTION_CLOCKS,
+  allStacks,
+  deployment,
+  deploymentFromConfig,
+  networkMeta,
+  networkMetaFromConfig,
+  stackByHolding,
+} from './deployment.ts'
 
 const address = (n: number) => `0x${n.toString(16).padStart(40, '0')}`
 const currentConfig = () => structuredClone(testnet) as DeploymentConfig
@@ -14,6 +24,21 @@ describe('v1 deployment config', () => {
     expect(stackByHolding(d, d.stacks.main!.holding.toUpperCase())?.[0]).toBe('main')
     expect(stackByHolding(d, address(99))).toBeUndefined()
   })
+  it('exposes configured offer hosts and refuses paths, credentials and insecure targets', () => {
+    const c = currentConfig()
+    expect(deploymentFromConfig('monad-testnet', c).boards).toEqual(testnet.boards)
+    expect(mainnet.boards).toEqual([])
+    delete c.boards
+    expect(deploymentFromConfig('monad-testnet', c).boards).toEqual([])
+    for (const origin of [
+      'http://board.example',
+      'https://board.example/',
+      'https://board.example/offers',
+      'https://user@board.example',
+    ]) {
+      expect(() => deploymentFromConfig('monad-testnet', { ...c, boards: [origin] })).toThrow('https origins')
+    }
+  })
   it('loads optional deploy-time clocks and enforces production values on mainnet', () => {
     const c = currentConfig()
     delete c.deployment.sidequest!.clocks
@@ -23,25 +48,47 @@ describe('v1 deployment config', () => {
     c.deployment.sidequest!.clocks = { ...c.deployment.sidequest!.clocks, epochDuration: 599 }
     expect(() => deploymentFromConfig('monad-testnet', c)).toThrow('epochDuration')
     c.deployment.sidequest!.clocks = { ...PRODUCTION_CLOCKS, minReviewWindow: 120 }
-    c.network = 'monad-mainnet'; c.chainId = 143
+    c.network = 'monad-mainnet'
+    c.chainId = 143
     expect(() => deploymentFromConfig('monad-mainnet', c)).toThrow('Mainnet requires production clock')
   })
   it('reports an unpromoted record unavailable independently of the shipped config', () => {
     expect(() => deploymentFromConfig('monad-mainnet', { ...mainnet, deployment: {} })).toThrow(NotDeployedError)
   })
   it.each([
-    (c: DeploymentConfig) => { delete c.deployment.main!.kind },
-    (c: DeploymentConfig) => { delete c.deployment.main!.factory },
-    (c: DeploymentConfig) => { delete c.deployment.sidequest },
-    (c: DeploymentConfig) => { c.deployment.main!.factory = address(99) },
-    (c: DeploymentConfig) => { c.deployment.sidequest!.vault = address(0) },
-    (c: DeploymentConfig) => { c.deployment.sidequest!.safe = address(0) },
-    (c: DeploymentConfig) => { c.deployment.sidequest!.t0 = 0 },
-    (c: DeploymentConfig) => { c.deployment.sidequest!.block = 0.5 },
-    (c: DeploymentConfig) => { c.deployment.main!.kind = 'unknown' as never },
-    (c: DeploymentConfig) => { c.network = 'monad-mainnet' },
-  ])('refuses incomplete or inconsistent v1 metadata', mutate => {
-    const c = currentConfig(); mutate(c)
+    (c: DeploymentConfig) => {
+      delete c.deployment.main!.kind
+    },
+    (c: DeploymentConfig) => {
+      delete c.deployment.main!.factory
+    },
+    (c: DeploymentConfig) => {
+      delete c.deployment.sidequest
+    },
+    (c: DeploymentConfig) => {
+      c.deployment.main!.factory = address(99)
+    },
+    (c: DeploymentConfig) => {
+      c.deployment.sidequest!.vault = address(0)
+    },
+    (c: DeploymentConfig) => {
+      c.deployment.sidequest!.safe = address(0)
+    },
+    (c: DeploymentConfig) => {
+      c.deployment.sidequest!.t0 = 0
+    },
+    (c: DeploymentConfig) => {
+      c.deployment.sidequest!.block = 0.5
+    },
+    (c: DeploymentConfig) => {
+      c.deployment.main!.kind = 'unknown' as never
+    },
+    (c: DeploymentConfig) => {
+      c.network = 'monad-mainnet'
+    },
+  ])('refuses incomplete or inconsistent v1 metadata', (mutate) => {
+    const c = currentConfig()
+    mutate(c)
     expect(() => deploymentFromConfig('monad-testnet', c)).toThrow()
   })
 })
@@ -55,11 +102,18 @@ describe('network meta', () => {
   it('pegs the configured test dollar and links testnet nowhere', () => {
     const meta = networkMeta('monad-testnet')
     expect(meta.links).toEqual({})
-    expect(meta.usdPegged.map(a => a.toLowerCase())).toContain(deployment('monad-testnet').rewardTokens[0]!.toLowerCase())
+    expect(meta.usdPegged.map((a) => a.toLowerCase())).toContain(
+      deployment('monad-testnet').rewardTokens[0]!.toLowerCase(),
+    )
   })
   it('refuses links with paths or insecure origins and invalid pegged addresses', () => {
     const c = currentConfig()
-    for (const origin of ['http://dev.sidequest.exchange', 'https://dev.sidequest.exchange/', 'https://dev.sidequest.exchange/start', 'javascript:alert(1)'])
+    for (const origin of [
+      'http://dev.sidequest.exchange',
+      'https://dev.sidequest.exchange/',
+      'https://dev.sidequest.exchange/start',
+      'javascript:alert(1)',
+    ])
       expect(() => networkMetaFromConfig({ ...c, links: { testnet: origin } })).toThrow('https origin')
     expect(() => networkMetaFromConfig({ ...c, usdPegged: ['USDC'] })).toThrow('token addresses')
   })

@@ -53,5 +53,6 @@
     "maxRepairCost": 5,
     "positionOwner": "0x0000000000000000000000000000000000000000"
   },
-  "deployment": {}
+  "deployment": {},
+  "boards": []
 }

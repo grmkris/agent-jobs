@@ -139,5 +139,9 @@
     "quoteAmount": 1000,
     "maxRepairCost": 5,
     "positionOwner": "0x77923113FD1a71Ad91F81064C3c05cA1EfB44CD8"
-  }
+  },
+  "boards": [
+    "https://dev.sidequest.exchange",
+    "https://sidequest.exchange"
+  ]
 }
