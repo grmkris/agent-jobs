@@ -102,13 +102,16 @@ describe('deployment cutover under the indexer lease', () => {
     db.exec(
       "CREATE TRIGGER crash_checkpoint BEFORE INSERT ON checkpoint BEGIN SELECT RAISE(ABORT, 'crash between wipe and checkpoint'); END",
     )
-    const cfg = { ...config(fresh), maxPages: 0 }
+    const cfg = { ...config(fresh, deployBlock + 1), maxPages: 0 }
     await expect(runOnce(sql, cfg)).rejects.toThrow('crash between wipe and checkpoint')
     expect(await sql.all('SELECT * FROM jobs')).toEqual(jobs)
     expect(await sql.all('SELECT * FROM checkpoint')).toEqual(checkpoint)
     db.exec('DROP TRIGGER crash_checkpoint')
-    expect(await runOnce(sql, cfg)).toMatchObject({ cutover: true, nextBlock: deployBlock })
-    expect(await runOnce(sql, config(fresh))).toMatchObject({ cutover: false, nextBlock: fixture.toBlock + 1 })
+    expect(await runOnce(sql, cfg)).toMatchObject({ cutover: true, nextBlock: deployBlock + 1 })
+    expect(await runOnce(sql, config(fresh, deployBlock + 1))).toMatchObject({
+      cutover: false,
+      nextBlock: fixture.toBlock + 1,
+    })
     expect(await sql.all('SELECT * FROM jobs')).toEqual(jobs)
   })
 
@@ -119,7 +122,7 @@ describe('deployment cutover under the indexer lease', () => {
     expect(await runOnce(sql, { ...config(fresh), runner: 'new' })).toMatchObject({ lease: false, cutover: false })
     expect(await sql.all('SELECT * FROM checkpoint')).toEqual(checkpoint)
     await releaseLease(sql, config())
-    expect(await runOnce(sql, { ...config(fresh), runner: 'new', maxPages: 0 })).toMatchObject({
+    expect(await runOnce(sql, { ...config(fresh, deployBlock + 1), runner: 'new', maxPages: 0 })).toMatchObject({
       lease: true,
       cutover: true,
     })
@@ -159,5 +162,60 @@ describe('deployment cutover under the indexer lease', () => {
       }),
     ).toMatchObject({ cutover: false })
     expect(starts).toEqual([deployBlock])
+  })
+
+  it('a delayed older runner cannot wipe a new generation after its lease is released', async () => {
+    const { sql } = await seeded()
+    const current = { ...config(fresh, 200), runner: 'new', maxPages: 0 }
+    await runOnce(sql, current)
+    await releaseLease(sql, current)
+    await sql.batch([
+      stmt("INSERT INTO jobs (chain_id, job_id, status, updated_block) VALUES (?, '1', 'open', 200)", chainId),
+    ])
+    const checkpoint = await sql.all('SELECT * FROM checkpoint')
+    const jobs = await sql.all('SELECT * FROM jobs')
+    const result = await runOnce(sql, { ...config(old, 100), runner: 'delayed-old' })
+    expect(result).toMatchObject({ reason: 'stale-generation', pages: 0, cutover: false, caughtUp: false })
+    expect(await sql.all('SELECT * FROM checkpoint')).toEqual(checkpoint)
+    expect(await sql.all('SELECT * FROM jobs')).toEqual(jobs)
+  })
+
+  it('an equal deployment block with a different core refuses before any chain read or derived write', async () => {
+    const { sql } = await seeded()
+    const checkpoint = await sql.all('SELECT * FROM checkpoint')
+    const jobs = await sql.all('SELECT * FROM jobs')
+    const configWithNoReads = {
+      ...config(fresh),
+      head: {
+        finalizedBlock: async () => {
+          throw new Error('stale runner read the chain')
+        },
+        blockHash: async () => {
+          throw new Error('stale runner read the chain')
+        },
+      },
+    }
+    expect(await runOnce(sql, configWithNoReads)).toMatchObject({ reason: 'stale-generation', cutover: false })
+    expect(await sql.all('SELECT * FROM checkpoint')).toEqual(checkpoint)
+    expect(await sql.all('SELECT * FROM jobs')).toEqual(jobs)
+  })
+
+  it('an operator can explicitly restart the bundled generation by deleting the chain checkpoint', async () => {
+    const { sql } = await seeded()
+    await sql.batch([stmt('DELETE FROM checkpoint WHERE chain_id = ?', chainId)])
+    const starts: number[] = []
+    await runOnce(sql, {
+      ...config(fresh),
+      source: {
+        logs: async ({ fromBlock }) => {
+          starts.push(fromBlock)
+          return { logs: [], nextBlock: fixture.toBlock + 1 }
+        },
+      },
+    })
+    expect(starts).toEqual([deployBlock])
+    expect(await sql.all('SELECT core_address, deployment_block FROM checkpoint')).toEqual([
+      { core_address: freshCore, deployment_block: deployBlock },
+    ])
   })
 })

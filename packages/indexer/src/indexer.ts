@@ -44,6 +44,8 @@ export interface RunResult {
   /** Block times looked up for events indexed before block times were stored. */
   readonly backfilled: number
   readonly cutover: boolean
+  /** A stale config acquired the lease but made no indexed-state writes. */
+  readonly reason?: 'stale-generation'
 }
 
 interface EventRow {
@@ -169,24 +171,28 @@ async function cutover(sql: AsyncSql, cfg: IndexerConfig, now: number): Promise<
   await resetIndex(sql, cfg, { coreAddress: cfg.contracts.core, deploymentBlock: cfg.deployBlock, now })
 }
 
+function idleRun(lease: boolean, nextBlock: number | null): RunResult {
+  return {
+    lease,
+    pages: 0,
+    events: 0,
+    protocolEvents: 0,
+    jobs: 0,
+    nextBlock,
+    caughtUp: false,
+    rewound: false,
+    backfilled: 0,
+    cutover: false,
+  }
+}
+
 export async function runOnce(sql: AsyncSql, cfg: IndexerConfig): Promise<RunResult> {
   const now = (cfg.now ?? (() => Math.floor(Date.now() / 1000)))()
   const chainId = cfg.contracts.chainId
-  if (!(await takeLease(sql, cfg, now)))
-    return {
-      lease: false,
-      pages: 0,
-      events: 0,
-      protocolEvents: 0,
-      jobs: 0,
-      nextBlock: null,
-      caughtUp: false,
-      rewound: false,
-      backfilled: 0,
-      cutover: false,
-    }
+  if (!(await takeLease(sql, cfg, now))) return idleRun(false, null)
   const addresses = [...cfg.contracts.roles.keys()]
-  const { cp, didCutover, rewound } = await deploymentCheckpoint(sql, cfg, now)
+  const { cp, didCutover, rewound, stale } = await deploymentCheckpoint(sql, cfg, now)
+  if (stale) return { ...idleRun(true, cp?.next_block ?? null), reason: 'stale-generation' }
   let next = cp?.next_block ?? cfg.deployBlock
   const finalized = await cfg.head.finalizedBlock()
   let pages = 0
@@ -313,6 +319,16 @@ async function deploymentCheckpoint(sql: AsyncSql, cfg: IndexerConfig, now: numb
     core_address: string | null
     deployment_block: number | null
   }>('SELECT next_block, block_hash, core_address, deployment_block FROM checkpoint WHERE chain_id = ?', chainId)
+  // Generations only advance. Operator rollback requires deleting this chain's checkpoint row to start from config.
+  if (
+    cp !== undefined &&
+    cp.deployment_block !== null &&
+    (cfg.deployBlock < cp.deployment_block ||
+      (cfg.deployBlock === cp.deployment_block &&
+        cp.core_address !== null &&
+        cp.core_address.toLowerCase() !== cfg.contracts.core.toLowerCase()))
+  )
+    return { cp, didCutover: false, rewound: false, stale: true }
   let didCutover = false
   if (
     cp !== undefined &&
@@ -344,7 +360,7 @@ async function deploymentCheckpoint(sql: AsyncSql, cfg: IndexerConfig, now: numb
       }>('SELECT next_block, block_hash, core_address, deployment_block FROM checkpoint WHERE chain_id = ?', chainId)
     }
   }
-  return { cp, didCutover, rewound }
+  return { cp, didCutover, rewound, stale: false }
 }
 
 function eventStatement(e: IndexedEvent): Statement {
