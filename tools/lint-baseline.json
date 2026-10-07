@@ -1274,7 +1274,7 @@
   },
   "packages/board/src/receipts.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
-    "anti-slop(require-safety-comment-for-type-assertion)": 10,
+    "anti-slop(require-safety-comment-for-type-assertion)": 8,
     "eslint(max-params)": 1,
     "typescript(no-unnecessary-type-assertion)": 4
   },
@@ -1284,7 +1284,6 @@
     "anti-slop(require-safety-comment-for-type-assertion)": 6,
     "anti-slop-effect(prefer-effect-match)": 1,
     "complexity(complexity)": 1,
-    "eslint(max-lines-per-function)": 1,
     "typescript(no-base-to-string)": 1
   },
   "packages/board/src/relay.ts": {
@@ -1733,9 +1732,6 @@
     "anti-slop(no-chained-type-assertions)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 4
   },
-  "packages/sdk/src/clocks.ts": {
-    "typescript(no-unnecessary-type-conversion)": 6
-  },
   "packages/sdk/src/delegation/delegation.test.ts": {
     "anti-slop(no-chained-type-assertions)": 1,
     "anti-slop(require-safety-comment-for-type-assertion)": 8
@@ -1901,8 +1897,7 @@
     "anti-slop-effect(prefer-effect-match)": 1
   },
   "packages/sdk/src/v1-flows.fork.test.ts": {
-    "anti-slop(require-safety-comment-for-type-assertion)": 6,
-    "typescript(no-unnecessary-type-conversion)": 1
+    "anti-slop(require-safety-comment-for-type-assertion)": 6
   },
   "packages/sdk/src/v1-flows.ts": {
     "anti-slop(require-safety-comment-for-type-assertion)": 2,
